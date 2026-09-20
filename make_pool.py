@@ -267,7 +267,8 @@ if os.path.exists(HIST_FILE):
 for r in rows:
     hist.setdefault(r["code"], {})[LAST] = r["amp"]
 for code in list(hist):
-    ds = sorted(hist[code])[-15:]
+    # 只留 ≤ 資料日期的日子(擋掉 Yahoo 未完成 K 棒之類的未來日期),且最多 15 個交易日
+    ds = sorted(d for d in hist[code] if d <= LAST)[-15:]
     hist[code] = {d: hist[code][d] for d in ds}
 
 
@@ -288,7 +289,10 @@ def yahoo_daily_amp(code, market):
                 if None in (hi[i], lo[i], cl[i - 1]) or not cl[i - 1]:
                     continue
                 d = datetime.fromtimestamp(ts[i], TAIPEI).strftime("%Y-%m-%d")
-                out[d] = round((hi[i] - lo[i]) / cl[i - 1] * 100, 2)
+                a = (hi[i] - lo[i]) / cl[i - 1] * 100
+                if d > LAST or a <= 0 or a > 25:      # 未來日期 / 未完成 K 棒 / 明顯異常值不收
+                    continue
+                out[d] = round(a, 2)
             if out:
                 return out
         except Exception:
