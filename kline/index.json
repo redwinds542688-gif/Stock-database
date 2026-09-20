@@ -1,10 +1,19 @@
 {
  "pool_date": "2026-09-18",
  "interval": "1m",
- "updated": "2026-09-20 12:58",
- "total_mb": 3.5,
- "stock_count": 50,
+ "updated": "2026-09-20 16:15",
+ "total_mb": 4.4,
+ "stock_count": 69,
  "stocks": {
+  "2409": {
+   "name": "友達",
+   "market": "twse",
+   "yahoo": "2409.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 84
+  },
   "2303": {
    "name": "聯電",
    "market": "twse",
@@ -23,114 +32,6 @@
    "weeks": 2,
    "kb": 86
   },
-  "6147": {
-   "name": "頎邦",
-   "market": "tpex",
-   "yahoo": "6147.TWO",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 86
-  },
-  "2409": {
-   "name": "友達",
-   "market": "twse",
-   "yahoo": "2409.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 84
-  },
-  "2887": {
-   "name": "台新新光金",
-   "market": "twse",
-   "yahoo": "2887.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 82
-  },
-  "6173": {
-   "name": "信昌電",
-   "market": "tpex",
-   "yahoo": "6173.TWO",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 85
-  },
-  "5347": {
-   "name": "世界",
-   "market": "tpex",
-   "yahoo": "5347.TWO",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 84
-  },
-  "2891": {
-   "name": "中信金",
-   "market": "twse",
-   "yahoo": "2891.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 78
-  },
-  "8039": {
-   "name": "台虹",
-   "market": "twse",
-   "yahoo": "8039.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 85
-  },
-  "2884": {
-   "name": "玉山金",
-   "market": "twse",
-   "yahoo": "2884.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 82
-  },
-  "3006": {
-   "name": "晶豪科",
-   "market": "twse",
-   "yahoo": "3006.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 84
-  },
-  "8021": {
-   "name": "尖點",
-   "market": "twse",
-   "yahoo": "8021.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 59
-  },
-  "8150": {
-   "name": "南茂",
-   "market": "twse",
-   "yahoo": "8150.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 77
-  },
-  "5483": {
-   "name": "中美晶",
-   "market": "tpex",
-   "yahoo": "5483.TWO",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 82
-  },
   "2489": {
    "name": "瑞軒",
    "market": "twse",
@@ -140,77 +41,14 @@
    "weeks": 2,
    "kb": 81
   },
-  "2883": {
-   "name": "凱基金",
-   "market": "twse",
-   "yahoo": "2883.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 82
-  },
-  "3532": {
-   "name": "台勝科",
-   "market": "twse",
-   "yahoo": "3532.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 81
-  },
-  "2609": {
-   "name": "陽明",
-   "market": "twse",
-   "yahoo": "2609.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 78
-  },
-  "8028": {
-   "name": "昇陽半導體",
-   "market": "twse",
-   "yahoo": "8028.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 77
-  },
-  "6426": {
-   "name": "統新",
-   "market": "twse",
-   "yahoo": "6426.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 66
-  },
-  "6290": {
-   "name": "良維",
+  "6147": {
+   "name": "頎邦",
    "market": "tpex",
-   "yahoo": "6290.TWO",
+   "yahoo": "6147.TWO",
    "first": "2026-09-10",
    "last": "2026-09-18",
    "weeks": 2,
-   "kb": 71
-  },
-  "2892": {
-   "name": "第一金",
-   "market": "twse",
-   "yahoo": "2892.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 81
-  },
-  "1802": {
-   "name": "台玻",
-   "market": "twse",
-   "yahoo": "1802.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 76
+   "kb": 86
   },
   "1709": {
    "name": "和益",
@@ -221,104 +59,41 @@
    "weeks": 2,
    "kb": 78
   },
-  "2493": {
-   "name": "揚博",
+  "2609": {
+   "name": "陽明",
    "market": "twse",
-   "yahoo": "2493.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 52
-  },
-  "6672": {
-   "name": "騰輝電子-KY",
-   "market": "twse",
-   "yahoo": "6672.TW",
+   "yahoo": "2609.TW",
    "first": "2026-09-10",
    "last": "2026-09-18",
    "weeks": 2,
    "kb": 78
   },
-  "8111": {
-   "name": "立碁",
+  "8150": {
+   "name": "南茂",
+   "market": "twse",
+   "yahoo": "8150.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 77
+  },
+  "1802": {
+   "name": "台玻",
+   "market": "twse",
+   "yahoo": "1802.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 76
+  },
+  "5347": {
+   "name": "世界",
    "market": "tpex",
-   "yahoo": "8111.TWO",
+   "yahoo": "5347.TWO",
    "first": "2026-09-10",
    "last": "2026-09-18",
    "weeks": 2,
-   "kb": 75
-  },
-  "6451": {
-   "name": "訊芯-KY",
-   "market": "twse",
-   "yahoo": "6451.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 71
-  },
-  "3035": {
-   "name": "智原",
-   "market": "twse",
-   "yahoo": "3035.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 68
-  },
-  "6415": {
-   "name": "矽力*-KY",
-   "market": "twse",
-   "yahoo": "6415.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 71
-  },
-  "6620": {
-   "name": "漢達",
-   "market": "tpex",
-   "yahoo": "6620.TWO",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 43
-  },
-  "3714": {
-   "name": "富采",
-   "market": "twse",
-   "yahoo": "3714.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 75
-  },
-  "6933": {
-   "name": "AMAX-KY",
-   "market": "twse",
-   "yahoo": "6933.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 53
-  },
-  "6197": {
-   "name": "佳必琪",
-   "market": "twse",
-   "yahoo": "6197.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 56
-  },
-  "6533": {
-   "name": "晶心科",
-   "market": "twse",
-   "yahoo": "6533.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 52
+   "kb": 84
   },
   "6179": {
    "name": "亞通",
@@ -338,32 +113,68 @@
    "weeks": 2,
    "kb": 77
   },
-  "2354": {
-   "name": "鴻準",
-   "market": "twse",
-   "yahoo": "2354.TW",
+  "8111": {
+   "name": "立碁",
+   "market": "tpex",
+   "yahoo": "8111.TWO",
    "first": "2026-09-10",
    "last": "2026-09-18",
    "weeks": 2,
    "kb": 75
   },
-  "6706": {
-   "name": "惠特",
-   "market": "twse",
-   "yahoo": "6706.TW",
+  "5483": {
+   "name": "中美晶",
+   "market": "tpex",
+   "yahoo": "5483.TWO",
    "first": "2026-09-10",
    "last": "2026-09-18",
    "weeks": 2,
-   "kb": 73
+   "kb": 82
   },
-  "8261": {
-   "name": "富鼎",
+  "4960": {
+   "name": "誠美材",
    "market": "twse",
-   "yahoo": "8261.TW",
+   "yahoo": "4960.TW",
    "first": "2026-09-10",
    "last": "2026-09-18",
    "weeks": 2,
-   "kb": 66
+   "kb": 49
+  },
+  "8039": {
+   "name": "台虹",
+   "market": "twse",
+   "yahoo": "8039.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 85
+  },
+  "3714": {
+   "name": "富采",
+   "market": "twse",
+   "yahoo": "3714.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 75
+  },
+  "6173": {
+   "name": "信昌電",
+   "market": "tpex",
+   "yahoo": "6173.TWO",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 85
+  },
+  "3717": {
+   "name": "聯嘉投控",
+   "market": "twse",
+   "yahoo": "3717.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 44
   },
   "4763": {
    "name": "材料*-KY",
@@ -374,23 +185,320 @@
    "weeks": 2,
    "kb": 76
   },
-  "6278": {
-   "name": "台表科",
+  "2354": {
+   "name": "鴻準",
    "market": "twse",
-   "yahoo": "6278.TW",
+   "yahoo": "2354.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 75
+  },
+  "3006": {
+   "name": "晶豪科",
+   "market": "twse",
+   "yahoo": "3006.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 84
+  },
+  "3576": {
+   "name": "聯合再生",
+   "market": "twse",
+   "yahoo": "3576.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 70
+  },
+  "6133": {
+   "name": "金橋",
+   "market": "twse",
+   "yahoo": "6133.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 60
+  },
+  "8028": {
+   "name": "昇陽半導體",
+   "market": "twse",
+   "yahoo": "8028.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 77
+  },
+  "6443": {
+   "name": "元晶",
+   "market": "twse",
+   "yahoo": "6443.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 64
+  },
+  "6620": {
+   "name": "漢達",
+   "market": "tpex",
+   "yahoo": "6620.TWO",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 43
+  },
+  "2493": {
+   "name": "揚博",
+   "market": "twse",
+   "yahoo": "2493.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 52
+  },
+  "3031": {
+   "name": "佰鴻",
+   "market": "twse",
+   "yahoo": "3031.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 41
+  },
+  "2605": {
+   "name": "新興",
+   "market": "twse",
+   "yahoo": "2605.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 77
+  },
+  "2413": {
+   "name": "環科",
+   "market": "twse",
+   "yahoo": "2413.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 73
+  },
+  "6290": {
+   "name": "良維",
+   "market": "tpex",
+   "yahoo": "6290.TWO",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 71
+  },
+  "6603": {
+   "name": "富強鑫",
+   "market": "tpex",
+   "yahoo": "6603.TWO",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 48
+  },
+  "3035": {
+   "name": "智原",
+   "market": "twse",
+   "yahoo": "3035.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 68
+  },
+  "6112": {
+   "name": "邁達特",
+   "market": "twse",
+   "yahoo": "6112.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 65
+  },
+  "6949": {
+   "name": "沛爾生醫*-創",
+   "market": "twse",
+   "yahoo": "6949.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 73
+  },
+  "3066": {
+   "name": "李洲",
+   "market": "tpex",
+   "yahoo": "3066.TWO",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 46
+  },
+  "8021": {
+   "name": "尖點",
+   "market": "twse",
+   "yahoo": "8021.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 59
+  },
+  "1528": {
+   "name": "恩德",
+   "market": "twse",
+   "yahoo": "1528.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 74
+  },
+  "6426": {
+   "name": "統新",
+   "market": "twse",
+   "yahoo": "6426.TW",
    "first": "2026-09-10",
    "last": "2026-09-18",
    "weeks": 2,
    "kb": 66
   },
-  "6472": {
-   "name": "保瑞",
+  "3532": {
+   "name": "台勝科",
    "market": "twse",
-   "yahoo": "6472.TW",
+   "yahoo": "3532.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 81
+  },
+  "2501": {
+   "name": "國建",
+   "market": "twse",
+   "yahoo": "2501.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 51
+  },
+  "2505": {
+   "name": "國揚",
+   "market": "twse",
+   "yahoo": "2505.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 15
+  },
+  "8215": {
+   "name": "明基材",
+   "market": "twse",
+   "yahoo": "8215.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 45
+  },
+  "6706": {
+   "name": "惠特",
+   "market": "twse",
+   "yahoo": "6706.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 73
+  },
+  "2030": {
+   "name": "彰源",
+   "market": "twse",
+   "yahoo": "2030.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 54
+  },
+  "6672": {
+   "name": "騰輝電子-KY",
+   "market": "twse",
+   "yahoo": "6672.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 78
+  },
+  "1569": {
+   "name": "濱川",
+   "market": "tpex",
+   "yahoo": "1569.TWO",
    "first": "2026-09-10",
    "last": "2026-09-18",
    "weeks": 2,
    "kb": 43
+  },
+  "2520": {
+   "name": "冠德",
+   "market": "twse",
+   "yahoo": "2520.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 41
+  },
+  "5457": {
+   "name": "宣德",
+   "market": "tpex",
+   "yahoo": "5457.TWO",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 28
+  },
+  "2883": {
+   "name": "凱基金",
+   "market": "twse",
+   "yahoo": "2883.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 82
+  },
+  "2884": {
+   "name": "玉山金",
+   "market": "twse",
+   "yahoo": "2884.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 82
+  },
+  "2887": {
+   "name": "台新新光金",
+   "market": "twse",
+   "yahoo": "2887.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 82
+  },
+  "2891": {
+   "name": "中信金",
+   "market": "twse",
+   "yahoo": "2891.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 78
+  },
+  "2892": {
+   "name": "第一金",
+   "market": "twse",
+   "yahoo": "2892.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 81
   },
   "3455": {
    "name": "由田",
@@ -401,24 +509,6 @@
    "weeks": 2,
    "kb": 62
   },
-  "7795": {
-   "name": "長廣",
-   "market": "twse",
-   "yahoo": "7795.TW",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 58
-  },
-  "7792": {
-   "name": "安葆",
-   "market": "tpex",
-   "yahoo": "7792.TWO",
-   "first": "2026-09-10",
-   "last": "2026-09-18",
-   "weeks": 2,
-   "kb": 29
-  },
   "4770": {
    "name": "上品",
    "market": "twse",
@@ -428,14 +518,59 @@
    "weeks": 2,
    "kb": 35
   },
-  "7788": {
-   "name": "松川精密",
+  "6197": {
+   "name": "佳必琪",
    "market": "twse",
-   "yahoo": "7788.TW",
+   "yahoo": "6197.TW",
    "first": "2026-09-10",
    "last": "2026-09-18",
    "weeks": 2,
-   "kb": 64
+   "kb": 56
+  },
+  "6278": {
+   "name": "台表科",
+   "market": "twse",
+   "yahoo": "6278.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 66
+  },
+  "6415": {
+   "name": "矽力*-KY",
+   "market": "twse",
+   "yahoo": "6415.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 71
+  },
+  "6451": {
+   "name": "訊芯-KY",
+   "market": "twse",
+   "yahoo": "6451.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 71
+  },
+  "6472": {
+   "name": "保瑞",
+   "market": "twse",
+   "yahoo": "6472.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 43
+  },
+  "6533": {
+   "name": "晶心科",
+   "market": "twse",
+   "yahoo": "6533.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 52
   },
   "6789": {
    "name": "采鈺",
@@ -446,14 +581,50 @@
    "weeks": 2,
    "kb": 57
   },
-  "2413": {
-   "name": "環科",
+  "6933": {
+   "name": "AMAX-KY",
    "market": "twse",
-   "yahoo": "2413.TW",
+   "yahoo": "6933.TW",
    "first": "2026-09-10",
    "last": "2026-09-18",
    "weeks": 2,
-   "kb": 73
+   "kb": 53
+  },
+  "7788": {
+   "name": "松川精密",
+   "market": "twse",
+   "yahoo": "7788.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 64
+  },
+  "7792": {
+   "name": "安葆",
+   "market": "tpex",
+   "yahoo": "7792.TWO",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 29
+  },
+  "7795": {
+   "name": "長廣",
+   "market": "twse",
+   "yahoo": "7795.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 58
+  },
+  "8261": {
+   "name": "富鼎",
+   "market": "twse",
+   "yahoo": "8261.TW",
+   "first": "2026-09-10",
+   "last": "2026-09-18",
+   "weeks": 2,
+   "kb": 66
   }
  }
 }
