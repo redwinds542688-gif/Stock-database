@@ -13,8 +13,10 @@
 #  不在今天清單裡的股票,其舊週檔也一樣會被清掉,資料夾空了就整個移除。
 #
 #  13:30 收盤集合競價那根 K:Yahoo 的 1 分K 只給到 13:25,沒有 13:30 那根,
-#  但那根量最大、收盤價也在那根。所以每檔再抓一次日K,用「官方收盤價」和
-#  「日總量 − 分K 總量」補出 13:30 那根(開高低收都 = 收盤價)。
+#  但那根量最大、收盤價也在那根。所以補出 13:30 那根(開高低收都 = 收盤價,
+#  量 = 日總量 − 分K 總量):
+#    · 資料日(pool.json 的 date)用 pool.json 裡證交所 / 櫃買的官方收盤與成交量(最準)
+#    · 其他日子用 Yahoo 日K(Yahoo 最後一根「當前 K 棒」的日期不可靠,所以最新一天不用它)
 #
 #  產出:
 #    kline/{代號}/{年}-W{週}.csv   例 kline/3481/2026-W38.csv(ISO 週,週一~週日)
@@ -117,6 +119,8 @@ def add_close_bar(df, daily, today_tw):
         if d == today_tw and pd.Timestamp.now(tz="Asia/Taipei").strftime("%H:%M") < "14:00":
             continue                                   # 今天還沒收盤(理論上 14:30 才跑,保險)
         close, vol_d = daily[d]
+        if not (close > 0) or vol_d < int(part["volume"].sum()) * 0.5:
+            continue                                   # 日K 數字明顯不對就不補,寧缺勿錯
         auction = max(vol_d - int(part["volume"].sum()), 0)
         add.append({"date": d, "time": "13:30", "open": close, "high": close,
                     "low": close, "close": close, "volume": auction})
@@ -234,8 +238,11 @@ for i, s in enumerate(stocks, 1):
         print(f"[{i:>3}/{len(stocks)}] {code} {name:<8} 抓不到")
         fail += 1
         continue
-    # 補 13:30 收盤那根
+    # 補 13:30 收盤那根:Yahoo 日K 補歷史日,資料日用 pool.json 的官方收盤 / 成交量覆蓋
     daily = yahoo_daily(code + used)
+    daily.pop(P["date"], None)
+    if s.get("close") and s.get("lots"):
+        daily[P["date"]] = (float(s["close"]), int(s["lots"]) * 1000)
     df = add_close_bar(df, daily, pd.Timestamp.now(tz="Asia/Taipei").strftime("%Y-%m-%d"))
     time.sleep(SLEEP / 2)
     save_by_week(code, df)
