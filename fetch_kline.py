@@ -12,6 +12,10 @@
 #  第 9 週開始,第 1 週的檔案自動刪除;第 10 週刪第 2 週……以此類推。
 #  不在今天清單裡的股票,其舊週檔也一樣會被清掉,資料夾空了就整個移除。
 #
+#  13:30 收盤集合競價那根 K:Yahoo 的 1 分K 只給到 13:25,沒有 13:30 那根,
+#  但那根量最大、收盤價也在那根。所以每檔再抓一次日K,用「官方收盤價」和
+#  「日總量 − 分K 總量」補出 13:30 那根(開高低收都 = 收盤價)。
+#
 #  產出:
 #    kline/{代號}/{年}-W{週}.csv   例 kline/3481/2026-W38.csv(ISO 週,週一~週日)
 #                                 欄位 date,time,open,high,low,close,volume
@@ -80,6 +84,46 @@ def yahoo(sym):
             df[c] = df[c].astype(float).round(2)
         return df[COLS].reset_index(drop=True)
     return None
+
+
+def yahoo_daily(sym):
+    """抓最近一個月日K,回傳 {date: (close, volume)};失敗回傳 {}"""
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}"
+    try:
+        r = S.get(url, params={"interval": "1d", "range": "1mo"}, timeout=30)
+        res = (r.json().get("chart", {}).get("result") or [None])[0]
+        if not res or not res.get("timestamp"):
+            return {}
+        q = res["indicators"]["quote"][0]
+        out = {}
+        for ts, c, v in zip(res["timestamp"], q["close"], q["volume"]):
+            if c is None:
+                continue
+            d = pd.Timestamp(ts, unit="s", tz="UTC").tz_convert("Asia/Taipei").strftime("%Y-%m-%d")
+            out[d] = (round(float(c), 2), int(v or 0))
+        return out
+    except Exception:
+        return {}
+
+
+def add_close_bar(df, daily, today_tw):
+    """每個交易日若沒有 13:30 那根,就用日K 的收盤價與剩餘量補上(當天盤中不補)"""
+    if df is None or not len(df) or not daily:
+        return df
+    add = []
+    for d, part in df.groupby("date"):
+        if d not in daily or (part["time"] == "13:30").any():
+            continue
+        if d == today_tw and pd.Timestamp.now(tz="Asia/Taipei").strftime("%H:%M") < "14:00":
+            continue                                   # 今天還沒收盤(理論上 14:30 才跑,保險)
+        close, vol_d = daily[d]
+        auction = max(vol_d - int(part["volume"].sum()), 0)
+        add.append({"date": d, "time": "13:30", "open": close, "high": close,
+                    "low": close, "close": close, "volume": auction})
+    if add:
+        df = pd.concat([df, pd.DataFrame(add)], ignore_index=True)
+        df = df.sort_values(["date", "time"]).reset_index(drop=True)
+    return df
 
 
 def merge_save(path, new):
@@ -190,6 +234,10 @@ for i, s in enumerate(stocks, 1):
         print(f"[{i:>3}/{len(stocks)}] {code} {name:<8} 抓不到")
         fail += 1
         continue
+    # 補 13:30 收盤那根
+    daily = yahoo_daily(code + used)
+    df = add_close_bar(df, daily, pd.Timestamp.now(tz="Asia/Taipei").strftime("%Y-%m-%d"))
+    time.sleep(SLEEP / 2)
     save_by_week(code, df)
     st = stats(code)
     if st is None:                       # 抓到的全是保留範圍外的舊資料(理論上不會)
