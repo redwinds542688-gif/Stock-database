@@ -17,6 +17,9 @@
 #    2. 只收 4 碼純數字、不以 0 開頭的代號 → 排除 ETF(0050 等 00xx)、ETN、權證、DR
 #    3. 必須在官方「可現股當沖」名單裡;查不到資格的一律不收
 #    4. 暫停先賣後買的股票會標記 可先賣後買=0(HTML 端會再排除)
+#    5. 排除金融保險業(產業別 17:金控、銀行、保險、證券)
+#    6. 最近 5 個交易日平均振幅 ≥ AVG5_MIN_AMP(振幅歷史存在 amp_history.json,
+#       不足 5 天時向 Yahoo 補抓日K)
 # ══════════════════════════════════════════════════════
 
 import os, json, time, sys
@@ -24,11 +27,16 @@ import requests
 from datetime import datetime, timedelta, timezone, date
 
 # ── 選股基準(要和 HTML 裡 settings 的 MONITOR_BASE 一致)──
-#   前一交易日:收盤價 LO~HI 元、振幅 ≥ MIN_AMP%,依「成交金額」由大到小取前 SIZE 名
+#   前一交易日:收盤價 LO~HI 元、振幅 ≥ MIN_AMP%,依「成交張數」由大到小取前 SIZE 名
 LO, HI, MIN_AMP, SIZE = 15, 500, 4.0, 50
-MIN_VALUE = 3e8          # 前一交易日成交金額下限(元):3 億,流動性不足的不收
 TICK_MAX_PCT = 0.35      # 一檔跳動 ÷ 股價 的上限(%):超過代表一個 tick 就吃掉來回成本
 ENTRY_MAX_CHG = 3.0      # 進場時漲跌幅上限(%,寫進 pool.json 給 HTML / 策略層用)
+AVG5_MIN_AMP = 3.0       # 最近 5 個交易日「平均振幅」下限(%):擋掉只有昨天偶然動一次的股票
+AVG_DAYS = 5
+HIST_FILE = "amp_history.json"   # 每日振幅滾動存檔(全市場,保留最近 15 個交易日)
+EXCLUDE_INDUSTRY = {"17"}   # 排除的產業別代碼:17 = 金融保險業(金控、銀行、保險、證券)
+# 官方產業別抓不到時的備援:代號 28xx 與這幾檔都是金融股
+FIN_CODES_FALLBACK = {"5820", "5871", "5876", "5878", "5880", "6005", "6024", "2820"}
 
 TWSE = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL"
 TPEX = "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes"
@@ -37,6 +45,8 @@ TWSE_NOTICE = "https://openapi.twse.com.tw/v1/announcement/notice"         # 上
 TWSE_PUNISH = "https://openapi.twse.com.tw/v1/announcement/punish"         # 上市:處置股
 TPEX_NOTICE = "https://www.tpex.org.tw/openapi/v1/tpex_trading_warning_information"  # 上櫃:注意股
 TPEX_PUNISH = "https://www.tpex.org.tw/openapi/v1/tpex_disposal_information"         # 上櫃:處置股
+TWSE_INFO = "https://openapi.twse.com.tw/v1/opendata/t187ap03_L"           # 上市:公司基本資料(產業別)
+TPEX_INFO = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O"        # 上櫃:公司基本資料(產業別)
 TPEX_DT = "https://www.tpex.org.tw/openapi/v1/tpex_securities"            # 上櫃:現股當沖交易標的
 TPEX_DT_PAUSE = "https://www.tpex.org.tw/openapi/v1/tpex_intraday_trading_pre"  # 上櫃:暫停先賣後買預告
 FM_API = "https://api.finmindtrade.com/api/v4/data"
@@ -191,11 +201,44 @@ dates = sorted({r["date"] for r in rows if r["date"]})
 LAST = dates[-1] if dates else now_tw().strftime("%Y-%m-%d")
 print(f"資料日期:{LAST}")
 
-# ── 2. 價格 / 振幅 / 成交金額 / tick 成本 / 漲跌停 粗篩,依成交金額排序 ──
+# ── 1b. 產業別(用來排除金融保險業)────────────────
+def field_any(r, *needles):
+    for k, v in r.items():
+        kl = k.lower()
+        if any(n.lower() in kl for n in needles):
+            return str(v or "").strip()
+    return ""
+
+industry = {}
+for label, url in (("上市", TWSE_INFO), ("上櫃", TPEX_INFO)):
+    try:
+        n = 0
+        for r in get_json(url):
+            code = field_any(r, "公司代號", "SecuritiesCompanyCode", "Code")
+            ind = field_any(r, "產業別", "IndustryCode", "Industry")
+            if code and ind:
+                industry[code] = ind.zfill(2)
+                n += 1
+        print(f"{label}產業別:{n} 檔")
+    except Exception as e:
+        print(f"{label}產業別抓取失敗(改用代號備援):{e}")
+
+
+def is_financial(r):
+    ind = industry.get(r["code"])
+    if ind is not None:
+        return ind in EXCLUDE_INDUSTRY
+    return r["code"].startswith("28") or r["code"] in FIN_CODES_FALLBACK   # 備援
+
+
+for r in rows:
+    r["industry"] = industry.get(r["code"], "")
+
+# ── 2. 價格 / 振幅 / tick 成本 / 漲跌停 / 金融股 粗篩,依成交張數排序 ──
 def why_out(r):
+    if is_financial(r):               return "金融股"
     if not (LO <= r["close"] <= HI):  return "價格"
     if r["amp"] < MIN_AMP:            return "振幅"
-    if r["value"] * 1e8 < MIN_VALUE:  return "成交金額"
     if r["tick_pct"] > TICK_MAX_PCT:  return "tick成本"
     if r["limit_hit"]:                return "漲跌停"
     return ""
@@ -208,8 +251,65 @@ for r in rows:
         reasons[w] = reasons.get(w, 0) + 1
     else:
         cand.append(r)
-cand.sort(key=lambda x: -x["value"])
+cand.sort(key=lambda x: -x["lots"])
 print(f"粗篩後 {len(cand)} 檔;排除原因:" + ", ".join(f"{k} {v}" for k, v in reasons.items()))
+
+
+# ── 2b. 振幅歷史:今天全市場的振幅寫進 amp_history.json ──
+#   結構 {code: {"2026-09-18": 4.75, ...}},只留最近 15 個交易日
+hist = {}
+if os.path.exists(HIST_FILE):
+    try:
+        with open(HIST_FILE, encoding="utf-8") as f:
+            hist = json.load(f)
+    except Exception:
+        hist = {}
+for r in rows:
+    hist.setdefault(r["code"], {})[LAST] = r["amp"]
+for code in list(hist):
+    ds = sorted(hist[code])[-15:]
+    hist[code] = {d: hist[code][d] for d in ds}
+
+
+def yahoo_daily_amp(code, market):
+    """向 Yahoo 抓最近一個月日K,回傳 {date: 振幅%};失敗回傳 {}"""
+    out = {}
+    for suf in ([".TW", ".TWO"] if market == "twse" else [".TWO", ".TW"]):
+        try:
+            r = S.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{code}{suf}",
+                      params={"interval": "1d", "range": "1mo"}, timeout=30)
+            j = r.json()
+            res = (j.get("chart", {}).get("result") or [None])[0]
+            if not res or not res.get("timestamp"):
+                continue
+            q = res["indicators"]["quote"][0]
+            ts, hi, lo, cl = res["timestamp"], q["high"], q["low"], q["close"]
+            for i in range(1, len(ts)):
+                if None in (hi[i], lo[i], cl[i - 1]) or not cl[i - 1]:
+                    continue
+                d = datetime.fromtimestamp(ts[i], TAIPEI).strftime("%Y-%m-%d")
+                out[d] = round((hi[i] - lo[i]) / cl[i - 1] * 100, 2)
+            if out:
+                return out
+        except Exception:
+            pass
+    return {}
+
+
+def avg_amp(code, market, fill=True):
+    """最近 AVG_DAYS 個交易日平均振幅;歷史不足且 fill=True 時向 Yahoo 補"""
+    h = hist.get(code, {})
+    if len(h) < AVG_DAYS and fill:
+        got = yahoo_daily_amp(code, market)
+        for d, a in got.items():
+            h.setdefault(d, a)          # 官方資料優先,Yahoo 只補缺的日期
+        hist[code] = {d: h[d] for d in sorted(h)[-15:]}
+        h = hist[code]
+        time.sleep(0.3)
+    ds = sorted(h)[-AVG_DAYS:]
+    if not ds:
+        return None
+    return round(sum(h[d] for d in ds) / len(ds), 2)
 
 
 # ── 3. 官方「可現股當沖」名單 ──────────────────────
@@ -351,8 +451,24 @@ pool = [s for s in cand if s["code"] in elig]
 n1 = len(pool)
 pool = [s for s in pool if s["code"] not in attention and s["code"] not in disposed]
 n2 = len(pool)
-pool = pool[:SIZE]
-print(f"排除不可當沖 {n0 - n1} 檔、注意/處置股 {n1 - n2} 檔 → 最終 {len(pool)} 檔")
+
+# 5 日平均振幅:只對前 SIZE*3 檔候選算(歷史不足的會向 Yahoo 補抓),省時間
+print("計算 5 日平均振幅 …")
+kept = []
+for s in pool[:SIZE * 3]:
+    a5 = avg_amp(s["code"], s["market"])
+    s["amp5"] = a5
+    s["amp_days"] = len(hist.get(s["code"], {}))
+    if a5 is not None and a5 >= AVG5_MIN_AMP:
+        kept.append(s)
+    if len(kept) >= SIZE:
+        break
+n3 = len(kept)
+pool = kept[:SIZE]
+print(f"排除不可當沖 {n0 - n1} 檔、注意/處置股 {n1 - n2} 檔、5 日均振幅不足 {min(n2, SIZE * 3) - n3} 檔 → 最終 {len(pool)} 檔")
+
+with open(HIST_FILE, "w", encoding="utf-8") as f:
+    json.dump(hist, f, ensure_ascii=False, separators=(",", ":"))
 
 # ── 6. 產生 pool.js(格式與 Colab 版相同)──────────
 lines = []
@@ -371,8 +487,9 @@ js = f"""/* ══════════════════════�
    來源:證交所 OpenAPI + 櫃買 OpenAPI(行情與可當沖名單)
    資格來源:{' + '.join(src_note) or '無'}
    規則:僅上市/上櫃 4 碼普通股(無 ETF)、官方可現股當沖名單內、非注意/處置股、
-         成交金額 ≥ {MIN_VALUE/1e8:g} 億、一檔跳動 ≤ {TICK_MAX_PCT}%、昨日未收在漲跌停;
-         依成交金額排序取前 {SIZE} 檔
+         非金融保險業、一檔跳動 ≤ {TICK_MAX_PCT}%、昨日未收在漲跌停、
+         最近 {AVG_DAYS} 日平均振幅 ≥ {AVG5_MIN_AMP}%;
+         依成交張數排序取前 {SIZE} 檔
 
    欄位:代號 / 名稱 / 收盤 / 漲跌(1漲 0平 -1跌) /
          成交張數 / 振幅% / 可當沖 / 可先賣後買
@@ -389,7 +506,8 @@ with open("pool.js", "w", encoding="utf-8") as f:
 with open("pool.json", "w", encoding="utf-8") as f:
     json.dump({"date": LAST, "generated": stamp,
                "rules": {"lo": LO, "hi": HI, "min_amp": MIN_AMP, "size": SIZE,
-                         "min_value": MIN_VALUE, "tick_max_pct": TICK_MAX_PCT,
+                         "tick_max_pct": TICK_MAX_PCT, "exclude_industry": sorted(EXCLUDE_INDUSTRY),
+                         "avg5_min_amp": AVG5_MIN_AMP, "avg_days": AVG_DAYS,
                          "entry_max_chg": ENTRY_MAX_CHG},
                "disposed": sorted(disposed), "attention": sorted(attention),
                "elig_source": src_note, "pool": pool}, f, ensure_ascii=False, indent=1)
@@ -397,4 +515,4 @@ with open("pool.json", "w", encoding="utf-8") as f:
 print(f"\n完成:{len(pool)} 檔 → pool.js / pool.json")
 print("前 5 名:")
 for s in pool[:5]:
-    print(f"  {s['name']:<8} {s['close']:>8}  {s['value']:>7} 億  {s['lots']:>7} 張  振幅 {s['amp']}%  tick {s['tick_pct']}%  ({s['market']})")
+    print(f"  {s['name']:<8} {s['close']:>8}  {s['lots']:>7} 張  振幅 {s['amp']}%  5日均 {s['amp5']}%({s['amp_days']}天)  ({s['market']})")
