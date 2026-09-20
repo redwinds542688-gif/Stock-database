@@ -108,22 +108,33 @@ def yahoo_daily(sym):
         return {}
 
 
+NOTE = {"added": 0, "novol": 0, "nodaily": 0}   # 統計:補了幾根 / 幾根量算不出 / 幾天沒日K
+
+
 def add_close_bar(df, daily, today_tw):
     """每個交易日若沒有 13:30 那根,就用日K 的收盤價與剩餘量補上(當天盤中不補)"""
     if df is None or not len(df) or not daily:
         return df
     add = []
     for d, part in df.groupby("date"):
-        if d not in daily or (part["time"] == "13:30").any():
+        if (part["time"] == "13:30").any():
+            continue
+        if d not in daily:
+            NOTE["nodaily"] += 1
             continue
         if d == today_tw and pd.Timestamp.now(tz="Asia/Taipei").strftime("%H:%M") < "14:00":
             continue                                   # 今天還沒收盤(理論上 14:30 才跑,保險)
         close, vol_d = daily[d]
-        if not (close > 0) or vol_d < int(part["volume"].sum()) * 0.5:
-            continue                                   # 日K 數字明顯不對就不補,寧缺勿錯
-        auction = max(vol_d - int(part["volume"].sum()), 0)
+        if not (close > 0):
+            continue
+        msum = int(part["volume"].sum())
+        auction = vol_d - msum
+        if auction < 0:                                # 分K 總量比日總量還大(來源口徑不同)→ 收盤價照補,量記 0
+            NOTE["novol"] += 1
+            auction = 0
+        NOTE["added"] += 1
         add.append({"date": d, "time": "13:30", "open": close, "high": close,
-                    "low": close, "close": close, "volume": auction})
+                    "low": close, "close": close, "volume": int(auction)})
     if add:
         df = pd.concat([df, pd.DataFrame(add)], ignore_index=True)
         df = df.sort_values(["date", "time"]).reset_index(drop=True)
@@ -274,6 +285,7 @@ with open(idx_path, "w", encoding="utf-8") as f:
                "total_mb": round(total_kb / 1024, 1), "stock_count": len(index),
                "stocks": index}, f, ensure_ascii=False, indent=1)
 
+print(f"13:30 收盤 K:補了 {NOTE['added']} 根(其中 {NOTE['novol']} 根量算不出記 0);{NOTE['nodaily']} 個交易日沒有日K 可對")
 print(f"\n完成:成功 {ok} 檔,失敗 {fail} 檔 → {OUT_DIR}/  目前總量 {total_kb/1024:.1f} MB")
 if ok == 0:
     sys.exit("一檔都沒抓到,視為失敗")
