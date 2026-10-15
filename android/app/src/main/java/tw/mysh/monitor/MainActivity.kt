@@ -50,7 +50,7 @@ class MainActivity : AppCompatActivity() {
             when (item.itemId) {
                 1 -> { if (MonitorService.running) MonitorService.stop(this) else MonitorService.start(this); toast(if (MonitorService.running) "停止中" else "啟動中") }
                 2 -> AlertDialog.Builder(this).setTitle("監控狀態")
-                        .setMessage("服務:${if (MonitorService.running) "執行中" else "未執行"}\n${MonitorService.status}\n最後一次:${MonitorService.lastTick}\n\n程式來源:${Page.url(this)}")
+                        .setMessage("服務:${if (MonitorService.running) "執行中" else "未執行"}\n${MonitorService.status}\n最後一次:${MonitorService.lastTick}\n\n全自動:每個交易日 08:50 自動啟動、每 15 分鐘看門狗、開機自啟;只有按「停止背景監控」才會停。\n程式來源:${Page.url(this)}")
                         .setPositiveButton("好", null).show()
                 3 -> batteryWhitelist()
                 4 -> updatePage()
