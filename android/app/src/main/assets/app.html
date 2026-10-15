@@ -1467,9 +1467,15 @@ except Exception:
   .sh-msg.err{color:var(--up)}
 
   .hidden{display:none}
+/* 背景監控狀態點(只在 Android App 裡出現):綠色閃爍 = 監控執行中,紅色恆亮 = 服務沒在跑 */
+#bgDot{position:fixed;top:6px;right:6px;width:10px;height:10px;border-radius:50%;z-index:9999;display:none;pointer-events:none;box-shadow:0 0 4px rgba(0,0,0,.6)}
+#bgDot.on{display:block;background:#1DD75B;animation:bgBlink 1s steps(1) infinite}
+#bgDot.off{display:block;background:#FF3B3B}
+@keyframes bgBlink{0%{opacity:1}50%{opacity:.15}100%{opacity:1}}
 </style>
 </head>
 <body>
+<div id="bgDot"></div>
 
 <div class="fixedtop">
 <div class="masthead">
@@ -3769,6 +3775,18 @@ async function bgTick(force){
   finally{ BG.busy = false; }
 }
 window.bgTick = bgTick; window.BG = BG;
+/* 右上角監控點:每 3 秒問 App 服務在不在 */
+(function(){
+  function upd(){
+    const d = el('bgDot'); if (!d) return;
+    try{
+      if (!window.Android || !Android.monitorRunning){ d.className = ''; return; }
+      if (Android.isService && Android.isService()){ d.className = ''; return; }     // 服務自己那份網頁不用畫
+      d.className = Android.monitorRunning() ? 'on' : 'off';
+    }catch(e){ d.className = ''; }
+  }
+  upd(); setInterval(upd, 3000);
+})();
 
 scan().then(() => { liveStart(); try{ if (window.Android && Android.ready) Android.ready(LIST_CODES.length); }catch(e){} });
 </script>

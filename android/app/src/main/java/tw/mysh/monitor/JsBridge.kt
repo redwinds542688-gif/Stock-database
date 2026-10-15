@@ -80,4 +80,7 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
 
     @JavascriptInterface
     fun isService(): Boolean = tag == "service"
+
+    @JavascriptInterface
+    fun monitorRunning(): Boolean = MonitorService.running
 }

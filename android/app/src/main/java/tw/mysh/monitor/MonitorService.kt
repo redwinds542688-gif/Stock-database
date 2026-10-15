@@ -52,6 +52,7 @@ class MonitorService : Service() {
     private var wake: PowerManager.WakeLock? = null
     private var ticks = 0
     private var pageLoadedAt = 0L
+    private val dot by lazy { OverlayDot(this) }
 
     private val tick = object : Runnable {
         override fun run() {
@@ -64,6 +65,7 @@ class MonitorService : Service() {
             // 網頁隔天要重新載入(清單、歷史 K 換成今天的):每天 08:55 左右重讀一次
             val now = ZonedDateTime.now(TZ)
             if (w != null && pageLoadedAt > 0 && now.hour == 8 && now.minute >= 55 && System.currentTimeMillis() - pageLoadedAt > 3600_000L) reloadPage()
+            if (session && !lastTick.startsWith("holiday")) dot.show() else dot.hide()   // 只在監控中才亮點
             status = if (!session) "非交易時段(週一~五 08:55~13:32 才監控)"
                      else if (lastTick.startsWith("holiday")) "今天休市(證交所交易日 ${lastTick.removePrefix("holiday ").trim()}),每 10 分鐘確認一次"
                      else "監控中 · ${now.toLocalTime().withNano(0)} · $lastTick"
@@ -85,6 +87,7 @@ class MonitorService : Service() {
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "mysh:monitor").apply { acquire() }
         createWeb()
+        dot.show()
         handler.post(tick)
         running = true
         Watchdog.schedule(this)
@@ -110,8 +113,11 @@ class MonitorService : Service() {
         web?.loadUrl(Page.url(this)); pageLoadedAt = System.currentTimeMillis()
     }
 
+    /** Android 一個 App 只會有一個 Service 實例:重複 start 只會再叫一次 onStartCommand,不會再建一個;
+        這裡再保險一次:已經在跑(web != null)就什麼都不做,不會重建 WebView、不會多一組計時器 */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) { stopSelf(); return START_NOT_STICKY }
+        if (web != null) Log.d("mysh", "service already running, ignore duplicate start") else { createWeb(); handler.removeCallbacks(tick); handler.post(tick) }
         return START_STICKY
     }
 
@@ -136,6 +142,7 @@ class MonitorService : Service() {
     override fun onDestroy() {
         running = false; status = "已停止"
         handler.removeCallbacks(tick)
+        dot.hide()
         try { web?.destroy() } catch (e: Exception) {}
         web = null
         try { wake?.release() } catch (e: Exception) {}

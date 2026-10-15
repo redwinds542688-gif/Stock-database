@@ -44,7 +44,8 @@ class MainActivity : AppCompatActivity() {
         m.menu.add(0, 4, 3, "更新程式(從 GitHub)")
         m.menu.add(0, 5, 4, "測試通知(進場)")
         m.menu.add(0, 7, 5, "測試通知(賠錢平倉)")
-        m.menu.add(0, 6, 5, "重新載入畫面")
+        m.menu.add(0, 8, 5, if (Settings.canDrawOverlays(this)) "螢幕角落監控點:已允許" else "允許螢幕角落監控點(需權限)")
+        m.menu.add(0, 6, 6, "重新載入畫面")
         m.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 1 -> { if (MonitorService.running) MonitorService.stop(this) else MonitorService.start(this); toast(if (MonitorService.running) "停止中" else "啟動中") }
@@ -55,6 +56,7 @@ class MainActivity : AppCompatActivity() {
                 4 -> updatePage()
                 5 -> JsBridge(this, "test").notify("測試 群創 做空進場 49.40", "10:24 空✓ · 停利 47.42 停損 50.14", "short")
                 6 -> web.loadUrl(Page.url(this))
+                8 -> if (!Settings.canDrawOverlays(this)) startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) else toast("已允許,監控中會在右上角閃綠點")
                 7 -> JsBridge(this, "test").notify("⚠⚠ 測試 群創 3481 停損 -1.6% 立即回補", "11:08 10:25 進 49.40 → 現價 50.20", "loss")
             }
             true
