@@ -2534,7 +2534,7 @@ function liveTick(m){
   const rec = {
     z: price, y: isFinite(y) ? y : prev.y,
     o: parseFloat(m.o) || prev.o, h: parseFloat(m.h) || prev.h, l: parseFloat(m.l) || prev.l,
-    v: isFinite(v) ? v : prev.v, t: m.t, ts: Date.now(),
+    v: isFinite(v) ? v : prev.v, t: m.t, ts: Date.now(), d: m.d || prev.d,   // d = 證交所回的交易日期 YYYYMMDD(休市判斷用)
   };
   rec.chgPct = (rec.z && rec.y) ? (rec.z - rec.y) / rec.y * 100 : null;
   LIVE.set(code, rec);
@@ -3687,7 +3687,7 @@ async function scan(){
    對清單上每一檔:即時價 → 合併雲端歷史 + Yahoo 今天 + 即時自組的 K → replaySignals(和圖上同一套規則),
    和上一次比,有新的「進場」「停利」「停損」「超6%」「出」就呼叫 Android.notify(標題, 內容, 類別)。
    沒有 Android 物件(在電腦瀏覽器測試)時寫進 BG.log。 */
-const BG = { last: new Map(), hist: new Map(), histDay: '', todayAt: new Map(), busy: false, startedAt: 0, log: [], ticks: 0 };
+const BG = { last: new Map(), hist: new Map(), histDay: '', todayAt: new Map(), busy: false, startedAt: 0, log: [], ticks: 0, pos: new Map(), holiday: '' };
 function bgLog(s){ const line = new Date().toLocaleTimeString('zh-TW', {hour12:false}) + ' ' + s; BG.log.push(line); if (BG.log.length > 300) BG.log.shift(); try{ if (window.Android && Android.log) Android.log(line); }catch(e){} }
 function bgNotify(title, body, kind){ bgLog('[通知] ' + title + ' | ' + body); try{ if (window.Android && Android.notify) Android.notify(title, body, kind || ''); }catch(e){} }
 async function bgTick(force){
@@ -3701,6 +3701,10 @@ async function bgTick(force){
     const codes = [...new Set([...LIST_CODES, ...POSITIONS.keys()])];
     if (!codes.length) return 'nocodes';
     await liveFetch(codes); applyLiveToList();
+    // 休市判斷:證交所回的交易日期不是今天 → 今天休市(國定假日 / 颱風假),回 'holiday',App 會改成每 10 分鐘看一次
+    { const n = new Date(), ymd = n.getFullYear() + String(n.getMonth() + 1).padStart(2, '0') + String(n.getDate()).padStart(2, '0');
+      const ds = codes.map(c => (LIVE.get(c) || {}).d).filter(Boolean);
+      if (ds.length && !ds.some(d => d === ymd)){ BG.holiday = ymd; return 'holiday ' + ds[0]; } }
     const day = new Date().toDateString();
     if (BG.histDay !== day){ BG.hist.clear(); BG.todayAt.clear(); BG.last.clear(); BG.histDay = day; }
     const names = new Map((SRC || []).map(s => [s.code, s.name || s.code]));
@@ -3742,9 +3746,19 @@ async function bgTick(force){
             const st = rp.state;
             const px = (st && st.time === t && st.entry) ? st.entry : nowPx;
             const tp = (px * (1 + SIG.takePct / 100 * dir)).toFixed(2), sl = (px * (1 - SIG.stopPct / 100 * dir)).toFixed(2);
+            BG.pos.set(code, {side, dir, entry: +px, time: t});
             bgNotify(`${nm} ${code} ${side}進場 ${(+px).toFixed(2)}`, `${t} ${m.text} · 停利 ${tp} 停損 ${sl}`, side === '做多' ? 'long' : 'short');
           }else{
-            bgNotify(`${nm} ${code} 平倉:${m.text}`, `${t} 現價 ${nowPx}`, 'exit');
+            // 平倉:算這筆賺賠(用記住的進場價;App 啟動後才進的才有),賠錢的用鬧鐘聲 + 長震動 + 紅色
+            const pos = BG.pos.get(code); BG.pos.delete(code);
+            const pl = pos ? (nowPx - pos.entry) / pos.entry * 100 * pos.dir : null;
+            const plTxt = pl === null ? '' : ` ${pl >= 0 ? '+' : ''}${pl.toFixed(1)}%`;
+            const act = pos ? (pos.side === '做空' ? '立即回補' : '立即賣出') : '立即平倉';
+            const lose = m.text === '停損' || m.text === '超6%' || (pl !== null && pl < 0);
+            const from = pos ? `${pos.time} 進 ${pos.entry.toFixed(2)} → ` : '';
+            if (lose) bgNotify(`⚠⚠ ${nm} ${code} ${m.text}${plTxt} ${act}`, `${t} ${from}現價 ${nowPx}`, 'loss');
+            else if (m.text === '停利') bgNotify(`✅ ${nm} ${code} 停利${plTxt}`, `${t} ${from}現價 ${nowPx}`, 'profit');
+            else bgNotify(`${nm} ${code} 出場${plTxt}:${m.text}`, `${t} ${from}現價 ${nowPx}`, 'exit');
           }
         }
         n++;

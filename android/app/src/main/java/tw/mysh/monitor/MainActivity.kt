@@ -42,7 +42,8 @@ class MainActivity : AppCompatActivity() {
         m.menu.add(0, 2, 1, "監控狀態")
         m.menu.add(0, 3, 2, "關閉電池最佳化(必做)")
         m.menu.add(0, 4, 3, "更新程式(從 GitHub)")
-        m.menu.add(0, 5, 4, "測試通知")
+        m.menu.add(0, 5, 4, "測試通知(進場)")
+        m.menu.add(0, 7, 5, "測試通知(賠錢平倉)")
         m.menu.add(0, 6, 5, "重新載入畫面")
         m.setOnMenuItemClickListener { item ->
             when (item.itemId) {
@@ -54,6 +55,7 @@ class MainActivity : AppCompatActivity() {
                 4 -> updatePage()
                 5 -> JsBridge(this, "test").notify("測試 群創 做空進場 49.40", "10:24 空✓ · 停利 47.42 停損 50.14", "short")
                 6 -> web.loadUrl(Page.url(this))
+                7 -> JsBridge(this, "test").notify("⚠⚠ 測試 群創 3481 停損 -1.6% 立即回補", "11:08 10:25 進 49.40 → 現價 50.20", "loss")
             }
             true
         }

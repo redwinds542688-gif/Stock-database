@@ -28,10 +28,15 @@ class MonitorService : Service() {
         @Volatile var status = "未啟動"
         @Volatile var lastTick = ""
         fun start(ctx: Context) {
+            ctx.getSharedPreferences("mysh", Context.MODE_PRIVATE).edit().putBoolean("userStopped", false).apply()
             val i = Intent(ctx, MonitorService::class.java).setAction(ACTION_START)
             if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(i) else ctx.startService(i)
         }
-        fun stop(ctx: Context) { ctx.startService(Intent(ctx, MonitorService::class.java).setAction(ACTION_STOP)) }
+        fun stop(ctx: Context) {
+            ctx.getSharedPreferences("mysh", Context.MODE_PRIVATE).edit().putBoolean("userStopped", true).apply()
+            Watchdog.cancel(ctx)
+            ctx.startService(Intent(ctx, MonitorService::class.java).setAction(ACTION_STOP))
+        }
         private val TZ: ZoneId = ZoneId.of("Asia/Taipei")
         fun inSession(): Boolean {
             val now = ZonedDateTime.now(TZ)
@@ -59,9 +64,12 @@ class MonitorService : Service() {
             // 網頁隔天要重新載入(清單、歷史 K 換成今天的):每天 08:55 左右重讀一次
             val now = ZonedDateTime.now(TZ)
             if (w != null && pageLoadedAt > 0 && now.hour == 8 && now.minute >= 55 && System.currentTimeMillis() - pageLoadedAt > 3600_000L) reloadPage()
-            status = if (session) "監控中 · ${now.toLocalTime().withNano(0)} · $lastTick" else "非交易時段(週一~五 08:55~13:32 才監控)"
+            status = if (!session) "非交易時段(週一~五 08:55~13:32 才監控)"
+                     else if (lastTick.startsWith("holiday")) "今天休市(證交所交易日 ${lastTick.removePrefix("holiday ").trim()}),每 10 分鐘確認一次"
+                     else "監控中 · ${now.toLocalTime().withNano(0)} · $lastTick"
             updateForeground()
-            handler.postDelayed(this, if (session) 5000L else 60000L)
+            val holiday = lastTick.startsWith("holiday")
+            handler.postDelayed(this, if (!session) 60000L else if (holiday) 600000L else 5000L)
         }
     }
 
@@ -79,6 +87,13 @@ class MonitorService : Service() {
         createWeb()
         handler.post(tick)
         running = true
+        Watchdog.schedule(this)
+    }
+
+    /** 使用者從「最近使用」把 App 滑掉 → 服務會跟著被停,這裡立刻排程重啟 */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        Watchdog.restartSoon(this)
+        super.onTaskRemoved(rootIntent)
     }
 
     private fun createWeb() {

@@ -17,6 +17,7 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
     companion object {
         const val CH_SIGNAL = "signals"
         const val CH_MONITOR = "monitor"
+        const val CH_DANGER = "danger"
         private val seq = AtomicInteger(100)
         fun ensureChannels(ctx: Context) {
             val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -27,6 +28,17 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
                 ch.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
                     AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
                 ch.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                nm.createNotificationChannel(ch)
+            }
+            if (nm.getNotificationChannel(CH_DANGER) == null) {
+                val ch = NotificationChannel(CH_DANGER, "賠錢平倉(危險)", NotificationManager.IMPORTANCE_HIGH)
+                ch.description = "停損、超6%、賠錢出場:鬧鐘聲 + 長震動"
+                ch.enableVibration(true); ch.vibrationPattern = longArrayOf(0, 800, 300, 800, 300, 800, 300, 1500)
+                ch.enableLights(true); ch.lightColor = 0xFFFF3B3B.toInt()
+                ch.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
+                    AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+                ch.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                ch.setBypassDnd(true)
                 nm.createNotificationChannel(ch)
             }
             if (nm.getNotificationChannel(CH_MONITOR) == null) {
@@ -44,13 +56,15 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
             val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val open = Intent(ctx, MainActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP }
             val pi = PendingIntent.getActivity(ctx, 1, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            val color = when (kind) { "long" -> 0xFFFF3B3B.toInt(); "short" -> 0xFF1DD75B.toInt(); else -> 0xFFD8DEE9.toInt() }
-            val n = Notification.Builder(ctx, CH_SIGNAL)
+            val color = when (kind) { "long", "loss" -> 0xFFFF3B3B.toInt(); "short", "profit" -> 0xFF1DD75B.toInt(); else -> 0xFFD8DEE9.toInt() }
+            val danger = kind == "loss"
+            val n = Notification.Builder(ctx, if (danger) CH_DANGER else CH_SIGNAL)
                 .setSmallIcon(R.drawable.ic_stat)
                 .setContentTitle(title ?: "訊號").setContentText(body ?: "")
                 .setStyle(Notification.BigTextStyle().bigText(body ?: ""))
-                .setColor(color).setColorized(false)
+                .setColor(color).setColorized(danger)
                 .setCategory(Notification.CATEGORY_ALARM).setPriority(Notification.PRIORITY_HIGH)
+                .setGroup(if (danger) "danger" else "signals")
                 .setAutoCancel(true).setContentIntent(pi).setWhen(System.currentTimeMillis()).setShowWhen(true)
                 .build()
             nm.notify(seq.incrementAndGet(), n)
