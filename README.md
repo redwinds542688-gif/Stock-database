@@ -6,7 +6,7 @@
 證交所 OpenAPI(上市)┐
 櫃買 OpenAPI(上櫃)  ├─→ make_pool.py ─→ pool.js / pool.json
 FinMind 當沖資格     ┘                        ↓
-                         fetch_kline.py ─→ kline/{代號}/{年}-W{週}.csv(100 檔,1 分K,滾動保留最近 2 週(本週 + 上週))
+                         fetch_kline.py ─→ kline/{代號}/{年}-W{週}.csv(100 檔,1 分K,滾動保留 3 週(本週 + 前 2 週:第 3 週結束才刪第 1 週))
                                               ↓ commit
                               raw.githubusercontent.com(手機可直接 fetch)
 ```
@@ -23,7 +23,7 @@ FinMind 當沖資格     ┘                        ↓
 | `requirements.txt` | Python 套件 |
 | `pool.js` / `pool.json` | 每日自動產生 |
 | `amp_history.json` | 全市場每日振幅,滾動保留 15 個交易日(算 5 日平均振幅用) |
-| `kline/{代號}/{年}-W{週}.csv` | 按週拆檔(例 `kline/3481/2026-W38.csv`),欄位 `date,time,open,high,low,close,volume`;**滾動保留最近 2 週(本週 + 上週)**,更早的週檔自動刪除(`KEEP_WEEKS` 可調) |
+| `kline/{代號}/{年}-W{週}.csv` | 按週拆檔(例 `kline/3481/2026-W38.csv`),欄位 `date,time,open,high,low,close,volume`;**滾動保留 3 週(本週 + 前 2 週:第 3 週結束才刪第 1 週)**,更早的週檔自動刪除(`KEEP_WEEKS` 可調) |
 | `kline/index.json` | 每檔的名稱、市場、資料起迄日、筆數 |
 
 ## 手機讀取網址
@@ -46,5 +46,5 @@ https://raw.githubusercontent.com/redwinds542688-gif/Stock-database/main/kline/i
 ## 注意
 
 - GitHub 排程有時會延遲幾分鐘到幾十分鐘,不是故障。
-- Yahoo 1 分K 只能回溯 7 天;repo 只留最近 2 週(本週 + 上週,約 8 MB),更早的自動刪掉。想留更久改 `fetch_kline.py` 的 `KEEP_WEEKS`。
+- Yahoo 1 分K 只能回溯 7 天;repo 保留本週 + 前 2 週(約 12 MB),更早的自動刪掉。想留更久改 `fetch_kline.py` 的 `KEEP_WEEKS`。
 - repo 保持 **Public**:Actions 免費額度無限,而且 raw 網址才有 CORS 允許手機讀。
