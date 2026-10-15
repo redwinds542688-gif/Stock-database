@@ -31,7 +31,7 @@ import pandas as pd
 INTERVAL = "1m"
 RANGE = "7d"
 OUT_DIR = "kline"
-KEEP_WEEKS = 2         # 保留幾週(含本週)。2 = 本週 + 上週;第 3 週起滾動刪最舊的一週(2026-10-15 由 8 改回 2:只做當沖,不需要更長)
+KEEP_WEEKS = 3         # 保留幾週(含本週)。3 = 本週 + 前 2 週:第 3 週結束(第 4 週第一次更新)才刪第 1 週、第 4 週結束刪第 2 週(2026-10-15 使用者定案)
 SLEEP = 0.6            # 每檔之間停一下,避免被 Yahoo 限流
 COLS = ["date", "time", "open", "high", "low", "close", "volume"]
 
