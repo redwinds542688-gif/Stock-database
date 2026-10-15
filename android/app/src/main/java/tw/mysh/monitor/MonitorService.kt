@@ -1,0 +1,131 @@
+package tw.mysh.monitor
+
+import android.app.Notification
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
+import android.os.PowerManager
+import android.util.Log
+import android.webkit.WebView
+import java.time.DayOfWeek
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
+
+/** 前景服務:自己開一個看不見的 WebView 載入同一份程式,每 5 秒叫 bgTick(),由網頁決定要不要通知 */
+class MonitorService : Service() {
+    companion object {
+        const val ACTION_START = "tw.mysh.monitor.START"
+        const val ACTION_STOP = "tw.mysh.monitor.STOP"
+        const val NOTIF_ID = 1
+        @Volatile var running = false
+        @Volatile var status = "未啟動"
+        @Volatile var lastTick = ""
+        fun start(ctx: Context) {
+            val i = Intent(ctx, MonitorService::class.java).setAction(ACTION_START)
+            if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(i) else ctx.startService(i)
+        }
+        fun stop(ctx: Context) { ctx.startService(Intent(ctx, MonitorService::class.java).setAction(ACTION_STOP)) }
+        private val TZ: ZoneId = ZoneId.of("Asia/Taipei")
+        fun inSession(): Boolean {
+            val now = ZonedDateTime.now(TZ)
+            if (now.dayOfWeek == DayOfWeek.SATURDAY || now.dayOfWeek == DayOfWeek.SUNDAY) return false
+            val t = now.toLocalTime()
+            return !t.isBefore(LocalTime.of(8, 55)) && !t.isAfter(LocalTime.of(13, 32))
+        }
+    }
+
+    private val handler = Handler(Looper.getMainLooper())
+    private var web: WebView? = null
+    private var pageReady = false
+    private var wake: PowerManager.WakeLock? = null
+    private var ticks = 0
+    private var pageLoadedAt = 0L
+
+    private val tick = object : Runnable {
+        override fun run() {
+            val w = web
+            val session = inSession()
+            if (w != null && pageReady && session) {
+                w.evaluateJavascript("(async()=>{ try{ return await bgTick(); }catch(e){ return 'err '+e.message; } })().then(r=>Android.tickResult(String(r)))", null)
+                ticks++
+            }
+            // 網頁隔天要重新載入(清單、歷史 K 換成今天的):每天 08:55 左右重讀一次
+            val now = ZonedDateTime.now(TZ)
+            if (w != null && pageLoadedAt > 0 && now.hour == 8 && now.minute >= 55 && System.currentTimeMillis() - pageLoadedAt > 3600_000L) reloadPage()
+            status = if (session) "監控中 · ${now.toLocalTime().withNano(0)} · $lastTick" else "非交易時段(週一~五 08:55~13:32 才監控)"
+            updateForeground()
+            handler.postDelayed(this, if (session) 5000L else 60000L)
+        }
+    }
+
+    inner class ServiceBridge : JsBridge(this@MonitorService, "service", { pageReady = true }) {
+        @android.webkit.JavascriptInterface
+        fun tickResult(r: String) { lastTick = r; Log.d("mysh", "tick $r") }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        JsBridge.ensureChannels(this)
+        startForeground(NOTIF_ID, buildNotification("啟動中…"), if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0)
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "mysh:monitor").apply { acquire() }
+        createWeb()
+        handler.post(tick)
+        running = true
+    }
+
+    private fun createWeb() {
+        try {
+            val w = WebView(this)
+            Page.setup(w, ServiceBridge())
+            w.loadUrl(Page.url(this))
+            web = w; pageReady = false; pageLoadedAt = System.currentTimeMillis()
+        } catch (e: Exception) { Log.e("mysh", "webview create failed", e); status = "WebView 建立失敗:" + e.message }
+    }
+
+    fun reloadPage() {
+        pageReady = false
+        web?.loadUrl(Page.url(this)); pageLoadedAt = System.currentTimeMillis()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP) { stopSelf(); return START_NOT_STICKY }
+        return START_STICKY
+    }
+
+    private fun buildNotification(text: String): Notification {
+        val open = PendingIntent.getActivity(this, 2, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val stop = PendingIntent.getService(this, 3, Intent(this, MonitorService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        return Notification.Builder(this, JsBridge.CH_MONITOR)
+            .setSmallIcon(R.drawable.ic_stat).setContentTitle("名揚四海 背景監控").setContentText(text)
+            .setOngoing(true).setOnlyAlertOnce(true).setContentIntent(open)
+            .addAction(Notification.Action.Builder(null, "停止監控", stop).build())
+            .build()
+    }
+
+    private var lastShown = ""
+    private fun updateForeground() {
+        if (status == lastShown) return
+        lastShown = status
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        nm.notify(NOTIF_ID, buildNotification(status))
+    }
+
+    override fun onDestroy() {
+        running = false; status = "已停止"
+        handler.removeCallbacks(tick)
+        try { web?.destroy() } catch (e: Exception) {}
+        web = null
+        try { wake?.release() } catch (e: Exception) {}
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+}
