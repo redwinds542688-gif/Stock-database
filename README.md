@@ -6,7 +6,7 @@
 證交所 OpenAPI(上市)┐
 櫃買 OpenAPI(上櫃)  ├─→ make_pool.py ─→ pool.js / pool.json
 FinMind 當沖資格     ┘                        ↓
-                         fetch_kline.py ─→ kline/{代號}/{年}-W{週}.csv(50 檔,1 分K,只留最近 2 週)
+                         fetch_kline.py ─→ kline/{代號}/{年}-W{週}.csv(100 檔,1 分K,滾動保留最近 8 週)
                                               ↓ commit
                               raw.githubusercontent.com(手機可直接 fetch)
 ```
@@ -16,11 +16,14 @@ FinMind 當沖資格     ┘                        ↓
 | 檔案 | 說明 |
 |---|---|
 | `.github/workflows/daily.yml` | 排程:週一~五 14:30 台灣時間(備援 16:30);也可手動 Run workflow |
-| `make_pool.py` | 產生 `pool.js`(給 HTML)與 `pool.json`(給分K下載器)。規則:上市/上櫃普通股(非 ETF)、15~500 元、振幅 ≥ 4%、成交金額 ≥ 3 億、tick ≤ 0.35%、昨日未漲跌停、官方可當沖名單內、非注意/處置股,依成交金額取前 50 檔;設定都在檔案最上面 |
+| `.github/workflows/recheck.yml` + `recheck.py` | 週一~五 08:45 / 09:05:用**當天**的官方可當沖 / 暫停先賣後買 / 注意股 / 處置股名單覆寫 pool.json 的資格欄位(昨天可當沖今天未必) |
+| `make_pool.py` | 產生 `pool.js`(給 HTML)與 `pool.json`(給分K下載器)。規則:上市/上櫃普通股(非 ETF、非金融保險業)、15~500 元、振幅 ≥ 4%、5 日平均振幅 ≥ 3%、tick ≤ 0.35%、昨日未漲跌停、官方可當沖名單內、非注意/處置股,依成交張數取前 100 檔;設定都在檔案最上面 |
 | `fetch_kline.py` | 依 `pool.json` 抓 Yahoo 1 分K,合併進 `kline/` |
+| `worker.js` | Cloudflare Worker:盤中即時行情轉接站(證交所 mis.twse.com.tw → 加 CORS 回傳手機)。部署到 Cloudflare,不在 Actions 跑 |
 | `requirements.txt` | Python 套件 |
 | `pool.js` / `pool.json` | 每日自動產生 |
-| `kline/{代號}/{年}-W{週}.csv` | 按週拆檔(例 `kline/3481/2026-W38.csv`),欄位 `date,time,open,high,low,close,volume`;**只滾動保留本週 + 上週**,更早的週檔自動刪除(`KEEP_WEEKS` 可調) |
+| `amp_history.json` | 全市場每日振幅,滾動保留 15 個交易日(算 5 日平均振幅用) |
+| `kline/{代號}/{年}-W{週}.csv` | 按週拆檔(例 `kline/3481/2026-W38.csv`),欄位 `date,time,open,high,low,close,volume`;**滾動保留最近 8 週**,更早的週檔自動刪除(`KEEP_WEEKS` 可調) |
 | `kline/index.json` | 每檔的名稱、市場、資料起迄日、筆數 |
 
 ## 手機讀取網址
@@ -43,5 +46,5 @@ https://raw.githubusercontent.com/redwinds542688-gif/Stock-database/main/kline/i
 ## 注意
 
 - GitHub 排程有時會延遲幾分鐘到幾十分鐘,不是故障。
-- Yahoo 1 分K 只能回溯 7 天;repo 只留最近 2 週,更早的自動刪掉,所以 repo 大小固定在幾 MB。想留更久改 `fetch_kline.py` 的 `KEEP_WEEKS`。
+- Yahoo 1 分K 只能回溯 7 天;repo 滾動保留最近 8 週(約 25 MB),更早的自動刪掉。想留更久改 `fetch_kline.py` 的 `KEEP_WEEKS`。
 - repo 保持 **Public**:Actions 免費額度無限,而且 raw 網址才有 CORS 允許手機讀。

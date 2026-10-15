@@ -2,7 +2,10 @@ name: 開盤前資格複檢
 
 on:
   schedule:
+    # cron 用 UTC,台灣 = UTC+8
+    # 週一~週五 08:45 台灣時間:證交所 / 櫃買已公布今天的可當沖名單
     - cron: "45 0 * * 1-5"
+    # 09:05 再試一次(08:45 若名單還是昨天的,這次補上)
     - cron: "5 1 * * 1-5"
   workflow_dispatch:
 
@@ -18,12 +21,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: 取出 repo
+        uses: actions/checkout@v4
+
+      - name: 安裝 Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -r requirements.txt
-      - run: python recheck.py
+
+      - name: 安裝套件
+        run: pip install -r requirements.txt
+
+      - name: 用今天的官方名單複檢資格
+        run: python recheck.py
+
       - name: Commit 回 repo
         run: |
           git config user.name  "github-actions[bot]"
