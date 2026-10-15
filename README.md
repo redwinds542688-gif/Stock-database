@@ -46,5 +46,5 @@ https://raw.githubusercontent.com/redwinds542688-gif/Stock-database/main/kline/i
 ## 注意
 
 - GitHub 排程有時會延遲幾分鐘到幾十分鐘,不是故障。
-- Yahoo 1 分K 只能回溯 7 天;repo 滾動保留最近 2 週(本週 + 上週)(約 25 MB),更早的自動刪掉。想留更久改 `fetch_kline.py` 的 `KEEP_WEEKS`。
+- Yahoo 1 分K 只能回溯 7 天;repo 只留最近 2 週(本週 + 上週,約 8 MB),更早的自動刪掉。想留更久改 `fetch_kline.py` 的 `KEEP_WEEKS`。
 - repo 保持 **Public**:Actions 免費額度無限,而且 raw 網址才有 CORS 允許手機讀。
