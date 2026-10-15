@@ -1082,14 +1082,10 @@
    "short_first": 1
   }
  ],
- "elig_checked_at": "2026-10-15 11:32",
+ "elig_checked_at": "2026-10-15 11:42",
  "elig_source_today": [
-  "上市"
+  "上市",
+  "上櫃"
  ],
- "elig_pending": {
-  "at": "2026-10-15 11:32",
-  "why": [
-   "上櫃名單日期仍是 2026-10-14"
-  ]
- }
+ "elig_checked": "2026-10-15"
 }
