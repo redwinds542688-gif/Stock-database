@@ -13,6 +13,12 @@
    回傳:證交所原始 JSON(msgArray 內每檔:c 代號、n 名稱、z 最新成交價、
          tv 當盤成交量、v 累積成交量、o 開、h 高、l 低、y 昨收、t 時間、
          a/b 五檔賣/買價、f/g 五檔賣/買量)
+
+   第二條路(2026-10-15 新增):今天的 1 分K(Yahoo)
+     https://twse-proxy.<你的帳號>.workers.dev/?yahoo=6770.TW&range=1d
+     yahoo = 代號 + .TW(上市)或 .TWO(上櫃);range = 1d(預設)或 5d
+     回傳 Yahoo 原始 JSON(chart.result[0].timestamp + indicators.quote[0] 的 open/high/low/close/volume)。
+     用途:證交所接口只給最新一筆,程式開啟前的分鐘自己組不出來,開圖時用這條補今天 09:00 起的 K。
    ══════════════════════════════════════════════════════ */
 
 const CORS = {
@@ -27,6 +33,32 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
 
     const url = new URL(request.url);
+
+    // ── 第二條路:?yahoo=6770.TW → Yahoo 今天的 1 分K ──
+    const ysym = (url.searchParams.get("yahoo") || "").trim().toUpperCase();
+    if (ysym) {
+      if (!/^\d{4,6}[A-Z]?\.TWO?$/.test(ysym)) {
+        return new Response(JSON.stringify({ error: "yahoo 參數格式應為 代號.TW 或 代號.TWO" }), {
+          status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
+      }
+      const range = ["1d", "5d"].includes(url.searchParams.get("range")) ? url.searchParams.get("range") : "1d";
+      const ytarget = `https://query1.finance.yahoo.com/v8/finance/chart/${ysym}?interval=1m&range=${range}`;
+      try {
+        const r = await fetch(ytarget, {
+          headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+          cf: { cacheTtl: 0 },
+        });
+        const body = await r.text();
+        return new Response(body, {
+          status: r.status,
+          headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" },
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: String(e) }), {
+          status: 502, headers: { ...CORS, "Content-Type": "application/json" } });
+      }
+    }
+
     const codes = (url.searchParams.get("codes") || "").split(",").map(s => s.trim()).filter(Boolean);
     const mkts = (url.searchParams.get("mkt") || "").split(",").map(s => s.trim());
     if (!codes.length) {
