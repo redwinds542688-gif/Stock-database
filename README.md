@@ -15,7 +15,7 @@ FinMind 當沖資格     ┘                        ↓
 
 | 檔案 | 說明 |
 |---|---|
-| `.github/workflows/daily.yml` | 排程:週一~五 14:30 台灣時間(備援 16:30);也可手動 Run workflow |
+| `.github/workflows/daily.yml` | 排程:週一~五 14:30 台灣時間(備援 16:30、18:30、20:30);也可手動 Run workflow |
 | `.github/workflows/recheck.yml` + `recheck.py` | 週一~五 08:45 / 09:05:用**當天**的官方可當沖 / 暫停先賣後買 / 注意股 / 處置股名單覆寫 pool.json 的資格欄位(昨天可當沖今天未必) |
 | `make_pool.py` | 產生 `pool.js`(給 HTML)與 `pool.json`(給分K下載器)。規則:上市/上櫃普通股(非 ETF、非金融保險業)、15~500 元、振幅 ≥ 4%、5 日平均振幅 ≥ 3%、tick ≤ 0.35%、昨日未漲跌停、官方可當沖名單內、非注意/處置股,依成交張數取前 100 檔;設定都在檔案最上面 |
 | `fetch_kline.py` | 依 `pool.json` 抓 Yahoo 1 分K,合併進 `kline/` |
