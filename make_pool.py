@@ -38,8 +38,16 @@ EXCLUDE_INDUSTRY = {"17"}   # 排除的產業別代碼:17 = 金融保險業(金�
 # 官方產業別抓不到時的備援:代號 28xx 與這幾檔都是金融股
 FIN_CODES_FALLBACK = {"5820", "5871", "5876", "5878", "5880", "6005", "6024", "2820"}
 
-TWSE = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL"
-TPEX = "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes"
+# 2026-10-15 實測:OpenAPI 的「日成交資訊」更新很慢——證交所要隔天早上才換成前一天的資料,
+# 櫃買傍晚才換。14:30 跑的時候拿到的是前一天的價,pool.json 卻標成當天(上市 43 檔是前一天、
+# 上櫃 7 檔是當天,日期取了最大值)。所以改成優先用兩家的「盤後行情」接口(當天 14:00 / 15:00 前後
+# 就有),OpenAPI 只當備援;而且上市、上櫃的資料日不一致時,把舊的那個市場剔除,不混用。
+TWSE = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL"            # 上市:OpenAPI(備援,慢一天)
+TPEX = "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes"   # 上櫃:OpenAPI(備援,傍晚才更新)
+TWSE_TODAY = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX"             # 上市:當天盤後行情(約 14:00 就有)
+TPEX_TODAY = "https://www.tpex.org.tw/www/zh-tw/afterTrading/dailyQuotes"       # 上櫃:當天盤後行情(約 15:00 後有)
+TPEX_WAIT_TRIES = int(os.environ.get("TPEX_WAIT_TRIES", 4))   # 櫃買盤後還沒出來時,最多再等幾次(測試可設 0)
+TPEX_WAIT_SEC = 300                                            # 每次等 5 分鐘
 TWSE_DT = "https://openapi.twse.com.tw/v1/exchangeReport/TWTB4U"          # 上市:當日可現股當沖證券
 TWSE_NOTICE = "https://openapi.twse.com.tw/v1/announcement/notice"         # 上市:注意股
 TWSE_PUNISH = "https://openapi.twse.com.tw/v1/announcement/punish"         # 上市:處置股
@@ -180,26 +188,110 @@ def normalize(rows, market):
 
 
 # ── 1. 上市 + 上櫃 全市場 ────────────────────────
-print("抓取證交所(上市)…")
-twse = normalize(get_json(TWSE), "twse")
-print(f"  上市 {len(twse)} 檔")
+def twse_today(ymd):
+    """證交所當天盤後行情 MI_INDEX(ymd = 'YYYYMMDD')→ 轉成和 OpenAPI 同樣的欄位;沒有資料回傳 []"""
+    j = get_json(TWSE_TODAY, params={"response": "json", "date": ymd, "type": "ALLBUT0999"})
+    if str(j.get("stat", "")).upper() != "OK":
+        return []
+    for t in j.get("tables", []):
+        f = [str(x).strip() for x in (t.get("fields") or [])]
+        if "證券代號" not in f or not t.get("data"):
+            continue
+        ix = {k: i for i, k in enumerate(f)}
+        out = []
+        for r in t["data"]:
+            sign_html = str(r[ix["漲跌(+/-)"]])
+            sign = -1 if "-" in sign_html else (1 if "+" in sign_html else 0)
+            chg = num(r[ix["漲跌價差"]])
+            out.append({"Code": r[ix["證券代號"]], "Name": r[ix["證券名稱"]],
+                        "TradeVolume": r[ix["成交股數"]], "TradeValue": r[ix["成交金額"]],
+                        "HighestPrice": r[ix["最高價"]], "LowestPrice": r[ix["最低價"]],
+                        "ClosingPrice": r[ix["收盤價"]],
+                        "Change": (sign * chg) if chg is not None else "",
+                        "Date": ymd})
+        return out
+    return []
+
+
+def tpex_today(ymd_slash):
+    """櫃買當天盤後行情 dailyQuotes(ymd_slash = 'YYYY/MM/DD')→ 轉成和 OpenAPI 同樣的欄位;沒有資料回傳 []"""
+    j = get_json(TPEX_TODAY, params={"date": ymd_slash, "response": "json"})
+    if str(j.get("stat", "")).lower() != "ok":
+        return []
+    tabs = j.get("tables") or []
+    t = tabs[0] if tabs else {}
+    f = [str(x).strip() for x in (t.get("fields") or [])]
+    if "代號" not in f or not t.get("data"):
+        return []
+    ix = {k: i for i, k in enumerate(f)}
+    out = []
+    for r in t["data"]:
+        out.append({"Code": r[ix["代號"]], "Name": r[ix["名稱"]],
+                    "Close": r[ix["收盤"]], "Change": r[ix["漲跌"]],
+                    "High": r[ix["最高"]], "Low": r[ix["最低"]],
+                    "TradingShares": r[ix["成交股數"]], "TransactionAmount": r[ix["成交金額(元)"]],
+                    "Date": str(j.get("date") or "").replace("/", "")})
+    return out
+
+
+TODAY8 = now_tw().strftime("%Y%m%d")
+twse = []
+print(f"抓取證交所(上市)當天盤後行情 {TODAY8}…")
+try:
+    twse = normalize(twse_today(TODAY8), "twse")
+    print(f"  上市(盤後){len(twse)} 檔")
+except Exception as e:
+    print(f"  盤後行情失敗:{e}")
+if not twse:
+    print("  當天盤後行情還沒有(假日?),改用 OpenAPI(注意:它常慢一天)…")
+    twse = normalize(get_json(TWSE), "twse")
+    print(f"  上市(OpenAPI){len(twse)} 檔")
 
 tpex = []
-try:
-    print("抓取櫃買(上櫃)…")
-    tpex = normalize(get_json(TPEX), "tpex")
-    print(f"  上櫃 {len(tpex)} 檔")
-except Exception as e:
-    print(f"  櫃買失敗,略過:{e}")
+print(f"抓取櫃買(上櫃)當天盤後行情 {TODAY8}…")
+for attempt in range(TPEX_WAIT_TRIES + 1):
+    try:
+        tpex = normalize(tpex_today(now_tw().strftime("%Y/%m/%d")), "tpex")
+    except Exception as e:
+        print(f"  盤後行情失敗:{e}")
+        tpex = []
+    if tpex or attempt == TPEX_WAIT_TRIES:
+        break
+    # 只有「今天是交易日且上市已有當天資料、現在是 14:00~17:00」才值得等;其他情況直接備援
+    hh = now_tw().strftime("%H:%M")
+    if not (twse and twse[0]["date"] == now_tw().strftime("%Y-%m-%d") and "14:00" <= hh <= "17:00"):
+        break
+    print(f"  櫃買盤後行情還沒出來,{TPEX_WAIT_SEC // 60} 分鐘後再試({attempt + 1}/{TPEX_WAIT_TRIES})…")
+    time.sleep(TPEX_WAIT_SEC)
+if tpex:
+    print(f"  上櫃(盤後){len(tpex)} 檔")
+else:
+    try:
+        print("  當天盤後行情還沒有,改用 OpenAPI(注意:它傍晚才更新)…")
+        tpex = normalize(get_json(TPEX), "tpex")
+        print(f"  上櫃(OpenAPI){len(tpex)} 檔")
+    except Exception as e:
+        print(f"  櫃買失敗,略過:{e}")
 
-rows = twse + tpex
-if not rows:
+if not twse and not tpex:
     sys.exit("兩個交易所都沒讀到資料,停止")
 
-# 資料日期:以資料本身帶的日期為準,沒有就用今天(台灣)
-dates = sorted({r["date"] for r in rows if r["date"]})
-LAST = dates[-1] if dates else now_tw().strftime("%Y-%m-%d")
-print(f"資料日期:{LAST}")
+# 資料日期:以資料本身帶的日期為準。上市、上櫃日期不一致時,只留最新那天的市場,
+# 不把前一天的價混進來(之前就是這樣把 10/13 的價標成 10/14)
+def market_date(lst):
+    ds = sorted({r["date"] for r in lst if r["date"]})
+    return ds[-1] if ds else None
+d_twse, d_tpex = market_date(twse), market_date(tpex)
+print(f"資料日:上市 {d_twse}、上櫃 {d_tpex}")
+LAST = max(d for d in (d_twse, d_tpex) if d) if (d_twse or d_tpex) else now_tw().strftime("%Y-%m-%d")
+if d_twse and d_twse != LAST:
+    print(f"  ⚠ 上市資料({d_twse})比上櫃舊,這次不用上市的資料")
+    twse = []
+if d_tpex and d_tpex != LAST:
+    print(f"  ⚠ 上櫃資料({d_tpex})比上市舊,這次不用上櫃的資料")
+    tpex = []
+rows = [r for r in twse + tpex if r["date"] == LAST]
+print(f"資料日期:{LAST},共 {len(rows)} 檔")
 
 # ── 1b. 產業別(用來排除金融保險業)────────────────
 def field_any(r, *needles):

@@ -108,17 +108,20 @@ def yahoo_daily(sym):
         return {}
 
 
-NOTE = {"added": 0, "novol": 0, "nodaily": 0}   # 統計:補了幾根 / 幾根量算不出 / 幾天沒日K
+NOTE = {"added": 0, "fixed": 0, "novol": 0, "nodaily": 0}   # 統計:補了幾根 / 覆寫幾根 Yahoo 的零量 13:30 / 幾根量算不出 / 幾天沒日K
 
 
 def add_close_bar(df, daily, today_tw):
-    """每個交易日若沒有 13:30 那根,就用日K 的收盤價與剩餘量補上(當天盤中不補)"""
+    """每個交易日的 13:30 收盤 K:沒有就補上;Yahoo 自己給的那根量一律是 0(2026-10-15 實測),
+    也要用日K 的收盤價與剩餘量覆寫。已經帶量的 13:30(之前補過的)不動。當天盤中不補。"""
     if df is None or not len(df) or not daily:
         return df
     add = []
     for d, part in df.groupby("date"):
-        if (part["time"] == "13:30").any():
-            continue
+        has = part[part["time"] == "13:30"]
+        if len(has) and int(has["volume"].iloc[0]) > 0:
+            continue                                   # 已有帶量的 13:30 → 不動
+        body = part[part["time"] != "13:30"]           # 算剩餘量時不含 13:30 自己
         if d not in daily:
             NOTE["nodaily"] += 1
             continue
@@ -127,11 +130,15 @@ def add_close_bar(df, daily, today_tw):
         close, vol_d = daily[d]
         if not (close > 0):
             continue
-        msum = int(part["volume"].sum())
+        msum = int(body["volume"].sum())
         auction = vol_d - msum
         if auction < 0:                                # 分K 總量比日總量還大(來源口徑不同)→ 收盤價照補,量記 0
             NOTE["novol"] += 1
             auction = 0
+        if len(has):                                   # Yahoo 給的零量 13:30 → 覆寫成官方收盤 + 剩餘量
+            df.loc[has.index, ["open", "high", "low", "close", "volume"]] = [close, close, close, close, int(auction)]
+            NOTE["fixed"] += 1
+            continue
         NOTE["added"] += 1
         add.append({"date": d, "time": "13:30", "open": close, "high": close,
                     "low": close, "close": close, "volume": int(auction)})
@@ -252,8 +259,11 @@ for i, s in enumerate(stocks, 1):
     # 補 13:30 收盤那根:Yahoo 日K 補歷史日,資料日用 pool.json 的官方收盤 / 成交量覆蓋
     daily = yahoo_daily(code + used)
     daily.pop(P["date"], None)
+    # 官方收盤 / 成交量要對到「這檔自己的資料日」(s["date"]),不是 pool.json 的整體日期:
+    # 2026-10-15 之前上市資料慢一天卻標成當天,害 13:30 那根寫到前一天的收盤價
+    s_date = s.get("date") or P["date"]
     if s.get("close") and s.get("lots"):
-        daily[P["date"]] = (float(s["close"]), int(s["lots"]) * 1000)
+        daily[s_date] = (float(s["close"]), int(s["lots"]) * 1000)
     df = add_close_bar(df, daily, pd.Timestamp.now(tz="Asia/Taipei").strftime("%Y-%m-%d"))
     time.sleep(SLEEP / 2)
     save_by_week(code, df)
@@ -285,7 +295,7 @@ with open(idx_path, "w", encoding="utf-8") as f:
                "total_mb": round(total_kb / 1024, 1), "stock_count": len(index),
                "stocks": index}, f, ensure_ascii=False, indent=1)
 
-print(f"13:30 收盤 K:補了 {NOTE['added']} 根(其中 {NOTE['novol']} 根量算不出記 0);{NOTE['nodaily']} 個交易日沒有日K 可對")
+print(f"13:30 收盤 K:補了 {NOTE['added']} 根、覆寫 Yahoo 零量的 {NOTE['fixed']} 根(其中 {NOTE['novol']} 根量算不出記 0);{NOTE['nodaily']} 個交易日沒有日K 可對")
 print(f"\n完成:成功 {ok} 檔,失敗 {fail} 檔 → {OUT_DIR}/  目前總量 {total_kb/1024:.1f} MB")
 if ok == 0:
     sys.exit("一檔都沒抓到,視為失敗")
