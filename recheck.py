@@ -92,7 +92,7 @@ for label, url in (("上市", TWSE_DT), ("上櫃", TPEX_DT)):
     try:
         m, ld = parse_daytrade_list(get_json(url))
         print(f"{label}可當沖名單:{len(m)} 檔,名單日期 {ld}")
-        if ld and ld < today:
+        if ld and (date.fromisoformat(today) - date.fromisoformat(ld)).days > 4:
             pending.append(f"{label}名單日期仍是 {ld}")
             continue
         elig.update({c: (1, sf) for c, sf in m.items()})
