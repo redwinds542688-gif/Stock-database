@@ -959,7 +959,7 @@
    "amp5": 8.72,
    "amp_days": 15,
    "daytrade": 1,
-   "short_first": 1
+   "short_first": 0
   },
   {
    "code": "2399",
@@ -1081,5 +1081,15 @@
    "daytrade": 1,
    "short_first": 1
   }
- ]
+ ],
+ "elig_checked_at": "2026-10-15 11:32",
+ "elig_source_today": [
+  "上市"
+ ],
+ "elig_pending": {
+  "at": "2026-10-15 11:32",
+  "why": [
+   "上櫃名單日期仍是 2026-10-14"
+  ]
+ }
 }
