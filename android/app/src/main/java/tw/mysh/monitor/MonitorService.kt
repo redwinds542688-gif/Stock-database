@@ -97,6 +97,7 @@ class MonitorService : Service() {
         handler.post(tick)
         running = true; instance = this
         Watchdog.schedule(this)
+        NotifLog.add(this, "背景監控啟動", "", "sys")
     }
 
     /** 使用者從「最近使用」把 App 滑掉 → 服務會跟著被停,這裡立刻排程重啟 */
@@ -150,6 +151,7 @@ class MonitorService : Service() {
 
     override fun onDestroy() {
         running = false; status = "已停止"; instance = null
+        NotifLog.add(this, "背景監控停止", "", "sys")
         handler.removeCallbacks(tick)
         dot.hide()
         try { web?.destroy() } catch (e: Exception) {}
