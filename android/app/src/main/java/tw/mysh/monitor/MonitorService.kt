@@ -41,6 +41,13 @@ class MonitorService : Service() {
             ctx.startService(Intent(ctx, MonitorService::class.java).setAction(ACTION_STOP))
         }
         private val TZ: ZoneId = ZoneId.of("Asia/Taipei")
+        /** 服務該不該活著:週一~五 08:45~13:35;其他時間服務自己停掉(通知列就不會掛著),下個交易日 08:50 鬧鐘再叫起來 */
+        fun shouldRun(): Boolean {
+            val now = ZonedDateTime.now(TZ)
+            if (now.dayOfWeek == DayOfWeek.SATURDAY || now.dayOfWeek == DayOfWeek.SUNDAY) return false
+            val t = now.toLocalTime()
+            return !t.isBefore(LocalTime.of(8, 45)) && !t.isAfter(LocalTime.of(13, 35))
+        }
         fun inSession(): Boolean {
             val now = ZonedDateTime.now(TZ)
             if (now.dayOfWeek == DayOfWeek.SATURDAY || now.dayOfWeek == DayOfWeek.SUNDAY) return false
@@ -61,6 +68,12 @@ class MonitorService : Service() {
         override fun run() {
             val w = web
             val session = inSession()
+            if (!shouldRun()) {                      // 收盤了:自己停掉,通知列不再掛著;鬧鐘會在下個交易日 08:50 再啟動
+                status = "收盤休眠(下個交易日 08:50 自動啟動)"
+                Log.i("mysh", "out of hours, service sleeps")
+                Watchdog.scheduleDaily(this@MonitorService)
+                stopSelf(); return
+            }
             if (w != null && !pageReady && pageLoadedAt > 0 && System.currentTimeMillis() - pageLoadedAt > 90_000L) { pageReady = true; Log.w("mysh", "page ready 逾時,直接開始敲") }   // 網頁沒回報 ready(例如清單讀取失敗)也照敲,bgTick 自己會回 nocodes
             if (w != null && pageReady && session) {
                 w.evaluateJavascript("(async()=>{ try{ return await bgTick(); }catch(e){ return 'err '+e.message; } })().then(r=>Android.tickResult(String(r)))", null)

@@ -32,7 +32,8 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         // 第一次打開:自動啟動背景監控
-        if (!MonitorService.running) MonitorService.start(this)
+        if (MonitorService.shouldRun()) { if (!MonitorService.running) MonitorService.start(this) }
+        else { Watchdog.schedule(this); getSharedPreferences("mysh", MODE_PRIVATE).edit().putBoolean("userStopped", false).apply() }   // 非交易時段:只排鬧鐘,服務不啟動
         handleTest(intent)
     }
 
@@ -61,9 +62,11 @@ class MainActivity : AppCompatActivity() {
         m.menu.add(0, 6, 6, "重新載入畫面")
         m.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-                1 -> { if (MonitorService.running) MonitorService.stop(this) else MonitorService.start(this); toast(if (MonitorService.running) "停止中" else "啟動中") }
+                1 -> { if (MonitorService.running) { MonitorService.stop(this); toast("停止中") }
+                       else if (MonitorService.shouldRun()) { MonitorService.start(this); toast("啟動中") }
+                       else { Watchdog.schedule(this); getSharedPreferences("mysh", MODE_PRIVATE).edit().putBoolean("userStopped", false).apply(); toast("非交易時段,下個交易日 08:50 會自動啟動") } }
                 2 -> AlertDialog.Builder(this).setTitle("監控狀態")
-                        .setMessage("服務:${if (MonitorService.running) "執行中" else "未執行"}\n${MonitorService.status}\n最後一次:${MonitorService.lastTick}\n\n全自動:每個交易日 08:50 自動啟動、每 15 分鐘看門狗、開機自啟;只有按「停止背景監控」才會停。\n程式來源:${Page.url(this)}")
+                        .setMessage("服務:${if (MonitorService.running) "執行中" else if (MonitorService.shouldRun()) "未執行" else "收盤休眠(週一~五 08:45 起床,13:35 休眠)"}\n${MonitorService.status}\n最後一次:${MonitorService.lastTick}\n\n全自動:每個交易日 08:50 自動啟動、每 15 分鐘看門狗、開機自啟;只有按「停止背景監控」才會停。\n程式來源:${Page.url(this)}")
                         .setPositiveButton("好", null).show()
                 3 -> batteryWhitelist()
                 4 -> updatePage()

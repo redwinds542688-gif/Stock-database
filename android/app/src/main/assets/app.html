@@ -1220,7 +1220,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610161300">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610161400">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1286,6 +1286,7 @@ except Exception:
   #notifLog .row.long .ti{color:var(--up)} #notifLog .row.short .ti{color:var(--down)}
   #notifLog .row.loss .ti{color:#FF3B3B} #notifLog .row.loss{background:rgba(255,59,59,.08);border-radius:6px;padding-left:4px}
   #notifLog .row.profit .ti{color:var(--down)} #notifLog .row.sys .ti{color:var(--dim);font-weight:400}
+  .row.sig{box-shadow:inset 3px 0 0 #FFD54F}   /* 今天有訊號:左側黃條 */
   #notifLog .empty{color:var(--dim);text-align:center;margin-top:60px;font-size:12px}
   /* 顯示區固定存在,開啟設定也不消失、不縮放 */
 
@@ -1973,7 +1974,29 @@ const setStatus = (m, err) => {
   s.className = 'status' + (err ? ' err' : '') + (m ? '' : ' hidden');
 };
 
+let LAST_LIST = null;
+/* 今天有進出場通知的股票 → {code: 名次};0 = 最新一則。資料來源同監控紀錄視窗(Android.logFor / BG.log) */
+function signalRank(){
+  const todayStr = (() => { const n = new Date(); return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0'); })();
+  let items = [];
+  try{ if (window.Android && Android.logFor) items = JSON.parse(Android.logFor(todayStr) || '[]'); }catch(e){}
+  if (!items.length && typeof BG !== 'undefined') items = BG.log.filter(l => l.includes('[通知]')).slice().reverse().map(l => ({title: l.replace(/^.*\[通知\] /, ''), kind: ''}));
+  const rank = new Map();
+  for (const x of items){
+    if (x.kind === 'sys') continue;
+    const m = (x.title || '').match(/^(?:⚠⚠ |✅ )?\S+ (\d{4,6})(?:\s|$)/);
+    if (m && !rank.has(m[1])) rank.set(m[1], rank.size);
+  }
+  return rank;
+}
+function resortList(){ if (LAST_LIST && !el('bands').classList.contains('hidden')) { render(LAST_LIST); applyLiveToList(); } }
+window.resortList = resortList;
+
 function render(list){
+  LAST_LIST = list;
+  const rank = signalRank();                       // 有買賣訊號的排前面(最新在最上),其餘照原順序(成交量)
+  const R = s => rank.has(s.code) ? rank.get(s.code) : 1e9;
+  list = list.map((s, i) => [s, i]).sort((a, b) => (R(a[0]) - R(b[0])) || (a[1] - b[1])).map(x => x[0]);
 
   const bands = el('bands');
   bands.innerHTML = '';
@@ -1986,7 +2009,7 @@ function render(list){
       : Math.round(s.vol / 1000).toLocaleString();
 
     const a = document.createElement('a');
-    a.className = 'grid row' + (s.pos ? ' holding hold-' + s.pos : '');
+    a.className = 'grid row' + (s.pos ? ' holding hold-' + s.pos : '') + (rank.has(s.code) ? ' sig' : '');
     a.href = 'javascript:void(0)';
     a.dataset.code = s.code;
     a.dataset.name = s.name || s.code;
@@ -3818,7 +3841,8 @@ window.bgTick = bgTick; window.BG = BG;
     const d = cur || today; const i = ds.indexOf(d);
     const items = itemsFor(d).filter(x => x.kind !== 'sys');   // 視窗只列買賣訊號,啟動 / 停止這類系統訊息不顯示
     const key = d + '|' + items.length + '|' + (items[0] ? items[0].t + items[0].title : '');
-    if (!force && key === lastKey) return; lastKey = key;
+    if (!force && key === lastKey) return; const changed = key !== lastKey; lastKey = key;
+    if (changed && d === today) { try{ resortList(); }catch(e){} }   // 新訊號進來 → 清單重新排序
     const n = items.length;
     const label = d === today ? '今日' : d.slice(5).replace('-', '/');
     const hd = `<div class="hd"><span class="nav"><button id="nlPrev" ${i <= 0 ? 'disabled' : ''}>◀</button><span>${label}監控紀錄</span><button id="nlNext" ${i >= ds.length - 1 ? 'disabled' : ''}>▶</button></span><span>${n} 則</span></div>`;
@@ -3842,6 +3866,8 @@ window.bgTick = bgTick; window.BG = BG;
     try{
       if (!window.Android || !Android.monitorRunning){ d.className = ''; return; }
       if (Android.isService && Android.isService()){ d.className = ''; return; }     // 服務自己那份網頁不用畫
+      const n = new Date(), wd = n.getDay(), hm = n.getHours() * 60 + n.getMinutes();
+      if (wd === 0 || wd === 6 || hm < 8 * 60 + 45 || hm > 13 * 60 + 35){ d.className = ''; return; }   // 非交易時段服務休眠,不畫紅點
       d.className = Android.monitorRunning() ? 'on' : 'off';
     }catch(e){ d.className = ''; }
   }
