@@ -35,6 +35,7 @@ class MainActivity : AppCompatActivity() {
         if (MonitorService.shouldRun()) { if (!MonitorService.running) MonitorService.start(this) }
         else { Watchdog.schedule(this); getSharedPreferences("mysh", MODE_PRIVATE).edit().putBoolean("userStopped", false).apply() }   // 非交易時段:只排鬧鐘,服務不啟動
         handleTest(intent)
+        web.postDelayed({ Updater.check(this, false) }, 4000)     // 打開 App 時靜靜檢查有沒有新版(6 小時一次)
     }
 
     override fun onNewIntent(intent: Intent?) { super.onNewIntent(intent); handleTest(intent) }
@@ -56,6 +57,7 @@ class MainActivity : AppCompatActivity() {
         m.menu.add(0, 2, 1, "監控狀態")
         m.menu.add(0, 3, 2, "關閉電池最佳化(必做)")
         m.menu.add(0, 4, 3, "更新程式(從 GitHub)")
+        m.menu.add(0, 9, 3, "更新 App(從 GitHub)")
         m.menu.add(0, 5, 4, "測試通知(進場)")
         m.menu.add(0, 7, 5, "測試通知(賠錢平倉)")
         m.menu.add(0, 8, 5, if (Settings.canDrawOverlays(this)) "螢幕角落監控點:已允許" else "允許螢幕角落監控點(需權限)")
@@ -70,6 +72,7 @@ class MainActivity : AppCompatActivity() {
                         .setPositiveButton("好", null).show()
                 3 -> batteryWhitelist()
                 4 -> updatePage()
+                9 -> Updater.check(this, true)
                 5 -> JsBridge(this, "test").notify("測試 群創 做空進場 49.40", "10:24 空✓ · 停利 47.42 停損 50.14", "short")
                 6 -> web.loadUrl(Page.url(this))
                 8 -> if (!Settings.canDrawOverlays(this)) startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) else toast("已允許,監控中會在右上角閃綠點")
