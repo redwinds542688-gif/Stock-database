@@ -1220,7 +1220,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610161615">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610161630">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2849,7 +2849,7 @@ const SHOW_VWAP_PANE = false;          // 元大版面沒有 VWAP 乖離柱狀�
 /* ── 比照元大 App 的圖表版面(2026-10-15)。想回到舊的樣子改這裡 ── */
 const YH = {
   defaultBars   : 45,     // 開圖只顯示最近幾根 K(元大約 40 根,K 棒才夠粗);往左滑可看更早的
-  showVwapLine  : true,   // 圖上畫橘色 VWAP 線(= 元大分時頁的黃色均價線;2026-10-15 23:30 因 VWAP 過濾打開)
+  showVwapLine  : false,  // 圖上不畫橘色 VWAP 線(2026-10-16 使用者要求;VWAP 過濾照算,只是不畫)。原:畫橘色 VWAP 線(= 元大分時頁的黃色均價線;2026-10-15 23:30 因 VWAP 過濾打開)
   showRiskLines : false,  // 圖上畫 ATR 停損 / 停利線(元大沒有;數值仍在最下面小字)
   showEntryLines: false,  // 圖上畫 ±entryMaxChg% 進場區間虛線(元大沒有;距昨收 % 仍在最下面小字)
   showSignalMarks: true,  // 圖上標出今天燈號亮起的位置:▲多(紅,K 棒下)、▼空(綠,K 棒上)、出(灰點,訊號結束)
