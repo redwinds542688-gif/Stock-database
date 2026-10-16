@@ -25,7 +25,7 @@
      所以改成:Cloudflare 到點 → 呼叫 GitHub API 的 workflow_dispatch → GitHub 立刻開始跑。
      需要在 Worker 設定一個 Secret:GH_TOKEN(GitHub fine-grained token,只給 Stock-database 的 Actions:Read and write)。
      Cron Trigger 只要一條(免費方案全帳號上限 5 條,樂透 Worker 已佔用):
-       */5 0-1,6-12 * * MON-FRI → 每 5 分鐘醒來,scheduled() 自己判斷台灣時間:
+       星號/5 0-1,6-12 * * MON-FRI(星號就是 *) → 每 5 分鐘醒來,scheduled() 自己判斷台灣時間:
          08:20、08:45、09:05 → 開盤前資格複檢(recheck.yml);14:30、16:30、20:30 → 每日資料(daily.yml)
      檢查:https://twse-proxy.<帳號>.workers.dev/?gh=status   → 顯示 token 有沒有設好、能不能連到 GitHub
      手動觸發(要另設 Secret CRON_KEY):?gh=run&what=daily&key=<CRON_KEY>  或 what=recheck
