@@ -3814,10 +3814,10 @@ window.bgTick = bgTick; window.BG = BG;
     const box = el('notifLog'); if (!box) return;
     const ds = days(); const today = todayStr(); if (!ds.includes(today)) ds.push(today); ds.sort();
     const d = cur || today; const i = ds.indexOf(d);
-    const items = itemsFor(d);
+    const items = itemsFor(d).filter(x => x.kind !== 'sys');   // 視窗只列買賣訊號,啟動 / 停止這類系統訊息不顯示
     const key = d + '|' + items.length + '|' + (items[0] ? items[0].t + items[0].title : '');
     if (!force && key === lastKey) return; lastKey = key;
-    const n = items.filter(x => x.kind !== 'sys').length;
+    const n = items.length;
     const label = d === today ? '今日' : d.slice(5).replace('-', '/');
     const hd = `<div class="hd"><span class="nav"><button id="nlPrev" ${i <= 0 ? 'disabled' : ''}>◀</button><span>${label}監控紀錄</span><button id="nlNext" ${i >= ds.length - 1 ? 'disabled' : ''}>▶</button></span><span>${n} 則</span></div>`;
     box.innerHTML = hd + (items.length ? items.map((x, k) => `<div class="row ${esc(x.kind || '')}" data-i="${k}"><span class="t">${esc(x.t)}</span><span class="b"><div class="ti">${esc(x.title)}</div>${x.body ? `<div class="tx">${esc(x.body)}</div>` : ''}</span></div>`).join('')
