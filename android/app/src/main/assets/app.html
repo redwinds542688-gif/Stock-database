@@ -1220,7 +1220,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610161600">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610161615">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3310,11 +3310,12 @@ function initChart(){
   // 兩指縮放 / 拖動時,主圖每一格都要重畫;另外兩張圖和高低價標籤改成「最多每 70ms 跟一次」,
   // 不然每一格都要畫三張圖 + 算標籤,手機上會一格一格跳(實測:同步佔 40%、標籤佔 20% 的時間)
   let syncing = false, pendingR = null, pendingSrc = null, syncTimer = 0;
+  const botHidden = () => { const e = el('chartBot'); return !e || e.classList.contains('hidden'); };   // 乖離圖沒顯示就不用跟著畫
   const applySync = () => {
     syncTimer = 0; if (!pendingR) return;
     const r = pendingR, a = pendingSrc; pendingR = null;
     syncing = true;
-    for (const b of charts) if (b !== a) b.timeScale().setVisibleLogicalRange(r);
+    for (const b of charts) if (b !== a && !(b === chartB && botHidden())) b.timeScale().setVisibleLogicalRange(r);
     syncing = false;
     updateHiLo();
   };
@@ -3324,7 +3325,11 @@ function initChart(){
     const maxTo = (typeof BARS !== 'undefined' && BARS.length ? BARS.length - 1 : 0) + 3;
     if (r.to > maxTo) { r = {from: r.from - (r.to - maxTo), to: maxTo}; a.timeScale().setVisibleLogicalRange(r); return; }   // 會再觸發一次(已夾好的範圍)
     pendingR = r; pendingSrc = a;
-    if (touching) return;                                   // 手指還在圖上:完全不同步,放開再一次補上
+    if (touching){                                          // 手指還在圖上:上 K 下 OBV 每格即時聯動;乖離圖與高低價標籤放開再補
+      syncing = true;
+      for (const b of charts) if (b !== a && b !== chartB) b.timeScale().setVisibleLogicalRange(r);
+      syncing = false; return;
+    }
     if (!syncTimer) syncTimer = setTimeout(applySync, 70);
   });
   // 手指按在任一張圖上的期間,只畫被操作的那張;放開(或 1.5 秒沒放開)再把另外兩張圖對齊
