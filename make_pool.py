@@ -28,7 +28,7 @@ from datetime import datetime, timedelta, timezone, date
 
 # ── 選股基準(要和 HTML 裡 settings 的 MONITOR_BASE 一致)──
 #   前一交易日:收盤價 LO~HI 元、振幅 ≥ MIN_AMP%,依「成交張數」由大到小取前 SIZE 名
-LO, HI, MIN_AMP, SIZE = 15, 500, 4.0, 100
+LO, HI, MIN_AMP, SIZE = 15, 500, 4.0, 130   # 2026-10-17 100→130:App 端再以監控高價(300)/多空上限、禁止先賣後買篩掉約 10~15 檔,留 130 才能真的監控到 100
 TICK_MAX_PCT = 0.35      # 一檔跳動 ÷ 股價 的上限(%):超過代表一個 tick 就吃掉來回成本
 ENTRY_MAX_CHG = 3.5      # 進場時漲跌幅上限(%,寫進 pool.json 給 HTML / 策略層用;2026-10-15 由 3 改 5,2026-10-16 回測 10/13~16 後改 3.5)
 AVG5_MIN_AMP = 4.0       # 最近 5 個交易日「平均振幅」下限(%):擋掉只有昨天偶然動一次的股票
