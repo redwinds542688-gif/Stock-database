@@ -25,9 +25,9 @@
      所以改成:Cloudflare 到點 → 呼叫 GitHub API 的 workflow_dispatch → GitHub 立刻開始跑。
      需要在 Worker 設定一個 Secret:GH_TOKEN(GitHub fine-grained token,只給 Stock-database 的 Actions:Read and write)。
      Cron Triggers(UTC,台灣 = +8)三條:
-       20,45 0 * * 1-5   → 08:20、08:45 開盤前資格複檢(recheck.yml)
-       5 1 * * 1-5       → 09:05 再複檢一次
-       30 6,8,12 * * 1-5 → 14:30、16:30、20:30 每日資料(daily.yml)
+       20,45 0 * * MON-FRI   → 08:20、08:45 開盤前資格複檢(recheck.yml)
+       5 1 * * MON-FRI       → 09:05 再複檢一次
+       30 6,8,12 * * MON-FRI → 14:30、16:30、20:30 每日資料(daily.yml)
      檢查:https://twse-proxy.<帳號>.workers.dev/?gh=status   → 顯示 token 有沒有設好、能不能連到 GitHub
      手動觸發(要另設 Secret CRON_KEY):?gh=run&what=daily&key=<CRON_KEY>  或 what=recheck
    ══════════════════════════════════════════════════════ */
@@ -84,7 +84,7 @@ export default {
         } catch (e) { github = "連線失敗 " + e; }
       }
       return J({ GH_TOKEN: hasToken ? "已設定" : "沒有設定", CRON_KEY: hasKey ? "已設定" : "沒有設定(手動觸發關閉)", github,
-                 cron: ["20,45 0 * * 1-5 → 08:20/08:45 複檢", "5 1 * * 1-5 → 09:05 複檢", "30 6,8,12 * * 1-5 → 14:30/16:30/20:30 每日資料"],
+                 cron: ["20,45 0 * * MON-FRI → 08:20/08:45 複檢", "5 1 * * MON-FRI → 09:05 複檢", "30 6,8,12 * * MON-FRI → 14:30/16:30/20:30 每日資料"],
                  now_taipei: new Date(Date.now() + 8 * 3600e3).toISOString().replace("T", " ").slice(0, 19) });
     }
     if (gh === "run") {
