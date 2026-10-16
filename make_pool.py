@@ -235,26 +235,46 @@ def tpex_today(ymd_slash):
 
 
 TODAY8 = now_tw().strftime("%Y%m%d")
+
+# 要抓哪一天的盤後行情:14:00 以前(含半夜過了 0 點以後)是「上一個交易日」,不是今天。
+# 2026-10-16 01:16 那次排程延遲到半夜才跑,用 20261016 去要盤後行情當然是 0 筆,退回 OpenAPI 又拿到上市 10/14、上櫃 10/15,
+# 結果把上市整個丟掉、池子變成 100 檔全是上櫃。所以改成:先試該試的日子,沒有再往前一天(最多 4 天,跳過週末),都沒有才用 OpenAPI。
+def candidate_days(n=4):
+    d = now_tw()
+    if d.hour < 14: d = d - timedelta(days=1)
+    out = []
+    while len(out) < n:
+        if d.weekday() < 5: out.append(d)
+        d = d - timedelta(days=1)
+    return out
 twse = []
-print(f"抓取證交所(上市)當天盤後行情 {TODAY8}…")
-try:
-    twse = normalize(twse_today(TODAY8), "twse")
-    print(f"  上市(盤後){len(twse)} 檔")
-except Exception as e:
-    print(f"  盤後行情失敗:{e}")
+twse = []
+for d in candidate_days():
+    ymd = d.strftime("%Y%m%d")
+    print(f"抓取證交所(上市)盤後行情 {ymd}…")
+    try:
+        twse = normalize(twse_today(ymd), "twse")
+        print(f"  上市(盤後){len(twse)} 檔")
+    except Exception as e:
+        print(f"  盤後行情失敗:{e}")
+    if twse: break
 if not twse:
     print("  當天盤後行情還沒有(假日?),改用 OpenAPI(注意:它常慢一天)…")
     twse = normalize(get_json(TWSE), "twse")
     print(f"  上市(OpenAPI){len(twse)} 檔")
 
 tpex = []
-print(f"抓取櫃買(上櫃)當天盤後行情 {TODAY8}…")
+TPEX_DAY = candidate_days(1)[0]
+print(f"抓取櫃買(上櫃)盤後行情 {TPEX_DAY.strftime('%Y/%m/%d')}…")
 for attempt in range(TPEX_WAIT_TRIES + 1):
-    try:
-        tpex = normalize(tpex_today(now_tw().strftime("%Y/%m/%d")), "tpex")
-    except Exception as e:
-        print(f"  盤後行情失敗:{e}")
-        tpex = []
+    tpex = []
+    for d in candidate_days():                       # 先試該試的那天,沒有再往前
+        try:
+            tpex = normalize(tpex_today(d.strftime("%Y/%m/%d")), "tpex")
+        except Exception as e:
+            print(f"  盤後行情失敗:{e}")
+            tpex = []
+        if tpex: break
     if tpex or attempt == TPEX_WAIT_TRIES:
         break
     # 只有「今天是交易日且上市已有當天資料、現在是 14:00~17:00」才值得等;其他情況直接備援
