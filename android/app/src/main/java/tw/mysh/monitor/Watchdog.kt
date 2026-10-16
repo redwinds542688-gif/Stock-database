@@ -61,7 +61,7 @@ class WatchdogReceiver : BroadcastReceiver() {
         val stopped = Watchdog.userStopped(ctx)
         Log.i("mysh", "alarm $what: running=${MonitorService.running} userStopped=$stopped")
         if (stopped) return
-        if (!MonitorService.running) MonitorService.start(ctx)
+        if (!MonitorService.running && MonitorService.shouldRun()) MonitorService.start(ctx)   // 非交易時段不啟動,只把鬧鐘接下去
         // 鬧鐘是一次性的,每次響完再排下一次
         if (what == "daily") Watchdog.scheduleDaily(ctx) else Watchdog.schedule(ctx)
     }
@@ -69,6 +69,6 @@ class WatchdogReceiver : BroadcastReceiver() {
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent?) {
-        if (!Watchdog.userStopped(ctx)) { MonitorService.start(ctx); Watchdog.schedule(ctx) }
+        if (!Watchdog.userStopped(ctx)) { if (MonitorService.shouldRun()) MonitorService.start(ctx); Watchdog.schedule(ctx) }
     }
 }

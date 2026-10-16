@@ -441,7 +441,7 @@ pool.js
 
 | 動作 | 效果 |
 |---|---|
-| 雙擊齒輪 | 開 / 關監控設定面板 |
+| 單擊齒輪 | 開 / 關監控設定面板(紀錄先隱藏) |
 | 長按齒輪 0.7 秒 | 匯出 settings.js |
 | 長按齒輪(費率覆蓋層開著時) | 退出覆蓋層 |
 | 長按「手續費折扣」 | 開 / 關費率覆蓋層(證商費、證手費、證交稅) |
@@ -1220,6 +1220,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
+  <meta name="app-build" content="202610161755">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1271,8 +1272,8 @@ except Exception:
          border-radius:10px;
          background:var(--panel);border:1px solid var(--up);overflow:hidden}
   /* 今日監控紀錄(背景監控發過的通知,新的在上面;2026-10-16) */
-  #notifLog{position:absolute;inset:0;overflow-y:auto;padding:6px 10px;font-size:13px;line-height:1.35;-webkit-overflow-scrolling:touch;touch-action:pan-y}
-  #notifLog .hd{color:var(--dim);font-size:12px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--panel);padding-bottom:2px}
+  #notifLog{position:absolute;inset:0;overflow-y:auto;padding:0 10px 6px;font-size:13px;line-height:1.35;-webkit-overflow-scrolling:touch;touch-action:pan-y}
+  #notifLog .hd{color:var(--dim);font-size:12px;margin:0 0 4px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:2;background:var(--panel);padding:6px 0 3px}   /* 上方不留 padding,捲動的列才不會從標題上面露出來 */
   #notifLog .hd .nav{display:flex;gap:6px;align-items:center}
   #notifLog .hd button{background:#222C3C;color:#D8DEE9;border:0;border-radius:6px;padding:2px 10px;font-size:13px}
   #notifLog .hd button:disabled{opacity:.3}
@@ -1285,6 +1286,7 @@ except Exception:
   #notifLog .row.long .ti{color:var(--up)} #notifLog .row.short .ti{color:var(--down)}
   #notifLog .row.loss .ti{color:#FF3B3B} #notifLog .row.loss{background:rgba(255,59,59,.08);border-radius:6px;padding-left:4px}
   #notifLog .row.profit .ti{color:var(--down)} #notifLog .row.sys .ti{color:var(--dim);font-weight:400}
+  .row.sig{box-shadow:inset 3px 0 0 #FFD54F}   /* 今天有訊號:左側黃條 */
   #notifLog .empty{color:var(--dim);text-align:center;margin-top:60px;font-size:12px}
   /* 顯示區固定存在,開啟設定也不消失、不縮放 */
 
@@ -1296,6 +1298,19 @@ except Exception:
         background:none;border:none;color:var(--dim);cursor:pointer;
         -webkit-user-select:none;user-select:none}
   .tool:disabled{color:var(--faint);opacity:.55;cursor:default}
+  .tool.txt{width:auto;min-width:56px;height:34px;padding:0 10px;font-size:14px;letter-spacing:1px;color:#D8DEE9;
+            border-radius:9px;border:1px solid #3A465C;border-bottom-color:#070A10;
+            background:linear-gradient(#2B3549,#171D2A);
+            box-shadow:0 3px 0 #070A10,0 4px 8px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.10);
+            text-shadow:0 1px 0 rgba(0,0,0,.6)}                     /* 立體按鍵 */
+  .tool.txt:disabled{opacity:.9;color:transparent;cursor:default}   /* 空白鍵:保留立體外觀 */
+  .tool.txt:disabled:active{transform:none;box-shadow:0 3px 0 #070A10,0 4px 8px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.10);background:linear-gradient(#2B3549,#171D2A)}
+  .tool.txt:active{transform:translateY(3px);box-shadow:0 0 0 #070A10,inset 0 2px 4px rgba(0,0,0,.6);background:linear-gradient(#171D2A,#2B3549)}
+  .tool.txt.on{color:var(--ok, #22B07D)}
+  .tool.txt.lit{color:var(--brass)}
+  #infoView{position:absolute;inset:0;overflow-y:auto;padding:8px 12px;font-size:13px;line-height:1.6;color:var(--text,#D8DEE9);-webkit-overflow-scrolling:touch;touch-action:pan-y;white-space:pre-wrap}
+  #infoView b{color:var(--brass)}
+  .panel.open #infoView{visibility:hidden}
   .tool.on{color:var(--ok, #22B07D)}
   .tool .dot{width:15px;height:15px;border-radius:50%;
              border:1.6px solid currentColor}
@@ -1311,6 +1326,7 @@ except Exception:
           background:none;          /* 透明,紅框不被蓋住 */
           visibility:hidden}
   .panel.open .wheels{visibility:visible}
+  .panel.open #notifLog{visibility:hidden}   /* 設定滾輪打開時,監控紀錄先藏起來,不然兩個疊在一起 */
   .wheel{flex:0 0 calc((100% - 16px) / 3);position:relative;min-width:0}
 
   /* 長按「手續費折扣」:三個費率滾輪覆蓋在第一排上方,
@@ -1363,8 +1379,8 @@ except Exception:
           calc(var(--u) * 6)    /* 成交價 */
           calc(var(--u) * 1)    /* 漲跌號 */
           calc(var(--u) * 2)    /* 空白   */
-          calc(var(--u) * 9)    /* 成交量 */
-          calc(var(--u) * 2);   /* 張     */
+          calc(var(--u) * 7)    /* 成交量(萬張,小數兩位) */
+          calc(var(--u) * 4);   /* 萬張   */
         align-items:center;padding:9px 0;
         font-family:var(--mono);
         /* 字級由 JS 實際量測等寬字寬後校準,確保 1 字元 = 1 位元 */
@@ -1389,6 +1405,7 @@ except Exception:
   .row .posline .pos.long{background:var(--up)}     /* 持有多單 */
   .row .posline .pos.short{background:var(--down)}  /* 持有空單 */
   .row .posline .pos.none{background:#3A424F;color:#8A93A3;font-weight:400}  /* 未交易 */
+  .row .posline .pos.watch{background:#4A3F12;color:#FFD54F;font-weight:400}  /* 今天有買賣訊號(監控中) */
   .row.holding{background:rgba(201,162,39,.06)}
   /* 未平倉:名次依部位方向上色 */
   .row.holding .rank{font-weight:700}
@@ -1420,6 +1437,7 @@ except Exception:
   .sheetbody{flex:1;position:relative;min-height:0}
   /* 兩指縮放只作用在 K 線圖 / OBV 圖(圖表套件自己處理),不讓瀏覽器放大整個頁面 */
   .sheet, #chartTop, #chartMid, #chartBot{touch-action:none}
+  .xclose{position:absolute;right:8px;bottom:8px;z-index:6;width:34px;height:34px;border-radius:8px;border:1px solid #3A465C;background:rgba(22,28,40,.85);color:#D8DEE9;font-size:16px;padding:0}
   #chart{position:absolute;inset:0;display:flex;flex-direction:column;background:#000}
   #chartTop{flex:11;min-height:0;position:relative;background:#000}
   #chartMid{flex:5;min-height:0;position:relative;border-top:1px solid #333;background:#000}
@@ -1499,21 +1517,14 @@ except Exception:
 </div>
 
 <div class="panel" id="panel">
-  <div class="cover" id="cover"><div id="notifLog"><div class="empty">今日監控紀錄會顯示在這裡</div></div></div>
+  <div class="cover" id="cover"><div id="notifLog"><div class="empty">今日監控紀錄會顯示在這裡</div></div><div id="infoView" class="hidden"></div></div>
   <div class="toolbar">
-    <button class="tool" id="refreshBtn" aria-label="重新讀取雲端資料"
-            title="點一下重新讀取雲端資料"><span class="dot"></span></button>
-    <button class="tool" disabled aria-label="待設定 2"><span class="dot"></span></button>
-    <button class="tool" disabled aria-label="待設定 3"><span class="dot"></span></button>
-    <button class="tool" disabled aria-label="待設定 4"><span class="dot"></span></button>
-    <button class="tool gear" id="gear" aria-label="監控設定" title="雙擊開啟監控設定">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
-           stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-        <circle cx="12" cy="12" r="3.2"/>
-        <path d="M12 2.6v2.2M12 19.2v2.2M21.4 12h-2.2M4.8 12H2.6
-                 M18.6 5.4l-1.6 1.6M7 17l-1.6 1.6M18.6 18.6L17 17M7 7L5.4 5.4"/>
-      </svg>
-    </button>
+    <button class="tool txt" id="refreshBtn" aria-label="訊息"
+            title="顯示監控訊息;長按重新讀取雲端資料">訊息</button>
+    <button class="tool txt" id="btnReload" disabled aria-label="待設定 2"></button>   <!-- 暫時空白(使用者要求);功能寫好了,之後填字、拿掉 disabled 即可 -->
+    <button class="tool txt" id="btnState" disabled aria-label="待設定 3"></button>
+    <button class="tool txt" id="btnRules" disabled aria-label="待設定 4"></button>
+    <button class="tool gear txt" id="gear" aria-label="設定" title="單擊開 / 關監控設定">設定</button>
   </div>
   <div class="wheels">
   <div class="subwheels" id="subFee">
@@ -1593,7 +1604,7 @@ except Exception:
     <div id="chart">
       <div class="yh-lbl"><span style="color:#D63AF9">均價<span id="lblMaN">10</span>:<span id="lblMaV">—</span></span>
         <span style="color:#FF9F43">VWAP:<span id="lblVwapV">—</span></span></div>
-      <div id="chartTop"><span class="hilo up hidden" id="hiLbl"></span><span class="hilo down hidden" id="loLbl"></span></div>
+      <div id="chartTop"><span class="hilo up hidden" id="hiLbl"></span><span class="hilo down hidden" id="loLbl"></span><button id="xhairClose" class="xclose hidden" aria-label="收掉十字線">✕</button></div>
       <div class="yh-lbl"><span style="color:#FF3B3B">OBV:<span id="lblObvV">—</span></span>
         <span style="color:#19D3F5">均線<span id="lblObvMaN">10</span>:<span id="lblObvMaV">—</span></span></div>
       <div id="chartMid"></div>
@@ -1601,10 +1612,10 @@ except Exception:
     </div>
     <div class="sh-msg" id="shMsg">讀取 1 分K …</div>
   </div>
-  <div class="yh-foot" id="shSub"></div>
+  <div class="yh-foot" id="shSub" style="display:none"></div>   <!-- 圖下方那段統計文字不顯示(使用者要求);內容仍照算,截圖工具會讀 -->
 </div>
 
-<div class="status" id="status">載入中…</div>
+<div class="status" id="status" style="display:none">載入中…</div>   <!-- 「雲端資料 …」那行不顯示(使用者要求) -->
 
 <div id="result" class="hidden">
   <div class="grid head">
@@ -1619,10 +1630,10 @@ except Exception:
     <div></div>
   </div>
   <div id="bands"></div>
-  <div class="foot">
+  <div class="foot" style="display:none">   <!-- 監控條件說明不顯示(使用者要求) -->
     監控條件:上市/上櫃普通股(非 ETF、非金融保險業)、官方可現股當沖名單內、<br>
     可先賣後買、非注意股、非處置股、昨日未收漲跌停、<br>
-    一檔跳動 ≤ 0.35%、收盤價在監控區間內、振幅達門檻、5 日平均振幅 ≥ 4%,<br>
+    一檔跳動 ≤ 0.35%、收盤價在監控區間內、振幅達門檻、5 日平均振幅 ≥ 4% 且 5 日中至少 3 天 ≥ 4%,<br>
     依成交張數由大到小排序取前 N 檔;高價另受「多空上限 ÷ 1000」限制。<br>
     資料為前一交易日盤後資訊,非即時報價。點任一列可開 K 線圖。
   </div>
@@ -1728,6 +1739,7 @@ window.MONITOR_BASE = {
   /* 以下三項與 make_pool.py 同名設定一致;雲端 pool.json 的 rules 讀到時會覆蓋 */
   excludeIndustry: ['17'],   // 排除的產業別:17 = 金融保險業(金控、銀行、保險、證券)
   avg5MinAmp : 4.0,    // 最近 5 個交易日平均振幅下限(%):擋掉只有昨天偶然動一次的股票
+  avg5MinHits: 3,      // 最近 5 個交易日裡至少幾天振幅 ≥ amp 門檻(擋掉像緯創這種平常不動、只靠一根大跌撐平均的)
   tickMaxPct : 0.35,   // 一檔跳動 ÷ 股價 上限(%):超過代表一個 tick 就吃掉來回成本
   entryMaxChg: 5.0,    // 進場時漲跌幅上限(%):|現價 − 昨收| ÷ 昨收 超過就不進場(風控;2026-10-15 由 3 改 5)
 
@@ -1848,6 +1860,7 @@ async function loadRemotePool(){
     if (j.rules.tick_max_pct != null) BASE.tickMaxPct  = j.rules.tick_max_pct;
     if (Array.isArray(j.rules.exclude_industry)) BASE.excludeIndustry = j.rules.exclude_industry;
     if (j.rules.avg5_min_amp != null) BASE.avg5MinAmp  = j.rules.avg5_min_amp;
+    if (j.rules.avg5_min_hits != null) BASE.avg5MinHits = j.rules.avg5_min_hits;
     if (j.rules.entry_max_chg!= null) BASE.entryMaxChg = j.rules.entry_max_chg;
   }
   return j.pool
@@ -1861,6 +1874,7 @@ async function loadRemotePool(){
       limitHit: s.limit_hit === 1,
       industry: s.industry || '',                      // 官方產業別代碼
       amp5: s.amp5 != null ? +s.amp5 : null,           // 最近 5 日平均振幅 %
+      ampHits: s.amp_hits != null ? +s.amp_hits : null, // 最近 5 日裡振幅 ≥ 門檻的天數
       market: s.market,
       dt:      s.daytrade    === 1,
       dtShort: s.short_first === 1,
@@ -1972,7 +1986,29 @@ const setStatus = (m, err) => {
   s.className = 'status' + (err ? ' err' : '') + (m ? '' : ' hidden');
 };
 
+let LAST_LIST = null;
+/* 今天有進出場通知的股票 → {code: 名次};0 = 最新一則。資料來源同監控紀錄視窗(Android.logFor / BG.log) */
+function signalRank(){
+  const todayStr = (() => { const n = new Date(); return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0'); })();
+  let items = [];
+  try{ if (window.Android && Android.logFor) items = JSON.parse(Android.logFor(todayStr) || '[]'); }catch(e){}
+  if (!items.length && typeof BG !== 'undefined') items = BG.log.filter(l => l.includes('[通知]')).slice().reverse().map(l => ({title: l.replace(/^.*\[通知\] /, ''), kind: ''}));
+  const rank = new Map();
+  for (const x of items){
+    if (x.kind === 'sys') continue;
+    const m = (x.title || '').match(/^(?:⚠⚠ |✅ )?\S+ (\d{4,6})(?:\s|$)/);
+    if (m && !rank.has(m[1])) rank.set(m[1], rank.size);
+  }
+  return rank;
+}
+function resortList(){ if (LAST_LIST && !el('bands').classList.contains('hidden')) { render(LAST_LIST); applyLiveToList(); } }
+window.resortList = resortList;
+
 function render(list){
+  LAST_LIST = list;
+  const rank = signalRank();                       // 有買賣訊號的排前面(最新在最上),其餘照原順序(成交量)
+  const R = s => rank.has(s.code) ? rank.get(s.code) : 1e9;
+  list = list.map((s, i) => [s, i]).sort((a, b) => (R(a[0]) - R(b[0])) || (a[1] - b[1])).map(x => x[0]);
 
   const bands = el('bands');
   bands.innerHTML = '';
@@ -1982,10 +2018,10 @@ function render(list){
     const cls  = d > 0 ? 'up' : d < 0 ? 'down' : 'flat';
     const mark = d > 0 ? '▲' : d < 0 ? '▼' : '─';
     const vol  = s.vol == null ? '—'
-      : Math.round(s.vol / 1000).toLocaleString();
+      : (s.vol / 1000 / 10000).toFixed(2);              // 萬張,小數兩位
 
     const a = document.createElement('a');
-    a.className = 'grid row' + (s.pos ? ' holding hold-' + s.pos : '');
+    a.className = 'grid row' + (s.pos ? ' holding hold-' + s.pos : '') + (rank.has(s.code) ? ' sig' : '');
     a.href = 'javascript:void(0)';
     a.dataset.code = s.code;
     a.dataset.name = s.name || s.code;
@@ -1998,7 +2034,7 @@ function render(list){
         <div class="posline">${
           s.pos ? `<span class="pos ${s.pos}">${s.pos === 'long' ? '多' : '空'}${
                      String(s.qty || 0).padStart(3, ' ')}  張</span>`
-                : '<span class="pos none">未</span>'
+                : (rank.has(s.code) ? '<span class="pos watch">監控中</span>' : '<span class="pos none">未</span>')   // 今天有買賣訊號、但沒手動記部位 → 監控中
         }</div>
       </div>
       <div></div>
@@ -2006,7 +2042,7 @@ function render(list){
       <div class="mv ${cls}">${mark}</div>
       <div></div>
       <div class="vol">${vol}</div>
-      <div class="unit">張</div>`;
+      <div class="unit">萬張</div>`;
     bands.appendChild(a);
   });
 
@@ -2027,13 +2063,86 @@ function render(list){
 (() => {
   const btn = document.getElementById('refreshBtn');
   if (!btn) return;
-  btn.addEventListener('click', async () => {
+  // 「訊息」:點一下 = 關掉設定滾輪、顯示監控紀錄;長按 0.7 秒 = 重新讀取雲端資料(原本的功能)
+  const reload = async () => {
     POOL = null; SRC = null;           // 丟掉手上的,重新去雲端抓
     FORCE_FRESH = true;                // 這一次無視所有快取
     BARS_MEM.clear();
     kcacheEvict('__clear_all__');      // 本機分K 快取也全清,之後點股票會重新下載
     try{ await scan(); } finally { FORCE_FRESH = false; }
+  };
+  let hold, held = false, lastTap = 0;
+  const showMsg = e => { if (held){ held = false; return; } e.preventDefault(); const pnl = document.querySelector('.panel'); if (pnl) pnl.classList.remove('open'); if (window.hideInfo) hideInfo(); };
+  btn.addEventListener('touchstart', () => { hold = setTimeout(() => { held = true; btn.style.opacity = '.3'; setTimeout(() => { btn.style.opacity = ''; }, 200); reload(); }, 700); }, {passive:true});
+  btn.addEventListener('mousedown', () => { hold = setTimeout(() => { held = true; reload(); }, 700); });
+  ['touchend','touchmove','touchcancel','mouseup','mouseleave'].forEach(ev => btn.addEventListener(ev, () => clearTimeout(hold), {passive:true}));
+  // 中間三顆:更新 / 狀態 / 規則。狀態、規則顯示在同一個框裡(infoView),「訊息」切回監控紀錄
+  const info = document.getElementById('infoView'), nl = document.getElementById('notifLog');
+  let infoKind = '', infoTimer = null;
+  const buildBuild = () => { const m = document.querySelector('meta[name="app-build"]'); return m ? m.content : ''; };
+  const esc = x => String(x).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const svcState = () => {
+    try{
+      if (!window.Android || !Android.monitorRunning) return '(非 App)';
+      const n = new Date(), wd = n.getDay(), hm = n.getHours() * 60 + n.getMinutes();
+      const hours = wd >= 1 && wd <= 5 && hm >= 8 * 60 + 45 && hm <= 13 * 60 + 35;
+      return Android.monitorRunning() ? '執行中(每 5 秒)' : (hours ? '未執行' : '收盤休眠,下個交易日 08:50 自動啟動');
+    }catch(e){ return '?'; }
+  };
+  const stateHtml = () => {
+    const st = (el('status') && el('status').textContent) || '';
+    const rows = [
+      ['雲端資料', SRC_DATE || '—'],
+      ['資格複檢', ELIG_CHECKED === todayTW() ? '已複檢 ' + ELIG_CHECKED_AT.slice(11) : (ELIG_CHECKED_AT ? '上次 ' + ELIG_CHECKED_AT : '—')],
+      ['即時報價', LIVE_ERR ? '⚠ 斷線(' + LIVE_ERR + ')' : (LIVE_LAST_OK ? '● ' + Math.round((Date.now() - LIVE_LAST_OK) / 1000) + ' 秒前' : (inSession() ? '連線中' : '非交易時段'))],
+      ['背景監控', svcState()],
+      ['監控清單', (LIST_CODES || []).length + ' 檔'],
+      ['監控價格', wLo.value + ' ~ ' + wHi.value + ' 元,振幅 ≥ ' + wAmp.value],
+      ['手續費 / 上限', wFee.value + ' · ' + wCap.value],
+      ['程式版本', buildBuild()],
+      ['狀態列', st || '—'],
+    ];
+    return rows.map(r => '<b>' + esc(r[0]) + '</b>:' + esc(r[1])).join('\n');
+  };
+  const rulesHtml = () => [
+    '<b>選股(每日 14:30 雲端重算)</b>',
+    '上市 / 上櫃普通股(非 ETF、非金融)、官方可現股當沖且可先賣後買、非注意 / 處置股、昨日未收漲跌停',
+    '價格 15~500、一檔跳動 ≤ 0.35%、昨日振幅 ≥ 4%、5 日平均振幅 ≥ 4% 且 5 日中至少 3 天 ≥ 4%',
+    '依成交張數取前 100 檔;高價另受「多空上限 ÷ 1000」限制',
+    '',
+    '<b>進場</b>',
+    '均價 K' + BASE.maPeriod + ' / OBV 均線 ' + BASE.obvMaPeriod + ';開盤 ' + SIG.skipMin + ' 分鐘內不進,' + SIG.noEntryAfter + ' 後不進',
+    '第一訊號(價貫穿均線 + 均線轉向)→ 第二訊號確認(OBV 與 OBV 均線同向、價差 ≤ ' + SIG.confirmMaxGapPct + '%)才進',
+    '進場價離均價 > ' + SIG.maxEntryDevPct + '% 只記錄;離昨收 > ±' + SIG.maxDev + '% 不進;' + '價須在 VWAP 正確一側且 VWAP 斜率 ≥ ' + SIG.vwapSlopeMin + '%',
+    '累積量 ≥ ' + SIG.minDayVol + ' 張且量比 ≥ ' + SIG.rvolMin + ' 才進(量夠後下一個訊號直接進)',
+    '同一邊第一次放棄的方向,當天不再做(單邊鎖)',
+    '',
+    '<b>出場</b>',
+    '停利 +' + SIG.takePct + '%、停損 −' + SIG.stopPct + '%、離昨收超過 ' + SIG.maxMovePct + '% 強制出',
+    '出現反向訊號且該反向點可進場 → 平倉(逆勢單碰到反向點立即平倉)',
+    '',
+    '<b>資金</b>',
+    '上限 ' + wCap.value + ',手續費 ' + wFee.value + ',每筆最多賠 ' + BASE.riskPerTrade + ' 元',
+  ].join('\n');
+  const showInfo = kind => {
+    const pnl = document.querySelector('.panel'); if (pnl) pnl.classList.remove('open');
+    infoKind = kind; nl.classList.add('hidden'); info.classList.remove('hidden');
+    const paint = () => { info.innerHTML = kind === 'state' ? stateHtml() : rulesHtml(); };
+    paint(); clearInterval(infoTimer); if (kind === 'state') infoTimer = setInterval(() => { if (infoKind === 'state' && !info.classList.contains('hidden')) paint(); }, 2000);
+    document.getElementById('btnState').classList.toggle('lit', kind === 'state');
+    document.getElementById('btnRules').classList.toggle('lit', kind === 'rules');
+  };
+  const hideInfo = () => { infoKind = ''; clearInterval(infoTimer); info.classList.add('hidden'); nl.classList.remove('hidden');
+    document.getElementById('btnState').classList.remove('lit'); document.getElementById('btnRules').classList.remove('lit'); };
+  window.hideInfo = hideInfo;
+  document.getElementById('btnState').addEventListener('click', () => infoKind === 'state' ? hideInfo() : showInfo('state'));
+  document.getElementById('btnRules').addEventListener('click', () => infoKind === 'rules' ? hideInfo() : showInfo('rules'));
+  document.getElementById('btnReload').addEventListener('click', async () => {
+    const b = document.getElementById('btnReload'); b.textContent = '讀取…'; b.disabled = true;
+    try{ await reload(); } finally { b.textContent = '更新'; b.disabled = false; }
   });
+  btn.addEventListener('touchend', e => { lastTap = Date.now(); showMsg(e); });
+  btn.addEventListener('click', e => { if (Date.now() - lastTap < 600) return; showMsg(e); });
 })();
 
 /* 停用長按選單、選取與拖曳,讓操作更像 App */
@@ -2041,7 +2150,7 @@ function render(list){
   document.addEventListener(ev, e => e.preventDefault()));
 
 /* ══════════════════════════════════════════
-   監控設定面板:雙擊齒輪開合
+   監控設定面板:單擊齒輪開合
    ══════════════════════════════════════════ */
 (() => {
   const panel = document.getElementById('panel');
@@ -2050,14 +2159,18 @@ function render(list){
 
   const toggle = () => {
     panel.classList.toggle('open');
-    if (panel.classList.contains('open')) WHEELS.forEach(w => w.init());
+    if (panel.classList.contains('open')){ WHEELS.forEach(w => w.init()); if (window.hideInfo) hideInfo(); }
   };
 
-  gear.addEventListener('dblclick', e => { e.preventDefault(); toggle(); });
+  // 單擊齒輪 = 開 / 關監控設定(打開時監控紀錄先隱藏,CSS .panel.open #notifLog);長按仍是匯出設定
+  let held = false, lastTap = 0;
+  const tap = e => { if (held){ held = false; return; } e.preventDefault(); toggle(); };
+  gear.addEventListener('click', e => { if (Date.now() - lastTap < 600) return; tap(e); });   // 桌機;手機的 touchend 已處理過就略過
 
   // 長按齒輪 = 匯出目前設定為 settings.js
   let hold;
   const holdStart = () => { hold = setTimeout(() => {
+    held = true;
     const sub = document.getElementById('subFee');
     if (sub && sub.classList.contains('show')){
       // 費率覆蓋層開著 → 長按齒輪等同長按「手續費折扣」,直接退出
@@ -2073,11 +2186,7 @@ function render(list){
   gear.addEventListener('mousedown', holdStart);
   ['touchend','touchmove','touchcancel','mouseup','mouseleave']
     .forEach(ev => gear.addEventListener(ev, holdStop, {passive:true}));
-  gear.addEventListener('touchend', e => {          // 手機沒有原生 dblclick
-    const now = Date.now();
-    if (now - last < 320){ e.preventDefault(); toggle(); last = 0; }
-    else last = now;
-  });
+  gear.addEventListener('touchend', e => { lastTap = Date.now(); tap(e); });   // 手機:放開就切換
 })();
 
 /* ══════════════════════════════════════════
@@ -2644,7 +2753,7 @@ function applyLiveToList(){
     if (px){ px.textContent = r.z.toFixed(2); px.className = 'px ' + cls; }
     if (mv){ mv.textContent = d > 0 ? '▲' : d < 0 ? '▼' : '─'; mv.className = 'mv ' + cls; }
     const vol = row.querySelector('.vol');            // 成交量改成今天到目前的累積張數
-    if (vol && isFinite(r.v)) vol.textContent = Math.round(r.v).toLocaleString();
+    if (vol && isFinite(r.v)) vol.textContent = (r.v / 10000).toFixed(2);   // 萬張
   });
 }
 
@@ -2737,11 +2846,11 @@ let chartB, vwapDev;                           // 下圖:VWAP 乖離率
 const OBV_RESET_DAILY = true;          // true = 每個交易日開盤歸零(2026-10-15 用力積電實測:元大 -47,362、開盤歸零算 -44,257、跨日累計 -20,310 ~ -133,694,元大是每日歸零);false = 跨日累加
 let BARS = [], BARS_CODE = '';
 let ENTRY_LINES = [];
-const SHOW_VWAP_PANE = false;          // 元大版面沒有 VWAP 乖離柱狀圖,預設不顯示
+const SHOW_VWAP_PANE = false   /* 乖離圖已停用(2026-10-16 使用者要求拿掉;不影響訊號與選股) */;          // 元大版面沒有 VWAP 乖離柱狀圖,預設不顯示
 /* ── 比照元大 App 的圖表版面(2026-10-15)。想回到舊的樣子改這裡 ── */
 const YH = {
   defaultBars   : 45,     // 開圖只顯示最近幾根 K(元大約 40 根,K 棒才夠粗);往左滑可看更早的
-  showVwapLine  : true,   // 圖上畫橘色 VWAP 線(= 元大分時頁的黃色均價線;2026-10-15 23:30 因 VWAP 過濾打開)
+  showVwapLine  : false,  // 圖上不畫橘色 VWAP 線(2026-10-16 使用者要求;VWAP 過濾照算,只是不畫)。原:畫橘色 VWAP 線(= 元大分時頁的黃色均價線;2026-10-15 23:30 因 VWAP 過濾打開)
   showRiskLines : false,  // 圖上畫 ATR 停損 / 停利線(元大沒有;數值仍在最下面小字)
   showEntryLines: false,  // 圖上畫 ±entryMaxChg% 進場區間虛線(元大沒有;距昨收 % 仍在最下面小字)
   showSignalMarks: true,  // 圖上標出今天燈號亮起的位置:▲多(紅,K 棒下)、▼空(綠,K 棒上)、出(灰點,訊號結束)
@@ -3141,7 +3250,9 @@ const chartOpts = () => ({
              tickMarkMaxCharacterLength:11,
              tickMarkFormatter: t => `${TPE_DATE(t)} ${TPE_TIME(t)}`},   // 元大格式「10/15 11:42」
   localization:{timeFormatter: t => `${TPE_DATE(t)} ${TPE_TIME(t)}`},
-  crosshair:{mode:LightweightCharts.CrosshairMode.Normal},
+  crosshair:{mode:LightweightCharts.CrosshairMode.Normal,
+             vertLine:{style:LightweightCharts.LineStyle.Dashed, color:'#8A93A3', width:1, labelVisible:true},
+             horzLine:{style:LightweightCharts.LineStyle.Dashed, color:'#8A93A3', width:1, labelVisible:true}},
 });
 
 function initChart(){
@@ -3199,29 +3310,93 @@ function initChart(){
 
   // 三張圖的時間軸互相同步:拖動、縮放任一張,其他跟著動
   const charts = [chart, chartM, chartB].filter(Boolean);
-  let syncing = false;
+  // 兩張圖每一格都即時同步(上 K 下 OBV 聯動);只有「高低價標籤」這個比較貴的動作改成:
+  // 手指按著時不算,放開再算;其他時候用 requestAnimationFrame 合併,一格最多算一次
+  let syncing = false, hiloReq = 0, touching = false, touchGuard = 0;
+  // 兩張圖左邊刻度的寬度要一樣(K 的「31.40」比 OBV 的「800」寬),不然同一個時間在上下兩圖的 x 不同,十字線就對不齊
+  let scaleW = 0;
+  const alignScales = () => {
+    try{
+      const w = Math.max(chart.priceScale('left').width() || 0, chartM.priceScale('left').width() || 0);
+      if (w && w !== scaleW){ scaleW = w; [chart, chartM].forEach(c => c.applyOptions({leftPriceScale:{minimumWidth: w}})); }
+    }catch(e){}
+  };
+  window.alignScales = alignScales;
+  const scheduleHiLo = () => { if (touching || hiloReq) return; hiloReq = requestAnimationFrame(() => { hiloReq = 0; alignScales(); updateHiLo(); }); };
   for (const a of charts) a.timeScale().subscribeVisibleLogicalRangeChange(r => {
     if (syncing || !r) return;
-    syncing = true;
-    // 最後一根 K 之後只留 3 格空白,不能再往右拖出一大片空白(右邊空白沒有意義)
+    // 最後一根 K 之後只留 3 格空白,不能再往右拖出一大片空白;最少也要看得到 12 根(避免縮到只剩一根)
     const maxTo = (typeof BARS !== 'undefined' && BARS.length ? BARS.length - 1 : 0) + 3;
-    if (r.to > maxTo) { r = {from: r.from - (r.to - maxTo), to: maxTo}; a.timeScale().setVisibleLogicalRange(r); }
+    let fixed = null;
+    if (r.to > maxTo) fixed = {from: r.from - (r.to - maxTo), to: maxTo};
+    if ((fixed || r).to - (fixed || r).from < 12) { const t = (fixed || r).to; fixed = {from: t - 12, to: t}; }
+    if (fixed) { a.timeScale().setVisibleLogicalRange(fixed); return; }        // 會再觸發一次(已夾好的範圍)
+    syncing = true;
     for (const b of charts) if (b !== a) b.timeScale().setVisibleLogicalRange(r);
     syncing = false;
-    updateHiLo();
+    scheduleHiLo();
   });
+  const tStart = () => { touching = true; clearTimeout(touchGuard); touchGuard = setTimeout(tEnd, 1500); };
+  const tEnd = () => { if (!touching) return; touching = false; clearTimeout(touchGuard); scheduleHiLo(); if (typeof XLOCK !== 'undefined' && XLOCK) setTimeout(() => { if (XLOCK) applyX(XLOCK.time); }, 0); };
+  ['chartTop', 'chartMid', 'chartBot'].forEach(id => { const e = el(id); if (!e) return;
+    e.addEventListener('touchstart', tStart, {passive:true});
+    e.addEventListener('touchend', tEnd, {passive:true}); e.addEventListener('touchcancel', tEnd, {passive:true}); });
 
-  // 十字線同步(上圖移動時,中、下圖對到同一根)
-  chart.subscribeCrosshairMove(p => {
+  // 十字線:上 K 下 OBV 共用一條直線;點一下圖就放一條固定的(拖動 / 縮放都跟著那根 K),
+  // 再點別的地方就移過去,點右下角 ✕ 收掉。長按拖也可以(放開後停在最後位置)。
+  let XLOCK = null, xApplying = false, longPress = false, lpTimer = 0;
+  const idxOf = t => { let lo = 0, hi = BARS.length - 1; while (lo <= hi){ const m = (lo + hi) >> 1; if (BARS[m].time < t) lo = m + 1; else if (BARS[m].time > t) hi = m - 1; else return m; } return -1; };
+  const obvAt = i => { try{ const d = obvSeries.dataByIndex(i); return d && d.value != null ? d.value : 0; }catch(e){ return 0; } };
+  const xBtn = el('xhairClose');
+  const applyX = (time) => {
+    const i = idxOf(time); if (i < 0) return;
+    xApplying = true;
+    chart.setCrosshairPosition(BARS[i].close, time, candle);
+    chartM.setCrosshairPosition(obvAt(i), time, obvSeries);
+    xApplying = false;
+    showBarInfo(time);
+  };
+  const setX = time => { XLOCK = {time}; applyX(time); if (xBtn) xBtn.classList.remove('hidden'); };
+  const clearX = () => { XLOCK = null; xApplying = true; chart.clearCrosshairPosition(); chartM.clearCrosshairPosition(); xApplying = false; showBarInfo(null); if (xBtn) xBtn.classList.add('hidden'); };
+  window.setX = setX; window.clearX = clearX; window.getXLock = () => XLOCK;
+  if (xBtn){ xBtn.addEventListener('click', e => { e.preventDefault(); clearX(); }); xBtn.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); clearX(); }); }
+  const onMove = (src, p) => {
+    if (xApplying) return;
+    if (XLOCK && touching) return;                          // 固定住、手指還在圖上(拖動 / 縮放中):圖庫丟什麼都不理,放開再把固定那條補回去
     if (p.time){
-      chartM.setCrosshairPosition(0, p.time, obvSeries);
-      if (chartB) chartB.setCrosshairPosition(0, p.time, vwapDev);
-    }else{ chartM.clearCrosshairPosition(); if (chartB) chartB.clearCrosshairPosition(); }
-    showBarInfo(p.time);              // 開高低收量表、均價列跟著十字線走;放開回到最後一根
-  });
-  chartM.subscribeCrosshairMove(p => {
-    if (p.time){ chart.setCrosshairPosition(0, p.time, candle); showBarInfo(p.time); }
-    else { chart.clearCrosshairPosition(); showBarInfo(null); }
+      const i = idxOf(p.time);
+      xApplying = true;
+      if (src === chart) chartM.setCrosshairPosition(i >= 0 ? obvAt(i) : 0, p.time, obvSeries);
+      else chart.setCrosshairPosition(i >= 0 ? BARS[i].close : 0, p.time, candle);
+      xApplying = false;
+      showBarInfo(p.time);
+    }else if (XLOCK){
+      setTimeout(() => { if (XLOCK) applyX(XLOCK.time); }, 0);   // 圖庫自己把十字線清掉(放開、開始拖動)→ 補回固定的那條
+    }else{
+      xApplying = true; chart.clearCrosshairPosition(); chartM.clearCrosshairPosition(); xApplying = false;
+      showBarInfo(null);
+    }
+  };
+  chart.subscribeCrosshairMove(p => onMove(chart, p));
+  chartM.subscribeCrosshairMove(p => onMove(chartM, p));
+  // 點一下(單指、沒移動、0.35 秒內)= 放十字線
+  [[top, chart], [mid, chartM]].forEach(([e, c]) => {
+    let t0 = 0, x0 = 0, y0 = 0, multi = false;
+    e.addEventListener('touchstart', ev => { multi = ev.touches.length > 1; clearTimeout(lpTimer); longPress = false; if (multi){ t0 = 0; return; }
+      t0 = Date.now(); x0 = ev.touches[0].clientX; y0 = ev.touches[0].clientY;
+      lpTimer = setTimeout(() => { longPress = true; }, 350); }, {passive:true});                 // 按住 0.35 秒沒放 = 長按
+    e.addEventListener('touchmove', ev => { if (!longPress && t0 && ev.touches[0] && Math.hypot(ev.touches[0].clientX - x0, ev.touches[0].clientY - y0) > 10){ clearTimeout(lpTimer); } }, {passive:true});   // 很快就滑開 = 捲圖,不算長按
+    e.addEventListener('touchcancel', () => { clearTimeout(lpTimer); longPress = false; t0 = 0; }, {passive:true});
+    e.addEventListener('touchend', ev => {
+      clearTimeout(lpTimer); const wasLP = longPress; longPress = false;
+      if (multi || !t0) return; const t = ev.changedTouches[0]; if (!t) return;
+      const dt = Date.now() - t0; t0 = 0;
+      if (wasLP || dt > 350 || Math.hypot(t.clientX - x0, t.clientY - y0) > 10) return;
+      const r = e.getBoundingClientRect(); const x = t.clientX - r.left - (c.priceScale('left').width() || 0);
+      const li = c.timeScale().coordinateToLogical(x); if (li == null) return;
+      const i = Math.max(0, Math.min(BARS.length - 1, Math.round(li)));
+      setTimeout(() => setX(BARS[i].time), 0);              // 等圖庫自己的 touchend 處理完再放
+    }, {passive:true});
   });
 
   new ResizeObserver(() => {
@@ -3272,6 +3447,7 @@ window.addEventListener('popstate', () => {
 });
 
 async function openChart(code, name){
+  try{ if (window.clearX) clearX(); }catch(e){}            // 換股票時收掉固定的十字線
   const sheet = el('sheet');
   const wasOpen = sheet.classList.contains('open');
   sheet.classList.add('open');
@@ -3333,6 +3509,7 @@ function drawBars(bars, code, srcLabel, keepView){
   const obma = sma(ob, BASE.obvMaPeriod, 'value');
   obvMaLine.setData(obma);
   if (vwapDev) vwapDev.setData(vwapDeviation(bars, vw));
+  if (window.alignScales) requestAnimationFrame(() => alignScales());   // 左刻度寬度對齊,十字線才會上下同一條
   if (!keepView){
     // 元大風格:開圖只顯示最近 YH.defaultBars 根(K 棒才夠粗),往左滑可看更早的;其他兩張圖會同步
     const n = Math.min(YH.defaultBars, bars.length);
@@ -3590,6 +3767,7 @@ function tradable(s){
   if (s.limitHit) return false;                                    // 昨日收在漲停 / 跌停
   if (isFinancial(s)) return false;                                // 金融保險業
   if (s.amp5 != null && s.amp5 < BASE.avg5MinAmp) return false;    // 5 日平均振幅不足
+  if (s.ampHits != null && BASE.avg5MinHits != null && s.ampHits < BASE.avg5MinHits) return false;   // 5 日中振幅達門檻的天數不足
   if ((s.tickPct != null ? s.tickPct : tickPct(s.close)) > BASE.tickMaxPct) return false;  // 一檔太貴
   const e = ELIG.map && ELIG.map.get(s.code);
   if (e) return e.dt === true && e.dtShort === true;  // 券商即時資格 → 以它為準
@@ -3764,6 +3942,7 @@ async function bgTick(force, replay){
         const seen = BG.last.get(code);
         for (const m of events){
           const k = key(m); if (seen.has(k)) continue; seen.add(k);
+          if (!replay && m.time < Math.floor(Date.now() / 1000) - 600){ bgLog(code + ' 舊訊號不通知 ' + k); continue; }   // Yahoo 分K 延遲補進來會「重寫」早先的訊號,超過 10 分鐘前的點不通知
           const t = new Date(m.time * 1000).toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit', hour12:false});
           const nm = names.get(code) || code;
           const nowPx = liveRec.z || bars[bars.length - 1].close;
@@ -3814,10 +3993,11 @@ window.bgTick = bgTick; window.BG = BG;
     const box = el('notifLog'); if (!box) return;
     const ds = days(); const today = todayStr(); if (!ds.includes(today)) ds.push(today); ds.sort();
     const d = cur || today; const i = ds.indexOf(d);
-    const items = itemsFor(d);
+    const items = itemsFor(d).filter(x => x.kind !== 'sys');   // 視窗只列買賣訊號,啟動 / 停止這類系統訊息不顯示
     const key = d + '|' + items.length + '|' + (items[0] ? items[0].t + items[0].title : '');
-    if (!force && key === lastKey) return; lastKey = key;
-    const n = items.filter(x => x.kind !== 'sys').length;
+    if (!force && key === lastKey) return; const changed = key !== lastKey; lastKey = key;
+    if (changed && d === today) { try{ resortList(); }catch(e){} }   // 新訊號進來 → 清單重新排序
+    const n = items.length;
     const label = d === today ? '今日' : d.slice(5).replace('-', '/');
     const hd = `<div class="hd"><span class="nav"><button id="nlPrev" ${i <= 0 ? 'disabled' : ''}>◀</button><span>${label}監控紀錄</span><button id="nlNext" ${i >= ds.length - 1 ? 'disabled' : ''}>▶</button></span><span>${n} 則</span></div>`;
     box.innerHTML = hd + (items.length ? items.map((x, k) => `<div class="row ${esc(x.kind || '')}" data-i="${k}"><span class="t">${esc(x.t)}</span><span class="b"><div class="ti">${esc(x.title)}</div>${x.body ? `<div class="tx">${esc(x.body)}</div>` : ''}</span></div>`).join('')
@@ -3840,6 +4020,8 @@ window.bgTick = bgTick; window.BG = BG;
     try{
       if (!window.Android || !Android.monitorRunning){ d.className = ''; return; }
       if (Android.isService && Android.isService()){ d.className = ''; return; }     // 服務自己那份網頁不用畫
+      const n = new Date(), wd = n.getDay(), hm = n.getHours() * 60 + n.getMinutes();
+      if (wd === 0 || wd === 6 || hm < 8 * 60 + 45 || hm > 13 * 60 + 35){ d.className = ''; return; }   // 非交易時段服務休眠,不畫紅點
       d.className = Android.monitorRunning() ? 'on' : 'off';
     }catch(e){ d.className = ''; }
   }

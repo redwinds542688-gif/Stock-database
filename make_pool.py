@@ -32,6 +32,7 @@ LO, HI, MIN_AMP, SIZE = 15, 500, 4.0, 100
 TICK_MAX_PCT = 0.35      # 一檔跳動 ÷ 股價 的上限(%):超過代表一個 tick 就吃掉來回成本
 ENTRY_MAX_CHG = 5.0      # 進場時漲跌幅上限(%,寫進 pool.json 給 HTML / 策略層用;2026-10-15 由 3 改 5)
 AVG5_MIN_AMP = 4.0       # 最近 5 個交易日「平均振幅」下限(%):擋掉只有昨天偶然動一次的股票
+AVG5_MIN_HITS = 3        # 最近 5 個交易日裡,至少要有幾天振幅 ≥ MIN_AMP:擋掉「平常不動、只靠一根大跌把平均撐起來」的股票(例:緯創)
 AVG_DAYS = 5
 HIST_FILE = "amp_history.json"   # 每日振幅滾動存檔(全市場,保留最近 15 個交易日)
 EXCLUDE_INDUSTRY = {"17"}   # 排除的產業別代碼:17 = 金融保險業(金控、銀行、保險、證券)
@@ -428,6 +429,13 @@ def avg_amp(code, market, fill=True):
     return round(sum(h[d] for d in ds) / len(ds), 2)
 
 
+def amp_hits(code):
+    """最近 AVG_DAYS 個交易日裡,振幅 ≥ MIN_AMP 的天數"""
+    h = hist.get(code, {})
+    ds = sorted(h)[-AVG_DAYS:]
+    return sum(1 for d in ds if h[d] >= MIN_AMP)
+
+
 # ── 3. 官方「可現股當沖」名單 ──────────────────────
 #   elig[code] = (可當沖, 可先賣後買)
 #   只有出現在名單裡的才算可當沖;查不到就是不可,不猜。
@@ -575,7 +583,8 @@ for s in pool[:SIZE * 3]:
     a5 = avg_amp(s["code"], s["market"])
     s["amp5"] = a5
     s["amp_days"] = len(hist.get(s["code"], {}))
-    if a5 is not None and a5 >= AVG5_MIN_AMP:
+    s["amp_hits"] = amp_hits(s["code"])
+    if a5 is not None and a5 >= AVG5_MIN_AMP and s["amp_hits"] >= AVG5_MIN_HITS:
         kept.append(s)
     if len(kept) >= SIZE:
         break
@@ -623,7 +632,7 @@ with open("pool.json", "w", encoding="utf-8") as f:
     json.dump({"date": LAST, "generated": stamp,
                "rules": {"lo": LO, "hi": HI, "min_amp": MIN_AMP, "size": SIZE,
                          "tick_max_pct": TICK_MAX_PCT, "exclude_industry": sorted(EXCLUDE_INDUSTRY),
-                         "avg5_min_amp": AVG5_MIN_AMP, "avg_days": AVG_DAYS,
+                         "avg5_min_amp": AVG5_MIN_AMP, "avg5_min_hits": AVG5_MIN_HITS, "avg_days": AVG_DAYS,
                          "entry_max_chg": ENTRY_MAX_CHG},
                "disposed": sorted(disposed), "attention": sorted(attention),
                "elig_source": src_note, "pool": pool}, f, ensure_ascii=False, indent=1)
@@ -631,4 +640,4 @@ with open("pool.json", "w", encoding="utf-8") as f:
 print(f"\n完成:{len(pool)} 檔 → pool.js / pool.json")
 print("前 5 名:")
 for s in pool[:5]:
-    print(f"  {s['name']:<8} {s['close']:>8}  {s['lots']:>7} 張  振幅 {s['amp']}%  5日均 {s['amp5']}%({s['amp_days']}天)  ({s['market']})")
+    print(f"  {s['name']:<8} {s['close']:>8}  {s['lots']:>7} 張  振幅 {s['amp']}%  5日均 {s['amp5']}%({s['amp_hits']}/{s['amp_days']}天≥門檻)  ({s['market']})")

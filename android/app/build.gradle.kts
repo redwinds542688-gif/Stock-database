@@ -9,8 +9,8 @@ android {
         applicationId = "tw.mysh.monitor"
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "1.4"
+        versionCode = 30
+        versionName = "1.5.24"
     }
     signingConfigs {
         create("release") {
@@ -24,6 +24,7 @@ android {
         release { isMinifyEnabled = false; signingConfig = signingConfigs.getByName("release") }
         debug { signingConfig = signingConfigs.getByName("release") }
     }
+    buildFeatures { buildConfig = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
 }

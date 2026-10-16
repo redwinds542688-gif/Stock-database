@@ -32,8 +32,10 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         // 第一次打開:自動啟動背景監控
-        if (!MonitorService.running) MonitorService.start(this)
+        if (MonitorService.shouldRun()) { if (!MonitorService.running) MonitorService.start(this) }
+        else { Watchdog.schedule(this); getSharedPreferences("mysh", MODE_PRIVATE).edit().putBoolean("userStopped", false).apply() }   // 非交易時段:只排鬧鐘,服務不啟動
         handleTest(intent)
+        web.postDelayed({ Updater.check(this, false) }, 4000)     // 打開 App 時靜靜檢查有沒有新版(6 小時一次)
     }
 
     override fun onNewIntent(intent: Intent?) { super.onNewIntent(intent); handleTest(intent) }
@@ -55,18 +57,22 @@ class MainActivity : AppCompatActivity() {
         m.menu.add(0, 2, 1, "監控狀態")
         m.menu.add(0, 3, 2, "關閉電池最佳化(必做)")
         m.menu.add(0, 4, 3, "更新程式(從 GitHub)")
+        m.menu.add(0, 9, 3, "更新 App(從 GitHub)")
         m.menu.add(0, 5, 4, "測試通知(進場)")
         m.menu.add(0, 7, 5, "測試通知(賠錢平倉)")
         m.menu.add(0, 8, 5, if (Settings.canDrawOverlays(this)) "螢幕角落監控點:已允許" else "允許螢幕角落監控點(需權限)")
         m.menu.add(0, 6, 6, "重新載入畫面")
         m.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-                1 -> { if (MonitorService.running) MonitorService.stop(this) else MonitorService.start(this); toast(if (MonitorService.running) "停止中" else "啟動中") }
+                1 -> { if (MonitorService.running) { MonitorService.stop(this); toast("停止中") }
+                       else if (MonitorService.shouldRun()) { MonitorService.start(this); toast("啟動中") }
+                       else { Watchdog.schedule(this); getSharedPreferences("mysh", MODE_PRIVATE).edit().putBoolean("userStopped", false).apply(); toast("非交易時段,下個交易日 08:50 會自動啟動") } }
                 2 -> AlertDialog.Builder(this).setTitle("監控狀態")
-                        .setMessage("服務:${if (MonitorService.running) "執行中" else "未執行"}\n${MonitorService.status}\n最後一次:${MonitorService.lastTick}\n\n全自動:每個交易日 08:50 自動啟動、每 15 分鐘看門狗、開機自啟;只有按「停止背景監控」才會停。\n程式來源:${Page.url(this)}")
+                        .setMessage("服務:${if (MonitorService.running) "執行中" else if (MonitorService.shouldRun()) "未執行" else "收盤休眠(週一~五 08:45 起床,13:35 休眠)"}\n${MonitorService.status}\n最後一次:${MonitorService.lastTick}\n\n全自動:每個交易日 08:50 自動啟動、每 15 分鐘看門狗、開機自啟;只有按「停止背景監控」才會停。\n程式來源:${Page.url(this)}")
                         .setPositiveButton("好", null).show()
                 3 -> batteryWhitelist()
                 4 -> updatePage()
+                9 -> Updater.check(this, true)
                 5 -> JsBridge(this, "test").notify("測試 群創 做空進場 49.40", "10:24 空✓ · 停利 47.42 停損 50.14", "short")
                 6 -> web.loadUrl(Page.url(this))
                 8 -> if (!Settings.canDrawOverlays(this)) startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) else toast("已允許,監控中會在右上角閃綠點")

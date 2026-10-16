@@ -6,8 +6,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.media.AudioAttributes
-import android.media.RingtoneManager
 import android.util.Log
 import android.webkit.JavascriptInterface
 import java.util.concurrent.atomic.AtomicInteger
@@ -15,32 +13,30 @@ import java.util.concurrent.atomic.AtomicInteger
 /** 網頁用 Android.notify(標題, 內容, 類別) / Android.log(文字) / Android.ready(檔數) 跟 App 溝通 */
 open class JsBridge(private val ctx: Context, private val tag: String, private val onReady: ((Int) -> Unit)? = null) {
     companion object {
-        const val CH_SIGNAL = "signals"
+        const val CH_SIGNAL = "signals2"
         const val CH_MONITOR = "monitor"
-        const val CH_DANGER = "danger"
+        const val CH_DANGER = "danger2"
         private val seq = AtomicInteger(100)
         fun ensureChannels(ctx: Context) {
             val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             if (nm.getNotificationChannel(CH_SIGNAL) == null) {
                 val ch = NotificationChannel(CH_SIGNAL, "交易訊號", NotificationManager.IMPORTANCE_HIGH)
                 ch.description = "進場、停利、停損、反向出場"
-                ch.enableVibration(true); ch.vibrationPattern = longArrayOf(0, 400, 200, 400, 200, 600)
-                ch.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
-                    AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+                ch.setSound(null, null); ch.enableVibration(false)        // 聲音、震動由 Alert 自己放(走鬧鐘音軌),不靠頻道
                 ch.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                ch.setBypassDnd(true)
                 nm.createNotificationChannel(ch)
             }
             if (nm.getNotificationChannel(CH_DANGER) == null) {
                 val ch = NotificationChannel(CH_DANGER, "賠錢平倉(危險)", NotificationManager.IMPORTANCE_HIGH)
                 ch.description = "停損、超6%、賠錢出場:鬧鐘聲 + 長震動"
-                ch.enableVibration(true); ch.vibrationPattern = longArrayOf(0, 800, 300, 800, 300, 800, 300, 1500)
+                ch.setSound(null, null); ch.enableVibration(false)        // 同上,由 Alert 放鬧鐘聲 + 長震動
                 ch.enableLights(true); ch.lightColor = 0xFFFF3B3B.toInt()
-                ch.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
-                    AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
                 ch.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 ch.setBypassDnd(true)
                 nm.createNotificationChannel(ch)
             }
+            for (old in listOf("signals", "danger")) try { nm.deleteNotificationChannel(old) } catch (e: Exception) {}
             if (nm.getNotificationChannel(CH_MONITOR) == null) {
                 val ch = NotificationChannel(CH_MONITOR, "背景監控", NotificationManager.IMPORTANCE_LOW)
                 ch.description = "監控中的固定通知"; ch.setShowBadge(false)
@@ -68,6 +64,7 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
                 .setAutoCancel(true).setContentIntent(pi).setWhen(System.currentTimeMillis()).setShowWhen(true)
                 .build()
             nm.notify(seq.incrementAndGet(), n)
+            Alert.buzz(ctx, danger)
             NotifLog.add(ctx, title ?: "", body ?: "", kind ?: "")
             Log.i("mysh", "[$tag] notify $title | $body")
         } catch (e: Exception) { Log.e("mysh", "notify failed", e) }
