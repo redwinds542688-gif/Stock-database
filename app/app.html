@@ -1220,7 +1220,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610161410">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610161420">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2009,7 +2009,7 @@ function render(list){
     const cls  = d > 0 ? 'up' : d < 0 ? 'down' : 'flat';
     const mark = d > 0 ? '▲' : d < 0 ? '▼' : '─';
     const vol  = s.vol == null ? '—'
-      : Math.round(s.vol / 1000).toLocaleString();
+      : (s.vol / 1000 / 10000).toFixed(2);              // 萬張,小數兩位
 
     const a = document.createElement('a');
     a.className = 'grid row' + (s.pos ? ' holding hold-' + s.pos : '') + (rank.has(s.code) ? ' sig' : '');
@@ -2033,7 +2033,7 @@ function render(list){
       <div class="mv ${cls}">${mark}</div>
       <div></div>
       <div class="vol">${vol}</div>
-      <div class="unit">張</div>`;
+      <div class="unit">萬張</div>`;
     bands.appendChild(a);
   });
 
@@ -2671,7 +2671,7 @@ function applyLiveToList(){
     if (px){ px.textContent = r.z.toFixed(2); px.className = 'px ' + cls; }
     if (mv){ mv.textContent = d > 0 ? '▲' : d < 0 ? '▼' : '─'; mv.className = 'mv ' + cls; }
     const vol = row.querySelector('.vol');            // 成交量改成今天到目前的累積張數
-    if (vol && isFinite(r.v)) vol.textContent = Math.round(r.v).toLocaleString();
+    if (vol && isFinite(r.v)) vol.textContent = (r.v / 10000).toFixed(2);   // 萬張
   });
 }
 
