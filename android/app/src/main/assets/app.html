@@ -104,7 +104,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     燈號 = 循環狀態(做多循環中紅燈一直閃,出場回監控或轉綠燈)。舊的 `exitSignal()` 不再使用,留作參考。
   · 2026-10-15 19:40 順勢限制(`SIG.trendOnlyPct=3`):距昨收漲超過 3%(到 5% 為止)只收做多訊號、跌超過 3% 只收做空訊號,
     ±3% 以內兩邊都收,超過 ±5% 都不收。逆勢訊號在圖上標 ✕、燈不亮,小字寫「只收做多 / 做空訊號」。
-  · 2026-10-15 19:30 進場漲跌幅上限由 ±3% 改為 ±5%(`entryMaxChg=5`,make_pool.py `ENTRY_MAX_CHG=5`,pool.json rules 同步)。
+  · 2026-10-15 19:30 進場漲跌幅上限由 ±3% 改為 ±5%;2026-10-16 回測 10/13~16 後改為 ±3.5%(`entryMaxChg=3.5`,`ENTRY_MAX_CHG=3.5`,pool.json rules 同步)。
   · 2026-10-15 19:20 `SIG.noEntryAfter='13:00'`:13:00 以後不再進場(燈不亮、圖上不標進場點),只監控平倉;
     理由:競國 13:20 的確認空點離 13:25 強制平倉只剩 4 分鐘,沒有空間。
   · 2026-10-15 19:00 第 7 條件「確認點」(`YH.confirmByObv`):同方向第 2 個以後的訊號,OBV 均線14 要比前一個訊號更低(空)
@@ -218,7 +218,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
 | 一檔跳動 ÷ 股價上限 | 0.35% | TICK_MAX_PCT ↔ tickMaxPct |
 | 排除產業 | 17 金融保險業 | EXCLUDE_INDUSTRY ↔ excludeIndustry |
 | 名單檔數 / 排序 | 100 檔,依成交張數(2026-10-12 由 50 改回 100) | SIZE ↔ size |
-| 進場漲跌幅上限 | ±5%(相對昨收;2026-10-15 由 3 改 5) | ENTRY_MAX_CHG ↔ entryMaxChg |
+| 進場漲跌幅上限 | ±3.5%(相對昨收;2026-10-16 回測 10/13~16:±3.5% 四天 +24,817、±3% +17,914、±5% +7,921) | ENTRY_MAX_CHG ↔ entryMaxChg |
 | K 線均線 / OBV 均線 | MA10 / MA10,每天開盤重算(2026-10-16 00:10 K 7~70、OBV 7~28 全測後定 10/10) | maPeriod / obvMaPeriod / MA_RESET_DAILY(僅 HTML) |
 | ATR 期數 / 停損 / 停利 | 14 / 1.5 ATR / 3 ATR | atrPeriod / stopAtr / takeAtr(僅 HTML) |
 | 每筆最大虧損 | 2,000 元 → 反推張數 | riskPerTrade(僅 HTML) |
@@ -1220,7 +1220,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610161755">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610162200">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1741,7 +1741,7 @@ window.MONITOR_BASE = {
   avg5MinAmp : 4.0,    // 最近 5 個交易日平均振幅下限(%):擋掉只有昨天偶然動一次的股票
   avg5MinHits: 3,      // 最近 5 個交易日裡至少幾天振幅 ≥ amp 門檻(擋掉像緯創這種平常不動、只靠一根大跌撐平均的)
   tickMaxPct : 0.35,   // 一檔跳動 ÷ 股價 上限(%):超過代表一個 tick 就吃掉來回成本
-  entryMaxChg: 5.0,    // 進場時漲跌幅上限(%):|現價 − 昨收| ÷ 昨收 超過就不進場(風控;2026-10-15 由 3 改 5)
+  entryMaxChg: 3.5,    // 進場時漲跌幅上限(%):|現價 − 昨收| ÷ 昨收 超過就不進場(風控;2026-10-15 由 3 改 5,2026-10-16 回測後改 3.5)
 
   /* ── 風險尺(策略層用,先在圖上顯示讓你感受合不合理)── */
   /* ── 圖表均線(改這裡就好)── */
@@ -3714,7 +3714,7 @@ el('shNext').addEventListener('click', () => chartStep(+1));
 const POSITIONS = new Map();   // 接上 API 後由券商庫存回報填入
 
 const BASE = window.MONITOR_BASE || { lo: 15, hi: 500, amp: 4.0, size: 100,
-                                       excludeIndustry: ['17'], avg5MinAmp: 3.0, tickMaxPct: 0.35, entryMaxChg: 5.0,
+                                       excludeIndustry: ['17'], avg5MinAmp: 4.0, tickMaxPct: 0.35, entryMaxChg: 3.5,
                                        maPeriod: 10, obvMaPeriod: 10,
                                        atrPeriod: 14, stopAtr: 1.5, takeAtr: 3.0, riskPerTrade: 2000 };
 const POOL_KEY = 'mysh.pool';       // 「監控股票原始股」存檔

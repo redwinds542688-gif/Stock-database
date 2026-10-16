@@ -30,7 +30,7 @@ from datetime import datetime, timedelta, timezone, date
 #   前一交易日:收盤價 LO~HI 元、振幅 ≥ MIN_AMP%,依「成交張數」由大到小取前 SIZE 名
 LO, HI, MIN_AMP, SIZE = 15, 500, 4.0, 100
 TICK_MAX_PCT = 0.35      # 一檔跳動 ÷ 股價 的上限(%):超過代表一個 tick 就吃掉來回成本
-ENTRY_MAX_CHG = 5.0      # 進場時漲跌幅上限(%,寫進 pool.json 給 HTML / 策略層用;2026-10-15 由 3 改 5)
+ENTRY_MAX_CHG = 3.5      # 進場時漲跌幅上限(%,寫進 pool.json 給 HTML / 策略層用;2026-10-15 由 3 改 5,2026-10-16 回測 10/13~16 後改 3.5)
 AVG5_MIN_AMP = 4.0       # 最近 5 個交易日「平均振幅」下限(%):擋掉只有昨天偶然動一次的股票
 AVG5_MIN_HITS = 3        # 最近 5 個交易日裡,至少要有幾天振幅 ≥ MIN_AMP:擋掉「平常不動、只靠一根大跌把平均撐起來」的股票(例:緯創)
 AVG_DAYS = 5
