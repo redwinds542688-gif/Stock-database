@@ -1220,7 +1220,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610161500">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610161515">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1298,7 +1298,17 @@ except Exception:
         background:none;border:none;color:var(--dim);cursor:pointer;
         -webkit-user-select:none;user-select:none}
   .tool:disabled{color:var(--faint);opacity:.55;cursor:default}
-  .tool.txt{width:auto;min-width:44px;padding:0 8px;font-size:14px;letter-spacing:1px;color:var(--dim)}
+  .tool.txt{width:auto;min-width:56px;height:34px;padding:0 10px;font-size:14px;letter-spacing:1px;color:#D8DEE9;
+            border-radius:9px;border:1px solid #3A465C;border-bottom-color:#070A10;
+            background:linear-gradient(#2B3549,#171D2A);
+            box-shadow:0 3px 0 #070A10,0 4px 8px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.10);
+            text-shadow:0 1px 0 rgba(0,0,0,.6)}                     /* 立體按鍵 */
+  .tool.txt:active{transform:translateY(3px);box-shadow:0 0 0 #070A10,inset 0 2px 4px rgba(0,0,0,.6);background:linear-gradient(#171D2A,#2B3549)}
+  .tool.txt.on{color:var(--ok, #22B07D)}
+  .tool.txt.lit{color:var(--brass)}
+  #infoView{position:absolute;inset:0;overflow-y:auto;padding:8px 12px;font-size:13px;line-height:1.6;color:var(--text,#D8DEE9);-webkit-overflow-scrolling:touch;touch-action:pan-y;white-space:pre-wrap}
+  #infoView b{color:var(--brass)}
+  .panel.open #infoView{visibility:hidden}
   .tool.on{color:var(--ok, #22B07D)}
   .tool .dot{width:15px;height:15px;border-radius:50%;
              border:1.6px solid currentColor}
@@ -1503,13 +1513,13 @@ except Exception:
 </div>
 
 <div class="panel" id="panel">
-  <div class="cover" id="cover"><div id="notifLog"><div class="empty">今日監控紀錄會顯示在這裡</div></div></div>
+  <div class="cover" id="cover"><div id="notifLog"><div class="empty">今日監控紀錄會顯示在這裡</div></div><div id="infoView" class="hidden"></div></div>
   <div class="toolbar">
     <button class="tool txt" id="refreshBtn" aria-label="訊息"
             title="顯示監控訊息;長按重新讀取雲端資料">訊息</button>
-    <button class="tool" disabled aria-label="待設定 2"><span class="dot"></span></button>
-    <button class="tool" disabled aria-label="待設定 3"><span class="dot"></span></button>
-    <button class="tool" disabled aria-label="待設定 4"><span class="dot"></span></button>
+    <button class="tool txt" id="btnReload" aria-label="更新" title="重新讀取雲端資料">更新</button>
+    <button class="tool txt" id="btnState" aria-label="狀態" title="資料日期、複檢、即時連線、背景監控">狀態</button>
+    <button class="tool txt" id="btnRules" aria-label="規則" title="目前的選股與進出場規則">規則</button>
     <button class="tool gear txt" id="gear" aria-label="設定" title="單擊開 / 關監控設定">設定</button>
   </div>
   <div class="wheels">
@@ -2058,10 +2068,75 @@ function render(list){
     try{ await scan(); } finally { FORCE_FRESH = false; }
   };
   let hold, held = false, lastTap = 0;
-  const showMsg = e => { if (held){ held = false; return; } e.preventDefault(); const pnl = document.querySelector('.panel'); if (pnl) pnl.classList.remove('open'); };
+  const showMsg = e => { if (held){ held = false; return; } e.preventDefault(); const pnl = document.querySelector('.panel'); if (pnl) pnl.classList.remove('open'); if (window.hideInfo) hideInfo(); };
   btn.addEventListener('touchstart', () => { hold = setTimeout(() => { held = true; btn.style.opacity = '.3'; setTimeout(() => { btn.style.opacity = ''; }, 200); reload(); }, 700); }, {passive:true});
   btn.addEventListener('mousedown', () => { hold = setTimeout(() => { held = true; reload(); }, 700); });
   ['touchend','touchmove','touchcancel','mouseup','mouseleave'].forEach(ev => btn.addEventListener(ev, () => clearTimeout(hold), {passive:true}));
+  // 中間三顆:更新 / 狀態 / 規則。狀態、規則顯示在同一個框裡(infoView),「訊息」切回監控紀錄
+  const info = document.getElementById('infoView'), nl = document.getElementById('notifLog');
+  let infoKind = '', infoTimer = null;
+  const buildBuild = () => { const m = document.querySelector('meta[name="app-build"]'); return m ? m.content : ''; };
+  const esc = x => String(x).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const svcState = () => {
+    try{
+      if (!window.Android || !Android.monitorRunning) return '(非 App)';
+      const n = new Date(), wd = n.getDay(), hm = n.getHours() * 60 + n.getMinutes();
+      const hours = wd >= 1 && wd <= 5 && hm >= 8 * 60 + 45 && hm <= 13 * 60 + 35;
+      return Android.monitorRunning() ? '執行中(每 5 秒)' : (hours ? '未執行' : '收盤休眠,下個交易日 08:50 自動啟動');
+    }catch(e){ return '?'; }
+  };
+  const stateHtml = () => {
+    const st = (el('status') && el('status').textContent) || '';
+    const rows = [
+      ['雲端資料', SRC_DATE || '—'],
+      ['資格複檢', ELIG_CHECKED === todayTW() ? '已複檢 ' + ELIG_CHECKED_AT.slice(11) : (ELIG_CHECKED_AT ? '上次 ' + ELIG_CHECKED_AT : '—')],
+      ['即時報價', LIVE_ERR ? '⚠ 斷線(' + LIVE_ERR + ')' : (LIVE_LAST_OK ? '● ' + Math.round((Date.now() - LIVE_LAST_OK) / 1000) + ' 秒前' : (inSession() ? '連線中' : '非交易時段'))],
+      ['背景監控', svcState()],
+      ['監控清單', (LIST_CODES || []).length + ' 檔'],
+      ['監控價格', wLo.value + ' ~ ' + wHi.value + ' 元,振幅 ≥ ' + wAmp.value],
+      ['手續費 / 上限', wFee.value + ' · ' + wCap.value],
+      ['程式版本', buildBuild()],
+      ['狀態列', st || '—'],
+    ];
+    return rows.map(r => '<b>' + esc(r[0]) + '</b>:' + esc(r[1])).join('\n');
+  };
+  const rulesHtml = () => [
+    '<b>選股(每日 14:30 雲端重算)</b>',
+    '上市 / 上櫃普通股(非 ETF、非金融)、官方可現股當沖且可先賣後買、非注意 / 處置股、昨日未收漲跌停',
+    '價格 15~500、一檔跳動 ≤ 0.35%、昨日振幅 ≥ 4%、5 日平均振幅 ≥ 4% 且 5 日中至少 3 天 ≥ 4%',
+    '依成交張數取前 100 檔;高價另受「多空上限 ÷ 1000」限制',
+    '',
+    '<b>進場</b>',
+    '均價 K' + BASE.maPeriod + ' / OBV 均線 ' + BASE.obvMaPeriod + ';開盤 ' + SIG.skipMin + ' 分鐘內不進,' + SIG.noEntryAfter + ' 後不進',
+    '第一訊號(價貫穿均線 + 均線轉向)→ 第二訊號確認(OBV 與 OBV 均線同向、價差 ≤ ' + SIG.confirmMaxGapPct + '%)才進',
+    '進場價離均價 > ' + SIG.maxEntryDevPct + '% 只記錄;離昨收 > ±' + SIG.maxDev + '% 不進;' + '價須在 VWAP 正確一側且 VWAP 斜率 ≥ ' + SIG.vwapSlopeMin + '%',
+    '累積量 ≥ ' + SIG.minDayVol + ' 張且量比 ≥ ' + SIG.rvolMin + ' 才進(量夠後下一個訊號直接進)',
+    '同一邊第一次放棄的方向,當天不再做(單邊鎖)',
+    '',
+    '<b>出場</b>',
+    '停利 +' + SIG.takePct + '%、停損 −' + SIG.stopPct + '%、離昨收超過 ' + SIG.maxMovePct + '% 強制出',
+    '出現反向訊號且該反向點可進場 → 平倉(逆勢單碰到反向點立即平倉)',
+    '',
+    '<b>資金</b>',
+    '上限 ' + wCap.value + ',手續費 ' + wFee.value + ',每筆最多賠 ' + BASE.riskPerTrade + ' 元',
+  ].join('\n');
+  const showInfo = kind => {
+    const pnl = document.querySelector('.panel'); if (pnl) pnl.classList.remove('open');
+    infoKind = kind; nl.classList.add('hidden'); info.classList.remove('hidden');
+    const paint = () => { info.innerHTML = kind === 'state' ? stateHtml() : rulesHtml(); };
+    paint(); clearInterval(infoTimer); if (kind === 'state') infoTimer = setInterval(() => { if (infoKind === 'state' && !info.classList.contains('hidden')) paint(); }, 2000);
+    document.getElementById('btnState').classList.toggle('lit', kind === 'state');
+    document.getElementById('btnRules').classList.toggle('lit', kind === 'rules');
+  };
+  const hideInfo = () => { infoKind = ''; clearInterval(infoTimer); info.classList.add('hidden'); nl.classList.remove('hidden');
+    document.getElementById('btnState').classList.remove('lit'); document.getElementById('btnRules').classList.remove('lit'); };
+  window.hideInfo = hideInfo;
+  document.getElementById('btnState').addEventListener('click', () => infoKind === 'state' ? hideInfo() : showInfo('state'));
+  document.getElementById('btnRules').addEventListener('click', () => infoKind === 'rules' ? hideInfo() : showInfo('rules'));
+  document.getElementById('btnReload').addEventListener('click', async () => {
+    const b = document.getElementById('btnReload'); b.textContent = '讀取…'; b.disabled = true;
+    try{ await reload(); } finally { b.textContent = '更新'; b.disabled = false; }
+  });
   btn.addEventListener('touchend', e => { lastTap = Date.now(); showMsg(e); });
   btn.addEventListener('click', e => { if (Date.now() - lastTap < 600) return; showMsg(e); });
 })();
@@ -2080,7 +2155,7 @@ function render(list){
 
   const toggle = () => {
     panel.classList.toggle('open');
-    if (panel.classList.contains('open')) WHEELS.forEach(w => w.init());
+    if (panel.classList.contains('open')){ WHEELS.forEach(w => w.init()); if (window.hideInfo) hideInfo(); }
   };
 
   // 單擊齒輪 = 開 / 關監控設定(打開時監控紀錄先隱藏,CSS .panel.open #notifLog);長按仍是匯出設定
