@@ -97,6 +97,7 @@ class MonitorService : Service() {
         handler.post(tick)
         running = true; instance = this
         Watchdog.schedule(this)
+        NotifLog.add(this, "背景監控啟動", "", "sys")
     }
 
     /** 使用者從「最近使用」把 App 滑掉 → 服務會跟著被停,這裡立刻排程重啟 */
@@ -130,8 +131,11 @@ class MonitorService : Service() {
     private fun buildNotification(text: String): Notification {
         val open = PendingIntent.getActivity(this, 2, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val stop = PendingIntent.getService(this, 3, Intent(this, MonitorService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val active = text.startsWith("監控中")                       // 狀態列:監控中 ● 實心、其他 ○ 空心(系統會把小圖示變白色,顏色只在下拉通知列看得到)
         return Notification.Builder(this, JsBridge.CH_MONITOR)
-            .setSmallIcon(R.drawable.ic_stat).setContentTitle("名揚四海 背景監控").setContentText(text)
+            .setSmallIcon(if (active) R.drawable.ic_stat_on else R.drawable.ic_stat_off)
+            .setColor(if (active) 0xFF1DD75B.toInt() else 0xFF8A94A6.toInt())
+            .setContentTitle(if (active) "● 名揚四海 監控中" else "○ 名揚四海 背景監控").setContentText(text)
             .setOngoing(true).setOnlyAlertOnce(true).setContentIntent(open)
             .addAction(Notification.Action.Builder(null, "停止監控", stop).build())
             .build()
@@ -147,6 +151,7 @@ class MonitorService : Service() {
 
     override fun onDestroy() {
         running = false; status = "已停止"; instance = null
+        NotifLog.add(this, "背景監控停止", "", "sys")
         handler.removeCallbacks(tick)
         dot.hide()
         try { web?.destroy() } catch (e: Exception) {}

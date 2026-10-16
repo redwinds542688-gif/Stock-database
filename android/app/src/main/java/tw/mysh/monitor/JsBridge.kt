@@ -68,6 +68,7 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
                 .setAutoCancel(true).setContentIntent(pi).setWhen(System.currentTimeMillis()).setShowWhen(true)
                 .build()
             nm.notify(seq.incrementAndGet(), n)
+            NotifLog.add(ctx, title ?: "", body ?: "", kind ?: "")
             Log.i("mysh", "[$tag] notify $title | $body")
         } catch (e: Exception) { Log.e("mysh", "notify failed", e) }
     }
@@ -83,4 +84,14 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
 
     @JavascriptInterface
     fun monitorRunning(): Boolean = MonitorService.running
+
+    /** 今日通知紀錄(JSON 陣列,新的在前),給網頁顯示區用 */
+    @JavascriptInterface
+    fun todayLog(): String = NotifLog.today(ctx)
+
+    @JavascriptInterface
+    fun logDays(): String = NotifLog.days(ctx)
+
+    @JavascriptInterface
+    fun logFor(d: String?): String = NotifLog.forDate(ctx, d ?: "")
 }
