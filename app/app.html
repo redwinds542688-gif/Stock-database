@@ -3696,8 +3696,9 @@ async function scan(){
 const BG = { last: new Map(), hist: new Map(), histDay: '', todayAt: new Map(), busy: false, startedAt: 0, log: [], ticks: 0, pos: new Map(), holiday: '' };
 function bgLog(s){ const line = new Date().toLocaleTimeString('zh-TW', {hour12:false}) + ' ' + s; BG.log.push(line); if (BG.log.length > 300) BG.log.shift(); try{ if (window.Android && Android.log) Android.log(line); }catch(e){} }
 function bgNotify(title, body, kind){ bgLog('[通知] ' + title + ' | ' + body); try{ if (window.Android && Android.notify) Android.notify(title, body, kind || ''); }catch(e){} }
-async function bgTick(force){
+async function bgTick(force, replay){
   if (BG.busy) return 'busy';
+  if (replay) BG.last.clear();                      // 測試用:今天所有進出場點重新通知一次
   if (!force && !inSession()) return 'off';
   if (!liveOn()) return 'nolive';
   BG.busy = true;
@@ -3737,8 +3738,8 @@ async function bgTick(force){
         const isExit  = m => m.shape === 'circle';
         const key = m => m.time + '|' + m.text;
         const events = rp.marks.filter(m => isEntry(m) || isExit(m));
-        if (!BG.last.has(code)){                                   // 第一次看到這檔:只通知最近 3 分鐘內的點
-          const cut = Math.floor(Date.now() / 1000) - 180;
+        if (!BG.last.has(code)){                                   // 第一次看到這檔:只通知最近 3 分鐘內的點(replay 測試時全部通知)
+          const cut = replay ? 0 : Math.floor(Date.now() / 1000) - 180;
           BG.last.set(code, new Set(events.filter(m => m.time < cut).map(key)));
         }
         const seen = BG.last.get(code);

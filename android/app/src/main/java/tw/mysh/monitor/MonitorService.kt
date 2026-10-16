@@ -27,6 +27,9 @@ class MonitorService : Service() {
         @Volatile var running = false
         @Volatile var status = "未啟動"
         @Volatile var lastTick = ""
+        @Volatile var instance: MonitorService? = null
+        /** 測試用:不管開不開盤都敲一次;replay = 今天所有點重新通知 */
+        fun forceTick(replay: Boolean) { instance?.let { svc -> svc.handler.post { svc.web?.evaluateJavascript("(async()=>{ try{ return await bgTick(true, ${replay}); }catch(e){ return 'err '+e.message; } })().then(r=>Android.tickResult(String(r)))", null) } } }
         fun start(ctx: Context) {
             ctx.getSharedPreferences("mysh", Context.MODE_PRIVATE).edit().putBoolean("userStopped", false).apply()
             val i = Intent(ctx, MonitorService::class.java).setAction(ACTION_START)
@@ -58,6 +61,7 @@ class MonitorService : Service() {
         override fun run() {
             val w = web
             val session = inSession()
+            if (w != null && !pageReady && pageLoadedAt > 0 && System.currentTimeMillis() - pageLoadedAt > 90_000L) { pageReady = true; Log.w("mysh", "page ready 逾時,直接開始敲") }   // 網頁沒回報 ready(例如清單讀取失敗)也照敲,bgTick 自己會回 nocodes
             if (w != null && pageReady && session) {
                 w.evaluateJavascript("(async()=>{ try{ return await bgTick(); }catch(e){ return 'err '+e.message; } })().then(r=>Android.tickResult(String(r)))", null)
                 ticks++
@@ -83,13 +87,15 @@ class MonitorService : Service() {
     override fun onCreate() {
         super.onCreate()
         JsBridge.ensureChannels(this)
-        startForeground(NOTIF_ID, buildNotification("啟動中…"), if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0)
+        if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIF_ID, buildNotification("啟動中…"), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        else if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIF_ID, buildNotification("啟動中…"), 0)
+        else startForeground(NOTIF_ID, buildNotification("啟動中…"))
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "mysh:monitor").apply { acquire() }
         createWeb()
         dot.show()
         handler.post(tick)
-        running = true
+        running = true; instance = this
         Watchdog.schedule(this)
     }
 
@@ -140,7 +146,7 @@ class MonitorService : Service() {
     }
 
     override fun onDestroy() {
-        running = false; status = "已停止"
+        running = false; status = "已停止"; instance = null
         handler.removeCallbacks(tick)
         dot.hide()
         try { web?.destroy() } catch (e: Exception) {}

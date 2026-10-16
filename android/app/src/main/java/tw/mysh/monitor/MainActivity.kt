@@ -33,6 +33,19 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         // 第一次打開:自動啟動背景監控
         if (!MonitorService.running) MonitorService.start(this)
+        handleTest(intent)
+    }
+
+    override fun onNewIntent(intent: Intent?) { super.onNewIntent(intent); handleTest(intent) }
+
+    /** 測試鉤子(adb):am start -n tw.mysh.monitor/.MainActivity --es test notify|tick|replay */
+    private fun handleTest(intent: Intent?) {
+        when (intent?.getStringExtra("test")) {
+            "notify" -> { JsBridge(this, "test").notify("測試 群創 3481 做空進場 49.40", "10:24 空✓ · 停利 47.42 停損 50.14", "short")
+                          JsBridge(this, "test").notify("⚠⚠ 測試 麗正 2302 停損 -1.5% 立即賣出", "09:49 09:37 進 46.00 → 現價 45.35", "loss") }
+            "tick" -> web.postDelayed({ MonitorService.forceTick(false) }, 20000)
+            "replay" -> web.postDelayed({ MonitorService.forceTick(true) }, 20000)
+        }
     }
 
     private fun showMenu(anchor: TextView) {
