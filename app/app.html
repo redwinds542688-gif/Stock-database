@@ -1220,7 +1220,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610161525">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610161540">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1405,6 +1405,7 @@ except Exception:
   .row .posline .pos.long{background:var(--up)}     /* 持有多單 */
   .row .posline .pos.short{background:var(--down)}  /* 持有空單 */
   .row .posline .pos.none{background:#3A424F;color:#8A93A3;font-weight:400}  /* 未交易 */
+  .row .posline .pos.watch{background:#4A3F12;color:#FFD54F;font-weight:400}  /* 今天有買賣訊號(監控中) */
   .row.holding{background:rgba(201,162,39,.06)}
   /* 未平倉:名次依部位方向上色 */
   .row.holding .rank{font-weight:700}
@@ -2032,7 +2033,7 @@ function render(list){
         <div class="posline">${
           s.pos ? `<span class="pos ${s.pos}">${s.pos === 'long' ? '多' : '空'}${
                      String(s.qty || 0).padStart(3, ' ')}  張</span>`
-                : '<span class="pos none">未</span>'
+                : (rank.has(s.code) ? '<span class="pos watch">監控中</span>' : '<span class="pos none">未</span>')   // 今天有買賣訊號、但沒手動記部位 → 監控中
         }</div>
       </div>
       <div></div>
