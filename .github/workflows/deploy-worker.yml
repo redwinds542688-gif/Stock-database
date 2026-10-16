@@ -1,0 +1,39 @@
+name: 部署 twse-proxy 到 Cloudflare
+
+# worker.js 或 wrangler.toml 合併到 main 就自動部署;也可以在 Actions 頁手動按 Run workflow。
+# 需要兩個 repo secret(Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN  (Cloudflare 建立的 API Token,範本 "Edit Cloudflare Workers")
+#   CLOUDFLARE_ACCOUNT_ID (Cloudflare Workers 總覽頁右側的 Account ID)
+# Worker 上原本設定的 GH_TOKEN 密鑰不會被覆蓋。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - worker.js
+      - wrangler.toml
+      - .github/workflows/deploy-worker.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 取出 repo
+        uses: actions/checkout@v4
+
+      - name: 部署到 Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+
+      - name: 確認上線
+        run: |
+          sleep 5
+          curl -sS "https://twse-proxy.redwinds542688.workers.dev/?gh=status"

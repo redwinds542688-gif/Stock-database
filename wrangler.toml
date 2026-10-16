@@ -1,0 +1,10 @@
+# twse-proxy 的部署設定(給 GitHub Actions 的 deploy-worker.yml 用)
+# 以後要改 Worker 程式碼或排程,只要改 worker.js / 這個檔,合併到 main 就會自動部署到 Cloudflare。
+name = "twse-proxy"
+main = "worker.js"
+compatibility_date = "2024-09-01"
+
+# Cloudflare 免費方案全帳號最多 5 條 cron;這裡只用 1 條,scheduled() 自己判斷台灣時段
+# (08:20/08:45/09:05 複檢,14:30/16:30/20:30 每日資料)。UTC 00:20/00:45/01:05 = 台灣 08:20/08:45/09:05,UTC 06:30/08:30/12:30 = 台灣 14:30/16:30/20:30。
+[triggers]
+crons = ["5,20,30,45 0,1,6,8,12 * * MON-FRI"]
