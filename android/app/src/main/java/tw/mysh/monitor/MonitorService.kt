@@ -130,8 +130,11 @@ class MonitorService : Service() {
     private fun buildNotification(text: String): Notification {
         val open = PendingIntent.getActivity(this, 2, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val stop = PendingIntent.getService(this, 3, Intent(this, MonitorService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val active = text.startsWith("監控中")                       // 狀態列:監控中 ● 實心、其他 ○ 空心(系統會把小圖示變白色,顏色只在下拉通知列看得到)
         return Notification.Builder(this, JsBridge.CH_MONITOR)
-            .setSmallIcon(R.drawable.ic_stat).setContentTitle("名揚四海 背景監控").setContentText(text)
+            .setSmallIcon(if (active) R.drawable.ic_stat_on else R.drawable.ic_stat_off)
+            .setColor(if (active) 0xFF1DD75B.toInt() else 0xFF8A94A6.toInt())
+            .setContentTitle(if (active) "● 名揚四海 監控中" else "○ 名揚四海 背景監控").setContentText(text)
             .setOngoing(true).setOnlyAlertOnce(true).setContentIntent(open)
             .addAction(Notification.Action.Builder(null, "停止監控", stop).build())
             .build()
