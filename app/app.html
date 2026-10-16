@@ -441,7 +441,7 @@ pool.js
 
 | 動作 | 效果 |
 |---|---|
-| 雙擊齒輪 | 開 / 關監控設定面板 |
+| 單擊齒輪 | 開 / 關監控設定面板(紀錄先隱藏) |
 | 長按齒輪 0.7 秒 | 匯出 settings.js |
 | 長按齒輪(費率覆蓋層開著時) | 退出覆蓋層 |
 | 長按「手續費折扣」 | 開 / 關費率覆蓋層(證商費、證手費、證交稅) |
@@ -1220,7 +1220,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610161440">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610161450">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1509,7 +1509,7 @@ except Exception:
     <button class="tool" disabled aria-label="待設定 2"><span class="dot"></span></button>
     <button class="tool" disabled aria-label="待設定 3"><span class="dot"></span></button>
     <button class="tool" disabled aria-label="待設定 4"><span class="dot"></span></button>
-    <button class="tool gear" id="gear" aria-label="監控設定" title="雙擊開啟監控設定">
+    <button class="tool gear" id="gear" aria-label="監控設定" title="單擊開啟監控設定">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
            stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
         <circle cx="12" cy="12" r="3.2"/>
@@ -2069,7 +2069,7 @@ function render(list){
   document.addEventListener(ev, e => e.preventDefault()));
 
 /* ══════════════════════════════════════════
-   監控設定面板:雙擊齒輪開合
+   監控設定面板:單擊齒輪開合
    ══════════════════════════════════════════ */
 (() => {
   const panel = document.getElementById('panel');
@@ -2081,11 +2081,15 @@ function render(list){
     if (panel.classList.contains('open')) WHEELS.forEach(w => w.init());
   };
 
-  gear.addEventListener('dblclick', e => { e.preventDefault(); toggle(); });
+  // 單擊齒輪 = 開 / 關監控設定(打開時監控紀錄先隱藏,CSS .panel.open #notifLog);長按仍是匯出設定
+  let held = false, lastTap = 0;
+  const tap = e => { if (held){ held = false; return; } e.preventDefault(); toggle(); };
+  gear.addEventListener('click', e => { if (Date.now() - lastTap < 600) return; tap(e); });   // 桌機;手機的 touchend 已處理過就略過
 
   // 長按齒輪 = 匯出目前設定為 settings.js
   let hold;
   const holdStart = () => { hold = setTimeout(() => {
+    held = true;
     const sub = document.getElementById('subFee');
     if (sub && sub.classList.contains('show')){
       // 費率覆蓋層開著 → 長按齒輪等同長按「手續費折扣」,直接退出
@@ -2101,11 +2105,7 @@ function render(list){
   gear.addEventListener('mousedown', holdStart);
   ['touchend','touchmove','touchcancel','mouseup','mouseleave']
     .forEach(ev => gear.addEventListener(ev, holdStop, {passive:true}));
-  gear.addEventListener('touchend', e => {          // 手機沒有原生 dblclick
-    const now = Date.now();
-    if (now - last < 320){ e.preventDefault(); toggle(); last = 0; }
-    else last = now;
-  });
+  gear.addEventListener('touchend', e => { lastTap = Date.now(); tap(e); });   // 手機:放開就切換
 })();
 
 /* ══════════════════════════════════════════
