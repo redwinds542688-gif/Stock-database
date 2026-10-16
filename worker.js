@@ -19,7 +19,35 @@
      yahoo = 代號 + .TW(上市)或 .TWO(上櫃);range = 1d(預設)或 5d
      回傳 Yahoo 原始 JSON(chart.result[0].timestamp + indicators.quote[0] 的 open/high/low/close/volume)。
      用途:證交所接口只給最新一筆,程式開啟前的分鐘自己組不出來,開圖時用這條補今天 09:00 起的 K。
+
+   第三條路(2026-10-16 新增):由 Cloudflare 準時叫 GitHub 跑爬蟲
+     GitHub 自己的排程常延遲 1~5 小時(10/16 的 14:30 根本沒跑),Cloudflare 的 Cron Trigger 很準,
+     所以改成:Cloudflare 到點 → 呼叫 GitHub API 的 workflow_dispatch → GitHub 立刻開始跑。
+     需要在 Worker 設定一個 Secret:GH_TOKEN(GitHub fine-grained token,只給 Stock-database 的 Actions:Read and write)。
+     Cron Triggers(UTC,台灣 = +8)三條:
+       20,45 0 * * MON-FRI   → 08:20、08:45 開盤前資格複檢(recheck.yml)
+       5 1 * * MON-FRI       → 09:05 再複檢一次
+       30 6,8,12 * * MON-FRI → 14:30、16:30、20:30 每日資料(daily.yml)
+     檢查:https://twse-proxy.<帳號>.workers.dev/?gh=status   → 顯示 token 有沒有設好、能不能連到 GitHub
+     手動觸發(要另設 Secret CRON_KEY):?gh=run&what=daily&key=<CRON_KEY>  或 what=recheck
    ══════════════════════════════════════════════════════ */
+
+const GH_OWNER = "redwinds542688-gif", GH_REPO = "Stock-database", GH_REF = "main";
+const WORKFLOWS = { daily: "daily.yml", recheck: "recheck.yml" };
+
+async function dispatch(env, what) {
+  const file = WORKFLOWS[what];
+  if (!file) return { ok: false, msg: "what 要是 daily 或 recheck" };
+  if (!env || !env.GH_TOKEN) return { ok: false, msg: "Worker 沒有設定 GH_TOKEN" };
+  const r = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/actions/workflows/${file}/dispatches`, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${env.GH_TOKEN}`, "Accept": "application/vnd.github+json",
+               "User-Agent": "mysh-worker", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
+    body: JSON.stringify({ ref: GH_REF }),
+  });
+  const txt = await r.text();
+  return { ok: r.status === 204, status: r.status, msg: r.status === 204 ? `已叫 GitHub 跑 ${file}` : txt.slice(0, 300) };
+}
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -29,10 +57,40 @@ const CORS = {
 };
 
 export default {
-  async fetch(request) {
+  // ── Cloudflare Cron Trigger 到點 → 叫 GitHub 跑對應的 workflow ──
+  async scheduled(event, env, ctx) {
+    const cron = event.cron || "";
+    const what = cron.startsWith("30 6") ? "daily" : "recheck";      // 30 6,8,12 → daily;其他 → recheck
+    const r = await dispatch(env, what);
+    console.log(`cron ${cron} → ${what}: ${r.msg}`);
+  },
+
+  async fetch(request, env) {
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
 
     const url = new URL(request.url);
+    const J = (obj, status = 200) => new Response(JSON.stringify(obj, null, 1), { status, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });
+
+    // ── 第三條路:?gh=status / ?gh=run&what=daily&key=… ──
+    const gh = url.searchParams.get("gh");
+    if (gh === "status") {
+      const hasToken = !!(env && env.GH_TOKEN), hasKey = !!(env && env.CRON_KEY);
+      let github = "未測";
+      if (hasToken) {
+        try {
+          const r = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/actions/workflows`, {
+            headers: { "Authorization": `Bearer ${env.GH_TOKEN}`, "Accept": "application/vnd.github+json", "User-Agent": "mysh-worker" } });
+          github = r.status === 200 ? "連線正常(token 有效)" : `GitHub 回 ${r.status}(token 可能沒有 Actions 權限或過期)`;
+        } catch (e) { github = "連線失敗 " + e; }
+      }
+      return J({ GH_TOKEN: hasToken ? "已設定" : "沒有設定", CRON_KEY: hasKey ? "已設定" : "沒有設定(手動觸發關閉)", github,
+                 cron: ["20,45 0 * * MON-FRI → 08:20/08:45 複檢", "5 1 * * MON-FRI → 09:05 複檢", "30 6,8,12 * * MON-FRI → 14:30/16:30/20:30 每日資料"],
+                 now_taipei: new Date(Date.now() + 8 * 3600e3).toISOString().replace("T", " ").slice(0, 19) });
+    }
+    if (gh === "run") {
+      if (!env || !env.CRON_KEY || url.searchParams.get("key") !== env.CRON_KEY) return J({ error: "key 不對或沒設 CRON_KEY" }, 403);
+      return J(await dispatch(env, url.searchParams.get("what") || "daily"));
+    }
 
     // ── 第二條路:?yahoo=6770.TW → Yahoo 今天的 1 分K ──
     const ysym = (url.searchParams.get("yahoo") || "").trim().toUpperCase();
