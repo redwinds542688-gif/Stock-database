@@ -26,11 +26,22 @@ jobs:
       - name: 取出 repo
         uses: actions/checkout@v4
 
+      - name: 檢查 Account ID 格式(32 個 0-9a-f;不對就略過,讓 wrangler 自己從 Token 查帳號)
+        env:
+          AID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          AID="$(printf '%s' "$AID" | tr -d '[:space:]')"
+          if printf '%s' "$AID" | grep -Eq '^[0-9a-f]{32}$'; then
+            echo "CLOUDFLARE_ACCOUNT_ID=$AID" >> "$GITHUB_ENV"
+            echo "Account ID 格式正確"
+          else
+            echo "::warning::CLOUDFLARE_ACCOUNT_ID 不是 32 位 0-9a-f(長度 ${#AID}),略過,改由 Token 自動查帳號"
+          fi
+
       - name: 部署到 Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
 
       - name: 確認上線
