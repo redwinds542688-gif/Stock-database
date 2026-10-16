@@ -24,10 +24,9 @@
      GitHub 自己的排程常延遲 1~5 小時(10/16 的 14:30 根本沒跑),Cloudflare 的 Cron Trigger 很準,
      所以改成:Cloudflare 到點 → 呼叫 GitHub API 的 workflow_dispatch → GitHub 立刻開始跑。
      需要在 Worker 設定一個 Secret:GH_TOKEN(GitHub fine-grained token,只給 Stock-database 的 Actions:Read and write)。
-     Cron Triggers(UTC,台灣 = +8)三條:
-       20,45 0 * * MON-FRI   → 08:20、08:45 開盤前資格複檢(recheck.yml)
-       5 1 * * MON-FRI       → 09:05 再複檢一次
-       30 6,8,12 * * MON-FRI → 14:30、16:30、20:30 每日資料(daily.yml)
+     Cron Trigger 只要一條(免費方案全帳號上限 5 條,樂透 Worker 已佔用):
+       */5 0-1,6-12 * * MON-FRI → 每 5 分鐘醒來,scheduled() 自己判斷台灣時間:
+         08:20、08:45、09:05 → 開盤前資格複檢(recheck.yml);14:30、16:30、20:30 → 每日資料(daily.yml)
      檢查:https://twse-proxy.<帳號>.workers.dev/?gh=status   → 顯示 token 有沒有設好、能不能連到 GitHub
      手動觸發(要另設 Secret CRON_KEY):?gh=run&what=daily&key=<CRON_KEY>  或 what=recheck
    ══════════════════════════════════════════════════════ */
@@ -58,11 +57,16 @@ const CORS = {
 
 export default {
   // ── Cloudflare Cron Trigger 到點 → 叫 GitHub 跑對應的 workflow ──
+  // Workers 免費方案整個帳號只能有 5 條 Cron(樂透的 Worker 已經用掉),所以這裡只用 1 條:
+  //   */5 0-1,6-12 * * MON-FRI  → 每 5 分鐘醒來一次,只在下面這幾個台灣時間真的去叫 GitHub,其他時候什麼都不做
   async scheduled(event, env, ctx) {
-    const cron = event.cron || "";
-    const what = cron.startsWith("30 6") ? "daily" : "recheck";      // 30 6,8,12 → daily;其他 → recheck
+    const t = new Date(Date.now() + 8 * 3600e3);                      // 台灣時間
+    const key = `${t.getUTCHours()}:${String(t.getUTCMinutes()).padStart(2, "0")}`;
+    const SLOTS = { "8:20": "recheck", "8:45": "recheck", "9:05": "recheck", "14:30": "daily", "16:30": "daily", "20:30": "daily" };
+    const what = SLOTS[key];
+    if (!what) { console.log(`cron ${event.cron} 台灣 ${key}:不是排定時段,略過`); return; }
     const r = await dispatch(env, what);
-    console.log(`cron ${cron} → ${what}: ${r.msg}`);
+    console.log(`cron ${event.cron} 台灣 ${key} → ${what}: ${r.msg}`);
   },
 
   async fetch(request, env) {
@@ -84,7 +88,7 @@ export default {
         } catch (e) { github = "連線失敗 " + e; }
       }
       return J({ GH_TOKEN: hasToken ? "已設定" : "沒有設定", CRON_KEY: hasKey ? "已設定" : "沒有設定(手動觸發關閉)", github,
-                 cron: ["20,45 0 * * MON-FRI → 08:20/08:45 複檢", "5 1 * * MON-FRI → 09:05 複檢", "30 6,8,12 * * MON-FRI → 14:30/16:30/20:30 每日資料"],
+                 cron: ["*/5 0-1,6-12 * * MON-FRI(一條就好)→ 台灣 08:20/08:45/09:05 複檢,14:30/16:30/20:30 每日資料"],
                  now_taipei: new Date(Date.now() + 8 * 3600e3).toISOString().replace("T", " ").slice(0, 19) });
     }
     if (gh === "run") {

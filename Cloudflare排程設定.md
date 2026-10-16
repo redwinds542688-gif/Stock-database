@@ -24,11 +24,11 @@ GitHub 自己的排程常拖 1~5 小時(10/16 的 14:30 根本沒跑),Cloudflare
    - Variable name:`GH_TOKEN`
    - Value:貼第 1 步的 `github_pat_…`
    - Deploy / Save
-3. 同一頁 **Triggers**(觸發程序)→ **Cron Triggers** → Add,三條各加一次(照打,含空格):
-   - `20,45 0 * * MON-FRI`
-   - `5 1 * * MON-FRI`
-   - `30 6,8,12 * * MON-FRI`
-   (Cloudflare 的星期 1 = 星期日,所以要用 MON-FRI;時間是 UTC,換成台灣時間 = 08:20、08:45、09:05 複檢,14:30、16:30、20:30 每日資料)
+3. 同一頁 **Triggers**(觸發程序)→ **Cron Triggers** → Add → 選 **Cron expression**,只加 **一條**(照打,含空格):
+   - `*/5 0-1,6-12 * * MON-FRI`
+   加完按 **Save**。
+   (免費方案整個帳號最多 5 條 Cron,樂透的 Worker 已經用掉,所以這裡用一條「每 5 分鐘醒來」,由程式自己判斷台灣時間
+   08:20、08:45、09:05 複檢,14:30、16:30、20:30 每日資料,其他時間醒來什麼都不做。)
 
 ## 檢查有沒有成功
 手機開這個網址:
