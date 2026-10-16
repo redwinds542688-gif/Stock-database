@@ -1220,7 +1220,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610161420">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610161425">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1365,8 +1365,8 @@ except Exception:
           calc(var(--u) * 6)    /* 成交價 */
           calc(var(--u) * 1)    /* 漲跌號 */
           calc(var(--u) * 2)    /* 空白   */
-          calc(var(--u) * 9)    /* 成交量 */
-          calc(var(--u) * 2);   /* 張     */
+          calc(var(--u) * 7)    /* 成交量(萬張,小數兩位) */
+          calc(var(--u) * 4);   /* 萬張   */
         align-items:center;padding:9px 0;
         font-family:var(--mono);
         /* 字級由 JS 實際量測等寬字寬後校準,確保 1 字元 = 1 位元 */
