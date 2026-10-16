@@ -1604,7 +1604,7 @@ except Exception:
   <div class="yh-foot" id="shSub"></div>
 </div>
 
-<div class="status" id="status">載入中…</div>
+<div class="status" id="status" style="display:none">載入中…</div>   <!-- 「雲端資料 …」那行不顯示(使用者要求) -->
 
 <div id="result" class="hidden">
   <div class="grid head">
@@ -1619,7 +1619,7 @@ except Exception:
     <div></div>
   </div>
   <div id="bands"></div>
-  <div class="foot">
+  <div class="foot" style="display:none">   <!-- 監控條件說明不顯示(使用者要求) -->
     監控條件:上市/上櫃普通股(非 ETF、非金融保險業)、官方可現股當沖名單內、<br>
     可先賣後買、非注意股、非處置股、昨日未收漲跌停、<br>
     一檔跳動 ≤ 0.35%、收盤價在監控區間內、振幅達門檻、5 日平均振幅 ≥ 4%,<br>
