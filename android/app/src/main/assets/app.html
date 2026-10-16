@@ -1220,7 +1220,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610161730">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610161745">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3313,7 +3313,16 @@ function initChart(){
   // 兩張圖每一格都即時同步(上 K 下 OBV 聯動);只有「高低價標籤」這個比較貴的動作改成:
   // 手指按著時不算,放開再算;其他時候用 requestAnimationFrame 合併,一格最多算一次
   let syncing = false, hiloReq = 0, touching = false, touchGuard = 0;
-  const scheduleHiLo = () => { if (touching || hiloReq) return; hiloReq = requestAnimationFrame(() => { hiloReq = 0; updateHiLo(); }); };
+  // 兩張圖左邊刻度的寬度要一樣(K 的「31.40」比 OBV 的「800」寬),不然同一個時間在上下兩圖的 x 不同,十字線就對不齊
+  let scaleW = 0;
+  const alignScales = () => {
+    try{
+      const w = Math.max(chart.priceScale('left').width() || 0, chartM.priceScale('left').width() || 0);
+      if (w && w !== scaleW){ scaleW = w; [chart, chartM].forEach(c => c.applyOptions({leftPriceScale:{minimumWidth: w}})); }
+    }catch(e){}
+  };
+  window.alignScales = alignScales;
+  const scheduleHiLo = () => { if (touching || hiloReq) return; hiloReq = requestAnimationFrame(() => { hiloReq = 0; alignScales(); updateHiLo(); }); };
   for (const a of charts) a.timeScale().subscribeVisibleLogicalRangeChange(r => {
     if (syncing || !r) return;
     // 最後一根 K 之後只留 3 格空白,不能再往右拖出一大片空白;最少也要看得到 12 根(避免縮到只剩一根)
@@ -3500,6 +3509,7 @@ function drawBars(bars, code, srcLabel, keepView){
   const obma = sma(ob, BASE.obvMaPeriod, 'value');
   obvMaLine.setData(obma);
   if (vwapDev) vwapDev.setData(vwapDeviation(bars, vw));
+  if (window.alignScales) requestAnimationFrame(() => alignScales());   // 左刻度寬度對齊,十字線才會上下同一條
   if (!keepView){
     // 元大風格:開圖只顯示最近 YH.defaultBars 根(K 棒才夠粗),往左滑可看更早的;其他兩張圖會同步
     const n = Math.min(YH.defaultBars, bars.length);
