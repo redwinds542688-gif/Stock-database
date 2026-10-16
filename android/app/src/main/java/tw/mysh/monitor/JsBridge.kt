@@ -88,4 +88,10 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
     /** 今日通知紀錄(JSON 陣列,新的在前),給網頁顯示區用 */
     @JavascriptInterface
     fun todayLog(): String = NotifLog.today(ctx)
+
+    @JavascriptInterface
+    fun logDays(): String = NotifLog.days(ctx)
+
+    @JavascriptInterface
+    fun logFor(d: String?): String = NotifLog.forDate(ctx, d ?: "")
 }

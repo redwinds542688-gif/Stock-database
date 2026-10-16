@@ -21,9 +21,13 @@ object NotifLog {
         val item = JSONObject().put("t", t).put("title", title).put("body", body).put("kind", kind)
         val out = JSONArray().put(item)                       // 新的在最前面
         for (i in 0 until minOf(arr.length(), 299)) out.put(arr.get(i))
-        // 只留今天和昨天,其他清掉
-        val ed = sp.edit(); for (k in sp.all.keys) if (k != key && k != LocalDate.now(TZ).minusDays(1).toString()) ed.remove(k)
+        // 只留最近 10 天
+        val keep = LocalDate.now(TZ).minusDays(10).toString()
+        val ed = sp.edit(); for (k in sp.all.keys) if (k < keep) ed.remove(k)
         ed.putString(key, out.toString()).apply()
     }
-    fun today(ctx: Context): String = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).getString(today(), "[]") ?: "[]"
+    fun today(ctx: Context): String = forDate(ctx, today())
+    fun forDate(ctx: Context, d: String): String = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).getString(d, "[]") ?: "[]"
+    /** 有紀錄的日期(JSON 陣列,舊到新) */
+    fun days(ctx: Context): String { val a = JSONArray(); for (k in ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).all.keys.sorted()) a.put(k); return a.toString() }
 }
