@@ -1220,7 +1220,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610161700">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610161730">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1437,6 +1437,7 @@ except Exception:
   .sheetbody{flex:1;position:relative;min-height:0}
   /* 兩指縮放只作用在 K 線圖 / OBV 圖(圖表套件自己處理),不讓瀏覽器放大整個頁面 */
   .sheet, #chartTop, #chartMid, #chartBot{touch-action:none}
+  .xclose{position:absolute;right:8px;bottom:8px;z-index:6;width:34px;height:34px;border-radius:8px;border:1px solid #3A465C;background:rgba(22,28,40,.85);color:#D8DEE9;font-size:16px;padding:0}
   #chart{position:absolute;inset:0;display:flex;flex-direction:column;background:#000}
   #chartTop{flex:11;min-height:0;position:relative;background:#000}
   #chartMid{flex:5;min-height:0;position:relative;border-top:1px solid #333;background:#000}
@@ -1603,7 +1604,7 @@ except Exception:
     <div id="chart">
       <div class="yh-lbl"><span style="color:#D63AF9">均價<span id="lblMaN">10</span>:<span id="lblMaV">—</span></span>
         <span style="color:#FF9F43">VWAP:<span id="lblVwapV">—</span></span></div>
-      <div id="chartTop"><span class="hilo up hidden" id="hiLbl"></span><span class="hilo down hidden" id="loLbl"></span></div>
+      <div id="chartTop"><span class="hilo up hidden" id="hiLbl"></span><span class="hilo down hidden" id="loLbl"></span><button id="xhairClose" class="xclose hidden" aria-label="收掉十字線">✕</button></div>
       <div class="yh-lbl"><span style="color:#FF3B3B">OBV:<span id="lblObvV">—</span></span>
         <span style="color:#19D3F5">均線<span id="lblObvMaN">10</span>:<span id="lblObvMaV">—</span></span></div>
       <div id="chartMid"></div>
@@ -3249,7 +3250,9 @@ const chartOpts = () => ({
              tickMarkMaxCharacterLength:11,
              tickMarkFormatter: t => `${TPE_DATE(t)} ${TPE_TIME(t)}`},   // 元大格式「10/15 11:42」
   localization:{timeFormatter: t => `${TPE_DATE(t)} ${TPE_TIME(t)}`},
-  crosshair:{mode:LightweightCharts.CrosshairMode.Normal},
+  crosshair:{mode:LightweightCharts.CrosshairMode.Normal,
+             vertLine:{style:LightweightCharts.LineStyle.Dashed, color:'#8A93A3', width:1, labelVisible:true},
+             horzLine:{style:LightweightCharts.LineStyle.Dashed, color:'#8A93A3', width:1, labelVisible:true}},
 });
 
 function initChart(){
@@ -3330,17 +3333,61 @@ function initChart(){
     e.addEventListener('touchstart', tStart, {passive:true});
     e.addEventListener('touchend', tEnd, {passive:true}); e.addEventListener('touchcancel', tEnd, {passive:true}); });
 
-  // 十字線同步(上圖移動時,中、下圖對到同一根)
-  chart.subscribeCrosshairMove(p => {
+  // 十字線:上 K 下 OBV 共用一條直線;點一下圖就放一條固定的(拖動 / 縮放都跟著那根 K),
+  // 再點別的地方就移過去,點右下角 ✕ 收掉。長按拖也可以(放開後停在最後位置)。
+  let XLOCK = null, xApplying = false, longPress = false, lpTimer = 0;
+  const idxOf = t => { let lo = 0, hi = BARS.length - 1; while (lo <= hi){ const m = (lo + hi) >> 1; if (BARS[m].time < t) lo = m + 1; else if (BARS[m].time > t) hi = m - 1; else return m; } return -1; };
+  const obvAt = i => { try{ const d = obvSeries.dataByIndex(i); return d && d.value != null ? d.value : 0; }catch(e){ return 0; } };
+  const xBtn = el('xhairClose');
+  const applyX = (time) => {
+    const i = idxOf(time); if (i < 0) return;
+    xApplying = true;
+    chart.setCrosshairPosition(BARS[i].close, time, candle);
+    chartM.setCrosshairPosition(obvAt(i), time, obvSeries);
+    xApplying = false;
+    showBarInfo(time);
+  };
+  const setX = time => { XLOCK = {time}; applyX(time); if (xBtn) xBtn.classList.remove('hidden'); };
+  const clearX = () => { XLOCK = null; xApplying = true; chart.clearCrosshairPosition(); chartM.clearCrosshairPosition(); xApplying = false; showBarInfo(null); if (xBtn) xBtn.classList.add('hidden'); };
+  window.setX = setX; window.clearX = clearX; window.getXLock = () => XLOCK;
+  if (xBtn){ xBtn.addEventListener('click', e => { e.preventDefault(); clearX(); }); xBtn.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); clearX(); }); }
+  const onMove = (src, p) => {
+    if (xApplying) return;
     if (p.time){
-      chartM.setCrosshairPosition(0, p.time, obvSeries);
-      if (chartB) chartB.setCrosshairPosition(0, p.time, vwapDev);
-    }else{ chartM.clearCrosshairPosition(); if (chartB) chartB.clearCrosshairPosition(); }
-    showBarInfo(p.time);              // 開高低收量表、均價列跟著十字線走;放開回到最後一根
-  });
-  chartM.subscribeCrosshairMove(p => {
-    if (p.time){ chart.setCrosshairPosition(0, p.time, candle); showBarInfo(p.time); }
-    else { chart.clearCrosshairPosition(); showBarInfo(null); }
+      const i = idxOf(p.time);
+      xApplying = true;
+      if (src === chart) chartM.setCrosshairPosition(i >= 0 ? obvAt(i) : 0, p.time, obvSeries);
+      else chart.setCrosshairPosition(i >= 0 ? BARS[i].close : 0, p.time, candle);
+      xApplying = false;
+      if (XLOCK && longPress) XLOCK.time = p.time;          // 只有「長按拖著走」才移動固定點;一般拖動捲圖不動它
+      showBarInfo(p.time);
+    }else if (XLOCK){
+      setTimeout(() => { if (XLOCK) applyX(XLOCK.time); }, 0);   // 圖庫自己把十字線清掉(放開、開始拖動)→ 補回固定的那條
+    }else{
+      xApplying = true; chart.clearCrosshairPosition(); chartM.clearCrosshairPosition(); xApplying = false;
+      showBarInfo(null);
+    }
+  };
+  chart.subscribeCrosshairMove(p => onMove(chart, p));
+  chartM.subscribeCrosshairMove(p => onMove(chartM, p));
+  // 點一下(單指、沒移動、0.35 秒內)= 放十字線
+  [[top, chart], [mid, chartM]].forEach(([e, c]) => {
+    let t0 = 0, x0 = 0, y0 = 0, multi = false;
+    e.addEventListener('touchstart', ev => { multi = ev.touches.length > 1; clearTimeout(lpTimer); longPress = false; if (multi){ t0 = 0; return; }
+      t0 = Date.now(); x0 = ev.touches[0].clientX; y0 = ev.touches[0].clientY;
+      lpTimer = setTimeout(() => { longPress = true; }, 350); }, {passive:true});                 // 按住 0.35 秒沒放 = 長按
+    e.addEventListener('touchmove', ev => { if (!longPress && t0 && ev.touches[0] && Math.hypot(ev.touches[0].clientX - x0, ev.touches[0].clientY - y0) > 10){ clearTimeout(lpTimer); } }, {passive:true});   // 很快就滑開 = 捲圖,不算長按
+    e.addEventListener('touchcancel', () => { clearTimeout(lpTimer); longPress = false; t0 = 0; }, {passive:true});
+    e.addEventListener('touchend', ev => {
+      clearTimeout(lpTimer); const wasLP = longPress; longPress = false;
+      if (multi || !t0) return; const t = ev.changedTouches[0]; if (!t) return;
+      const dt = Date.now() - t0; t0 = 0;
+      if (wasLP || dt > 350 || Math.hypot(t.clientX - x0, t.clientY - y0) > 10) return;
+      const r = e.getBoundingClientRect(); const x = t.clientX - r.left - (c.priceScale('left').width() || 0);
+      const li = c.timeScale().coordinateToLogical(x); if (li == null) return;
+      const i = Math.max(0, Math.min(BARS.length - 1, Math.round(li)));
+      setTimeout(() => setX(BARS[i].time), 0);              // 等圖庫自己的 touchend 處理完再放
+    }, {passive:true});
   });
 
   new ResizeObserver(() => {
@@ -3391,6 +3438,7 @@ window.addEventListener('popstate', () => {
 });
 
 async function openChart(code, name){
+  try{ if (window.clearX) clearX(); }catch(e){}            // 換股票時收掉固定的十字線
   const sheet = el('sheet');
   const wasOpen = sheet.classList.contains('open');
   sheet.classList.add('open');
