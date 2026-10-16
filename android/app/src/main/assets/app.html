@@ -3203,6 +3203,9 @@ function initChart(){
   for (const a of charts) a.timeScale().subscribeVisibleLogicalRangeChange(r => {
     if (syncing || !r) return;
     syncing = true;
+    // 最後一根 K 之後只留 3 格空白,不能再往右拖出一大片空白(右邊空白沒有意義)
+    const maxTo = (typeof BARS !== 'undefined' && BARS.length ? BARS.length - 1 : 0) + 3;
+    if (r.to > maxTo) { r = {from: r.from - (r.to - maxTo), to: maxTo}; a.timeScale().setVisibleLogicalRange(r); }
     for (const b of charts) if (b !== a) b.timeScale().setVisibleLogicalRange(r);
     syncing = false;
     updateHiLo();
