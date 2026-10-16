@@ -15,6 +15,11 @@ object Page {
     fun localFile(ctx: Context): File = File(ctx.filesDir, "app.html")
     fun url(ctx: Context): String {
         val f = localFile(ctx)
+        // 「更新程式」下載的版本若比這個 APK 還舊(例如 GitHub 還沒合併),就丟掉,用 APK 內建的
+        if (f.exists()) {
+            val apkTime = try { ctx.packageManager.getPackageInfo(ctx.packageName, 0).lastUpdateTime } catch (e: Exception) { 0L }
+            if (f.lastModified() < apkTime) { f.delete() }
+        }
         return if (f.exists() && f.length() > 10000) "file://" + f.absolutePath else "file:///android_asset/app.html"
     }
     /** 從 GitHub 下載最新 HTML;回傳 (成功, 訊息) */
