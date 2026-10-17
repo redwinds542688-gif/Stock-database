@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610171855">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610171910">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1298,7 +1298,8 @@ except Exception:
   /* 2026-10-17 18:30 三列卡片 */
   #notifLog .card{margin:4px 0;padding:3px 4px;border-radius:6px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06)}
   #notifLog .card.c-long{background:rgba(255,59,59,.22)} #notifLog .card.c-short{background:rgba(29,215,91,.22)}
-  #notifLog .card.mine{outline:1px solid #FFD54F;outline-offset:-1px}
+  #notifLog .card.mine{outline:2px solid #FFD54F;outline-offset:-2px}   /* 有交易(持倉中) */
+  #notifLog .card.done{outline:2px solid #1DD75B;outline-offset:-2px}   /* 結束交易(已平倉) */
   #notifLog .card .ln{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:14px;font-weight:600;line-height:1.4;min-height:1.4em}
   #notifLog .card .ln .nm{flex:0 0 5em;color:#FFD54F;overflow:hidden;text-overflow:ellipsis}
   #notifLog .card .ln .px{flex:0 0 6ch;text-align:right;color:#4FC3F7;margin-left:.5ch}
@@ -1439,6 +1440,7 @@ except Exception:
   .row .posline .pos.short{background:var(--down)}  /* 持有空單 */
   .row .posline .pos.none{background:#3A424F;color:#8A93A3;font-weight:400}  /* 未交易 */
   .row .posline .pos.watch{background:#4A3F12;color:#FFD54F;font-weight:400}  /* 今天有買賣訊號(監控中) */
+  .row .posline .pos.done{background:#123F22;color:#1DD75B;font-weight:400}   /* 長按結束交易(已平倉) */
   .row.holding{background:rgba(201,162,39,.06)}
   /* 未平倉:名次依部位方向上色 */
   .row.holding .rank{font-weight:700}
@@ -2067,7 +2069,8 @@ function render(list){
         <div class="nm">${s.name || s.code}</div>
         <div class="posline">${
           s.pos ? `<span class="pos ${s.pos}">${s.pos === 'long' ? '做多' : '做空'}${s.qty ? ' ' + s.qty + '張' : ''}</span>`
-                : (rank.has(s.code) ? '<span class="pos watch">監控中</span>' : '<span class="pos none">未</span>')   // 今天有買賣訊號、但沒手動記部位 → 監控中
+                : (posStatus(s.code) === 'closed' ? '<span class="pos done">已平倉</span>'
+                : rank.has(s.code) ? '<span class="pos watch">監控中</span>' : '<span class="pos none">未</span>')   // 今天有買賣訊號、但沒手動記部位 → 監控中;長按結束交易 → 已平倉
         }</div>
       </div>
       <div></div>
@@ -3790,11 +3793,15 @@ const POS_KEY = 'mysh.positions';
 function savePositions(){ try{ localStorage.setItem(POS_KEY, JSON.stringify({day: new Date().toDateString(), pos: Object.fromEntries(POSITIONS)})); }catch(e){} }
 /* 長按監控紀錄的一則 → 記這檔「我有做」(多 / 空),名單標籤從「監控中」變「做多 / 做空」;再長按一次取消 */
 function togglePosition(code, side, price){
-  if (POSITIONS.has(code)) POSITIONS.delete(code);
-  else POSITIONS.set(code, {side, qty: price ? Math.max(1, Math.floor(350000 / (price * 1000))) : 0, manual: true});
+  // 2026-10-17 使用者:長按一次 = 有交易(黃框,持倉中);再長按 = 結束交易(綠框,已平倉);再長按 = 清除
+  const cur = POSITIONS.get(code);
+  if (!cur) POSITIONS.set(code, {side, qty: price ? Math.max(1, Math.floor(350000 / (price * 1000))) : 0, manual: true, status: 'open'});
+  else if (cur.status !== 'closed') POSITIONS.set(code, {...cur, status: 'closed'});
+  else POSITIONS.delete(code);
   savePositions(); try{ queueScan(); }catch(e){} try{ resortList(); }catch(e){}
   return POSITIONS.has(code);
 }
+const posStatus = code => { const p = POSITIONS.get(code); return p ? (p.status === 'closed' ? 'closed' : 'open') : ''; };
 
 const BASE = window.MONITOR_BASE || { lo: 15, hi: 500, amp: 4.0, size: 100,
                                        excludeIndustry: ['17'], avg5MinAmp: 4.0, tickMaxPct: 0.35, entryMaxChg: 3.5,
@@ -3899,7 +3906,7 @@ async function scan(){
   if (me !== run) return;
 
   // 未平倉部位:無視所有條件,一律置頂
-  const held = [...POSITIONS.entries()].map(([code, p]) => {
+  const held = [...POSITIONS.entries()].filter(([, p]) => p.status !== 'closed').map(([code, p]) => {
     const found = (SRC || []).find(s => s.code === code);
     return { ...(found || {code, name: code, close: 0, vol: 0, amp: null,
                           dir: 0}), pos: p.side, qty: p.qty };
@@ -4125,7 +4132,7 @@ window.bgTick = bgTick; window.BG = BG;
     const info = o => o.type === 'entry' ? `${o.t} 進場` + (o.tp ? ` · 停利 ${o.tp} 停損 ${o.sl}` : '')
       : o.type === 'exit' ? `${o.t} 平倉 ${o.reason}` + (o.pl != null ? ` ${o.pl >= 0 ? '+' : ''}${o.pl.toFixed(1)}%` : '') + (o.entT ? ` · ${o.entT} 進 ${o.entP || ''}` : '')
       : `${o.t} 可能正在反彈` + (o.entT ? ` · ${o.entT} 進 ${o.entP || ''}` : '');
-    box.innerHTML = hd + (cards.length ? cards.map((o, k) => `<div class="card ${o.side === 'long' ? 'c-long' : o.side === 'short' ? 'c-short' : ''}${POSITIONS.has(o.code) ? ' mine' : ''}" data-i="${k}">${line(o)}<div class="tx"><span class="cd">${esc(o.code)}</span> ${esc(info(o))}</div></div>`).join('')
+    box.innerHTML = hd + (cards.length ? cards.map((o, k) => `<div class="card ${o.side === 'long' ? 'c-long' : o.side === 'short' ? 'c-short' : ''}${posStatus(o.code) === 'open' ? ' mine' : posStatus(o.code) === 'closed' ? ' done' : ''}" data-i="${k}">${line(o)}<div class="tx"><span class="cd">${esc(o.code)}</span> ${esc(info(o))}</div></div>`).join('')
       : `<div class="empty">${d === today ? '今日還沒有通知<br>(進場 / 停利 / 停損 / 出場會列在這裡)' : '這天沒有紀錄'}</div>`);
     const prev = el('nlPrev'), next = el('nlNext');
     if (prev) prev.onclick = () => { cur = ds[i - 1]; render(true); };
