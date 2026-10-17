@@ -69,6 +69,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 06:00 多空天秤權重定案(使用者:「看 K 線、OBV 紅線、OBV 藍線如何配置最符合價格波動」→ 回測後選「藍 75 紅 25」):
+    四天 268 檔 11.6 萬個時點,燈亮 3 格以上時看 10 / 15 分鐘後價格是否順向:紫+藍 50.9% / 51.1%,只藍 54.2% / 54.8%,
+    藍 75 紅 25 54.2% / 54.8% 且平均順向幅度最高(+0.097% / +0.133%);均價線回歸權重為負,不用。
   · 2026-10-18 05:30 多空天秤改算法(使用者定案:「只看 K 線傾斜角度 + OBV 藍線傾斜角度,越傾斜燈號越多」):
     均價線最近 5 根變化 ÷ 價 ×100(±0.5% 滿格)佔一半、OBV 均線最近 5 根變化 ÷ 當天 OBV 波動範圍 ×100(±20% 滿格)佔一半;
     不再看價與 VWAP 的乖離和 VWAP 斜率。
@@ -1240,7 +1243,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610180530">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610180600">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3086,7 +3089,7 @@ let RISK_LINES = [];                  // 圖上的停損 / 停利示意線
    以後若要試新的邏輯,另外開「判別式二」,這份不要動;白話版規則在 repo 根目錄《判別式一.md》。 */
 const RULESET = { name: '判別式一', date: '2026-10-18', backtest: '10/13~16 共 17 筆,賺 15 賠 2,勝率 88%,淨 +61,077' };
 const SIG = { skipMin: 15, slopeBars: 10, maxDev: 2.0, noEntryAfter: '13:00', trendOnlyPct: 3.0,
-              scaleBars: 5, scaleMaFull: 0.5, scaleObFull: 20,   // 多空天秤(2026-10-18):均價線 5 根斜率 ±0.5% 滿格、OBV 均線 5 根斜率(÷當日 OBV 範圍)±20% 滿格
+              scaleBars: 5, scaleMaFull: 0.5, scaleObFull: 20, scaleW: {ma: 0, obma: 0.75, ob: 0.25},   // 多空天秤(2026-10-18):OBV 均線(藍)75% + OBV(紅)25%,均價線 0;5 根斜率,藍 / 紅 ÷ 當日 OBV 範圍 ±20% 滿格
               takePct: 2.5, stopPct: 1.5, maxMovePct: 6.0, confirmMaxGapPct: 2.0, confirmMaxExtGapPct: 2.5, obmaSlopeBars: 5, obmaSlopeMin: 4.0, obvExitMa: 30, obvExitMinGain: 1.0, obvWarnMa: 20, maxEntryDevPct: 1.0, vwapFilter: true, vwapSlopeBars: 10, vwapSlopeMin: 0, gapChasePct: 2.0, minDayVol: 6000, rvolMin: 1.0, rvolFilter: true };   // rvol:量比 = 今天到此刻累計量 ÷ 前 5 天同一時刻平均;rvolFilter=true 時量比 < rvolMin 不進場(只記錄,標「比」);false 只顯示(2026-10-16 01:40)   // minDayVol:當天累計成交量(張)未達 6000 不進場;達到後下一個同向點直接進(2026-10-16 01:10)   // vwapFilter:價在 VWAP 上只做多、下只做空(23:30);vwapSlope:VWAP 最近 10 分鐘要往進場方向走 ≥ 0.05%(23:55)   // confirmMaxGapPct:確認點與前一個同向點的價差上限 %(2026-10-15 22:35 定 1%,22:45 改 2%);maxEntryDevPct:訊號價離均價超過 1% 只記錄不進場(23:15)   // 平倉:獲利 2.5% 停利(2026-10-17 由 4% 改,回測 10/13~16 +29,382 → +40,767)、反向 1.5% 停損、距昨收超過 6% 強制出(2026-10-15)   // trendOnlyPct:距昨收超過 ±3%(到 entryMaxChg 為止)只收順勢訊號   // noEntryAfter:13:00 後不進場、只監控平倉(2026-10-15);slopeBars / maxDev 給多空天秤用
 function signalLight(bars, ma, ob, obma, prevClose, canShort, dayHi, dayLo){
   const last = bars[bars.length - 1];
@@ -3338,10 +3341,13 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
 }
 
 /* ── 多空天秤(2026-10-15 做;2026-10-18 使用者定名「多空天秤」,原稱偏向計;2026-10-18 改算法)──
-   使用者定案:只看「K 線(均價線)傾斜角度 + OBV 藍線(OBV 均線)傾斜角度」,越傾斜燈越多。
-   分數 −1 ~ +1:+ 偏多、− 偏空,兩個各佔一半:
-     均價線斜率 = 均價線最近 SIG.scaleBars 根的變化 ÷ 價格 ×100,±SIG.scaleMaFull% 為滿格;
-     OBV 均線斜率 = OBV 均線最近 SIG.scaleBars 根的變化 ÷ 當天到此刻的 OBV 波動範圍 ×100,±SIG.scaleObFull% 為滿格。
+   2026-10-18 使用者定案(回測 10/13~16 全部 268 檔 11.6 萬個時點,看燈亮後 10~15 分鐘價格是否順向):
+   OBV 藍線(OBV 均線)斜率佔 75%、OBV 紅線(OBV 本身)斜率佔 25%,均價線不算(回歸權重是負的,已經漲過的反而偏回落)。
+   順向命中 50.9% → 54.2%,平均順向幅度 +0.046% → +0.097%(10 分鐘)。
+   分數 −1 ~ +1:+ 偏多、− 偏空:
+     OBV 均線斜率 = OBV 均線最近 SIG.scaleBars 根的變化 ÷ 當天到此刻的 OBV 波動範圍 ×100,±SIG.scaleObFull% 為滿格;
+     OBV 紅線斜率 = OBV 最近 SIG.scaleBars 根的變化 ÷ 同一個範圍 ×100,±SIG.scaleObFull% 為滿格。
+   權重放在 SIG.scaleW = {ma, ob, obma}。
    左邊 10 格紅燈由中心往外亮 round(分數×10) 格、指針往左;負的就是右邊綠燈、指針往右。只是視覺輔助,不下單。 */
 function biasScore(bars, ma, obma, ob, at){              // at:算哪一根(預設最後一根);十字線聯動時傳十字線所在的 K(2026-10-17)
   const li = (at == null) ? bars.length - 1 : at;
@@ -3354,16 +3360,20 @@ function biasScore(bars, ma, obma, ob, at){              // at:算哪一根(預�
   const t1 = last.time, t0 = bars[li - back].time;
   const c = x => Math.max(-1, Math.min(1, x));
   const g = (arr, t) => { const v = arr.get ? arr.get(t) : undefined; return v === undefined ? null : v; };
-  const m1 = g(ma, t1), m0 = g(ma, t0), o1 = g(obma, t1), o0 = g(obma, t0);
-  let sMa = 0, sOb = 0;
+  const m1 = g(ma, t1), m0 = g(ma, t0), o1 = g(obma, t1), o0 = g(obma, t0), r1 = ob ? g(ob, t1) : null, r0 = ob ? g(ob, t0) : null;
+  let sMa = 0, sObma = 0, sOb = 0;
   if (m1 !== null && m0 !== null && m0 > 0) sMa = (m1 - m0) / m0 * 100 / SIG.scaleMaFull;
-  if (o1 !== null && o0 !== null && ob){
+  if (ob){
     let hi = -Infinity, lo = Infinity;
     for (let i = li; i >= 0 && dayKey(bars[i].time) === day; i--){ const v = g(ob, bars[i].time); if (v !== null){ if (v > hi) hi = v; if (v < lo) lo = v; } }
     const rng = (hi > lo) ? (hi - lo) : 0;
-    if (rng > 0) sOb = (o1 - o0) / rng * 100 / SIG.scaleObFull;
+    if (rng > 0){
+      if (o1 !== null && o0 !== null) sObma = (o1 - o0) / rng * 100 / SIG.scaleObFull;
+      if (r1 !== null && r0 !== null) sOb = (r1 - r0) / rng * 100 / SIG.scaleObFull;
+    }
   }
-  return c(0.5 * c(sMa) + 0.5 * c(sOb));
+  const W = SIG.scaleW;
+  return c(W.ma * c(sMa) + W.obma * c(sObma) + W.ob * c(sOb));
 }
 const toTimeMap = arr => { const m = new Map(); for (const x of arr) m.set(x.time, x.value); return m; };
 (function buildMeter(){                                  // 左 10 格(外→內漸小)、中線、右 10 格(內→外漸大)
