@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610172055">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610172110">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1307,7 +1307,7 @@ except Exception:
   #notifLog .card .ln .px{flex:0 0 6ch;text-align:right;color:#4FC3F7;margin-left:.5ch}
   #notifLog .card .ln .sd{flex:0 0 2em;text-align:center;margin-left:.5ch} #notifLog .card .ln .sd.win{color:#FF3B3B} #notifLog .card .ln .sd.lose{color:#1DD75B}
   #notifLog .card .ln .qt{flex:0 0 2.6em;text-align:right;color:#D8DEE9;margin-left:.5ch}
-  #notifLog .card .ln .exm{flex:1 1 4em;min-width:0;text-align:right;margin-left:.5ch;letter-spacing:-2px} #notifLog .card .ln .mk.lose{color:#FF3B3B} #notifLog .card .ln .mk.win{color:#1DD75B}   /* 賠紅 ⚠、賺綠 ▲(2026-10-17 使用者) */
+  #notifLog .card .ln .exm{flex:1 1 2.4em;min-width:0;text-align:right;margin-left:.5ch;letter-spacing:-1px;padding-right:2px} #notifLog .card .ln .mk.lose{color:#FF3B3B} #notifLog .card .ln .mk.win{color:#1DD75B}   /* 賠紅 ⚠、賺綠 ▲(2026-10-17 使用者) */
   #notifLog .card .ln .rs{flex:0 0 1.5em;text-align:right;margin-left:.5ch;font-weight:700}
   #notifLog .card .ln .rs.win,#notifLog .card .ln .rs.lose{display:inline-block;border:2px solid currentColor;border-radius:4px;padding:0 2px;line-height:1.1;text-align:center}   /* 贏 / 輸 加框 */
   #notifLog .card .ln .rs.win{color:#FF3B3B} #notifLog .card .ln .rs.lose{color:#1DD75B} #notifLog .card .ln .rs.warn{flex-basis:2.6em;color:#F5A623;display:flex;gap:2px;justify-content:flex-end}
@@ -4129,23 +4129,25 @@ window.bgTick = bgTick; window.BG = BG;
     // 2026-10-17 18:50 使用者:進場、平倉是各自一則,不合併。進場只顯示當時要交易的價格,沒有平倉等級;平倉那則顯示平倉價、等級、輸/贏
     const cards = items.map(parse).filter(Boolean);
     const lotsOf = o => { const p = POSITIONS.get(o.code); if (p && p.qty) return p.qty; const ent = o.entP || o.price || 0; return ent ? Math.max(1, Math.floor(350000 / (ent * 1000))) : 0; };
-    const marks = pl => { const a = Math.abs(pl || 0); return a <= 0.5 ? 1 : a <= 1.5 ? 2 : 3; };   // 損益佔投入金額的 %:≤0.5 一個、≤1.5 兩個、更多三個(2026-10-17 由四個改三個)
+    const marks = pl => Math.abs(pl || 0) <= 1 ? 1 : 2;   // 損益佔投入金額的 %:≤1 一個、更多兩個(2026-10-17 由三個改兩個)
     const line = o => {
       const sideTxt = o.side === 'long' ? '做多' : o.side === 'short' ? '做空' : '';
       const lots = lotsOf(o), px = o.price ? o.price.toFixed(2) : '';
       const ex = o.type === 'exit' ? `<span class="${o.win ? 'mk win' : 'mk lose'}">${(o.win ? '▲' : '⚠').repeat(marks(o.pl))}</span>` : '';
-      const rs = o.type === 'exit' ? `<span class="rs ${o.win ? 'win' : 'lose'}">${o.win ? '贏' : '輸'}</span>` : o.type === 'warn' ? '<span class="rs warn"><b>注</b><b>意</b></span>' : '<span class="rs"></span>';
+      const rs = o.type === 'warn' ? '<span class="rs warn"><b>注</b><b>意</b></span>' : '';   // 2026-10-17 贏 / 輸 取消顯示(顏色由 ▲ / ⚠ 分)
       return `<div class="ln"><span class="nmblk"><span class="nm">${esc(o.name)}</span><span class="cd">${esc(o.code)}</span></span><span class="px">${esc(px)}</span><span class="sd ${o.side === 'long' ? 'win' : 'lose'}">${sideTxt}</span><span class="qt">${lots ? lots + '張' : ''}</span><span class="exm">${ex}</span>${rs}</div>`;
     };
     const info = o => '';   // 2026-10-17 使用者:每一則下面的灰字明細都不顯示,只留代碼
     box.innerHTML = hd + (cards.length ? cards.map((o, k) => `<div class="card ${o.side === 'long' ? 'c-long' : o.side === 'short' ? 'c-short' : ''}${posStatus(o.code) === 'open' ? ' mine' : posStatus(o.code) === 'closed' ? ' done' : ''}" data-i="${k}">${line(o)}</div>`).join('')
       : `<div class="empty">${d === today ? '今日還沒有通知<br>(進場 / 停利 / 停損 / 出場會列在這裡)' : '這天沒有紀錄'}</div>`);
     // 2026-10-17 自動縮字:真機系統字體放大時整列會超出卡片,量一下塞不下就縮,直到塞下為止(最小 11px)
-    box.querySelectorAll('.card .ln').forEach(ln => {
+    const fit = () => box.querySelectorAll('.card .ln').forEach(ln => {
       let fs = 18; ln.style.fontSize = fs + 'px';
+      const need = () => { let w = 0; for (const c of ln.children) w += c.getBoundingClientRect().width + 1; return w; };
       let guard = 0;
-      while (ln.scrollWidth > ln.clientWidth + 1 && fs > 11 && guard++ < 20){ fs -= 0.5; ln.style.fontSize = fs + 'px'; }
+      while (need() > ln.clientWidth - 2 && fs > 10 && guard++ < 24){ fs -= 0.5; ln.style.fontSize = fs + 'px'; }
     });
+    fit(); try{ if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit); }catch(e){} setTimeout(fit, 300);
     const prev = el('nlPrev'), next = el('nlNext');
     if (prev) prev.onclick = () => { cur = ds[i - 1]; render(true); };
     if (next) next.onclick = () => { cur = (i + 1 >= ds.length - 1) ? null : ds[i + 1]; render(true); };
