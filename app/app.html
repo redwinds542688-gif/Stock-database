@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610171735">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610171750">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1297,8 +1297,9 @@ except Exception:
   #notifLog .row.mine{outline:1px solid #FFD54F;outline-offset:-1px}   /* 長按記「我有做」 */
   #notifLog .row .ti.cols .tr{flex:0 0 3.4em;text-align:right;color:#FFD54F;font-size:12px;font-weight:600;margin-right:3px}   /* 「交易中」:做多 / 做空前面 */
   #notifLog .row .ti.cols .nm{flex:1 1 5em;min-width:0;overflow:hidden;text-overflow:ellipsis}
-  #notifLog .row .ti.cols .sd{flex:0 0 4em}  #notifLog .row .sd.win{color:#FF3B3B} #notifLog .row .sd.lose{color:#1DD75B}
-  #notifLog .row .ti.cols .px{flex:0 0 6.5ch;text-align:right}
+  #notifLog .row .ti.cols .sd{flex:0 0 2.2em}
+  #notifLog .row .ti.cols .qt{flex:0 0 2.6em;text-align:right;color:#D8DEE9}   /* 張數(做多 / 做空後面,間隔 1px) */  #notifLog .row .sd.win{color:#FF3B3B} #notifLog .row .sd.lose{color:#1DD75B}
+  #notifLog .row .ti.cols .px{flex:0 0 6ch;text-align:right}
   #notifLog .row .ti.cols .ex{flex:0 0 2.2ch;text-align:center}
   #notifLog .row .ti.cols .rs{flex:0 0 2.4em;text-align:right;font-weight:700}
   #notifLog .row .rs.win{color:#FF3B3B} #notifLog .row .rs.lose{color:#1DD75B} #notifLog .row .rs.warn{color:#F5A623}
@@ -4083,7 +4084,11 @@ window.bgTick = bgTick; window.BG = BG;
       if (!m) return {cls: esc(x.kind || ''), html: esc(x.title)};
       const rest = m[3];
       const code = m[2];
-      const cols = (side, px, rsCls, rsTxt, ex) => `<span class="nm">${esc(m[1])}</span><span class="tr">${POSITIONS.has(code) ? '交易中' : ''}</span><span class="sd ${side === '做多' ? 'win' : (side === '做空' ? 'lose' : '')}">${esc(side || '')}</span><span class="px">${esc(px)}</span><span class="ex">${ex ? '⚠' : ''}</span><span class="rs ${rsCls}">${rsTxt}</span>`;   // sd:價格前 4 位寬的做多(紅)/做空(綠);ex:價格後 3 位寬的紅色驚嘆號(平倉列才有)
+      // 張數:有記「我有做」就用記的;否則用 35 萬額度 ÷ 進場價算(進場列用進場價、平倉列用內容裡的進場價)
+      const lotsOf = () => { const p = POSITIONS.get(code); if (p && p.qty) return p.qty;
+        const ent = +(((x.kind === 'long' || x.kind === 'short') ? (x.title.match(/([\d.]+)\s*$/) || [])[1] : ((x.body || '').match(/進 ([\d.]+)/) || [])[1])) || 0;
+        return ent ? Math.max(1, Math.floor(350000 / (ent * 1000))) : 0; };
+      const cols = (side, px, rsCls, rsTxt, ex) => `<span class="nm">${esc(m[1])}</span><span class="tr">${POSITIONS.has(code) ? '交易中' : ''}</span><span class="sd ${side === '做多' ? 'win' : (side === '做空' ? 'lose' : '')}">${esc(side || '')}</span><span class="qt">${lotsOf() ? lotsOf() + '張' : ''}</span><span class="px">${esc(px)}</span><span class="ex">${ex ? '⚠' : ''}</span><span class="rs ${rsCls}">${rsTxt}</span>`;   // sd:價格前 4 位寬的做多(紅)/做空(綠);ex:價格後 3 位寬的紅色驚嘆號(平倉列才有)
       // 平倉 / 提醒列的方向:內容裡有「做多 / 做空」就直接用;沒有就用進場價和現價推(賺且現價低於進場價 = 做空)
       const sideOf = () => { const b = x.body || ''; const sm = b.match(/做[多空]/); if (sm) return sm[0];
         const ent = +((b.match(/進 ([\d.]+)/) || [])[1]), now = +nowPx; if (!ent || !now) return '';
