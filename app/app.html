@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610172050">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610172055">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1270,8 +1270,8 @@ except Exception:
   /* 灰框尺寸維持原樣:上下各距滾輪區 8px。
      面板底部另有 40px 空間放齒輪,所以 bottom = 8 + 40 */
   /* 顯示區 */
-  .cover{position:absolute;top:8px;left:14px;right:14px;bottom:48px;
-         border-radius:10px;
+  .cover{position:absolute;top:8px;left:0;right:0;bottom:48px;   /* 2026-10-17 通知欄的框貼齊螢幕左右 */
+         border-radius:0;
          background:var(--panel);border:1px solid var(--up);overflow:hidden}
   /* 今日監控紀錄(背景監控發過的通知,新的在上面;2026-10-16) */
   #notifLog{position:absolute;inset:0;overflow-y:auto;padding:0 0 6px;font-size:13px;line-height:1.35;-webkit-overflow-scrolling:touch;touch-action:pan-y}
@@ -1358,7 +1358,7 @@ except Exception:
 
   /* 滾輪:收合時隱藏但保留佔位 */
   .wheels{position:absolute;z-index:4;
-          top:8px;left:14px;right:14px;bottom:48px;
+          top:8px;left:0;right:0;bottom:48px;
           display:flex;flex-wrap:wrap;align-content:center;
           column-gap:8px;row-gap:14px;
           padding:10px 6px;
