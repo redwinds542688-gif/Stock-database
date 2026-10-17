@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610171610">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610171620">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1292,10 +1292,10 @@ except Exception:
   /* 2026-10-17 使用者指定的配色:名稱黃、代碼綠、進場價藍、驚嘆號紅;進場列做多紅底 / 做空綠底;平倉列賺淡藍底 / 賠淡紅底 */
   #notifLog .row .nm{color:#FFD54F} #notifLog .row .cd{color:#1DD75B} #notifLog .row .px{color:#4FC3F7} #notifLog .row .ex{color:#FF3B3B}
   /* 2026-10-17 15:30 使用者指定欄位:代號(4 位)|名稱(8 位寬)|價格(5 位,靠右)|最右 贏(紅)/輸(綠) */
-  #notifLog .row .ti.cols{display:flex;align-items:baseline;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:13.5px}
+  #notifLog .row .ti.cols{display:flex;align-items:baseline;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:14px}
   #notifLog .row .ti.cols .cd{flex:0 0 4.2ch}
-  #notifLog .row .ti.cols .nm{flex:1 1 7em;min-width:0;overflow:hidden;text-overflow:ellipsis}
-  #notifLog .row .ti.cols .sd{flex:0 0 3em}  #notifLog .row .sd.win{color:#FF3B3B} #notifLog .row .sd.lose{color:#1DD75B}
+  #notifLog .row .ti.cols .nm{flex:1 1 8em;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  #notifLog .row .ti.cols .sd{flex:0 0 4em}  #notifLog .row .sd.win{color:#FF3B3B} #notifLog .row .sd.lose{color:#1DD75B}
   #notifLog .row .ti.cols .px{flex:0 0 6.5ch;text-align:right}
   #notifLog .row .ti.cols .ex{flex:0 0 2.2ch;text-align:center}
   #notifLog .row .ti.cols .rs{flex:0 0 2.4em;text-align:right;font-weight:700}
@@ -4088,7 +4088,7 @@ window.bgTick = bgTick; window.BG = BG;
       if (x.kind === 'warn') return {cls: 'warn c', html: cols(sideOf(), nowPx, 'warn', '注意', true)};
       return {cls: esc(x.kind || ''), html: esc(x.title)};
     };
-    box.innerHTML = hd + (items.length ? items.map((x, k) => { const f = fmt(x); return `<div class="row ${f.cls.replace(' c', '')}" data-i="${k}"><span class="t">${esc(x.t)}</span><span class="b"><div class="ti${f.cls.endsWith(' c') ? ' cols' : ''}">${f.html}</div>${x.body ? `<div class="tx">${esc(x.body)}</div>` : ''}</span></div>`; }).join('')
+    box.innerHTML = hd + (items.length ? items.map((x, k) => { const f = fmt(x); return `<div class="row ${f.cls.replace(' c', '')}" data-i="${k}"><span class="b"><div class="ti${f.cls.endsWith(' c') ? ' cols' : ''}">${f.html}</div>${x.body ? `<div class="tx">${esc(x.body)}</div>` : ''}</span></div>`; }).join('')
       : `<div class="empty">${d === today ? '今日還沒有通知<br>(進場 / 停利 / 停損 / 出場會列在這裡)' : '這天沒有紀錄'}</div>`);
     const prev = el('nlPrev'), next = el('nlNext');
     if (prev) prev.onclick = () => { cur = ds[i - 1]; render(true); };
