@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610172350">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610180010">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3360,6 +3360,9 @@ const chartOpts = () => ({
              tickMarkMaxCharacterLength:11,
              tickMarkFormatter: t => tpeLabel(t)},   // 元大格式「10/15 11:42」
   localization:{timeFormatter: t => tpeLabel(t)},
+  // 長按模式只維持到放手(套件預設是「放手後繼續,點一下才退出」,會變成之後每次拖都在拖十字線、圖拖不動,
+  // 而且我們放手時會把十字線拉回原本固定的那根,看起來像「拖的時候分開,最後才合在一起」)(2026-10-18)
+  trackingMode:{exitMode:LightweightCharts.TrackingModeExitMode.OnTouchEnd},
   crosshair:{mode:LightweightCharts.CrosshairMode.Normal,
              vertLine:{style:LightweightCharts.LineStyle.Dashed, color:'#8A93A3', width:1, labelVisible:true},
              horzLine:{style:LightweightCharts.LineStyle.Dashed, color:'#8A93A3', width:1, labelVisible:true}},
@@ -3474,13 +3477,19 @@ function initChart(){
   const clearX = () => { XLOCK = null; xApplying = true; chart.clearCrosshairPosition(); chartM.clearCrosshairPosition(); xApplying = false; showBarInfo(null); if (xBtn) xBtn.classList.add('hidden'); };
   window.setX = setX; window.clearX = clearX; window.getXLock = () => XLOCK;
   if (xBtn){ xBtn.addEventListener('click', e => { e.preventDefault(); clearX(); }); xBtn.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); clearX(); }); }
+  let xPend = false;
+  const reapplyX = () => { if (xPend) return; xPend = true; setTimeout(() => { xPend = false; if (XLOCK) applyX(XLOCK.time); }, 0); };
   const onMove = (src, p) => {
     if (xApplying) return;
-    if (XLOCK && touching){
-      // 固定住、手指還在圖上:拖動 / 縮放中圖庫丟什麼都不理,放開再把固定那條補回去;
-      // 但長按拖十字線時要即時跟著走(2026-10-17 使用者:「上下十字線沒有聯動,放手上面才跟上」):固定點直接移到手指所在的 K
-      if (!(longPress && p.time)) return;
-      XLOCK = {time: p.time};
+    if (XLOCK){
+      // 固定住的十字線(2026-10-18 整理):
+      // · 事件帶 sourceEvent = 手指(長按後)在拖十字線 → 固定點跟著手指走,上下圖、資料列、燈號每一步都同步
+      // · 手指還在圖上但沒有 sourceEvent = 拖圖 / 縮放,套件用舊像素位置重算十字線 → 先不理,放手(tEnd)再補回固定那根
+      // · 放手後套件自己清掉或慣性捲動把它移到別根 → 拉回固定那根(原本放手後慣性捲動會讓資料列漂到隔壁那根)
+      if (p.time && p.sourceEvent) XLOCK = {time: p.time};
+      else if (touching) return;
+      else if (!p.time || p.time !== XLOCK.time){ reapplyX(); return; }
+      else return;
     }
     if (p.time){
       const i = idxOf(p.time);
@@ -3489,8 +3498,6 @@ function initChart(){
       else chart.setCrosshairPosition(i >= 0 ? BARS[i].close : 0, p.time, candle);
       xApplying = false;
       showBarInfo(p.time);
-    }else if (XLOCK){
-      setTimeout(() => { if (XLOCK) applyX(XLOCK.time); }, 0);   // 圖庫自己把十字線清掉(放開、開始拖動)→ 補回固定的那條
     }else{
       xApplying = true; chart.clearCrosshairPosition(); chartM.clearCrosshairPosition(); xApplying = false;
       showBarInfo(null);
