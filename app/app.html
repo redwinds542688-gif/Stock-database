@@ -86,6 +86,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 12:20 股票名稱再放大(使用者:「股票名稱也放大一點」):名稱字級 1.5 → 1.9 位元(20.6px → 26px),部位標記 .95 → 1.1 位元;一列高度 66 → 73px。
   · 2026-10-18 12:10 股票清單文字數字最大化(使用者:「股票區域 文字數字最大化」):一列由 36 位元改 30(空白欄 2→1、成交量 7→6、萬 4→2),
     字級隨位元寬放大 20%,名稱、部位標記、表頭一起放大;版面不變、交易規則沒動。
   · 2026-10-18 11:50 「設定」亮燈改成和「訊息」一樣的綠色(使用者:「設定的顏色與訊息一致」);原本按下 / 打開時是金色。
@@ -1287,7 +1288,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610181210">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610181220">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1502,9 +1503,9 @@ except Exception:
   .row{border-bottom:1px solid #1E242F;text-decoration:none;color:inherit}
   .row:active{background:var(--panel)}
   .row .rank{color:var(--faint);text-align:right}
-  .row .nm{font-family:var(--sans);font-size:calc(var(--u) * 1.5);
+  .row .nm{font-family:var(--sans);font-size:calc(var(--u) * 1.9);   /* 2026-10-18 使用者:「股票名稱也放大一點」1.5 → 1.9(10 格放得下 5 個中文字) */
            color:var(--text);text-overflow:ellipsis;overflow:hidden}
-  .row .posline{font-size:calc(var(--u) * .95);margin-top:1px}
+  .row .posline{font-size:calc(var(--u) * 1.1);margin-top:1px}   /* 部位標記跟著放大 .95 → 1.1 */
   .row .posline .pos{padding:0 .35em;border-radius:3px;white-space:pre;
                   font-family:var(--mono);font-weight:700;color:#12151C}
   .row .posline .pos.long{background:var(--up)}     /* 持有多單 */
