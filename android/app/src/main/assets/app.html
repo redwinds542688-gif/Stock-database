@@ -1233,7 +1233,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610180420">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610180440">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2154,6 +2154,7 @@ function render(list){
       ['監控價格', wLo.value + ' ~ ' + wHi.value + ' 元,振幅 ≥ ' + wAmp.value],
       ['手續費 / 上限', wFee.value + ' · ' + wCap.value],
       ['判別式', RULESET.name + '(' + RULESET.date + ')'],
+      ['圖表手勢', GESTURE.frames ? `${GESTURE.t} 平均每格 ${GESTURE.avg.toFixed(0)} ms(最慢 ${GESTURE.max.toFixed(0)} ms,${GESTURE.frames} 格)· 標記 ${MARKS.length} 個 · 畫布 ${window.devicePixelRatio} 倍` : '還沒量到(在圖上拖一下再來看)'],
       ['程式版本', buildBuild()],
       ['狀態列', st || '—'],
     ];
@@ -2926,9 +2927,15 @@ const YH = {
                           // 燈號逐根判斷(條件成立那根亮,不成立回監控)。平倉規則定案後改 true。
 };
 let CUR = null;                        // 目前畫在圖上的資料:{byTime, last, prevClose}
-let MARKS = [], marksHidden = false;   // 目前圖上的訊號標記;拖動 / 縮放期間先拿掉(中文標記每一格都要量字畫字,手機上很慢),放手再畫回來(2026-10-18)
-function hideMarks(){ if (!marksHidden && MARKS.length && candle){ marksHidden = true; candle.setMarkers([]); } }
-function showMarks(){ if (marksHidden && candle){ marksHidden = false; candle.setMarkers(MARKS); } }
+let MARKS = [], marksHidden = false;   // 目前圖上的訊號標記。2026-10-18 曾在拖動期間隱藏標記來省畫圖時間,但標記佔的上下空間一拿掉價格刻度就重算,
+                                       // 圖像翹翹板一樣上下跳(使用者影片),已撤掉;hideMarks / showMarks 保留成空函式
+function hideMarks(){}
+function showMarks(){}
+// 手勢效能量測(2026-10-18):手指按著期間每一格的間隔,放手後算平均 / 最慢,顯示在「監控狀態」頁,讓使用者截圖回報真機數字
+let GESTURE = {frames: 0, avg: 0, max: 0, t: ''}, gRun = false, gLast = 0, gGaps = [];
+function gestureStart(){ if (gRun) return; gRun = true; gGaps = []; gLast = performance.now(); requestAnimationFrame(gTick); }
+function gTick(){ if (!gRun) return; const now = performance.now(); gGaps.push(now - gLast); gLast = now; requestAnimationFrame(gTick); }
+function gestureEnd(){ if (!gRun) return; gRun = false; if (gGaps.length > 2){ const g = gGaps.slice(1); GESTURE = {frames: g.length, avg: g.reduce((a, b) => a + b, 0) / g.length, max: Math.max(...g), t: new Date().toLocaleTimeString('zh-TW', {hour12:false})}; } }
 
 /* 元大風格的開高低收量表 + 均價列 + OBV 列:
    t = 十字線指到的分鐘(null = 最後一根);每個數字對昨收比較,高於昨收紅、低於綠(台股慣例) */
@@ -3496,7 +3503,7 @@ function initChart(){
     keepXInView(fixed || r);
     scheduleHiLo();
   });
-  const tStart = () => { touching = true; clearTimeout(touchGuard); touchGuard = setTimeout(tEnd, 1500); hideMarks(); };
+  const tStart = () => { touching = true; clearTimeout(touchGuard); touchGuard = setTimeout(tEnd, 1500); gestureStart(); };
   // 放手後慣性捲動約 1.5 秒:每格檢查兩張圖的範圍是否一樣,不一樣就以剛才拖的那張為準(慣性動畫只在被拖的那張跑)
   let settle = 0, settleSrc = null;
   const sameRange = (a, b) => a && b && Math.abs(a.from - b.from) < 1e-6 && Math.abs(a.to - b.to) < 1e-6;
@@ -3506,7 +3513,7 @@ function initChart(){
     if (r){ syncing = true; for (const b of charts) if (b !== src && !sameRange(r, b.timeScale().getVisibleLogicalRange())) b.timeScale().setVisibleLogicalRange(r); syncing = false; }
     if (settle > 0) requestAnimationFrame(settleLoop); else { settleSrc = null; scheduleHiLo(); showMarks(); }
   };
-  const tEnd = () => { if (!touching) return; touching = false; clearTimeout(touchGuard); scheduleHiLo(); if (typeof XLOCK !== 'undefined' && XLOCK) setTimeout(() => { if (XLOCK) applyX(XLOCK.time); }, 0); if (settle <= 0){ settle = 90; requestAnimationFrame(settleLoop); } else settle = 90; };
+  const tEnd = () => { if (!touching) return; touching = false; clearTimeout(touchGuard); gestureEnd(); scheduleHiLo(); if (typeof XLOCK !== 'undefined' && XLOCK) setTimeout(() => { if (XLOCK) applyX(XLOCK.time); }, 0); if (settle <= 0){ settle = 90; requestAnimationFrame(settleLoop); } else settle = 90; };
   ['chartTop', 'chartMid', 'chartBot'].forEach(id => { const e = el(id); if (!e) return;
     e.addEventListener('touchstart', () => { settleSrc = id === 'chartMid' ? chartM : id === 'chartBot' ? (chartB || chartM) : chart; tStart(); }, {passive:true});
     e.addEventListener('touchend', tEnd, {passive:true}); e.addEventListener('touchcancel', tEnd, {passive:true}); });
