@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610171420">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610171425">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2125,7 +2125,7 @@ function render(list){
     '停利 +' + SIG.takePct + '%、停損 −' + SIG.stopPct + '%、離昨收超過 ' + SIG.maxMovePct + '% 強制出',
     'OBV 均線最近 ' + SIG.obmaSlopeBars + ' 根斜率(÷當日 OBV 範圍)不到 ' + SIG.obmaSlopeMin + '% 只記錄不進(量能還沒形成方向)',
     '持倉中 OBV 反向穿越 OBV 均' + SIG.obvExitMa + ' 且帳面 ≥ ' + SIG.obvExitMinGain + '% → 提早停利',
-    '持倉中 OBV 反向穿越 OBV 均' + SIG.obvWarnMa + ' → 通知「正在反彈,注意」一次,不平倉',
+    '持倉中 OBV 反向穿越 OBV 均' + SIG.obvWarnMa + ' → 通知「可能正在反彈,注意」一次,不平倉',
     '出現反向訊號且該反向點可進場 → 平倉(逆勢單碰到反向點立即平倉)',
     '',
     '<b>資金</b>',
@@ -4000,7 +4000,7 @@ async function bgTick(force, replay){
             const pos = BG.pos.get(code);
             const pl = pos ? (nowPx - pos.entry) / pos.entry * 100 * pos.dir : null;
             const plTxt = pl === null ? '' : ` 帳面 ${pl >= 0 ? '+' : ''}${pl.toFixed(1)}%`;
-            bgNotify(`⚠ ${nm} ${code} 正在反彈,注意${plTxt}`, `${t} OBV 反向穿越 OBV 均${SIG.obvWarnMa} · 現價 ${nowPx}`, 'warn');
+            bgNotify(`⚠ ${nm} ${code} 可能正在反彈,注意${plTxt}`, `${t} OBV 反向穿越 OBV 均${SIG.obvWarnMa} · 現價 ${nowPx}`, 'warn');
           }else{
             // 平倉:算這筆賺賠(用記住的進場價;App 啟動後才進的才有),賠錢的用鬧鐘聲 + 長震動 + 紅色
             const pos = BG.pos.get(code); BG.pos.delete(code);
