@@ -475,7 +475,7 @@ pool.js
 | 名稱 | 初始 | 撥動間隔 | 範圍 |
 |---|---|---|---|
 | 監控低價 | 10 | 1 | 10 ~ 50 |
-| 監控高價 | 300 | 1 | 51 ~ 600 |
+| 監控高價 | 350 | 1 | 51 ~ 600 |
 | 最低振幅 | 4.0% | 0.1% | 3.5% ~ 8.0% |
 | 監控檔數 | 100 | — | 100 / 50 / 33 / 20 / 5 |
 | 手續費折扣 | 30% | 5% | 10% ~ 100% |
@@ -1220,7 +1220,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610170305">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610170420">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1659,7 +1659,7 @@ window.MONITOR_SETTINGS = {
 
   hi: {                       // 監控高價
     label: '監控高價',
-    init : 300,
+    init : 350,                 // 2026-10-17 300→350:配合多空上限 35 萬(一張最多 350 元);300 會把 303 元的台表科這種擋掉
     range: [{ from: 51, to: 500, step: 1 }],   // 每 1 元;長按才跳 50
   },
 
@@ -2337,6 +2337,8 @@ const saved = (() => {
 })();
 /* 2026-10-17 監控檔數預設 33 → 100:舊存檔還是 33 的只搬一次,之後使用者自己撥回 33 會保留 */
 if (!saved.cnt100 && String(saved.cnt) === '33') saved.cnt = '100';
+/* 2026-10-17 監控高價預設 300 → 350:同樣只搬一次 */
+if (!saved.hi350 && String(saved.hi) === '300') saved.hi = '350';
 /* 任何滾輪一撥動就立刻寫入,不等退出、不等關閉 */
 const saveFees = () => {
   try {
@@ -2344,7 +2346,7 @@ const saveFees = () => {
       hi: wHi.value, lo: wLo.value, amp: wAmp.value,
       disc: wFee.value, cnt: wCnt.value, cap: wCap.value,
       broker: wBroker.value, exch: wExch.value, tax: wTax.value,
-      cnt100: true,
+      cnt100: true, hi350: true,
     }));
   } catch (e) { /* 無法存檔時忽略 */ }
 };
@@ -2380,7 +2382,7 @@ function exportSettings(){
    ══════════════════════════════════════════ */
 /* 內建備份:settings.js 讀不到時使用,確保程式一定跑得起來 */
 const DEFAULT_SETTINGS = {
-  hi    : { init: 300, range: [{from:51,to:500,step:1}] },
+  hi    : { init: 350, range: [{from:51,to:500,step:1}] },
   lo    : { init: 15,  range: [{from:15,to:50,step:1}] },
   amp   : { init: '4.0%',  range: [{from:4.0,to:8,step:0.1,decimals:1,suffix:'%'}] },
   disc  : { init: '30%',   range: [{from:10,to:100,step:5,suffix:'%'}] },
@@ -2433,7 +2435,7 @@ function startVal(key, fallback){
 }
 
 const wHi  = makeWheel('wHi',  buildVals(CFG.hi   && CFG.hi.range),
-                       startVal('hi', 300), onFeeChange);
+                       startVal('hi', 350), onFeeChange);
 const wLo  = makeWheel('wLo',  buildVals(CFG.lo   && CFG.lo.range),
                        startVal('lo', 10), onFeeChange);
 const wAmp = makeWheel('wAmp', buildVals(CFG.amp  && CFG.amp.range),
