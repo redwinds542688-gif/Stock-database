@@ -1220,7 +1220,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610170420">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610170425">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1734,7 +1734,7 @@ window.MONITOR_BASE = {
   lo  : 15,      // 最低價下限(要和 make_pool.py 的 LO 一致)
   hi  : 500,     // 最高價上限(要和 make_pool.py 的 HI 一致)
   amp : 4.0,     // 振幅下限 %(要和 make_pool.py 的 MIN_AMP 一致)
-  size: 100,     // 原始池最多存幾檔(前一交易日成交張數排行前 100 名)
+  size: 130,     // 原始池最多存幾檔(前一交易日成交張數排行前 130 名;2026-10-17 100→130,雲端 pool.json 的 rules.size 讀到時會覆蓋)
 
   /* 以下三項與 make_pool.py 同名設定一致;雲端 pool.json 的 rules 讀到時會覆蓋 */
   excludeIndustry: ['17'],   // 排除的產業別:17 = 金融保險業(金控、銀行、保險、證券)
@@ -1857,6 +1857,7 @@ async function loadRemotePool(){
   ELIG_CHECKED_AT = j.elig_checked_at || '';
   if (j.date) kcacheEvict(j.date);                // 資料日期變了 → 清掉舊的分K 本機快取
   if (j.rules){                                   // 雲端規則為準,兩邊才會一致
+    if (j.rules.size != null)         BASE.size        = j.rules.size;          // 2026-10-17 以前沒覆蓋,池永遠被切成 100
     if (j.rules.tick_max_pct != null) BASE.tickMaxPct  = j.rules.tick_max_pct;
     if (Array.isArray(j.rules.exclude_industry)) BASE.excludeIndustry = j.rules.exclude_industry;
     if (j.rules.avg5_min_amp != null) BASE.avg5MinAmp  = j.rules.avg5_min_amp;
