@@ -84,6 +84,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 09:30 按鍵列(使用者定案):第二顆設「判一」,亮燈 = 背景監控執行中(用判別式一),點一下看規則;
+    通知欄顯示中「訊息」亮,打開設定滾輪「設定」亮、「訊息」熄;字體在按鍵裡最大化(22px);沒亮的按鍵灰字。
   · 2026-10-18 09:00 判別式一第二次修改(使用者指令「把 OBV5 加入判別式一」):`SIG.obmaSlope2Ma=5`,藍線(OBV 均 10)5 根斜率不到 4% 時,
     改看 OBV 均 5 的 5 根斜率,≥ 4% 就放行。回測四天 +65,307(18 筆)→ +67,579(19 筆、賺 17 賠 2、勝率 89%),多南亞 10/15 +2,218、
     台表科 10/16 進場提早一點 +54;均 3 +66,637(20 筆 85%)、均 20 +66,022(23 筆 74%)、均 30 +63,912(21 筆 81%)都較差。
@@ -1275,7 +1277,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610180900">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610180930">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1390,7 +1392,7 @@ except Exception:
         background:none;border:none;color:var(--dim);cursor:pointer;
         -webkit-user-select:none;user-select:none}
   .tool:disabled{color:var(--faint);opacity:.55;cursor:default}
-  .tool.txt{width:auto;min-width:56px;height:34px;padding:0 10px;font-size:14px;letter-spacing:1px;color:#D8DEE9;
+  .tool.txt{width:auto;min-width:60px;height:36px;padding:0 6px;font-size:22px;line-height:1;letter-spacing:0;font-weight:700;color:#8A93A3;   /* 2026-10-18 字體在按鍵裡最大化;沒亮燈時灰字 */
             border-radius:9px;border:1px solid #3A465C;border-bottom-color:#070A10;
             background:linear-gradient(#2B3549,#171D2A);
             box-shadow:0 3px 0 #070A10,0 4px 8px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.10);
@@ -1398,7 +1400,7 @@ except Exception:
   .tool.txt:disabled{opacity:.9;color:transparent;cursor:default}   /* 空白鍵:保留立體外觀 */
   .tool.txt:disabled:active{transform:none;box-shadow:0 3px 0 #070A10,0 4px 8px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.10);background:linear-gradient(#2B3549,#171D2A)}
   .tool.txt:active{transform:translateY(3px);box-shadow:0 0 0 #070A10,inset 0 2px 4px rgba(0,0,0,.6);background:linear-gradient(#171D2A,#2B3549)}
-  .tool.txt.on{color:var(--ok, #22B07D)}
+  .tool.txt.on{color:#1DD75B;text-shadow:0 0 8px rgba(29,215,91,.6),0 1px 0 rgba(0,0,0,.6)}   /* 亮燈:綠 */
   .tool.txt.lit{color:var(--brass)}
   #infoView{position:absolute;inset:0;overflow-y:auto;padding:8px 12px;font-size:13px;line-height:1.6;color:var(--text,#D8DEE9);-webkit-overflow-scrolling:touch;touch-action:pan-y;white-space:pre-wrap}
   #infoView b{color:var(--brass)}
@@ -1616,7 +1618,7 @@ except Exception:
   <div class="toolbar">
     <button class="tool txt" id="refreshBtn" aria-label="訊息"
             title="顯示監控訊息;長按重新讀取雲端資料">訊息</button>
-    <button class="tool txt" id="btnReload" disabled aria-label="待設定 2"></button>   <!-- 暫時空白(使用者要求);功能寫好了,之後填字、拿掉 disabled 即可 -->
+    <button class="tool txt" id="btnReload" aria-label="判別式一" title="亮燈 = 正在用判別式一監控;點一下看規則">判一</button>   <!-- 2026-10-18 使用者:第二顆設「判一」 -->
     <button class="tool txt" id="btnState" disabled aria-label="待設定 3"></button>
     <button class="tool txt" id="btnRules" disabled aria-label="待設定 4"></button>
     <button class="tool gear txt" id="gear" aria-label="設定" title="單擊開 / 關監控設定">設定</button>
@@ -2170,7 +2172,7 @@ function render(list){
     try{ await scan(); } finally { FORCE_FRESH = false; }
   };
   let hold, held = false, lastTap = 0;
-  const showMsg = e => { if (held){ held = false; return; } e.preventDefault(); const pnl = document.querySelector('.panel'); if (pnl) pnl.classList.remove('open'); if (window.hideInfo) hideInfo(); };
+  const showMsg = e => { if (held){ held = false; return; } e.preventDefault(); const pnl = document.querySelector('.panel'); if (pnl) pnl.classList.remove('open'); if (window.hideInfo) hideInfo(); if (window.refreshToolbar) refreshToolbar(); };
   btn.addEventListener('touchstart', () => { hold = setTimeout(() => { held = true; btn.style.opacity = '.3'; setTimeout(() => { btn.style.opacity = ''; }, 200); reload(); }, 700); }, {passive:true});
   btn.addEventListener('mousedown', () => { hold = setTimeout(() => { held = true; reload(); }, 700); });
   ['touchend','touchmove','touchcancel','mouseup','mouseleave'].forEach(ev => btn.addEventListener(ev, () => clearTimeout(hold), {passive:true}));
@@ -2236,16 +2238,27 @@ function render(list){
     paint(); clearInterval(infoTimer); if (kind === 'state') infoTimer = setInterval(() => { if (infoKind === 'state' && !info.classList.contains('hidden')) paint(); }, 2000);
     document.getElementById('btnState').classList.toggle('lit', kind === 'state');
     document.getElementById('btnRules').classList.toggle('lit', kind === 'rules');
+    if (window.refreshToolbar) refreshToolbar();
   };
   const hideInfo = () => { infoKind = ''; clearInterval(infoTimer); info.classList.add('hidden'); nl.classList.remove('hidden');
-    document.getElementById('btnState').classList.remove('lit'); document.getElementById('btnRules').classList.remove('lit'); };
+    document.getElementById('btnState').classList.remove('lit'); document.getElementById('btnRules').classList.remove('lit'); if (window.refreshToolbar) refreshToolbar(); };
   window.hideInfo = hideInfo;
   document.getElementById('btnState').addEventListener('click', () => infoKind === 'state' ? hideInfo() : showInfo('state'));
   document.getElementById('btnRules').addEventListener('click', () => infoKind === 'rules' ? hideInfo() : showInfo('rules'));
-  document.getElementById('btnReload').addEventListener('click', async () => {
-    const b = document.getElementById('btnReload'); b.textContent = '讀取…'; b.disabled = true;
-    try{ await reload(); } finally { b.textContent = '更新'; b.disabled = false; }
-  });
+  // 「判一」:亮燈 = 正在用判別式一做股票監控(背景監控執行中);點一下顯示 / 收起規則說明(2026-10-18)
+  document.getElementById('btnReload').addEventListener('click', () => infoKind === 'rules' ? hideInfo() : showInfo('rules'));
+  // 按鍵燈號(2026-10-18 使用者定案):通知欄顯示中 → 「訊息」亮;設定滾輪打開 → 「設定」亮、「訊息」熄;
+  // 「判一」亮 = 背景監控執行中(用的就是判別式一),和另外兩顆無關
+  const refreshToolbar = () => {
+    const pnl = document.querySelector('.panel'); const panelOpen = !!(pnl && pnl.classList.contains('open'));
+    const infoShown = !info.classList.contains('hidden');
+    btn.classList.toggle('on', !panelOpen && !infoShown);
+    const g = document.getElementById('gear'); if (g) g.classList.toggle('on', panelOpen);
+    let mon = false; try{ mon = !!(window.Android && Android.monitorRunning && Android.monitorRunning()); }catch(e){}
+    document.getElementById('btnReload').classList.toggle('on', mon && RULESET.name === '判別式一');
+  };
+  window.refreshToolbar = refreshToolbar;
+  setInterval(refreshToolbar, 3000); setTimeout(refreshToolbar, 500);
   btn.addEventListener('touchend', e => { lastTap = Date.now(); showMsg(e); });
   btn.addEventListener('click', e => { if (Date.now() - lastTap < 600) return; showMsg(e); });
 })();
@@ -2265,6 +2278,7 @@ function render(list){
   const toggle = () => {
     panel.classList.toggle('open');
     if (panel.classList.contains('open')){ WHEELS.forEach(w => w.init()); if (window.hideInfo) hideInfo(); }
+    if (window.refreshToolbar) refreshToolbar();
   };
 
   // 單擊齒輪 = 開 / 關監控設定(打開時監控紀錄先隱藏,CSS .panel.open #notifLog);長按仍是匯出設定
@@ -4209,8 +4223,7 @@ async function scan(){
   applyLiveToList();                // 盤中有即時價就蓋上去
   liveSnapshot();                   // 非交易時段:新進清單的股票補抓一次最新價(收盤價)
 
-  // 第一顆按鍵亮燈 = 目前顯示的是雲端資料
-  const rb = el('refreshBtn'); if (rb) rb.classList.toggle('on', SRC_LIVE);
+  // (2026-10-18)「訊息」的燈改成「通知欄顯示中」,不再表示雲端資料;雲端 / 本機資料改看狀態列文字
 
   // 資料日期距今超過 3 天(含週末)就警示;不是雲端資料也要講清楚
   const d = new Date(SRC_DATE);
