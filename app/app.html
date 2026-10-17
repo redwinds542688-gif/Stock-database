@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610171935">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610171940">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4132,9 +4132,7 @@ window.bgTick = bgTick; window.BG = BG;
       const rs = o.type === 'exit' ? `<span class="rs ${o.win ? 'win' : 'lose'}">${o.win ? '贏' : '輸'}</span>` : o.type === 'warn' ? '<span class="rs warn">注意</span>' : '<span class="rs"></span>';
       return `<div class="ln"><span class="nm">${esc(o.name)}</span><span class="px">${esc(px)}</span><span class="sd ${o.side === 'long' ? 'win' : 'lose'}">${sideTxt}</span><span class="qt">${lots ? lots + '張' : ''}</span><span class="exm">${ex}</span>${rs}</div>`;
     };
-    const info = o => o.type === 'entry' ? `${o.t} 進場` + (o.tp ? ` · 停利 ${o.tp} 停損 ${o.sl}` : '')
-      : o.type === 'exit' ? ''   // 2026-10-17 使用者:平倉那則下面的明細不用顯示,只留代碼
-      : `${o.t} 可能正在反彈` + (o.entT ? ` · ${o.entT} 進 ${o.entP || ''}` : '');
+    const info = o => '';   // 2026-10-17 使用者:每一則下面的灰字明細都不顯示,只留代碼
     box.innerHTML = hd + (cards.length ? cards.map((o, k) => `<div class="card ${o.side === 'long' ? 'c-long' : o.side === 'short' ? 'c-short' : ''}${posStatus(o.code) === 'open' ? ' mine' : posStatus(o.code) === 'closed' ? ' done' : ''}" data-i="${k}">${line(o)}<div class="tx"><span class="cd">${esc(o.code)}</span> ${esc(info(o))}</div></div>`).join('')
       : `<div class="empty">${d === today ? '今日還沒有通知<br>(進場 / 停利 / 停損 / 出場會列在這裡)' : '這天沒有紀錄'}</div>`);
     const prev = el('nlPrev'), next = el('nlNext');
