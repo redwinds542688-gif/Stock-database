@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610171940">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610171950">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1296,18 +1296,18 @@ except Exception:
   #notifLog .row .tx .cd{font-weight:600}
   #notifLog .row.mine{outline:1px solid #FFD54F;outline-offset:-1px}   /* 長按記「我有做」 */
   /* 2026-10-17 18:30 三列卡片 */
-  #notifLog .card{margin:4px 0;padding:3px 4px;border-radius:6px;cursor:pointer;outline:2px solid rgba(255,255,255,.75);outline-offset:-2px}   /* 沒長按過:白框 */
+  #notifLog .card{margin:3px 0;padding:2px 4px 1px;border-radius:6px;cursor:pointer;outline:2px solid rgba(255,255,255,.75);outline-offset:-2px}   /* 沒長按過:白框 */
   #notifLog .card.c-long{background:rgba(255,59,59,.22)} #notifLog .card.c-short{background:rgba(29,215,91,.22)}
   #notifLog .card.mine{outline:2px solid #FFD54F;outline-offset:-2px}   /* 有交易(持倉中) */
   #notifLog .card.done{outline:2px solid #4FC3F7;outline-offset:-2px}   /* 結束交易(已平倉)藍框 */
-  #notifLog .card .ln{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:14px;font-weight:600;line-height:1.4;min-height:1.4em}
+  #notifLog .card .ln{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:17.5px;font-weight:700;line-height:1.3;min-height:1.3em}   /* 2026-10-17 字體放到最大,塞滿寬度 */
   #notifLog .card .ln .nm{flex:0 0 5em;color:#FFD54F;overflow:hidden;text-overflow:ellipsis}
   #notifLog .card .ln .px{flex:0 0 6ch;text-align:right;color:#4FC3F7;margin-left:.5ch}
   #notifLog .card .ln .sd{flex:0 0 2em;text-align:center;margin-left:.5ch} #notifLog .card .ln .sd.win{color:#FF3B3B} #notifLog .card .ln .sd.lose{color:#1DD75B}
   #notifLog .card .ln .qt{flex:0 0 2em;text-align:right;color:#D8DEE9;margin-left:.5ch}
   #notifLog .card .ln .exm{flex:1 1 4em;text-align:right;margin-left:.5ch;letter-spacing:-1px} #notifLog .card .ln .mk.lose{color:#FF3B3B} #notifLog .card .ln .mk.win{color:#1DD75B}   /* 賠紅 ⚠、賺綠 ▲(2026-10-17 使用者) */
   #notifLog .card .ln .rs{flex:0 0 1.2em;text-align:right;margin-left:.5ch;font-weight:700} #notifLog .card .ln .rs.win{color:#FF3B3B} #notifLog .card .ln .rs.lose{color:#1DD75B} #notifLog .card .ln .rs.warn{flex-basis:2.4em;color:#F5A623}
-  #notifLog .card .tx{color:var(--dim);font-size:12px;white-space:normal} #notifLog .card .tx .cd{color:#1DD75B;font-weight:600}
+  #notifLog .card .tx{color:var(--dim);font-size:11px;line-height:1.1;white-space:normal} #notifLog .card .tx .cd{color:#1DD75B;font-weight:600}
   #notifLog .row .ti.cols .tr{flex:1 1 3.4em;text-align:right;color:#FFD54F;font-size:12px;font-weight:600;margin-right:3px}   /* 「交易中」:做多 / 做空前面,吃掉剩餘寬度 */
   #notifLog .row .ti.cols .nm{flex:0 0 5em;min-width:0;overflow:hidden;text-overflow:ellipsis}   /* 名稱固定 5 個中文字(10 欄) */
   #notifLog .row .ti.cols .sd{flex:0 0 2.2em}
