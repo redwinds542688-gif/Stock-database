@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610172005">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610172015">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1308,7 +1308,8 @@ except Exception:
   #notifLog .card .ln .sd{flex:0 0 2em;text-align:center;margin-left:.5ch} #notifLog .card .ln .sd.win{color:#FF3B3B} #notifLog .card .ln .sd.lose{color:#1DD75B}
   #notifLog .card .ln .qt{flex:0 0 2em;text-align:right;color:#D8DEE9;margin-left:.5ch}
   #notifLog .card .ln .exm{flex:1 1 4em;min-width:0;text-align:right;margin-left:.5ch;letter-spacing:-2px} #notifLog .card .ln .mk.lose{color:#FF3B3B} #notifLog .card .ln .mk.win{color:#1DD75B}   /* 賠紅 ⚠、賺綠 ▲(2026-10-17 使用者) */
-  #notifLog .card .ln .rs{flex:0 0 1.2em;text-align:right;margin-left:.5ch;font-weight:700} #notifLog .card .ln .rs.win{color:#FF3B3B} #notifLog .card .ln .rs.lose{color:#1DD75B} #notifLog .card .ln .rs.warn{flex-basis:2.4em;color:#F5A623}
+  #notifLog .card .ln .rs{flex:0 0 1.2em;text-align:right;margin-left:.5ch;font-weight:700} #notifLog .card .ln .rs.win{color:#FF3B3B} #notifLog .card .ln .rs.lose{color:#1DD75B} #notifLog .card .ln .rs.warn{flex-basis:2.6em;color:#F5A623;display:flex;gap:2px;justify-content:flex-end}
+  #notifLog .card .ln .rs.warn b{display:inline-block;border:2px solid #F5A623;border-radius:4px;padding:0 2px;line-height:1.1;font-weight:700}   /* 注、意 各自加框 */
   #notifLog .card .tx{color:var(--dim);font-size:11px;line-height:1.1;white-space:normal} #notifLog .card .tx .cd{color:#1DD75B;font-weight:600}
   #notifLog .row .ti.cols .tr{flex:1 1 3.4em;text-align:right;color:#FFD54F;font-size:12px;font-weight:600;margin-right:3px}   /* 「交易中」:做多 / 做空前面,吃掉剩餘寬度 */
   #notifLog .row .ti.cols .nm{flex:0 0 5em;min-width:0;overflow:hidden;text-overflow:ellipsis}   /* 名稱固定 5 個中文字(10 欄) */
@@ -4131,7 +4132,7 @@ window.bgTick = bgTick; window.BG = BG;
       const sideTxt = o.side === 'long' ? '做多' : o.side === 'short' ? '做空' : '';
       const lots = lotsOf(o), px = o.price ? o.price.toFixed(2) : '';
       const ex = o.type === 'exit' ? `<span class="${o.win ? 'mk win' : 'mk lose'}">${(o.win ? '▲' : '⚠').repeat(marks(o.pl))}</span>` : '';
-      const rs = o.type === 'exit' ? `<span class="rs ${o.win ? 'win' : 'lose'}">${o.win ? '贏' : '輸'}</span>` : o.type === 'warn' ? '<span class="rs warn">注意</span>' : '<span class="rs"></span>';
+      const rs = o.type === 'exit' ? `<span class="rs ${o.win ? 'win' : 'lose'}">${o.win ? '贏' : '輸'}</span>` : o.type === 'warn' ? '<span class="rs warn"><b>注</b><b>意</b></span>' : '<span class="rs"></span>';
       return `<div class="ln"><span class="nmblk"><span class="nm">${esc(o.name)}</span><span class="cd">${esc(o.code)}</span></span><span class="px">${esc(px)}</span><span class="sd ${o.side === 'long' ? 'win' : 'lose'}">${sideTxt}</span><span class="qt">${lots ? lots + '張' : ''}</span><span class="exm">${ex}</span>${rs}</div>`;
     };
     const info = o => '';   // 2026-10-17 使用者:每一則下面的灰字明細都不顯示,只留代碼
