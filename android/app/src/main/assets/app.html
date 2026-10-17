@@ -86,6 +86,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 11:50 「設定」亮燈改成和「訊息」一樣的綠色(使用者:「設定的顏色與訊息一致」);原本按下 / 打開時是金色。
   · 2026-10-18 11:45 鐵律第 9 條(使用者指令「現在開始 判別式一 都不能動 現在所有的修改都是針對判別式二」):判別式一凍結,之後所有改動都做在判別式二。只加文字,程式沒動。
   · 2026-10-18 11:30 判別式二、三(使用者指令「把現在判別式一複製給判別式二跟三 按鍵名稱也放上去」):`RULESETS` 裝三份,
     二、三是判別式一的完整複製(`JSON` 深拷貝 `SIG1`),尚未修改;按鍵列第 3、4 顆啟用為「判二」「判三」;只有背景監控正在用的那份亮燈;
@@ -1284,7 +1285,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610181130">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610181150">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1415,8 +1416,8 @@ except Exception:
   .tool.on{color:var(--ok, #22B07D)}
   .tool .dot{width:15px;height:15px;border-radius:50%;
              border:1.6px solid currentColor}
-  .gear:active{color:var(--brass)}
-  .panel.open .gear{color:var(--brass)}
+  /* 2026-10-18 使用者:「設定」亮燈顏色與「訊息」一致(綠),不再用金色 */
+  .panel.open .gear.txt{color:#1DD75B;text-shadow:0 0 8px rgba(29,215,91,.6),0 1px 0 rgba(0,0,0,.6)}
 
   /* 滾輪:收合時隱藏但保留佔位 */
   .wheels{position:absolute;z-index:4;
