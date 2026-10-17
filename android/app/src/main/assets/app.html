@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610172220">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610172300">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2943,6 +2943,20 @@ function showBarInfo(t){
   el('lblObvMaN').textContent = BASE.obvMaPeriod;
   el('lblObvV').innerHTML = isFinite(d.ob) ? Math.round(d.ob).toLocaleString() + trend(d.ob, d.obPrev) : '—';
   el('lblObvMaV').innerHTML = isFinite(d.obma) ? Math.round(d.obma).toLocaleString() + trend(d.obma, d.obmaPrev) : '—';
+  // 燈號 + 偏向計跟著十字線走(2026-10-17):十字線在某根 K 上 → 顯示那根處理完當下的循環狀態(做多 / 做空 / 監控)與偏向;
+  // 最後一根或沒有十字線 → 回到最新狀態。沒開平倉規則(stateAt 為空)時燈號不動,只動偏向計。
+  if (CUR.lampLast){
+    const setLamps = (l, sh, w) => { el('lampLong').classList.toggle('on', l); el('lampShort').classList.toggle('on', sh); el('lampWatch').classList.toggle('on', w); };
+    if (isLast){ setLamps(CUR.lampLast.long, CUR.lampLast.short, CUR.lampLast.watch); updateMeter(CUR.biasLast); }
+    else{
+      if (CUR.stateAt){
+        const st = CUR.stateAt.has(d.bar.time) ? CUR.stateAt.get(d.bar.time) : null;
+        const live = st && !st.gated;
+        setLamps(!!live && st.side === 'long', !!live && st.side === 'short', !live);
+      }
+      if (CUR.bars && CUR.vw && d.i != null) updateMeter(biasScore(CUR.bars, CUR.vw, d.i));
+    }
+  }
 }                 // 圖上的 ±entryMaxChg% 進場區間線
 
 /* 簡單移動平均:bars 可以是 K 棒(取 close)或任何 {time, value} 序列。
@@ -3126,9 +3140,13 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort){
   let lastRvol = null;
   let lastConfirmedAt = null;                       // 最後一根確認點的 time(給燈號用)
   const marks = [];
+  const stateAt = new Map();                        // 每一根 K 處理完後的循環狀態(time → {side, entry, time, gated} 或 null),給十字線聯動燈號用(2026-10-17)
+  const snap = () => cyc ? {side: cyc.side, entry: cyc.entry, time: cyc.time, gated: !!cyc.gated} : null;
+  let prevT = null;
   for (let bi = 0; bi < bars.length; bi++){
     const b = bars[bi];
     if (new Date(b.time * 1000).toDateString() !== lastDay) continue;
+    if (prevT !== null) stateAt.set(prevT, snap()); prevT = b.time;
     n++; hi = Math.max(hi, b.high); lo = Math.min(lo, b.low); cumVol += (b.volume || 0);
     const k = iMa.get(b.time), o = iOb.get(b.time), om = iObma.get(b.time);
     if (o !== undefined){ obHi = Math.max(obHi, ob[o].value); obLo = Math.min(obLo, ob[o].value); }   // 當天 OBV 波動範圍(OBV 均線斜率的分母)
@@ -3259,21 +3277,24 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort){
     }
     mk(confirmed && !gated, tag);
   }
-  return {marks, state: cyc, lastConfirmedAt, rvol: lastRvol};
+  if (prevT !== null) stateAt.set(prevT, snap());
+  return {marks, state: cyc, lastConfirmedAt, rvol: lastRvol, stateAt};
 }
 
 /* ── 多空偏向計(2026-10-15)──
    分數 −1 ~ +1:+ 偏多、− 偏空。60% 看價與 VWAP 的乖離(±SIG.maxDev% 為滿格)、40% 看 VWAP 斜率(±0.5% 為滿格)。
    左邊 10 格紅燈由中心往外亮 round(分數×10) 格、指針往左;負的就是右邊綠燈、指針往右。只是視覺輔助,不下單。 */
-function biasScore(bars, vw){
-  const last = bars[bars.length - 1];
-  const v = vw[vw.length - 1].value;
-  if (!(v > 0) || bars.length < 2) return 0;
+function biasScore(bars, vw, at){                       // at:算哪一根(預設最後一根);十字線聯動時傳十字線所在的 K(2026-10-17)
+  const li = (at == null) ? bars.length - 1 : at;
+  const last = bars[li];
+  if (!last || !vw[li]) return 0;
+  const v = vw[li].value;
+  if (!(v > 0) || li < 1) return 0;
   const day = new Date(last.time * 1000).toDateString();
   let n = 0;
-  for (let i = bars.length - 1; i >= 0 && new Date(bars[i].time * 1000).toDateString() === day; i--) n++;
-  const back = Math.min(SIG.slopeBars, Math.max(1, n - 1), vw.length - 1);
-  const v0 = vw[vw.length - 1 - back].value;
+  for (let i = li; i >= 0 && new Date(bars[i].time * 1000).toDateString() === day; i--) n++;
+  const back = Math.min(SIG.slopeBars, Math.max(1, n - 1), li);
+  const v0 = vw[li - back].value;
   const c = x => Math.max(-1, Math.min(1, x));
   const dev = (last.close - v) / v * 100 / SIG.maxDev;
   const slope = (v0 > 0) ? (v - v0) / v0 * 100 / 0.5 : 0;
@@ -3658,7 +3679,7 @@ function drawBars(bars, code, srcLabel, keepView){
       if (day !== cumDay){ cumVol = 0; cumDay = day; }
       cumVol += b.volume;
       byTime.set(b.time, {
-        bar: b, prevBar: bars[i - 1] || null, cumVol,
+        i, bar: b, prevBar: bars[i - 1] || null, cumVol,
         ma: k != null ? ma[k].value : NaN, maPrev: k != null && k > 0 ? ma[k - 1].value : null,
         vw: kv != null ? vw[kv].value : NaN,
         ob: ko != null ? ob[ko].value : NaN, obPrev: ko != null && ko > 0 ? ob[ko - 1].value : null,
@@ -3703,6 +3724,11 @@ function drawBars(bars, code, srcLabel, keepView){
     entryNote += ` · ${cyc.side === 'long' ? '多' : '空'}方循環中(${cyc.time} 訊號,進場 ${cyc.entry.toFixed(2)},目前 ${pl >= 0 ? '+' : ''}${pl.toFixed(2)}%;停利 +${SIG.takePct}% 停損 −${SIG.stopPct}%)`;
   } else if (cyc && cyc.gated){
     entryNote += ` · ${cyc.side === 'long' ? '多' : '空'}方條件成立但被 ±${BASE.entryMaxChg}% 擋住(${cyc.time})`;
+  }
+  // 十字線聯動(2026-10-17 使用者:「燈號需要用十字虛線聯動」):記住「最新」的燈號與偏向,十字線移到某一根 K 時改顯示那根當下的狀態,移開就回到最新
+  if (CUR){
+    CUR.lampLast = {long: el('lampLong').classList.contains('on'), short: el('lampShort').classList.contains('on'), watch: el('lampWatch').classList.contains('on')};
+    CUR.biasLast = bias; CUR.bars = bars; CUR.vw = vw; CUR.stateAt = (YH.exitRule && rp.stateAt) ? rp.stateAt : null;
   }
   const nLong = marks.filter(m => m.text.startsWith('多')).length, nShort = marks.filter(m => m.text.startsWith('空')).length;
   const nGated = marks.filter(m => m.text.endsWith('✕')).length, nConf = marks.filter(m => m.text.endsWith('✓')).length;
