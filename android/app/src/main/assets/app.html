@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610172200">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610172220">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4085,12 +4085,18 @@ window.bgTick = bgTick; window.BG = BG;
   let lastKey = '', cur = null;                          // cur = 正在看的日期(YYYY-MM-DD),null = 今天
   const todayStr = () => { const n = new Date(); return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0'); };
   const esc = x => String(x).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  // 2026-10-17 回溯資料:雲端 app/log_backfill.json 裡放用模擬補出來的前幾天紀錄(使用者重裝 App 後舊紀錄不見),
+  // 只在 App 本身那天沒有紀錄時才用它補
+  let HIST = {}; try{ HIST = JSON.parse(localStorage.getItem('mysh.backfill') || '{}'); }catch(e){}
+  (async () => { try{ const r = await fetch(`${REPO_RAW}/app/log_backfill.json?v=${Math.floor(Date.now() / 3600000)}`); if (r.ok){ HIST = await r.json(); try{ localStorage.setItem('mysh.backfill', JSON.stringify(HIST)); }catch(e){} render(true); } }catch(e){} })();
   function days(){
-    try{ if (window.Android && Android.logDays) return JSON.parse(Android.logDays() || '[]'); }catch(e){}
-    return [todayStr()];
+    let ds = [todayStr()];
+    try{ if (window.Android && Android.logDays) ds = JSON.parse(Android.logDays() || '[]'); }catch(e){}
+    return [...new Set([...ds, ...Object.keys(HIST || {})])];
   }
   function itemsFor(d){
-    try{ if (window.Android && Android.logFor) return JSON.parse(Android.logFor(d) || '[]'); }catch(e){}
+    try{ if (window.Android && Android.logFor){ const a = JSON.parse(Android.logFor(d) || '[]'); if (a.length || !(HIST && HIST[d])) return a; } }catch(e){}
+    if (HIST && HIST[d] && d !== todayStr()) return HIST[d];
     if (d !== todayStr()) return [];
     return BG.log.filter(l => l.includes('[通知]')).slice().reverse().map(l => { const m = l.match(/^(\d\d:\d\d):\d\d \[通知\] (.*?) \| (.*)$/); return m ? {t: m[1], title: m[2], body: m[3], kind: ''} : {t: '', title: l, body: '', kind: ''}; });
   }
