@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610172040">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610172045">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4129,7 +4129,7 @@ window.bgTick = bgTick; window.BG = BG;
     // 2026-10-17 18:50 使用者:進場、平倉是各自一則,不合併。進場只顯示當時要交易的價格,沒有平倉等級;平倉那則顯示平倉價、等級、輸/贏
     const cards = items.map(parse).filter(Boolean);
     const lotsOf = o => { const p = POSITIONS.get(o.code); if (p && p.qty) return p.qty; const ent = o.entP || o.price || 0; return ent ? Math.max(1, Math.floor(350000 / (ent * 1000))) : 0; };
-    const marks = pl => { const a = Math.abs(pl || 0); return a <= 0.5 ? 1 : a <= 1 ? 2 : a <= 1.5 ? 3 : 4; };   // 損益佔投入金額的 %:≤0.5 一個、≤1 兩個、≤1.5 三個、更多四個
+    const marks = pl => { const a = Math.abs(pl || 0); return a <= 0.5 ? 1 : a <= 1.5 ? 2 : 3; };   // 損益佔投入金額的 %:≤0.5 一個、≤1.5 兩個、更多三個(2026-10-17 由四個改三個)
     const line = o => {
       const sideTxt = o.side === 'long' ? '做多' : o.side === 'short' ? '做空' : '';
       const lots = lotsOf(o), px = o.price ? o.price.toFixed(2) : '';
