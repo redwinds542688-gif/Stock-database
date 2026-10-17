@@ -85,6 +85,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     第 2 個以後(確認點)仍要收盤站上 / 跌破均價。例:麗正 10/15 09:28 高 45.50 穿過均價 45.45、收 45.35。OBV 等其他條件照舊。
   · 2026-10-15 22:55 均價期數 10→11(使用者定案),OBV 均線維持 10。
   · 2026-10-15 22:45 確認點價差上限改 2%(`SIG.confirmMaxGapPct=2`,多空都一樣;22:35 原定 1%):確認點與前一個同向點的收盤價差不能超過 2%。
+  · 2026-10-17 11:20 再加極值價差上限 2.5%(`SIG.confirmMaxExtGapPct=2.5`):做空看第 1 點的高 → 確認點的低,做多看第 1 點的低 → 確認點的高,
+    超過代表這段已走掉太多、確認點在追。回測 10/13~16 擋掉台亞 10/14 追多 −5,563,四天 +24,817 → +29,382(使用者 10/17 提出)。
     例:華經 10/15 11:44 多 46.90 → 11:54 多 47.90,差 2.1%,不算確認點(那筆原本追高做多停損賠 6,065)。
   · 2026-10-15 22:20 確認點加價格條件(使用者定案):第 2 個多點的收盤價要比前一個多點高、第 2 個空點要比前一個空點低,
     和紅線、藍線一起比。例:華經 10/15 10:43 多 47.35 → 11:00 多 47.20,價沒更高,不算確認點(那筆原本做多停損賠 8,151)。
@@ -1220,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610170855">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610171120">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2113,7 +2115,7 @@ function render(list){
     '',
     '<b>進場</b>',
     '均價 K' + BASE.maPeriod + ' / OBV 均線 ' + BASE.obvMaPeriod + ';開盤 ' + SIG.skipMin + ' 分鐘內不進,' + SIG.noEntryAfter + ' 後不進',
-    '第一訊號(價貫穿均線 + 均線轉向)→ 第二訊號確認(OBV 與 OBV 均線同向、價差 ≤ ' + SIG.confirmMaxGapPct + '%)才進',
+    '第一訊號(價貫穿均線 + 均線轉向)→ 第二訊號確認(OBV 與 OBV 均線同向、收盤價差 ≤ ' + SIG.confirmMaxGapPct + '%、極值價差 ≤ ' + SIG.confirmMaxExtGapPct + '%)才進',
     '進場價離均價 > ' + SIG.maxEntryDevPct + '% 只記錄;離昨收 > ±' + SIG.maxDev + '% 不進;' + '價須在 VWAP 正確一側且 VWAP 斜率 ≥ ' + SIG.vwapSlopeMin + '%',
     '累積量 ≥ ' + SIG.minDayVol + ' 張且量比 ≥ ' + SIG.rvolMin + ' 才進(量夠後下一個訊號直接進)',
     '同一邊第一次放棄的方向,當天不再做(單邊鎖)',
@@ -2986,7 +2988,7 @@ let RISK_LINES = [];                  // 圖上的停損 / 停利示意線
    保護條件照舊:今天不到 SIG.skipMin 根 K 顯示「等待」;距昨收超過 ±entryMaxChg% 不進場。
    VWAP 不再用在燈號,只用在偏向計。 */
 const SIG = { skipMin: 15, slopeBars: 10, maxDev: 2.0, noEntryAfter: '13:00', trendOnlyPct: 3.0,
-              takePct: 4.0, stopPct: 1.5, maxMovePct: 6.0, confirmMaxGapPct: 2.0, maxEntryDevPct: 1.0, vwapFilter: true, vwapSlopeBars: 10, vwapSlopeMin: 0.05, minDayVol: 6000, rvolMin: 1.0, rvolFilter: true };   // rvol:量比 = 今天到此刻累計量 ÷ 前 5 天同一時刻平均;rvolFilter=true 時量比 < rvolMin 不進場(只記錄,標「比」);false 只顯示(2026-10-16 01:40)   // minDayVol:當天累計成交量(張)未達 6000 不進場;達到後下一個同向點直接進(2026-10-16 01:10)   // vwapFilter:價在 VWAP 上只做多、下只做空(23:30);vwapSlope:VWAP 最近 10 分鐘要往進場方向走 ≥ 0.05%(23:55)   // confirmMaxGapPct:確認點與前一個同向點的價差上限 %(2026-10-15 22:35 定 1%,22:45 改 2%);maxEntryDevPct:訊號價離均價超過 1% 只記錄不進場(23:15)   // 平倉:獲利 4% 停利、反向 1.5% 停損、距昨收超過 6% 強制出(2026-10-15)   // trendOnlyPct:距昨收超過 ±3%(到 entryMaxChg 為止)只收順勢訊號   // noEntryAfter:13:00 後不進場、只監控平倉(2026-10-15);slopeBars / maxDev 給偏向計用
+              takePct: 4.0, stopPct: 1.5, maxMovePct: 6.0, confirmMaxGapPct: 2.0, confirmMaxExtGapPct: 2.5, maxEntryDevPct: 1.0, vwapFilter: true, vwapSlopeBars: 10, vwapSlopeMin: 0.05, minDayVol: 6000, rvolMin: 1.0, rvolFilter: true };   // rvol:量比 = 今天到此刻累計量 ÷ 前 5 天同一時刻平均;rvolFilter=true 時量比 < rvolMin 不進場(只記錄,標「比」);false 只顯示(2026-10-16 01:40)   // minDayVol:當天累計成交量(張)未達 6000 不進場;達到後下一個同向點直接進(2026-10-16 01:10)   // vwapFilter:價在 VWAP 上只做多、下只做空(23:30);vwapSlope:VWAP 最近 10 分鐘要往進場方向走 ≥ 0.05%(23:55)   // confirmMaxGapPct:確認點與前一個同向點的價差上限 %(2026-10-15 22:35 定 1%,22:45 改 2%);maxEntryDevPct:訊號價離均價超過 1% 只記錄不進場(23:15)   // 平倉:獲利 4% 停利、反向 1.5% 停損、距昨收超過 6% 強制出(2026-10-15)   // trendOnlyPct:距昨收超過 ±3%(到 entryMaxChg 為止)只收順勢訊號   // noEntryAfter:13:00 後不進場、只監控平倉(2026-10-15);slopeBars / maxDev 給偏向計用
 function signalLight(bars, ma, ob, obma, prevClose, canShort, dayHi, dayLo){
   const last = bars[bars.length - 1];
   const day = new Date(last.time * 1000).toDateString();
@@ -3130,8 +3132,11 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort){
       const prev = lastSig[side];
       confirmed = !!prev && (side === 'short' ? (ov < prev.ob && omv < prev.obma && b.close < prev.price)
                                                 : (ov > prev.ob && omv > prev.obma && b.close > prev.price))
-                  && Math.abs(b.close - prev.price) / prev.price * 100 <= SIG.confirmMaxGapPct;   // 價也要更低(空)/ 更高(多),且價差不超過 confirmMaxGapPct%
-      lastSig[side] = {ob: ov, obma: omv, price: b.close};
+                  && Math.abs(b.close - prev.price) / prev.price * 100 <= SIG.confirmMaxGapPct    // 價也要更低(空)/ 更高(多),且價差不超過 confirmMaxGapPct%
+                  && (side === 'short' ? (prev.high - b.low) / prev.high * 100 : (b.high - prev.low) / prev.low * 100) <= SIG.confirmMaxExtGapPct;
+                     // 2026-10-17:極值價差也要在 confirmMaxExtGapPct% 內(做空看第 1 點的高 → 確認點的低;做多看第 1 點的低 → 確認點的高)。
+                     // 超過代表這段已經走掉太多,確認點是在追;回測 10/13~16 擋掉台亞 10/14 追多 −5,563,四天 +24,817 → +29,382
+      lastSig[side] = {ob: ov, obma: omv, price: b.close, high: b.high, low: b.low};
     }
     if (firstPx[side] === null) firstPx[side] = b.close;
     if (confirmed) lastConfirmedAt = b.time;
