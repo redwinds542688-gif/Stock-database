@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610171815">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610171830">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1295,6 +1295,18 @@ except Exception:
   #notifLog .row .ti.cols{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:14px}
   #notifLog .row .tx .cd{font-weight:600}
   #notifLog .row.mine{outline:1px solid #FFD54F;outline-offset:-1px}   /* 長按記「我有做」 */
+  /* 2026-10-17 18:30 三列卡片 */
+  #notifLog .card{margin:4px 0;padding:3px 4px;border-radius:6px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06)}
+  #notifLog .card.c-long{background:rgba(255,59,59,.22)} #notifLog .card.c-short{background:rgba(29,215,91,.22)}
+  #notifLog .card.mine{outline:1px solid #FFD54F;outline-offset:-1px}
+  #notifLog .card .ln{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:14px;font-weight:600;line-height:1.4;min-height:1.4em}
+  #notifLog .card .ln .nm{flex:0 0 5em;color:#FFD54F;overflow:hidden;text-overflow:ellipsis}
+  #notifLog .card .ln .px{flex:0 0 6ch;text-align:right;color:#4FC3F7;margin-left:.5ch}
+  #notifLog .card .ln .sd{flex:0 0 2em;text-align:center;margin-left:.5ch} #notifLog .card .ln .sd.win{color:#FF3B3B} #notifLog .card .ln .sd.lose{color:#1DD75B}
+  #notifLog .card .ln .qt{flex:0 0 2em;text-align:right;color:#D8DEE9;margin-left:.5ch}
+  #notifLog .card .ln .exm{flex:1 1 4em;text-align:right;margin-left:.5ch;letter-spacing:-1px} #notifLog .card .ln .mk.lose{color:#FF3B3B} #notifLog .card .ln .mk.win{color:#FF3B3B}
+  #notifLog .card .ln .rs{flex:0 0 1.2em;text-align:right;margin-left:.5ch;font-weight:700} #notifLog .card .ln .rs.win{color:#FF3B3B} #notifLog .card .ln .rs.lose{color:#1DD75B}
+  #notifLog .card .tx{color:var(--dim);font-size:12px;white-space:normal} #notifLog .card .tx .cd{color:#1DD75B;font-weight:600}
   #notifLog .row .ti.cols .tr{flex:1 1 3.4em;text-align:right;color:#FFD54F;font-size:12px;font-weight:600;margin-right:3px}   /* 「交易中」:做多 / 做空前面,吃掉剩餘寬度 */
   #notifLog .row .ti.cols .nm{flex:0 0 5em;min-width:0;overflow:hidden;text-overflow:ellipsis}   /* 名稱固定 5 個中文字(10 欄) */
   #notifLog .row .ti.cols .sd{flex:0 0 2.2em}
@@ -4079,57 +4091,55 @@ window.bgTick = bgTick; window.BG = BG;
     const label = d === today ? '今日' : d.slice(5).replace('-', '/');
     const hd = `<div class="hd"><span class="nav"><button id="nlPrev" ${i <= 0 ? 'disabled' : ''}>◀</button><span>${label}監控紀錄</span><button id="nlNext" ${i >= ds.length - 1 ? 'disabled' : ''}>▶</button></span><span>${n} 則</span></div>`;
     // 2026-10-17 標題改成使用者指定的樣式:進場「名 代碼 做多進場 ↑ 價」紅底 / 做空 ↓ 綠底;平倉「⚠ 名 代碼 ±x.x% 立即平倉」賺淡藍底 / 賠淡紅底,不顯示停損停利字樣
-    const fmt = x => {
-      const m = (x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?(\S+) (\d{4,6}[A-Z]*)\s*(.*)$/);
-      if (!m) return {cls: esc(x.kind || ''), html: esc(x.title)};
-      const rest = m[3];
-      const code = m[2];
-      // 張數:有記「我有做」就用記的;否則用 35 萬額度 ÷ 進場價算(進場列用進場價、平倉列用內容裡的進場價)
-      const lotsOf = () => { const p = POSITIONS.get(code); if (p && p.qty) return p.qty;
-        const ent = +(((x.kind === 'long' || x.kind === 'short') ? (x.title.match(/([\d.]+)\s*$/) || [])[1] : ((x.body || '').match(/進 ([\d.]+)/) || [])[1])) || 0;
-        return ent ? Math.max(1, Math.floor(350000 / (ent * 1000))) : 0; };
-      const cols = (side, px, rsCls, rsTxt, ex) => `<span class="nm">${esc(m[1])}</span><span class="tr">${POSITIONS.has(code) ? '交易中' : ''}</span><span class="sd ${side === '做多' ? 'win' : (side === '做空' ? 'lose' : '')}">${esc(side || '')}</span><span class="qt">${lotsOf() ? lotsOf() + '張' : ''}</span><span class="px">${esc(px)}</span><span class="ex">${ex ? '⚠' : ''}</span><span class="rs ${rsCls}">${rsTxt}</span>`;   // sd:價格前 4 位寬的做多(紅)/做空(綠);ex:價格後 3 位寬的紅色驚嘆號(平倉列才有)
-      // 平倉 / 提醒列的方向:內容裡有「做多 / 做空」就直接用;沒有就用進場價和現價推(賺且現價低於進場價 = 做空)
-      const sideOf = () => { const b = x.body || ''; const sm = b.match(/做[多空]/); if (sm) return sm[0];
-        const ent = +((b.match(/進 ([\d.]+)/) || [])[1]), now = +nowPx; if (!ent || !now) return '';
-        const pl = (x.title.match(/([+\-−]?\d+(?:\.\d+)?)%/) || [])[1]; const win = pl ? !pl.replace('−', '-').startsWith('-') : x.kind !== 'loss';
-        return (now < ent) === win ? '做空' : '做多'; };
-      const nowPx = ((x.body || '').match(/現價 ([\d.]+)/) || [])[1] || '';
-      // 進場時間:進場列就是這一則的時間;平倉 / 提醒列從內容的「hh:mm 進」取
-      const entT = () => (x.kind === 'long' || x.kind === 'short') ? (x.t || '') : (((x.body || '').match(/(\d{2}:\d{2}) 進/) || [])[1] || '');
-      if (x.kind === 'long' || x.kind === 'short'){
-        const pm = rest.match(/([\d.]+)\s*$/); const px = pm ? pm[1] : '';
-        return {cls: (x.kind === 'long' ? 'e-long' : 'e-short') + ' c', code, html: cols(x.kind === 'long' ? '做多' : '做空', px, x.kind === 'long' ? 'win' : 'lose', x.kind === 'long' ? '多↑' : '空↓')};
-      }
-      if (x.kind === 'loss' || x.kind === 'profit' || x.kind === 'exit'){
-        const pl = rest.match(/([+\-−]?\d+(?:\.\d+)?)%/); const plTxt = pl ? pl[1].replace('−', '-') + '%' : '';
-        const win = pl ? !plTxt.startsWith('-') : x.kind !== 'loss';
-        return {cls: (win ? 'x-win' : 'x-lose') + ' c', code, html: cols(sideOf(), nowPx, win ? 'win' : 'lose', win ? '贏' : '輸', true)};   // 2026-10-17 15:30 代號|名稱|現價|贏(紅)/輸(綠)
-      }
-      if (x.kind === 'warn') return {cls: 'warn c', code, html: cols(sideOf(), nowPx, 'warn', '注意', true)};
-      return {cls: esc(x.kind || ''), html: esc(x.title)};
+    // ── 2026-10-17 18:30 使用者指定的排版:一筆交易一張卡,三列 ──
+    //   卡片底色:做多淺紅、做空淺綠。第 1 列 = 進場、第 2 列 = 平倉(還沒平倉就空白),欄位(半形欄數):
+    //   股票 10 | 1 | 價格 6 | 1 | 做多/做空 4 | 1 | 幾張 4 | 1 | 平倉通知(⚠ 1~4 個,依賠多少 ÷ 投入金額) | 1 | 輸/贏 2
+    //   第 3 列 = 灰字明細(進場時間、停利停損價、平倉時間與原因、反彈提醒)
+    const parse = x => {
+      const m = (x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?(\S+) (\d{4,6}[A-Z]*)\s*(.*)$/); if (!m) return null;
+      const b = x.body || '', rest = m[3];
+      const o = {x, name: m[1], code: m[2], t: x.t || '', kind: x.kind || ''};
+      if (o.kind === 'long' || o.kind === 'short'){ o.type = 'entry'; o.side = o.kind; o.price = +((rest.match(/([\d.]+)\s*$/) || [])[1]) || 0; o.entT = o.t; o.entP = o.price;
+        o.tp = ((b.match(/停利 ([\d.]+)/) || [])[1]) || ''; o.sl = ((b.match(/停損 ([\d.]+)/) || [])[1]) || ''; }
+      else if (o.kind === 'loss' || o.kind === 'profit' || o.kind === 'exit' || o.kind === 'warn'){
+        o.type = o.kind === 'warn' ? 'warn' : 'exit'; o.price = +((b.match(/現價 ([\d.]+)/) || [])[1]) || 0;
+        o.entT = ((b.match(/(\d{2}:\d{2}) 進/) || [])[1]) || ''; o.entP = +((b.match(/進 ([\d.]+)/) || [])[1]) || 0;
+        const pl = (rest.match(/([+\-−]?\d+(?:\.\d+)?)%/) || [])[1]; o.pl = pl != null ? +pl.replace('−', '-') : null;
+        o.win = o.pl != null ? o.pl >= 0 : o.kind !== 'loss';
+        const sm = b.match(/做[多空]/); o.side = sm ? (sm[0] === '做空' ? 'short' : 'long') : ((o.entP && o.price) ? (((o.price < o.entP) === o.win) ? 'short' : 'long') : '');
+        o.reason = /停損/.test(rest) ? '停損' : /OBV/.test(rest) ? 'OBV停利' : /停利/.test(rest) ? '停利' : /超6/.test(rest) ? '超6%' : /:出/.test(rest) ? '13:25平倉' : '反向點';
+      } else return null;
+      return o;
     };
-    box.innerHTML = hd + (items.length ? items.map((x, k) => { const f = fmt(x); return `<div class="row ${f.cls.replace(' c', '')}" data-i="${k}"><span class="b"><div class="ti${f.cls.endsWith(' c') ? ' cols' : ''}">${f.html}</div>${f.cls.endsWith(' c') ? `<div class="tx"><span class="cd">${esc(f.code)}</span> ${esc(x.body || '')}</div>` : (x.body ? `<div class="tx">${esc(x.body)}</div>` : '')}</span></div>`; }).join('')
+    const parsed = items.map(parse).filter(Boolean);           // 已是新 → 舊
+    const cards = []; const findCard = (code, entT) => cards.find(c => c.code === code && (!entT || c.entT === entT || !c.entT));
+    for (const o of parsed){
+      if (o.type === 'entry'){ let c = findCard(o.code, o.entT); if (!c || c.entry){ c = {code: o.code, name: o.name, entT: o.entT, side: o.side}; cards.push(c); } c.entry = o; c.entT = o.entT; c.side = c.side || o.side; c.name = o.name; }
+      else if (o.type === 'exit'){ let c = findCard(o.code, o.entT); if (!c || c.exit){ c = {code: o.code, name: o.name, entT: o.entT, side: o.side}; cards.push(c); } c.exit = o; c.side = c.side || o.side; }
+      else { let c = findCard(o.code, o.entT); if (!c){ c = {code: o.code, name: o.name, entT: o.entT, side: o.side}; cards.push(c); } c.warn = c.warn || o; c.side = c.side || o.side; }
+    }
+    const lotsOf = c => { const p = POSITIONS.get(c.code); if (p && p.qty) return p.qty; const ent = (c.entry && c.entry.price) || (c.exit && c.exit.entP) || (c.warn && c.warn.entP) || 0; return ent ? Math.max(1, Math.floor(350000 / (ent * 1000))) : 0; };
+    const marks = pl => { const a = Math.abs(pl || 0); return a <= 0.5 ? 1 : a <= 1 ? 2 : a <= 1.5 ? 3 : 4; };   // 賠(或賺)佔投入金額的 %:≤0.5 一個、≤1 兩個、≤1.5 三個、更多四個
+    const line = (c, o, isExit) => {
+      const sideTxt = c.side === 'long' ? '做多' : c.side === 'short' ? '做空' : '';
+      const lots = lotsOf(c);
+      const px = o && o.price ? o.price.toFixed(2) : '';
+      const ex = isExit && o ? `<span class="${o.win ? 'mk win' : 'mk lose'}">${(o.win ? '▲' : '⚠').repeat(marks(o.pl))}</span>` : '';
+      const rs = isExit && o ? `<span class="rs ${o.win ? 'win' : 'lose'}">${o.win ? '贏' : '輸'}</span>` : '<span class="rs"></span>';
+      return `<div class="ln"><span class="nm">${esc(isExit ? '' : c.name)}</span><span class="px">${esc(px)}</span><span class="sd ${c.side === 'long' ? 'win' : 'lose'}">${o ? sideTxt : ''}</span><span class="qt">${o && lots ? lots + '張' : ''}</span><span class="exm">${ex}</span>${rs}</div>`;
+    };
+    const info = c => { const p = []; if (c.entry) p.push(`${c.entry.t} 進場` + (c.entry.tp ? ` · 停利 ${c.entry.tp} 停損 ${c.entry.sl}` : '')); else if (c.entT) p.push(`${c.entT} 進場`);
+      if (c.warn) p.push(`${c.warn.t} 可能反彈 注意`); if (c.exit) p.push(`${c.exit.t} 平倉 ${c.exit.reason}` + (c.exit.pl != null ? ` ${c.exit.pl >= 0 ? '+' : ''}${c.exit.pl.toFixed(1)}%` : '')); else p.push('持倉中'); return p.join(' · '); };
+    box.innerHTML = hd + (cards.length ? cards.map((c, k) => `<div class="card ${c.side === 'long' ? 'c-long' : c.side === 'short' ? 'c-short' : ''}${POSITIONS.has(c.code) ? ' mine' : ''}" data-i="${k}">${line(c, c.entry, false)}${line(c, c.exit, true)}<div class="tx"><span class="cd">${esc(c.code)}</span> ${esc(info(c))}</div></div>`).join('')
       : `<div class="empty">${d === today ? '今日還沒有通知<br>(進場 / 停利 / 停損 / 出場會列在這裡)' : '這天沒有紀錄'}</div>`);
     const prev = el('nlPrev'), next = el('nlNext');
     if (prev) prev.onclick = () => { cur = ds[i - 1]; render(true); };
     if (next) next.onclick = () => { cur = (i + 1 >= ds.length - 1) ? null : ds[i + 1]; render(true); };
-    box.querySelectorAll('.row').forEach(r => {
-      const x = items[+r.dataset.i]; const m = (x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?(\S+) (\d{4,6}[A-Z]*)(?:\s|$)/);
-      if (!m) return;
-      const code = m[2], name = m[1];
-      if (POSITIONS.has(code)) r.classList.add('mine');
-      // 長按 600ms → 記「我有做」(方向照這一則:進場列用它的多空,平倉 / 提醒列用內容裡的做多 / 做空)
+    box.querySelectorAll('.card').forEach(r => {
+      const c = cards[+r.dataset.i]; const code = c.code, name = c.name;
+      // 長按 600ms → 記「我有做」(方向照這張卡);再長按取消
       let lp = 0, fired = false;
-      const sideOfRow = () => {
-        if (x.kind === 'long' || x.kind === 'short') return x.kind;
-        const b = x.body || ''; const sm = b.match(/做[多空]/); if (sm) return sm[0] === '做空' ? 'short' : 'long';
-        const ent = +((b.match(/進 ([\d.]+)/) || [])[1]), now = +((b.match(/現價 ([\d.]+)/) || [])[1]);   // 舊紀錄沒寫方向:用進場價、現價、贏輸推
-        const pl = ((x.title || '').match(/([+\-−]?\d+(?:\.\d+)?)%/) || [])[1]; const win = pl ? !pl.replace('−', '-').startsWith('-') : x.kind !== 'loss';
-        return (ent && now) ? (((now < ent) === win) ? 'short' : 'long') : 'long';
-      };
-      const priceOfRow = () => +(((x.title || '').match(/([\d.]+)\s*$/) || (x.body || '').match(/進 ([\d.]+)/) || [])[1]) || 0;
-      const start = () => { fired = false; clearTimeout(lp); lp = setTimeout(() => { fired = true; togglePosition(code, sideOfRow(), priceOfRow()); try{ navigator.vibrate && navigator.vibrate(30); }catch(e){} render(true); }, 600); };
+      const start = () => { fired = false; clearTimeout(lp); lp = setTimeout(() => { fired = true; togglePosition(code, c.side || 'long', (c.entry && c.entry.price) || (c.exit && c.exit.entP) || 0); try{ navigator.vibrate && navigator.vibrate(30); }catch(e){} render(true); }, 600); };
       const end = () => clearTimeout(lp);
       r.addEventListener('touchstart', start, {passive: true}); r.addEventListener('touchend', end); r.addEventListener('touchmove', end); r.addEventListener('touchcancel', end);
       r.addEventListener('mousedown', start); r.addEventListener('mouseup', end); r.addEventListener('mouseleave', end);
