@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610171830">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610171850">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1305,7 +1305,7 @@ except Exception:
   #notifLog .card .ln .sd{flex:0 0 2em;text-align:center;margin-left:.5ch} #notifLog .card .ln .sd.win{color:#FF3B3B} #notifLog .card .ln .sd.lose{color:#1DD75B}
   #notifLog .card .ln .qt{flex:0 0 2em;text-align:right;color:#D8DEE9;margin-left:.5ch}
   #notifLog .card .ln .exm{flex:1 1 4em;text-align:right;margin-left:.5ch;letter-spacing:-1px} #notifLog .card .ln .mk.lose{color:#FF3B3B} #notifLog .card .ln .mk.win{color:#FF3B3B}
-  #notifLog .card .ln .rs{flex:0 0 1.2em;text-align:right;margin-left:.5ch;font-weight:700} #notifLog .card .ln .rs.win{color:#FF3B3B} #notifLog .card .ln .rs.lose{color:#1DD75B}
+  #notifLog .card .ln .rs{flex:0 0 1.2em;text-align:right;margin-left:.5ch;font-weight:700} #notifLog .card .ln .rs.win{color:#FF3B3B} #notifLog .card .ln .rs.lose{color:#1DD75B} #notifLog .card .ln .rs.warn{flex-basis:2.4em;color:#F5A623}
   #notifLog .card .tx{color:var(--dim);font-size:12px;white-space:normal} #notifLog .card .tx .cd{color:#1DD75B;font-weight:600}
   #notifLog .row .ti.cols .tr{flex:1 1 3.4em;text-align:right;color:#FFD54F;font-size:12px;font-weight:600;margin-right:3px}   /* 「交易中」:做多 / 做空前面,吃掉剩餘寬度 */
   #notifLog .row .ti.cols .nm{flex:0 0 5em;min-width:0;overflow:hidden;text-overflow:ellipsis}   /* 名稱固定 5 個中文字(10 欄) */
@@ -4111,35 +4111,30 @@ window.bgTick = bgTick; window.BG = BG;
       } else return null;
       return o;
     };
-    const parsed = items.map(parse).filter(Boolean);           // 已是新 → 舊
-    const cards = []; const findCard = (code, entT) => cards.find(c => c.code === code && (!entT || c.entT === entT || !c.entT));
-    for (const o of parsed){
-      if (o.type === 'entry'){ let c = findCard(o.code, o.entT); if (!c || c.entry){ c = {code: o.code, name: o.name, entT: o.entT, side: o.side}; cards.push(c); } c.entry = o; c.entT = o.entT; c.side = c.side || o.side; c.name = o.name; }
-      else if (o.type === 'exit'){ let c = findCard(o.code, o.entT); if (!c || c.exit){ c = {code: o.code, name: o.name, entT: o.entT, side: o.side}; cards.push(c); } c.exit = o; c.side = c.side || o.side; }
-      else { let c = findCard(o.code, o.entT); if (!c){ c = {code: o.code, name: o.name, entT: o.entT, side: o.side}; cards.push(c); } c.warn = c.warn || o; c.side = c.side || o.side; }
-    }
-    const lotsOf = c => { const p = POSITIONS.get(c.code); if (p && p.qty) return p.qty; const ent = (c.entry && c.entry.price) || (c.exit && c.exit.entP) || (c.warn && c.warn.entP) || 0; return ent ? Math.max(1, Math.floor(350000 / (ent * 1000))) : 0; };
-    const marks = pl => { const a = Math.abs(pl || 0); return a <= 0.5 ? 1 : a <= 1 ? 2 : a <= 1.5 ? 3 : 4; };   // 賠(或賺)佔投入金額的 %:≤0.5 一個、≤1 兩個、≤1.5 三個、更多四個
-    const line = (c, o, isExit) => {
-      const sideTxt = c.side === 'long' ? '做多' : c.side === 'short' ? '做空' : '';
-      const lots = lotsOf(c);
-      const px = o && o.price ? o.price.toFixed(2) : '';
-      const ex = isExit && o ? `<span class="${o.win ? 'mk win' : 'mk lose'}">${(o.win ? '▲' : '⚠').repeat(marks(o.pl))}</span>` : '';
-      const rs = isExit && o ? `<span class="rs ${o.win ? 'win' : 'lose'}">${o.win ? '贏' : '輸'}</span>` : '<span class="rs"></span>';
-      return `<div class="ln"><span class="nm">${esc(isExit ? '' : c.name)}</span><span class="px">${esc(px)}</span><span class="sd ${c.side === 'long' ? 'win' : 'lose'}">${o ? sideTxt : ''}</span><span class="qt">${o && lots ? lots + '張' : ''}</span><span class="exm">${ex}</span>${rs}</div>`;
+    // 2026-10-17 18:50 使用者:進場、平倉是各自一則,不合併。進場只顯示當時要交易的價格,沒有平倉等級;平倉那則顯示平倉價、等級、輸/贏
+    const cards = items.map(parse).filter(Boolean);
+    const lotsOf = o => { const p = POSITIONS.get(o.code); if (p && p.qty) return p.qty; const ent = o.entP || o.price || 0; return ent ? Math.max(1, Math.floor(350000 / (ent * 1000))) : 0; };
+    const marks = pl => { const a = Math.abs(pl || 0); return a <= 0.5 ? 1 : a <= 1 ? 2 : a <= 1.5 ? 3 : 4; };   // 損益佔投入金額的 %:≤0.5 一個、≤1 兩個、≤1.5 三個、更多四個
+    const line = o => {
+      const sideTxt = o.side === 'long' ? '做多' : o.side === 'short' ? '做空' : '';
+      const lots = lotsOf(o), px = o.price ? o.price.toFixed(2) : '';
+      const ex = o.type === 'exit' ? `<span class="${o.win ? 'mk win' : 'mk lose'}">${(o.win ? '▲' : '⚠').repeat(marks(o.pl))}</span>` : '';
+      const rs = o.type === 'exit' ? `<span class="rs ${o.win ? 'win' : 'lose'}">${o.win ? '贏' : '輸'}</span>` : o.type === 'warn' ? '<span class="rs warn">注意</span>' : '<span class="rs"></span>';
+      return `<div class="ln"><span class="nm">${esc(o.name)}</span><span class="px">${esc(px)}</span><span class="sd ${o.side === 'long' ? 'win' : 'lose'}">${sideTxt}</span><span class="qt">${lots ? lots + '張' : ''}</span><span class="exm">${ex}</span>${rs}</div>`;
     };
-    const info = c => { const p = []; if (c.entry) p.push(`${c.entry.t} 進場` + (c.entry.tp ? ` · 停利 ${c.entry.tp} 停損 ${c.entry.sl}` : '')); else if (c.entT) p.push(`${c.entT} 進場`);
-      if (c.warn) p.push(`${c.warn.t} 可能反彈 注意`); if (c.exit) p.push(`${c.exit.t} 平倉 ${c.exit.reason}` + (c.exit.pl != null ? ` ${c.exit.pl >= 0 ? '+' : ''}${c.exit.pl.toFixed(1)}%` : '')); else p.push('持倉中'); return p.join(' · '); };
-    box.innerHTML = hd + (cards.length ? cards.map((c, k) => `<div class="card ${c.side === 'long' ? 'c-long' : c.side === 'short' ? 'c-short' : ''}${POSITIONS.has(c.code) ? ' mine' : ''}" data-i="${k}">${line(c, c.entry, false)}${line(c, c.exit, true)}<div class="tx"><span class="cd">${esc(c.code)}</span> ${esc(info(c))}</div></div>`).join('')
+    const info = o => o.type === 'entry' ? `${o.t} 進場` + (o.tp ? ` · 停利 ${o.tp} 停損 ${o.sl}` : '')
+      : o.type === 'exit' ? `${o.t} 平倉 ${o.reason}` + (o.pl != null ? ` ${o.pl >= 0 ? '+' : ''}${o.pl.toFixed(1)}%` : '') + (o.entT ? ` · ${o.entT} 進 ${o.entP || ''}` : '')
+      : `${o.t} 可能正在反彈` + (o.entT ? ` · ${o.entT} 進 ${o.entP || ''}` : '');
+    box.innerHTML = hd + (cards.length ? cards.map((o, k) => `<div class="card ${o.side === 'long' ? 'c-long' : o.side === 'short' ? 'c-short' : ''}${POSITIONS.has(o.code) ? ' mine' : ''}" data-i="${k}">${line(o)}<div class="tx"><span class="cd">${esc(o.code)}</span> ${esc(info(o))}</div></div>`).join('')
       : `<div class="empty">${d === today ? '今日還沒有通知<br>(進場 / 停利 / 停損 / 出場會列在這裡)' : '這天沒有紀錄'}</div>`);
     const prev = el('nlPrev'), next = el('nlNext');
     if (prev) prev.onclick = () => { cur = ds[i - 1]; render(true); };
     if (next) next.onclick = () => { cur = (i + 1 >= ds.length - 1) ? null : ds[i + 1]; render(true); };
     box.querySelectorAll('.card').forEach(r => {
       const c = cards[+r.dataset.i]; const code = c.code, name = c.name;
-      // 長按 600ms → 記「我有做」(方向照這張卡);再長按取消
+      // 長按 600ms → 記「我有做」(方向照這一則);再長按取消
       let lp = 0, fired = false;
-      const start = () => { fired = false; clearTimeout(lp); lp = setTimeout(() => { fired = true; togglePosition(code, c.side || 'long', (c.entry && c.entry.price) || (c.exit && c.exit.entP) || 0); try{ navigator.vibrate && navigator.vibrate(30); }catch(e){} render(true); }, 600); };
+      const start = () => { fired = false; clearTimeout(lp); lp = setTimeout(() => { fired = true; togglePosition(code, c.side || 'long', c.entP || c.price || 0); try{ navigator.vibrate && navigator.vibrate(30); }catch(e){} render(true); }, 600); };
       const end = () => clearTimeout(lp);
       r.addEventListener('touchstart', start, {passive: true}); r.addEventListener('touchend', end); r.addEventListener('touchmove', end); r.addEventListener('touchcancel', end);
       r.addEventListener('mousedown', start); r.addEventListener('mouseup', end); r.addEventListener('mouseleave', end);
