@@ -69,6 +69,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 06:30 燈號跟隨多空天秤(使用者定案:「做多 / 監控 / 做空的燈號要跟隨多空天秤」):天秤紅格 ≥ 1 格亮做多、綠格 ≥ 1 格亮做空、
+    0 格監控(`lampsFromBias`,門檻 `SIG.lampBars`);十字線移到哪根就看那根。不再用訊號循環決定燈號,循環只寫在小字。
   · 2026-10-18 06:00 多空天秤權重定案(使用者:「看 K 線、OBV 紅線、OBV 藍線如何配置最符合價格波動」→ 回測後選「藍 75 紅 25」):
     四天 268 檔 11.6 萬個時點,燈亮 3 格以上時看 10 / 15 分鐘後價格是否順向:紫+藍 50.9% / 51.1%,只藍 54.2% / 54.8%,
     藍 75 紅 25 54.2% / 54.8% 且平均順向幅度最高(+0.097% / +0.133%);均價線回歸權重為負,不用。
@@ -1243,7 +1245,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610180600">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610180630">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2981,16 +2983,8 @@ function showBarInfo(t){
   // 燈號 + 多空天秤跟著十字線走(2026-10-17):十字線在某根 K 上 → 顯示那根處理完當下的循環狀態(做多 / 做空 / 監控)與偏向;
   // 最後一根或沒有十字線 → 回到最新狀態。沒開平倉規則(stateAt 為空)時燈號不動,只動多空天秤。
   if (CUR.lampLast){
-    const setLamps = (l, sh, w) => { el('lampLong').classList.toggle('on', l); el('lampShort').classList.toggle('on', sh); el('lampWatch').classList.toggle('on', w); };
-    if (isLast){ setLamps(CUR.lampLast.long, CUR.lampLast.short, CUR.lampLast.watch); updateMeter(CUR.biasLast); }
-    else{
-      if (CUR.stateAt){
-        const st = CUR.stateAt.has(d.bar.time) ? CUR.stateAt.get(d.bar.time) : null;
-        const live = st && !st.gated;
-        setLamps(!!live && st.side === 'long', !!live && st.side === 'short', !live);
-      }
-      if (CUR.bars && CUR.maMap && d.i != null) updateMeter(biasScore(CUR.bars, CUR.maMap, CUR.obmaMap, CUR.obMap, d.i));
-    }
+    if (isLast){ lampsFromBias(CUR.biasLast); updateMeter(CUR.biasLast); }
+    else if (CUR.bars && CUR.maMap && d.i != null){ const b = biasScore(CUR.bars, CUR.maMap, CUR.obmaMap, CUR.obMap, d.i); lampsFromBias(b); updateMeter(b); }
   }
 }                 // 圖上的 ±entryMaxChg% 進場區間線
 
@@ -3089,7 +3083,7 @@ let RISK_LINES = [];                  // 圖上的停損 / 停利示意線
    以後若要試新的邏輯,另外開「判別式二」,這份不要動;白話版規則在 repo 根目錄《判別式一.md》。 */
 const RULESET = { name: '判別式一', date: '2026-10-18', backtest: '10/13~16 共 17 筆,賺 15 賠 2,勝率 88%,淨 +61,077' };
 const SIG = { skipMin: 15, slopeBars: 10, maxDev: 2.0, noEntryAfter: '13:00', trendOnlyPct: 3.0,
-              scaleBars: 5, scaleMaFull: 0.5, scaleObFull: 20, scaleW: {ma: 0, obma: 0.75, ob: 0.25},   // 多空天秤(2026-10-18):OBV 均線(藍)75% + OBV(紅)25%,均價線 0;5 根斜率,藍 / 紅 ÷ 當日 OBV 範圍 ±20% 滿格
+              scaleBars: 5, scaleMaFull: 0.5, scaleObFull: 20, scaleW: {ma: 0, obma: 0.75, ob: 0.25}, lampBars: 1,   // 多空天秤(2026-10-18):OBV 均線(藍)75% + OBV(紅)25%,均價線 0;5 根斜率,藍 / 紅 ÷ 當日 OBV 範圍 ±20% 滿格
               takePct: 2.5, stopPct: 1.5, maxMovePct: 6.0, confirmMaxGapPct: 2.0, confirmMaxExtGapPct: 2.5, obmaSlopeBars: 5, obmaSlopeMin: 4.0, obvExitMa: 30, obvExitMinGain: 1.0, obvWarnMa: 20, maxEntryDevPct: 1.0, vwapFilter: true, vwapSlopeBars: 10, vwapSlopeMin: 0, gapChasePct: 2.0, minDayVol: 6000, rvolMin: 1.0, rvolFilter: true };   // rvol:量比 = 今天到此刻累計量 ÷ 前 5 天同一時刻平均;rvolFilter=true 時量比 < rvolMin 不進場(只記錄,標「比」);false 只顯示(2026-10-16 01:40)   // minDayVol:當天累計成交量(張)未達 6000 不進場;達到後下一個同向點直接進(2026-10-16 01:10)   // vwapFilter:價在 VWAP 上只做多、下只做空(23:30);vwapSlope:VWAP 最近 10 分鐘要往進場方向走 ≥ 0.05%(23:55)   // confirmMaxGapPct:確認點與前一個同向點的價差上限 %(2026-10-15 22:35 定 1%,22:45 改 2%);maxEntryDevPct:訊號價離均價超過 1% 只記錄不進場(23:15)   // 平倉:獲利 2.5% 停利(2026-10-17 由 4% 改,回測 10/13~16 +29,382 → +40,767)、反向 1.5% 停損、距昨收超過 6% 強制出(2026-10-15)   // trendOnlyPct:距昨收超過 ±3%(到 entryMaxChg 為止)只收順勢訊號   // noEntryAfter:13:00 後不進場、只監控平倉(2026-10-15);slopeBars / maxDev 給多空天秤用
 function signalLight(bars, ma, ob, obma, prevClose, canShort, dayHi, dayLo){
   const last = bars[bars.length - 1];
@@ -3376,6 +3370,13 @@ function biasScore(bars, ma, obma, ob, at){              // at:算哪一根(預�
   return c(W.ma * c(sMa) + W.obma * c(sObma) + W.ob * c(sOb));
 }
 const toTimeMap = arr => { const m = new Map(); for (const x of arr) m.set(x.time, x.value); return m; };
+/* 燈號跟隨多空天秤(2026-10-18 使用者定案):天秤紅格 ≥ SIG.lampBars 格 → 做多燈;綠格 ≥ SIG.lampBars 格 → 做空燈;其餘 → 監控。
+   不再看訊號循環;十字線移到哪根就看那根的天秤。 */
+function lampsFromBias(b){
+  const L = Math.round(Math.max(0, b) * 10), R = Math.round(Math.max(0, -b) * 10);
+  const l = L >= SIG.lampBars, sh = R >= SIG.lampBars;
+  el('lampLong').classList.toggle('on', l); el('lampShort').classList.toggle('on', sh); el('lampWatch').classList.toggle('on', !l && !sh);
+}
 (function buildMeter(){                                  // 左 10 格(外→內漸小)、中線、右 10 格(內→外漸大)
   const box = el('meterSegs'); if (!box) return;
   const pin = el('meterPin');
@@ -3893,19 +3894,10 @@ function drawBars(bars, code, srcLabel, keepView){
   // 多空天秤的燈號(2026-10-18):不受 ±3.5% 限制,訊號確認就亮;rp 仍是真正的交易狀態(圖上 ✕ 標記、通知、部位都照 rp)
   const rpSig = YH.exitRule ? replaySignals(bars, ma, ob, obma, prevClose, src ? !!src.dtShort : undefined, {ignoreGate: true}) : rp;
   MARKS = marks; marksHidden = false; candle.setMarkers(marks);
-  const cyc = YH.exitRule ? rpSig.state : null;    // 燈號看訊號循環(不受 3.5% 限制);平倉規則未啟用:燈號維持 signalLight 的逐根判斷
+  const cyc = YH.exitRule ? rpSig.state : null;    // 訊號循環(不受 3.5% 限制),只用來寫小字
   const trade = YH.exitRule ? rp.state : null;     // 真正的交易循環
-  if (YH.exitRule && !cyc){                        // 平倉規則啟用、沒有循環 → 監控
-    el('lampLong').classList.remove('on'); el('lampShort').classList.remove('on'); el('lampWatch').classList.add('on');
-  } else if (!cyc && YH.confirmByObv && (sig.cls === 'long' || sig.cls === 'short') && rp.lastConfirmedAt !== last.time){
-    // 這根是訊號但不是確認點(第 1 個點,或 OBV 均線沒有比前一個訊號更低 / 更高)→ 燈不亮,回監控
-    el('lampLong').classList.remove('on'); el('lampShort').classList.remove('on'); el('lampWatch').classList.add('on');
-    entryNote += ' · 未確認(OBV 與均線未都比前一訊號更' + (sig.cls === 'short' ? '低' : '高') + ')';
-  }
+  lampsFromBias(bias);                             // 燈號跟隨多空天秤(2026-10-18)
   if (cyc && !cyc.gated){
-    el('lampLong').classList.toggle('on', cyc.side === 'long');
-    el('lampShort').classList.toggle('on', cyc.side === 'short');
-    el('lampWatch').classList.remove('on');
     if (trade && trade.side === cyc.side){
       const pl = (last.close - trade.entry) / trade.entry * 100 * (trade.side === 'long' ? 1 : -1);
       entryNote += ` · ${trade.side === 'long' ? '多' : '空'}方循環中(${trade.time} 訊號,進場 ${trade.entry.toFixed(2)},目前 ${pl >= 0 ? '+' : ''}${pl.toFixed(2)}%;停利 +${SIG.takePct}% 停損 −${SIG.stopPct}%)`;
