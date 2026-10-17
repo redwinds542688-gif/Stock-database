@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610171750">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610171805">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1888,7 +1888,7 @@ async function loadRemotePool(){
   return j.pool
     .filter(s => isStockCode(s.code) && (s.market === 'twse' || s.market === 'tpex'))
     .map(s => ({
-      code: s.code, name: s.name, close: +s.close, dir: s.dir,
+      code: s.code, name: (s.name || '').replace(/-KY$/, ''), close: +s.close, dir: s.dir,   // 2026-10-17 使用者:名稱後的 -KY 直接拿掉
       vol: (s.lots || 0) * 1000, chg: null, high: null, low: null, amp: +s.amp,
       value: s.value != null ? +s.value : null,        // 成交金額(億)
       prev: s.prev != null ? +s.prev : null,           // 昨收
