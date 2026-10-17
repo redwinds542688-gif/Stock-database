@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610172300">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610172320">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3464,7 +3464,12 @@ function initChart(){
   if (xBtn){ xBtn.addEventListener('click', e => { e.preventDefault(); clearX(); }); xBtn.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); clearX(); }); }
   const onMove = (src, p) => {
     if (xApplying) return;
-    if (XLOCK && touching) return;                          // 固定住、手指還在圖上(拖動 / 縮放中):圖庫丟什麼都不理,放開再把固定那條補回去
+    if (XLOCK && touching){
+      // 固定住、手指還在圖上:拖動 / 縮放中圖庫丟什麼都不理,放開再把固定那條補回去;
+      // 但長按拖十字線時要即時跟著走(2026-10-17 使用者:「上下十字線沒有聯動,放手上面才跟上」):固定點直接移到手指所在的 K
+      if (!(longPress && p.time)) return;
+      XLOCK = {time: p.time};
+    }
     if (p.time){
       const i = idxOf(p.time);
       xApplying = true;
