@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610171535">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610171545">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1296,6 +1296,7 @@ except Exception:
   #notifLog .row .ti.cols .cd{flex:0 0 4.2ch}
   #notifLog .row .ti.cols .nm{flex:0 0 8em;overflow:hidden;text-overflow:ellipsis}
   #notifLog .row .ti.cols .px{flex:0 0 6.5ch;text-align:right}
+  #notifLog .row .ti.cols .ex{flex:0 0 3ch;text-align:center}
   #notifLog .row .ti.cols .rs{flex:1;text-align:right;font-weight:700}
   #notifLog .row .rs.win{color:#FF3B3B} #notifLog .row .rs.lose{color:#1DD75B} #notifLog .row .rs.warn{color:#F5A623}
   #notifLog .row.e-long{background:rgba(255,59,59,.28);border-radius:6px;padding-left:4px}  #notifLog .row.e-long .ti{color:#FFFFFF}
@@ -4067,7 +4068,7 @@ window.bgTick = bgTick; window.BG = BG;
       const m = (x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?(\S+) (\d{4,6}[A-Z]*)\s*(.*)$/);
       if (!m) return {cls: esc(x.kind || ''), html: esc(x.title)};
       const rest = m[3];
-      const cols = (px, rsCls, rsTxt) => `<span class="cd">${esc(m[2])}</span><span class="nm">${esc(m[1])}</span><span class="px">${esc(px)}</span><span class="rs ${rsCls}">${rsTxt}</span>`;
+      const cols = (px, rsCls, rsTxt, ex) => `<span class="cd">${esc(m[2])}</span><span class="nm">${esc(m[1])}</span><span class="px">${esc(px)}</span><span class="ex">${ex ? '⚠' : ''}</span><span class="rs ${rsCls}">${rsTxt}</span>`;   // ex:價格後面 3 位寬的紅色驚嘆號(平倉列才有)
       const nowPx = ((x.body || '').match(/現價 ([\d.]+)/) || [])[1] || '';
       if (x.kind === 'long' || x.kind === 'short'){
         const pm = rest.match(/([\d.]+)\s*$/); const px = pm ? pm[1] : '';
@@ -4076,9 +4077,9 @@ window.bgTick = bgTick; window.BG = BG;
       if (x.kind === 'loss' || x.kind === 'profit' || x.kind === 'exit'){
         const pl = rest.match(/([+\-−]?\d+(?:\.\d+)?)%/); const plTxt = pl ? pl[1].replace('−', '-') + '%' : '';
         const win = pl ? !plTxt.startsWith('-') : x.kind !== 'loss';
-        return {cls: (win ? 'x-win' : 'x-lose') + ' c', html: cols(nowPx, win ? 'win' : 'lose', win ? '贏' : '輸')};   // 2026-10-17 15:30 代號|名稱|現價|贏(紅)/輸(綠)
+        return {cls: (win ? 'x-win' : 'x-lose') + ' c', html: cols(nowPx, win ? 'win' : 'lose', win ? '贏' : '輸', true)};   // 2026-10-17 15:30 代號|名稱|現價|贏(紅)/輸(綠)
       }
-      if (x.kind === 'warn') return {cls: 'warn c', html: cols(nowPx, 'warn', '注意')};
+      if (x.kind === 'warn') return {cls: 'warn c', html: cols(nowPx, 'warn', '注意', true)};
       return {cls: esc(x.kind || ''), html: esc(x.title)};
     };
     box.innerHTML = hd + (items.length ? items.map((x, k) => { const f = fmt(x); return `<div class="row ${f.cls.replace(' c', '')}" data-i="${k}"><span class="t">${esc(x.t)}</span><span class="b"><div class="ti${f.cls.endsWith(' c') ? ' cols' : ''}">${f.html}</div>${x.body ? `<div class="tx">${esc(x.body)}</div>` : ''}</span></div>`; }).join('')
