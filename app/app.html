@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610171805">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610171815">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1295,8 +1295,8 @@ except Exception:
   #notifLog .row .ti.cols{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:14px}
   #notifLog .row .tx .cd{font-weight:600}
   #notifLog .row.mine{outline:1px solid #FFD54F;outline-offset:-1px}   /* 長按記「我有做」 */
-  #notifLog .row .ti.cols .tr{flex:0 0 3.4em;text-align:right;color:#FFD54F;font-size:12px;font-weight:600;margin-right:3px}   /* 「交易中」:做多 / 做空前面 */
-  #notifLog .row .ti.cols .nm{flex:1 1 5em;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  #notifLog .row .ti.cols .tr{flex:1 1 3.4em;text-align:right;color:#FFD54F;font-size:12px;font-weight:600;margin-right:3px}   /* 「交易中」:做多 / 做空前面,吃掉剩餘寬度 */
+  #notifLog .row .ti.cols .nm{flex:0 0 5em;min-width:0;overflow:hidden;text-overflow:ellipsis}   /* 名稱固定 5 個中文字(10 欄) */
   #notifLog .row .ti.cols .sd{flex:0 0 2.2em}
   #notifLog .row .ti.cols .qt{flex:0 0 2.6em;text-align:right;color:#D8DEE9}   /* 張數(做多 / 做空後面,間隔 1px) */  #notifLog .row .sd.win{color:#FF3B3B} #notifLog .row .sd.lose{color:#1DD75B}
   #notifLog .row .ti.cols .px{flex:0 0 6ch;text-align:right}
@@ -1888,7 +1888,7 @@ async function loadRemotePool(){
   return j.pool
     .filter(s => isStockCode(s.code) && (s.market === 'twse' || s.market === 'tpex'))
     .map(s => ({
-      code: s.code, name: (s.name || '').replace(/-KY$/, ''), close: +s.close, dir: s.dir,   // 2026-10-17 使用者:名稱後的 -KY 直接拿掉
+      code: s.code, name: (s.name || '').replace(/\*|-KY$|-創$/g, ''), close: +s.close, dir: s.dir,   // 2026-10-17 使用者:名稱的 -KY、*、-創 拿掉,最長 5 個中文字(10 欄)
       vol: (s.lots || 0) * 1000, chg: null, high: null, low: null, amp: +s.amp,
       value: s.value != null ? +s.value : null,        // 成交金額(億)
       prev: s.prev != null ? +s.prev : null,           // 昨收
