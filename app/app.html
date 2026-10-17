@@ -153,8 +153,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-15 15:50 燈號規則第二版(使用者定案):做多 = 分K 轉正(價在均價28 上且均價↑)+ OBV 兩訊號轉正
     (OBV↑ 且 OBV 均線14↑)+ 價介於今天高低之間;做空 = 全部反向(且可先賣後買);其他監控。保護條件照舊
     (開盤 15 分鐘、±3%)。`signalLight(bars, ma, ob, obma, prevClose, canShort, dayHi, dayLo)`;
-    今天高低優先用即時行情 h/l。VWAP 不再用在燈號,只用在偏向計。小字寫出「K正/負/中性、OBV正/負/中性、價位」。
-  · 2026-10-15 15:40 多空偏向計:三盞燈右邊那塊(跨兩格)改成「多 ‖ 10 格紅燈 │ 10 格綠燈 ‖ 空」+ 小指針
+    今天高低優先用即時行情 h/l。VWAP 不再用在燈號,只用在多空天秤。小字寫出「K正/負/中性、OBV正/負/中性、價位」。
+  · 2026-10-15 15:40 多空天秤:三盞燈右邊那塊(跨兩格)改成「多 ‖ 10 格紅燈 │ 10 格綠燈 ‖ 空」+ 小指針
     (`biasScore()` / `updateMeter()`,CSS `.meter`):分數 −1~+1,60% 價與 VWAP 乖離(±2% 滿格)+ 40% VWAP 斜率
     (±0.5% 滿格);偏多左邊紅燈由中心往外亮、指針往左,偏空右邊綠燈亮、指針往右。最下面小字顯示「偏向 +xx」(×100)。
   · 2026-10-15 15:20 開高低收表取消「開」欄:第一列 = 時間+量 ‖ 高 ‖ 低,第二列 = 三盞燈 ‖(跨兩格的空位,`.spare`,留給之後用)。15:30 再取消「收」欄(收盤價已在標題列大字)。
@@ -1233,7 +1233,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610180440">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610180450">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1534,7 +1534,7 @@ except Exception:
   @keyframes lampBlink{50%{opacity:.25}}
   .yh-info>div.t{display:flex;align-items:baseline;justify-content:space-between}   /* 時間靠左、量靠右 */
   .yh-info .iv{font-size:10px;color:#8A93A3;margin-left:6px;white-space:nowrap}
-  /* 多空偏向計(三盞燈右邊那塊):多 ‖ 10 格紅燈(由中心往外漸大)│ 10 格綠燈 ‖ 空,上面一個小指針 */
+  /* 多空天秤(三盞燈右邊那塊):多 ‖ 10 格紅燈(由中心往外漸大)│ 10 格綠燈 ‖ 空,上面一個小指針 */
   .yh-info>div.meter-cell{padding:3px 8px;display:flex;align-items:center}
   .meter{display:flex;align-items:center;gap:6px;width:100%}
   .meter .mlbl{font-size:12px;font-weight:700;line-height:1}
@@ -2968,8 +2968,8 @@ function showBarInfo(t){
   el('lblObvMaN').textContent = BASE.obvMaPeriod;
   el('lblObvV').innerHTML = isFinite(d.ob) ? Math.round(d.ob).toLocaleString() + trend(d.ob, d.obPrev) : '—';
   el('lblObvMaV').innerHTML = isFinite(d.obma) ? Math.round(d.obma).toLocaleString() + trend(d.obma, d.obmaPrev) : '—';
-  // 燈號 + 偏向計跟著十字線走(2026-10-17):十字線在某根 K 上 → 顯示那根處理完當下的循環狀態(做多 / 做空 / 監控)與偏向;
-  // 最後一根或沒有十字線 → 回到最新狀態。沒開平倉規則(stateAt 為空)時燈號不動,只動偏向計。
+  // 燈號 + 多空天秤跟著十字線走(2026-10-17):十字線在某根 K 上 → 顯示那根處理完當下的循環狀態(做多 / 做空 / 監控)與偏向;
+  // 最後一根或沒有十字線 → 回到最新狀態。沒開平倉規則(stateAt 為空)時燈號不動,只動多空天秤。
   if (CUR.lampLast){
     const setLamps = (l, sh, w) => { el('lampLong').classList.toggle('on', l); el('lampShort').classList.toggle('on', sh); el('lampWatch').classList.toggle('on', w); };
     if (isLast){ setLamps(CUR.lampLast.long, CUR.lampLast.short, CUR.lampLast.watch); updateMeter(CUR.biasLast); }
@@ -3073,13 +3073,13 @@ let RISK_LINES = [];                  // 圖上的停損 / 停利示意線
    做空(綠燈)= 全部反向:價在均價之下且均價向下、OBV 與 OBV 均線都向下、價在高低之間(且這檔今天可先賣後買)
    監控(黃燈)= 其他;原因寫在最下面小字。
    保護條件照舊:今天不到 SIG.skipMin 根 K 顯示「等待」;距昨收超過 ±entryMaxChg% 不進場。
-   VWAP 不再用在燈號,只用在偏向計。 */
+   VWAP 不再用在燈號,只用在多空天秤。 */
 /* ── 判別式一(2026-10-18 使用者定案命名)──
    目前使用的完整進出場邏輯快照。回測 10/13~16(hi350 候選池、資金上限 35 萬):17 筆、賺 15 賠 2、勝率 88%、淨 +61,077。
    以後若要試新的邏輯,另外開「判別式二」,這份不要動;白話版規則在 repo 根目錄《判別式一.md》。 */
 const RULESET = { name: '判別式一', date: '2026-10-18', backtest: '10/13~16 共 17 筆,賺 15 賠 2,勝率 88%,淨 +61,077' };
 const SIG = { skipMin: 15, slopeBars: 10, maxDev: 2.0, noEntryAfter: '13:00', trendOnlyPct: 3.0,
-              takePct: 2.5, stopPct: 1.5, maxMovePct: 6.0, confirmMaxGapPct: 2.0, confirmMaxExtGapPct: 2.5, obmaSlopeBars: 5, obmaSlopeMin: 4.0, obvExitMa: 30, obvExitMinGain: 1.0, obvWarnMa: 20, maxEntryDevPct: 1.0, vwapFilter: true, vwapSlopeBars: 10, vwapSlopeMin: 0, gapChasePct: 2.0, minDayVol: 6000, rvolMin: 1.0, rvolFilter: true };   // rvol:量比 = 今天到此刻累計量 ÷ 前 5 天同一時刻平均;rvolFilter=true 時量比 < rvolMin 不進場(只記錄,標「比」);false 只顯示(2026-10-16 01:40)   // minDayVol:當天累計成交量(張)未達 6000 不進場;達到後下一個同向點直接進(2026-10-16 01:10)   // vwapFilter:價在 VWAP 上只做多、下只做空(23:30);vwapSlope:VWAP 最近 10 分鐘要往進場方向走 ≥ 0.05%(23:55)   // confirmMaxGapPct:確認點與前一個同向點的價差上限 %(2026-10-15 22:35 定 1%,22:45 改 2%);maxEntryDevPct:訊號價離均價超過 1% 只記錄不進場(23:15)   // 平倉:獲利 2.5% 停利(2026-10-17 由 4% 改,回測 10/13~16 +29,382 → +40,767)、反向 1.5% 停損、距昨收超過 6% 強制出(2026-10-15)   // trendOnlyPct:距昨收超過 ±3%(到 entryMaxChg 為止)只收順勢訊號   // noEntryAfter:13:00 後不進場、只監控平倉(2026-10-15);slopeBars / maxDev 給偏向計用
+              takePct: 2.5, stopPct: 1.5, maxMovePct: 6.0, confirmMaxGapPct: 2.0, confirmMaxExtGapPct: 2.5, obmaSlopeBars: 5, obmaSlopeMin: 4.0, obvExitMa: 30, obvExitMinGain: 1.0, obvWarnMa: 20, maxEntryDevPct: 1.0, vwapFilter: true, vwapSlopeBars: 10, vwapSlopeMin: 0, gapChasePct: 2.0, minDayVol: 6000, rvolMin: 1.0, rvolFilter: true };   // rvol:量比 = 今天到此刻累計量 ÷ 前 5 天同一時刻平均;rvolFilter=true 時量比 < rvolMin 不進場(只記錄,標「比」);false 只顯示(2026-10-16 01:40)   // minDayVol:當天累計成交量(張)未達 6000 不進場;達到後下一個同向點直接進(2026-10-16 01:10)   // vwapFilter:價在 VWAP 上只做多、下只做空(23:30);vwapSlope:VWAP 最近 10 分鐘要往進場方向走 ≥ 0.05%(23:55)   // confirmMaxGapPct:確認點與前一個同向點的價差上限 %(2026-10-15 22:35 定 1%,22:45 改 2%);maxEntryDevPct:訊號價離均價超過 1% 只記錄不進場(23:15)   // 平倉:獲利 2.5% 停利(2026-10-17 由 4% 改,回測 10/13~16 +29,382 → +40,767)、反向 1.5% 停損、距昨收超過 6% 強制出(2026-10-15)   // trendOnlyPct:距昨收超過 ±3%(到 entryMaxChg 為止)只收順勢訊號   // noEntryAfter:13:00 後不進場、只監控平倉(2026-10-15);slopeBars / maxDev 給多空天秤用
 function signalLight(bars, ma, ob, obma, prevClose, canShort, dayHi, dayLo){
   const last = bars[bars.length - 1];
   const day = dayKey(last.time);
@@ -3325,7 +3325,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort){
   return {marks, state: cyc, lastConfirmedAt, rvol: lastRvol, stateAt};
 }
 
-/* ── 多空偏向計(2026-10-15)──
+/* ── 多空天秤(2026-10-15 做;2026-10-18 使用者定名「多空天秤」,原稱偏向計)──
    分數 −1 ~ +1:+ 偏多、− 偏空。60% 看價與 VWAP 的乖離(±SIG.maxDev% 為滿格)、40% 看 VWAP 斜率(±0.5% 為滿格)。
    左邊 10 格紅燈由中心往外亮 round(分數×10) 格、指針往左;負的就是右邊綠燈、指針往右。只是視覺輔助,不下單。 */
 function biasScore(bars, vw, at){                       // at:算哪一根(預設最後一根);十字線聯動時傳十字線所在的 K(2026-10-17)
@@ -3884,7 +3884,7 @@ function drawBars(bars, code, srcLabel, keepView){
   const nGated = marks.filter(m => m.text.endsWith('✕')).length, nConf = marks.filter(m => m.text.endsWith('✓')).length;
   if (nLong || nShort) entryNote += ` · 今日訊號 多${nLong} 空${nShort},確認 ${nConf}${nGated ? `(${nGated} 個被 ±${BASE.entryMaxChg}% 擋住)` : ''}`;
   if (rp.rvol !== null && rp.rvol !== undefined) entryNote += ` · 量比 ${rp.rvol.toFixed(2)}`;
-  entryNote += ` · 偏向 ${bias >= 0 ? '+' : ''}${(bias * 100).toFixed(0)}`;
+  entryNote += ` · 天秤 ${bias >= 0 ? '+' : ''}${(bias * 100).toFixed(0)}`;
   entryNote += ` · 燈號 ${sig.text}:${sig.why}`;
   el('shMkt').textContent = src && src.market === 'tpex' ? '櫃' : '市';
   el('shMkt').className = 'yh-mkt' + (src && src.market === 'tpex' ? ' otc' : '');
