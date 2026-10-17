@@ -58,6 +58,7 @@ object Page {
             useWideViewPort = true
             loadWithOverviewMode = true
             setSupportZoom(false)
+            textZoom = 100   // 2026-10-17 網頁字不跟手機「字型大小」設定走,版面由網頁自己依螢幕寬度算,不會破圖
             mediaPlaybackRequiresUserGesture = false
         }
         web.addJavascriptInterface(bridge, "Android")

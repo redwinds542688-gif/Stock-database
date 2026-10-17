@@ -9,8 +9,8 @@ android {
         applicationId = "tw.mysh.monitor"
         minSdk = 26
         targetSdk = 34
-        versionCode = 30
-        versionName = "1.5.24"
+        versionCode = 31
+        versionName = "1.5.25"
     }
     signingConfigs {
         create("release") {
