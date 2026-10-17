@@ -13,6 +13,19 @@
 
 ---
 
+## 鐵律(最優先,先讀這段)(2026-10-18 使用者定案,沒有使用者明確指令不得變動)
+
+1. **判別式一已鎖定**:選股、進場、出場、資金的每一條規則和每一個數字(`RULESET`、`SIG` 裡的交易參數、
+   `BASE.entryMaxChg`、`YH.confirmByObv` / `YH.exitRule`、make_pool.py 的選股條件)都不可以改,
+   包含「順手調整」「回測後覺得更好」「修 bug 時一起改」都不行。
+2. 要改任何一條,必須是使用者在對話裡明確說「改 ○○」;改之前要先講清楚會改到什麼、改了之後回測差多少,
+   改完要寫進 app.html 最上面的變更紀錄和《判別式一.md》。
+3. 想試新邏輯一律另開「判別式二」(複製一份、另外命名、分開回測),判別式一本身不動。
+4. 不屬於判別式一的東西(多空天秤、燈號、圖表操作、版面、通知文字、效能)可以改,但不能動到上面第 1 點的任何值。
+5. 每次改程式前先確認:這次改動有沒有碰到判別式一?有就停下來問。
+
+---
+
 ## 零、給下一個對話的快速摘要(2026-09-20)
 
 **現況一句話**:雲端資料庫 `redwinds542688-gif/Stock-database` 已上線,每交易日 14:30 自動產生
@@ -1248,7 +1261,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610180710">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610180720">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
