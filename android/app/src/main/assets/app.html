@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610172320">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610172350">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2907,6 +2907,7 @@ const YH = {
   showSignalMarks: true,  // 圖上標出今天燈號亮起的位置:▲多(紅,K 棒下)、▼空(綠,K 棒上)、出(灰點,訊號結束)
   confirmByObv: true,     // 第 7 條(2026-10-15 友達 10:24→10:28 定案):同方向第 2 個以後的訊號,OBV(紅線)與 OBV 均線14(藍線)
                           // 都要比前一個同向訊號更低(做空)/ 更高(做多)才是「確認點」,燈只在確認點亮;第 1 個點只標記不亮燈。
+  chartDpr: 2,            // 圖表畫布解析度上限(2026-10-17):手機 3 倍螢幕壓到 2 倍,拖動 / 縮放快一倍;0 = 不限制
   exitRule: true,         // 平倉規則是否啟用(2026-10-15 19:50 定案,見 replaySignals)。2026-10-15 使用者說平倉點還沒定,先只看進場點:false = 不標「出」、不做循環,
                           // 燈號逐根判斷(條件成立那根亮,不成立回監控)。平倉規則定案後改 true。
 };
@@ -2962,13 +2963,18 @@ function showBarInfo(t){
 /* 簡單移動平均:bars 可以是 K 棒(取 close)或任何 {time, value} 序列。
    daily = true 時每個交易日開盤重算(只用當天的 K,滿 n 根才有值),和元大 1 分圖一樣:
    2026-10-15 用力積電對照,接著昨天算的話第一個做空訊號在 09:15,只算今天才是元大的 09:36。 */
+/* 快速日期 / 時間鍵(2026-10-17):畫圖每 5 秒重算近 2000 根 K,原本每根都 new Date().toDateString() /
+   toLocaleTimeString(Intl),光 replaySignals 就 250ms;改成台北時間(+8)整數運算,快 20 倍以上。
+   dayKey:同一天同一個整數;hmKey:'HH:MM'(和原本 toLocaleTimeString 的格式一樣,可以直接比大小)。 */
+function dayKey(t){ return Math.floor((t + 28800) / 86400); }
+function hmKey(t){ const m = Math.floor(((t + 28800) % 86400) / 60), h = Math.floor(m / 60), mm = m % 60; return (h < 10 ? '0' : '') + h + ':' + (mm < 10 ? '0' : '') + mm; }
 const MA_RESET_DAILY = true;
 function sma(bars, n, key = 'close', daily = MA_RESET_DAILY){
   const out = [];
   let sum = 0, cnt = 0, prevDay = null;
   for (let i = 0; i < bars.length; i++){
     if (daily){
-      const day = new Date(bars[i].time * 1000).toDateString();
+      const day = dayKey(bars[i].time);
       if (day !== prevDay){ sum = 0; cnt = 0; prevDay = day; }
     }
     sum += bars[i][key]; cnt++;
@@ -2983,7 +2989,7 @@ function obv(bars){
   const out = [];
   let acc = 0, prevClose = null, prevDay = null;
   for (const b of bars){
-    const day = new Date(b.time * 1000).toDateString();
+    const day = dayKey(b.time);
     if (OBV_RESET_DAILY && day !== prevDay){ acc = 0; prevClose = null; prevDay = day; }
     const lots = b.volume / 1000;
     if (prevClose != null){
@@ -3001,7 +3007,7 @@ function vwap(bars){
   const out = [];
   let pv = 0, v = 0, prevDay = null;
   for (const b of bars){
-    const day = new Date(b.time * 1000).toDateString();
+    const day = dayKey(b.time);
     if (day !== prevDay){ pv = 0; v = 0; prevDay = day; }
     const tp = (b.high + b.low + b.close) / 3;
     pv += tp * b.volume; v += b.volume;
@@ -3048,9 +3054,9 @@ const SIG = { skipMin: 15, slopeBars: 10, maxDev: 2.0, noEntryAfter: '13:00', tr
               takePct: 2.5, stopPct: 1.5, maxMovePct: 6.0, confirmMaxGapPct: 2.0, confirmMaxExtGapPct: 2.5, obmaSlopeBars: 5, obmaSlopeMin: 4.0, obvExitMa: 30, obvExitMinGain: 1.0, obvWarnMa: 20, maxEntryDevPct: 1.0, vwapFilter: true, vwapSlopeBars: 10, vwapSlopeMin: 0.05, minDayVol: 6000, rvolMin: 1.0, rvolFilter: true };   // rvol:量比 = 今天到此刻累計量 ÷ 前 5 天同一時刻平均;rvolFilter=true 時量比 < rvolMin 不進場(只記錄,標「比」);false 只顯示(2026-10-16 01:40)   // minDayVol:當天累計成交量(張)未達 6000 不進場;達到後下一個同向點直接進(2026-10-16 01:10)   // vwapFilter:價在 VWAP 上只做多、下只做空(23:30);vwapSlope:VWAP 最近 10 分鐘要往進場方向走 ≥ 0.05%(23:55)   // confirmMaxGapPct:確認點與前一個同向點的價差上限 %(2026-10-15 22:35 定 1%,22:45 改 2%);maxEntryDevPct:訊號價離均價超過 1% 只記錄不進場(23:15)   // 平倉:獲利 2.5% 停利(2026-10-17 由 4% 改,回測 10/13~16 +29,382 → +40,767)、反向 1.5% 停損、距昨收超過 6% 強制出(2026-10-15)   // trendOnlyPct:距昨收超過 ±3%(到 entryMaxChg 為止)只收順勢訊號   // noEntryAfter:13:00 後不進場、只監控平倉(2026-10-15);slopeBars / maxDev 給偏向計用
 function signalLight(bars, ma, ob, obma, prevClose, canShort, dayHi, dayLo){
   const last = bars[bars.length - 1];
-  const day = new Date(last.time * 1000).toDateString();
+  const day = dayKey(last.time);
   let n = 0;
-  for (let i = bars.length - 1; i >= 0 && new Date(bars[i].time * 1000).toDateString() === day; i--) n++;
+  for (let i = bars.length - 1; i >= 0 && dayKey(bars[i].time) === day; i--) n++;
   if (n < SIG.skipMin) return {cls:'wait', text:'等待', why:`今天才 ${n} 根 K,開盤前 ${SIG.skipMin} 分鐘不看`};
   if (TPE_TIME(last.time) >= SIG.noEntryAfter) return {cls:'wait', text:'觀望', why:`${SIG.noEntryAfter} 後不進場,只監控平倉`};
   const prevBar = bars[bars.length - 2];
@@ -3116,7 +3122,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort){
   const obma2 = SIG.obvExitMa > 0 ? sma(ob, SIG.obvExitMa, 'value') : [], iObma2 = idx(obma2);   // 2026-10-17 第二條較慢的 OBV 均線,只給平倉警示用
   const obmaW = SIG.obvWarnMa > 0 ? sma(ob, SIG.obvWarnMa, 'value') : [], iObmaW = idx(obmaW);   // 2026-10-17 「正在反彈」警示用:OBV 反向穿越這條只通知、不平倉,每筆持倉只提醒一次
   const last = bars[bars.length - 1];
-  const lastDay = new Date(last.time * 1000).toDateString();
+  const lastDay = dayKey(last.time);
   let hi = -Infinity, lo = Infinity, n = 0;
   let obHi = -Infinity, obLo = Infinity;             // 當天到此刻的 OBV 最高 / 最低(2026-10-17)
   let cyc = null;                                   // 目前循環 {side, time, price, gated}
@@ -3129,10 +3135,10 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort){
   const rvBase = (() => {
     const days = new Map();                         // day → Map(HH:MM → 累計量)
     for (const b of bars){
-      const d = new Date(b.time * 1000).toDateString(); if (d === lastDay) continue;
+      const d = dayKey(b.time); if (d === lastDay) continue;
       if (!days.has(d)) days.set(d, {cum: 0, m: new Map()});
       const o = days.get(d); o.cum += (b.volume || 0);
-      o.m.set(new Date(b.time * 1000).toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit', hour12:false}), o.cum);
+      o.m.set(hmKey(b.time), o.cum);
     }
     const list = [...days.values()].slice(-5); if (list.length < 3) return null;
     return t => { let sum = 0, n = 0; for (const o of list){ let v = o.m.get(t); if (v === undefined){ for (const [k, c] of o.m) if (k <= t) v = c; } if (v !== undefined){ sum += v; n++; } } return n ? sum / n : 0; };
@@ -3145,7 +3151,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort){
   let prevT = null;
   for (let bi = 0; bi < bars.length; bi++){
     const b = bars[bi];
-    if (new Date(b.time * 1000).toDateString() !== lastDay) continue;
+    if (dayKey(b.time) !== lastDay) continue;
     if (prevT !== null) stateAt.set(prevT, snap()); prevT = b.time;
     n++; hi = Math.max(hi, b.high); lo = Math.min(lo, b.low); cumVol += (b.volume || 0);
     const k = iMa.get(b.time), o = iOb.get(b.time), om = iObma.get(b.time);
@@ -3154,7 +3160,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort){
     const okPrev = (arr, i) => i > 0 && arr[i - 1].time === pt;
     if (!(okPrev(ma, k) && okPrev(ob, o) && okPrev(obma, om))) continue;
     const m0 = ma[k].value, m1 = ma[k - 1].value, ov = ob[o].value, omv = obma[om].value;
-    const tStr = new Date(b.time * 1000).toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit', hour12:false});
+    const tStr = hmKey(b.time);
     // 1. 循環中的強制平倉:停利 / 停損 / 距昨收超過 maxMovePct% / 13:25
     if (YH.exitRule && cyc){
       const dir = cyc.side === 'long' ? 1 : -1;
@@ -3225,7 +3231,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort){
     // 2026-10-17 OBV 均線斜率:最近 obmaSlopeBars 根的變化 ÷ 當天 OBV 波動範圍 × 100,往進場方向不到 obmaSlopeMin% 就只記錄不進場。
     // 賠錢單的共同特徵是 OBV 均線幾乎是平的(剛翻過來、量能還沒形成方向);回測 10/13~16 擋掉 7 筆裡 6 筆賠的,+40,767 → +50,404
     let obmaFlat = false;
-    if (SIG.obmaSlopeMin > 0 && om - SIG.obmaSlopeBars >= 0 && obma[om - SIG.obmaSlopeBars] && new Date(obma[om - SIG.obmaSlopeBars].time * 1000).toDateString() === lastDay){
+    if (SIG.obmaSlopeMin > 0 && om - SIG.obmaSlopeBars >= 0 && obma[om - SIG.obmaSlopeBars] && dayKey(obma[om - SIG.obmaSlopeBars].time) === lastDay){
       const rng = (obHi - obLo) || 1;
       const s5 = (omv - obma[om - SIG.obmaSlopeBars].value) * (side === 'long' ? 1 : -1) / rng * 100;
       if (s5 < SIG.obmaSlopeMin){ obmaFlat = true; far = true; }
@@ -3234,7 +3240,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort){
     let againstVwap = SIG.vwapFilter && vwapV !== null && ((side === 'long' && b.close < vwapV) || (side === 'short' && b.close > vwapV));   // 逆 VWAP:價在 VWAP 下只做空、上只做多(2026-10-15 23:30)
     if (SIG.vwapFilter && vwapV !== null && iVw.has(b.time)){                        // VWAP 斜率:最近 vwapSlopeBars 分鐘要往進場方向走 ≥ vwapSlopeMin%(23:55)
       const kv = iVw.get(b.time), kb = kv - SIG.vwapSlopeBars;
-      if (kb >= 0 && new Date(vw[kb].time * 1000).toDateString() === lastDay){
+      if (kb >= 0 && dayKey(vw[kb].time) === lastDay){
         const slope = (vwapV - vw[kb].value) / vwapV * 100 * (side === 'long' ? 1 : -1);
         if (slope < SIG.vwapSlopeMin) againstVwap = true;
       } else againstVwap = true;                                                     // 開盤不到 10 分鐘,斜率算不出來 → 不進
@@ -3290,9 +3296,9 @@ function biasScore(bars, vw, at){                       // at:算哪一根(預�
   if (!last || !vw[li]) return 0;
   const v = vw[li].value;
   if (!(v > 0) || li < 1) return 0;
-  const day = new Date(last.time * 1000).toDateString();
+  const day = dayKey(last.time);
   let n = 0;
-  for (let i = li; i >= 0 && new Date(bars[i].time * 1000).toDateString() === day; i--) n++;
+  for (let i = li; i >= 0 && dayKey(bars[i].time) === day; i--) n++;
   const back = Math.min(SIG.slopeBars, Math.max(1, n - 1), li);
   const v0 = vw[li - back].value;
   const c = x => Math.max(-1, Math.min(1, x));
@@ -3328,6 +3334,8 @@ const TPE_TIME = t => new Date(t * 1000).toLocaleTimeString('zh-TW',
   {hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'Asia/Taipei'});
 const TPE_DATE = t => new Date(t * 1000).toLocaleDateString('zh-TW',
   {month:'numeric', day:'numeric', timeZone:'Asia/Taipei'});
+const TPE_LBL = new Map();                                 // 時間軸刻度文字快取:拖動時每一格都重算 Intl 太慢(2026-10-17)
+const tpeLabel = t => { let s = TPE_LBL.get(t); if (s === undefined){ if (TPE_LBL.size > 8000) TPE_LBL.clear(); s = `${TPE_DATE(t)} ${TPE_TIME(t)}`; TPE_LBL.set(t, s); } return s; };
 
 /* 圖表配色:比照元大證券 App 的 1 分K / OBV 畫面(黑底、紅漲綠跌、白影線、紫均價、
    OBV 紅線 + 青色均線、黃色時間軸文字)。想換色只改這裡。 */
@@ -3350,8 +3358,8 @@ const chartOpts = () => ({
   rightPriceScale:{visible:false},
   timeScale:{borderColor:CHART_THEME.axis, rightOffset:3, timeVisible:true, secondsVisible:false,
              tickMarkMaxCharacterLength:11,
-             tickMarkFormatter: t => `${TPE_DATE(t)} ${TPE_TIME(t)}`},   // 元大格式「10/15 11:42」
-  localization:{timeFormatter: t => `${TPE_DATE(t)} ${TPE_TIME(t)}`},
+             tickMarkFormatter: t => tpeLabel(t)},   // 元大格式「10/15 11:42」
+  localization:{timeFormatter: t => tpeLabel(t)},
   crosshair:{mode:LightweightCharts.CrosshairMode.Normal,
              vertLine:{style:LightweightCharts.LineStyle.Dashed, color:'#8A93A3', width:1, labelVisible:true},
              horzLine:{style:LightweightCharts.LineStyle.Dashed, color:'#8A93A3', width:1, labelVisible:true}},
@@ -3360,6 +3368,10 @@ const chartOpts = () => ({
 function initChart(){
   if (chart) return;
   if (!window.LightweightCharts) throw new Error('圖表套件尚未載入(需要網路)');
+  // 畫布解析度上限(2026-10-17 使用者:「放大縮小很慢、左右移動也很慢」):手機螢幕 3 倍解析度時,
+  // 兩張圖每一格都要重畫 1236×3300 像素以上,量測拖動時 7 成時間都在畫像素;壓到 2 倍像素數少一半以上,
+  // 線條文字肉眼幾乎看不出差別。圖表套件是從 window.devicePixelRatio 讀的,只影響 canvas,網頁其他部分照舊。
+  try{ const real = window.devicePixelRatio || 1; if (YH.chartDpr > 0 && real > YH.chartDpr) Object.defineProperty(window, 'devicePixelRatio', {get: () => YH.chartDpr, configurable: true}); }catch(e){}
   const CHART_OPTS = chartOpts();
   const top = document.getElementById('chartTop');
   const mid = document.getElementById('chartMid');
@@ -3625,13 +3637,13 @@ function drawBars(bars, code, srcLabel, keepView){
 
   const last = bars[bars.length - 1];
   const days = new Set(bars.map(b =>
-    new Date(b.time * 1000).toDateString())).size;
+    dayKey(b.time))).size;
   const diff = last.close - (bars[bars.length - 2] || last).close;
   const cls = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
 
   // 昨收 = 最後一天之前的最後一根收盤;畫出 ±entryMaxChg% 的進場區間
-  const lastDay = new Date(last.time * 1000).toDateString();
-  const prevBar = [...bars].reverse().find(b => new Date(b.time * 1000).toDateString() !== lastDay);
+  const lastDay = dayKey(last.time);
+  const prevBar = [...bars].reverse().find(b => dayKey(b.time) !== lastDay);
   const liveRec = LIVE.get(BARS_CODE);
   const prevClose = (liveRec && liveRec.y) ? liveRec.y
     : prevBar ? prevBar.close
@@ -3680,7 +3692,7 @@ function drawBars(bars, code, srcLabel, keepView){
     let cumVol = 0, cumDay = null;                     // 當天累積成交量(股),跨日歸零
     bars.forEach((b, i) => {
       const k = iMa.get(b.time), k2 = iObma.get(b.time), kv = iVw.get(b.time), ko = iOb.get(b.time);
-      const day = new Date(b.time * 1000).toDateString();
+      const day = dayKey(b.time);
       if (day !== cumDay){ cumVol = 0; cumDay = day; }
       cumVol += b.volume;
       byTime.set(b.time, {
@@ -3699,8 +3711,8 @@ function drawBars(bars, code, srcLabel, keepView){
   const src = (SRC || []).find(s => s.code === BARS_CODE);
   // 多空燈號(均價列右端),原因寫進最下面小字
   // 今天的最高 / 最低:優先用即時行情的官方值,沒有就用今天的 K 算
-  const lastDayStr = new Date(last.time * 1000).toDateString();
-  const todayBars = bars.filter(b => new Date(b.time * 1000).toDateString() === lastDayStr);
+  const lastDayStr = dayKey(last.time);
+  const todayBars = bars.filter(b => dayKey(b.time) === lastDayStr);
   let dayHi = Math.max(...todayBars.map(b => b.high)), dayLo = Math.min(...todayBars.map(b => b.low));
   if (liveRec && liveRec.h > 0 && liveRec.l > 0){ dayHi = Math.max(dayHi, liveRec.h); dayLo = Math.min(dayLo, liveRec.l); }
   const sig = signalLight(bars, ma, ob, obma, prevClose, src ? !!src.dtShort : undefined, dayHi, dayLo);
@@ -4055,8 +4067,8 @@ async function bgTick(force, replay){
         if (!bars.length) continue;
         const ma = sma(bars, BASE.maPeriod), ob = obv(bars), obma = sma(ob, BASE.obvMaPeriod, 'value');
         const liveRec = LIVE.get(code) || {};
-        const lastDay = new Date(bars[bars.length - 1].time * 1000).toDateString();
-        const prevBar = [...bars].reverse().find(b => new Date(b.time * 1000).toDateString() !== lastDay);
+        const lastDay = dayKey(bars[bars.length - 1].time);
+        const prevBar = [...bars].reverse().find(b => dayKey(b.time) !== lastDay);
         const src = (SRC || []).find(x => x.code === code) || {};
         const prevClose = liveRec.y || (prevBar ? prevBar.close : null) || src.prev || null;
         const rp = replaySignals(bars, ma, ob, obma, prevClose, src.dtShort === undefined ? undefined : !!src.dtShort);
@@ -4072,7 +4084,7 @@ async function bgTick(force, replay){
         for (const m of events){
           const k = key(m); if (seen.has(k)) continue; seen.add(k);
           if (!replay && m.time < Math.floor(Date.now() / 1000) - 600){ bgLog(code + ' 舊訊號不通知 ' + k); continue; }   // Yahoo 分K 延遲補進來會「重寫」早先的訊號,超過 10 分鐘前的點不通知
-          const t = new Date(m.time * 1000).toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit', hour12:false});
+          const t = hmKey(m.time);
           const nm = names.get(code) || code;
           const nowPx = liveRec.z || bars[bars.length - 1].close;
           if (isEntry(m)){
