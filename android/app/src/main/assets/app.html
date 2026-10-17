@@ -70,7 +70,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
   · 2026-10-18 06:30 燈號跟隨多空天秤(使用者定案:「做多 / 監控 / 做空的燈號要跟隨多空天秤」「1~2 格注意、3 格才多空燈」):
-    天秤紅格 ≥ 3 格做多燈閃、1~2 格做多燈暗色恆亮且字改「注意多」、綠格同理、0 格監控(`lampsFromBias`,`SIG.lampBars=3`、
+    天秤紅格 ≥ 3 格做多燈閃、1~2 格做多燈暗色恆亮且字改「漸多」(原「注意多」,21:30 改名)、綠格同理、0 格監控(`lampsFromBias`,`SIG.lampBars=3`、
     `SIG.lampWarnBars=1`);十字線移到哪根就看那根。不再用訊號循環決定燈號,循環只寫在小字。
   · 2026-10-18 06:00 多空天秤權重定案(使用者:「看 K 線、OBV 紅線、OBV 藍線如何配置最符合價格波動」→ 回測後選「藍 75 紅 25」):
     四天 268 檔 11.6 萬個時點,燈亮 3 格以上時看 10 / 15 分鐘後價格是否順向:紫+藍 50.9% / 51.1%,只藍 54.2% / 54.8%,
@@ -1246,7 +1246,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610180650">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610180700">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3374,7 +3374,7 @@ function biasScore(bars, ma, obma, ob, at){              // at:算哪一根(預�
 }
 const toTimeMap = arr => { const m = new Map(); for (const x of arr) m.set(x.time, x.value); return m; };
 /* 燈號跟隨多空天秤(2026-10-18 使用者定案,「1~2 格注意、3 格才多空燈」):
-   紅格 ≥ SIG.lampBars(3)→ 做多燈閃;1~2 格 → 做多燈暗色恆亮、字改「注意多」;綠格同理;0 格 → 監控。
+   紅格 ≥ SIG.lampBars(3)→ 做多燈閃;1~2 格 → 做多燈暗色恆亮、字改「漸多」;綠格同理;0 格 → 監控。
    不再看訊號循環;十字線移到哪根就看那根。 */
 function lampsFromBias(b, time){
   const closed = time != null && hmKey(time) >= '13:25';   // 13:25 起已強制平倉、13:30 是收盤集合競價:不再亮多空燈,只顯示監控(2026-10-18 使用者)
@@ -3382,8 +3382,8 @@ function lampsFromBias(b, time){
   const l = L >= SIG.lampBars, sh = R >= SIG.lampBars;
   const lp = !l && L >= SIG.lampWarnBars, sp = !sh && R >= SIG.lampWarnBars;
   const eL = el('lampLong'), eS = el('lampShort'), eW = el('lampWatch');
-  eL.classList.toggle('on', l); eL.classList.toggle('pre', lp); eL.textContent = lp ? '注意多' : '做多';
-  eS.classList.toggle('on', sh); eS.classList.toggle('pre', sp); eS.textContent = sp ? '注意空' : '做空';
+  eL.classList.toggle('on', l); eL.classList.toggle('pre', lp); eL.textContent = lp ? '漸多' : '做多';
+  eS.classList.toggle('on', sh); eS.classList.toggle('pre', sp); eS.textContent = sp ? '漸空' : '做空';
   eW.classList.toggle('on', !l && !sh && !lp && !sp);
 }
 (function buildMeter(){                                  // 左 10 格(外→內漸小)、中線、右 10 格(內→外漸大)
