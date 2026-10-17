@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610180030">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610180100">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1477,7 +1477,7 @@ except Exception:
   .sheetbody{flex:1;position:relative;min-height:0}
   /* 兩指縮放只作用在 K 線圖 / OBV 圖(圖表套件自己處理),不讓瀏覽器放大整個頁面 */
   .sheet, #chartTop, #chartMid, #chartBot{touch-action:none}
-  .xclose{position:absolute;right:8px;bottom:8px;z-index:6;width:34px;height:34px;border-radius:8px;border:1px solid #3A465C;background:rgba(22,28,40,.85);color:#D8DEE9;font-size:16px;padding:0}
+  .xclose{position:absolute;right:8px;bottom:8px;z-index:6;min-width:44px;height:34px;border-radius:8px;border:1px solid #3A465C;background:rgba(22,28,40,.85);color:#D8DEE9;font-size:15px;font-weight:700;padding:0 8px}
   #chart{position:absolute;inset:0;display:flex;flex-direction:column;background:#000}
   #chartTop{flex:11;min-height:0;position:relative;background:#000}
   #chartMid{flex:5;min-height:0;position:relative;border-top:1px solid #333;background:#000}
@@ -1644,7 +1644,7 @@ except Exception:
     <div id="chart">
       <div class="yh-lbl"><span style="color:#D63AF9">均價<span id="lblMaN">10</span>:<span id="lblMaV">—</span></span>
         <span style="color:#FF9F43">VWAP:<span id="lblVwapV">—</span></span></div>
-      <div id="chartTop"><span class="hilo up hidden" id="hiLbl"></span><span class="hilo down hidden" id="loLbl"></span><button id="xhairClose" class="xclose hidden" aria-label="收掉十字線">✕</button></div>
+      <div id="chartTop"><span class="hilo up hidden" id="hiLbl"></span><span class="hilo down hidden" id="loLbl"></span><button id="xhairClose" class="xclose hidden" aria-label="十字線回到最新一根">最新</button></div>
       <div class="yh-lbl"><span style="color:#FF3B3B">OBV:<span id="lblObvV">—</span></span>
         <span style="color:#19D3F5">均線<span id="lblObvMaN">10</span>:<span id="lblObvMaV">—</span></span></div>
       <div id="chartMid"></div>
@@ -3485,9 +3485,14 @@ function initChart(){
     xApplying = false;
     showBarInfo(time);
   };
-  const setX = time => { XLOCK = {time}; applyX(time); if (xBtn) xBtn.classList.remove('hidden'); };
-  const clearX = () => { XLOCK = null; xApplying = true; chart.clearCrosshairPosition(); chartM.clearCrosshairPosition(); xApplying = false; showBarInfo(null); if (xBtn) xBtn.classList.add('hidden'); };
-  window.setX = setX; window.clearX = clearX; window.getXLock = () => XLOCK;
+  // 十字線永遠存在(2026-10-18 使用者:「讓十字線一直存在」):開圖就固定在最新一根,新 K 進來跟著最新;
+  // 點 / 長按拖到別根就停在那根,右下角「最新」按鈕把它帶回最新一根(停在最新一根時按鈕隱藏)。
+  const isLastT = time => BARS.length > 0 && time === BARS[BARS.length - 1].time;
+  const showBtn = () => { if (xBtn) xBtn.classList.toggle('hidden', !XLOCK || !!XLOCK.follow); };
+  const setX = time => { XLOCK = {time, follow: isLastT(time)}; applyX(time); showBtn(); };
+  const clearX = () => { if (BARS.length) setX(BARS[BARS.length - 1].time); };                 // 回到最新一根(不再收掉)
+  const syncX = () => { if (!BARS.length) return; if (!XLOCK || XLOCK.follow || idxOf(XLOCK.time) < 0) setX(BARS[BARS.length - 1].time); else applyX(XLOCK.time); };   // 重畫後(開圖 / 即時更新)補上十字線
+  window.setX = setX; window.clearX = clearX; window.syncX = syncX; window.getXLock = () => XLOCK;
   if (xBtn){ xBtn.addEventListener('click', e => { e.preventDefault(); clearX(); }); xBtn.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); clearX(); }); }
   let xPend = false;
   const reapplyX = () => { if (xPend) return; xPend = true; setTimeout(() => { xPend = false; if (XLOCK) applyX(XLOCK.time); }, 0); };
@@ -3498,7 +3503,7 @@ function initChart(){
       // · 事件帶 sourceEvent = 手指(長按後)在拖十字線 → 固定點跟著手指走,上下圖、資料列、燈號每一步都同步
       // · 手指還在圖上但沒有 sourceEvent = 拖圖 / 縮放,套件用舊像素位置重算十字線 → 先不理,放手(tEnd)再補回固定那根
       // · 放手後套件自己清掉或慣性捲動把它移到別根 → 拉回固定那根(原本放手後慣性捲動會讓資料列漂到隔壁那根)
-      if (p.time && p.sourceEvent) XLOCK = {time: p.time};
+      if (p.time && p.sourceEvent){ XLOCK = {time: p.time, follow: isLastT(p.time)}; showBtn(); }
       else if (touching) return;
       else if (!p.time || p.time !== XLOCK.time){ reapplyX(); return; }
       else return;
@@ -3585,7 +3590,7 @@ window.addEventListener('popstate', () => {
 });
 
 async function openChart(code, name){
-  try{ if (window.clearX) clearX(); }catch(e){}            // 換股票時收掉固定的十字線
+  try{ if (window.getXLock && getXLock()) getXLock().follow = true; }catch(e){}   // 換股票:十字線回到新股票的最新一根(drawBars 的 syncX 會放)
   const sheet = el('sheet');
   const wasOpen = sheet.classList.contains('open');
   sheet.classList.add('open');
@@ -3726,6 +3731,7 @@ function drawBars(bars, code, srcLabel, keepView){
     showBarInfo(null);
   }
   updateHiLo();
+  if (window.syncX) syncX();                           // 十字線永遠存在:開圖放在最新一根,即時更新時跟著最新或留在使用者停的那根
   if (code) el('shCode').textContent = code;
   const src = (SRC || []).find(s => s.code === BARS_CODE);
   // 多空燈號(均價列右端),原因寫進最下面小字
