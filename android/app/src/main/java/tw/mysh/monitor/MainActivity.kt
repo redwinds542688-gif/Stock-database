@@ -38,6 +38,22 @@ class MainActivity : AppCompatActivity() {
         web.postDelayed({ Updater.check(this, false) }, 4000)     // 打開 App 時靜靜檢查有沒有新版(6 小時一次)
     }
 
+    private var lastAutoPage = 0L
+    override fun onResume() {
+        super.onResume()
+        // 網頁自動更新(2026-10-18):每次回到前景(最多 10 分鐘一次)靜靜比對 GitHub 上的版本戳,有新版就換掉並重新載入,不用再按「更新程式」
+        val now = System.currentTimeMillis()
+        if (now - lastAutoPage < 10 * 60 * 1000L) return
+        lastAutoPage = now
+        thread {
+            if (Page.autoUpdate(this)) runOnUiThread {
+                toast("網頁已自動更新到新版 " + Page.currentBuild(this))
+                web.loadUrl(Page.url(this))
+                if (MonitorService.running) { MonitorService.stop(this); web.postDelayed({ MonitorService.start(this) }, 1500) }
+            }
+        }
+    }
+
     override fun onNewIntent(intent: Intent?) { super.onNewIntent(intent); handleTest(intent) }
 
     /** 測試鉤子(adb):am start -n tw.mysh.monitor/.MainActivity --es test notify|tick|replay */

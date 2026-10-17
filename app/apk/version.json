@@ -1,1 +1,1 @@
-{"versionCode": 31, "versionName": "1.5.25", "note": "網頁字體不跟手機字型大小設定走(textZoom=100),監控紀錄新版面;內建網頁 202610172200"}
+{"versionCode": 32, "versionName": "1.5.26", "note": "網頁自動更新:每次打開 App 自動從 GitHub 抓新版網頁,不用再按「更新程式」;內建網頁 202610180030"}
