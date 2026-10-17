@@ -23,6 +23,7 @@
 3. 想試新邏輯一律另開「判別式二」(複製一份、另外命名、分開回測),判別式一本身不動。
 4. 不屬於判別式一的東西(多空天秤、燈號、圖表操作、版面、通知文字、效能)可以改,但不能動到上面第 1 點的任何值。
 5. 每次改程式前先確認:這次改動有沒有碰到判別式一?有就停下來問。
+6. 已核准的修改紀錄:2026-10-18 量比門檻 1.0 → 0.7(使用者指令「量比改 0.7 加入鐵律」)。
 
 ---
 
@@ -82,6 +83,12 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 08:00 判別式一唯一一次修改(使用者明確指令「量比改 0.7 加入鐵律」):`SIG.rvolMin` 1.0 → 0.7。
+    起因:10/14、10/15 各只有 1 筆交易。先更正一個錯:模擬器被任何規則擋住都會印「離均價 x%」,曾誤以為 1% 是主因,
+    重算後四天 632 個被擋確認點只有 7 個和 1% 有關;真正主因是 OBV 均線太平(405)和量比 <1.0(400)。
+    量比門檻回測(四天):1.0 +61,077(17 筆 88%)、0.9 +65,307、0.8 +67,624(21 筆 81%)、0.7 +68,575(22 筆 82%)、
+    0.6 +74,778(31 筆 71%,多的 9 筆 5 賠)、不限 +81,979(47 筆 66%,同時持倉 13 檔)。選 0.7:勝率守住 80%、同時持倉最多 7 檔。
+    同時也測過離均價 1% 放寬到 1.25/1.5/2/不限(只多 1 筆賠 −399)和「追高追低改掛回檔價」(四天只掛到 1 單、沒成交),都不採用。
   · 2026-10-18 07:10 燈號加「離均價超過 1% 不亮」(使用者:「35.9 均線 35.5 大於 1%,不適合建議做多」):價在均價線上方超過
     SIG.maxEntryDevPct 時做多 / 漸多不亮,下方超過時做空 / 漸空不亮,改顯示監控;天秤本身照常。
   · 2026-10-18 06:30 燈號跟隨多空天秤(使用者定案:「做多 / 監控 / 做空的燈號要跟隨多空天秤」「1~2 格注意、3 格才多空燈」):
@@ -1261,7 +1268,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610180720">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610180800">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2202,7 +2209,7 @@ function render(list){
     '均價 K' + BASE.maPeriod + ' / OBV 均線 ' + BASE.obvMaPeriod + ';開盤 ' + SIG.skipMin + ' 分鐘內不進,' + SIG.noEntryAfter + ' 後不進',
     '第一訊號(價貫穿均線 + 均線轉向)→ 第二訊號確認(OBV 與 OBV 均線同向、收盤價差 ≤ ' + SIG.confirmMaxGapPct + '%、極值價差 ≤ ' + SIG.confirmMaxExtGapPct + '%)才進',
     '進場價離均價 > ' + SIG.maxEntryDevPct + '% 只記錄;離昨收 > ±' + BASE.entryMaxChg + '% 不進(±' + SIG.trendOnlyPct + '% 外只收順勢訊號);' + '價須在 VWAP 正確一側' + (SIG.vwapSlopeMin > 0 ? '且 VWAP 斜率 ≥ ' + SIG.vwapSlopeMin + '%' : '(不看 VWAP 斜率)') + (SIG.gapChasePct > 0 ? ';今開跳空超過 ±' + SIG.gapChasePct + '% 不順著缺口方向做' : ''),
-    '累積量 ≥ ' + SIG.minDayVol + ' 張且量比 ≥ ' + SIG.rvolMin + ' 才進(量夠後下一個訊號直接進)',
+    '累積量 ≥ ' + SIG.minDayVol + ' 張且量比 ≥ ' + SIG.rvolMin + ' 才進(量夠後下一個訊號直接進;量比 = 今天到此刻累積量 ÷ 前 5 天同時刻平均)',
     '同一邊第一次放棄的方向,當天不再做(單邊鎖)',
     '',
     '<b>出場</b>',
@@ -3100,10 +3107,10 @@ let RISK_LINES = [];                  // 圖上的停損 / 停利示意線
 /* ── 判別式一(2026-10-18 使用者定案命名)──
    目前使用的完整進出場邏輯快照。回測 10/13~16(hi350 候選池、資金上限 35 萬):17 筆、賺 15 賠 2、勝率 88%、淨 +61,077。
    以後若要試新的邏輯,另外開「判別式二」,這份不要動;白話版規則在 repo 根目錄《判別式一.md》。 */
-const RULESET = { name: '判別式一', date: '2026-10-18', backtest: '10/13~16 共 17 筆,賺 15 賠 2,勝率 88%,淨 +61,077' };
+const RULESET = { name: '判別式一', date: '2026-10-18', backtest: '10/13~16 共 22 筆,賺 18 賠 4,勝率 82%,淨 +68,575(量比 0.7)' };
 const SIG = { skipMin: 15, slopeBars: 10, maxDev: 2.0, noEntryAfter: '13:00', trendOnlyPct: 3.0,
               scaleBars: 5, scaleMaFull: 0.5, scaleObFull: 20, scaleW: {ma: 0, obma: 0.75, ob: 0.25}, lampBars: 3, lampWarnBars: 1,   // 多空天秤(2026-10-18):OBV 均線(藍)75% + OBV(紅)25%,均價線 0;5 根斜率,藍 / 紅 ÷ 當日 OBV 範圍 ±20% 滿格
-              takePct: 2.5, stopPct: 1.5, maxMovePct: 6.0, confirmMaxGapPct: 2.0, confirmMaxExtGapPct: 2.5, obmaSlopeBars: 5, obmaSlopeMin: 4.0, obvExitMa: 30, obvExitMinGain: 1.0, obvWarnMa: 20, maxEntryDevPct: 1.0, vwapFilter: true, vwapSlopeBars: 10, vwapSlopeMin: 0, gapChasePct: 2.0, minDayVol: 6000, rvolMin: 1.0, rvolFilter: true };   // rvol:量比 = 今天到此刻累計量 ÷ 前 5 天同一時刻平均;rvolFilter=true 時量比 < rvolMin 不進場(只記錄,標「比」);false 只顯示(2026-10-16 01:40)   // minDayVol:當天累計成交量(張)未達 6000 不進場;達到後下一個同向點直接進(2026-10-16 01:10)   // vwapFilter:價在 VWAP 上只做多、下只做空(23:30);vwapSlope:VWAP 最近 10 分鐘要往進場方向走 ≥ 0.05%(23:55)   // confirmMaxGapPct:確認點與前一個同向點的價差上限 %(2026-10-15 22:35 定 1%,22:45 改 2%);maxEntryDevPct:訊號價離均價超過 1% 只記錄不進場(23:15)   // 平倉:獲利 2.5% 停利(2026-10-17 由 4% 改,回測 10/13~16 +29,382 → +40,767)、反向 1.5% 停損、距昨收超過 6% 強制出(2026-10-15)   // trendOnlyPct:距昨收超過 ±3%(到 entryMaxChg 為止)只收順勢訊號   // noEntryAfter:13:00 後不進場、只監控平倉(2026-10-15);slopeBars / maxDev 給多空天秤用
+              takePct: 2.5, stopPct: 1.5, maxMovePct: 6.0, confirmMaxGapPct: 2.0, confirmMaxExtGapPct: 2.5, obmaSlopeBars: 5, obmaSlopeMin: 4.0, obvExitMa: 30, obvExitMinGain: 1.0, obvWarnMa: 20, maxEntryDevPct: 1.0, vwapFilter: true, vwapSlopeBars: 10, vwapSlopeMin: 0, gapChasePct: 2.0, minDayVol: 6000, rvolMin: 0.7, rvolFilter: true };   // rvol:量比 = 今天到此刻累計量 ÷ 前 5 天同一時刻平均;rvolFilter=true 時量比 < rvolMin 不進場(只記錄,標「比」);false 只顯示(2026-10-16 01:40)   // minDayVol:當天累計成交量(張)未達 6000 不進場;達到後下一個同向點直接進(2026-10-16 01:10)   // vwapFilter:價在 VWAP 上只做多、下只做空(23:30);vwapSlope:VWAP 最近 10 分鐘要往進場方向走 ≥ 0.05%(23:55)   // confirmMaxGapPct:確認點與前一個同向點的價差上限 %(2026-10-15 22:35 定 1%,22:45 改 2%);maxEntryDevPct:訊號價離均價超過 1% 只記錄不進場(23:15)   // 平倉:獲利 2.5% 停利(2026-10-17 由 4% 改,回測 10/13~16 +29,382 → +40,767)、反向 1.5% 停損、距昨收超過 6% 強制出(2026-10-15)   // trendOnlyPct:距昨收超過 ±3%(到 entryMaxChg 為止)只收順勢訊號   // noEntryAfter:13:00 後不進場、只監控平倉(2026-10-15);slopeBars / maxDev 給多空天秤用
 function signalLight(bars, ma, ob, obma, prevClose, canShort, dayHi, dayLo){
   const last = bars[bars.length - 1];
   const day = dayKey(last.time);
