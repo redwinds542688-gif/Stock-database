@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610180010">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610180030">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3357,6 +3357,9 @@ const chartOpts = () => ({
   leftPriceScale:{visible:true, borderColor:CHART_THEME.axis},     // 元大的價格刻度在左邊
   rightPriceScale:{visible:false},
   timeScale:{borderColor:CHART_THEME.axis, rightOffset:3, timeVisible:true, secondsVisible:false,
+             fixRightEdge:true,   // 最後一根 K 固定在右邊緣,套件本身就擋住往未來捲(2026-10-18 使用者:「往左滑未來空白也跑出來,左滑只能滑到最後一根」)。
+                                  // 之前是收到範圍變動再夾回去,但套件是下一格才套用,手指還在拖或慣性捲動中會被蓋掉,上圖跑進未來、下圖沒跟
+
              tickMarkMaxCharacterLength:11,
              tickMarkFormatter: t => tpeLabel(t)},   // 元大格式「10/15 11:42」
   localization:{timeFormatter: t => tpeLabel(t)},
@@ -3447,16 +3450,25 @@ function initChart(){
     let fixed = null;
     if (r.to > maxTo) fixed = {from: r.from - (r.to - maxTo), to: maxTo};
     if ((fixed || r).to - (fixed || r).from < 12) { const t = (fixed || r).to; fixed = {from: t - 12, to: t}; }
-    if (fixed) { a.timeScale().setVisibleLogicalRange(fixed); return; }        // 會再觸發一次(已夾好的範圍)
     syncing = true;
-    for (const b of charts) if (b !== a) b.timeScale().setVisibleLogicalRange(r);
+    if (fixed) a.timeScale().setVisibleLogicalRange(fixed);                     // 夾好的範圍一起套到每一張,不等下一次事件
+    for (const b of charts) if (b !== a) b.timeScale().setVisibleLogicalRange(fixed || r);
     syncing = false;
     scheduleHiLo();
   });
   const tStart = () => { touching = true; clearTimeout(touchGuard); touchGuard = setTimeout(tEnd, 1500); };
-  const tEnd = () => { if (!touching) return; touching = false; clearTimeout(touchGuard); scheduleHiLo(); if (typeof XLOCK !== 'undefined' && XLOCK) setTimeout(() => { if (XLOCK) applyX(XLOCK.time); }, 0); };
+  // 放手後慣性捲動約 1.5 秒:每格檢查兩張圖的範圍是否一樣,不一樣就以剛才拖的那張為準(慣性動畫只在被拖的那張跑)
+  let settle = 0, settleSrc = null;
+  const sameRange = (a, b) => a && b && Math.abs(a.from - b.from) < 1e-6 && Math.abs(a.to - b.to) < 1e-6;
+  const settleLoop = () => {
+    settle--;
+    const src = settleSrc || chart, r = src.timeScale().getVisibleLogicalRange();
+    if (r){ syncing = true; for (const b of charts) if (b !== src && !sameRange(r, b.timeScale().getVisibleLogicalRange())) b.timeScale().setVisibleLogicalRange(r); syncing = false; }
+    if (settle > 0) requestAnimationFrame(settleLoop); else { settleSrc = null; scheduleHiLo(); }
+  };
+  const tEnd = () => { if (!touching) return; touching = false; clearTimeout(touchGuard); scheduleHiLo(); if (typeof XLOCK !== 'undefined' && XLOCK) setTimeout(() => { if (XLOCK) applyX(XLOCK.time); }, 0); if (settle <= 0){ settle = 90; requestAnimationFrame(settleLoop); } else settle = 90; };
   ['chartTop', 'chartMid', 'chartBot'].forEach(id => { const e = el(id); if (!e) return;
-    e.addEventListener('touchstart', tStart, {passive:true});
+    e.addEventListener('touchstart', () => { settleSrc = id === 'chartMid' ? chartM : id === 'chartBot' ? (chartB || chartM) : chart; tStart(); }, {passive:true});
     e.addEventListener('touchend', tEnd, {passive:true}); e.addEventListener('touchcancel', tEnd, {passive:true}); });
 
   // 十字線:上 K 下 OBV 共用一條直線;點一下圖就放一條固定的(拖動 / 縮放都跟著那根 K),
