@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610171915">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610171925">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2032,8 +2032,10 @@ function signalRank(){
   const rank = new Map();
   for (const x of items){
     if (x.kind === 'sys') continue;
-    const m = (x.title || '').match(/^(?:⚠⚠ |✅ )?\S+ (\d{4,6})(?:\s|$)/);
-    if (m && !rank.has(m[1])) rank.set(m[1], rank.size);
+    const m = (x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?\S+ (\d{4,6})(?:\s|$)/);
+    if (!m) continue;
+    if (posStatus(m[1]) === 'closed' && !closedRecently(m[1])) continue;   // 已平倉超過 1 分鐘 → 回到一般排序
+    if (!rank.has(m[1])) rank.set(m[1], rank.size);
   }
   return rank;
 }
@@ -2069,7 +2071,7 @@ function render(list){
         <div class="nm">${s.name || s.code}</div>
         <div class="posline">${
           s.pos ? `<span class="pos ${s.pos}">${s.pos === 'long' ? '做多' : '做空'}${s.qty ? ' ' + s.qty + '張' : ''}</span>`
-                : (posStatus(s.code) === 'closed' ? '<span class="pos done">已平倉</span>'
+                : (closedRecently(s.code) ? '<span class="pos done">已平倉</span>'
                 : rank.has(s.code) ? '<span class="pos watch">監控中</span>' : '<span class="pos none">未</span>')   // 今天有買賣訊號、但沒手動記部位 → 監控中;長按結束交易 → 已平倉
         }</div>
       </div>
@@ -3796,12 +3798,13 @@ function togglePosition(code, side, price){
   // 2026-10-17 使用者:長按一次 = 有交易(黃框,持倉中);再長按 = 結束交易(綠框,已平倉);再長按 = 清除
   const cur = POSITIONS.get(code);
   if (!cur) POSITIONS.set(code, {side, qty: price ? Math.max(1, Math.floor(350000 / (price * 1000))) : 0, manual: true, status: 'open'});
-  else if (cur.status !== 'closed') POSITIONS.set(code, {...cur, status: 'closed'});
+  else if (cur.status !== 'closed'){ POSITIONS.set(code, {...cur, status: 'closed', closedAt: Date.now()}); setTimeout(() => { try{ resortList(); }catch(e){} }, 61000); }   // 已平倉只顯示 1 分鐘,之後退出監控排序
   else POSITIONS.delete(code);
   savePositions(); try{ queueScan(); }catch(e){} try{ resortList(); }catch(e){}
   return POSITIONS.has(code);
 }
-const posStatus = code => { const p = POSITIONS.get(code); return p ? (p.status === 'closed' ? 'closed' : 'open') : ''; };
+function posStatus(code){ const p = POSITIONS.get(code); return p ? (p.status === 'closed' ? 'closed' : 'open') : ''; }
+function closedRecently(code){ const p = POSITIONS.get(code); return !!(p && p.status === 'closed' && Date.now() - (p.closedAt || 0) < 60000); }   // 已平倉 1 分鐘內
 
 const BASE = window.MONITOR_BASE || { lo: 15, hi: 500, amp: 4.0, size: 100,
                                        excludeIndustry: ['17'], avg5MinAmp: 4.0, tickMaxPct: 0.35, entryMaxChg: 3.5,
