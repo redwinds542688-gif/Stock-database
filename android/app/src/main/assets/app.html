@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610172025">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610172040">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1300,13 +1300,13 @@ except Exception:
   #notifLog .card.c-long{background:rgba(255,59,59,.22)} #notifLog .card.c-short{background:rgba(29,215,91,.22)}
   #notifLog .card.mine{outline:2px solid #FFD54F;outline-offset:-2px}   /* 有交易(持倉中) */
   #notifLog .card.done{outline:2px solid #4FC3F7;outline-offset:-2px}   /* 結束交易(已平倉)藍框 */
-  #notifLog .card .ln{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:18px;font-weight:700;line-height:1.25;min-height:2.1em}   /* 2026-10-17 其餘欄位字體最大化、垂直置中 */
+  #notifLog .card .ln{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:18px;font-weight:700;line-height:1.25;min-height:2.1em;overflow:hidden}   /* 2026-10-17 其餘欄位字體最大化、垂直置中;寬度不夠時由程式自動縮字 */
   #notifLog .card .ln .nmblk{flex:0 0 5.6em;min-width:0;overflow:hidden;display:flex;flex-direction:column;justify-content:center;font-size:16px;line-height:1.15}
   #notifLog .card .ln .nmblk .cd{font-size:11px;font-weight:600;color:#1DD75B;line-height:1.1}
   #notifLog .card .ln .nm{color:#FFD54F;overflow:hidden;text-overflow:ellipsis;display:inline-block;align-self:flex-start;border:2px solid #FFD54F;border-radius:4px;padding:0 3px;line-height:1.15}   /* 名稱加框 */
   #notifLog .card .ln .px{flex:0 0 6ch;text-align:right;color:#4FC3F7;margin-left:.5ch}
   #notifLog .card .ln .sd{flex:0 0 2em;text-align:center;margin-left:.5ch} #notifLog .card .ln .sd.win{color:#FF3B3B} #notifLog .card .ln .sd.lose{color:#1DD75B}
-  #notifLog .card .ln .qt{flex:0 0 2em;text-align:right;color:#D8DEE9;margin-left:.5ch}
+  #notifLog .card .ln .qt{flex:0 0 2.6em;text-align:right;color:#D8DEE9;margin-left:.5ch}
   #notifLog .card .ln .exm{flex:1 1 4em;min-width:0;text-align:right;margin-left:.5ch;letter-spacing:-2px} #notifLog .card .ln .mk.lose{color:#FF3B3B} #notifLog .card .ln .mk.win{color:#1DD75B}   /* 賠紅 ⚠、賺綠 ▲(2026-10-17 使用者) */
   #notifLog .card .ln .rs{flex:0 0 1.5em;text-align:right;margin-left:.5ch;font-weight:700}
   #notifLog .card .ln .rs.win,#notifLog .card .ln .rs.lose{display:inline-block;border:2px solid currentColor;border-radius:4px;padding:0 2px;line-height:1.1;text-align:center}   /* 贏 / 輸 加框 */
@@ -4140,6 +4140,12 @@ window.bgTick = bgTick; window.BG = BG;
     const info = o => '';   // 2026-10-17 使用者:每一則下面的灰字明細都不顯示,只留代碼
     box.innerHTML = hd + (cards.length ? cards.map((o, k) => `<div class="card ${o.side === 'long' ? 'c-long' : o.side === 'short' ? 'c-short' : ''}${posStatus(o.code) === 'open' ? ' mine' : posStatus(o.code) === 'closed' ? ' done' : ''}" data-i="${k}">${line(o)}</div>`).join('')
       : `<div class="empty">${d === today ? '今日還沒有通知<br>(進場 / 停利 / 停損 / 出場會列在這裡)' : '這天沒有紀錄'}</div>`);
+    // 2026-10-17 自動縮字:真機系統字體放大時整列會超出卡片,量一下塞不下就縮,直到塞下為止(最小 11px)
+    box.querySelectorAll('.card .ln').forEach(ln => {
+      let fs = 18; ln.style.fontSize = fs + 'px';
+      let guard = 0;
+      while (ln.scrollWidth > ln.clientWidth + 1 && fs > 11 && guard++ < 20){ fs -= 0.5; ln.style.fontSize = fs + 'px'; }
+    });
     const prev = el('nlPrev'), next = el('nlNext');
     if (prev) prev.onclick = () => { cur = ds[i - 1]; render(true); };
     if (next) next.onclick = () => { cur = (i + 1 >= ds.length - 1) ? null : ds[i + 1]; render(true); };
