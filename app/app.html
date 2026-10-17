@@ -1233,7 +1233,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610180400">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610180420">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2926,6 +2926,9 @@ const YH = {
                           // 燈號逐根判斷(條件成立那根亮,不成立回監控)。平倉規則定案後改 true。
 };
 let CUR = null;                        // 目前畫在圖上的資料:{byTime, last, prevClose}
+let MARKS = [], marksHidden = false;   // 目前圖上的訊號標記;拖動 / 縮放期間先拿掉(中文標記每一格都要量字畫字,手機上很慢),放手再畫回來(2026-10-18)
+function hideMarks(){ if (!marksHidden && MARKS.length && candle){ marksHidden = true; candle.setMarkers([]); } }
+function showMarks(){ if (marksHidden && candle){ marksHidden = false; candle.setMarkers(MARKS); } }
 
 /* 元大風格的開高低收量表 + 均價列 + OBV 列:
    t = 十字線指到的分鐘(null = 最後一根);每個數字對昨收比較,高於昨收紅、低於綠(台股慣例) */
@@ -3493,7 +3496,7 @@ function initChart(){
     keepXInView(fixed || r);
     scheduleHiLo();
   });
-  const tStart = () => { touching = true; clearTimeout(touchGuard); touchGuard = setTimeout(tEnd, 1500); };
+  const tStart = () => { touching = true; clearTimeout(touchGuard); touchGuard = setTimeout(tEnd, 1500); hideMarks(); };
   // 放手後慣性捲動約 1.5 秒:每格檢查兩張圖的範圍是否一樣,不一樣就以剛才拖的那張為準(慣性動畫只在被拖的那張跑)
   let settle = 0, settleSrc = null;
   const sameRange = (a, b) => a && b && Math.abs(a.from - b.from) < 1e-6 && Math.abs(a.to - b.to) < 1e-6;
@@ -3501,7 +3504,7 @@ function initChart(){
     settle--;
     const src = settleSrc || chart, r = src.timeScale().getVisibleLogicalRange();
     if (r){ syncing = true; for (const b of charts) if (b !== src && !sameRange(r, b.timeScale().getVisibleLogicalRange())) b.timeScale().setVisibleLogicalRange(r); syncing = false; }
-    if (settle > 0) requestAnimationFrame(settleLoop); else { settleSrc = null; scheduleHiLo(); }
+    if (settle > 0) requestAnimationFrame(settleLoop); else { settleSrc = null; scheduleHiLo(); showMarks(); }
   };
   const tEnd = () => { if (!touching) return; touching = false; clearTimeout(touchGuard); scheduleHiLo(); if (typeof XLOCK !== 'undefined' && XLOCK) setTimeout(() => { if (XLOCK) applyX(XLOCK.time); }, 0); if (settle <= 0){ settle = 90; requestAnimationFrame(settleLoop); } else settle = 90; };
   ['chartTop', 'chartMid', 'chartBot'].forEach(id => { const e = el(id); if (!e) return;
@@ -3847,7 +3850,7 @@ function drawBars(bars, code, srcLabel, keepView){
   // 今天的進場 / 平倉點位標在 K 線圖上;燈號 = 循環狀態(進場後持續亮到平倉訊號)
   const rp = replaySignals(bars, ma, ob, obma, prevClose, src ? !!src.dtShort : undefined);
   const marks = YH.showSignalMarks ? rp.marks : [];
-  candle.setMarkers(marks);
+  MARKS = marks; marksHidden = false; candle.setMarkers(marks);
   const cyc = YH.exitRule ? rp.state : null;       // 平倉規則未啟用:燈號維持 signalLight 的逐根判斷
   if (YH.exitRule && !cyc){                        // 平倉規則啟用、沒有循環 → 監控
     el('lampLong').classList.remove('on'); el('lampShort').classList.remove('on'); el('lampWatch').classList.add('on');
