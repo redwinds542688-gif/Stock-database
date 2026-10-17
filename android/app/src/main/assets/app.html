@@ -1233,7 +1233,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610180330">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610180400">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3398,6 +3398,9 @@ const chartOpts = () => ({
   // (barSpacing × (1 + Δ/2),手指拉開 2 倍圖只放大約 1.65 倍),而且第一指先動了再放第二指就整個不縮放;
   // 自己算 1:1、兩張圖同一格一起套,見 initChart 的 pinch 區塊
   handleScale:{pinch:false, mouseWheel:true, axisPressedMouseMove:true, axisDoubleClickReset:true},
+  // 單指上下滑改成縮放(2026-10-18 使用者:「K 圖上滑放大、下滑縮小」):關掉套件的上下拖動(原本是拖價格軸),
+  // 套件就把「一開始往上下走」的手勢當成頁面捲動不處理,由 initChart 的 vz 區塊接手;左右走的仍由套件拖圖
+  handleScroll:{horzTouchDrag:true, vertTouchDrag:false, mouseWheel:true, pressedMouseMove:true},
   crosshair:{mode:LightweightCharts.CrosshairMode.Normal,
              vertLine:{style:LightweightCharts.LineStyle.Dashed, color:'#8A93A3', width:1, labelVisible:true},
              horzLine:{style:LightweightCharts.LineStyle.Dashed, color:'#8A93A3', width:1, labelVisible:true}},
@@ -3598,15 +3601,36 @@ function initChart(){
   });
   // 點一下(單指、沒移動、0.35 秒內)= 放十字線
   [[top, chart], [mid, chartM]].forEach(([e, c]) => {
-    let t0 = 0, x0 = 0, y0 = 0, multi = false;
-    e.addEventListener('touchstart', ev => { multi = ev.touches.length > 1; clearTimeout(lpTimer); longPress = false; if (multi){ t0 = 0; return; }
+    let t0 = 0, x0 = 0, y0 = 0, multi = false, vz = null;   // vz:單指上下滑縮放的狀態(null = 還沒判定;false = 這次手勢不是縮放)
+    e.addEventListener('touchstart', ev => { multi = ev.touches.length > 1; clearTimeout(lpTimer); longPress = false; vz = null; if (multi){ t0 = 0; return; }
       t0 = Date.now(); x0 = ev.touches[0].clientX; y0 = ev.touches[0].clientY;
       lpTimer = setTimeout(() => { longPress = true; }, 350); }, {passive:true});                 // 按住 0.35 秒沒放 = 長按
-    e.addEventListener('touchmove', ev => { if (!longPress && t0 && ev.touches[0] && Math.hypot(ev.touches[0].clientX - x0, ev.touches[0].clientY - y0) > 10){ clearTimeout(lpTimer); } }, {passive:true});   // 很快就滑開 = 捲圖,不算長按
-    e.addEventListener('touchcancel', () => { clearTimeout(lpTimer); longPress = false; t0 = 0; }, {passive:true});
+    e.addEventListener('touchmove', ev => {
+      if (multi || !t0 || ev.touches.length !== 1 || !ev.touches[0]) return;
+      const t = ev.touches[0], dx = t.clientX - x0, dy = t.clientY - y0;
+      if (!longPress && Math.hypot(dx, dy) > 10) clearTimeout(lpTimer);                        // 很快就滑開 = 捲圖 / 縮放,不算長按
+      // 單指上下滑 = 縮放(2026-10-18):手勢一開始(放下 0.24 秒內、移動超過 10px)往上下走就算;以十字線那根為中心,
+      // 上滑放大(每 120px 放大一倍)、下滑縮小。往左右走的交給套件拖圖;按住超過 0.24 秒再動是套件的長按拖十字線,不縮放
+      if (vz === null && Math.hypot(dx, dy) > 10){
+        if (Date.now() - t0 < 240 && Math.abs(dy) >= Math.abs(dx) * 0.5 && !longPress){
+          const r0 = c.timeScale().getVisibleLogicalRange();
+          if (r0){ let anchor = (r0.from + r0.to) / 2; if (XLOCK){ const li = idxOf(XLOCK.time); if (li >= r0.from && li <= r0.to) anchor = li; }
+            vz = {r0, anchor, y0: t.clientY}; }
+          else vz = false;
+        } else vz = false;
+      }
+      if (!vz) return;
+      const k = Math.pow(2, -(t.clientY - vz.y0) / 120);
+      const w0 = vz.r0.to - vz.r0.from; let w = w0 / k;
+      const maxW = BARS.length + 3; if (w < 12) w = 12; if (w > maxW) w = maxW;
+      const from = vz.anchor - (vz.anchor - vz.r0.from) * (w / w0);
+      pinchRange = {from, to: from + w};
+      if (!pinchReq) pinchReq = requestAnimationFrame(applyPinch);
+    }, {passive:true});
+    e.addEventListener('touchcancel', () => { clearTimeout(lpTimer); longPress = false; t0 = 0; vz = null; }, {passive:true});
     e.addEventListener('touchend', ev => {
-      clearTimeout(lpTimer); const wasLP = longPress; longPress = false;
-      if (multi || !t0) return; const t = ev.changedTouches[0]; if (!t) return;
+      clearTimeout(lpTimer); const wasLP = longPress; longPress = false; const wasVz = !!vz; vz = null;
+      if (multi || !t0 || wasVz) return; const t = ev.changedTouches[0]; if (!t) return;
       const dt = Date.now() - t0; t0 = 0;
       if (wasLP || dt > 350 || Math.hypot(t.clientX - x0, t.clientY - y0) > 10) return;
       const r = e.getBoundingClientRect(); const x = t.clientX - r.left - (c.priceScale('left').width() || 0);
