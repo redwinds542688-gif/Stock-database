@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610171235">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610171330">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2123,6 +2123,7 @@ function render(list){
     '<b>出場</b>',
     '停利 +' + SIG.takePct + '%、停損 −' + SIG.stopPct + '%、離昨收超過 ' + SIG.maxMovePct + '% 強制出',
     'OBV 均線最近 ' + SIG.obmaSlopeBars + ' 根斜率(÷當日 OBV 範圍)不到 ' + SIG.obmaSlopeMin + '% 只記錄不進(量能還沒形成方向)',
+    '持倉中 OBV 反向穿越 OBV 均' + SIG.obvExitMa + ' 且帳面 ≥ ' + SIG.obvExitMinGain + '% → 提早停利(瞬間反彈警示)',
     '出現反向訊號且該反向點可進場 → 平倉(逆勢單碰到反向點立即平倉)',
     '',
     '<b>資金</b>',
@@ -2989,7 +2990,7 @@ let RISK_LINES = [];                  // 圖上的停損 / 停利示意線
    保護條件照舊:今天不到 SIG.skipMin 根 K 顯示「等待」;距昨收超過 ±entryMaxChg% 不進場。
    VWAP 不再用在燈號,只用在偏向計。 */
 const SIG = { skipMin: 15, slopeBars: 10, maxDev: 2.0, noEntryAfter: '13:00', trendOnlyPct: 3.0,
-              takePct: 2.5, stopPct: 1.5, maxMovePct: 6.0, confirmMaxGapPct: 2.0, confirmMaxExtGapPct: 2.5, obmaSlopeBars: 5, obmaSlopeMin: 4.0, maxEntryDevPct: 1.0, vwapFilter: true, vwapSlopeBars: 10, vwapSlopeMin: 0.05, minDayVol: 6000, rvolMin: 1.0, rvolFilter: true };   // rvol:量比 = 今天到此刻累計量 ÷ 前 5 天同一時刻平均;rvolFilter=true 時量比 < rvolMin 不進場(只記錄,標「比」);false 只顯示(2026-10-16 01:40)   // minDayVol:當天累計成交量(張)未達 6000 不進場;達到後下一個同向點直接進(2026-10-16 01:10)   // vwapFilter:價在 VWAP 上只做多、下只做空(23:30);vwapSlope:VWAP 最近 10 分鐘要往進場方向走 ≥ 0.05%(23:55)   // confirmMaxGapPct:確認點與前一個同向點的價差上限 %(2026-10-15 22:35 定 1%,22:45 改 2%);maxEntryDevPct:訊號價離均價超過 1% 只記錄不進場(23:15)   // 平倉:獲利 2.5% 停利(2026-10-17 由 4% 改,回測 10/13~16 +29,382 → +40,767)、反向 1.5% 停損、距昨收超過 6% 強制出(2026-10-15)   // trendOnlyPct:距昨收超過 ±3%(到 entryMaxChg 為止)只收順勢訊號   // noEntryAfter:13:00 後不進場、只監控平倉(2026-10-15);slopeBars / maxDev 給偏向計用
+              takePct: 2.5, stopPct: 1.5, maxMovePct: 6.0, confirmMaxGapPct: 2.0, confirmMaxExtGapPct: 2.5, obmaSlopeBars: 5, obmaSlopeMin: 4.0, obvExitMa: 30, obvExitMinGain: 1.0, maxEntryDevPct: 1.0, vwapFilter: true, vwapSlopeBars: 10, vwapSlopeMin: 0.05, minDayVol: 6000, rvolMin: 1.0, rvolFilter: true };   // rvol:量比 = 今天到此刻累計量 ÷ 前 5 天同一時刻平均;rvolFilter=true 時量比 < rvolMin 不進場(只記錄,標「比」);false 只顯示(2026-10-16 01:40)   // minDayVol:當天累計成交量(張)未達 6000 不進場;達到後下一個同向點直接進(2026-10-16 01:10)   // vwapFilter:價在 VWAP 上只做多、下只做空(23:30);vwapSlope:VWAP 最近 10 分鐘要往進場方向走 ≥ 0.05%(23:55)   // confirmMaxGapPct:確認點與前一個同向點的價差上限 %(2026-10-15 22:35 定 1%,22:45 改 2%);maxEntryDevPct:訊號價離均價超過 1% 只記錄不進場(23:15)   // 平倉:獲利 2.5% 停利(2026-10-17 由 4% 改,回測 10/13~16 +29,382 → +40,767)、反向 1.5% 停損、距昨收超過 6% 強制出(2026-10-15)   // trendOnlyPct:距昨收超過 ±3%(到 entryMaxChg 為止)只收順勢訊號   // noEntryAfter:13:00 後不進場、只監控平倉(2026-10-15);slopeBars / maxDev 給偏向計用
 function signalLight(bars, ma, ob, obma, prevClose, canShort, dayHi, dayLo){
   const last = bars[bars.length - 1];
   const day = new Date(last.time * 1000).toDateString();
@@ -3057,6 +3058,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort){
   const idx = arr => { const m = new Map(); arr.forEach((x, i) => m.set(x.time, i)); return m; };
   const iMa = idx(ma), iOb = idx(ob), iObma = idx(obma);
   const vw = vwap(bars), iVw = idx(vw);                 // VWAP 方向過濾用(2026-10-15 23:30)
+  const obma2 = SIG.obvExitMa > 0 ? sma(ob, SIG.obvExitMa, 'value') : [], iObma2 = idx(obma2);   // 2026-10-17 第二條較慢的 OBV 均線,只給平倉警示用
   const last = bars[bars.length - 1];
   const lastDay = new Date(last.time * 1000).toDateString();
   let hi = -Infinity, lo = Infinity, n = 0;
@@ -3105,8 +3107,17 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort){
       else if (loss >= SIG.stopPct) why = '停損';
       else if (dir === -1 && move >= SIG.maxMovePct) why = '超6%';
       else if (dir === 1 && move <= -SIG.maxMovePct) why = '超6%';
+      else if (SIG.obvExitMa > 0 && iObma2.has(b.time) && pt !== null && iObma2.has(pt) && o !== undefined && okPrev(ob, o)){
+        // 2026-10-17 OBV 反向穿越第二條 OBV 均線(較慢,預設 30)且帳面已獲利 ≥ obvExitMinGain% → 提早停利(「瞬間反彈」警示)。
+        // 回測 10/13~16 沒有觸發,OBV20 版本會少賺 4,392,所以用 30。
+        const o2 = iObma2.get(b.time), o2p = iObma2.get(pt), ovPrev = ob[o - 1].value;
+        const m2 = obma2[o2].value, m2p = obma2[o2p].value;
+        const cross = dir === -1 ? (ov > m2 && ovPrev <= m2p) : (ov < m2 && ovPrev >= m2p);
+        const pl = (b.close - cyc.entry) / cyc.entry * 100 * dir;
+        if (cross && pl >= SIG.obvExitMinGain) why = 'OBV';
+      }
       if (why){
-        marks.push({time: b.time, position: cyc.side === 'long' ? 'aboveBar' : 'belowBar', color: why === '停利' ? '#F5D000' : '#D8DEE9', shape: 'circle', size: 0.7, text: why});
+        marks.push({time: b.time, position: cyc.side === 'long' ? 'aboveBar' : 'belowBar', color: (why === '停利' || why === 'OBV') ? '#F5D000' : '#D8DEE9', shape: 'circle', size: 0.7, text: why});
         cyc = null;
       }
     }
@@ -3985,6 +3996,7 @@ async function bgTick(force, replay){
             const from = pos ? `${pos.time} 進 ${pos.entry.toFixed(2)} → ` : '';
             if (lose) bgNotify(`⚠⚠ ${nm} ${code} ${m.text}${plTxt} ${act}`, `${t} ${from}現價 ${nowPx}`, 'loss');
             else if (m.text === '停利') bgNotify(`✅ ${nm} ${code} 停利${plTxt}`, `${t} ${from}現價 ${nowPx}`, 'profit');
+            else if (m.text === 'OBV') bgNotify(`✅ ${nm} ${code} OBV 反轉提早停利${plTxt} ${act}`, `${t} ${from}現價 ${nowPx}`, 'profit');
             else bgNotify(`${nm} ${code} 出場${plTxt}:${m.text}`, `${t} ${from}現價 ${nowPx}`, 'exit');
           }
         }
