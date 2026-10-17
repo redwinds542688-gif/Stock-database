@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610171640">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610171655">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1293,8 +1293,7 @@ except Exception:
   #notifLog .row .nm{color:#FFD54F} #notifLog .row .cd{color:#1DD75B} #notifLog .row .px{color:#4FC3F7} #notifLog .row .ex{color:#FF3B3B}
   /* 2026-10-17 15:30 使用者指定欄位:代號(4 位)|名稱(8 位寬)|價格(5 位,靠右)|最右 贏(紅)/輸(綠) */
   #notifLog .row .ti.cols{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:14px}
-  #notifLog .row .ti.cols .nm .cd{display:block;font-size:12px;font-weight:500;line-height:1.1}
-  #notifLog .row .ti.cols .nm .et{color:var(--dim);font-weight:400}
+  #notifLog .row .tx .cd{font-weight:600}
   #notifLog .row .ti.cols .nm{flex:1 1 8em;min-width:0;overflow:hidden;text-overflow:ellipsis}
   #notifLog .row .ti.cols .sd{flex:0 0 4em}  #notifLog .row .sd.win{color:#FF3B3B} #notifLog .row .sd.lose{color:#1DD75B}
   #notifLog .row .ti.cols .px{flex:0 0 6.5ch;text-align:right}
@@ -4070,7 +4069,8 @@ window.bgTick = bgTick; window.BG = BG;
       const m = (x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?(\S+) (\d{4,6}[A-Z]*)\s*(.*)$/);
       if (!m) return {cls: esc(x.kind || ''), html: esc(x.title)};
       const rest = m[3];
-      const cols = (side, px, rsCls, rsTxt, ex) => `<span class="nm">${esc(m[1])}<span class="cd">${esc(m[2])} <span class="et">${esc(entT())}</span></span></span><span class="sd ${side === '做多' ? 'win' : (side === '做空' ? 'lose' : '')}">${esc(side || '')}</span><span class="px">${esc(px)}</span><span class="ex">${ex ? '⚠' : ''}</span><span class="rs ${rsCls}">${rsTxt}</span>`;   // sd:價格前 4 位寬的做多(紅)/做空(綠);ex:價格後 3 位寬的紅色驚嘆號(平倉列才有)
+      const code = m[2];
+      const cols = (side, px, rsCls, rsTxt, ex) => `<span class="nm">${esc(m[1])}</span><span class="sd ${side === '做多' ? 'win' : (side === '做空' ? 'lose' : '')}">${esc(side || '')}</span><span class="px">${esc(px)}</span><span class="ex">${ex ? '⚠' : ''}</span><span class="rs ${rsCls}">${rsTxt}</span>`;   // sd:價格前 4 位寬的做多(紅)/做空(綠);ex:價格後 3 位寬的紅色驚嘆號(平倉列才有)
       // 平倉 / 提醒列的方向:內容裡有「做多 / 做空」就直接用;沒有就用進場價和現價推(賺且現價低於進場價 = 做空)
       const sideOf = () => { const b = x.body || ''; const sm = b.match(/做[多空]/); if (sm) return sm[0];
         const ent = +((b.match(/進 ([\d.]+)/) || [])[1]), now = +nowPx; if (!ent || !now) return '';
@@ -4081,17 +4081,17 @@ window.bgTick = bgTick; window.BG = BG;
       const entT = () => (x.kind === 'long' || x.kind === 'short') ? (x.t || '') : (((x.body || '').match(/(\d{2}:\d{2}) 進/) || [])[1] || '');
       if (x.kind === 'long' || x.kind === 'short'){
         const pm = rest.match(/([\d.]+)\s*$/); const px = pm ? pm[1] : '';
-        return {cls: (x.kind === 'long' ? 'e-long' : 'e-short') + ' c', html: cols(x.kind === 'long' ? '做多' : '做空', px, x.kind === 'long' ? 'win' : 'lose', x.kind === 'long' ? '多↑' : '空↓')};
+        return {cls: (x.kind === 'long' ? 'e-long' : 'e-short') + ' c', code, html: cols(x.kind === 'long' ? '做多' : '做空', px, x.kind === 'long' ? 'win' : 'lose', x.kind === 'long' ? '多↑' : '空↓')};
       }
       if (x.kind === 'loss' || x.kind === 'profit' || x.kind === 'exit'){
         const pl = rest.match(/([+\-−]?\d+(?:\.\d+)?)%/); const plTxt = pl ? pl[1].replace('−', '-') + '%' : '';
         const win = pl ? !plTxt.startsWith('-') : x.kind !== 'loss';
-        return {cls: (win ? 'x-win' : 'x-lose') + ' c', html: cols(sideOf(), nowPx, win ? 'win' : 'lose', win ? '贏' : '輸', true)};   // 2026-10-17 15:30 代號|名稱|現價|贏(紅)/輸(綠)
+        return {cls: (win ? 'x-win' : 'x-lose') + ' c', code, html: cols(sideOf(), nowPx, win ? 'win' : 'lose', win ? '贏' : '輸', true)};   // 2026-10-17 15:30 代號|名稱|現價|贏(紅)/輸(綠)
       }
-      if (x.kind === 'warn') return {cls: 'warn c', html: cols(sideOf(), nowPx, 'warn', '注意', true)};
+      if (x.kind === 'warn') return {cls: 'warn c', code, html: cols(sideOf(), nowPx, 'warn', '注意', true)};
       return {cls: esc(x.kind || ''), html: esc(x.title)};
     };
-    box.innerHTML = hd + (items.length ? items.map((x, k) => { const f = fmt(x); return `<div class="row ${f.cls.replace(' c', '')}" data-i="${k}"><span class="b"><div class="ti${f.cls.endsWith(' c') ? ' cols' : ''}">${f.html}</div>${x.body ? `<div class="tx">${esc(x.body)}</div>` : ''}</span></div>`; }).join('')
+    box.innerHTML = hd + (items.length ? items.map((x, k) => { const f = fmt(x); return `<div class="row ${f.cls.replace(' c', '')}" data-i="${k}"><span class="b"><div class="ti${f.cls.endsWith(' c') ? ' cols' : ''}">${f.html}</div>${f.cls.endsWith(' c') ? `<div class="tx"><span class="cd">${esc(f.code)}</span> ${esc(x.body || '')}</div>` : (x.body ? `<div class="tx">${esc(x.body)}</div>` : '')}</span></div>`; }).join('')
       : `<div class="empty">${d === today ? '今日還沒有通知<br>(進場 / 停利 / 停損 / 出場會列在這裡)' : '這天沒有紀錄'}</div>`);
     const prev = el('nlPrev'), next = el('nlNext');
     if (prev) prev.onclick = () => { cur = ds[i - 1]; render(true); };
