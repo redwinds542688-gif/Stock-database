@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610171425">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610171440">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4006,7 +4006,7 @@ async function bgTick(force, replay){
             const pos = BG.pos.get(code); BG.pos.delete(code);
             const pl = pos ? (nowPx - pos.entry) / pos.entry * 100 * pos.dir : null;
             const plTxt = pl === null ? '' : ` ${pl >= 0 ? '+' : ''}${pl.toFixed(1)}%`;
-            const act = pos ? (pos.side === '做空' ? '立即回補' : '立即賣出') : '立即平倉';
+            const act = '立即平倉';   // 2026-10-17 使用者:做多做空都叫「平倉」,不分回補 / 賣出
             const lose = m.text === '停損' || m.text === '超6%' || (pl !== null && pl < 0);
             const from = pos ? `${pos.time} 進 ${pos.entry.toFixed(2)} → ` : '';
             if (lose) bgNotify(`⚠⚠ ${nm} ${code} ${m.text}${plTxt} ${act}`, `${t} ${from}現價 ${nowPx}`, 'loss');
