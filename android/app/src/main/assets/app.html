@@ -1246,7 +1246,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610180640">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610180650">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2986,8 +2986,8 @@ function showBarInfo(t){
   // 燈號 + 多空天秤跟著十字線走(2026-10-17):十字線在某根 K 上 → 顯示那根處理完當下的循環狀態(做多 / 做空 / 監控)與偏向;
   // 最後一根或沒有十字線 → 回到最新狀態。沒開平倉規則(stateAt 為空)時燈號不動,只動多空天秤。
   if (CUR.lampLast){
-    if (isLast){ lampsFromBias(CUR.biasLast); updateMeter(CUR.biasLast); }
-    else if (CUR.bars && CUR.maMap && d.i != null){ const b = biasScore(CUR.bars, CUR.maMap, CUR.obmaMap, CUR.obMap, d.i); lampsFromBias(b); updateMeter(b); }
+    if (isLast){ lampsFromBias(CUR.biasLast, d.bar.time); updateMeter(CUR.biasLast); }
+    else if (CUR.bars && CUR.maMap && d.i != null){ const b = biasScore(CUR.bars, CUR.maMap, CUR.obmaMap, CUR.obMap, d.i); lampsFromBias(b, d.bar.time); updateMeter(b); }
   }
 }                 // 圖上的 ±entryMaxChg% 進場區間線
 
@@ -3376,8 +3376,9 @@ const toTimeMap = arr => { const m = new Map(); for (const x of arr) m.set(x.tim
 /* 燈號跟隨多空天秤(2026-10-18 使用者定案,「1~2 格注意、3 格才多空燈」):
    紅格 ≥ SIG.lampBars(3)→ 做多燈閃;1~2 格 → 做多燈暗色恆亮、字改「注意多」;綠格同理;0 格 → 監控。
    不再看訊號循環;十字線移到哪根就看那根。 */
-function lampsFromBias(b){
-  const L = Math.round(Math.max(0, b) * 10), R = Math.round(Math.max(0, -b) * 10);
+function lampsFromBias(b, time){
+  const closed = time != null && hmKey(time) >= '13:25';   // 13:25 起已強制平倉、13:30 是收盤集合競價:不再亮多空燈,只顯示監控(2026-10-18 使用者)
+  const L = closed ? 0 : Math.round(Math.max(0, b) * 10), R = closed ? 0 : Math.round(Math.max(0, -b) * 10);
   const l = L >= SIG.lampBars, sh = R >= SIG.lampBars;
   const lp = !l && L >= SIG.lampWarnBars, sp = !sh && R >= SIG.lampWarnBars;
   const eL = el('lampLong'), eS = el('lampShort'), eW = el('lampWatch');
@@ -3904,7 +3905,7 @@ function drawBars(bars, code, srcLabel, keepView){
   MARKS = marks; marksHidden = false; candle.setMarkers(marks);
   const cyc = YH.exitRule ? rpSig.state : null;    // 訊號循環(不受 3.5% 限制),只用來寫小字
   const trade = YH.exitRule ? rp.state : null;     // 真正的交易循環
-  lampsFromBias(bias);                             // 燈號跟隨多空天秤(2026-10-18)
+  lampsFromBias(bias, last.time);                  // 燈號跟隨多空天秤(2026-10-18);13:25 後只顯示監控
   if (cyc && !cyc.gated){
     if (trade && trade.side === cyc.side){
       const pl = (last.close - trade.entry) / trade.entry * 100 * (trade.side === 'long' ? 1 : -1);
