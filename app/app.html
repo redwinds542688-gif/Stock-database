@@ -1222,7 +1222,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610171440">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610171500">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1289,6 +1289,12 @@ except Exception:
   #notifLog .row.loss .ti{color:#FF3B3B} #notifLog .row.loss{background:rgba(255,59,59,.08);border-radius:6px;padding-left:4px}
   #notifLog .row.profit .ti{color:var(--down)} #notifLog .row.sys .ti{color:var(--dim);font-weight:400}
   #notifLog .row.warn .ti{color:#F5A623}
+  /* 2026-10-17 使用者指定的配色:名稱黃、代碼綠、進場價藍、驚嘆號紅;進場列做多紅底 / 做空綠底;平倉列賺淡藍底 / 賠淡紅底 */
+  #notifLog .row .nm{color:#FFD54F} #notifLog .row .cd{color:#1DD75B} #notifLog .row .px{color:#4FC3F7} #notifLog .row .ex{color:#FF3B3B}
+  #notifLog .row.e-long{background:rgba(255,59,59,.28);border-radius:6px;padding-left:4px}  #notifLog .row.e-long .ti{color:#FFFFFF}
+  #notifLog .row.e-short{background:rgba(29,215,91,.28);border-radius:6px;padding-left:4px} #notifLog .row.e-short .ti{color:#FFFFFF}
+  #notifLog .row.x-win{background:rgba(79,195,247,.22);border-radius:6px;padding-left:4px}  #notifLog .row.x-win .ti{color:#FFFFFF}
+  #notifLog .row.x-lose{background:rgba(255,59,59,.22);border-radius:6px;padding-left:4px}  #notifLog .row.x-lose .ti{color:#FFFFFF}
   .row.sig{box-shadow:inset 3px 0 0 #FFD54F}   /* 今天有訊號:左側黃條 */
   #notifLog .empty{color:var(--dim);text-align:center;margin-top:60px;font-size:12px}
   /* 顯示區固定存在,開啟設定也不消失、不縮放 */
@@ -4049,7 +4055,25 @@ window.bgTick = bgTick; window.BG = BG;
     const n = items.length;
     const label = d === today ? '今日' : d.slice(5).replace('-', '/');
     const hd = `<div class="hd"><span class="nav"><button id="nlPrev" ${i <= 0 ? 'disabled' : ''}>◀</button><span>${label}監控紀錄</span><button id="nlNext" ${i >= ds.length - 1 ? 'disabled' : ''}>▶</button></span><span>${n} 則</span></div>`;
-    box.innerHTML = hd + (items.length ? items.map((x, k) => `<div class="row ${esc(x.kind || '')}" data-i="${k}"><span class="t">${esc(x.t)}</span><span class="b"><div class="ti">${esc(x.title)}</div>${x.body ? `<div class="tx">${esc(x.body)}</div>` : ''}</span></div>`).join('')
+    // 2026-10-17 標題改成使用者指定的樣式:進場「名 代碼 做多進場 ↑ 價」紅底 / 做空 ↓ 綠底;平倉「⚠ 名 代碼 ±x.x% 立即平倉」賺淡藍底 / 賠淡紅底,不顯示停損停利字樣
+    const fmt = x => {
+      const m = (x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?(\S+) (\d{4,6}[A-Z]*)\s*(.*)$/);
+      if (!m) return {cls: esc(x.kind || ''), html: esc(x.title)};
+      const nm = `<span class="nm">${esc(m[1])}</span> <span class="cd">${esc(m[2])}</span>`, rest = m[3];
+      if (x.kind === 'long' || x.kind === 'short'){
+        const pm = rest.match(/([\d.]+)\s*$/); const px = pm ? pm[1] : '';
+        const arrow = x.kind === 'long' ? '↑' : '↓';
+        return {cls: x.kind === 'long' ? 'e-long' : 'e-short', html: `${nm} ${x.kind === 'long' ? '做多' : '做空'}進場 ${arrow} <span class="px">${esc(px)}</span>`};
+      }
+      if (x.kind === 'loss' || x.kind === 'profit' || x.kind === 'exit'){
+        const pl = rest.match(/([+\-−]?\d+(?:\.\d+)?)%/); const plTxt = pl ? pl[1].replace('−', '-') + '%' : '';
+        const win = pl ? !plTxt.startsWith('-') : x.kind !== 'loss';
+        return {cls: win ? 'x-win' : 'x-lose', html: `<span class="ex">⚠</span> ${nm} ${esc(plTxt)} 立即平倉`};
+      }
+      if (x.kind === 'warn') return {cls: 'warn', html: `<span class="ex">⚠</span> ${nm} ${esc(rest)}`};
+      return {cls: esc(x.kind || ''), html: esc(x.title)};
+    };
+    box.innerHTML = hd + (items.length ? items.map((x, k) => { const f = fmt(x); return `<div class="row ${f.cls}" data-i="${k}"><span class="t">${esc(x.t)}</span><span class="b"><div class="ti">${f.html}</div>${x.body ? `<div class="tx">${esc(x.body)}</div>` : ''}</span></div>`; }).join('')
       : `<div class="empty">${d === today ? '今日還沒有通知<br>(進場 / 停利 / 停損 / 出場會列在這裡)' : '這天沒有紀錄'}</div>`);
     const prev = el('nlPrev'), next = el('nlNext');
     if (prev) prev.onclick = () => { cur = ds[i - 1]; render(true); };
