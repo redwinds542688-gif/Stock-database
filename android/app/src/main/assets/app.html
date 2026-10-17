@@ -25,6 +25,7 @@
 5. 每次改程式前先確認:這次改動有沒有碰到判別式一?有就停下來問。
 6. 判別式一目前鎖定的數字之一:**量比門檻 0.9**(2026-10-18 使用者指令由 1.0 改 0.7、同日再改 0.9「安全很多」,從此以 0.9 為準)。
 7. 判別式一已核准的第二次修改(2026-10-18 使用者指令「把 OBV5 加入判別式一」):OBV 均線(10)太平時,改看 OBV 均 5 的 5 根斜率 ≥ 4% 就放行。
+8. 判別式二、三(2026-10-18 使用者指令「把現在判別式一複製給判別式二跟三」):目前是判別式一的完整複製,按鍵「判二」「判三」連按兩下切換;它們不受第 1 點鎖定,但一樣要使用者明確說「改 判別式二 ○○」才動,改了要分開回測、分開記錄;判別式一照舊不動。
 
 ---
 
@@ -84,6 +85,10 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 11:30 判別式二、三(使用者指令「把現在判別式一複製給判別式二跟三 按鍵名稱也放上去」):`RULESETS` 裝三份,
+    二、三是判別式一的完整複製(`JSON` 深拷貝 `SIG1`),尚未修改;按鍵列第 3、4 顆啟用為「判二」「判三」;只有背景監控正在用的那份亮燈;
+    點亮著的看規則,點沒亮的要 4 秒內連按兩下才切換(存 localStorage `mysh.ruleset` 後重載;背景那份 bgTick 看到不同會自己重載)。
+    鐵律加第 8 條:二、三也要明確指令才改。交易規則與數字完全沒動。
   · 2026-10-18 09:30 按鍵列(使用者定案):第二顆設「判一」,亮燈 = 背景監控執行中(用判別式一),點一下看規則;
     通知欄顯示中「訊息」亮,打開設定滾輪「設定」亮、「訊息」熄;字體在按鍵裡最大化(22px);沒亮的按鍵灰字。
   · 2026-10-18 09:00 判別式一第二次修改(使用者指令「把 OBV5 加入判別式一」):`SIG.obmaSlope2Ma=5`,藍線(OBV 均 10)5 根斜率不到 4% 時,
@@ -1277,7 +1282,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610180930">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610181130">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1618,9 +1623,9 @@ except Exception:
   <div class="toolbar">
     <button class="tool txt" id="refreshBtn" aria-label="訊息"
             title="顯示監控訊息;長按重新讀取雲端資料">訊息</button>
-    <button class="tool txt" id="btnReload" aria-label="判別式一" title="亮燈 = 正在用判別式一監控;點一下看規則">判一</button>   <!-- 2026-10-18 使用者:第二顆設「判一」 -->
-    <button class="tool txt" id="btnState" disabled aria-label="待設定 3"></button>
-    <button class="tool txt" id="btnRules" disabled aria-label="待設定 4"></button>
+    <button class="tool txt rs" id="btnReload" data-rs="一" aria-label="判別式一" title="亮燈 = 背景監控正在用判別式一;點亮著的看規則,沒亮的連按兩下切換">判一</button>   <!-- 2026-10-18 使用者:第二顆設「判一」;同日再加判二、判三 -->
+    <button class="tool txt rs" id="btnState" data-rs="二" aria-label="判別式二" title="判別式二(目前是判別式一的複製);連按兩下切換">判二</button>
+    <button class="tool txt rs" id="btnRules" data-rs="三" aria-label="判別式三" title="判別式三(目前是判別式一的複製);連按兩下切換">判三</button>
     <button class="tool gear txt" id="gear" aria-label="設定" title="單擊開 / 關監控設定">設定</button>
   </div>
   <div class="wheels">
@@ -2208,6 +2213,7 @@ function render(list){
   };
   const rulesHtml = () => [
     '<b>' + RULESET.name + '</b>(' + RULESET.date + ' 定案)· 回測 ' + RULESET.backtest,
+    '背景監控現在用的是 ' + RULESET.name + ';' + Object.values(RULESETS).filter(r => r.key !== ACTIVE_RS).map(r => r.name + '(' + r.backtest + ')').join('、') + ';要換,按鍵列那顆連按兩下',
     '',
     '<b>選股(每日 14:30 雲端重算)</b>',
     '上市 / 上櫃普通股(非 ETF、非金融)、官方可現股當沖且可先賣後買、非注意 / 處置股、昨日未收漲跌停',
@@ -2236,26 +2242,33 @@ function render(list){
     infoKind = kind; nl.classList.add('hidden'); info.classList.remove('hidden');
     const paint = () => { info.innerHTML = kind === 'state' ? stateHtml() : rulesHtml(); };
     paint(); clearInterval(infoTimer); if (kind === 'state') infoTimer = setInterval(() => { if (infoKind === 'state' && !info.classList.contains('hidden')) paint(); }, 2000);
-    document.getElementById('btnState').classList.toggle('lit', kind === 'state');
-    document.getElementById('btnRules').classList.toggle('lit', kind === 'rules');
     if (window.refreshToolbar) refreshToolbar();
   };
-  const hideInfo = () => { infoKind = ''; clearInterval(infoTimer); info.classList.add('hidden'); nl.classList.remove('hidden');
-    document.getElementById('btnState').classList.remove('lit'); document.getElementById('btnRules').classList.remove('lit'); if (window.refreshToolbar) refreshToolbar(); };
+  const hideInfo = () => { infoKind = ''; clearInterval(infoTimer); info.classList.add('hidden'); nl.classList.remove('hidden'); if (window.refreshToolbar) refreshToolbar(); };
   window.hideInfo = hideInfo;
-  document.getElementById('btnState').addEventListener('click', () => infoKind === 'state' ? hideInfo() : showInfo('state'));
-  document.getElementById('btnRules').addEventListener('click', () => infoKind === 'rules' ? hideInfo() : showInfo('rules'));
-  // 「判一」:亮燈 = 正在用判別式一做股票監控(背景監控執行中);點一下顯示 / 收起規則說明(2026-10-18)
-  document.getElementById('btnReload').addEventListener('click', () => infoKind === 'rules' ? hideInfo() : showInfo('rules'));
+  // 「判一 / 判二 / 判三」(2026-10-18):亮燈 = 背景監控執行中且正在用那一份判別式;點亮著的那顆 → 顯示 / 收起規則說明;
+  // 點沒亮的那顆 → 狀態列提示「再按一次切換」,4 秒內再按一次才真的切換(存 localStorage 後重載網頁),避免誤觸換掉交易邏輯
+  let rsTapKey = '', rsTapAt = 0;
+  document.querySelectorAll('.tool.rs').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.rs, r = RULESETS[k];
+    if (k === ACTIVE_RS){ infoKind === 'rules' ? hideInfo() : showInfo('rules'); return; }
+    if (rsTapKey === k && Date.now() - rsTapAt < 4000){
+      try{ localStorage.setItem(RS_KEY, k); }catch(e){}
+      setStatus('切換到 ' + r.name + ',重新載入…'); setTimeout(() => location.reload(), 300); return;
+    }
+    rsTapKey = k; rsTapAt = Date.now();
+    setStatus('再按一次「' + r.btn + '」就切換到 ' + r.name + '(目前 ' + RULESET.name + ')');
+    setTimeout(() => { if (rsTapKey === k && Date.now() - rsTapAt >= 3900){ rsTapKey = ''; setStatus(''); } }, 4000);
+  }));
   // 按鍵燈號(2026-10-18 使用者定案):通知欄顯示中 → 「訊息」亮;設定滾輪打開 → 「設定」亮、「訊息」熄;
-  // 「判一」亮 = 背景監控執行中(用的就是判別式一),和另外兩顆無關
+  // 「判一 / 判二 / 判三」只有背景監控正在用的那顆亮
   const refreshToolbar = () => {
     const pnl = document.querySelector('.panel'); const panelOpen = !!(pnl && pnl.classList.contains('open'));
     const infoShown = !info.classList.contains('hidden');
     btn.classList.toggle('on', !panelOpen && !infoShown);
     const g = document.getElementById('gear'); if (g) g.classList.toggle('on', panelOpen);
     let mon = false; try{ mon = !!(window.Android && Android.monitorRunning && Android.monitorRunning()); }catch(e){}
-    document.getElementById('btnReload').classList.toggle('on', mon && RULESET.name === '判別式一');
+    document.querySelectorAll('.tool.rs').forEach(b => b.classList.toggle('on', mon && b.dataset.rs === ACTIVE_RS));
   };
   window.refreshToolbar = refreshToolbar;
   setInterval(refreshToolbar, 3000); setTimeout(refreshToolbar, 500);
@@ -3128,10 +3141,23 @@ let RISK_LINES = [];                  // 圖上的停損 / 停利示意線
 /* ── 判別式一(2026-10-18 使用者定案命名)──
    目前使用的完整進出場邏輯快照。回測 10/13~16(hi350 候選池、資金上限 35 萬):17 筆、賺 15 賠 2、勝率 88%、淨 +61,077。
    以後若要試新的邏輯,另外開「判別式二」,這份不要動;白話版規則在 repo 根目錄《判別式一.md》。 */
-const RULESET = { name: '判別式一', date: '2026-10-18', backtest: '10/13~16 共 19 筆,賺 17 賠 2,勝率 89%,淨 +67,579(量比 0.9、OBV 均 5 第二判別)' };
-const SIG = { skipMin: 15, slopeBars: 10, maxDev: 2.0, noEntryAfter: '13:00', trendOnlyPct: 3.0,
+const RULESET1 = { name: '判別式一', date: '2026-10-18', backtest: '10/13~16 共 19 筆,賺 17 賠 2,勝率 89%,淨 +67,579(量比 0.9、OBV 均 5 第二判別)' };
+const SIG1 = { skipMin: 15, slopeBars: 10, maxDev: 2.0, noEntryAfter: '13:00', trendOnlyPct: 3.0,
               scaleBars: 5, scaleMaFull: 0.5, scaleObFull: 20, scaleW: {ma: 0, obma: 0.75, ob: 0.25}, lampBars: 3, lampWarnBars: 1,   // 多空天秤(2026-10-18):OBV 均線(藍)75% + OBV(紅)25%,均價線 0;5 根斜率,藍 / 紅 ÷ 當日 OBV 範圍 ±20% 滿格
               takePct: 2.5, stopPct: 1.5, maxMovePct: 6.0, confirmMaxGapPct: 2.0, confirmMaxExtGapPct: 2.5, obmaSlopeBars: 5, obmaSlopeMin: 4.0, obmaSlope2Ma: 5, obvExitMa: 30, obvExitMinGain: 1.0, obvWarnMa: 20, maxEntryDevPct: 1.0, vwapFilter: true, vwapSlopeBars: 10, vwapSlopeMin: 0, gapChasePct: 2.0, minDayVol: 6000, rvolMin: 0.9, rvolFilter: true };   // rvol:量比 = 今天到此刻累計量 ÷ 前 5 天同一時刻平均;rvolFilter=true 時量比 < rvolMin 不進場(只記錄,標「比」);false 只顯示(2026-10-16 01:40)   // minDayVol:當天累計成交量(張)未達 6000 不進場;達到後下一個同向點直接進(2026-10-16 01:10)   // vwapFilter:價在 VWAP 上只做多、下只做空(23:30);vwapSlope:VWAP 最近 10 分鐘要往進場方向走 ≥ 0.05%(23:55)   // confirmMaxGapPct:確認點與前一個同向點的價差上限 %(2026-10-15 22:35 定 1%,22:45 改 2%);maxEntryDevPct:訊號價離均價超過 1% 只記錄不進場(23:15)   // 平倉:獲利 2.5% 停利(2026-10-17 由 4% 改,回測 10/13~16 +29,382 → +40,767)、反向 1.5% 停損、距昨收超過 6% 強制出(2026-10-15)   // trendOnlyPct:距昨收超過 ±3%(到 entryMaxChg 為止)只收順勢訊號   // noEntryAfter:13:00 後不進場、只監控平倉(2026-10-15);slopeBars / maxDev 給多空天秤用
+/* ── 判別式二、三(2026-10-18 使用者指令「把現在判別式一複製給判別式二跟三,按鍵名稱也放上去」)──
+   目前兩份都是判別式一的完整複製(每個數字一樣),留給日後試新邏輯;要改哪一份,使用者明確說「改 判別式二 ○○」才動,判別式一照舊鎖定。
+   按鍵列第 2~4 顆 = 判一 / 判二 / 判三:亮燈 = 背景監控正在用那一份;點亮著的那顆看規則;點沒亮的要連按兩下才切換
+   (切換存在 localStorage,網頁重載;背景監控那份網頁下一輪 bgTick 發現不同會自己重載)。 */
+const RULESETS = {
+  '一': Object.assign({ key: '一', btn: '判一', sig: SIG1 }, RULESET1),
+  '二': { key: '二', btn: '判二', name: '判別式二', date: '2026-10-18', backtest: '複製自判別式一,內容完全相同,尚未修改', sig: JSON.parse(JSON.stringify(SIG1)) },
+  '三': { key: '三', btn: '判三', name: '判別式三', date: '2026-10-18', backtest: '複製自判別式一,內容完全相同,尚未修改', sig: JSON.parse(JSON.stringify(SIG1)) },
+};
+const RS_KEY = 'mysh.ruleset';
+let ACTIVE_RS = '一'; try{ const v = localStorage.getItem(RS_KEY); if (RULESETS[v]) ACTIVE_RS = v; }catch(e){}
+const RULESET = RULESETS[ACTIVE_RS];
+const SIG = RULESET.sig;
 function signalLight(bars, ma, ob, obma, prevClose, canShort, dayHi, dayLo){
   const last = bars[bars.length - 1];
   const day = dayKey(last.time);
@@ -4264,6 +4290,7 @@ const BG = { last: new Map(), hist: new Map(), histDay: '', todayAt: new Map(), 
 function bgLog(s){ const line = new Date().toLocaleTimeString('zh-TW', {hour12:false}) + ' ' + s; BG.log.push(line); if (BG.log.length > 300) BG.log.shift(); try{ if (window.Android && Android.log) Android.log(line); }catch(e){} }
 function bgNotify(title, body, kind){ bgLog('[通知] ' + title + ' | ' + body); try{ if (window.Android && Android.notify) Android.notify(title, body, kind || ''); }catch(e){} }
 async function bgTick(force, replay){
+  try{ const v = localStorage.getItem(RS_KEY); if (v && RULESETS[v] && v !== ACTIVE_RS){ location.reload(); return 'reload:' + v; } }catch(e){}   // 2026-10-18:前景那份切換了判別式 → 背景這份自己重載,下一輪就用新的
   if (BG.busy) return 'busy';
   if (replay) BG.last.clear();                      // 測試用:今天所有進出場點重新通知一次
   if (!force && !inSession()) return 'off';
