@@ -74,8 +74,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showMenu(anchor: TextView) {
         val m = PopupMenu(this, anchor)
-        val running = MonitorService.running
-        m.menu.add(0, 1, 0, if (running) "停止背景監控" else "啟動背景監控")
+        // 2026-10-19 使用者:「啟動 / 停止背景監控」拿掉。監控全自動;要強制重啟就長按亮著的判鍵(Android.restartMonitor);要停就返回鍵 → 結束程式
         m.menu.add(0, 2, 1, "監控狀態")
         m.menu.add(0, 3, 2, "關閉電池最佳化(必做)")
         m.menu.add(0, 4, 3, "更新程式(從 GitHub)")
@@ -86,9 +85,6 @@ class MainActivity : AppCompatActivity() {
         m.menu.add(0, 6, 6, "重新載入畫面")
         m.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-                1 -> { if (MonitorService.running) { MonitorService.stop(this); toast("停止中") }
-                       else if (MonitorService.shouldRun()) { MonitorService.start(this); toast("啟動中") }
-                       else { Watchdog.schedule(this); getSharedPreferences("mysh", MODE_PRIVATE).edit().putBoolean("userStopped", false).apply(); toast("非交易時段,下個交易日 08:50 會自動啟動") } }
                 2 -> AlertDialog.Builder(this).setTitle("監控狀態")
                         .setMessage("服務:${if (MonitorService.running) "執行中" else if (MonitorService.shouldRun()) "未執行" else "收盤休眠(週一~五 08:45 起床,13:35 休眠)"}\n${MonitorService.status}\n最後一次:${MonitorService.lastTick}\n\n全自動:每個交易日 08:50 自動啟動、每 15 分鐘看門狗、開機自啟;只有按「停止背景監控」才會停。\n程式來源:${Page.url(this)}")
                         .setPositiveButton("好", null).show()
