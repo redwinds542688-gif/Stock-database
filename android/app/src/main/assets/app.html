@@ -88,6 +88,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 17:40 右上角的背景監控閃爍綠燈改到左上角(使用者指定)。
   · 2026-10-18 17:30 查「清單自動彈回頂端」(使用者錄影):加捲動監視器,狀態頁多一行「清單跳回頂端」記錄時間、從幾 px 跳回、前 1.5 秒跑過的函式、resize 次數;
     長按任一顆「判」鍵 0.6 秒開監控狀態頁(第 3、4 顆改成判二 / 判三後狀態頁沒入口)。
   · 2026-10-18 17:10 標題列(使用者:「高寬不變,名揚四海。自動交易 最大化、彩色漸層」):標題列固定 57px 高,字級 24px → min(44px, 10.4vw),整串彩虹漸層(原本只有名揚四海金色)。
@@ -1330,7 +1331,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610181730">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610181740">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1668,7 +1669,7 @@ except Exception:
 
   .hidden{display:none}
 /* 背景監控狀態點(只在 Android App 裡出現):綠色閃爍 = 監控執行中,紅色恆亮 = 服務沒在跑 */
-#bgDot{position:fixed;top:6px;right:6px;width:10px;height:10px;border-radius:50%;z-index:9999;display:none;pointer-events:none;box-shadow:0 0 4px rgba(0,0,0,.6)}
+#bgDot{position:fixed;top:6px;left:6px;   /* 2026-10-18 使用者:監控綠燈由右上角改左上角 */width:10px;height:10px;border-radius:50%;z-index:9999;display:none;pointer-events:none;box-shadow:0 0 4px rgba(0,0,0,.6)}
 #bgDot.on{display:block;background:#1DD75B;animation:bgBlink 1s steps(1) infinite}
 #bgDot.off{display:block;background:#FF3B3B}
 @keyframes bgBlink{0%{opacity:1}50%{opacity:.15}100%{opacity:1}}
