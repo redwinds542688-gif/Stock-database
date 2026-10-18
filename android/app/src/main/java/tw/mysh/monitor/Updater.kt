@@ -42,13 +42,13 @@ object Updater {
                 if (info.code <= BuildConfig.VERSION_CODE) { if (manual) msg(act, "已是最新版", "目前 ${BuildConfig.VERSION_NAME},GitHub 上是 ${info.name}"); return@runOnUiThread }
                 AlertDialog.Builder(act).setTitle("有新版 App ${info.name}")
                     .setMessage("目前 ${BuildConfig.VERSION_NAME} → ${info.name}\n${info.note}\n\n按「下載安裝」會抓 APK 並打開安裝畫面,再按一次「安裝」就完成,設定都會保留。")
-                    .setPositiveButton("下載安裝") { _, _ -> download(act) }
+                    .setPositiveButton("下載安裝") { _, _ -> download(act, info) }
                     .setNegativeButton("先不要", null).show()
             }
         }
     }
 
-    private fun download(act: Activity) {
+    private fun download(act: Activity, info: Info) {
         if (Build.VERSION.SDK_INT >= 26 && !act.packageManager.canRequestPackageInstalls()) {
             AlertDialog.Builder(act).setTitle("先允許安裝")
                 .setMessage("第一次要允許「名揚四海自動交易」安裝 App(只要設一次),按「去設定」打開後回來再按一次更新。")
@@ -60,14 +60,27 @@ object Updater {
         thread {
             var err: String? = null
             val dir = File(act.cacheDir, "apk").apply { mkdirs() }
-            val out = File(dir, "MyshMonitor.apk")
-            try {
-                val c = URL(RAW + "MyshMonitor.apk?_=" + System.currentTimeMillis()).openConnection() as HttpURLConnection
-                c.connectTimeout = 20000; c.readTimeout = 120000
-                if (c.responseCode != 200) throw Exception("HTTP ${c.responseCode}")
-                c.inputStream.use { i -> out.outputStream().use { o -> i.copyTo(o) } }
-                if (out.length() < 500_000) throw Exception("檔案不完整(${out.length()} bytes)")
-            } catch (e: Exception) { err = e.message ?: e.toString() }
+            dir.listFiles()?.forEach { try { it.delete() } catch (e: Exception) {} }          // 2026-10-19:先清掉以前下載的舊 APK,安裝程式才不會拿到舊檔(使用者裝到 1.5.27)
+            val out = File(dir, "MyshMonitor-${info.code}.apk")                               // 檔名帶版本號,每一版都是新檔
+            val urls = listOf(RAW + "MyshMonitor.apk?v=${info.code}&_=" + System.currentTimeMillis(),
+                              "https://github.com/redwinds542688-gif/Stock-database/raw/main/app/apk/MyshMonitor.apk?v=${info.code}&_=" + System.currentTimeMillis())
+            var got = 0
+            for (u in urls) {
+                try {
+                    val c = URL(u).openConnection() as HttpURLConnection
+                    c.connectTimeout = 20000; c.readTimeout = 120000; c.useCaches = false; c.instanceFollowRedirects = true
+                    c.setRequestProperty("Cache-Control", "no-cache"); c.setRequestProperty("Pragma", "no-cache")
+                    if (c.responseCode != 200) throw Exception("HTTP ${c.responseCode}")
+                    c.inputStream.use { i -> out.outputStream().use { o -> i.copyTo(o) } }
+                    if (out.length() < 500_000) throw Exception("檔案不完整(${out.length()} bytes)")
+                    val pi = act.packageManager.getPackageArchiveInfo(out.absolutePath, 0)
+                    got = pi?.versionCode ?: 0
+                    val nm = pi?.versionName ?: "?"
+                    Log.i("mysh", "下載到 APK 版本 $nm ($got),預期 ${info.code},來源 $u")
+                    if (got >= info.code) { err = null; break }                                  // 下載到的版本要對,不對就換下一個網址再抓一次
+                    err = "GitHub 傳回的還是舊版 $nm,快取還沒更新,請過 5 分鐘再試"
+                } catch (e: Exception) { err = e.message ?: e.toString() }
+            }
             act.runOnUiThread {
                 try { dlg.dismiss() } catch (e: Exception) {}
                 if (err != null) { msg(act, "下載失敗", err!!); return@runOnUiThread }
