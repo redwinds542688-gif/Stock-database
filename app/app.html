@@ -88,6 +88,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 15:30 通知欄卡片改兩列(使用者:「股票代碼這一列:代碼、平倉價位與上面的進場價格對齊,判一二三與上面的做多做空對齊」):
+    第 1 列 名稱 | 進場價 | 做多 / 做空 | 張數 | ▲;第 2 列 代碼 | 平倉價(進場那則空白)| 判一。平倉那則第 1 列改顯示進場價、第 2 列才是平倉價。
   · 2026-10-18 15:10 通知欄「判一 / 判二 / 判三」改到名稱 / 代碼右邊、垂直置中,和做多 / 做空同一高度(使用者:「判一二三與做空做多對齊」)。
   · 2026-10-18 15:00 通知欄(使用者:「股票代碼後面顯示目前判一/判二/判三」):bgNotify 在通知內容最後加「· 判一」等字樣,通知欄卡片代碼後面金色顯示;
     雲端 log_backfill.json 的紀錄補上「· 判一」;舊的手機紀錄沒有這個字樣就不顯示。
@@ -1309,7 +1311,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610181510">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610181530">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1387,11 +1389,12 @@ except Exception:
   #notifLog .card.c-long{background:rgba(255,59,59,.22)} #notifLog .card.c-short{background:rgba(29,215,91,.22)}
   #notifLog .card.mine{outline:2px solid #FFD54F;outline-offset:-2px}   /* 有交易(持倉中) */
   #notifLog .card.done{outline:2px solid #4FC3F7;outline-offset:-2px}   /* 結束交易(已平倉)藍框 */
-  #notifLog .card .ln{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:18px;font-weight:700;line-height:1.25;min-height:2.1em;overflow:hidden}   /* 2026-10-17 其餘欄位字體最大化、垂直置中;寬度不夠時由程式自動縮字 */
-  #notifLog .card .ln .nmblk{flex:0 0 6.2em;min-width:0;overflow:hidden;display:flex;flex-direction:row;align-items:center;gap:.35em;font-size:.9em;line-height:1.15}   /* 2026-10-18 改成左右兩欄:左邊名稱疊代碼,右邊「判一」垂直置中,和做多 / 做空同一高度 */
-  #notifLog .card .ln .nmblk .nmcol{display:flex;flex-direction:column;justify-content:center;min-width:0;overflow:hidden}
+  #notifLog .card .ln{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:18px;font-weight:700;line-height:1.25;min-height:1.3em;overflow:hidden}   /* 2026-10-17 其餘欄位字體最大化、垂直置中;寬度不夠時由程式自動縮字 */
+  #notifLog .card .ln .nmblk{flex:0 0 6.2em;min-width:0;overflow:hidden;display:flex;align-items:center;font-size:.9em;line-height:1.15}   /* 2026-10-18 一張卡兩列:第 1 列放名稱、第 2 列放代碼,其餘欄位上下對齊 */
   #notifLog .card .ln .nmblk .cd{font-size:.62em;font-weight:600;color:#1DD75B;line-height:1.1;white-space:nowrap}
-  #notifLog .card .ln .nmblk .rsb{flex:0 0 auto;font-size:.62em;font-weight:600;color:#C9A227;line-height:1.1}   /* 2026-10-18 「判一 / 判二 / 判三」:金色,字級同代碼,垂直置中對齊做多 / 做空 */
+  #notifLog .card .ln.sub{min-height:1em;line-height:1;margin-top:-3px}   /* 第 2 列:代碼 | 平倉價 | 判一 */
+  #notifLog .card .ln.sub .s{font-size:.62em;font-weight:600;font-style:normal;line-height:1.1}
+  #notifLog .card .ln.sub .px .s{color:#4FC3F7} #notifLog .card .ln.sub .rsb{color:#C9A227}   /* 平倉價藍、判一金 */
   #notifLog .card .ln .nm{color:#FFD54F;overflow:hidden;text-overflow:ellipsis;display:inline-block;align-self:flex-start;border:2px solid #FFD54F;border-radius:4px;padding:0 3px;line-height:1.15}   /* 名稱加框 */
   #notifLog .card .ln .px{flex:0 0 6ch;text-align:right;color:#4FC3F7;margin-left:.5ch}
   #notifLog .card .ln .sd{flex:0 0 2em;text-align:center;margin-left:.5ch} #notifLog .card .ln .sd.win{color:#FF3B3B} #notifLog .card .ln .sd.lose{color:#1DD75B}
@@ -4522,11 +4525,17 @@ window.bgTick = bgTick; window.BG = BG;
     const lotsOf = o => { const p = POSITIONS.get(o.code); if (p && p.qty) return p.qty; const ent = o.entP || o.price || 0; return ent ? Math.max(1, Math.floor(350000 / (ent * 1000))) : 0; };
     const marks = pl => Math.abs(pl || 0) <= 1 ? 1 : 2;   // 損益佔投入金額的 %:≤1 一個、更多兩個(2026-10-17 由三個改兩個)
     const line = o => {
+      // 2026-10-18 使用者定案:一張卡兩列,欄位上下對齊 ──
+      //   第 1 列:名稱 | 進場價 | 做多 / 做空 | 張數 | ▲ / ⚠ | 注意
+      //   第 2 列:代碼 | 平倉價(進場那則空白)| 判一 / 判二 / 判三 | (空)
       const sideTxt = o.side === 'long' ? '做多' : o.side === 'short' ? '做空' : '';
-      const lots = lotsOf(o), px = o.price ? o.price.toFixed(2) : '';
+      const lots = lotsOf(o);
+      const entP = o.type === 'entry' ? o.price : (o.entP || o.price);
+      const pxTop = entP ? (+entP).toFixed(2) : '', pxBot = (o.type !== 'entry' && o.price) ? (+o.price).toFixed(2) : '';
       const ex = o.type === 'exit' ? `<span class="${o.win ? 'mk win' : 'mk lose'}">${(o.win ? '▲' : '⚠').repeat(marks(o.pl))}</span>` : '';
       const rs = o.type === 'warn' ? '<span class="rs warn"><b>注</b><b>意</b></span>' : '<span class="rs"></span>';   // 每列都有同樣的欄位,成交價 / 做多做空 / 張數才會上下對齊;贏 / 輸 取消顯示
-      return `<div class="ln"><span class="nmblk"><span class="nmcol"><span class="nm">${esc(o.name)}</span><span class="cd">${esc(o.code)}</span></span>${o.rs ? '<span class="rsb">' + o.rs + '</span>' : ''}</span><span class="px">${esc(px)}</span><span class="sd ${o.side === 'long' ? 'win' : 'lose'}">${sideTxt}</span><span class="qt">${lots ? lots + '張' : ''}</span><span class="exm">${ex}</span>${rs}</div>`;
+      return `<div class="ln"><span class="nmblk"><span class="nm">${esc(o.name)}</span></span><span class="px">${pxTop}</span><span class="sd ${o.side === 'long' ? 'win' : 'lose'}">${sideTxt}</span><span class="qt">${lots ? lots + '張' : ''}</span><span class="exm">${ex}</span>${rs}</div>`
+           + `<div class="ln sub"><span class="nmblk"><span class="cd">${esc(o.code)}</span></span><span class="px"><i class="s">${pxBot}</i></span><span class="sd"><i class="s rsb">${o.rs || ''}</i></span><span class="qt"></span><span class="exm"></span><span class="rs"></span></div>`;
     };
     const info = o => '';   // 2026-10-17 使用者:每一則下面的灰字明細都不顯示,只留代碼
     box.innerHTML = hd + (cards.length ? cards.map((o, k) => `<div class="card ${o.side === 'long' ? 'c-long' : o.side === 'short' ? 'c-short' : ''}${posStatus(o.code) === 'open' ? ' mine' : posStatus(o.code) === 'closed' ? ' done' : ''}" data-i="${k}">${line(o)}</div>`).join('')
