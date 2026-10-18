@@ -25,7 +25,7 @@
 5. 每次改程式前先確認:這次改動有沒有碰到判別式一?有就停下來問。
 6. 判別式一目前鎖定的數字之一:**量比門檻 0.9**(2026-10-18 使用者指令由 1.0 改 0.7、同日再改 0.9「安全很多」,從此以 0.9 為準)。
 7. 判別式一已核准的第二次修改(2026-10-18 使用者指令「把 OBV5 加入判別式一」):OBV 均線(10)太平時,改看 OBV 均 5 的 5 根斜率 ≥ 4% 就放行。
-8. 判別式二(2026-10-18 使用者指令「把現在判別式一複製給判別式二跟三」;同日 23:30「把判別三刪除」,判別式三已拿掉):從判別式一複製後獨立修改,按鍵「判二」長按切換;不受第 1 點鎖定,但一樣要使用者明確說才動,改了要分開回測、分開記錄;判別式一照舊不動。
+8. 判別式二、三(2026-10-18 使用者指令「把現在判別式一複製給判別式二跟三」;23:30「把判別三刪除」;23:50 判別式三改放「OBV10−OBV30 差擴散 + 判別式二保護」重建,待修正):各自獨立修改,按鍵「判二」「判三」長按切換;不受第 1 點鎖定,但一樣要使用者明確說才動,改了要分開回測、分開記錄;判別式一照舊不動。
 9. **從 2026-10-18 起,判別式一完全凍結,所有修改一律做在判別式二**(使用者指令「現在開始 判別式一 都不能動 現在所有的修改都是針對判別式二」):以後使用者說「改 ○○」「加 ○○」「測 ○○」,沒有特別指名的話,一律改 `RULESETS['二'].sig`(判別式二),判別式一的 `SIG1` / `RULESET1` 連一個數字都不碰;回測與記錄也分開寫在《判別式二.md》。
    **例外一次(2026-10-18 13:45)**:使用者指令「判別式一,三也跟著改」、確認選 1 → 判別式二的兩條新規則併回判別式一與三,三份目前內容相同;之後判別式一恢復凍結。
 10. 判別式一已核准的第三次修改(2026-10-18 使用者指令「都加」→「判別式一,三也跟著改」→「1」):確認點 OBV 紅線 5 根斜率低於 −2%(紅線在退)不進、標「退」(`redSlopeMin:-2`);停利出場後同方向第 1 個點重數(`resetAfterTp:true`)。四天回測 +67,579(19 筆 17 賺 2 賠)→ +71,272(16 筆 15 賺 1 賠,勝率 94%)。
@@ -88,6 +88,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 23:50 判別式三重建(使用者:「連擴 2 根 + 判別式二全部保護 把這放進判別三 找時間再來修正」):`RULESETS['三']` = 判別式一 + entryMode:'gapdir'(gapSlowMa 30、gapWinBars 10、gapGrowBars 2)
+    + 判別式二的保護(noLock、obmaSlopeMin 0、confirmMinGapPct 4、noEntryAfter 12:00),沒有穿越模式、沒有強訊號。進場 = 差(OBV10 − OBV30)剛翻正 / 翻負為起始,10 分鐘內差連擴 2 根 + 紅線在兩條線順向側
+    + K 非虛根就進。四天 23 筆 61% +28,056(判別式二 25 筆 76% +79,819);純邏輯不加保護 846 筆 29% −591,481。按鍵「判三」放回,規則頁有說明;《判別式三.md》新建。
   · 2026-10-18 23:30 判別式三刪除(使用者:「首先 把判別三 刪除」):按鍵列拿掉「判三」(剩 訊息 / 判一 / 判二 / 設定,4 格),`RULESETS` 只剩一、二;
     舊手機若存檔記著「三」,開啟時自動退回判別式一。通知卡片的「判三」舊紀錄仍可顯示。鐵律第 8 條同步改寫(README、判別式一.md、本檔)。
   · 2026-10-18 23:00 判別式二第四次修改(使用者:「這 13 筆輸錢的看看有沒有什麼解法」→「兩個都加」):
@@ -1370,7 +1373,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610182330">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610182350">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1497,7 +1500,7 @@ except Exception:
 
   /* 顯示區下方的五顆按鍵,平均分配螢幕寬度,齒輪在第五顆 */
   .toolbar{position:absolute;bottom:4px;left:0;right:0;z-index:6;
-           display:grid;grid-template-columns:repeat(4,1fr);   /* 2026-10-18 判三刪除後剩 4 顆 */
+           display:grid;grid-template-columns:repeat(5,1fr);
            align-items:center;justify-items:center}
   .tool{width:38px;height:38px;padding:0;display:grid;place-items:center;touch-action:manipulation;   /* 2026-10-18 按鍵不等雙擊判定,點了就反應 */
         background:none;border:none;color:var(--dim);cursor:pointer;
@@ -1739,6 +1742,7 @@ except Exception:
             title="顯示監控訊息;長按重新讀取雲端資料">訊息</button>
     <button class="tool txt rs" id="btnReload" data-rs="一" aria-label="判別式一" title="亮燈 = 背景監控正在用判別式一;點亮著的看規則,沒亮的連按兩下切換">判一<i class="mdot"></i></button>   <!-- 2026-10-18 使用者:第二顆設「判一」;同日加判二(判三加了又刪);mdot = 背景監控燈(亮在正在用的那顆右上角) -->
     <button class="tool txt rs" id="btnState" data-rs="二" aria-label="判別式二" title="判別式二;長按 0.6 秒切換背景監控">判二<i class="mdot"></i></button>
+    <button class="tool txt rs" id="btnRules" data-rs="三" aria-label="判別式三" title="判別式三(OBV10−OBV30 差擴散邏輯,待修正);長按 0.6 秒切換背景監控">判三<i class="mdot"></i></button>
     <button class="tool gear txt" id="gear" aria-label="設定" title="單擊開 / 關監控設定">設定</button>
   </div>
   <div class="wheels">
@@ -2337,7 +2341,9 @@ function render(list){
     '',
     '<b>進場</b>',
     '均價 K' + BASE.maPeriod + ' / OBV 均線 ' + BASE.obvMaPeriod + ';開盤 ' + SIG.skipMin + ' 分鐘內不進,' + SIG.noEntryAfter + ' 後不進',
-    ...(SIG.entryMode === 'cross'
+    ...(SIG.entryMode === 'gapdir'
+      ? ['第一訊號 = OBV 均 10 − OBV 均 ' + SIG.gapSlowMa + ' 的差剛翻正(做空:翻負)→ ' + SIG.gapWinBars + ' 分鐘內:差連續擴大 ' + SIG.gapGrowBars + ' 根、紅線在 OBV 均 10 與 OBV 均 ' + SIG.gapSlowMa + ' 之上(做空:之下)、K 不是虛根且收在當日高低之間 = 確認點直接進;窗口過期或差翻回去則作廢(待修正)']
+      : SIG.entryMode === 'cross'
       ? ['第一訊號 = OBV 紅線剛穿過藍線(力度 ≥ ' + SIG.crossStrPct + '%,÷當日 OBV 範圍)→ ' + SIG.crossWinBars + ' 分鐘內:紅線創 ' + SIG.crossNewHi + ' 次新高 / 新低且在極值、OBV 均 ' + SIG.crossSlowMa + '(慢線)同向、K 收盤在均價之上 / 之下' + (SIG.crossKMaDir ? '且均價同向' : '(不看均價方向)') + ' = 確認點才進;紅線跌回另一側或窗口過期則作廢']
       : ['第一訊號(價貫穿均線 + 均線轉向)→ 第二訊號確認(OBV 與 OBV 均線同向、收盤價差 ≤ ' + SIG.confirmMaxGapPct + '%、極值價差 ≤ ' + SIG.confirmMaxExtGapPct + '%)才進']),
     ...(SIG.strong ? ['<b>強訊號</b>(不用等穿越,直接是確認點):紅線在 OBV 均 10 與 OBV 均 ' + SIG.strongSlowMa + ' 之下(多:之上)、OBV 均 10 在 ' + SIG.strongDxBars + ' 分鐘內剛死叉(多:金叉)OBV 均 ' + SIG.strongSlowMa + '、OBV 均 10 同向且 OBV 均 ' + SIG.strongSlowMa + ' 連 ' + SIG.strongSlowBars + ' 根同向、紅線是近 ' + SIG.strongExtBars + ' 根極值、K 收盤在均價之下(多:之上)且均價同向 → 成立後 ' + SIG.strongWin + ' 分鐘內第一根非虛根就進(標「強」);不受 ±' + SIG.trendOnlyPct + '% 順勢限制、離昨收上限放寬到 ±' + SIG.strongMaxChg + '%;' + SIG.strongNoAfter + ' 後不看;燈號直接亮「強空 / 強多」'] : []),
@@ -3284,9 +3290,9 @@ const SIG1 = { skipMin: 15, slopeBars: 10, maxDev: 2.0, noEntryAfter: '13:00', t
               scaleBars: 5, scaleMaFull: 0.5, scaleObFull: 20, scaleW: {ma: 0, obma: 0.75, ob: 0.25}, lampBars: 3, lampWarnBars: 1,   // 多空天秤(2026-10-18):OBV 均線(藍)75% + OBV(紅)25%,均價線 0;5 根斜率,藍 / 紅 ÷ 當日 OBV 範圍 ±20% 滿格
               takePct: 2.5, stopPct: 1.5, maxMovePct: 6.0, confirmMaxGapPct: 2.0, confirmMaxExtGapPct: 2.5, obmaSlopeBars: 5, obmaSlopeMin: 4.0, obmaSlope2Ma: 5, obvExitMa: 30, obvExitMinGain: 1.0, obvWarnMa: 20, maxEntryDevPct: 1.0, vwapFilter: true, vwapSlopeBars: 10, vwapSlopeMin: 0, gapChasePct: 2.0, minDayVol: 6000, rvolMin: 0.9, rvolFilter: true,
               redSlopeMin: -2, resetAfterTp: true };   // 2026-10-18 第三次修改(使用者「都加」→「判別式一,三也跟著改」→ 選 1):redSlopeMin 確認點紅線 5 根斜率 < −2%(在退)不進、標「退」;resetAfterTp 停利後同方向第 1 點重數   // rvol:量比 = 今天到此刻累計量 ÷ 前 5 天同一時刻平均;rvolFilter=true 時量比 < rvolMin 不進場(只記錄,標「比」);false 只顯示(2026-10-16 01:40)   // minDayVol:當天累計成交量(張)未達 6000 不進場;達到後下一個同向點直接進(2026-10-16 01:10)   // vwapFilter:價在 VWAP 上只做多、下只做空(23:30);vwapSlope:VWAP 最近 10 分鐘要往進場方向走 ≥ 0.05%(23:55)   // confirmMaxGapPct:確認點與前一個同向點的價差上限 %(2026-10-15 22:35 定 1%,22:45 改 2%);maxEntryDevPct:訊號價離均價超過 1% 只記錄不進場(23:15)   // 平倉:獲利 2.5% 停利(2026-10-17 由 4% 改,回測 10/13~16 +29,382 → +40,767)、反向 1.5% 停損、距昨收超過 6% 強制出(2026-10-15)   // trendOnlyPct:距昨收超過 ±3%(到 entryMaxChg 為止)只收順勢訊號   // noEntryAfter:13:00 後不進場、只監控平倉(2026-10-15);slopeBars / maxDev 給多空天秤用
-/* ── 判別式二(2026-10-18 使用者指令「把現在判別式一複製給判別式二跟三,按鍵名稱也放上去」;同日 23:30「把判別三刪除」,只剩一、二)──
-   判別式二從判別式一複製後已多次修改(見 RULESETS['二'] 的註解與《判別式二.md》);判別式一照舊鎖定。
-   按鍵列第 2、3 顆 = 判一 / 判二:亮燈 = 背景監控正在用那一份;單擊看規則;長按 0.6 秒切換
+/* ── 判別式二、三(2026-10-18 使用者指令「把現在判別式一複製給判別式二跟三,按鍵名稱也放上去」;23:30「把判別三刪除」;23:50 判別式三改放差擴散邏輯重建)──
+   判別式二從判別式一複製後已多次修改(見 RULESETS['二'] 的註解與《判別式二.md》);判別式三 = 差擴散邏輯 + 判別式二的保護(《判別式三.md》,待修正);判別式一照舊鎖定。
+   按鍵列第 2~4 顆 = 判一 / 判二 / 判三:亮燈 = 背景監控正在用那一份;單擊看規則;長按 0.6 秒切換
    (切換存在 localStorage,網頁重載;背景監控那份網頁下一輪 bgTick 發現不同會自己重載)。 */
 const RULESETS = {
   '一': Object.assign({ key: '一', btn: '判一', sig: SIG1 }, RULESET1),
@@ -3312,7 +3318,13 @@ const RULESETS = {
           sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'cross', crossStrPct: 2, crossWinBars: 10, crossNewHi: 1, crossSlowMa: 20, crossKMaDir: false, noLock: true, obmaSlopeMin: 0,
                                                                   strong: true, strongSlowMa: 30, strongDxBars: 5, strongSlowBars: 2, strongExtBars: 10, strongWin: 5, strongMaxChg: 4, strongNoAfter: '11:30',
                                                                   confirmMinGapPct: 4, noEntryAfter: '12:00' }) },
-  // 判別式三:2026-10-18 使用者「把判別三刪除」→ 拿掉(原本是判別式一的複製,沒有改過);舊存檔若記著 '三',下面 ACTIVE_RS 會退回 '一'
+  // 判別式三(2026-10-18 23:30 使用者「把判別三刪除」拿掉舊的複製版;23:50 使用者「連擴 2 根 + 判別式二全部保護 把這放進判別三 找時間再來修正」重建):
+  //   entryMode:'gapdir' = 使用者提的「OBV10 − OBV30 相減之差」邏輯:差剛翻正(做空翻負)= 起始,gapWinBars(10)根內「紅線在 OBV10 與 OBV gapSlowMa(30)之上(空:之下)
+  //   + 差連續擴大 gapGrowBars(2)根 + K 不是虛根、收在當日高低之間」= 確認點直接進;窗口過期或差翻回去 → 候選作廢。保護全部照判別式二(3.5%、順勢、VWAP、量、量比、離均價 1%、
+  //   跳空、紅線在退、距離 4%、12:00 後不進、不鎖方向、藍線斜率關閉),沒有穿越模式、沒有強訊號。四天回測 23 筆、賺 14 賠 9、61%、+28,056(純邏輯不加保護是 846 筆 29% −591,481)。
+  //   目前只是放著觀察,使用者說「找時間再來修正」。模擬器:判別式二的保護旗標 + MODE=gapdir GSTART=cross GK=2 GWIN=10(不加 STRONG)。
+  '三': { key: '三', btn: '判三', name: '判別式三', date: '2026-10-18', backtest: '10/13~16 共 23 筆,賺 14 賠 9,勝率 61%,淨 +28,056(OBV10−OBV30 差翻正起始 + 紅線在兩線上 + 差連擴 2 根;保護同判別式二;待修正)',
+          sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'gapdir', gapSlowMa: 30, gapWinBars: 10, gapGrowBars: 2, noLock: true, obmaSlopeMin: 0, confirmMinGapPct: 4, noEntryAfter: '12:00' }) },
 };
 const RS_KEY = 'mysh.ruleset';
 let ACTIVE_RS = '一'; try{ const v = localStorage.getItem(RS_KEY); if (RULESETS[v]) ACTIVE_RS = v; }catch(e){}
@@ -3396,8 +3408,11 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
   const cand = {long: null, short: null};                                                         // 穿越候選 {exp: 到期的 bar index, i0: 穿越那根在 ob 的 index}
   // 判別式二 強訊號(2026-10-18 22:15):紅線在 OBV10 與 OBV strongSlowMa 之下 + OBV10 剛死叉 + 兩條都降 + 價在均價下 → 直接當確認點(strongHolds 判斷;燈號也用同一個函式)
   const strongOn = !!SIG.strong && SIG.strongSlowMa > 0;
-  const obmaS = strongOn ? ((SIG.strongSlowMa === SIG.obvExitMa && obma2.length) ? obma2 : sma(ob, SIG.strongSlowMa, 'value')) : [];
-  const SM = strongOn ? {ma: toTimeMap(ma), ob: toTimeMap(ob), obma: toTimeMap(obma), obS: toTimeMap(obmaS)} : null;
+  const gapMode = SIG.entryMode === 'gapdir';                                                      // 判別式三(2026-10-18 23:50):OBV10 − OBV30 差擴散起手
+  const slowN = strongOn ? SIG.strongSlowMa : (gapMode ? SIG.gapSlowMa : 0);
+  const obmaS = slowN > 0 ? ((slowN === SIG.obvExitMa && obma2.length) ? obma2 : sma(ob, slowN, 'value')) : [];
+  const SM = slowN > 0 ? {ma: toTimeMap(ma), ob: toTimeMap(ob), obma: toTimeMap(obma), obS: toTimeMap(obmaS)} : null;
+  const gcand = {long: null, short: null};                                                        // 判別式三:差剛翻正 / 翻負的候選(bar index + gapWinBars)
   const scand = {long: null, short: null};                                                        // 強訊號候選:剛成立那根的 bar index + strongWin   // 2026-10-17 「正在反彈」警示用:OBV 反向穿越這條只通知、不平倉,每筆持倉只提醒一次
   const last = bars[bars.length - 1];
   const lastDay = dayKey(last.time);
@@ -3515,6 +3530,24 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
           side = sd; xconf = true; break;
         }
       }
+    } else if (gapMode){
+      // 判別式三(2026-10-18 23:50,使用者提的邏輯):差 = (OBV10 − OBV30) × 方向。差剛翻正 = 起始(候選 gapWinBars 根);候選期間「差連續擴大 gapGrowBars 根 + 紅線在兩條線的順向側 + K 不是虛根、收在當日高低之間」= 確認點。
+      // 模擬器 MODE=gapdir GSTART=cross GK=2 GWIN=10;OBV30 要算得出來(今天第 gapSlowMa+gapGrowBars+1 根起)。
+      const g = (j, dir) => { if (j < 0) return null; const a = SM.obma.get(bars[j].time), c2 = SM.obS.get(bars[j].time); return (a === undefined || c2 === undefined) ? null : (a - c2) * dir; };
+      if (n >= SIG.gapSlowMa + SIG.gapGrowBars + 1){
+        for (const sd of ['long', 'short']){
+          if (sd === 'short' && canShort === false) continue;
+          const dir = sd === 'long' ? 1 : -1, other = sd === 'long' ? 'short' : 'long';
+          if (g(bi - SIG.gapGrowBars - 1, dir) === null) continue;
+          const g0 = g(bi, dir), g1 = g(bi - 1, dir);
+          if (g0 > 0 && g1 <= 0){ gcand[sd] = bi + SIG.gapWinBars; gcand[other] = null; }
+          if (gcand[sd] !== null && (bi > gcand[sd] || g0 <= 0)) gcand[sd] = null;
+          let grow = g0 > 0;
+          for (let q = 0; q < SIG.gapGrowBars && grow; q++){ const a = g(bi - q, dir), c2 = g(bi - q - 1, dir); if (a === null || c2 === null || a <= c2) grow = false; }
+          const sv = SM.obS.get(b.time);
+          if (gcand[sd] !== null && grow && (ov - omv) * dir > 0 && sv !== undefined && (ov - sv) * dir > 0 && between && !doji){ side = sd; xconf = true; break; }
+        }
+      }
     } else {
       if (kUp && oUp && between && pressUp && !doji) side = 'long';
       else if (kDn && oDn && between && pressDn && !doji && canShort !== false) side = 'short';
@@ -3539,7 +3572,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
                                               : (!!(prevClose && !entryAllowed(b.close, prevClose).ok) || !!counterTrend));   // 超過 ±entryMaxChg%,或 ±trendOnlyPct% 外的逆勢訊號 → ✕(ignoreGate 模式一律不擋、不鎖)
     // 第 7 條:同方向第 2 個以後的訊號,OBV(紅線)與 OBV 均線(藍線)都要比前一個同向訊號更低(空)/ 更高(多)才算確認點
     let confirmed = true;
-    if (crossMode){ confirmed = xconf; lastSig[side] = {ob: ov, obma: omv, price: b.close, high: b.high, low: b.low}; }
+    if (crossMode || gapMode){ confirmed = xconf; lastSig[side] = {ob: ov, obma: omv, price: b.close, high: b.high, low: b.low}; }
     else if (YH.confirmByObv){
       const prev = lastSig[side];
       confirmed = !!prev && (side === 'short' ? (ov < prev.ob && omv < prev.obma && b.close < prev.price)
@@ -3637,7 +3670,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
       if (canEnter){                                                               // 進場(或反手),反向計數歸零
         mk(true, tag);
         const entry = (bi + 1 < bars.length) ? bars[bi + 1].open : b.close;        // 下一根開盤執行
-        cyc = {side, time: tStr, price: b.close, entry, gated: false}; lastSig[opp] = null; pending[side] = false; if (crossMode) cand[side] = null;
+        cyc = {side, time: tStr, price: b.close, entry, gated: false}; lastSig[opp] = null; pending[side] = false; if (crossMode) cand[side] = null; if (gapMode) gcand[side] = null;
       }
       else mk(false, tag);
       continue;
