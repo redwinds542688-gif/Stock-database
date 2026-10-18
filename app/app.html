@@ -88,6 +88,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 20:15 設定區文字再最大化:標題 25px(一格剛好 5 個字)、選中的數字 24px、其餘 18px(使用者:「文字最大化」)。
   · 2026-10-18 20:10 設定滾輪的標題(監控低價 / 監控高價 / 最低振幅 / 監控檔數 / 手續費折扣 / 多空上限)放大到 22px 白字粗體(原 10px 灰字),上下留白縮小讓兩排放得下(使用者指定)。
   · 2026-10-18 20:00 監控檔數滾輪改 99/89/79/69/59/49/39/29/19、循環捲動(使用者指定,最多 99 股);makeWheel 加 loop 選項(清單排三份、停在頭尾跳回中間);
     長按快捷循環同一組;舊存檔不在清單裡的一律搬到 99。
@@ -1348,7 +1349,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610182010">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610182015">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1509,8 +1510,8 @@ except Exception:
   .wheels{position:absolute;z-index:4;
           top:8px;left:0;right:0;bottom:48px;
           display:flex;flex-wrap:wrap;align-content:center;
-          column-gap:8px;row-gap:4px;
-          padding:4px 6px;   /* 2026-10-18 標題字放大後,上下留白縮小才放得下兩排 */
+          column-gap:8px;row-gap:2px;
+          padding:2px 6px;   /* 2026-10-18 標題字放大後,上下留白縮小才放得下兩排 */
           background:none;          /* 透明,紅框不被蓋住 */
           visibility:hidden}
   .panel.open .wheels{visibility:visible}
@@ -1528,8 +1529,8 @@ except Exception:
   .subwheels .opt{font-size:11.2px}
   .subwheels .opt.on{font-size:14px}
 
-  .wheel .lbl{font-size:min(22px,calc((100vw - 28px) / 16));letter-spacing:.04em;color:var(--text);font-weight:700;line-height:1.1;
-              text-align:center;margin-bottom:2px;white-space:nowrap}   /* 2026-10-18 使用者:監控低價 / 高價 / 振幅 / 檔數 … 標題在列裡最大化(原 10px 灰字) */
+  .wheel .lbl{font-size:min(25px,calc((100vw - 28px) / 15.4));letter-spacing:0;color:var(--text);font-weight:700;line-height:1.05;
+              text-align:center;margin-bottom:0;white-space:nowrap}   /* 2026-10-18 使用者:「文字最大化」:5 個字(手續費折扣)剛好塞滿一格的最大字級 */   /* 2026-10-18 使用者:監控低價 / 高價 / 振幅 / 檔數 … 標題在列裡最大化(原 10px 灰字) */
   .scroller{position:relative;height:76px;overflow-y:scroll;scroll-snap-type:y mandatory;            -webkit-overflow-scrolling:touch;
             -webkit-mask-image:linear-gradient(180deg,transparent,#000 24%,#000 76%,transparent);
             mask-image:linear-gradient(180deg,transparent,#000 24%,#000 76%,transparent)}
@@ -1539,8 +1540,8 @@ except Exception:
   .opt{height:38px;line-height:38px;box-sizing:border-box;padding:0;margin:0;
        transform:translateY(-8%);
        text-align:center;scroll-snap-align:center;
-       font-family:var(--mono);font-size:16px;color:var(--faint)}
-  .opt.on{color:var(--brass);font-size:20px;font-weight:600}
+       font-family:var(--mono);font-size:18px;color:var(--faint)}
+  .opt.on{color:var(--brass);font-size:24px;font-weight:700}   /* 2026-10-18 數字也放大(20 → 24) */
   .pad{height:57px;flex:none}
   /* 固定選取框:停在滾輪正中央,不隨捲動移動 */
   .hl{position:absolute;left:0;right:0;pointer-events:none;
