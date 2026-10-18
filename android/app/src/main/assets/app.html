@@ -88,6 +88,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 20:20 滾輪標題「手續費折扣」改「手續折扣」(使用者指定)。
   · 2026-10-18 20:15 設定區文字再最大化:標題 25px(一格剛好 5 個字)、選中的數字 24px、其餘 18px(使用者:「文字最大化」)。
   · 2026-10-18 20:10 設定滾輪的標題(監控低價 / 監控高價 / 最低振幅 / 監控檔數 / 手續費折扣 / 多空上限)放大到 22px 白字粗體(原 10px 灰字),上下留白縮小讓兩排放得下(使用者指定)。
   · 2026-10-18 20:00 監控檔數滾輪改 99/89/79/69/59/49/39/29/19、循環捲動(使用者指定,最多 99 股);makeWheel 加 loop 選項(清單排三份、停在頭尾跳回中間);
@@ -1349,7 +1350,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610182015">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610182020">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1758,7 +1759,7 @@ except Exception:
     <div class="hl"></div>
   </div>
   <div class="wheel" id="feeWheel">
-    <div class="lbl">手續費折扣</div>
+    <div class="lbl">手續折扣</div>   <!-- 2026-10-18 使用者:手續費折扣 → 手續折扣 -->
     <div class="scroller" id="wFee"></div>
     <div class="hl"></div>
   </div>
@@ -1869,7 +1870,7 @@ window.MONITOR_SETTINGS = {
   },
 
   disc: {                     // 手續費折扣
-    label: '手續費折扣',
+    label: '手續折扣',
     init : '30%',                // 使用者實際折扣 3 折(2026-10-15)
     range: [{ from: 10, to: 100, step: 5, suffix: '%' }],
   },
