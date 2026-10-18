@@ -88,6 +88,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-19 01:10 監控設定(滾輪 8 個值)也改由 App 保存(使用者:「設定那邊有紀錄存檔嗎」):1.5.29 加 Android.getPref / setPref,設定先問 App、沒有才看 localStorage,
+    每撥一次滾輪兩邊都存;舊版只在 localStorage 的設定第一次開啟補存到 App。監控股票快照與持倉是當日用完就丟的,照舊 localStorage。
   · 2026-10-19 00:50 判別式選擇改由 App 保存(使用者:「判別式需要紀錄,離開程式再回來要就是離開時的判別式」):原本只存網頁 localStorage,內建網頁(android_asset)
     和自動更新下載的網頁(files/)在 WebView 是不同來源,各存各的,換頁後就回到判一。1.5.28 的 App 加 Android.getRuleset / setRuleset(SharedPreferences),
     網頁開啟先問 App、切換時兩邊都存(`readRuleset()` / `saveRuleset()`),背景那份每輪也用同一個函式比對。舊版 App 沒有這兩個方法,照舊用 localStorage。
@@ -1381,7 +1383,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610190050">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610190110">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2614,7 +2616,12 @@ function makeWheel(id, baseValues, initial, onChange, opts2 = {}){
    監控調整數值 — 使用者的選擇,每次啟動自動讀回
    ══════════════════════════════════════════ */
 const STORE_KEY = 'mysh.settings';
+// 2026-10-19 使用者:「設定那邊有紀錄存檔嗎」:有,原本只存 localStorage,和判別式一樣會因為內建網頁 / 下載網頁來源不同而讀不到。
+// 1.5.29 起 App 提供 Android.getPref / setPref(SharedPreferences),設定先問 App、沒有才看 localStorage;每撥一次滾輪兩邊都存。
 const saved = (() => {
+  let fromApp = null;
+  try{ if (window.Android && Android.getPref){ const t = Android.getPref(STORE_KEY); if (t) fromApp = JSON.parse(t); } }catch(e){}
+  if (fromApp && typeof fromApp === 'object') return fromApp;
   try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; }
   catch (e) { return {}; }
 })();
@@ -2626,15 +2633,16 @@ if (!['99','89','79','69','59','49','39','29','19'].includes(String(saved.cnt)))
 if (!saved.hi350 && String(saved.hi) === '300') saved.hi = '350';
 /* 任何滾輪一撥動就立刻寫入,不等退出、不等關閉 */
 const saveFees = () => {
-  try {
-    localStorage.setItem(STORE_KEY, JSON.stringify({
-      hi: wHi.value, lo: wLo.value, amp: wAmp.value,
-      disc: wFee.value, cnt: wCnt.value, cap: wCap.value,
-      broker: wBroker.value, exch: wExch.value, tax: wTax.value,
-      cnt100: true, hi350: true,
-    }));
-  } catch (e) { /* 無法存檔時忽略 */ }
+  const txt = JSON.stringify({
+    hi: wHi.value, lo: wLo.value, amp: wAmp.value,
+    disc: wFee.value, cnt: wCnt.value, cap: wCap.value,
+    broker: wBroker.value, exch: wExch.value, tax: wTax.value,
+    cnt100: true, hi350: true,
+  });
+  try { localStorage.setItem(STORE_KEY, txt); } catch (e) { /* 無法存檔時忽略 */ }
+  try { if (window.Android && Android.setPref) Android.setPref(STORE_KEY, txt); } catch (e) {}   // App 也存一份(2026-10-19)
 };
+try{ if (window.Android && Android.setPref && Android.getPref && !Android.getPref(STORE_KEY) && Object.keys(saved).length) Android.setPref(STORE_KEY, JSON.stringify(saved)); }catch(e){}   // 舊版只存 localStorage 的設定,第一次開啟補存到 App
 const onFeeChange = () => { saveFees(); queueScan(); };
 
 /* 匯出「監控調整數值初始」— 把目前八個值寫成新的 settings.js 下載

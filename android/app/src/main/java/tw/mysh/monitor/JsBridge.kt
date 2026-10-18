@@ -97,6 +97,13 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
     @JavascriptInterface
     fun getRuleset(): String = ctx.getSharedPreferences("mysh", Context.MODE_PRIVATE).getString("ruleset", "") ?: ""
 
+    /** 監控設定(滾輪的 8 個值,JSON 字串)也由 App 保存,原因同上(2026-10-19 使用者:「設定那邊有紀錄存檔嗎」) */
+    @JavascriptInterface
+    fun getPref(key: String?): String = ctx.getSharedPreferences("mysh.kv", Context.MODE_PRIVATE).getString(key ?: "", "") ?: ""
+
+    @JavascriptInterface
+    fun setPref(key: String?, v: String?) { ctx.getSharedPreferences("mysh.kv", Context.MODE_PRIVATE).edit().putString(key ?: "", v ?: "").apply() }
+
     @JavascriptInterface
     fun setRuleset(k: String?) { ctx.getSharedPreferences("mysh", Context.MODE_PRIVATE).edit().putString("ruleset", k ?: "").apply(); Log.i("mysh", "[$tag] ruleset -> $k") }
 }
