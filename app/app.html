@@ -88,6 +88,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-19 04:45 通知卡片文字最大化(使用者):字級上限 21px → 40px,仍由最擠那一列塞滿卡片寬度決定,所以每列剛好填滿、欄位上下對齊;卡片變高,一頁看到的筆數變少,捲動看其餘。
   · 2026-10-19 04:30 App 1.5.41 右下角「≡」取消,改成長按「設定」鍵 0.7 秒開同一個選單(使用者指定):網頁長按設定呼叫 Android.openMenu,App 把選單開在原本右下角的位置(那顆鍵改成隱形錨點)。
     費率覆蓋層開著時長按設定仍是關掉覆蓋層;電腦瀏覽器長按設定仍是匯出設定檔。
   · 2026-10-19 04:15 App 1.5.40 「更新 App」只在 GitHub 有新版時才出現在選單(使用者:「已經是最新版就不用出現」):Updater 每次檢查把 GitHub 的版本記在 SharedPreferences,
@@ -1404,7 +1405,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610190430">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610190445">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1492,20 +1493,20 @@ except Exception:
   #notifLog .card.mine{outline:2px solid #FFD54F;outline-offset:-2px}   /* 有交易(持倉中) */
   #notifLog .card.done{outline:2px solid #4FC3F7;outline-offset:-2px}   /* 結束交易(已平倉)藍框 */
   #notifLog .card .ln{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:18px;font-weight:700;line-height:1.25;min-height:1.3em;overflow:hidden}   /* 2026-10-17 其餘欄位字體最大化、垂直置中;寬度不夠時由程式自動縮字 */
-  #notifLog .card .ln .nmblk{flex:0 0 6.2em;min-width:0;overflow:hidden;display:flex;align-items:center;font-size:.9em;line-height:1.15}   /* 2026-10-18 一張卡兩列:第 1 列放名稱、第 2 列放代碼,其餘欄位上下對齊 */
+  #notifLog .card .ln .nmblk{flex:0 0 5.2em;min-width:0;overflow:hidden;display:flex;align-items:center;font-size:.9em;line-height:1.15}   /* 2026-10-18 一張卡兩列:第 1 列放名稱、第 2 列放代碼,其餘欄位上下對齊 */
   #notifLog .card .ln .nmblk .cd{font-size:.62em;font-weight:600;color:#1DD75B;line-height:1.1;white-space:nowrap;margin-left:2px}   /* 2026-10-18 使用者:代碼向右移 2px */
   #notifLog .card .ln.sub{min-height:1em;line-height:1;margin-top:-3px}   /* 第 2 列:代碼 | 平倉價 | 判一 */
   #notifLog .card .ln.sub .s{font-size:.62em;font-weight:600;font-style:normal;line-height:1.1}
   #notifLog .card .ln.sub .rsb{color:#C9A227;display:inline-block;border:1px solid #C9A227;border-radius:3px;padding:0 3px;line-height:1.15}
   #notifLog .card .ln.sub .rs .wl{display:inline-block;border:1px solid currentColor;border-radius:3px;padding:0 4px;line-height:1.15;font-weight:700} #notifLog .card .ln.sub .rs .wl.win{color:#FF3B3B} #notifLog .card .ln.sub .rs .wl.lose{color:#1DD75B}   /* 平倉下面的 贏(紅)/ 輸(綠) */   /* 判一金、加框(2026-10-18 使用者);平倉價顏色同上(漲紅跌綠) */
   #notifLog .card .ln .nm{color:var(--text);overflow:hidden;text-overflow:ellipsis;display:inline-block;align-self:center;line-height:1.15;font-family:var(--sans)}   /* 2026-10-18 名稱改白字、不加框,和下面清單一致(原本黃字黃框) */
-  #notifLog .card .ln .px{flex:0 0 6ch;text-align:right;color:var(--text);margin-left:.5ch}   /* 2026-10-18 價格顏色同清單:漲紅跌綠平白 */
+  #notifLog .card .ln .px{flex:0 0 6ch;text-align:right;color:var(--text);margin-left:.25ch}   /* 2026-10-18 價格顏色同清單:漲紅跌綠平白 */
   #notifLog .card .ln .px.up{color:var(--up)} #notifLog .card .ln .px.down{color:var(--down)}
-  #notifLog .card .ln .sd{flex:0 0 2.3em;text-align:center;margin-left:.5ch} #notifLog .card .ln .sd.win{color:#FF3B3B} #notifLog .card .ln .sd.lose{color:#1DD75B}
+  #notifLog .card .ln .sd{flex:0 0 2.2em;text-align:center;margin-left:.25ch} #notifLog .card .ln .sd.win{color:#FF3B3B} #notifLog .card .ln .sd.lose{color:#1DD75B}
   #notifLog .card .ln:not(.sub) .sd.win,#notifLog .card .ln:not(.sub) .sd.lose{display:inline-block;border:2px solid currentColor;border-radius:4px;padding:0 2px;line-height:1.1;font-size:.9em}   /* 2026-10-18 使用者:做多 / 做空 加框 */
-  #notifLog .card .ln .qt{flex:0 0 2.6em;text-align:right;color:#D8DEE9;margin-left:.5ch}
-  #notifLog .card .ln .exm{flex:1 0 2.4em;text-align:right;margin-left:.5ch;letter-spacing:-1px} #notifLog .card .ln .mk.lose{color:#1DD75B} #notifLog .card .ln .mk.win{color:#FF3B3B}   /* 2026-10-18 使用者:贏的三角形紅、輸的驚嘆號綠(原本相反) */   /* 賠紅 ⚠、賺綠 ▲(2026-10-17 使用者) */
-  #notifLog .card .ln .rs{flex:0 0 2.9em;text-align:right;margin-left:.5ch;font-weight:700}
+  #notifLog .card .ln .qt{flex:0 0 2.2em;text-align:right;color:#D8DEE9;margin-left:.25ch}
+  #notifLog .card .ln .exm{flex:1 0 2.2em;text-align:right;margin-left:.25ch;letter-spacing:-1px} #notifLog .card .ln .mk.lose{color:#1DD75B} #notifLog .card .ln .mk.win{color:#FF3B3B}   /* 2026-10-18 使用者:贏的三角形紅、輸的驚嘆號綠(原本相反) */   /* 賠紅 ⚠、賺綠 ▲(2026-10-17 使用者) */
+  #notifLog .card .ln .rs{flex:0 0 2.6em;text-align:right;margin-left:.25ch;font-weight:700}   /* 2026-10-19 文字最大化:各欄固定寬與間距縮小,字級才能放大 */
   #notifLog .card .ln .rs.al{display:inline-block;border:2px solid currentColor;border-radius:4px;padding:0 2px;line-height:1.1;text-align:center;font-size:.9em}   /* 2026-10-18 警示欄位 */
   #notifLog .card .ln .rs.al-exit,#notifLog .card .ln .rs.al-warn,#notifLog .card .ln .rs.al-rebound{color:#FF3B3B}   /* 2026-10-18 使用者:警示一律紅色 */
   #notifLog .card .ln .rs.blink{animation:nlblink 1s step-end infinite} @keyframes nlblink{50%{opacity:.12}}   /* 剛出現 10 分鐘內閃爍 */
@@ -4871,7 +4872,7 @@ window.bgTick = bgTick; window.BG = BG;
     // 用實際畫出來的寬度量,所以手機系統字體放大也會自動算進去,不會破圖。
     const fit = () => {
       const lns = [...box.querySelectorAll('.card .ln')]; if (!lns.length) return;
-      let fs = 21;   // 全部列用同一個字級(取最擠那列算出來的),欄位才會上下對齊
+      let fs = 40;   // 全部列用同一個字級(取最擠那列算出來的),欄位才會上下對齊;2026-10-19 使用者「文字在訊息裡最大化」:上限由 21 放到 40,實際由最擠那列塞滿寬度決定
       const Z = window.__textZoomTest || 1;   // 測試用:模擬手機系統字體放大(真機為 1,放大由 WebView 自己做)
       for (const ln of lns){
         // 量「內容本身」需要多寬:先把整列設成 max-content(不受容器寬度影響,符號欄不會被壓縮),量完再放回去
@@ -4880,7 +4881,7 @@ window.bgTick = bgTick; window.BG = BG;
         const avail = ln.parentElement.clientWidth - 6; if (!need || !avail) continue;
         fs = Math.min(fs, Math.floor(18 * avail / need * 2) / 2);
       }
-      fs = Math.max(10, Math.min(21, fs));
+      fs = Math.max(10, Math.min(40, fs));
       for (const ln of lns) ln.style.fontSize = (fs * Z) + 'px';
     };
     fit(); try{ if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit); }catch(e){} setTimeout(fit, 300);
