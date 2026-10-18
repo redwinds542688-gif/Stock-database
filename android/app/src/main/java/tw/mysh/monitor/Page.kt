@@ -30,10 +30,15 @@ object Page {
         return if (f.exists() && f.length() > 10000) "file://" + f.absolutePath else "file:///android_asset/app.html"
     }
     /** 目前實際在用的網頁版本戳(下載版或內建版,取較新的) */
+    private var cbKey = ""; private var cbVal = 0L
     fun currentBuild(ctx: Context): Long {
         val f = localFile(ctx)
-        val fb = if (f.exists()) try { buildOf(f.readText(Charsets.UTF_8)) } catch (e: Exception) { 0L } else 0L
-        return maxOf(fb, assetBuild(ctx))
+        val key = if (f.exists()) "${f.lastModified()}/${f.length()}" else "-"
+        if (key != cbKey) {   // 2026-10-18 背景服務每 5 秒會問一次,檔案沒變就不用重讀整個檔
+            cbVal = if (f.exists()) try { buildOf(f.readText(Charsets.UTF_8)) } catch (e: Exception) { 0L } else 0L
+            cbKey = key
+        }
+        return maxOf(cbVal, assetBuild(ctx))
     }
     /** 自動更新(2026-10-18 使用者:「有辦法不用按就自動更新嗎」):靜靜去 GitHub 比對版本戳,
      *  比目前用的新才下載換掉;回傳 true = 有換新版(呼叫端要重新載入網頁)。失敗一律當沒有新版。 */

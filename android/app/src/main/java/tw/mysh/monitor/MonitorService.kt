@@ -17,6 +17,7 @@ import java.time.DayOfWeek
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import kotlin.concurrent.thread
 
 /** 前景服務:自己開一個看不見的 WebView 載入同一份程式,每 5 秒叫 bgTick(),由網頁決定要不要通知 */
 class MonitorService : Service() {
@@ -62,6 +63,9 @@ class MonitorService : Service() {
     private var wake: PowerManager.WakeLock? = null
     private var ticks = 0
     private var pageLoadedAt = 0L
+    private var loadedBuild = 0L       // 服務網頁目前載入的版本戳
+    private var lastUpdateCheck = 0L   // 上次去 GitHub 比對版本的時間
+    private var pendingReload = false  // 盤中下載了新版、但還有持倉,等沒持倉再重載
     private val dot by lazy { OverlayDot(this) }
 
     private val tick = object : Runnable {
@@ -87,6 +91,18 @@ class MonitorService : Service() {
                      else if (lastTick.startsWith("holiday")) "今天休市(證交所交易日 ${lastTick.removePrefix("holiday ").trim()}),每 10 分鐘確認一次"
                      else "監控中 · ${now.toLocalTime().withNano(0)} · $lastTick"
             updateForeground()
+            // 2026-10-18 1.5.27 背景也自動更新網頁(使用者:「不需要按更新程式就自動更新完畢」):每 15 分鐘比對 GitHub,有新版就換檔。
+            // 重新載入的時機:非交易時段立刻;盤中要等網頁回報沒有持倉(BG.pos 空)才重載,免得持倉的進場價、警示狀態被洗掉。
+            val nowMs = System.currentTimeMillis()
+            if (w != null && nowMs - lastUpdateCheck > 15 * 60_000L) {
+                lastUpdateCheck = nowMs
+                thread { try { if (Page.autoUpdate(this@MonitorService)) { Log.i("mysh", "service auto update → " + Page.currentBuild(this@MonitorService)); handler.post { pendingReload = true } } } catch (e: Exception) {} }
+            }
+            if (w != null && (pendingReload || Page.currentBuild(this@MonitorService) > loadedBuild)) {
+                pendingReload = true
+                if (!session) { pendingReload = false; reloadPage() }
+                else w.evaluateJavascript("(window.BG && BG.pos) ? BG.pos.size : 0") { r -> if ((r ?: "0").trim() == "0" && pendingReload) { pendingReload = false; reloadPage() } }
+            }
             val holiday = lastTick.startsWith("holiday")
             handler.postDelayed(this, if (!session) 60000L else if (holiday) 600000L else 5000L)
         }
@@ -124,13 +140,13 @@ class MonitorService : Service() {
             val w = WebView(this)
             Page.setup(w, ServiceBridge())
             w.loadUrl(Page.url(this))
-            web = w; pageReady = false; pageLoadedAt = System.currentTimeMillis()
+            web = w; pageReady = false; pageLoadedAt = System.currentTimeMillis(); loadedBuild = Page.currentBuild(this)
         } catch (e: Exception) { Log.e("mysh", "webview create failed", e); status = "WebView 建立失敗:" + e.message }
     }
 
     fun reloadPage() {
         pageReady = false
-        web?.loadUrl(Page.url(this)); pageLoadedAt = System.currentTimeMillis()
+        web?.loadUrl(Page.url(this)); pageLoadedAt = System.currentTimeMillis(); loadedBuild = Page.currentBuild(this)
     }
 
     /** Android 一個 App 只會有一個 Service 實例:重複 start 只會再叫一次 onStartCommand,不會再建一個;

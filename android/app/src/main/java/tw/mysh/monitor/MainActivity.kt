@@ -27,7 +27,7 @@ class MainActivity : AppCompatActivity() {
         JsBridge.ensureChannels(this)
         web = findViewById(R.id.web)
         Page.setup(web, JsBridge(this, "activity"))
-        web.loadUrl(Page.url(this))
+        web.loadUrl(Page.url(this)); loadedBuild = Page.currentBuild(this)
         findViewById<TextView>(R.id.menuBtn).setOnClickListener { showMenu(it as TextView) }
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
@@ -39,17 +39,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var lastAutoPage = 0L
+    private var loadedBuild = 0L   // 這個畫面目前載入的網頁版本戳
     override fun onResume() {
         super.onResume()
-        // 網頁自動更新(2026-10-18):每次回到前景(最多 10 分鐘一次)靜靜比對 GitHub 上的版本戳,有新版就換掉並重新載入,不用再按「更新程式」
+        // 網頁自動更新(2026-10-18;同日 1.5.27 使用者:「不需要按更新程式就自動更新完畢」):每次回到前景都比對 GitHub(原本 10 分鐘一次,
+        // 現在只擋 15 秒內重複);背景服務也每 15 分鐘自己查(MonitorService),服務換好檔案後這裡回前景看到檔案比載入的新就重新載入
         val now = System.currentTimeMillis()
-        if (now - lastAutoPage < 10 * 60 * 1000L) return
+        if (now - lastAutoPage < 15_000L) return
         lastAutoPage = now
         thread {
-            if (Page.autoUpdate(this)) runOnUiThread {
-                toast("網頁已自動更新到新版 " + Page.currentBuild(this))
-                web.loadUrl(Page.url(this))
-                if (MonitorService.running) { MonitorService.stop(this); web.postDelayed({ MonitorService.start(this) }, 1500) }
+            val changed = Page.autoUpdate(this)
+            runOnUiThread {
+                val cur = Page.currentBuild(this)
+                if (changed || cur > loadedBuild) {
+                    if (changed) toast("網頁已自動更新到新版 $cur")
+                    loadedBuild = cur; web.loadUrl(Page.url(this))
+                    if (changed && MonitorService.running) { MonitorService.stop(this); web.postDelayed({ MonitorService.start(this) }, 1500) }   // 服務自己換的就不用重啟,它已經重載過了
+                }
             }
         }
     }
