@@ -30,22 +30,29 @@ object Updater {
     } catch (e: Exception) { Log.w("mysh", "version.json 讀取失敗: ${e.message}"); null }
 
     /** manual=false:App 打開時靜靜檢查,6 小時最多一次,有新版才問 */
-    fun check(act: Activity, manual: Boolean) {
+    fun check(act: Activity, manual: Boolean, quiet: Boolean = false) {   // quiet=true:沒新版就安靜,不跳「已是最新版」
         val sp = act.getSharedPreferences("mysh", Context.MODE_PRIVATE)
         if (!manual && System.currentTimeMillis() - sp.getLong("lastUpdChk", 0) < 6 * 3600_000L) return
         thread {
             val info = fetchInfo()
             sp.edit().putLong("lastUpdChk", System.currentTimeMillis()).apply()
+            if (info != null) sp.edit().putInt("latestCode", info.code).putString("latestName", info.name).apply()   // 2026-10-19:記住 GitHub 上最新版,選單用它決定要不要列「更新 App」
             act.runOnUiThread {
                 if (act.isFinishing) return@runOnUiThread
-                if (info == null) { if (manual) msg(act, "檢查失敗", "連不上 GitHub,稍後再試"); return@runOnUiThread }
-                if (info.code <= BuildConfig.VERSION_CODE) { if (manual) msg(act, "已是最新版", "目前 ${BuildConfig.VERSION_NAME},GitHub 上是 ${info.name}"); return@runOnUiThread }
+                if (info == null) { if (manual && !quiet) msg(act, "檢查失敗", "連不上 GitHub,稍後再試"); return@runOnUiThread }
+                if (info.code <= BuildConfig.VERSION_CODE) { if (manual && !quiet) msg(act, "已是最新版", "目前 ${BuildConfig.VERSION_NAME},GitHub 上是 ${info.name}"); return@runOnUiThread }
                 AlertDialog.Builder(act).setTitle("有新版 App ${info.name}")
                     .setMessage("目前 ${BuildConfig.VERSION_NAME} → ${info.name}\n${info.note}\n\n按「下載安裝」會抓 APK 並打開安裝畫面,再按一次「安裝」就完成,設定都會保留。")
                     .setPositiveButton("下載安裝") { _, _ -> download(act, info) }
                     .setNegativeButton("先不要", null).show()
             }
         }
+    }
+
+    /** GitHub 上有沒有比目前新的版本(用上次檢查記住的結果,不連網) */
+    fun newerKnown(act: Activity): String? {
+        val sp = act.getSharedPreferences("mysh", Context.MODE_PRIVATE)
+        return if (sp.getInt("latestCode", 0) > BuildConfig.VERSION_CODE) sp.getString("latestName", "?") else null
     }
 
     private fun download(act: Activity, info: Info) {
