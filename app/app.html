@@ -88,6 +88,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 20:00 監控檔數滾輪改 99/89/79/69/59/49/39/29/19、循環捲動(使用者指定,最多 99 股);makeWheel 加 loop 選項(清單排三份、停在頭尾跳回中間);
+    長按快捷循環同一組;舊存檔不在清單裡的一律搬到 99。
   · 2026-10-18 19:45 清單改成自己的捲動區(使用者第三段錄影:清單完全滑不動):html/body overflow:hidden,#result position:fixed 從固定區下緣到螢幕底、overflow-y:auto、
     touch-action:pan-y;捲動監視器與診斷改看 #result。
   · 2026-10-18 19:30 狀態頁加「捲動診斷」(現在 / 最多捲過幾 px、頁高、視窗高、清單列數與高度、body / html overflow),查「清單滑不動」。
@@ -1345,7 +1347,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610181945">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610182000">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1878,8 +1880,8 @@ window.MONITOR_SETTINGS = {
 
   cnt: {                      // 監控檔數
     label: '監控檔數',
-    init : 100,                 // 2026-10-17 使用者改 100(回測 34~100 名 4 天多賺 +10,750)
-    range: ['100', '50', '33', '20', '5'],
+    init : 99,                  // 2026-10-18 使用者:最多 99 股(之前 100);2026-10-17 由 33 改 100
+    range: ['99', '89', '79', '69', '59', '49', '39', '29', '19'],
   },
 
   /* ── 進階設定(長按「手續費折扣」才出現) ── */
@@ -2453,9 +2455,13 @@ const ITEM = 38;          // 每格高度
 const VIEW = 76;          // 滾輪可視高度 = 2 格
 const PAD  = (VIEW - ITEM) / 2;    // 上下留白,讓第一格能停在正中央
 
-function makeWheel(id, values, initial, onChange){
+function makeWheel(id, baseValues, initial, onChange, opts2 = {}){
   const box = el(id);
   const hl = box.parentElement.querySelector('.hl');
+  // 2026-10-18 loop:true = 循環滾輪(使用者:監控檔數 99/89/…/19 循環):把清單排三份,停在頭尾那份時悄悄跳回中間那份,看起來就是無限循環
+  const loop = !!opts2.loop, n = baseValues.length;
+  const values = loop ? [...baseValues, ...baseValues, ...baseValues] : baseValues;
+  const toMid = i => loop ? n + ((i % n) + n) % n : i;
 
   box.innerHTML = `<div class="pad" style="height:${PAD}px"></div>`
     + values.map(v => `<div class="opt">${v}</div>`).join('')
@@ -2463,7 +2469,7 @@ function makeWheel(id, values, initial, onChange){
 
   const opts = [...box.querySelectorAll('.opt')];
   const pads = [...box.querySelectorAll('.pad')];
-  const w = {value: initial, index: Math.max(0, values.indexOf(initial))};
+  const w = {value: initial, index: toMid(Math.max(0, baseValues.indexOf(initial)))};
 
   /* ── 全部靠實際量測,不假設任何像素值 ── */
   let step = ITEM, first = PAD, inset = 0, itemH = ITEM;
@@ -2510,8 +2516,9 @@ function makeWheel(id, values, initial, onChange){
   let locking = false;
   const settle = () => {
     if (locking) return;
-    const i = indexNow();
+    let i = indexNow();
     locking = true;
+    if (loop && (i < n || i >= 2 * n)) i = toMid(i);   // 停在頭尾那份 → 跳回中間那份同一個值(畫面看不出來)
     scrollTo(i);                                  // 精準歸位
     requestAnimationFrame(() => { locking = false; });
     mark(i, true);
@@ -2550,8 +2557,9 @@ function makeWheel(id, values, initial, onChange){
 
   w.init = init;                       // 由隱藏轉為顯示時要重新量測
   w.setValue = v => {                  // 以數值直接跳位(給快捷切換用)
-    const i = values.indexOf(String(v));
+    let i = baseValues.indexOf(String(v));
     if (i < 0) return false;
+    i = toMid(i);
     locking = true;
     scrollTo(i);
     requestAnimationFrame(() => { locking = false; });
@@ -2571,6 +2579,8 @@ const saved = (() => {
 })();
 /* 2026-10-17 監控檔數預設 33 → 100:舊存檔還是 33 的只搬一次,之後使用者自己撥回 33 會保留 */
 if (!saved.cnt100 && String(saved.cnt) === '33') saved.cnt = '100';
+/* 2026-10-18 監控檔數改成 99~19 每 10 一格:舊存檔不在清單裡的(100、50、33、20、5)一律搬到 99 */
+if (!['99','89','79','69','59','49','39','29','19'].includes(String(saved.cnt))) saved.cnt = '99';
 /* 2026-10-17 監控高價預設 300 → 350:同樣只搬一次 */
 if (!saved.hi350 && String(saved.hi) === '300') saved.hi = '350';
 /* 任何滾輪一撥動就立刻寫入,不等退出、不等關閉 */
@@ -2620,7 +2630,7 @@ const DEFAULT_SETTINGS = {
   lo    : { init: 15,  range: [{from:15,to:50,step:1}] },
   amp   : { init: '4.0%',  range: [{from:4.0,to:8,step:0.1,decimals:1,suffix:'%'}] },
   disc  : { init: '30%',   range: [{from:10,to:100,step:5,suffix:'%'}] },
-  cnt   : { init: 100, range: ['100','50','33','20','5'] },
+  cnt   : { init: 99, range: ['99','89','79','69','59','49','39','29','19'] },   // 2026-10-18 使用者:最多 99,每 10 一格
   cap   : { init: '35萬', range: [{from:5,to:50,step:1,suffix:'萬'}] },
   broker: { init: '0.1425%',
             range: ['0.1500%', '0.1475%', '0.1450%', '0.1425%', '0.1400%', '0.1375%', '0.1350%', '0.1325%', '0.1300%', '0.1275%', '0.1250%', '0.1225%', '0.1200%', '0.1175%', '0.1150%', '0.1125%', '0.1100%', '0.1075%', '0.1050%', '0.1025%', '0.1000%'] },
@@ -2675,7 +2685,7 @@ const wLo  = makeWheel('wLo',  buildVals(CFG.lo   && CFG.lo.range),
 const wAmp = makeWheel('wAmp', buildVals(CFG.amp  && CFG.amp.range),
                        startVal('amp', '4.0%'), onFeeChange);
 const wCnt = makeWheel('wCnt', buildVals(CFG.cnt  && CFG.cnt.range),
-                       startVal('cnt', 100), onFeeChange);
+                       startVal('cnt', 99), onFeeChange, {loop: true});   // 2026-10-18 使用者:最多 99,99/89/…/19 循環
 const wCap = makeWheel('wCap', buildVals(CFG.cap  && CFG.cap.range),
                        startVal('cap', '35萬'), onFeeChange);
 
@@ -2732,7 +2742,7 @@ function attachCycle(wheelId, wheel, cycle, tie = 'low'){
   ['mouseup','mouseleave'].forEach(ev => w.addEventListener(ev, stop));
 }
 
-attachCycle('cntWheel', wCnt, ['33', '20', '5']);
+attachCycle('cntWheel', wCnt, ['99', '89', '79', '69', '59', '49', '39', '29', '19']);
 attachCycle('loWheel',  wLo,  ['50', '40', '30', '20', '15']);
 attachCycle('hiWheel',  wHi,  ['51','100','150','200','250','300',
                                '350','400','450','500']);
