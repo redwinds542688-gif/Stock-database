@@ -97,6 +97,15 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
     @JavascriptInterface
     fun getRuleset(): String = ctx.getSharedPreferences("mysh", Context.MODE_PRIVATE).getString("ruleset", "") ?: ""
 
+    /** 強制重新啟動背景監控(2026-10-19 使用者:「判一亮燈,再次長按判一便可以強制監控重新啟動」):先停再起;非交易時段只排鬧鐘,回傳 off */
+    @JavascriptInterface
+    fun restartMonitor(): String {
+        if (!MonitorService.shouldRun()) { Watchdog.schedule(ctx); ctx.getSharedPreferences("mysh", Context.MODE_PRIVATE).edit().putBoolean("userStopped", false).apply(); return "off" }
+        val h = android.os.Handler(android.os.Looper.getMainLooper())
+        if (MonitorService.running) { MonitorService.stop(ctx); h.postDelayed({ MonitorService.start(ctx) }, 1500) } else MonitorService.start(ctx)
+        return "restart"
+    }
+
     /** 監控設定(滾輪的 8 個值,JSON 字串)也由 App 保存,原因同上(2026-10-19 使用者:「設定那邊有紀錄存檔嗎」) */
     @JavascriptInterface
     fun getPref(key: String?): String = ctx.getSharedPreferences("mysh.kv", Context.MODE_PRIVATE).getString(key ?: "", "") ?: ""

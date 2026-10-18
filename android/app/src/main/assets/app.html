@@ -88,6 +88,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-19 02:40 長按正在用的那顆判鍵 = 強制重新啟動背景監控(使用者:「判一亮燈,再次長按判一便可以強制監控重新啟動」):App 1.5.32 加 Android.restartMonitor(先停再起,
+    非交易時段只排鬧鐘回傳 off),網頁長按亮著的判鍵呼叫它、顯示「背景監控重新啟動中…」並打開狀態頁;舊版 App 沒有這個方法就只開狀態頁。選單裡的「啟動 / 停止背景監控」照舊留著。
   · 2026-10-19 02:20 通知欄:非開盤時間、今天又沒有買賣訊號時,自動顯示最近一個有紀錄的工作日(使用者:「通知欄是空的,如果非開盤時間也沒有當天紀錄,就顯示前一個工作日的通知訊息」);
     標題會寫那天的日期(例「10/16監控紀錄」),◀ ▶ 照常翻;盤中或今天有訊號就還是顯示今天。
   · 2026-10-19 02:00 App 1.5.31 更新 App 修正(使用者按「更新 App」裝到的卻是 1.5.27,返回鍵視窗一直沒出現):下載完先用 PackageManager 讀 APK 的版本號,
@@ -1390,7 +1392,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610190220">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610190240">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1757,7 +1759,7 @@ except Exception:
   <div class="toolbar">
     <button class="tool txt" id="refreshBtn" aria-label="訊息"
             title="顯示監控訊息;長按重新讀取雲端資料">訊息</button>
-    <button class="tool txt rs" id="btnReload" data-rs="一" aria-label="判別式一" title="亮燈 = 背景監控正在用判別式一;點亮著的看規則,沒亮的連按兩下切換">判一<i class="mdot"></i></button>   <!-- 2026-10-18 使用者:第二顆設「判一」;同日加判二(判三加了又刪);mdot = 背景監控燈(亮在正在用的那顆右上角) -->
+    <button class="tool txt rs" id="btnReload" data-rs="一" aria-label="判別式一" title="亮燈 = 背景監控正在用判別式一;單擊看規則;長按沒亮的切換、長按亮著的強制重新啟動監控">判一<i class="mdot"></i></button>   <!-- 2026-10-18 使用者:第二顆設「判一」;同日加判二(判三加了又刪);mdot = 背景監控燈(亮在正在用的那顆右上角) -->
     <button class="tool txt rs" id="btnState" data-rs="二" aria-label="判別式二" title="判別式二;長按 0.6 秒切換背景監控">判二<i class="mdot"></i></button>
     <button class="tool txt rs" id="btnRules" data-rs="三" aria-label="判別式三" title="判別式三(OBV10−OBV30 差擴散邏輯,待修正);長按 0.6 秒切換背景監控">判三<i class="mdot"></i></button>
     <button class="tool gear txt" id="gear" aria-label="設定" title="單擊開 / 關監控設定">設定</button>
@@ -2402,7 +2404,13 @@ function render(list){
     const act = () => { (infoKind === 'rules' && infoRs === k) ? hideInfo() : showInfo('rules', k); };
     const st = () => { rsLong = false; rsMoved = false; clearTimeout(rsHold); rsHold = setTimeout(() => {
       rsLong = true; try{ navigator.vibrate && navigator.vibrate(30); }catch(e){}
-      if (k === ACTIVE_RS){ infoKind === 'state' ? hideInfo() : showInfo('state'); return; }
+      if (k === ACTIVE_RS){   // 2026-10-19 使用者:「判一亮燈,再次長按判一便可以強制監控重新啟動」→ 長按正在用的那顆 = 背景監控先停再起(App 1.5.32 的 Android.restartMonitor),再打開狀態頁看它回來;舊版 App 只開狀態頁
+        let r = '';
+        try{ if (window.Android && Android.restartMonitor) r = String(Android.restartMonitor() || ''); }catch(e){}
+        if (r === 'restart') setStatus('背景監控重新啟動中…'); else if (r === 'off') setStatus('非交易時段,下個交易日 08:50 會自動啟動');
+        if (infoKind !== 'state') showInfo('state');
+        return;
+      }
       saveRuleset(k);   // localStorage + App 的 SharedPreferences 都存(2026-10-19)
       setStatus('切換背景監控到 ' + RULESETS[k].name + ',重新載入…'); setTimeout(() => location.reload(), 300);
     }, 600); };
