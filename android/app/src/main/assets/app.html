@@ -88,6 +88,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 19:05 訊息燈改回:規則頁 / 狀態頁顯示中就熄,只有通知列表顯示中才亮(使用者:「通知欄顯示判一資料,此時訊息要熄燈」)。
   · 2026-10-18 19:00 判鍵「卡卡」(使用者):改成放開手指就動作(touchend),不等 click 的延遲;拿掉「0.4 秒內連點忽略」;.tool 加 touch-action:manipulation。
   · 2026-10-18 18:50 判鍵操作定案(使用者):單擊任一顆 = 看那一份的規則(沒在用的也能看,不切換;規則頁顯示中那顆亮燈);長按 0.6 秒沒在用的那顆 = 切換背景監控
     到那一份(判一熄、那顆亮 + 監控燈);長按正在用的那顆 = 監控狀態頁。訊息燈 = 內容區顯示中(通知或規則頁都算),設定打開才熄。原本「連按兩下切換」取消。
@@ -1339,7 +1340,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610181900">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610181905">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2358,7 +2359,7 @@ function render(list){
   const refreshToolbar = () => {
     const pnl = document.querySelector('.panel'); const panelOpen = !!(pnl && pnl.classList.contains('open'));
     const infoShown = !info.classList.contains('hidden');
-    btn.classList.toggle('on', !panelOpen);   // 2026-10-18 使用者定案:訊息燈 = 內容區顯示中(通知或規則頁都算),只有設定打開才熄
+    btn.classList.toggle('on', !panelOpen && !infoShown);   // 2026-10-18 使用者定案:訊息燈 = 通知列表顯示中;規則頁 / 狀態頁顯示中或設定打開都熄
     const g = document.getElementById('gear'); if (g) g.classList.toggle('on', panelOpen);
     let mon = false; try{ mon = !!(window.Android && Android.monitorRunning && Android.monitorRunning()); }catch(e){}
     // 2026-10-18 使用者:「判一 通知欄顯示內容(規則頁)時燈號要亮著」→ 正在用的那顆:背景監控執行中 或 規則頁 / 狀態頁顯示中 就亮
