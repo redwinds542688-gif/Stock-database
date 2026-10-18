@@ -88,6 +88,12 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 14:30 判別式二第二次修改(使用者:「把紅線穿越藍線的邏輯作為訊號開頭」→「obv10 必須搭配 obv30」→「再加上股價在均價之上則直接提示交易,回測」→「那就先拿掉方向鎖」):
+    `RULESETS['二'].sig` 加 entryMode:'cross'、crossStrPct:2、crossWinBars:10、crossNewHi:1、crossSlowMa:20、crossKMaDir:false、noLock:true、obmaSlopeMin:0。
+    replaySignals 多一條 crossMode 路徑(紅線剛穿藍線 = 第 1 點;10 分鐘內紅線創新高 + OBV 均 20 同向 + 收盤在均價上 = 確認點;進場後候選清掉),
+    方向鎖受 SIG.noLock 控制;規則頁依模式顯示。判別式一、三不走這條路(SIG1 沒有 entryMode)。四天回測 23 筆、13 賺 10 賠、57%、+43,882
+    (測過:OBV30 當慢線 17 筆 +33,155;「拉開模式」44 筆 +15,016;保護全拿掉 267 筆 −86,090;均價方向不看 +39,356 ≈ 看 +38,235)。
+    App 重跑系統電、台塑、濱川、毅嘉、敬鵬、眾達、友達、希華 9 個股票日,進出場時間與模擬器完全一致。
   · 2026-10-18 13:45 判別式一第三次修改(使用者指令「判別式一,三也跟著改」,我提醒碰到鐵律第 9 條後使用者選 1「確定三份都改」):
     `redSlopeMin:-2`、`resetAfterTp:true` 併進 `SIG1`,判別式二、三回到純複製,三份相同。判別式一四天回測 +67,579(19 筆)→ +71,272
     (16 筆 15 賺 1 賠,勝率 94%);唯一賠的是系統電 10/13 09:43 空單 −318。雲端 log_backfill.json 重跑;規則頁兩條不再標【判別式二加】;
@@ -1300,7 +1306,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610181345">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610181430">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2241,16 +2247,18 @@ function render(list){
     '',
     '<b>進場</b>',
     '均價 K' + BASE.maPeriod + ' / OBV 均線 ' + BASE.obvMaPeriod + ';開盤 ' + SIG.skipMin + ' 分鐘內不進,' + SIG.noEntryAfter + ' 後不進',
-    '第一訊號(價貫穿均線 + 均線轉向)→ 第二訊號確認(OBV 與 OBV 均線同向、收盤價差 ≤ ' + SIG.confirmMaxGapPct + '%、極值價差 ≤ ' + SIG.confirmMaxExtGapPct + '%)才進',
+    ...(SIG.entryMode === 'cross'
+      ? ['第一訊號 = OBV 紅線剛穿過藍線(力度 ≥ ' + SIG.crossStrPct + '%,÷當日 OBV 範圍)→ ' + SIG.crossWinBars + ' 分鐘內:紅線創 ' + SIG.crossNewHi + ' 次新高 / 新低且在極值、OBV 均 ' + SIG.crossSlowMa + '(慢線)同向、K 收盤在均價之上 / 之下' + (SIG.crossKMaDir ? '且均價同向' : '(不看均價方向)') + ' = 確認點才進;紅線跌回另一側或窗口過期則作廢']
+      : ['第一訊號(價貫穿均線 + 均線轉向)→ 第二訊號確認(OBV 與 OBV 均線同向、收盤價差 ≤ ' + SIG.confirmMaxGapPct + '%、極值價差 ≤ ' + SIG.confirmMaxExtGapPct + '%)才進']),
     '進場價離均價 > ' + SIG.maxEntryDevPct + '% 只記錄;離昨收 > ±' + BASE.entryMaxChg + '% 不進(±' + SIG.trendOnlyPct + '% 外只收順勢訊號);' + '價須在 VWAP 正確一側' + (SIG.vwapSlopeMin > 0 ? '且 VWAP 斜率 ≥ ' + SIG.vwapSlopeMin + '%' : '(不看 VWAP 斜率)') + (SIG.gapChasePct > 0 ? ';今開跳空超過 ±' + SIG.gapChasePct + '% 不順著缺口方向做' : ''),
     '累積量 ≥ ' + SIG.minDayVol + ' 張且量比 ≥ ' + SIG.rvolMin + ' 才進(量夠後下一個訊號直接進;量比 = 今天到此刻累積量 ÷ 前 5 天同時刻平均)',
     ...(SIG.redSlopeMin != null ? ['確認點 OBV 紅線最近 ' + SIG.obmaSlopeBars + ' 根斜率(÷當日 OBV 範圍)低於 ' + SIG.redSlopeMin + '%(紅線在退)只記錄不進(退)'] : []),
     ...(SIG.resetAfterTp ? ['停利出場後,同方向的第 1 個點作廢,要重新等第 1 點 + 確認點才再進'] : []),
-    '同一邊第一次放棄的方向,當天不再做(單邊鎖)',
+    ...(SIG.noLock ? ['不鎖方向(確認點被漲跌幅擋到,之後同方向仍可進)'] : ['同一邊第一次放棄的方向,當天不再做(單邊鎖)']),
     '',
     '<b>出場</b>',
     '停利 +' + SIG.takePct + '%、停損 −' + SIG.stopPct + '%、離昨收超過 ' + SIG.maxMovePct + '% 強制出',
-    'OBV 均線最近 ' + SIG.obmaSlopeBars + ' 根斜率(÷當日 OBV 範圍)不到 ' + SIG.obmaSlopeMin + '% 只記錄不進(量能還沒形成方向)' + (SIG.obmaSlope2Ma > 0 ? ';但 OBV 均 ' + SIG.obmaSlope2Ma + ' 的斜率夠 ' + SIG.obmaSlopeMin + '% 就放行' : ''),
+    ...(SIG.obmaSlopeMin > 0 ? ['OBV 均線最近 ' + SIG.obmaSlopeBars + ' 根斜率(÷當日 OBV 範圍)不到 ' + SIG.obmaSlopeMin + '% 只記錄不進(量能還沒形成方向)' + (SIG.obmaSlope2Ma > 0 ? ';但 OBV 均 ' + SIG.obmaSlope2Ma + ' 的斜率夠 ' + SIG.obmaSlopeMin + '% 就放行' : '')] : ['不看 OBV 均線斜率(剛穿越時藍線本來就平)']),
     '持倉中 OBV 反向穿越 OBV 均' + SIG.obvExitMa + ' 且帳面 ≥ ' + SIG.obvExitMinGain + '% → 提早停利',
     '持倉中 OBV 反向穿越 OBV 均' + SIG.obvWarnMa + ' → 通知「可能正在反彈,注意」一次,不平倉',
     '出現反向訊號且該反向點可進場 → 平倉(逆勢單碰到反向點立即平倉)',
@@ -3174,7 +3182,13 @@ const SIG1 = { skipMin: 15, slopeBars: 10, maxDev: 2.0, noEntryAfter: '13:00', t
 const RULESETS = {
   '一': Object.assign({ key: '一', btn: '判一', sig: SIG1 }, RULESET1),
   // 2026-10-18 13:30 判別式二先加 redSlopeMin:-2、resetAfterTp:true;13:45 使用者「判別式一,三也跟著改」(選 1)→ 兩條併進 SIG1,三份又完全相同
-  '二': { key: '二', btn: '判二', name: '判別式二', date: '2026-10-18', backtest: '與判別式一相同(16 筆,賺 15 賠 1,+71,272);2026-10-18 兩條新規則三份都加', sig: JSON.parse(JSON.stringify(SIG1)) },
+  // 2026-10-18 14:30 判別式二第二次修改(使用者:「把紅線穿越藍線的邏輯作為訊號開頭」「obv10 必須搭配 obv20/30」「再加上股價在均價之上則直接提示交易」「那就先拿掉方向鎖」):
+  //   entryMode:'cross' 進場改成「紅線剛穿過藍線(力度 ≥ crossStrPct%,÷當日 OBV 範圍)= 第 1 個點 → crossWinBars 分鐘內:紅線穿越後創 crossNewHi 次新高(多)/ 新低(空)且現在就在極值、
+  //   OBV 均 crossSlowMa(慢線)同向、K 收盤在均價之上(多)/ 之下(空)(crossKMaDir=false 不看均價方向)= 確認點」;紅線跌回藍線另一側或窗口過期 → 候選作廢。
+  //   noLock:true 不鎖方向;obmaSlopeMin:0 藍線斜率關閉(剛穿越時藍線一定還平)。其餘(3.5%、順勢、VWAP、量、量比、1%、跳空、紅線在退、出場全部)照判別式一。
+  //   四天回測 23 筆、賺 13 賠 10、勝率 57%、+43,882(判別式一 16 筆、94%、+71,272);進場較早、筆數較多,實盤對照用。
+  '二': { key: '二', btn: '判二', name: '判別式二', date: '2026-10-18', backtest: '10/13~16 共 23 筆,賺 13 賠 10,勝率 57%,淨 +43,882(紅線穿藍線起手 + 創新高 + OBV20 同向 + 價在均價上;不鎖方向)',
+          sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'cross', crossStrPct: 2, crossWinBars: 10, crossNewHi: 1, crossSlowMa: 20, crossKMaDir: false, noLock: true, obmaSlopeMin: 0 }) },
   '三': { key: '三', btn: '判三', name: '判別式三', date: '2026-10-18', backtest: '與判別式一相同(16 筆,賺 15 賠 1,+71,272);2026-10-18 兩條新規則三份都加', sig: JSON.parse(JSON.stringify(SIG1)) },
 };
 const RS_KEY = 'mysh.ruleset';
@@ -3253,7 +3267,10 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
   const vw = vwap(bars), iVw = idx(vw);                 // VWAP 方向過濾用(2026-10-15 23:30)
   const obma2 = SIG.obvExitMa > 0 ? sma(ob, SIG.obvExitMa, 'value') : [], iObma2 = idx(obma2);   // 2026-10-17 第二條較慢的 OBV 均線,只給平倉警示用
   const obma2s = SIG.obmaSlope2Ma > 0 ? sma(ob, SIG.obmaSlope2Ma, 'value') : [], iObma2s = idx(obma2s);   // 2026-10-18 藍線太平時的第二判別:OBV 均 5 的 5 根斜率(使用者定案「把 OBV5 加入判別式一」)
-  const obmaW = SIG.obvWarnMa > 0 ? sma(ob, SIG.obvWarnMa, 'value') : [], iObmaW = idx(obmaW);   // 2026-10-17 「正在反彈」警示用:OBV 反向穿越這條只通知、不平倉,每筆持倉只提醒一次
+  const obmaW = SIG.obvWarnMa > 0 ? sma(ob, SIG.obvWarnMa, 'value') : [], iObmaW = idx(obmaW);
+  const crossMode = SIG.entryMode === 'cross';                                                   // 判別式二(2026-10-18):紅線穿藍線起手
+  const obmaSlow = crossMode && SIG.crossSlowMa > 0 ? sma(ob, SIG.crossSlowMa, 'value') : [], iObmaSlow = idx(obmaSlow);
+  const cand = {long: null, short: null};                                                         // 穿越候選 {exp: 到期的 bar index, i0: 穿越那根在 ob 的 index}   // 2026-10-17 「正在反彈」警示用:OBV 反向穿越這條只通知、不平倉,每筆持倉只提醒一次
   const last = bars[bars.length - 1];
   const lastDay = dayKey(last.time);
   let hi = -Infinity, lo = Infinity, n = 0;
@@ -3341,16 +3358,46 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
     const between = lo < b.close && b.close < hi;
     const pressUp = b.low <= m0 + 0.0001, pressDn = b.high >= m0 - 0.0001;   // 壓線不給誤差
     const doji = Math.abs(b.close - b.open) < 0.0001;                       // 虛根不算
-    let side = null;
-    if (kUp && oUp && between && pressUp && !doji) side = 'long';
-    else if (kDn && oDn && between && pressDn && !doji && canShort !== false) side = 'short';
+    let side = null, xconf = false;
+    if (crossMode){
+      // 判別式二:紅線剛穿過藍線(力度 ≥ crossStrPct%)= 第 1 個點(候選);之後 crossWinBars 根內紅線創新高 + 慢線同向 + 價在均價上 = 確認點
+      const rng = (obHi - obLo) || 1, ovp = ob[o - 1].value, omp = obma[om - 1].value;
+      const xUp = ov > omv && ovp <= omp && (ov - omv) / rng * 100 >= SIG.crossStrPct;
+      const xDn = ov < omv && ovp >= omp && (omv - ov) / rng * 100 >= SIG.crossStrPct;
+      if (xUp){ cand.long = {exp: bi + SIG.crossWinBars, i0: o}; cand.short = null; side = 'long'; }
+      else if (xDn && canShort !== false){ cand.short = {exp: bi + SIG.crossWinBars, i0: o}; cand.long = null; side = 'short'; }
+      else {
+        if (cand.long && (bi > cand.long.exp || ov < omv)) cand.long = null;        // 窗口過期或紅線跌回藍線下 → 作廢
+        if (cand.short && (bi > cand.short.exp || ov > omv)) cand.short = null;
+        for (const sd of ['long', 'short']){
+          const cd = cand[sd]; if (!cd) continue;
+          if (sd === 'short' && canShort === false) continue;
+          const dir = sd === 'long' ? 1 : -1;
+          const kOk = SIG.crossKMaDir ? (dir === 1 ? (b.close > m0 && m0 > m1) : (b.close < m0 && m0 < m1)) : (dir === 1 ? b.close > m0 : b.close < m0);
+          if (!(kOk && between && !doji)) continue;
+          let cnt = 0, ext = ob[cd.i0].value;                                        // 穿越後紅線創新高(多)/ 新低(空)的次數,而且現在就在極值上
+          for (let k2 = cd.i0 + 1; k2 <= o; k2++){ const v = ob[k2].value; if ((v - ext) * dir > 0){ cnt++; ext = v; } }
+          if (SIG.crossNewHi > 0 && !(cnt >= SIG.crossNewHi && (ov - ext) * dir >= -1e-9)) continue;
+          if (SIG.crossSlowMa > 0){                                                   // 慢線(OBV 均 20)要同向:一快一慢同方向 = 方向確認
+            const ks = iObmaSlow.get(b.time);
+            if (ks === undefined || !okPrev(obmaSlow, ks)) continue;
+            if ((obmaSlow[ks].value - obmaSlow[ks - 1].value) * dir <= 0) continue;
+          }
+          side = sd; xconf = true; break;
+        }
+      }
+    } else {
+      if (kUp && oUp && between && pressUp && !doji) side = 'long';
+      else if (kDn && oDn && between && pressDn && !doji && canShort !== false) side = 'short';
+    }
     if (!side) continue;
     const pctNow = prevClose ? (b.close - prevClose) / prevClose * 100 : 0;
     const counterTrend = prevClose && ((side === 'short' && pctNow > SIG.trendOnlyPct) || (side === 'long' && pctNow < -SIG.trendOnlyPct));
     const gated = !opts.ignoreGate && (!!(prevClose && !entryAllowed(b.close, prevClose).ok) || !!counterTrend);   // 超過 ±entryMaxChg%,或 ±trendOnlyPct% 外的逆勢訊號 → ✕(ignoreGate 模式一律不擋、不鎖)
     // 第 7 條:同方向第 2 個以後的訊號,OBV(紅線)與 OBV 均線(藍線)都要比前一個同向訊號更低(空)/ 更高(多)才算確認點
     let confirmed = true;
-    if (YH.confirmByObv){
+    if (crossMode){ confirmed = xconf; lastSig[side] = {ob: ov, obma: omv, price: b.close, high: b.high, low: b.low}; }
+    else if (YH.confirmByObv){
       const prev = lastSig[side];
       confirmed = !!prev && (side === 'short' ? (ov < prev.ob && omv < prev.obma && b.close < prev.price)
                                                 : (ov > prev.ob && omv > prev.obma && b.close > prev.price))
@@ -3362,7 +3409,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
     }
     if (firstPx[side] === null) firstPx[side] = b.close;
     if (confirmed) lastConfirmedAt = b.time;
-    if (confirmed && gated) locked[side] = true;                                   // 確認點被擋 → 這個方向今天鎖住(2026-10-15 22:00)
+    if (confirmed && gated && !SIG.noLock) locked[side] = true;                    // 確認點被擋 → 這個方向今天鎖住(2026-10-15 22:00);判別式二 noLock 不鎖
     let far = Math.abs(b.close - m0) / m0 * 100 > SIG.maxEntryDevPct;                // 價離均價太遠(追高 / 追低)→ 只記錄不進場,不鎖方向(2026-10-15 23:15)
     // 2026-10-17 OBV 均線斜率:最近 obmaSlopeBars 根的變化 ÷ 當天 OBV 波動範圍 × 100,往進場方向不到 obmaSlopeMin% 就只記錄不進場。
     // 賠錢單的共同特徵是 OBV 均線幾乎是平的(剛翻過來、量能還沒形成方向);回測 10/13~16 擋掉 7 筆裡 6 筆賠的,+40,767 → +50,404
@@ -3439,7 +3486,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
       if (canEnter){                                                               // 進場(或反手),反向計數歸零
         mk(true, tag);
         const entry = (bi + 1 < bars.length) ? bars[bi + 1].open : b.close;        // 下一根開盤執行
-        cyc = {side, time: tStr, price: b.close, entry, gated: false}; lastSig[opp] = null; pending[side] = false;
+        cyc = {side, time: tStr, price: b.close, entry, gated: false}; lastSig[opp] = null; pending[side] = false; if (crossMode) cand[side] = null;
       }
       else mk(false, tag);
       continue;
