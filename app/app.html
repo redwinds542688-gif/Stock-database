@@ -88,6 +88,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-19 02:20 通知欄:非開盤時間、今天又沒有買賣訊號時,自動顯示最近一個有紀錄的工作日(使用者:「通知欄是空的,如果非開盤時間也沒有當天紀錄,就顯示前一個工作日的通知訊息」);
+    標題會寫那天的日期(例「10/16監控紀錄」),◀ ▶ 照常翻;盤中或今天有訊號就還是顯示今天。
   · 2026-10-19 02:00 App 1.5.31 更新 App 修正(使用者按「更新 App」裝到的卻是 1.5.27,返回鍵視窗一直沒出現):下載完先用 PackageManager 讀 APK 的版本號,
     不是新版就換第二個網址(github.com/…/raw/main)再抓一次,還是舊的就提示「快取還沒更新,過 5 分鐘再試」;下載前清掉 cache 裡的舊 APK,檔名帶版本號(MyshMonitor-37.apk),
     連線加 no-cache。GitHub 本身這時傳回的已經是 1.5.30(本機核對過 sha256),舊檔應該是手機快取或先前下載殘留。
@@ -1388,7 +1390,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610190130">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610190220">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4770,7 +4772,12 @@ window.bgTick = bgTick; window.BG = BG;
   function render(force){
     const box = el('notifLog'); if (!box) return;
     const ds = days(); const today = todayStr(); if (!ds.includes(today)) ds.push(today); ds.sort();
-    const d = cur || today; const i = ds.indexOf(d);
+    // 2026-10-19 使用者:「非開盤時間、也沒有當天紀錄,就顯示前一個工作日的通知」:沒有手動翻頁(cur 為空)、不在盤中、今天沒有買賣訊號 → 自動顯示最近一個有紀錄的日子
+    let d = cur || today;
+    if (!cur && !inSession() && !itemsFor(today).some(x => x.kind !== 'sys')){
+      for (let k = ds.length - 1; k >= 0; k--){ if (ds[k] < today && itemsFor(ds[k]).some(x => x.kind !== 'sys')){ d = ds[k]; break; } }
+    }
+    const i = ds.indexOf(d);
     const items = itemsFor(d).filter(x => x.kind !== 'sys');   // 視窗只列買賣訊號,啟動 / 停止這類系統訊息不顯示
     const key = d + '|' + items.length + '|' + (items[0] ? items[0].t + items[0].title : '');
     if (!force && key === lastKey) return; const changed = key !== lastKey; lastKey = key;
@@ -4856,7 +4863,7 @@ window.bgTick = bgTick; window.BG = BG;
     fit(); try{ if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit); }catch(e){} setTimeout(fit, 300);
     const prev = el('nlPrev'), next = el('nlNext');
     if (prev) prev.onclick = () => { cur = ds[i - 1]; render(true); };
-    if (next) next.onclick = () => { cur = (i + 1 >= ds.length - 1) ? null : ds[i + 1]; render(true); };
+    if (next) next.onclick = () => { cur = ds[i + 1] || today; render(true); };   // 翻到今天就記住「今天」,不然 5 秒後自動又跳回前一個工作日(2026-10-19)
     box.querySelectorAll('.card').forEach(r => {
       const c = cards[+r.dataset.i]; const code = c.code, name = c.name;
       // 長按 600ms → 記「我有做」(方向照這一則);再長按取消
