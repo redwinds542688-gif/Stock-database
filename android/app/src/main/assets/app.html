@@ -88,6 +88,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-19 01:30 App 1.5.30 返回鍵(使用者:「虛擬按鍵 返回 出現離開程式 確認 結束程式」):圖表開著只關圖表;否則跳「離開程式?」三個鍵:確認 = 回桌面、背景監控照跑;
+    結束程式 = 停止背景監控(看門狗不再自動啟動,要再開程式按啟動)並關閉;取消。只改 MainActivity.kt,網頁沒動。
   · 2026-10-19 01:10 監控設定(滾輪 8 個值)也改由 App 保存(使用者:「設定那邊有紀錄存檔嗎」):1.5.29 加 Android.getPref / setPref,設定先問 App、沒有才看 localStorage,
     每撥一次滾輪兩邊都存;舊版只在 localStorage 的設定第一次開啟補存到 App。監控股票快照與持倉是當日用完就丟的,照舊 localStorage。
   · 2026-10-19 00:50 判別式選擇改由 App 保存(使用者:「判別式需要紀錄,離開程式再回來要就是離開時的判別式」):原本只存網頁 localStorage,內建網頁(android_asset)
@@ -1383,7 +1385,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610190110">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610190130">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">

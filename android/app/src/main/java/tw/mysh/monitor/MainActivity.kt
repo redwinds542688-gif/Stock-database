@@ -129,5 +129,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
-    override fun onBackPressed() { if (web.canGoBack()) web.goBack() else super.onBackPressed() }
+    /** 返回鍵(2026-10-19 使用者:「虛擬按鍵 返回 出現離開程式 確認 結束程式」):圖表開著就只關圖表;否則跳「離開程式?」
+     *  確認 = 回桌面,背景監控照跑、通知照發;結束程式 = 停止背景監控(看門狗也不再自動啟動)並關閉;取消 = 留在程式 */
+    override fun onBackPressed() {
+        web.evaluateJavascript("(function(){ try{ var s = document.getElementById('sheet'); if (s && s.classList.contains('open')){ closeChart(); return 'closed'; } }catch(e){} return ''; })()") { r ->
+            if (r != null && r.contains("closed")) return@evaluateJavascript
+            AlertDialog.Builder(this).setTitle("離開程式?")
+                .setMessage("確認:回到桌面,背景監控繼續跑、通知照發。\n結束程式:停止背景監控並關閉程式。")
+                .setPositiveButton("確認") { _, _ -> moveTaskToBack(true) }
+                .setNegativeButton("結束程式") { _, _ ->
+                    if (MonitorService.running) MonitorService.stop(this)
+                    getSharedPreferences("mysh", MODE_PRIVATE).edit().putBoolean("userStopped", true).apply()
+                    web.postDelayed({ finishAndRemoveTask() }, 300)
+                }
+                .setNeutralButton("取消", null).show()
+        }
+    }
 }
