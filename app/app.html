@@ -88,6 +88,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 16:05 警示欄位 平倉 / 注意 / 反彈 一律紅色(使用者:「警示一律紅色」)。
   · 2026-10-18 16:00 警示欄位(使用者:「那個地方就是一個警示欄位,可以出現 平倉 / 注意 / 反彈;邏輯出現必須再發一條訊息;顯示要有閃爍」):
     通知欄卡片最右欄顯示 平倉(紅)/ 注意(橘)/ 反彈(黃),進場卡片顯示該筆交易之後的最新狀態,今天 10 分鐘內出現的會閃爍。
     新增「反彈」通知:持倉中紅線反向穿過 OBV 均 30、但帳面不到 1% 沒觸發提早停利 → 圖上標「彈」、通知「⚠ 名 代碼 股價已反彈 帳面 x%」一次(kind warn)。
@@ -1316,7 +1317,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610181600">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610181605">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1408,7 +1409,7 @@ except Exception:
   #notifLog .card .ln .exm{flex:1 0 2.4em;text-align:right;margin-left:.5ch;letter-spacing:-1px} #notifLog .card .ln .mk.lose{color:#FF3B3B} #notifLog .card .ln .mk.win{color:#1DD75B}   /* 賠紅 ⚠、賺綠 ▲(2026-10-17 使用者) */
   #notifLog .card .ln .rs{flex:0 0 2.9em;text-align:right;margin-left:.5ch;font-weight:700}
   #notifLog .card .ln .rs.al{display:inline-block;border:2px solid currentColor;border-radius:4px;padding:0 2px;line-height:1.1;text-align:center;font-size:.9em}   /* 2026-10-18 警示欄位 */
-  #notifLog .card .ln .rs.al-exit{color:#FF3B3B} #notifLog .card .ln .rs.al-warn{color:#F5A623} #notifLog .card .ln .rs.al-rebound{color:#FFD54F}
+  #notifLog .card .ln .rs.al-exit,#notifLog .card .ln .rs.al-warn,#notifLog .card .ln .rs.al-rebound{color:#FF3B3B}   /* 2026-10-18 使用者:警示一律紅色 */
   #notifLog .card .ln .rs.blink{animation:nlblink 1s step-end infinite} @keyframes nlblink{50%{opacity:.12}}   /* 剛出現 10 分鐘內閃爍 */
   #notifLog .card .ln .rs.win,#notifLog .card .ln .rs.lose{display:inline-block;border:2px solid currentColor;border-radius:4px;padding:0 2px;line-height:1.1;text-align:center}   /* 贏 / 輸 加框 */
   #notifLog .card .ln .rs.win{color:#FF3B3B} #notifLog .card .ln .rs.lose{color:#1DD75B} #notifLog .card .ln .rs.warn{color:#F5A623;display:flex;gap:2px;justify-content:flex-end}
