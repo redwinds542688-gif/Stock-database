@@ -86,6 +86,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 13:00 監控紀錄改以雲端為準(使用者:「資料不同」):過去日期的紀錄一律顯示 app/log_backfill.json(用判別式一定案規則重跑 10/13~16),
+    不再用手機自己當天跑的舊版紀錄,兩支手機看到的一樣;今天的仍是手機即時產生。log_backfill.json 已用判別式一旗標重新產生。
   · 2026-10-18 12:20 股票名稱再放大(使用者:「股票名稱也放大一點」):名稱字級 1.5 → 1.9 位元(20.6px → 26px),部位標記 .95 → 1.1 位元;一列高度 66 → 73px。
   · 2026-10-18 12:10 股票清單文字數字最大化(使用者:「股票區域 文字數字最大化」):一列由 36 位元改 30(空白欄 2→1、成交量 7→6、萬 4→2),
     字級隨位元寬放大 20%,名稱、部位標記、表頭一起放大;版面不變、交易規則沒動。
@@ -1288,7 +1290,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610181220">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610181300">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4401,8 +4403,10 @@ window.bgTick = bgTick; window.BG = BG;
     return [...new Set([...ds, ...Object.keys(HIST || {})])];
   }
   function itemsFor(d){
-    try{ if (window.Android && Android.logFor){ const a = JSON.parse(Android.logFor(d) || '[]'); if (a.length || !(HIST && HIST[d])) return a; } }catch(e){}
+    // 2026-10-18 使用者:「資料不同」(兩支手機的 10/16 紀錄不一樣,因為各自當天跑的版本不同)→ 過去的日子一律以雲端的判別式一正式紀錄
+    // (app/log_backfill.json,用定案規則重跑)為準,兩支手機看到的一樣;只有「今天」用手機自己即時跑出來的
     if (HIST && HIST[d] && d !== todayStr()) return HIST[d];
+    try{ if (window.Android && Android.logFor){ const a = JSON.parse(Android.logFor(d) || '[]'); if (a.length || !(HIST && HIST[d])) return a; } }catch(e){}
     if (d !== todayStr()) return [];
     return BG.log.filter(l => l.includes('[通知]')).slice().reverse().map(l => { const m = l.match(/^(\d\d:\d\d):\d\d \[通知\] (.*?) \| (.*)$/); return m ? {t: m[1], title: m[2], body: m[3], kind: ''} : {t: '', title: l, body: '', kind: ''}; });
   }
