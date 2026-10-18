@@ -88,6 +88,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 15:40 通知欄第 2 列(代碼 / 平倉價 / 判一)底色壓暗、平倉價改橘色,和第 1 列(進場價藍)區別(使用者:「上下顏色要有區別」)。
   · 2026-10-18 15:30 通知欄卡片改兩列(使用者:「股票代碼這一列:代碼、平倉價位與上面的進場價格對齊,判一二三與上面的做多做空對齊」):
     第 1 列 名稱 | 進場價 | 做多 / 做空 | 張數 | ▲;第 2 列 代碼 | 平倉價(進場那則空白)| 判一。平倉那則第 1 列改顯示進場價、第 2 列才是平倉價。
   · 2026-10-18 15:10 通知欄「判一 / 判二 / 判三」改到名稱 / 代碼右邊、垂直置中,和做多 / 做空同一高度(使用者:「判一二三與做空做多對齊」)。
@@ -1311,7 +1312,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610181530">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610181540">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1394,7 +1395,8 @@ except Exception:
   #notifLog .card .ln .nmblk .cd{font-size:.62em;font-weight:600;color:#1DD75B;line-height:1.1;white-space:nowrap}
   #notifLog .card .ln.sub{min-height:1em;line-height:1;margin-top:-3px}   /* 第 2 列:代碼 | 平倉價 | 判一 */
   #notifLog .card .ln.sub .s{font-size:.62em;font-weight:600;font-style:normal;line-height:1.1}
-  #notifLog .card .ln.sub .px .s{color:#4FC3F7} #notifLog .card .ln.sub .rsb{color:#C9A227}   /* 平倉價藍、判一金 */
+  #notifLog .card .ln.sub{background:rgba(0,0,0,.22);border-radius:3px}   /* 2026-10-18 使用者:「上下顏色要有區別」:第 2 列底色壓暗一點 */
+  #notifLog .card .ln.sub .px .s{color:#FFB74D} #notifLog .card .ln.sub .rsb{color:#C9A227}   /* 平倉價橘(進場價藍)、判一金 */
   #notifLog .card .ln .nm{color:#FFD54F;overflow:hidden;text-overflow:ellipsis;display:inline-block;align-self:flex-start;border:2px solid #FFD54F;border-radius:4px;padding:0 3px;line-height:1.15}   /* 名稱加框 */
   #notifLog .card .ln .px{flex:0 0 6ch;text-align:right;color:#4FC3F7;margin-left:.5ch}
   #notifLog .card .ln .sd{flex:0 0 2em;text-align:center;margin-left:.5ch} #notifLog .card .ln .sd.win{color:#FF3B3B} #notifLog .card .ln .sd.lose{color:#1DD75B}
