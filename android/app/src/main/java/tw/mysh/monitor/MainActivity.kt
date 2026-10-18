@@ -75,7 +75,8 @@ class MainActivity : AppCompatActivity() {
     private fun showMenu(anchor: TextView) {
         val m = PopupMenu(this, anchor)
         // 2026-10-19 使用者:「啟動 / 停止背景監控」拿掉。監控全自動;要強制重啟就長按亮著的判鍵(Android.restartMonitor);要停就返回鍵 → 結束程式
-        m.menu.add(0, 3, 2, "關閉電池最佳化(必做)")
+        // 2026-10-19 使用者:「已經關閉最佳化,這條便不用再出現」→ 已排除省電就不列
+        if (!(getSystemService(POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(packageName)) m.menu.add(0, 3, 2, "關閉電池最佳化(必做)")
         m.menu.add(0, 4, 3, "更新程式(從 GitHub)")
         m.menu.add(0, 9, 3, "更新 App(從 GitHub)")
         m.setOnMenuItemClickListener { item ->
