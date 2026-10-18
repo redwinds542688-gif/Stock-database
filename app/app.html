@@ -88,6 +88,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 19:00 判鍵「卡卡」(使用者):改成放開手指就動作(touchend),不等 click 的延遲;拿掉「0.4 秒內連點忽略」;.tool 加 touch-action:manipulation。
   · 2026-10-18 18:50 判鍵操作定案(使用者):單擊任一顆 = 看那一份的規則(沒在用的也能看,不切換;規則頁顯示中那顆亮燈);長按 0.6 秒沒在用的那顆 = 切換背景監控
     到那一份(判一熄、那顆亮 + 監控燈);長按正在用的那顆 = 監控狀態頁。訊息燈 = 內容區顯示中(通知或規則頁都算),設定打開才熄。原本「連按兩下切換」取消。
   · 2026-10-18 18:30 背景監控燈改掛在「正在用的那顆判鍵」右上角(綠燈閃爍;該跑卻沒跑紅燈),左上角的點不再用(使用者:「開盤時初始設在判一,判一後面亮監控燈」)。
@@ -1338,7 +1339,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610181850">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610181900">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1466,7 +1467,7 @@ except Exception:
   .toolbar{position:absolute;bottom:4px;left:0;right:0;z-index:6;
            display:grid;grid-template-columns:repeat(5,1fr);
            align-items:center;justify-items:center}
-  .tool{width:38px;height:38px;padding:0;display:grid;place-items:center;
+  .tool{width:38px;height:38px;padding:0;display:grid;place-items:center;touch-action:manipulation;   /* 2026-10-18 按鍵不等雙擊判定,點了就反應 */
         background:none;border:none;color:var(--dim);cursor:pointer;
         -webkit-user-select:none;user-select:none}
   .tool:disabled{color:var(--faint);opacity:.55;cursor:default}
@@ -2334,23 +2335,23 @@ function render(list){
   // 「判一 / 判二 / 判三」(2026-10-18 使用者定案):
   //   單擊(連點也算一次)→ 顯示 / 收起那一份判別式的規則頁(不切換監控);正在用的那顆亮燈 = 背景監控執行中;規則頁顯示中那顆也亮
   //   長按 0.6 秒沒在用的那顆 → 切換背景監控用那一份(存 localStorage 後重載,背景那份網頁下一輪自己跟上);長按正在用的那顆 → 監控狀態頁
-  let rsLong = false, rsHold = 0, rsLastTap = 0;
+  // 2026-10-18 使用者:「按鍵卡卡」→ 放開手指(touchend)就動作,不等瀏覽器 300ms 後的 click;click 只給滑鼠用(同一次觸控的 click 會被擋掉)
+  let rsLong = false, rsHold = 0, rsMoved = false, rsTouchAt = 0;
   document.querySelectorAll('.tool.rs').forEach(b => {
     const k = b.dataset.rs;   // RULESETS 在後面才定義,要用的時候再取
-    const st = () => { rsLong = false; clearTimeout(rsHold); rsHold = setTimeout(() => {
+    const act = () => { (infoKind === 'rules' && infoRs === k) ? hideInfo() : showInfo('rules', k); };
+    const st = () => { rsLong = false; rsMoved = false; clearTimeout(rsHold); rsHold = setTimeout(() => {
       rsLong = true; try{ navigator.vibrate && navigator.vibrate(30); }catch(e){}
       if (k === ACTIVE_RS){ infoKind === 'state' ? hideInfo() : showInfo('state'); return; }
       try{ localStorage.setItem(RS_KEY, k); }catch(e){}
       setStatus('切換背景監控到 ' + RULESETS[k].name + ',重新載入…'); setTimeout(() => location.reload(), 300);
     }, 600); };
-    const en = () => clearTimeout(rsHold);
-    b.addEventListener('touchstart', st, {passive: true}); b.addEventListener('mousedown', st);
-    ['touchend', 'touchmove', 'touchcancel', 'mouseup', 'mouseleave'].forEach(ev => b.addEventListener(ev, en, {passive: true}));
-    b.addEventListener('click', () => {
-      if (rsLong){ rsLong = false; return; }
-      const now = Date.now(); if (now - rsLastTap < 400) return; rsLastTap = now;   // 連點當一次
-      (infoKind === 'rules' && infoRs === k) ? hideInfo() : showInfo('rules', k);
-    });
+    b.addEventListener('touchstart', st, {passive: true});
+    b.addEventListener('touchmove', () => { rsMoved = true; clearTimeout(rsHold); }, {passive: true});
+    b.addEventListener('touchcancel', () => clearTimeout(rsHold), {passive: true});
+    b.addEventListener('touchend', () => { clearTimeout(rsHold); rsTouchAt = Date.now(); if (!rsLong && !rsMoved) act(); }, {passive: true});
+    b.addEventListener('mousedown', st); ['mouseup', 'mouseleave'].forEach(ev => b.addEventListener(ev, () => clearTimeout(rsHold)));
+    b.addEventListener('click', () => { if (Date.now() - rsTouchAt < 800) return; if (rsLong){ rsLong = false; return; } act(); });   // 觸控已處理過就略過
   });
   // 按鍵燈號(2026-10-18 使用者定案):通知欄顯示中 → 「訊息」亮;設定滾輪打開 → 「設定」亮、「訊息」熄;
   // 「判一 / 判二 / 判三」只有背景監控正在用的那顆亮
