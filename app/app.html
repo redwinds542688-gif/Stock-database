@@ -88,6 +88,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 19:45 清單改成自己的捲動區(使用者第三段錄影:清單完全滑不動):html/body overflow:hidden,#result position:fixed 從固定區下緣到螢幕底、overflow-y:auto、
+    touch-action:pan-y;捲動監視器與診斷改看 #result。
   · 2026-10-18 19:30 狀態頁加「捲動診斷」(現在 / 最多捲過幾 px、頁高、視窗高、清單列數與高度、body / html overflow),查「清單滑不動」。
   · 2026-10-18 19:20 清單「下拉回彈」(使用者錄影兩段):逐格量到 position:fixed 的標題列、按鍵列也跟著下移 15~30px 再彈回,是 Android 的
     overscroll 伸縮效果(頁面已在最頂再往下拉),不是清單重畫(狀態頁監視器也沒抓到 scroll 歸零);html,body 加 overscroll-behavior-y:none 關掉。
@@ -1343,7 +1345,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610181930">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610181945">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1359,7 +1361,8 @@ except Exception:
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;
     -webkit-touch-callout:none;                 /* 長按不跳出系統選單 */
     -webkit-user-select:none;user-select:none}  /* 停用選字與複製貼上 */
-  html,body{margin:0;overflow-x:hidden;max-width:100%;overscroll-behavior-y:none}   /* 2026-10-18 使用者:「下拉回彈」:關掉 Android 拉到頂 / 拉到底時整頁伸縮回彈的效果(影片量到固定的標題列也跟著位移 15~30px,是系統效果不是清單重畫) */
+  html,body{margin:0;height:100%;overflow:hidden;max-width:100%;overscroll-behavior-y:none}   /* 2026-10-18 使用者:「滑動下面監控股票不太動」:整頁不再捲動,改由 #result 自己捲(手機 WebView 整頁捲動 + 固定表頭會卡) */
+  #result{position:fixed;left:0;right:0;bottom:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior:contain}   /* top 由 JS 設成固定區的高度 */   /* 2026-10-18 使用者:「下拉回彈」:關掉 Android 拉到頂 / 拉到底時整頁伸縮回彈的效果(影片量到固定的標題列也跟著位移 15~30px,是系統效果不是清單重畫) */
   body{background:var(--ink);color:var(--text);font-family:var(--sans);
        padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 24px)}
 
@@ -2242,7 +2245,7 @@ function render(list){
 (() => {
   const top = document.querySelector('.fixedtop');
   const spacer = document.getElementById('topSpacer');
-  const sync = () => { spacer.style.height = top.offsetHeight + 'px'; };
+  const sync = () => { spacer.style.height = top.offsetHeight + 'px'; const r = document.getElementById('result'); if (r) r.style.top = top.offsetHeight + 'px'; };   // 2026-10-18 清單改成自己捲動,頂端貼著固定區
   new ResizeObserver(sync).observe(top);
   addEventListener('load', sync);
   sync();
@@ -2290,7 +2293,7 @@ function render(list){
       ['手續費 / 上限', wFee.value + ' · ' + wCap.value],
       ['判別式', RULESET.name + '(' + RULESET.date + ')'],
       ['圖表手勢', GESTURE.frames ? `${GESTURE.t} 平均每格 ${GESTURE.avg.toFixed(0)} ms(最慢 ${GESTURE.max.toFixed(0)} ms,${GESTURE.frames} 格)· 標記 ${MARKS.length} 個 · 畫布 ${window.devicePixelRatio} 倍` : '還沒量到(在圖上拖一下再來看)'],
-      ['捲動診斷', (() => { try{ const se = document.scrollingElement; return `現在 ${Math.round(scrollY)}px,最多捲過 ${Math.round(window.SCROLL_MAX || 0)}px;頁高 ${se.scrollHeight},視窗 ${innerHeight}` + (window.visualViewport ? `,可視 ${Math.round(visualViewport.height)}` : '') + `;清單 ${document.querySelectorAll('#bands .row').length} 列,高 ${Math.round(el('result').getBoundingClientRect().height)};body ${getComputedStyle(document.body).overflowY} / html ${getComputedStyle(document.documentElement).overflowY}`; }catch(e){ return '算不出來 ' + e.message; } })()],   // 2026-10-18 查「清單滑不動」
+      ['捲動診斷', (() => { try{ const se = el('result'); return `現在 ${Math.round(se.scrollTop)}px,最多捲過 ${Math.round(window.SCROLL_MAX || 0)}px;清單區高 ${se.scrollHeight} / 可見 ${se.clientHeight},視窗 ${innerHeight}` + (window.visualViewport ? `,可視 ${Math.round(visualViewport.height)}` : '') + `;清單 ${document.querySelectorAll('#bands .row').length} 列,高 ${Math.round(el('result').getBoundingClientRect().height)};body ${getComputedStyle(document.body).overflowY} / html ${getComputedStyle(document.documentElement).overflowY}`; }catch(e){ return '算不出來 ' + e.message; } })()],   // 2026-10-18 查「清單滑不動」
       ['清單跳回頂端', window.SCROLL_RESET ? `${SCROLL_RESET.at} 從 ${SCROLL_RESET.from}px 跳回 0;前 1.5 秒程式動作:${SCROLL_RESET.recent || '(沒有)'};resize ${SCROLL_RESET.resizes} 次` : '沒發生過'],   // 2026-10-18 查「清單自動彈回」用
       ['程式版本', buildBuild()],
       ['狀態列', st || '—'],
@@ -4684,8 +4687,8 @@ window.bgTick = bgTick; window.BG = BG;
   ['scan', 'render', 'resortList', 'calibrateFont', 'applyLiveToList', 'liveSnapshot'].forEach(wrap);
   let resizes = 0; addEventListener('resize', () => { resizes++; mark('resize'); });
   try{ new MutationObserver(() => mark('spacer')).observe(document.getElementById('topSpacer'), {attributes: true}); }catch(e){}
-  let lastY = 0;
-  addEventListener('scroll', () => { const y = scrollY; window.SCROLL_MAX = Math.max(window.SCROLL_MAX || 0, y); if (lastY > 150 && y < 20) window.SCROLL_RESET = {at: new Date().toTimeString().slice(0, 8), from: Math.round(lastY), recent: log.filter(([t]) => Date.now() - t < 1500).map(x => x[1]).join(' '), resizes}; lastY = y; }, {passive: true});
+  let lastY = 0; const sc = document.getElementById('result');
+  sc.addEventListener('scroll', () => { const y = sc.scrollTop; window.SCROLL_MAX = Math.max(window.SCROLL_MAX || 0, y); if (lastY > 150 && y < 20) window.SCROLL_RESET = {at: new Date().toTimeString().slice(0, 8), from: Math.round(lastY), recent: log.filter(([t]) => Date.now() - t < 1500).map(x => x[1]).join(' '), resizes}; lastY = y; }, {passive: true});
 })();
 scan().then(() => { liveStart(); try{ if (window.Android && Android.ready) Android.ready(LIST_CODES.length); }catch(e){} });
 </script>
