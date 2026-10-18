@@ -88,6 +88,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 18:10 平倉記號顏色對調:贏的 ▲ 紅、輸的 ⚠ 綠,和「贏紅 / 輸綠」一致(使用者指定)。
   · 2026-10-18 18:00 「平倉」下面顯示 贏(紅框)/ 輸(綠框)(使用者指定);進場卡片用這筆交易平倉那則的結果。
   · 2026-10-18 17:50 通知卡片的「做多 / 做空」加框(紅框 / 綠框,使用者指定)。
   · 2026-10-18 17:40 右上角的背景監控閃爍綠燈改到左上角(使用者指定)。
@@ -1333,7 +1334,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610181800">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610181810">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1432,7 +1433,7 @@ except Exception:
   #notifLog .card .ln .sd{flex:0 0 2.3em;text-align:center;margin-left:.5ch} #notifLog .card .ln .sd.win{color:#FF3B3B} #notifLog .card .ln .sd.lose{color:#1DD75B}
   #notifLog .card .ln:not(.sub) .sd.win,#notifLog .card .ln:not(.sub) .sd.lose{display:inline-block;border:2px solid currentColor;border-radius:4px;padding:0 2px;line-height:1.1;font-size:.9em}   /* 2026-10-18 使用者:做多 / 做空 加框 */
   #notifLog .card .ln .qt{flex:0 0 2.6em;text-align:right;color:#D8DEE9;margin-left:.5ch}
-  #notifLog .card .ln .exm{flex:1 0 2.4em;text-align:right;margin-left:.5ch;letter-spacing:-1px} #notifLog .card .ln .mk.lose{color:#FF3B3B} #notifLog .card .ln .mk.win{color:#1DD75B}   /* 賠紅 ⚠、賺綠 ▲(2026-10-17 使用者) */
+  #notifLog .card .ln .exm{flex:1 0 2.4em;text-align:right;margin-left:.5ch;letter-spacing:-1px} #notifLog .card .ln .mk.lose{color:#1DD75B} #notifLog .card .ln .mk.win{color:#FF3B3B}   /* 2026-10-18 使用者:贏的三角形紅、輸的驚嘆號綠(原本相反) */   /* 賠紅 ⚠、賺綠 ▲(2026-10-17 使用者) */
   #notifLog .card .ln .rs{flex:0 0 2.9em;text-align:right;margin-left:.5ch;font-weight:700}
   #notifLog .card .ln .rs.al{display:inline-block;border:2px solid currentColor;border-radius:4px;padding:0 2px;line-height:1.1;text-align:center;font-size:.9em}   /* 2026-10-18 警示欄位 */
   #notifLog .card .ln .rs.al-exit,#notifLog .card .ln .rs.al-warn,#notifLog .card .ln .rs.al-rebound{color:#FF3B3B}   /* 2026-10-18 使用者:警示一律紅色 */
