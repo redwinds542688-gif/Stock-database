@@ -12,6 +12,11 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /** 網頁用 Android.notify(標題, 內容, 類別) / Android.log(文字) / Android.ready(檔數) 跟 App 溝通 */
 open class JsBridge(private val ctx: Context, private val tag: String, private val onReady: ((Int) -> Unit)? = null) {
+    /** 2026-10-19 使用者:右下角「≡」取消,改成長按網頁的「設定」鍵開同一個選單;MainActivity 把開選單的動作掛在這裡 */
+    var onMenu: (() -> Unit)? = null
+    @JavascriptInterface
+    fun openMenu() { onMenu?.invoke() }
+
     companion object {
         const val CH_SIGNAL = "signals2"
         const val CH_MONITOR = "monitor"

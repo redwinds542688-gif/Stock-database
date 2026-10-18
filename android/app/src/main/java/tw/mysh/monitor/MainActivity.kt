@@ -26,9 +26,10 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         JsBridge.ensureChannels(this)
         web = findViewById(R.id.web)
-        Page.setup(web, JsBridge(this, "activity"))
+        val bridge = JsBridge(this, "activity")
+        bridge.onMenu = { runOnUiThread { showMenu(findViewById(R.id.menuBtn)) } }   // 2026-10-19:長按網頁「設定」鍵 → 開選單;右下角的「≡」隱藏起來只當錨點
+        Page.setup(web, bridge)
         web.loadUrl(Page.url(this)); loadedBuild = Page.currentBuild(this)
-        findViewById<TextView>(R.id.menuBtn).setOnClickListener { showMenu(it as TextView) }
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         // 第一次打開:自動啟動背景監控
