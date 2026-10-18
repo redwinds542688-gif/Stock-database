@@ -88,6 +88,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 19:30 狀態頁加「捲動診斷」(現在 / 最多捲過幾 px、頁高、視窗高、清單列數與高度、body / html overflow),查「清單滑不動」。
   · 2026-10-18 19:20 清單「下拉回彈」(使用者錄影兩段):逐格量到 position:fixed 的標題列、按鍵列也跟著下移 15~30px 再彈回,是 Android 的
     overscroll 伸縮效果(頁面已在最頂再往下拉),不是清單重畫(狀態頁監視器也沒抓到 scroll 歸零);html,body 加 overscroll-behavior-y:none 關掉。
   · 2026-10-18 19:05 訊息燈改回:規則頁 / 狀態頁顯示中就熄,只有通知列表顯示中才亮(使用者:「通知欄顯示判一資料,此時訊息要熄燈」)。
@@ -1342,7 +1343,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610181920">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610181930">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2289,6 +2290,7 @@ function render(list){
       ['手續費 / 上限', wFee.value + ' · ' + wCap.value],
       ['判別式', RULESET.name + '(' + RULESET.date + ')'],
       ['圖表手勢', GESTURE.frames ? `${GESTURE.t} 平均每格 ${GESTURE.avg.toFixed(0)} ms(最慢 ${GESTURE.max.toFixed(0)} ms,${GESTURE.frames} 格)· 標記 ${MARKS.length} 個 · 畫布 ${window.devicePixelRatio} 倍` : '還沒量到(在圖上拖一下再來看)'],
+      ['捲動診斷', (() => { try{ const se = document.scrollingElement; return `現在 ${Math.round(scrollY)}px,最多捲過 ${Math.round(window.SCROLL_MAX || 0)}px;頁高 ${se.scrollHeight},視窗 ${innerHeight}` + (window.visualViewport ? `,可視 ${Math.round(visualViewport.height)}` : '') + `;清單 ${document.querySelectorAll('#bands .row').length} 列,高 ${Math.round(el('result').getBoundingClientRect().height)};body ${getComputedStyle(document.body).overflowY} / html ${getComputedStyle(document.documentElement).overflowY}`; }catch(e){ return '算不出來 ' + e.message; } })()],   // 2026-10-18 查「清單滑不動」
       ['清單跳回頂端', window.SCROLL_RESET ? `${SCROLL_RESET.at} 從 ${SCROLL_RESET.from}px 跳回 0;前 1.5 秒程式動作:${SCROLL_RESET.recent || '(沒有)'};resize ${SCROLL_RESET.resizes} 次` : '沒發生過'],   // 2026-10-18 查「清單自動彈回」用
       ['程式版本', buildBuild()],
       ['狀態列', st || '—'],
@@ -4683,7 +4685,7 @@ window.bgTick = bgTick; window.BG = BG;
   let resizes = 0; addEventListener('resize', () => { resizes++; mark('resize'); });
   try{ new MutationObserver(() => mark('spacer')).observe(document.getElementById('topSpacer'), {attributes: true}); }catch(e){}
   let lastY = 0;
-  addEventListener('scroll', () => { const y = scrollY; if (lastY > 150 && y < 20) window.SCROLL_RESET = {at: new Date().toTimeString().slice(0, 8), from: Math.round(lastY), recent: log.filter(([t]) => Date.now() - t < 1500).map(x => x[1]).join(' '), resizes}; lastY = y; }, {passive: true});
+  addEventListener('scroll', () => { const y = scrollY; window.SCROLL_MAX = Math.max(window.SCROLL_MAX || 0, y); if (lastY > 150 && y < 20) window.SCROLL_RESET = {at: new Date().toTimeString().slice(0, 8), from: Math.round(lastY), recent: log.filter(([t]) => Date.now() - t < 1500).map(x => x[1]).join(' '), resizes}; lastY = y; }, {passive: true});
 })();
 scan().then(() => { liveStart(); try{ if (window.Android && Android.ready) Android.ready(LIST_CODES.length); }catch(e){} });
 </script>
