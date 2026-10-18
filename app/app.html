@@ -88,6 +88,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 15:00 通知欄(使用者:「股票代碼後面顯示目前判一/判二/判三」):bgNotify 在通知內容最後加「· 判一」等字樣,通知欄卡片代碼後面金色顯示;
+    雲端 log_backfill.json 的紀錄補上「· 判一」;舊的手機紀錄沒有這個字樣就不顯示。
   · 2026-10-18 14:30 判別式二第二次修改(使用者:「把紅線穿越藍線的邏輯作為訊號開頭」→「obv10 必須搭配 obv30」→「再加上股價在均價之上則直接提示交易,回測」→「那就先拿掉方向鎖」):
     `RULESETS['二'].sig` 加 entryMode:'cross'、crossStrPct:2、crossWinBars:10、crossNewHi:1、crossSlowMa:20、crossKMaDir:false、noLock:true、obmaSlopeMin:0。
     replaySignals 多一條 crossMode 路徑(紅線剛穿藍線 = 第 1 點;10 分鐘內紅線創新高 + OBV 均 20 同向 + 收盤在均價上 = 確認點;進場後候選清掉),
@@ -1306,7 +1308,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610181430">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610181500">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1386,7 +1388,8 @@ except Exception:
   #notifLog .card.done{outline:2px solid #4FC3F7;outline-offset:-2px}   /* 結束交易(已平倉)藍框 */
   #notifLog .card .ln{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:18px;font-weight:700;line-height:1.25;min-height:2.1em;overflow:hidden}   /* 2026-10-17 其餘欄位字體最大化、垂直置中;寬度不夠時由程式自動縮字 */
   #notifLog .card .ln .nmblk{flex:0 0 6.2em;min-width:0;overflow:hidden;display:flex;flex-direction:column;justify-content:center;font-size:.9em;line-height:1.15}
-  #notifLog .card .ln .nmblk .cd{font-size:.62em;font-weight:600;color:#1DD75B;line-height:1.1}
+  #notifLog .card .ln .nmblk .cd{font-size:.62em;font-weight:600;color:#1DD75B;line-height:1.1;white-space:nowrap}
+  #notifLog .card .ln .nmblk .cd .rsb{font-style:normal;color:#C9A227;margin-left:.35em}   /* 2026-10-18 代碼後面的「判一 / 判二 / 判三」:金色 */
   #notifLog .card .ln .nm{color:#FFD54F;overflow:hidden;text-overflow:ellipsis;display:inline-block;align-self:flex-start;border:2px solid #FFD54F;border-radius:4px;padding:0 3px;line-height:1.15}   /* 名稱加框 */
   #notifLog .card .ln .px{flex:0 0 6ch;text-align:right;color:#4FC3F7;margin-left:.5ch}
   #notifLog .card .ln .sd{flex:0 0 2em;text-align:center;margin-left:.5ch} #notifLog .card .ln .sd.win{color:#FF3B3B} #notifLog .card .ln .sd.lose{color:#1DD75B}
@@ -4367,7 +4370,7 @@ async function scan(){
    沒有 Android 物件(在電腦瀏覽器測試)時寫進 BG.log。 */
 const BG = { last: new Map(), hist: new Map(), histDay: '', todayAt: new Map(), busy: false, startedAt: 0, log: [], ticks: 0, pos: new Map(), holiday: '' };
 function bgLog(s){ const line = new Date().toLocaleTimeString('zh-TW', {hour12:false}) + ' ' + s; BG.log.push(line); if (BG.log.length > 300) BG.log.shift(); try{ if (window.Android && Android.log) Android.log(line); }catch(e){} }
-function bgNotify(title, body, kind){ bgLog('[通知] ' + title + ' | ' + body); try{ if (window.Android && Android.notify) Android.notify(title, body, kind || ''); }catch(e){} }
+function bgNotify(title, body, kind){ body = (body || '') + ' · ' + RULESET.btn; bgLog('[通知] ' + title + ' | ' + body); try{ if (window.Android && Android.notify) Android.notify(title, body, kind || ''); }catch(e){} }   // 2026-10-18 使用者:通知內容最後加「· 判一 / 判二 / 判三」,通知欄代碼後面顯示是哪一份判別式發的
 async function bgTick(force, replay){
   try{ const v = localStorage.getItem(RS_KEY); if (v && RULESETS[v] && v !== ACTIVE_RS){ location.reload(); return 'reload:' + v; } }catch(e){}   // 2026-10-18:前景那份切換了判別式 → 背景這份自己重載,下一輪就用新的
   if (BG.busy) return 'busy';
@@ -4499,7 +4502,7 @@ window.bgTick = bgTick; window.BG = BG;
     const parse = x => {
       const m = (x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?(\S+) (\d{4,6}[A-Z]*)\s*(.*)$/); if (!m) return null;
       const b = x.body || '', rest = m[3];
-      const o = {x, name: m[1], code: m[2], t: x.t || '', kind: x.kind || ''};
+      const o = {x, name: m[1], code: m[2], t: x.t || '', kind: x.kind || '', rs: ((b.match(/· (判[一二三])\s*$/) || [])[1]) || ''};   // rs:發通知的判別式(判一 / 判二 / 判三),舊紀錄沒有就空白
       if (o.kind === 'long' || o.kind === 'short'){ o.type = 'entry'; o.side = o.kind; o.price = +((rest.match(/([\d.]+)\s*$/) || [])[1]) || 0; o.entT = o.t; o.entP = o.price;
         o.tp = ((b.match(/停利 ([\d.]+)/) || [])[1]) || ''; o.sl = ((b.match(/停損 ([\d.]+)/) || [])[1]) || ''; }
       else if (o.kind === 'loss' || o.kind === 'profit' || o.kind === 'exit' || o.kind === 'warn'){
@@ -4521,7 +4524,7 @@ window.bgTick = bgTick; window.BG = BG;
       const lots = lotsOf(o), px = o.price ? o.price.toFixed(2) : '';
       const ex = o.type === 'exit' ? `<span class="${o.win ? 'mk win' : 'mk lose'}">${(o.win ? '▲' : '⚠').repeat(marks(o.pl))}</span>` : '';
       const rs = o.type === 'warn' ? '<span class="rs warn"><b>注</b><b>意</b></span>' : '<span class="rs"></span>';   // 每列都有同樣的欄位,成交價 / 做多做空 / 張數才會上下對齊;贏 / 輸 取消顯示
-      return `<div class="ln"><span class="nmblk"><span class="nm">${esc(o.name)}</span><span class="cd">${esc(o.code)}</span></span><span class="px">${esc(px)}</span><span class="sd ${o.side === 'long' ? 'win' : 'lose'}">${sideTxt}</span><span class="qt">${lots ? lots + '張' : ''}</span><span class="exm">${ex}</span>${rs}</div>`;
+      return `<div class="ln"><span class="nmblk"><span class="nm">${esc(o.name)}</span><span class="cd">${esc(o.code)}${o.rs ? ' <i class="rsb">' + o.rs + '</i>' : ''}</span></span><span class="px">${esc(px)}</span><span class="sd ${o.side === 'long' ? 'win' : 'lose'}">${sideTxt}</span><span class="qt">${lots ? lots + '張' : ''}</span><span class="exm">${ex}</span>${rs}</div>`;
     };
     const info = o => '';   // 2026-10-17 使用者:每一則下面的灰字明細都不顯示,只留代碼
     box.innerHTML = hd + (cards.length ? cards.map((o, k) => `<div class="card ${o.side === 'long' ? 'c-long' : o.side === 'short' ? 'c-short' : ''}${posStatus(o.code) === 'open' ? ' mine' : posStatus(o.code) === 'closed' ? ' done' : ''}" data-i="${k}">${line(o)}</div>`).join('')
