@@ -88,6 +88,11 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 20:40 圖表縮放 / 拖動更順(使用者:「放大縮小可以更順暢一些嗎」):
+    (1) 套件 4.1 優先用 ResizeObserver 的 devicePixelContentBoxSize 決定畫布像素,之前把 devicePixelRatio 壓成 2 在 Android WebView 上沒生效,
+        3 倍螢幕一直畫 3 倍像素;把那個屬性從 ResizeObserverEntry 原型拿掉,套件退回用 devicePixelRatio,像素少 55%。
+    (2) 手指按在圖上期間畫布降到 1 倍像素(高度 −1px 再 +1px 逼套件重算),放手回 2 倍畫清楚;拖動 / 縮放期間像素再少 3/4。
+    交易規則沒動。
   · 2026-10-18 20:20 滾輪標題「手續費折扣」改「手續折扣」(使用者指定)。
   · 2026-10-18 20:15 設定區文字再最大化:標題 25px(一格剛好 5 個字)、選中的數字 24px、其餘 18px(使用者:「文字最大化」)。
   · 2026-10-18 20:10 設定滾輪的標題(監控低價 / 監控高價 / 最低振幅 / 監控檔數 / 手續費折扣 / 多空上限)放大到 22px 白字粗體(原 10px 灰字),上下留白縮小讓兩排放得下(使用者指定)。
@@ -1350,7 +1355,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610182020">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610182040">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3713,7 +3718,11 @@ function initChart(){
   // 畫布解析度上限(2026-10-17 使用者:「放大縮小很慢、左右移動也很慢」):手機螢幕 3 倍解析度時,
   // 兩張圖每一格都要重畫 1236×3300 像素以上,量測拖動時 7 成時間都在畫像素;壓到 2 倍像素數少一半以上,
   // 線條文字肉眼幾乎看不出差別。圖表套件是從 window.devicePixelRatio 讀的,只影響 canvas,網頁其他部分照舊。
-  try{ const real = window.devicePixelRatio || 1; if (YH.chartDpr > 0 && real > YH.chartDpr) Object.defineProperty(window, 'devicePixelRatio', {get: () => YH.chartDpr, configurable: true}); }catch(e){}
+  let CUR_DPR = YH.chartDpr;   // 目前給圖表用的像素倍率:平常 chartDpr(2),手指在圖上拖 / 縮放時降到 1,放手恢復(2026-10-18)
+  try{ const real = window.devicePixelRatio || 1; if (YH.chartDpr > 0 && real > YH.chartDpr) Object.defineProperty(window, 'devicePixelRatio', {get: () => CUR_DPR, configurable: true}); }catch(e){}
+  // 2026-10-18 使用者:「放大縮小可以更順暢一些嗎」:套件 4.1 其實優先用 ResizeObserver 的 devicePixelContentBoxSize 決定畫布像素(Chrome / Android WebView 都支援),
+  // 上面把 devicePixelRatio 壓成 2 根本沒生效,3 倍螢幕的手機一直在畫 3 倍像素。把那個屬性從原型拿掉,套件就會退回用 devicePixelRatio(= 2),像素少 55%。
+  try{ if (!window.__noForceDpr && YH.chartDpr > 0 && typeof ResizeObserverEntry !== 'undefined' && 'devicePixelContentBoxSize' in ResizeObserverEntry.prototype) delete ResizeObserverEntry.prototype.devicePixelContentBoxSize; }catch(e){}
   const CHART_OPTS = chartOpts();
   const top = document.getElementById('chartTop');
   const mid = document.getElementById('chartMid');
@@ -3794,7 +3803,16 @@ function initChart(){
     keepXInView(fixed || r);
     scheduleHiLo();
   });
-  const tStart = () => { touching = true; clearTimeout(touchGuard); touchGuard = setTimeout(tEnd, 1500); gestureStart(); };
+  // 2026-10-18 使用者:「放大縮小可以更順暢一些嗎」:手指按在圖上期間把畫布降到 1 倍像素(像素數只剩 1/4),放手再回 2 倍畫清楚。
+  // 套件是在畫布尺寸改變時重讀 devicePixelRatio,所以高度先減 1px 再加回來逼它重算(肉眼看不出)。
+  const setChartDpr = v => {
+    if (!(YH.chartDpr > 0) || CUR_DPR === v || window.__noGestureDpr) return; CUR_DPR = v;
+    // 手指按著期間圖高 −1px、放手回原高:尺寸真的有變,ResizeObserver 才會叫套件重算畫布(同一格內先 −1 再 +1 會被合併成沒變)
+    const dh = v === YH.chartDpr ? 0 : -1;
+    for (const [e, c] of [[top, chart], [mid, chartM], [bot, chartB]]){ if (!c || !e || !e.clientHeight) continue; c.applyOptions({width: e.clientWidth, height: e.clientHeight + dh}); }
+  };
+  window.setChartDpr = setChartDpr;
+  const tStart = () => { touching = true; clearTimeout(touchGuard); touchGuard = setTimeout(tEnd, 1500); gestureStart(); setChartDpr(1); };
   // 放手後慣性捲動約 1.5 秒:每格檢查兩張圖的範圍是否一樣,不一樣就以剛才拖的那張為準(慣性動畫只在被拖的那張跑)
   let settle = 0, settleSrc = null;
   const sameRange = (a, b) => a && b && Math.abs(a.from - b.from) < 1e-6 && Math.abs(a.to - b.to) < 1e-6;
@@ -3804,7 +3822,7 @@ function initChart(){
     if (r){ syncing = true; for (const b of charts) if (b !== src && !sameRange(r, b.timeScale().getVisibleLogicalRange())) b.timeScale().setVisibleLogicalRange(r); syncing = false; }
     if (settle > 0) requestAnimationFrame(settleLoop); else { settleSrc = null; scheduleHiLo(); showMarks(); }
   };
-  const tEnd = () => { if (!touching) return; touching = false; clearTimeout(touchGuard); gestureEnd(); scheduleHiLo(); if (typeof XLOCK !== 'undefined' && XLOCK) setTimeout(() => { if (XLOCK) applyX(XLOCK.time); }, 0); if (settle <= 0){ settle = 90; requestAnimationFrame(settleLoop); } else settle = 90; };
+  const tEnd = () => { if (!touching) return; touching = false; clearTimeout(touchGuard); gestureEnd(); setChartDpr(YH.chartDpr); scheduleHiLo(); if (typeof XLOCK !== 'undefined' && XLOCK) setTimeout(() => { if (XLOCK) applyX(XLOCK.time); }, 0); if (settle <= 0){ settle = 90; requestAnimationFrame(settleLoop); } else settle = 90; };
   ['chartTop', 'chartMid', 'chartBot'].forEach(id => { const e = el(id); if (!e) return;
     e.addEventListener('touchstart', () => { settleSrc = id === 'chartMid' ? chartM : id === 'chartBot' ? (chartB || chartM) : chart; tStart(); }, {passive:true});
     e.addEventListener('touchend', tEnd, {passive:true}); e.addEventListener('touchcancel', tEnd, {passive:true}); });
