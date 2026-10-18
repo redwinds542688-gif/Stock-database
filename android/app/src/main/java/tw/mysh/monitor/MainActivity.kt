@@ -78,7 +78,6 @@ class MainActivity : AppCompatActivity() {
         m.menu.add(0, 3, 2, "關閉電池最佳化(必做)")
         m.menu.add(0, 4, 3, "更新程式(從 GitHub)")
         m.menu.add(0, 9, 3, "更新 App(從 GitHub)")
-        m.menu.add(0, 8, 5, if (Settings.canDrawOverlays(this)) "螢幕角落監控點:已允許" else "允許螢幕角落監控點(需權限)")
         m.menu.add(0, 6, 6, "重新載入畫面")
         m.setOnMenuItemClickListener { item ->
             when (item.itemId) {
@@ -86,7 +85,6 @@ class MainActivity : AppCompatActivity() {
                 4 -> updatePage()
                 9 -> Updater.check(this, true)
                 6 -> web.loadUrl(Page.url(this))
-                8 -> if (!Settings.canDrawOverlays(this)) startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) else toast("已允許,監控中會在右上角閃綠點")
             }
             true
         }
