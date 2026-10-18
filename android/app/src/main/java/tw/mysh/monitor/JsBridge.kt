@@ -91,4 +91,12 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
 
     @JavascriptInterface
     fun logFor(d: String?): String = NotifLog.forDate(ctx, d ?: "")
+
+    /** 正在用的判別式(一 / 二 / 三),存 SharedPreferences,離開 App 再回來還是同一份(2026-10-19 使用者:「判別式需要紀錄,離開程式再回來要就是離開時的判別式」)。
+     *  原本只存網頁的 localStorage,內建網頁(android_asset)和下載更新後的網頁(files/)是不同來源,換頁後會讀不到,所以改由 App 存。 */
+    @JavascriptInterface
+    fun getRuleset(): String = ctx.getSharedPreferences("mysh", Context.MODE_PRIVATE).getString("ruleset", "") ?: ""
+
+    @JavascriptInterface
+    fun setRuleset(k: String?) { ctx.getSharedPreferences("mysh", Context.MODE_PRIVATE).edit().putString("ruleset", k ?: "").apply(); Log.i("mysh", "[$tag] ruleset -> $k") }
 }

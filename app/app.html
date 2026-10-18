@@ -88,6 +88,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-19 00:50 判別式選擇改由 App 保存(使用者:「判別式需要紀錄,離開程式再回來要就是離開時的判別式」):原本只存網頁 localStorage,內建網頁(android_asset)
+    和自動更新下載的網頁(files/)在 WebView 是不同來源,各存各的,換頁後就回到判一。1.5.28 的 App 加 Android.getRuleset / setRuleset(SharedPreferences),
+    網頁開啟先問 App、切換時兩邊都存(`readRuleset()` / `saveRuleset()`),背景那份每輪也用同一個函式比對。舊版 App 沒有這兩個方法,照舊用 localStorage。
   · 2026-10-19 00:20 判別式二第五次修改(使用者:「檢討為何看錯方向」→「做」):
     (1) 穿越確認點 OBV 均 30 也要同向(`crossSlowMa2:30`):眾達 10/16 10:19 多單是 OBV30 從 09:55 一路降的反彈,擋掉 −3,464,沒擋到賺的。
     (2) 逆勢單看時間順序(`weakByOrder:true`):反方向第 1 點要比自己方向的第 1 點早出現才算逆勢;毅嘉 10/16 09:27 空單原本被 09:32 的多點洗掉 −4,275,改後抱到 11:23 停利 +7,080。
@@ -1378,7 +1381,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610190020">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610190050">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2391,7 +2394,7 @@ function render(list){
     const st = () => { rsLong = false; rsMoved = false; clearTimeout(rsHold); rsHold = setTimeout(() => {
       rsLong = true; try{ navigator.vibrate && navigator.vibrate(30); }catch(e){}
       if (k === ACTIVE_RS){ infoKind === 'state' ? hideInfo() : showInfo('state'); return; }
-      try{ localStorage.setItem(RS_KEY, k); }catch(e){}
+      saveRuleset(k);   // localStorage + App 的 SharedPreferences 都存(2026-10-19)
       setStatus('切換背景監控到 ' + RULESETS[k].name + ',重新載入…'); setTimeout(() => location.reload(), 300);
     }, 600); };
     b.addEventListener('touchstart', st, {passive: true});
@@ -3338,7 +3341,22 @@ const RULESETS = {
           sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'gapdir', gapSlowMa: 30, gapWinBars: 10, gapGrowBars: 2, noLock: true, obmaSlopeMin: 0, confirmMinGapPct: 4, noEntryAfter: '12:00' }) },
 };
 const RS_KEY = 'mysh.ruleset';
-let ACTIVE_RS = '一'; try{ const v = localStorage.getItem(RS_KEY); if (RULESETS[v]) ACTIVE_RS = v; }catch(e){}
+// 正在用的判別式:先問 App(SharedPreferences,1.5.28 起有 Android.getRuleset),沒有才看 localStorage。
+// 2026-10-19 使用者:「判別式需要紀錄,離開程式再回來要就是離開時的判別式」。內建網頁(android_asset)和下載更新後的網頁(files/)在 WebView 是不同來源,
+// localStorage 各存各的,自動更新換頁後就讀不到原本的選擇;App 存的不受影響。電腦瀏覽器沒有 Android 物件,照舊用 localStorage。
+function readRuleset(){
+  let a = '';
+  try{ if (window.Android && Android.getRuleset) a = String(Android.getRuleset() || ''); }catch(e){}
+  if (RULESETS[a]) return a;
+  try{ const v = localStorage.getItem(RS_KEY); if (RULESETS[v]) return v; }catch(e){}
+  return '';
+}
+function saveRuleset(k){
+  try{ localStorage.setItem(RS_KEY, k); }catch(e){}
+  try{ if (window.Android && Android.setRuleset) Android.setRuleset(k); }catch(e){}
+}
+let ACTIVE_RS = readRuleset() || '一';
+try{ if (window.Android && Android.setRuleset && !String(Android.getRuleset() || '')) Android.setRuleset(ACTIVE_RS); }catch(e){}   // 舊版只存 localStorage 的,第一次開啟就補存到 App
 const RULESET = RULESETS[ACTIVE_RS];
 const SIG = RULESET.sig;
 function signalLight(bars, ma, ob, obma, prevClose, canShort, dayHi, dayLo){
@@ -4619,7 +4637,7 @@ const BG = { last: new Map(), hist: new Map(), histDay: '', todayAt: new Map(), 
 function bgLog(s){ const line = new Date().toLocaleTimeString('zh-TW', {hour12:false}) + ' ' + s; BG.log.push(line); if (BG.log.length > 300) BG.log.shift(); try{ if (window.Android && Android.log) Android.log(line); }catch(e){} }
 function bgNotify(title, body, kind){ body = (body || '') + ' · ' + RULESET.btn; bgLog('[通知] ' + title + ' | ' + body); try{ if (window.Android && Android.notify) Android.notify(title, body, kind || ''); }catch(e){} }   // 2026-10-18 使用者:通知內容最後加「· 判一 / 判二 / 判三」,通知欄代碼後面顯示是哪一份判別式發的
 async function bgTick(force, replay){
-  try{ const v = localStorage.getItem(RS_KEY); if (v && RULESETS[v] && v !== ACTIVE_RS){ location.reload(); return 'reload:' + v; } }catch(e){}   // 2026-10-18:前景那份切換了判別式 → 背景這份自己重載,下一輪就用新的
+  try{ const v = readRuleset(); if (v && RULESETS[v] && v !== ACTIVE_RS){ location.reload(); return 'reload:' + v; } }catch(e){}   // 2026-10-18:前景那份切換了判別式 → 背景這份自己重載,下一輪就用新的
   if (BG.busy) return 'busy';
   if (replay) BG.last.clear();                      // 測試用:今天所有進出場點重新通知一次
   if (!force && !inSession()) return 'off';
