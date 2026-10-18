@@ -88,6 +88,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 16:20 通知欄顏色同清單(使用者:「股票顏色、價格顏色與下面監控股票的顯示一致」):名稱白字不加框;進場價 / 平倉價比昨收高紅、低綠、平白
+    (雲端紀錄多帶 prev 昨收;今天的用即時報價昨收或清單昨收)。代碼綠、判一金不變。
   · 2026-10-18 16:05 警示欄位 平倉 / 注意 / 反彈 一律紅色(使用者:「警示一律紅色」)。
   · 2026-10-18 16:00 警示欄位(使用者:「那個地方就是一個警示欄位,可以出現 平倉 / 注意 / 反彈;邏輯出現必須再發一條訊息;顯示要有閃爍」):
     通知欄卡片最右欄顯示 平倉(紅)/ 注意(橘)/ 反彈(黃),進場卡片顯示該筆交易之後的最新狀態,今天 10 分鐘內出現的會閃爍。
@@ -1317,7 +1319,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610181605">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610181620">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1401,9 +1403,10 @@ except Exception:
   #notifLog .card .ln.sub{min-height:1em;line-height:1;margin-top:-3px}   /* 第 2 列:代碼 | 平倉價 | 判一 */
   #notifLog .card .ln.sub .s{font-size:.62em;font-weight:600;font-style:normal;line-height:1.1}
   #notifLog .card .ln.sub{background:rgba(0,0,0,.22);border-radius:3px}   /* 2026-10-18 使用者:「上下顏色要有區別」:第 2 列底色壓暗一點 */
-  #notifLog .card .ln.sub .px .s{color:#FFB74D} #notifLog .card .ln.sub .rsb{color:#C9A227}   /* 平倉價橘(進場價藍)、判一金 */
-  #notifLog .card .ln .nm{color:#FFD54F;overflow:hidden;text-overflow:ellipsis;display:inline-block;align-self:flex-start;border:2px solid #FFD54F;border-radius:4px;padding:0 3px;line-height:1.15}   /* 名稱加框 */
-  #notifLog .card .ln .px{flex:0 0 6ch;text-align:right;color:#4FC3F7;margin-left:.5ch}
+  #notifLog .card .ln.sub .rsb{color:#C9A227}   /* 判一金;平倉價顏色同上(漲紅跌綠) */
+  #notifLog .card .ln .nm{color:var(--text);overflow:hidden;text-overflow:ellipsis;display:inline-block;align-self:center;line-height:1.15;font-family:var(--sans)}   /* 2026-10-18 名稱改白字、不加框,和下面清單一致(原本黃字黃框) */
+  #notifLog .card .ln .px{flex:0 0 6ch;text-align:right;color:var(--text);margin-left:.5ch}   /* 2026-10-18 價格顏色同清單:漲紅跌綠平白 */
+  #notifLog .card .ln .px.up{color:var(--up)} #notifLog .card .ln .px.down{color:var(--down)}
   #notifLog .card .ln .sd{flex:0 0 2em;text-align:center;margin-left:.5ch} #notifLog .card .ln .sd.win{color:#FF3B3B} #notifLog .card .ln .sd.lose{color:#1DD75B}
   #notifLog .card .ln .qt{flex:0 0 2.6em;text-align:right;color:#D8DEE9;margin-left:.5ch}
   #notifLog .card .ln .exm{flex:1 0 2.4em;text-align:right;margin-left:.5ch;letter-spacing:-1px} #notifLog .card .ln .mk.lose{color:#FF3B3B} #notifLog .card .ln .mk.win{color:#1DD75B}   /* 賠紅 ⚠、賺綠 ▲(2026-10-17 使用者) */
@@ -4524,7 +4527,7 @@ window.bgTick = bgTick; window.BG = BG;
     const parse = x => {
       const m = (x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?(\S+) (\d{4,6}[A-Z]*)\s*(.*)$/); if (!m) return null;
       const b = x.body || '', rest = m[3];
-      const o = {x, name: m[1], code: m[2], t: x.t || '', kind: x.kind || '', rs: ((b.match(/· (判[一二三])\s*$/) || [])[1]) || ''};   // rs:發通知的判別式(判一 / 判二 / 判三),舊紀錄沒有就空白
+      const o = {x, name: m[1], code: m[2], t: x.t || '', kind: x.kind || '', prev: +x.prev || 0, rs: ((b.match(/· (判[一二三])\s*$/) || [])[1]) || ''};   // rs:發通知的判別式(判一 / 判二 / 判三),舊紀錄沒有就空白
       if (o.kind === 'long' || o.kind === 'short'){ o.type = 'entry'; o.side = o.kind; o.price = +((rest.match(/([\d.]+)\s*$/) || [])[1]) || 0; o.entT = o.t; o.entP = o.price;
         o.tp = ((b.match(/停利 ([\d.]+)/) || [])[1]) || ''; o.sl = ((b.match(/停損 ([\d.]+)/) || [])[1]) || ''; }
       else if (o.kind === 'loss' || o.kind === 'profit' || o.kind === 'exit' || o.kind === 'warn'){
@@ -4558,6 +4561,9 @@ window.bgTick = bgTick; window.BG = BG;
       const lots = lotsOf(o);
       const entP = o.type === 'entry' ? o.price : (o.entP || o.price);
       const pxTop = entP ? (+entP).toFixed(2) : '', pxBot = (o.type !== 'entry' && o.price) ? (+o.price).toFixed(2) : '';
+      // 2026-10-18 使用者:名稱、價格顏色和下面清單一致 → 名稱白字;價格比昨收高紅、低綠、平白。昨收:雲端紀錄自帶 prev;今天的用即時報價的昨收,沒有就用清單的昨收
+      const prevC = o.prev || (d === today ? (((LIVE.get(o.code) || {}).y) || (() => { const sn = SNAPSHOT.find(q => q.code === o.code); return sn && sn.date < today ? +sn.close : 0; })()) : 0);
+      const ud = v => !prevC || !v ? '' : v > prevC ? ' up' : v < prevC ? ' down' : ' flat';
       const ex = o.type === 'exit' ? `<span class="${o.win ? 'mk win' : 'mk lose'}">${(o.win ? '▲' : '⚠').repeat(marks(o.pl))}</span>` : '';
       // 2026-10-18 使用者定案:最右邊是「警示欄位」,顯示 平倉 / 注意 / 反彈。進場卡片顯示這筆交易之後最新的狀態(平倉 > 反彈 / 注意),
       // 平倉 / 注意 / 反彈 那則自己也顯示;今天、而且出現不到 10 分鐘的會閃爍。每列都有同樣的欄位,成交價 / 做多做空 / 張數才會上下對齊
@@ -4565,8 +4571,8 @@ window.bgTick = bgTick; window.BG = BG;
       const al = o._alert, alT = o._alertT || '';
       const fresh = d === today && alT && (() => { const [h, mi] = alT.split(':').map(Number); const n = new Date(Date.now() + 8 * 3600000); return (n.getUTCHours() * 60 + n.getUTCMinutes()) - (h * 60 + mi) < 10; })();
       const rs = al ? `<span class="rs al al-${al}${fresh ? ' blink' : ''}">${AL[al]}</span>` : '<span class="rs"></span>';
-      return `<div class="ln"><span class="nmblk"><span class="nm">${esc(o.name)}</span></span><span class="px">${pxTop}</span><span class="sd ${o.side === 'long' ? 'win' : 'lose'}">${sideTxt}</span><span class="qt">${lots ? lots + '張' : ''}</span><span class="exm">${ex}</span>${rs}</div>`
-           + `<div class="ln sub"><span class="nmblk"><span class="cd">${esc(o.code)}</span></span><span class="px"><i class="s">${pxBot}</i></span><span class="sd"><i class="s rsb">${o.rs || ''}</i></span><span class="qt"></span><span class="exm"></span><span class="rs"></span></div>`;
+      return `<div class="ln"><span class="nmblk"><span class="nm">${esc(o.name)}</span></span><span class="px${ud(+entP)}">${pxTop}</span><span class="sd ${o.side === 'long' ? 'win' : 'lose'}">${sideTxt}</span><span class="qt">${lots ? lots + '張' : ''}</span><span class="exm">${ex}</span>${rs}</div>`
+           + `<div class="ln sub"><span class="nmblk"><span class="cd">${esc(o.code)}</span></span><span class="px${ud(+o.price)}"><i class="s">${pxBot}</i></span><span class="sd"><i class="s rsb">${o.rs || ''}</i></span><span class="qt"></span><span class="exm"></span><span class="rs"></span></div>`;
     };
     const info = o => '';   // 2026-10-17 使用者:每一則下面的灰字明細都不顯示,只留代碼
     box.innerHTML = hd + (cards.length ? cards.map((o, k) => `<div class="card ${o.side === 'long' ? 'c-long' : o.side === 'short' ? 'c-short' : ''}${posStatus(o.code) === 'open' ? ' mine' : posStatus(o.code) === 'closed' ? ' done' : ''}" data-i="${k}">${line(o)}</div>`).join('')
