@@ -78,13 +78,11 @@ class MainActivity : AppCompatActivity() {
         m.menu.add(0, 3, 2, "關閉電池最佳化(必做)")
         m.menu.add(0, 4, 3, "更新程式(從 GitHub)")
         m.menu.add(0, 9, 3, "更新 App(從 GitHub)")
-        m.menu.add(0, 6, 6, "重新載入畫面")
         m.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 3 -> batteryWhitelist()
                 4 -> updatePage()
                 9 -> Updater.check(this, true)
-                6 -> web.loadUrl(Page.url(this))
             }
             true
         }
