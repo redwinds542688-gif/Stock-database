@@ -25,7 +25,7 @@
 5. 每次改程式前先確認:這次改動有沒有碰到判別式一?有就停下來問。
 6. 判別式一目前鎖定的數字之一:**量比門檻 0.9**(2026-10-18 使用者指令由 1.0 改 0.7、同日再改 0.9「安全很多」,從此以 0.9 為準)。
 7. 判別式一已核准的第二次修改(2026-10-18 使用者指令「把 OBV5 加入判別式一」):OBV 均線(10)太平時,改看 OBV 均 5 的 5 根斜率 ≥ 4% 就放行。
-8. 判別式二、三(2026-10-18 使用者指令「把現在判別式一複製給判別式二跟三」):目前是判別式一的完整複製,按鍵「判二」「判三」連按兩下切換;它們不受第 1 點鎖定,但一樣要使用者明確說「改 判別式二 ○○」才動,改了要分開回測、分開記錄;判別式一照舊不動。
+8. 判別式二(2026-10-18 使用者指令「把現在判別式一複製給判別式二跟三」;同日 23:30「把判別三刪除」,判別式三已拿掉):從判別式一複製後獨立修改,按鍵「判二」長按切換;不受第 1 點鎖定,但一樣要使用者明確說才動,改了要分開回測、分開記錄;判別式一照舊不動。
 9. **從 2026-10-18 起,判別式一完全凍結,所有修改一律做在判別式二**(使用者指令「現在開始 判別式一 都不能動 現在所有的修改都是針對判別式二」):以後使用者說「改 ○○」「加 ○○」「測 ○○」,沒有特別指名的話,一律改 `RULESETS['二'].sig`(判別式二),判別式一的 `SIG1` / `RULESET1` 連一個數字都不碰;回測與記錄也分開寫在《判別式二.md》。
    **例外一次(2026-10-18 13:45)**:使用者指令「判別式一,三也跟著改」、確認選 1 → 判別式二的兩條新規則併回判別式一與三,三份目前內容相同;之後判別式一恢復凍結。
 10. 判別式一已核准的第三次修改(2026-10-18 使用者指令「都加」→「判別式一,三也跟著改」→「1」):確認點 OBV 紅線 5 根斜率低於 −2%(紅線在退)不進、標「退」(`redSlopeMin:-2`);停利出場後同方向第 1 個點重數(`resetAfterTp:true`)。四天回測 +67,579(19 筆 17 賺 2 賠)→ +71,272(16 筆 15 賺 1 賠,勝率 94%)。
@@ -88,6 +88,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 23:30 判別式三刪除(使用者:「首先 把判別三 刪除」):按鍵列拿掉「判三」(剩 訊息 / 判一 / 判二 / 設定,4 格),`RULESETS` 只剩一、二;
+    舊手機若存檔記著「三」,開啟時自動退回判別式一。通知卡片的「判三」舊紀錄仍可顯示。鐵律第 8 條同步改寫(README、判別式一.md、本檔)。
   · 2026-10-18 23:00 判別式二第四次修改(使用者:「這 13 筆輸錢的看看有沒有什麼解法」→「兩個都加」):
     (1) 確認點紅藍距離 ≥ 4%(`SIG.confirmMinGapPct=4`,÷當日 OBV 範圍;不夠只記錄、標「距」):賺的 20 筆最小 4.1%,賠的驊宏資 11:06 1.1%、友達 12:13 1.6%、凱崴 2.3%、今國光 3.2% 全在 4% 下(−12,907);
         3.5% 不夠,凱崴 11:36 會用 3.7% 再進賠 −8,022。(2) 12:00 後不進(`noEntryAfter:'12:00'`):12 點後進的 4 筆都被 13:25 收掉(−4,207),代價是松瑞藥 12:39 +4,423。
@@ -1368,7 +1370,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610182300">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610182330">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1495,7 +1497,7 @@ except Exception:
 
   /* 顯示區下方的五顆按鍵,平均分配螢幕寬度,齒輪在第五顆 */
   .toolbar{position:absolute;bottom:4px;left:0;right:0;z-index:6;
-           display:grid;grid-template-columns:repeat(5,1fr);
+           display:grid;grid-template-columns:repeat(4,1fr);   /* 2026-10-18 判三刪除後剩 4 顆 */
            align-items:center;justify-items:center}
   .tool{width:38px;height:38px;padding:0;display:grid;place-items:center;touch-action:manipulation;   /* 2026-10-18 按鍵不等雙擊判定,點了就反應 */
         background:none;border:none;color:var(--dim);cursor:pointer;
@@ -1735,9 +1737,8 @@ except Exception:
   <div class="toolbar">
     <button class="tool txt" id="refreshBtn" aria-label="訊息"
             title="顯示監控訊息;長按重新讀取雲端資料">訊息</button>
-    <button class="tool txt rs" id="btnReload" data-rs="一" aria-label="判別式一" title="亮燈 = 背景監控正在用判別式一;點亮著的看規則,沒亮的連按兩下切換">判一<i class="mdot"></i></button>   <!-- 2026-10-18 使用者:第二顆設「判一」;同日再加判二、判三;mdot = 背景監控燈(亮在正在用的那顆右上角) -->
-    <button class="tool txt rs" id="btnState" data-rs="二" aria-label="判別式二" title="判別式二(目前是判別式一的複製);連按兩下切換">判二<i class="mdot"></i></button>
-    <button class="tool txt rs" id="btnRules" data-rs="三" aria-label="判別式三" title="判別式三(目前是判別式一的複製);連按兩下切換">判三<i class="mdot"></i></button>
+    <button class="tool txt rs" id="btnReload" data-rs="一" aria-label="判別式一" title="亮燈 = 背景監控正在用判別式一;點亮著的看規則,沒亮的連按兩下切換">判一<i class="mdot"></i></button>   <!-- 2026-10-18 使用者:第二顆設「判一」;同日加判二(判三加了又刪);mdot = 背景監控燈(亮在正在用的那顆右上角) -->
+    <button class="tool txt rs" id="btnState" data-rs="二" aria-label="判別式二" title="判別式二;長按 0.6 秒切換背景監控">判二<i class="mdot"></i></button>
     <button class="tool gear txt" id="gear" aria-label="設定" title="單擊開 / 關監控設定">設定</button>
   </div>
   <div class="wheels">
@@ -2367,7 +2368,7 @@ function render(list){
   };
   const hideInfo = () => { infoKind = ''; infoRs = ''; clearInterval(infoTimer); info.classList.add('hidden'); nl.classList.remove('hidden'); if (window.refreshToolbar) refreshToolbar(); };
   window.hideInfo = hideInfo;
-  // 「判一 / 判二 / 判三」(2026-10-18 使用者定案):
+  // 「判一 / 判二」(2026-10-18 使用者定案;判三同日刪除):
   //   單擊(連點也算一次)→ 顯示 / 收起那一份判別式的規則頁(不切換監控);正在用的那顆亮燈 = 背景監控執行中;規則頁顯示中那顆也亮
   //   長按 0.6 秒沒在用的那顆 → 切換背景監控用那一份(存 localStorage 後重載,背景那份網頁下一輪自己跟上);長按正在用的那顆 → 監控狀態頁
   // 2026-10-18 使用者:「按鍵卡卡」→ 放開手指(touchend)就動作,不等瀏覽器 300ms 後的 click;click 只給滑鼠用(同一次觸控的 click 會被擋掉)
@@ -2389,7 +2390,7 @@ function render(list){
     b.addEventListener('click', () => { if (Date.now() - rsTouchAt < 800) return; if (rsLong){ rsLong = false; return; } act(); });   // 觸控已處理過就略過
   });
   // 按鍵燈號(2026-10-18 使用者定案):通知欄顯示中 → 「訊息」亮;設定滾輪打開 → 「設定」亮、「訊息」熄;
-  // 「判一 / 判二 / 判三」只有背景監控正在用的那顆亮
+  // 「判一 / 判二」只有背景監控正在用的那顆亮
   const refreshToolbar = () => {
     const pnl = document.querySelector('.panel'); const panelOpen = !!(pnl && pnl.classList.contains('open'));
     const infoShown = !info.classList.contains('hidden');
@@ -3283,9 +3284,9 @@ const SIG1 = { skipMin: 15, slopeBars: 10, maxDev: 2.0, noEntryAfter: '13:00', t
               scaleBars: 5, scaleMaFull: 0.5, scaleObFull: 20, scaleW: {ma: 0, obma: 0.75, ob: 0.25}, lampBars: 3, lampWarnBars: 1,   // 多空天秤(2026-10-18):OBV 均線(藍)75% + OBV(紅)25%,均價線 0;5 根斜率,藍 / 紅 ÷ 當日 OBV 範圍 ±20% 滿格
               takePct: 2.5, stopPct: 1.5, maxMovePct: 6.0, confirmMaxGapPct: 2.0, confirmMaxExtGapPct: 2.5, obmaSlopeBars: 5, obmaSlopeMin: 4.0, obmaSlope2Ma: 5, obvExitMa: 30, obvExitMinGain: 1.0, obvWarnMa: 20, maxEntryDevPct: 1.0, vwapFilter: true, vwapSlopeBars: 10, vwapSlopeMin: 0, gapChasePct: 2.0, minDayVol: 6000, rvolMin: 0.9, rvolFilter: true,
               redSlopeMin: -2, resetAfterTp: true };   // 2026-10-18 第三次修改(使用者「都加」→「判別式一,三也跟著改」→ 選 1):redSlopeMin 確認點紅線 5 根斜率 < −2%(在退)不進、標「退」;resetAfterTp 停利後同方向第 1 點重數   // rvol:量比 = 今天到此刻累計量 ÷ 前 5 天同一時刻平均;rvolFilter=true 時量比 < rvolMin 不進場(只記錄,標「比」);false 只顯示(2026-10-16 01:40)   // minDayVol:當天累計成交量(張)未達 6000 不進場;達到後下一個同向點直接進(2026-10-16 01:10)   // vwapFilter:價在 VWAP 上只做多、下只做空(23:30);vwapSlope:VWAP 最近 10 分鐘要往進場方向走 ≥ 0.05%(23:55)   // confirmMaxGapPct:確認點與前一個同向點的價差上限 %(2026-10-15 22:35 定 1%,22:45 改 2%);maxEntryDevPct:訊號價離均價超過 1% 只記錄不進場(23:15)   // 平倉:獲利 2.5% 停利(2026-10-17 由 4% 改,回測 10/13~16 +29,382 → +40,767)、反向 1.5% 停損、距昨收超過 6% 強制出(2026-10-15)   // trendOnlyPct:距昨收超過 ±3%(到 entryMaxChg 為止)只收順勢訊號   // noEntryAfter:13:00 後不進場、只監控平倉(2026-10-15);slopeBars / maxDev 給多空天秤用
-/* ── 判別式二、三(2026-10-18 使用者指令「把現在判別式一複製給判別式二跟三,按鍵名稱也放上去」)──
-   目前兩份都是判別式一的完整複製(每個數字一樣),留給日後試新邏輯;要改哪一份,使用者明確說「改 判別式二 ○○」才動,判別式一照舊鎖定。
-   按鍵列第 2~4 顆 = 判一 / 判二 / 判三:亮燈 = 背景監控正在用那一份;點亮著的那顆看規則;點沒亮的要連按兩下才切換
+/* ── 判別式二(2026-10-18 使用者指令「把現在判別式一複製給判別式二跟三,按鍵名稱也放上去」;同日 23:30「把判別三刪除」,只剩一、二)──
+   判別式二從判別式一複製後已多次修改(見 RULESETS['二'] 的註解與《判別式二.md》);判別式一照舊鎖定。
+   按鍵列第 2、3 顆 = 判一 / 判二:亮燈 = 背景監控正在用那一份;單擊看規則;長按 0.6 秒切換
    (切換存在 localStorage,網頁重載;背景監控那份網頁下一輪 bgTick 發現不同會自己重載)。 */
 const RULESETS = {
   '一': Object.assign({ key: '一', btn: '判一', sig: SIG1 }, RULESET1),
@@ -3311,7 +3312,7 @@ const RULESETS = {
           sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'cross', crossStrPct: 2, crossWinBars: 10, crossNewHi: 1, crossSlowMa: 20, crossKMaDir: false, noLock: true, obmaSlopeMin: 0,
                                                                   strong: true, strongSlowMa: 30, strongDxBars: 5, strongSlowBars: 2, strongExtBars: 10, strongWin: 5, strongMaxChg: 4, strongNoAfter: '11:30',
                                                                   confirmMinGapPct: 4, noEntryAfter: '12:00' }) },
-  '三': { key: '三', btn: '判三', name: '判別式三', date: '2026-10-18', backtest: '與判別式一相同(16 筆,賺 15 賠 1,+71,272);2026-10-18 兩條新規則三份都加', sig: JSON.parse(JSON.stringify(SIG1)) },
+  // 判別式三:2026-10-18 使用者「把判別三刪除」→ 拿掉(原本是判別式一的複製,沒有改過);舊存檔若記著 '三',下面 ACTIVE_RS 會退回 '一'
 };
 const RS_KEY = 'mysh.ruleset';
 let ACTIVE_RS = '一'; try{ const v = localStorage.getItem(RS_KEY); if (RULESETS[v]) ACTIVE_RS = v; }catch(e){}
