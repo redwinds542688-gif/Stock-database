@@ -88,6 +88,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 16:30 通知卡片底色:做多淺紫色網狀、做空淺藍色網狀(使用者指定;原本做多淺紅、做空淺綠)。
   · 2026-10-18 16:20 通知欄顏色同清單(使用者:「股票顏色、價格顏色與下面監控股票的顯示一致」):名稱白字不加框;進場價 / 平倉價比昨收高紅、低綠、平白
     (雲端紀錄多帶 prev 昨收;今天的用即時報價昨收或清單昨收)。代碼綠、判一金不變。
   · 2026-10-18 16:05 警示欄位 平倉 / 注意 / 反彈 一律紅色(使用者:「警示一律紅色」)。
@@ -1319,7 +1320,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610181620">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610181630">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1394,7 +1395,9 @@ except Exception:
   #notifLog .row.mine{outline:1px solid #FFD54F;outline-offset:-1px}   /* 長按記「我有做」 */
   /* 2026-10-17 18:30 三列卡片 */
   #notifLog .card{margin:3px 0;padding:2px 2px 1px;border-radius:0;cursor:pointer;outline:2px solid rgba(255,255,255,.75);outline-offset:-2px}   /* 沒長按過:白框 */
-  #notifLog .card.c-long{background:rgba(255,59,59,.22)} #notifLog .card.c-short{background:rgba(29,215,91,.22)}
+  /* 2026-10-18 使用者:做多淺紫色網狀底、做空淺藍色網狀底(原本做多淺紅、做空淺綠) */
+  #notifLog .card.c-long{background-color:rgba(170,120,255,.16);background-image:repeating-linear-gradient(45deg,rgba(190,150,255,.28) 0 1px,transparent 1px 7px),repeating-linear-gradient(-45deg,rgba(190,150,255,.28) 0 1px,transparent 1px 7px)}
+  #notifLog .card.c-short{background-color:rgba(90,170,255,.16);background-image:repeating-linear-gradient(45deg,rgba(120,190,255,.28) 0 1px,transparent 1px 7px),repeating-linear-gradient(-45deg,rgba(120,190,255,.28) 0 1px,transparent 1px 7px)}
   #notifLog .card.mine{outline:2px solid #FFD54F;outline-offset:-2px}   /* 有交易(持倉中) */
   #notifLog .card.done{outline:2px solid #4FC3F7;outline-offset:-2px}   /* 結束交易(已平倉)藍框 */
   #notifLog .card .ln{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:18px;font-weight:700;line-height:1.25;min-height:1.3em;overflow:hidden}   /* 2026-10-17 其餘欄位字體最大化、垂直置中;寬度不夠時由程式自動縮字 */
