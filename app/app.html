@@ -88,6 +88,11 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 23:00 判別式二第四次修改(使用者:「這 13 筆輸錢的看看有沒有什麼解法」→「兩個都加」):
+    (1) 確認點紅藍距離 ≥ 4%(`SIG.confirmMinGapPct=4`,÷當日 OBV 範圍;不夠只記錄、標「距」):賺的 20 筆最小 4.1%,賠的驊宏資 11:06 1.1%、友達 12:13 1.6%、凱崴 2.3%、今國光 3.2% 全在 4% 下(−12,907);
+        3.5% 不夠,凱崴 11:36 會用 3.7% 再進賠 −8,022。(2) 12:00 後不進(`noEntryAfter:'12:00'`):12 點後進的 4 筆都被 13:25 收掉(−4,207),代價是松瑞藥 12:39 +4,423。
+    四天 33 筆 61% +67,471 → 25 筆、賺 19 賠 6、76%、+79,819(10/13 +30,005、10/14 +8,040、10/15 +17,876、10/16 +23,898)。剩 6 筆(濱川漲停、欣銓跳低反彈失敗、眾達、毅嘉被洗後重進有賺回、敬鵬逆勢多、建榮橫盤)
+    試過量比上限、區間位置、離 VWAP、離今開都會連賺的一起擋,不加。判別式一不動(鐵律 9);判別式一加距離 4% 反而 13 筆 +64,328,比 +71,272 差。
   · 2026-10-18 22:15 判別式二第三次修改:強訊號(使用者拿友達 10/16 10:30 截圖:「這裏做空訊號應該要很強,看一下判別式二如何搭上,多空訊號燈也做成做空很強的樣子」→ 回報後「做」)。
     友達那個點判別式二抓不到:紅線 10:19 就跌破 OBV10 但只差 0.1%(不到 2% 不算開頭),10:30 拉開時已不是「剛穿越」,而且 +3.6% 被「+3% 只能做多」擋住。
     新規則(`SIG.strong`,只有判別式二有):紅線在 OBV10 與 OBV30 之下 + OBV10 5 根內剛死叉 OBV30 + OBV10 降、OBV30 連降 2 根 + 紅線近 10 根新低 + 價在均價下且均價降 →
@@ -1363,7 +1368,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610182215">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610182300">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2338,6 +2343,7 @@ function render(list){
     '進場價離均價 > ' + SIG.maxEntryDevPct + '% 只記錄;離昨收 > ±' + BASE.entryMaxChg + '% 不進(±' + SIG.trendOnlyPct + '% 外只收順勢訊號);' + '價須在 VWAP 正確一側' + (SIG.vwapSlopeMin > 0 ? '且 VWAP 斜率 ≥ ' + SIG.vwapSlopeMin + '%' : '(不看 VWAP 斜率)') + (SIG.gapChasePct > 0 ? ';今開跳空超過 ±' + SIG.gapChasePct + '% 不順著缺口方向做' : ''),
     '累積量 ≥ ' + SIG.minDayVol + ' 張且量比 ≥ ' + SIG.rvolMin + ' 才進(量夠後下一個訊號直接進;量比 = 今天到此刻累積量 ÷ 前 5 天同時刻平均)',
     ...(SIG.redSlopeMin != null ? ['確認點 OBV 紅線最近 ' + SIG.obmaSlopeBars + ' 根斜率(÷當日 OBV 範圍)低於 ' + SIG.redSlopeMin + '%(紅線在退)只記錄不進(退)'] : []),
+    ...(SIG.confirmMinGapPct > 0 ? ['確認點紅線離藍線的距離(÷當日 OBV 範圍)不到 ' + SIG.confirmMinGapPct + '% 只記錄不進(距)'] : []),
     ...(SIG.resetAfterTp ? ['停利出場後,同方向的第 1 個點作廢,要重新等第 1 點 + 確認點才再進'] : []),
     ...(SIG.noLock ? ['不鎖方向(確認點被漲跌幅擋到,之後同方向仍可進)'] : ['同一邊第一次放棄的方向,當天不再做(單邊鎖)']),
     '',
@@ -3297,9 +3303,14 @@ const RULESETS = {
   //   友達 10/16:10:30 紅線跌破 OBV30、10:33 OBV10 死叉 OBV30、10:35 確認 → 36.15 進、11:45 OBV 反向穿越出 35.60(+4,149);原本被「+3% 只能做多」擋住。
   //   四天回測 23 筆 57% +43,882 → 33 筆、賺 20 賠 13、61%、+67,471(10/13 +28,446、10/14 +5,284、10/15 +17,876、10/16 +15,865)。
   //   較鬆的定義(只看兩條線向下、不要求死叉)全部慘輸 36~43%;加在判別式一反而變差(20 筆 80% +62,440),所以只放判別式二。燈號:成立那幾根直接亮「強空 / 強多」。
-  '二': { key: '二', btn: '判二', name: '判別式二', date: '2026-10-18', backtest: '10/13~16 共 33 筆,賺 20 賠 13,勝率 61%,淨 +67,471(紅線穿藍線起手 + 創新高 + OBV20 同向 + 價在均價上;不鎖方向;22:15 加強訊號:紅線在 OBV10 / OBV30 下 + OBV10 剛死叉 OBV30)',
+  // 2026-10-18 23:00 判別式二第四次修改(使用者:「13 筆輸錢的看看有沒有什麼解法」→「兩個都加」):把 33 筆進場當下的數字攤開比,賺的 20 筆確認點紅藍距離(÷當日 OBV 範圍)最小 4.1%,
+  //   賠的有 4 筆低於 4%(驊宏資 11:06 1.1%、友達 12:13 1.6%、凱崴 2.3%、今國光 3.2%,合計 −12,907)→ confirmMinGapPct:4 確認點距離不夠只記錄、標「距」(3.5% 不夠,凱崴 11:36 會用 3.7% 再進賠 −8,022);
+  //   12 點後進的 4 筆都被 13:25 強制平倉收掉(−4,207)→ noEntryAfter:'12:00'(少掉松瑞藥 12:39 +4,423)。四天 33 筆 61% +67,471 → 25 筆、賺 19 賠 6、76%、+79,819。
+  //   剩下 6 筆(濱川漲停、欣銓跳低反彈失敗、眾達看錯、毅嘉被洗、敬鵬逆勢多、建榮橫盤)試過量比上限 / 區間位置 / 離 VWAP / 離今開都會連賺的一起擋,不加。
+  '二': { key: '二', btn: '判二', name: '判別式二', date: '2026-10-18', backtest: '10/13~16 共 25 筆,賺 19 賠 6,勝率 76%,淨 +79,819(紅線穿藍線起手 + 強訊號;確認點紅藍距離 ≥ 4%;12:00 後不進;不鎖方向)',
           sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'cross', crossStrPct: 2, crossWinBars: 10, crossNewHi: 1, crossSlowMa: 20, crossKMaDir: false, noLock: true, obmaSlopeMin: 0,
-                                                                  strong: true, strongSlowMa: 30, strongDxBars: 5, strongSlowBars: 2, strongExtBars: 10, strongWin: 5, strongMaxChg: 4, strongNoAfter: '11:30' }) },
+                                                                  strong: true, strongSlowMa: 30, strongDxBars: 5, strongSlowBars: 2, strongExtBars: 10, strongWin: 5, strongMaxChg: 4, strongNoAfter: '11:30',
+                                                                  confirmMinGapPct: 4, noEntryAfter: '12:00' }) },
   '三': { key: '三', btn: '判三', name: '判別式三', date: '2026-10-18', backtest: '與判別式一相同(16 筆,賺 15 賠 1,+71,272);2026-10-18 兩條新規則三份都加', sig: JSON.parse(JSON.stringify(SIG1)) },
 };
 const RS_KEY = 'mysh.ruleset';
@@ -3594,12 +3605,19 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
     if (confirmed && volShort && !gated && !far && !againstVwap && !locked[side] && tStr < SIG.noEntryAfter) pending[side] = true;   // 只差量 → 等量夠
     let entryOk = confirmed;
     if (!volShort && pending[side] && !gated && !far && !againstVwap) entryOk = true;  // 量夠了,下一個同向點直接進(不必再確認)
+    // 2026-10-18 23:00 判別式二第四次修改(使用者「兩個都加」):確認點(含量夠補進)紅線離藍線的距離 ÷ 當日 OBV 範圍 ×100 不到 SIG.confirmMinGapPct% → 只記錄不進、標「距」。
+    // 四天 33 筆裡賺的 20 筆最小 4.1%,賠的 4 筆(驊宏資 1.1%、友達 1.6%、凱崴 2.3%、今國光 3.2%)都在 4% 以下;紅線剛勉強壓到藍線下、量能還沒分出方向。模擬器 MINGAP=4。
+    let gapLow = false;
+    if (SIG.confirmMinGapPct > 0 && entryOk && !far && !opts.ignoreGate){
+      const rng = (obHi - obLo) || 1, gp = (ov - omv) * (side === 'long' ? 1 : -1) / rng * 100;
+      if (gp < SIG.confirmMinGapPct){ gapLow = true; far = true; }
+    }
     const canEnter = entryOk && !gated && (opts.ignoreGate || tStr < SIG.noEntryAfter) && !locked[side] && !far && !againstVwap && !volShort;
     const opp = side === 'long' ? 'short' : 'long';
     const mk = (bright, tag) => side === 'long'
       ? marks.push({time: b.time, position: 'belowBar', color: gated ? '#8A3A3A' : (bright ? CHART_THEME.up : '#B36A6A'), shape: 'arrowUp', text: '多' + tag})
       : marks.push({time: b.time, position: 'aboveBar', color: gated ? '#2A6A4A' : (bright ? CHART_THEME.down : '#4A9A7A'), shape: 'arrowDown', text: '空' + tag});
-    const tag = (gated ? '✕' : (confirmed ? '✓' : '')) + (strong ? '強' : '') + (far && !gated ? (obmaFlat ? '平' : (gapChase ? '缺' : (redFalling ? '退' : '遠'))) : '') + (againstVwap && !gated ? '逆' : '') + (volShort && !gated ? (rvolLow ? '比' : '量') : '');
+    const tag = (gated ? '✕' : (confirmed ? '✓' : '')) + (strong ? '強' : '') + (far && !gated ? (obmaFlat ? '平' : (gapChase ? '缺' : (redFalling ? '退' : (gapLow ? '距' : '遠')))) : '') + (againstVwap && !gated ? '逆' : '') + (volShort && !gated ? (rvolLow ? '比' : '量') : '');
     if (YH.exitRule){
       /* 循環規則(2026-10-15 19:50 使用者定案):
          進場 = 確認點(同方向第 2 個以後、紅藍都更強);進場後不看同方向的點,只看反方向:
