@@ -88,6 +88,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-18 18:30 背景監控燈改掛在「正在用的那顆判鍵」右上角(綠燈閃爍;該跑卻沒跑紅燈),左上角的點不再用(使用者:「開盤時初始設在判一,判一後面亮監控燈」)。
   · 2026-10-18 18:15 「判一」(正在用的那顆)在規則頁 / 狀態頁顯示中也亮燈(使用者指定);原本只有背景監控執行中才亮。
   · 2026-10-18 18:10 平倉記號顏色對調:贏的 ▲ 紅、輸的 ⚠ 綠,和「贏紅 / 輸綠」一致(使用者指定)。
   · 2026-10-18 18:00 「平倉」下面顯示 贏(紅框)/ 輸(綠框)(使用者指定);進場卡片用這筆交易平倉那則的結果。
@@ -1335,7 +1336,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610181815">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610181830">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1475,6 +1476,11 @@ except Exception:
   .tool.txt:disabled{opacity:.9;color:transparent;cursor:default}   /* 空白鍵:保留立體外觀 */
   .tool.txt:disabled:active{transform:none;box-shadow:0 3px 0 #070A10,0 4px 8px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.10);background:linear-gradient(#2B3549,#171D2A)}
   .tool.txt:active{transform:translateY(3px);box-shadow:0 0 0 #070A10,inset 0 2px 4px rgba(0,0,0,.6);background:linear-gradient(#171D2A,#2B3549)}
+  /* 2026-10-18 使用者:「判一後面亮監控燈」:背景監控執行中,正在用的那顆判鍵右上角掛一顆閃爍綠燈(服務該跑卻沒跑 → 紅燈) */
+  .tool.rs{position:relative;overflow:visible}
+  .tool.rs .mdot{display:none;position:absolute;top:-5px;right:-5px;width:12px;height:12px;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,.7)}
+  .tool.rs.live .mdot{display:block;background:#1DD75B;animation:bgBlink 1s steps(1) infinite}
+  .tool.rs.dead .mdot{display:block;background:#FF3B3B}
   .tool.txt.on{color:#1DD75B;text-shadow:0 0 8px rgba(29,215,91,.6),0 1px 0 rgba(0,0,0,.6)}   /* 亮燈:綠 */
   .tool.txt.lit{color:var(--brass)}
   #infoView{position:absolute;inset:0;overflow-y:auto;padding:8px 12px;font-size:13px;line-height:1.6;color:var(--text,#D8DEE9);-webkit-overflow-scrolling:touch;touch-action:pan-y;white-space:pre-wrap}
@@ -1694,9 +1700,9 @@ except Exception:
   <div class="toolbar">
     <button class="tool txt" id="refreshBtn" aria-label="訊息"
             title="顯示監控訊息;長按重新讀取雲端資料">訊息</button>
-    <button class="tool txt rs" id="btnReload" data-rs="一" aria-label="判別式一" title="亮燈 = 背景監控正在用判別式一;點亮著的看規則,沒亮的連按兩下切換">判一</button>   <!-- 2026-10-18 使用者:第二顆設「判一」;同日再加判二、判三 -->
-    <button class="tool txt rs" id="btnState" data-rs="二" aria-label="判別式二" title="判別式二(目前是判別式一的複製);連按兩下切換">判二</button>
-    <button class="tool txt rs" id="btnRules" data-rs="三" aria-label="判別式三" title="判別式三(目前是判別式一的複製);連按兩下切換">判三</button>
+    <button class="tool txt rs" id="btnReload" data-rs="一" aria-label="判別式一" title="亮燈 = 背景監控正在用判別式一;點亮著的看規則,沒亮的連按兩下切換">判一<i class="mdot"></i></button>   <!-- 2026-10-18 使用者:第二顆設「判一」;同日再加判二、判三;mdot = 背景監控燈(亮在正在用的那顆右上角) -->
+    <button class="tool txt rs" id="btnState" data-rs="二" aria-label="判別式二" title="判別式二(目前是判別式一的複製);連按兩下切換">判二<i class="mdot"></i></button>
+    <button class="tool txt rs" id="btnRules" data-rs="三" aria-label="判別式三" title="判別式三(目前是判別式一的複製);連按兩下切換">判三<i class="mdot"></i></button>
     <button class="tool gear txt" id="gear" aria-label="設定" title="單擊開 / 關監控設定">設定</button>
   </div>
   <div class="wheels">
@@ -4647,17 +4653,18 @@ window.bgTick = bgTick; window.BG = BG;
   function upd(){ try{ if (window.Android && Android.isService && Android.isService()) return; }catch(e){} render(false); }
   upd(); setInterval(upd, 5000);
 })();
-/* 右上角監控點:每 3 秒問 App 服務在不在 */
+/* 監控燈:每 3 秒問 App 服務在不在,亮在「正在用的那顆判鍵」右上角(2026-10-18 使用者;之前在螢幕角落的 #bgDot 不再用) */
 (function(){
   function upd(){
-    const d = el('bgDot'); if (!d) return;
+    let st = '';
     try{
-      if (!window.Android || !Android.monitorRunning){ d.className = ''; return; }
-      if (Android.isService && Android.isService()){ d.className = ''; return; }     // 服務自己那份網頁不用畫
-      const n = new Date(), wd = n.getDay(), hm = n.getHours() * 60 + n.getMinutes();
-      if (wd === 0 || wd === 6 || hm < 8 * 60 + 45 || hm > 13 * 60 + 35){ d.className = ''; return; }   // 非交易時段服務休眠,不畫紅點
-      d.className = Android.monitorRunning() ? 'on' : 'off';
-    }catch(e){ d.className = ''; }
+      if (window.Android && Android.monitorRunning && !(Android.isService && Android.isService())){
+        const n = new Date(), wd = n.getDay(), hm = n.getHours() * 60 + n.getMinutes();
+        if (!(wd === 0 || wd === 6 || hm < 8 * 60 + 45 || hm > 13 * 60 + 35)) st = Android.monitorRunning() ? 'live' : 'dead';   // 非交易時段服務休眠,不亮
+      }
+    }catch(e){ st = ''; }
+    document.querySelectorAll('.tool.rs').forEach(b => { b.classList.toggle('live', st === 'live' && b.dataset.rs === ACTIVE_RS); b.classList.toggle('dead', st === 'dead' && b.dataset.rs === ACTIVE_RS); });
+    const d = el('bgDot'); if (d) d.className = '';
   }
   upd(); setInterval(upd, 3000);
 })();
