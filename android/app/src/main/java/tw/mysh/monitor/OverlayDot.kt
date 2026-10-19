@@ -18,6 +18,7 @@ class OverlayDot(private val ctx: Context) {
     fun allowed(): Boolean = Settings.canDrawOverlays(ctx)
     fun enabled(): Boolean = ctx.getSharedPreferences("mysh", Context.MODE_PRIVATE).getBoolean("overlayDot", true)
     fun show() {
+        view?.let { if (!it.isAttachedToWindow) { anim?.cancel(); anim = null; view = null } }   // 2026-10-19:被系統拿掉的點要能重新掛上(以前 view 還記著就永遠不再 addView)
         if (view != null || !allowed() || !enabled()) return
         val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val d = ctx.resources.displayMetrics.density

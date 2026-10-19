@@ -79,11 +79,14 @@ class MainActivity : AppCompatActivity() {
         // 2026-10-19 使用者:「已經關閉最佳化,這條便不用再出現」→ 已排除省電就不列
         if (!(getSystemService(POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(packageName)) m.menu.add(0, 3, 2, "關閉電池最佳化(必做)")
         // 2026-10-19 使用者:「更新 App 那條,已經是最新版就不用出現」→ 只有上次檢查發現 GitHub 有新版才列;打開選單時順便在背景再查一次,查到新版直接跳安裝提示
+        // 2026-10-19 使用者:「判一綠燈有閃但螢幕綠點不見」→ 懸浮窗權限可能在更新 App 後被系統收回;沒權限時才列這一條,允許後就不再出現
+        if (!Settings.canDrawOverlays(this)) m.menu.add(0, 8, 2, "允許螢幕角落監控點(需權限)")
         val newer = Updater.newerKnown(this)
         if (newer != null) m.menu.add(0, 9, 3, "更新 App 到 $newer")
         m.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 3 -> batteryWhitelist()
+                8 -> startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
                 9 -> Updater.check(this, true)
             }
             true
