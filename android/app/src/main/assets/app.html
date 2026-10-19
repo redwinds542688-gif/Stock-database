@@ -93,6 +93,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-19 18:15 OBV 均 30 方向:開盤 30 根內改用「今天到目前為止全部 K 的 OBV 平均」看方向(使用者:「OBV 還沒到 30 時便以當時時間為依據,09:15 就是 OBV15、09:20 就是 OBV20」),
+    不再是「算不出來不看」;回測與對照另記。
   · 2026-10-19 18:00 OBV 均 30 方向規則定案(判別式一第四次修改、判別式二第 13 條):回測 判一 +71,272 → +71,219(只差台表科 10/16 延後 10 分鐘)、判二不變 +87,960;
     App 對模擬器逐檔對照 182 檔日:判一 0 差異、判二只有原本就有的京元電子 10/13 2 分鐘差。嚴格版(開盤 30 根內算不出來也擋)判一 +67,877、判二 +76,286,擋的全是早盤單,不採用。鐵律第 12 條、判別式一.md、判別式二.md、README 同步。
   · 2026-10-19 17:30 雲端 1 分K 只從盤中某時刻開始時,前面用 Yahoo 補(使用者截圖:泰鼎今天只有 11:57 起三根,「圖不同差很多」):雲端第一根晚於 09:05 → 09:00 到那根之前的 K 向 Yahoo 要,接在雲端 K 前面;
@@ -1459,7 +1461,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610191800">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610191815">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2440,7 +2442,7 @@ function render(list){
     '累積量 ≥ ' + SIG.minDayVol + ' 張且量比 ≥ ' + SIG.rvolMin + ' 才進(量夠後下一個訊號直接進;量比 = 今天到此刻累積量 ÷ 前 5 天同時刻平均)',
     ...(SIG.redSlopeMin != null ? ['確認點 OBV 紅線最近 ' + SIG.obmaSlopeBars + ' 根斜率(÷當日 OBV 範圍)低於 ' + SIG.redSlopeMin + '%(紅線在退)只記錄不進(退)'] : []),
     ...(SIG.confirmMinGapPct > 0 ? ['確認點紅線離藍線的距離(÷當日 OBV 範圍)不到 ' + SIG.confirmMinGapPct + '% 只記錄不進(距)'] : []),
-    ...(SIG.obvDirMa > 0 ? ['OBV 均 ' + SIG.obvDirMa + ' 最近 ' + (SIG.obvDirBars || 1) + ' 根向上只做多、向下只做空,持平不進;不同向只記錄不進(向);開盤 ' + SIG.obvDirMa + ' 根內算不出來不看'] : []),
+    ...(SIG.obvDirMa > 0 ? ['OBV 均 ' + SIG.obvDirMa + ' 最近 ' + (SIG.obvDirBars || 1) + ' 根向上只做多、向下只做空,持平不進;不同向只記錄不進(向);開盤 ' + SIG.obvDirMa + ' 根內用今天到目前為止全部 K 的 OBV 平均(09:15 = OBV15、09:20 = OBV20)'] : []),
     ...(SIG.resetAfterTp ? ['停利出場後,同方向的第 1 個點作廢,要重新等第 1 點 + 確認點才再進'] : []),
     ...(SIG.noLock ? ['不鎖方向(確認點被漲跌幅擋到,之後同方向仍可進)'] : ['同一邊第一次放棄的方向,當天不再做(單邊鎖)']),
     ...(SIG.weakByOrder ? ['逆勢單(碰到任何反向點就出)要「反方向第 1 點價格較高 / 低」且「比自己方向的第 1 點早出現」才算;否則等反向確認點才出'] : []),
@@ -3859,9 +3861,13 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
     // 2026-10-19 OBV 均 30 方向(使用者:「OBV30 藍線向上不做空只做多,反之亦然」):確認點(含量夠補進)OBV 均 obvDirMa 最近 obvDirBars 根沒有和方向同向 → 只記錄不進、標「向」。判別式一、二都有
     let dirBad = false;
     if (SIG.obvDirMa > 0 && entryOk && !far && !opts.ignoreGate){
-      const k = SIG.obvDirBars || 1, j = iObmaDir.get(b.time), jp = iObmaDir.get(bars[bi - k] ? bars[bi - k].time : -1);
-      const cur = j == null ? null : obmaDir[j].value, pv = jp == null ? null : obmaDir[jp].value;
-      if (cur != null && pv != null && !((cur - pv) * (side === 'long' ? 1 : -1) > 0)){ dirBad = true; far = true; }   // 開盤 30 根內 OBV30 還算不出來 → 不看(同 crossSlowMa2;模擬器 OBVDIRNAN=skip)。擋在開盤前 30 分鐘會少掉敬鵬 09:25、毅嘉 09:27 這種早盤單
+      const k = SIG.obvDirBars || 1; let cur = null, pv = null;
+      if (n > SIG.obvDirMa){ const j = iObmaDir.get(b.time), jp = iObmaDir.get(bars[bi - k] ? bars[bi - k].time : -1); cur = j == null ? null : obmaDir[j].value; pv = jp == null ? null : obmaDir[jp].value; }
+      else if (n - k >= 1 && o !== undefined){   // 2026-10-19 使用者:「OBV 還沒到 30 時以當時時間為依據,09:15 就是 OBV15、09:20 就是 OBV20」→ 開盤 30 根內用今天到目前為止全部 K 的 OBV 平均(窗口逐根變長),和前 k 根時的平均比方向
+        const s0 = o - n + 1, avg = (a, z) => { let t = 0; for (let q = a; q <= z; q++) t += ob[q].value; return t / (z - a + 1); };
+        cur = avg(s0, o); pv = avg(s0, o - k);
+      }
+      if (cur != null && pv != null && !((cur - pv) * (side === 'long' ? 1 : -1) > 0)){ dirBad = true; far = true; }   // 模擬器 OBVDIR=30(預設 OBVDIRNAN=expand)
     }
     const canEnter = entryOk && !gated && (opts.ignoreGate || tStr < SIG.noEntryAfter) && !locked[side] && !far && !againstVwap && !volShort;
     const opp = side === 'long' ? 'short' : 'long';
