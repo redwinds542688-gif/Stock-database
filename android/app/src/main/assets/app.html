@@ -93,6 +93,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-19 20:00 判別式三重建(使用者:「先把你剛剛說的適合放進判別三的,先放進去判別3」):entryMode 'seq' = K 收盤創 10 根新高 + 紅線在 OBV10 上、OBV10 向上、OBV30 向上,
+    且三者在 20 分鐘內依「紅先、藍次、紫最後」轉向(四天統計這組 30 分後漲 41.7% 跌 44.5% 平均 +0.20%,唯一平均為正的做多組合;做空鏡像無效 → seqSide:'long' 只做多)+ 判別式二的保護;
+    原 gapdir 版作廢。模擬器 MODE=seq SEQHI=10 SEQWIN=20 SEQSIDE=long;回測與對照見《判別式三.md》。
   · 2026-10-19 19:30 OBV 那格多一條 OBV 均 30 紫線(使用者:「在這個地方再幫我多一條 OBV30 紫色的線,這樣或許就可以看出變化」):#B47CFF,2px;上方文字多「均線30:值↑↓」(紫)。
     判別式一、二本來就用 OBV30(方向、同向、死叉),現在圖上看得到紅線 / OBV10 和它的關係。鐵律 11 的其餘版面不動。
   · 2026-10-19 19:00 今天沒成交的分鐘補平 K(使用者:「要與元大一樣」):mergeLive 最後把今天的缺口補成開高低收 = 前一根收、量 0 的 K,每分鐘一根,
@@ -1467,7 +1470,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610191930">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610192000">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2439,7 +2442,9 @@ function render(list){
     '',
     '<b>進場</b>',
     '均價 K' + BASE.maPeriod + ' / OBV 均線 ' + BASE.obvMaPeriod + ';開盤 ' + SIG.skipMin + ' 分鐘內不進,' + SIG.noEntryAfter + ' 後不進',
-    ...(SIG.entryMode === 'gapdir'
+    ...(SIG.entryMode === 'seq'
+      ? ['第一訊號 = K 收盤創 ' + SIG.seqNewHi + ' 根新高(只做多' + (SIG.seqSide === 'both' ? ',做空鏡像' : '') + ')+ 紅線在 OBV 均 10 之上、OBV 均 10 向上、OBV 均 ' + SIG.seqSlowMa + ' 向上,而且三者是在 ' + SIG.seqWin + ' 分鐘內依「紅先、藍次、紫最後」的順序轉向的;K 不是虛根且收在當日高低之間 = 確認點直接進(待修正)']
+      : SIG.entryMode === 'gapdir'
       ? ['第一訊號 = OBV 均 10 − OBV 均 ' + SIG.gapSlowMa + ' 的差剛翻正(做空:翻負)→ ' + SIG.gapWinBars + ' 分鐘內:差連續擴大 ' + SIG.gapGrowBars + ' 根、紅線在 OBV 均 10 與 OBV 均 ' + SIG.gapSlowMa + ' 之上(做空:之下)、K 不是虛根且收在當日高低之間 = 確認點直接進;窗口過期或差翻回去則作廢(待修正)']
       : SIG.entryMode === 'cross'
       ? ['第一訊號 = OBV 紅線剛穿過藍線(力度 ≥ ' + SIG.crossStrPct + '%,÷當日 OBV 範圍)→ ' + SIG.crossWinBars + ' 分鐘內:紅線創 ' + SIG.crossNewHi + ' 次新高 / 新低且在極值、OBV 均 ' + SIG.crossSlowMa + '(慢線)同向' + (SIG.crossSlowMa2 > 0 ? '、OBV 均 ' + SIG.crossSlowMa2 + ' 也同向' : '') + '、K 收盤在均價之上 / 之下' + (SIG.crossKMaDir ? '且均價同向' : '(不看均價方向)') + ' = 確認點才進;紅線跌回另一側或窗口過期則作廢']
@@ -3534,8 +3539,9 @@ const RULESETS = {
   //   + 差連續擴大 gapGrowBars(2)根 + K 不是虛根、收在當日高低之間」= 確認點直接進;窗口過期或差翻回去 → 候選作廢。保護全部照判別式二(3.5%、順勢、VWAP、量、量比、離均價 1%、
   //   跳空、紅線在退、距離 4%、12:00 後不進、不鎖方向、藍線斜率關閉),沒有穿越模式、沒有強訊號。四天回測 23 筆、賺 14 賠 9、61%、+28,056(純邏輯不加保護是 846 筆 29% −591,481)。
   //   目前只是放著觀察,使用者說「找時間再來修正」。模擬器:判別式二的保護旗標 + MODE=gapdir GSTART=cross GK=2 GWIN=10(不加 STRONG)。
-  '三': { key: '三', btn: '判三', name: '判別式三', date: '2026-10-18', backtest: '10/13~16 共 23 筆,賺 14 賠 9,勝率 61%,淨 +28,056(OBV10−OBV30 差翻正起始 + 紅線在兩線上 + 差連擴 2 根;保護同判別式二;待修正)',
-          sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'gapdir', gapSlowMa: 30, gapWinBars: 10, gapGrowBars: 2, noLock: true, obmaSlopeMin: 0, confirmMinGapPct: 4, noEntryAfter: '12:00' }) },
+  // 2026-10-19 19:50 判別式三重建(使用者:「先把你剛剛說的適合放進判別三的,先放進去判別3」):價創 10 根新高 + 紅線 / OBV10 / OBV30 依序轉正(只做多)+ 判別式二的保護;原 gapdir 版(+28,056)作廢
+  '三': { key: '三', btn: '判三', name: '判別式三', date: '2026-10-19', backtest: '回測見《判別式三.md》(價創 10 根新高 + 紅→藍→紫 依序轉正,只做多;保護同判別式二;待修正)',
+          sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'seq', seqNewHi: 10, seqWin: 20, seqSlowMa: 30, seqSide: 'long', noLock: true, obmaSlopeMin: 0, confirmMinGapPct: 4, noEntryAfter: '12:00' }) },
 };
 const RS_KEY = 'mysh.ruleset';
 // 正在用的判別式:先問 App(SharedPreferences,1.5.28 起有 Android.getRuleset),沒有才看 localStorage。
@@ -3640,7 +3646,8 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
   // 判別式二 強訊號(2026-10-18 22:15):紅線在 OBV10 與 OBV strongSlowMa 之下 + OBV10 剛死叉 + 兩條都降 + 價在均價下 → 直接當確認點(strongHolds 判斷;燈號也用同一個函式)
   const strongOn = !!SIG.strong && SIG.strongSlowMa > 0;
   const gapMode = SIG.entryMode === 'gapdir';                                                      // 判別式三(2026-10-18 23:50):OBV10 − OBV30 差擴散起手
-  const slowN = strongOn ? SIG.strongSlowMa : (gapMode ? SIG.gapSlowMa : 0);
+  const seqMode = SIG.entryMode === 'seq';                                                         // 判別式三(2026-10-19 19:50):價創新高 + 紅→藍→紫 依序轉正
+  const slowN = strongOn ? SIG.strongSlowMa : (gapMode ? SIG.gapSlowMa : (seqMode ? SIG.seqSlowMa : 0));
   const obmaS = slowN > 0 ? ((slowN === SIG.obvExitMa && obma2.length) ? obma2 : sma(ob, slowN, 'value')) : [];
   const SM = slowN > 0 ? {ma: toTimeMap(ma), ob: toTimeMap(ob), obma: toTimeMap(obma), obS: toTimeMap(obmaS)} : null;
   const gcand = {long: null, short: null};                                                        // 判別式三:差剛翻正 / 翻負的候選(bar index + gapWinBars)
@@ -3785,6 +3792,29 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
           if (gcand[sd] !== null && grow && (ov - omv) * dir > 0 && sv !== undefined && (ov - sv) * dir > 0 && between && !doji){ side = sd; xconf = true; break; }
         }
       }
+    } else if (seqMode){
+      // 判別式三(2026-10-19 使用者:「要先看價格上去,紅線藍線紫線有沒有照上升的規則走,如果有才算是上漲」→「先放進判別三」):
+      // 價收盤創 seqNewHi 根新高(空:新低)+ 紅線在 OBV10 順向側、OBV10 斜率順向、OBV seqSlowMa(30)斜率順向,而且三者是在 seqWin 根內依「紅先、藍次、紫最後」的順序轉向的
+      // 四天統計(32,087 根):這組 30 分後漲 41.7% 跌 44.5% 平均 +0.20%,是所有做多條件裡唯一平均為正的;做空鏡像沒有效果,所以預設只做多(seqSide:'long')。模擬器 MODE=seq SEQHI=10 SEQWIN=20 SEQSIDE=long
+      const H = SIG.seqNewHi, W = SIG.seqWin;
+      const obAt = j => { const q = j >= 0 ? iOb.get(bars[j].time) : undefined; return q === undefined ? undefined : ob[q].value; };
+      const o10 = j => j >= 0 ? SM.obma.get(bars[j].time) : undefined, o30 = j => j >= 0 ? SM.obS.get(bars[j].time) : undefined;
+      const def = (...xs) => xs.every(x => x !== undefined && x !== null && !isNaN(x));
+      if (n > Math.max(H, W) + 1){
+        const sides = SIG.seqSide === 'both' ? ['long', 'short'] : (SIG.seqSide === 'short' ? ['short'] : ['long']);
+        for (const sd of sides){
+          if (sd === 'short' && canShort === false) continue;
+          const dir = sd === 'long' ? 1 : -1;
+          const red = j => def(obAt(j), o10(j)) && (obAt(j) - o10(j)) * dir > 0;
+          const blue = j => def(o10(j), o10(j - 1)) && (o10(j) - o10(j - 1)) * dir > 0;
+          const purp = j => def(o30(j), o30(j - 1)) && (o30(j) - o30(j - 1)) * dir > 0;
+          const since = cond => { for (let j = 0; j < W; j++){ if (cond(bi - j) && !cond(bi - j - 1)) return j; } return 99; };
+          let ext = true; for (let q = bi - H; q < bi; q++){ if (q < 0 || (dir === 1 ? bars[q].close > b.close : bars[q].close < b.close)){ ext = false; break; } }
+          if (!(ext && red(bi) && blue(bi) && purp(bi) && between && !doji)) continue;
+          const rs_ = since(red), bs_ = since(blue), ps_ = since(purp);
+          if (rs_ < 99 && rs_ > bs_ && bs_ > ps_){ side = sd; xconf = true; break; }
+        }
+      }
     } else {
       if (kUp && oUp && between && pressUp && !doji) side = 'long';
       else if (kDn && oDn && between && pressDn && !doji && canShort !== false) side = 'short';
@@ -3809,7 +3839,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
                                               : (!!(prevClose && !entryAllowed(b.close, prevClose).ok) || !!counterTrend));   // 超過 ±entryMaxChg%,或 ±trendOnlyPct% 外的逆勢訊號 → ✕(ignoreGate 模式一律不擋、不鎖)
     // 第 7 條:同方向第 2 個以後的訊號,OBV(紅線)與 OBV 均線(藍線)都要比前一個同向訊號更低(空)/ 更高(多)才算確認點
     let confirmed = true;
-    if (crossMode || gapMode){ confirmed = xconf; lastSig[side] = {ob: ov, obma: omv, price: b.close, high: b.high, low: b.low}; }
+    if (crossMode || gapMode || seqMode){ confirmed = xconf; lastSig[side] = {ob: ov, obma: omv, price: b.close, high: b.high, low: b.low}; }
     else if (YH.confirmByObv){
       const prev = lastSig[side];
       confirmed = !!prev && (side === 'short' ? (ov < prev.ob && omv < prev.obma && b.close < prev.price)
