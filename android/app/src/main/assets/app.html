@@ -5270,7 +5270,7 @@ window.bgTick = bgTick; window.BG = BG;
         return; }
       let st = '', stT = '', win = null, ws = '';
       for (let j = k - 1; j >= 0; j--){ const q = cards[j]; if (!same(q)) continue; if (q.type === 'entry'){ if (q._hide) continue; break; }
-        if (q.type === 'warn'){ if (!ws) ws = q.alert; continue; }   // 2026-10-20 反彈 / 注意不進警示欄(使用者「反彈跟注意取消」),改顯示在股票清單「監控中」那格(最新的一則)
+        if (q.type === 'warn'){ ws = q.alert; continue; }   // 往更新的卡走,最後留下的就是最新的狀態   // 2026-10-20 反彈 / 注意不進警示欄(使用者「反彈跟注意取消」),改顯示在股票清單「監控中」那格(最新的一則)
         st = q.alert; stT = q.t; if (q.type === 'exit'){ win = q.win; break; } }
       o._alert = st; o._alertT = stT; o._win = win; o._ws = st ? '' : ws;   // 已平倉就不用再顯示反彈 / 注意
     });
