@@ -92,6 +92,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-19 17:30 雲端 1 分K 只從盤中某時刻開始時,前面用 Yahoo 補(使用者截圖:泰鼎今天只有 11:57 起三根,「圖不同差很多」):雲端第一根晚於 09:05 → 09:00 到那根之前的 K 向 Yahoo 要,接在雲端 K 前面;
+    明天起雲端從 09:00 就有,不會再用到。另:判別式一、二加 OBV 均 30 方向規則(使用者:「OBV30 藍線向上不做空只做多,反之亦然,寫進判別式一跟二」),確認點 OBV 均 30 最近 1 根要同向,否則只記錄、標「向」;回測見判別式一.md / 判別式二.md。
   · 2026-10-19 17:10 App 1.5.45 點通知直接開那檔的 K 線圖(使用者:「在這點選泰鼎,程式就直接跳到泰鼎 K 線圖畫面」):通知帶代號 / 名稱,點了 MainActivity 呼叫網頁 openChart;網頁還沒載好就每 0.7 秒再試,最多 20 次。
   · 2026-10-19 17:00 自組 K 的量差修正(使用者:台玻 11:56 股價還在衝、OBV 卻掉 7,000 張,「這顯示做空合理嗎?」→ 不合理,是資料錯):螢幕關掉 / 退到背景時沒在問價,
     再問到時累計量差是好幾分鐘的量,全部灌進當下那一根,那根剛好收低 OBV 就暴跌、天秤偏空。改成上次問價超過 90 秒前的量差不算(那幾分鐘的量由雲端 1 分K 補)。
@@ -1454,7 +1456,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610191700">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610191730">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2435,6 +2437,7 @@ function render(list){
     '累積量 ≥ ' + SIG.minDayVol + ' 張且量比 ≥ ' + SIG.rvolMin + ' 才進(量夠後下一個訊號直接進;量比 = 今天到此刻累積量 ÷ 前 5 天同時刻平均)',
     ...(SIG.redSlopeMin != null ? ['確認點 OBV 紅線最近 ' + SIG.obmaSlopeBars + ' 根斜率(÷當日 OBV 範圍)低於 ' + SIG.redSlopeMin + '%(紅線在退)只記錄不進(退)'] : []),
     ...(SIG.confirmMinGapPct > 0 ? ['確認點紅線離藍線的距離(÷當日 OBV 範圍)不到 ' + SIG.confirmMinGapPct + '% 只記錄不進(距)'] : []),
+    ...(SIG.obvDirMa > 0 ? ['OBV 均 ' + SIG.obvDirMa + ' 最近 ' + (SIG.obvDirBars || 1) + ' 根向上只做多、向下只做空,持平不進;不同向只記錄不進(向)'] : []),
     ...(SIG.resetAfterTp ? ['停利出場後,同方向的第 1 個點作廢,要重新等第 1 點 + 確認點才再進'] : []),
     ...(SIG.noLock ? ['不鎖方向(確認點被漲跌幅擋到,之後同方向仍可進)'] : ['同一邊第一次放棄的方向,當天不再做(單邊鎖)']),
     ...(SIG.weakByOrder ? ['逆勢單(碰到任何反向點就出)要「反方向第 1 點價格較高 / 低」且「比自己方向的第 1 點早出現」才算;否則等反向確認點才出'] : []),
@@ -3108,7 +3111,7 @@ async function loadCloudBars(){
       if (!add.length) continue;
       const cur = TODAY_BARS.get(code);
       const old = (CLOUD_BARS.last && cur && cur.cloud) ? cur.bars.filter(x => x.time < add[0].time) : [];
-      TODAY_BARS.set(code, {at: Date.now(), bars: old.concat(add), err: '', cloud: true});
+      TODAY_BARS.set(code, {at: Date.now(), bars: old.concat(add), err: '', cloud: true, yahooAt: cur && cur.yahooAt || 0, pre: cur && cur.pre || 0});
     }
     if (j.last) CLOUD_BARS.last = j.last;
     if (j.n > 0) { CLOUD_BARS.ok = true; CLOUD_BARS.n = j.n; }
@@ -3129,10 +3132,24 @@ async function loadTodayBars(code, force){
   if (liveOn()){
     await loadCloudBars();
     const c2 = TODAY_BARS.get(code);
-    if (c2 && c2.cloud && c2.bars.length){ c2.at = Date.now(); return c2; }   // 雲端有這檔 → 用雲端,不再問 Yahoo
+    if (c2 && c2.cloud && c2.bars.length){
+      // 雲端有這檔 → 用雲端。但雲端從盤中才開始存(例如 2026-10-19 11:57 才上線,或 Worker 當天中途才醒)時,09:00 到第一根雲端 K 之前那段用 Yahoo 補,
+      // 不然圖上今天只有後半段(使用者截圖:泰鼎只有 11:57 起三根)。Yahoo 每 2 分鐘最多問一次,補的只取雲端第一根之前的
+      const first = c2.bars[0].time, d0 = new Date(first * 1000), open = Math.floor(first / 86400) * 86400 + 1 * 3600 + 5 * 60;   // 台灣 09:05 = UTC 01:05
+      if (first > open && Date.now() - (c2.yahooAt || 0) > 120000){
+        c2.yahooAt = Date.now();
+        try{ const y = await yahooTodayBars(code); const pre = y.bars.filter(x => x.time < first); if (pre.length){ c2.bars = pre.concat(c2.bars.filter(x => x.time >= first)); c2.pre = pre.length; } }catch(e){}
+      }
+      c2.at = Date.now(); return c2;
+    }
   }
+  const out = await yahooTodayBars(code);
+  TODAY_BARS.set(code, out);
+  return out;
+}
+async function yahooTodayBars(code){
   const out = {at: Date.now(), bars: [], err: ''};
-  if (!liveOn()){ TODAY_BARS.set(code, out); return out; }
+  if (!liveOn()) return out;
   try{
     const s = (SRC || []).find(x => x.code === code);
     const sym = code + (s && s.market === 'tpex' ? '.TWO' : '.TW');
@@ -3155,7 +3172,6 @@ async function loadTodayBars(code, force){
     }
     out.bars.sort((a, b) => a.time - b.time);
   }catch(e){ out.err = e.message; }
-  TODAY_BARS.set(code, out);
   return out;
 }
 
@@ -3448,6 +3464,7 @@ const RULESET1 = { name: '判別式一', date: '2026-10-18', backtest: '10/13~16
 const SIG1 = { skipMin: 15, slopeBars: 10, maxDev: 2.0, noEntryAfter: '13:00', trendOnlyPct: 3.0,
               scaleBars: 5, scaleMaFull: 0.5, scaleObFull: 20, scaleW: {ma: 0, obma: 0.75, ob: 0.25}, lampBars: 3, lampWarnBars: 1,   // 多空天秤(2026-10-18):OBV 均線(藍)75% + OBV(紅)25%,均價線 0;5 根斜率,藍 / 紅 ÷ 當日 OBV 範圍 ±20% 滿格
               takePct: 2.5, stopPct: 1.5, maxMovePct: 6.0, confirmMaxGapPct: 2.0, confirmMaxExtGapPct: 2.5, obmaSlopeBars: 5, obmaSlopeMin: 4.0, obmaSlope2Ma: 5, obvExitMa: 30, obvExitMinGain: 1.0, obvWarnMa: 20, maxEntryDevPct: 1.0, vwapFilter: true, vwapSlopeBars: 10, vwapSlopeMin: 0, gapChasePct: 2.0, minDayVol: 6000, rvolMin: 0.9, rvolFilter: true,
+              obvDirMa: 30, obvDirBars: 1,   // 2026-10-19 使用者:「OBV30 藍線向上不做空只做多,反之亦然,寫進判別式一跟二」(判別式一第四次修改;判二複製自 SIG1 所以一起有)
               redSlopeMin: -2, resetAfterTp: true };   // 2026-10-18 第三次修改(使用者「都加」→「判別式一,三也跟著改」→ 選 1):redSlopeMin 確認點紅線 5 根斜率 < −2%(在退)不進、標「退」;resetAfterTp 停利後同方向第 1 點重數   // rvol:量比 = 今天到此刻累計量 ÷ 前 5 天同一時刻平均;rvolFilter=true 時量比 < rvolMin 不進場(只記錄,標「比」);false 只顯示(2026-10-16 01:40)   // minDayVol:當天累計成交量(張)未達 6000 不進場;達到後下一個同向點直接進(2026-10-16 01:10)   // vwapFilter:價在 VWAP 上只做多、下只做空(23:30);vwapSlope:VWAP 最近 10 分鐘要往進場方向走 ≥ 0.05%(23:55)   // confirmMaxGapPct:確認點與前一個同向點的價差上限 %(2026-10-15 22:35 定 1%,22:45 改 2%);maxEntryDevPct:訊號價離均價超過 1% 只記錄不進場(23:15)   // 平倉:獲利 2.5% 停利(2026-10-17 由 4% 改,回測 10/13~16 +29,382 → +40,767)、反向 1.5% 停損、距昨收超過 6% 強制出(2026-10-15)   // trendOnlyPct:距昨收超過 ±3%(到 entryMaxChg 為止)只收順勢訊號   // noEntryAfter:13:00 後不進場、只監控平倉(2026-10-15);slopeBars / maxDev 給多空天秤用
 /* ── 判別式二、三(2026-10-18 使用者指令「把現在判別式一複製給判別式二跟三,按鍵名稱也放上去」;23:30「把判別三刪除」;23:50 判別式三改放差擴散邏輯重建)──
    判別式二從判別式一複製後已多次修改(見 RULESETS['二'] 的註解與《判別式二.md》);判別式三 = 差擴散邏輯 + 判別式二的保護(《判別式三.md》,待修正);判別式一照舊鎖定。
@@ -3587,6 +3604,8 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
   const crossMode = SIG.entryMode === 'cross';                                                   // 判別式二(2026-10-18):紅線穿藍線起手
   const obmaSlow = crossMode && SIG.crossSlowMa > 0 ? sma(ob, SIG.crossSlowMa, 'value') : [], iObmaSlow = idx(obmaSlow);
   const obmaSlow2 = crossMode && SIG.crossSlowMa2 > 0 ? ((SIG.crossSlowMa2 === SIG.obvExitMa && obma2.length) ? obma2 : sma(ob, SIG.crossSlowMa2, 'value')) : [], iObmaSlow2 = idx(obmaSlow2);   // 判別式二第五次修改:穿越確認的第三條慢線(OBV 均 30)
+  // 2026-10-19 使用者:「OBV30 藍線向上不做空只做多,反之亦然,寫進判別式一跟二」→ 確認點 OBV 均 obvDirMa 最近 obvDirBars 根要和方向同向(持平也不進),標「向」;模擬器 OBVDIR=30
+  const obmaDir = SIG.obvDirMa > 0 ? ((SIG.obvDirMa === SIG.obvExitMa && obma2.length) ? obma2 : sma(ob, SIG.obvDirMa, 'value')) : [], iObmaDir = idx(obmaDir);
   const cand = {long: null, short: null};                                                         // 穿越候選 {exp: 到期的 bar index, i0: 穿越那根在 ob 的 index}
   // 判別式二 強訊號(2026-10-18 22:15):紅線在 OBV10 與 OBV strongSlowMa 之下 + OBV10 剛死叉 + 兩條都降 + 價在均價下 → 直接當確認點(strongHolds 判斷;燈號也用同一個函式)
   const strongOn = !!SIG.strong && SIG.strongSlowMa > 0;
@@ -3834,12 +3853,19 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
       const rng = (obHi - obLo) || 1, gp = (ov - omv) * (side === 'long' ? 1 : -1) / rng * 100;
       if (gp < SIG.confirmMinGapPct){ gapLow = true; far = true; }
     }
+    // 2026-10-19 OBV 均 30 方向(使用者:「OBV30 藍線向上不做空只做多,反之亦然」):確認點(含量夠補進)OBV 均 obvDirMa 最近 obvDirBars 根沒有和方向同向 → 只記錄不進、標「向」。判別式一、二都有
+    let dirBad = false;
+    if (SIG.obvDirMa > 0 && entryOk && !far && !opts.ignoreGate){
+      const k = SIG.obvDirBars || 1, j = iObmaDir.get(b.time), jp = iObmaDir.get(bars[bi - k] ? bars[bi - k].time : -1);
+      const cur = j == null ? null : obmaDir[j].value, pv = jp == null ? null : obmaDir[jp].value;
+      if (cur == null || pv == null || !((cur - pv) * (side === 'long' ? 1 : -1) > 0)){ dirBad = true; far = true; }
+    }
     const canEnter = entryOk && !gated && (opts.ignoreGate || tStr < SIG.noEntryAfter) && !locked[side] && !far && !againstVwap && !volShort;
     const opp = side === 'long' ? 'short' : 'long';
     const mk = (bright, tag) => side === 'long'
       ? marks.push({time: b.time, position: 'belowBar', color: gated ? '#8A3A3A' : (bright ? CHART_THEME.up : '#B36A6A'), shape: 'arrowUp', text: '多' + tag})
       : marks.push({time: b.time, position: 'aboveBar', color: gated ? '#2A6A4A' : (bright ? CHART_THEME.down : '#4A9A7A'), shape: 'arrowDown', text: '空' + tag});
-    const tag = (gated ? '✕' : (confirmed ? '✓' : '')) + (strong ? '強' : '') + (far && !gated ? (obmaFlat ? '平' : (gapChase ? '缺' : (redFalling ? '退' : (gapLow ? '距' : '遠')))) : '') + (againstVwap && !gated ? '逆' : '') + (volShort && !gated ? (rvolLow ? '比' : '量') : '');
+    const tag = (gated ? '✕' : (confirmed ? '✓' : '')) + (strong ? '強' : '') + (far && !gated ? (obmaFlat ? '平' : (gapChase ? '缺' : (redFalling ? '退' : (gapLow ? '距' : (dirBad ? '向' : '遠'))))) : '') + (againstVwap && !gated ? '逆' : '') + (volShort && !gated ? (rvolLow ? '比' : '量') : '');
     if (YH.exitRule){
       /* 循環規則(2026-10-15 19:50 使用者定案):
          進場 = 確認點(同方向第 2 個以後、紅藍都更強);進場後不看同方向的點,只看反方向:
