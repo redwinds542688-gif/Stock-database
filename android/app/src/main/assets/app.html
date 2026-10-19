@@ -92,6 +92,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-19 13:05 判一 / 判二 右上角的綠色監控點不再閃爍(使用者:「判一判二也不用閃」):綠點常亮 = 背景監控在跑,紅點 = 沒在跑;螢幕左上角 App 的綠點照舊閃(那是 App 的,不是網頁的)。
   · 2026-10-19 13:00 通知卡片警示欄(平倉 / 注意 / 反彈)不再閃爍(使用者:「一直閃太干擾,不要閃了」):拿掉剛出現 10 分鐘內的閃爍,只用顏色和白框;鐵律 11 其餘不動。
   · 2026-10-19 12:30 通知卡片張數改用設定的多空上限(使用者:「現在設上限 20 萬,台玻怎麼還顯示購買 6 張」):卡片的「○張」和長按記「我有做」的張數原本寫死 35 萬 ÷ 股價,
     設定改 20 萬沒跟著變(台玻 67.70 → 5 張);改成 capFund() = 多空上限滾輪 × 10000(20 萬 → 2 張)。鐵律 11 的字級、欄位不動,只改數字來源。
@@ -1421,7 +1422,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610191300">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610191305">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1565,7 +1566,7 @@ except Exception:
   /* 2026-10-18 使用者:「判一後面亮監控燈」:背景監控執行中,正在用的那顆判鍵右上角掛一顆閃爍綠燈(服務該跑卻沒跑 → 紅燈) */
   .tool.rs{position:relative;overflow:visible}
   .tool.rs .mdot{display:none;position:absolute;top:-5px;right:-5px;width:12px;height:12px;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,.7)}
-  .tool.rs.live .mdot{display:block;background:#1DD75B;animation:bgBlink 1s steps(1) infinite}
+  .tool.rs.live .mdot{display:block;background:#1DD75B}   /* 2026-10-19 使用者:「判一判二也不用閃」→ 綠點常亮不閃;紅點 = 監控沒在跑 */
   .tool.rs.dead .mdot{display:block;background:#FF3B3B}
   .tool.txt.on{color:#1DD75B;text-shadow:0 0 8px rgba(29,215,91,.6),0 1px 0 rgba(0,0,0,.6)}   /* 亮燈:綠 */
   .tool.txt.lit{color:var(--brass)}
