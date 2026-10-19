@@ -99,6 +99,10 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-19 23:30 雲端名單自動換(使用者:「是不是可以改在下午 2 點半以後雲端已經抓好資料就顯示明天要監控的股票,當然明天的股票還有一次的資格驗證」):
+    新增 poolWatch():平日 14:30~21:00 每 10 分鐘、08:15~09:50 每 5 分鐘抓一次雲端 pool.json(帶時間戳不吃快取),generated / elig_checked_at 和手上的不同
+    就丟掉名單重新 scan(),狀態列顯示「已換成 ○○ 收盤後算出的名單(下個交易日用)」或「資格複檢 ○○ 已套用」。前景頁每分鐘呼叫、bgTick() 也呼叫(背景服務 08:50 起)。
+    盤中不比對(名單不會變);未平倉部位照舊置頂。loadRemotePool() 改成可接 poolWatch 已抓到的 JSON(POOL_PRE),不重抓。
   · 2026-10-19 23:20 選股放行昨日收漲停的股票(使用者:「收漲停的股票要如何才能加入被選名單」→ 三個方案選「1」):make_pool.py 的 limit_hit 只在收跌停時標 1,
     另加 limit_up 欄位只記錄;App scan() 照舊用 limitHit 擋,所以等於「漲停放行、跌停照擋」。起因:台虹 10/16 收漲停被剔除,10/19 開低殺到 −4% 沒監控到。
     回測 10/13~10/19 多收進來的漲停股(每天 0~14 檔,用判一判二現行規則):判一多 2 筆 2 賺 +11,710(宏致 10/13 +4,047、長科 10/13 +7,663)→ 五天 22 筆 20 / 2 91% +90,372;
@@ -548,7 +552,7 @@ FinMind(備援資格 + 處置股)           ┘        ├─ make_pool.py  → 
                                             名揚四海自動交易.html → 篩選 → 顯示 / 畫圖
 ```
 
-HTML 啟動時 fetch `pool.json`;點股票時 fetch 該檔上週 + 本週兩個週檔接起來畫。
+HTML 啟動時 fetch `pool.json`;之後平日 14:30~21:00 每 10 分鐘、08:15~09:50 每 5 分鐘再比對一次雲端(`poolWatch()`),名單換了就自動重讀(2026-10-19);點股票時 fetch 該檔上週 + 本週兩個週檔接起來畫。
 雲端讀不到時依序退回:今天稍早存在裝置裡的那份 → 同資料夾 `pool.js` → 內建快照,並在狀態列警示。
 
 **硬性規則(在 make_pool.py 套用,HTML 端 `tradable()` 再檢查一次)**:
@@ -1489,7 +1493,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610192320">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610192330">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2183,8 +2187,11 @@ function entryAllowed(price, prevClose){
 }
 
 /* 讀雲端 pool.json → 轉成程式內部格式(與 SNAPSHOT 相同) */
+let SRC_STAMP = '';                 // 2026-10-19 雲端 pool.json 的 generated|elig_checked_at,poolWatch() 用來看名單換了沒
+let POOL_PRE = null;                // poolWatch() 已經抓到的新 pool.json,交給 loadRemotePool() 直接用(不再抓一次)
 async function loadRemotePool(){
-  const j = JSON.parse(await fetchText(`${REPO_RAW}/pool.json`));
+  const j = POOL_PRE || JSON.parse(await fetchText(`${REPO_RAW}/pool.json`)); POOL_PRE = null;
+  SRC_STAMP = (j.generated || '') + '|' + (j.elig_checked_at || '');
   if (!j || !Array.isArray(j.pool) || !j.pool.length) throw new Error('pool.json 沒有資料');
   DISPOSED  = new Set(j.disposed  || []);
   ATTENTION = new Set(j.attention || []);
@@ -2318,7 +2325,7 @@ const SNAPSHOT = (window.RAW_POOL && window.RAW_POOL.length)
 const el = id => document.getElementById(id);
 const setStatus = (m, err) => {
   const s = el('status');
-  s.textContent = m;
+  s.textContent = m; s.dataset.base = m;   // 2026-10-19 base 一起換,不然 liveStatus / liveSnapshot 會把舊的「雲端資料 ○○」接回來(poolWatch 換名單後狀態列沒變)
   s.className = 'status' + (err ? ' err' : '') + (m ? '' : ' hidden');
 };
 
@@ -4834,6 +4841,41 @@ async function buildPool(){
   return POOL;
 }
 
+/* 2026-10-19 使用者:「是不是可以改在下午 2 點半以後雲端已經抓好資料就顯示明天要監控的股票,當然明天的股票還有一次的資格驗證」
+   雲端名單換了 App 就自動換,不用重開:平日 14:30~21:00(make_pool 於 14:30 / 16:30 / 18:30 / 20:30 跑)每 10 分鐘、
+   08:15~09:50(資格複檢 08:20~09:40)每 5 分鐘,去雲端抓一次 pool.json,看 generated / elig_checked_at 和手上的一不一樣;
+   不一樣就丟掉手上的名單重新 scan(),狀態列說一聲。盤中(09:50~14:30)不看,名單那時不會變。未平倉部位照舊置頂,不受換名單影響。
+   前景頁每分鐘呼叫一次;Android 前景服務的 bgTick() 也呼叫(08:50 起),所以 09:05 / 09:20 / 09:40 的複檢結果背景也跟得上。 */
+const POOL_WATCH = { at: 0, busy: false, n: 0 };
+function poolWatchEvery(d = new Date()){
+  const wd = d.getDay(); if (wd === 0 || wd === 6) return 0;
+  const t = d.getHours() * 60 + d.getMinutes();
+  if (t >= 14 * 60 + 30 && t <= 21 * 60) return 10;
+  if (t >= 8 * 60 + 15 && t <= 9 * 60 + 50) return 5;
+  return 0;
+}
+async function poolWatch(){
+  const every = poolWatchEvery();
+  if (!every || POOL_WATCH.busy || Date.now() - POOL_WATCH.at < every * 60000) return 'skip';
+  POOL_WATCH.at = Date.now(); POOL_WATCH.busy = true;
+  try{
+    const j = JSON.parse(await fetchText(`${REPO_RAW}/pool.json`, String(Date.now()), 20000));   // 帶時間戳,無視快取
+    if (!j || !Array.isArray(j.pool) || !j.pool.length) return 'empty';
+    const stamp = (j.generated || '') + '|' + (j.elig_checked_at || '');
+    if (SRC_LIVE && SRC_STAMP && stamp === SRC_STAMP) return 'same';
+    const wasDate = SRC_DATE, wasLive = SRC_LIVE;
+    POOL_PRE = j; POOL = null; SRC = null;
+    await scan();
+    POOL_WATCH.n++;
+    const msg = (!wasLive) ? `雲端資料已接上(${SRC_DATE})`
+      : (j.date !== wasDate) ? `已換成 ${SRC_DATE} 收盤後算出的名單(下個交易日用),共 ${(LIST_CODES || []).length} 檔`
+      : `資格複檢 ${(j.elig_checked_at || '').slice(11)} 已套用,共 ${(LIST_CODES || []).length} 檔`;
+    setStatus(msg);
+    return 'reloaded';
+  }catch(e){ return 'err ' + e.message; }
+  finally{ POOL_WATCH.busy = false; }
+}
+
 async function scan(){
   const lo = wLo.value, cnt = wCnt.value;
   const minAmp = parseFloat(wAmp.value);      // '4.0%' → 4.0
@@ -4962,6 +5004,7 @@ async function cloudLogFlush(){
 }
 window.CLOUD_LOG = CLOUD_LOG;   // 2026-10-18 使用者:通知內容最後加「· 判一 / 判二 / 判三」,通知欄代碼後面顯示是哪一份判別式發的
 async function bgTick(force, replay){
+  try{ await poolWatch(); }catch(e){}   // 2026-10-19 雲端名單換了(資格複檢 / 收盤後新名單)背景也跟著換
   try{ const v = readRuleset(); if (v && RULESETS[v] && v !== ACTIVE_RS) ACTIVE_RS = v; }catch(e){}   // 2026-10-18 前景切換判別式 → 背景跟上;2026-10-19 改成只換變數不重載(判一、判二本來就同時跑,重載會洗掉持倉記錄)
   if (BG.busy) return 'busy';
   if (replay) BG.last.clear();                      // 測試用:今天所有進出場點重新通知一次
@@ -5261,6 +5304,7 @@ window.bgTick = bgTick; window.BG = BG;
   sc.addEventListener('scroll', () => { const y = sc.scrollTop; window.SCROLL_MAX = Math.max(window.SCROLL_MAX || 0, y); if (lastY > 150 && y < 20) window.SCROLL_RESET = {at: new Date().toTimeString().slice(0, 8), from: Math.round(lastY), recent: log.filter(([t]) => Date.now() - t < 1500).map(x => x[1]).join(' '), resizes}; lastY = y; }, {passive: true});
 })();
 scan().then(() => { liveStart(); try{ if (window.Android && Android.ready) Android.ready(LIST_CODES.length); }catch(e){} });
+setInterval(() => { poolWatch().catch(() => {}); }, 60000);   // 2026-10-19 每分鐘看一次要不要去雲端比對名單(poolWatch 自己管 14:30~21:00 每 10 分、08:15~09:50 每 5 分)
 </script>
 </body>
 </html>
