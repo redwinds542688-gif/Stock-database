@@ -173,6 +173,16 @@ export default {
 
     // ── 第五條路:?bars=YYYY-MM-DD[&codes=…][&since=HH:MM] → 雲端 1 分K ──
     const bd = url.searchParams.get("bars");
+    if (bd === "snap") {
+      // 手動 / 補救:現在就存一個快照(這一分鐘已經有就不重存)。手機發現雲端 K 落後 2 分鐘以上會呼叫,Cron 沒跑也不會斷
+      if (!env || !env.LOGS) return J({ error: "Worker 還沒綁定 KV(LOGS)" }, 503);
+      try {
+        const t = twNow(); const k = `bar:${ymdOf(t)}:${hhmmOf(t)}`;
+        if (await env.LOGS.get(k)) return J({ ok: true, msg: "這一分鐘已有快照 " + k });
+        const r = await snapshotBars(env);
+        return J({ ok: true, msg: r });
+      } catch (e) { return J({ ok: false, error: String(e && e.stack || e) }, 500); }
+    }
     if (bd) {
       if (!env || !env.LOGS) return J({ error: "Worker 還沒綁定 KV(LOGS)" }, 503);
       const d = bd === "today" ? ymdOf(twNow()) : bd;
