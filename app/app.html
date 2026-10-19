@@ -92,6 +92,11 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-19 14:30 通知紀錄存雲端(使用者:「通知欄的訊息需要紀錄在雲端,這樣不管那隻手機都可以看到相同的過往通知」):
+    (1) Worker 第四條路 ?log=add / get / days,存 Cloudflare KV(綁定 LOGS,deploy-worker.yml 自動建立命名空間),保留 90 天;
+    (2) 網頁每發一則通知就 POST 上去(送不出去排隊,下一輪 bgTick 重送),鍵 = 日期|時間|代碼|標題去掉數字|判別式,兩支手機同一則只留一份;
+    (3) 通知欄:今天 = 手機本機 + 雲端合併(每 60 秒抓一次);過去的日子優先顯示雲端紀錄(判一、判二都有),沒有才用 log_backfill.json;日期清單含雲端有紀錄的日子。
+    雲端只存通知,不存手機設定。顯示版面不動(鐵律 11)。
   · 2026-10-19 13:30 使用者定案:平倉 / 反彈 / 注意 卡的做多 / 做空欄留白(「第一個訊息已經決定了多或空,再來的訊息只針對該股票做平倉、反彈、注意的警示」),只在最右邊顯示警示;13:20 那版加的方向顯示取消。
     進場卡警示狀態只看同一份判別式的後續訊息(判一、判二不混)照舊保留。
   · 2026-10-19 13:20(已取消)反彈 / 注意 / 平倉 卡片也顯示 做多 / 做空(使用者:「金寶的第一個訊息要告訴我做多還是做空,怎麼都沒有」):方向從通知內容「做空 09:27 進」讀,
@@ -1427,7 +1432,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610191330">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610191430">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4717,7 +4722,38 @@ async function scan(){
    沒有 Android 物件(在電腦瀏覽器測試)時寫進 BG.log。 */
 const BG = { last: new Map(), hist: new Map(), histDay: '', todayAt: new Map(), busy: false, startedAt: 0, log: [], ticks: 0, pos: new Map(), holiday: '' };
 function bgLog(s){ const line = new Date().toLocaleTimeString('zh-TW', {hour12:false}) + ' ' + s; BG.log.push(line); if (BG.log.length > 300) BG.log.shift(); try{ if (window.Android && Android.log) Android.log(line); }catch(e){} }
-function bgNotify(title, body, kind){ body = (body || '') + ' · ' + RULESET.btn; bgLog('[通知] ' + title + ' | ' + body); try{ if (window.Android && Android.notify) Android.notify(title, body, kind || ''); }catch(e){} }   // 2026-10-18 使用者:通知內容最後加「· 判一 / 判二 / 判三」,通知欄代碼後面顯示是哪一份判別式發的
+function bgNotify(title, body, kind){ body = (body || '') + ' · ' + RULESET.btn; bgLog('[通知] ' + title + ' | ' + body); try{ if (window.Android && Android.notify) Android.notify(title, body, kind || ''); }catch(e){} cloudLogAdd(title, body, kind || ''); }
+/* 2026-10-19 使用者:「通知欄的訊息需要紀錄在雲端,這樣不管那隻手機都可以看到相同的過往通知」
+   每發一則通知就 POST 到 Worker(?log=add → Cloudflare KV,保留 90 天);送不出去的排隊,下一輪 bgTick 再送。
+   鍵 = 日期|時間|代碼|標題去掉數字|判別式:兩支手機同一分鐘發的同一則 → 同一個鍵,雲端只留一份 */
+const CLOUD_LOG = { q: [], days: null, daysAt: 0, items: {}, at: {}, busy: false };
+const cloudLogUrl = () => liveOn() ? BASE.liveUrl.replace(/\/$/, '') + '/?log=' : '';
+const cloudLogKey = x => { const m = (x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?\S+ (\d{4,6}[A-Z]*)/); const rs = ((x.body || '').match(/· (判[一二三])\s*$/) || [])[1] || '';
+  return (x.t || '') + '|' + (m ? m[1] : '') + '|' + (x.title || '').replace(/[\d.,+\-−%↑↓\s⚠✅]/g, '') + '|' + rs; };
+function cloudLogAdd(title, body, kind){
+  if (!cloudLogUrl()) return;
+  const n = new Date(Date.now() + 8 * 3600000);
+  const d = n.toISOString().slice(0, 10), t = n.toISOString().slice(11, 16);
+  const m = title.match(/^(?:⚠⚠ |⚠ |✅ )?\S+ (\d{4,6}[A-Z]*)/); const prev = m ? ((LIVE.get(m[1]) || {}).y || null) : null;
+  const it = {d, t, title, body, kind, prev};
+  it.key = cloudLogKey(it).replace(/^[^|]*\|/, '');   // 時間 Worker 自己放在鍵前面
+  CLOUD_LOG.q.push(it); if (CLOUD_LOG.q.length > 200) CLOUD_LOG.q.shift();
+  cloudLogFlush();
+}
+async function cloudLogFlush(){
+  if (CLOUD_LOG.busy || !CLOUD_LOG.q.length || !cloudLogUrl()) return;
+  CLOUD_LOG.busy = true;
+  try{
+    for (let k = 0; k < 20 && CLOUD_LOG.q.length; k++){
+      const it = CLOUD_LOG.q[0];
+      const r = await fetch(cloudLogUrl() + 'add', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(it)});
+      if (!r.ok && r.status !== 400) throw new Error('HTTP ' + r.status);   // 400 = 資料本身不合格,丟掉不重送;其他(網路、503)留著下次再送
+      CLOUD_LOG.q.shift();
+    }
+  }catch(e){ bgLog('雲端紀錄上傳失敗,稍後重送:' + e.message); }
+  finally{ CLOUD_LOG.busy = false; }
+}
+window.CLOUD_LOG = CLOUD_LOG;   // 2026-10-18 使用者:通知內容最後加「· 判一 / 判二 / 判三」,通知欄代碼後面顯示是哪一份判別式發的
 async function bgTick(force, replay){
   try{ const v = readRuleset(); if (v && RULESETS[v] && v !== ACTIVE_RS) ACTIVE_RS = v; }catch(e){}   // 2026-10-18 前景切換判別式 → 背景跟上;2026-10-19 改成只換變數不重載(判一、判二本來就同時跑,重載會洗掉持倉記錄)
   if (BG.busy) return 'busy';
@@ -4728,6 +4764,7 @@ async function bgTick(force, replay){
   try{
     if (!BG.startedAt) BG.startedAt = Date.now();
     BG.ticks++;
+    cloudLogFlush();   // 2026-10-19 上一輪沒送出去的雲端紀錄再送
     const codes = [...new Set([...LIST_CODES, ...POSITIONS.keys()])];
     if (!codes.length) return 'nocodes';
     await liveFetch(codes); applyLiveToList();
@@ -4831,14 +4868,31 @@ window.bgTick = bgTick; window.BG = BG;
   function days(){
     let ds = [todayStr()];
     try{ if (window.Android && Android.logDays) ds = JSON.parse(Android.logDays() || '[]'); }catch(e){}
-    return [...new Set([...ds, ...Object.keys(HIST || {})])];
+    return [...new Set([...ds, ...Object.keys(HIST || {}), ...(CLOUD_LOG.days || [])])];
+  }
+  // 2026-10-19 雲端通知紀錄(Worker ?log=get / days):看哪一天就抓那一天,今天每 60 秒抓一次,日期清單每 10 分鐘;抓到就重畫
+  function ensureCloud(d){
+    const u = cloudLogUrl(); if (!u) return;
+    const now = Date.now();
+    if (now - CLOUD_LOG.daysAt > 600000){ CLOUD_LOG.daysAt = now;
+      fetch(u + 'days&_=' + now).then(r => r.ok ? r.json() : null).then(a => { if (Array.isArray(a)){ CLOUD_LOG.days = a; render(true); } }).catch(() => {}); }
+    const ttl = d === todayStr() ? 60000 : 3600000;
+    if (now - (CLOUD_LOG.at[d] || 0) < ttl) return; CLOUD_LOG.at[d] = now;
+    fetch(u + 'get&d=' + d + '&_=' + now).then(r => r.ok ? r.json() : null).then(a => { if (Array.isArray(a)){ CLOUD_LOG.items[d] = a; render(true); } }).catch(() => {});
+  }
+  function mergeCloud(local, d){
+    const c = CLOUD_LOG.items[d] || []; if (!c.length) return local;
+    const seen = new Set(local.map(cloudLogKey)); const out = local.slice();
+    for (const x of c){ const k = cloudLogKey(x); if (seen.has(k)) continue; seen.add(k); out.push(x); }
+    return out.sort((a, b) => (b.t || '').localeCompare(a.t || ''));   // 新的在前(同一分鐘的維持原本順序)
   }
   function itemsFor(d){
-    // 2026-10-18 使用者:「資料不同」(兩支手機的 10/16 紀錄不一樣,因為各自當天跑的版本不同)→ 過去的日子一律以雲端的判別式一正式紀錄
-    // (app/log_backfill.json,用定案規則重跑)為準,兩支手機看到的一樣;只有「今天」用手機自己即時跑出來的
+    // 2026-10-18 使用者:「資料不同」(兩支手機的 10/16 紀錄不一樣,因為各自當天跑的版本不同)→ 過去的日子一律以雲端為準,兩支手機看到的一樣
+    // 2026-10-19 起過去的日子優先用雲端通知紀錄(手機當天真的發過的,判一 / 判二 都有);沒有才用 app/log_backfill.json(判別式一重跑);今天 = 手機本機 + 雲端合併
+    if (d !== todayStr() && (CLOUD_LOG.items[d] || []).length) return CLOUD_LOG.items[d];
     if (HIST && HIST[d] && d !== todayStr()) return HIST[d];
-    try{ if (window.Android && Android.logFor){ const a = JSON.parse(Android.logFor(d) || '[]'); if (a.length || !(HIST && HIST[d])) return a; } }catch(e){}
-    if (d !== todayStr()) return [];
+    try{ if (window.Android && Android.logFor){ const a = JSON.parse(Android.logFor(d) || '[]'); if (a.length || !(HIST && HIST[d])) return mergeCloud(a, d); } }catch(e){}
+    if (d !== todayStr()) return mergeCloud([], d);
     return BG.log.filter(l => l.includes('[通知]')).slice().reverse().map(l => { const m = l.match(/^(\d\d:\d\d):\d\d \[通知\] (.*?) \| (.*)$/); return m ? {t: m[1], title: m[2], body: m[3], kind: ''} : {t: '', title: l, body: '', kind: ''}; });
   }
   function render(force){
@@ -4846,7 +4900,9 @@ window.bgTick = bgTick; window.BG = BG;
     const ds = days(); const today = todayStr(); if (!ds.includes(today)) ds.push(today); ds.sort();
     // 2026-10-19 使用者:「非開盤時間、也沒有當天紀錄,就顯示前一個工作日的通知」:沒有手動翻頁(cur 為空)、不在盤中、今天沒有買賣訊號 → 自動顯示最近一個有紀錄的日子
     let d = cur || today;
+    ensureCloud(cur || today);
     if (!cur && !inSession() && !itemsFor(today).some(x => x.kind !== 'sys')){
+      const lastCloud = (CLOUD_LOG.days || []).filter(x => x < today).pop(); if (lastCloud) ensureCloud(lastCloud);   // 自動顯示前一個工作日 → 先把雲端那天抓來
       for (let k = ds.length - 1; k >= 0; k--){ if (ds[k] < today && itemsFor(ds[k]).some(x => x.kind !== 'sys')){ d = ds[k]; break; } }
     }
     const i = ds.indexOf(d);

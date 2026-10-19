@@ -29,6 +29,14 @@
          08:20、08:45、09:05 → 開盤前資格複檢(recheck.yml);14:30、16:30、20:30 → 每日資料(daily.yml)
      檢查:https://twse-proxy.<帳號>.workers.dev/?gh=status   → 顯示 token 有沒有設好、能不能連到 GitHub
      手動觸發(要另設 Secret CRON_KEY):?gh=run&what=daily&key=<CRON_KEY>  或 what=recheck
+
+   第四條路(2026-10-19 新增):通知紀錄存雲端(Cloudflare KV,綁定名 LOGS)
+     使用者:「通知欄的訊息需要紀錄在雲端,這樣不管那隻手機都可以看到相同的過往通知」
+     POST ?log=add   body = JSON {d:'2026-10-19', key:'…', t:'09:27', title, body, kind, prev}
+                     → 存 KV 鍵 log:<d>:<t>:<key>(兩支手機發同一則 → 同一個鍵,不會重複);保留 90 天
+     GET  ?log=get&d=2026-10-19 → 那天所有通知(JSON 陣列,新的在前)
+     GET  ?log=days             → 有紀錄的日期(JSON 陣列,舊到新)
+     KV 命名空間由 deploy-worker.yml 自動建立並綁定(wrangler kv namespace create LOGS),不用手動設定。
    ══════════════════════════════════════════════════════ */
 
 const GH_OWNER = "redwinds542688-gif", GH_REPO = "Stock-database", GH_REF = "main";
@@ -50,7 +58,7 @@ async function dispatch(env, what) {
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "*",
   "Cache-Control": "no-store",
 };
@@ -94,6 +102,51 @@ export default {
     if (gh === "run") {
       if (!env || !env.CRON_KEY || url.searchParams.get("key") !== env.CRON_KEY) return J({ error: "key 不對或沒設 CRON_KEY" }, 403);
       return J(await dispatch(env, url.searchParams.get("what") || "daily"));
+    }
+
+    // ── 第四條路:?log=add / get / days → 通知紀錄(KV)──
+    const lg = url.searchParams.get("log");
+    if (lg) {
+      if (!env || !env.LOGS) return J({ error: "Worker 還沒綁定 KV(LOGS);deploy-worker.yml 會自動建立,看 Actions 紀錄" }, 503);
+      const okDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d || "");
+      if (lg === "add") {
+        if (request.method !== "POST") return J({ error: "log=add 要用 POST" }, 405);
+        let it; try { it = await request.json(); } catch (e) { return J({ error: "body 不是 JSON" }, 400); }
+        if (!it || !okDate(it.d) || !/^\d{2}:\d{2}$/.test(it.t || "") || !it.title) return J({ error: "缺 d / t / title" }, 400);
+        const item = { t: it.t, title: String(it.title).slice(0, 200), body: String(it.body || "").slice(0, 500), kind: String(it.kind || "").slice(0, 10) };
+        if (it.prev != null && isFinite(+it.prev)) item.prev = +it.prev;
+        const key = `log:${it.d}:${it.t}:${String(it.key || item.title).replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 120)}`;
+        const meta = JSON.stringify(item);
+        // KV 的 list 只回 metadata(上限 1024 bytes),一則通知通常 300~500 bytes 就放 metadata,一次 list 全拿;太長的放 value
+        const big = new TextEncoder().encode(meta).length > 1000;
+        await env.LOGS.put(key, big ? meta : "", { metadata: big ? { t: item.t, big: 1 } : item, expirationTtl: 90 * 86400 });
+        return J({ ok: true, key });
+      }
+      if (lg === "get") {
+        const d = url.searchParams.get("d");
+        if (!okDate(d)) return J({ error: "d 要是 YYYY-MM-DD" }, 400);
+        const out = []; let cursor;
+        do {
+          const r = await env.LOGS.list({ prefix: `log:${d}:`, cursor, limit: 1000 });
+          for (const k of r.keys) {
+            if (k.metadata && !k.metadata.big) out.push(k.metadata);
+            else { try { const v = await env.LOGS.get(k.name); if (v) out.push(JSON.parse(v)); } catch (e) {} }
+          }
+          cursor = r.list_complete ? null : r.cursor;
+        } while (cursor);
+        out.sort((a, b) => (b.t || "").localeCompare(a.t || ""));   // 新的在前,和手機本機紀錄一樣
+        return J(out);
+      }
+      if (lg === "days") {
+        const days = new Set(); let cursor;
+        do {
+          const r = await env.LOGS.list({ prefix: "log:", cursor, limit: 1000 });
+          for (const k of r.keys) days.add(k.name.slice(4, 14));
+          cursor = r.list_complete ? null : r.cursor;
+        } while (cursor);
+        return J([...days].sort());
+      }
+      return J({ error: "log 要是 add / get / days" }, 400);
     }
 
     // ── 第二條路:?yahoo=6770.TW → Yahoo 今天的 1 分K ──
