@@ -100,6 +100,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-20 00:20 通知欄一進一出(使用者:「一支股票只需要有一進場跟一平倉兩個訊息而已」):同一檔、同一份判別式,一個部位只顯示「進場」「平倉」各一張:
+    上一張進場還沒平倉前再來的進場卡不顯示(判二強訊號 10:52 之後 11:17 的做多進場),注意 / 反彈卡不另外顯示(狀態仍寫在進場卡的警示欄),平倉卡只留一張(00:10 那條)。
+    「n 則」改成顯示的張數。判一、判二各自算;雲端紀錄不刪、手機通知照發。
   · 2026-10-20 00:10 平倉訊息(使用者:「把平倉訊息改成藍色,為什麼同一支股票會有這麼多的平倉訊息」):(1)通知欄「平倉」徽章改藍 #4FC3F7,注意 / 反彈仍紅。
     (2)台玻 判一今天 12:36 / 12:38 / 12:41 發了三次「出場:出」(67.5 / 67.4 / 67.3):雲端 1 分 K 一直重寫最近幾根,平倉那根的時間 / 價錢跟著變,bgTick 的 key(time|text)
     就變成新事件,10 分鐘 dedupe 只比文字「出」卻沒擋到(兩支手機各自也會發)。改成一個部位只通知一次平倉(BG.exited 記 pk,新進場才清),
@@ -1508,7 +1511,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610200010">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610200020">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5198,7 +5201,7 @@ window.bgTick = bgTick; window.BG = BG;
     const key = d + '|' + items.length + '|' + (items[0] ? items[0].t + items[0].title : '') + '|' + capFund();   // 2026-10-19 上限改了也要重畫(超過上限的卡片要藏 / 露)
     if (!force && key === lastKey) return; const changed = key !== lastKey; lastKey = key;
     if (changed && d === today) { try{ resortList(); }catch(e){} }   // 新訊號進來 → 清單重新排序
-    const n = items.length;
+    let n = items.length;   // 2026-10-20 下面算完要顯示的卡片數再覆蓋(一進一出)
     const label = d === today ? '今日' : d.slice(5).replace('-', '/');
     const hd = `<div class="hd"><span class="nav"><button id="nlPrev" ${i <= 0 ? 'disabled' : ''}>◀</button><span>${label}監控紀錄</span><button id="nlNext" ${i >= ds.length - 1 ? 'disabled' : ''}>▶</button></span><span>${n} 則</span></div>`;
     // 2026-10-17 標題改成使用者指定的樣式:進場「名 代碼 做多進場 ↑ 價」紅底 / 做空 ↓ 綠底;平倉「⚠ 名 代碼 ±x.x% 立即平倉」賺淡藍底 / 賠淡紅底,不顯示停損停利字樣
@@ -5233,6 +5236,16 @@ window.bgTick = bgTick; window.BG = BG;
         if (o.type === 'entry'){ seenExit.delete(kk); keep.push(o); continue; }
         if (o.type === 'exit'){ if (seenExit.has(kk)) continue; seenExit.set(kk, true); }
         keep.push(o); }
+      keep.reverse(); cards.length = 0; cards.push(...keep); }
+    // 2026-10-20 使用者:「一支股票只需要有一進場跟一平倉兩個訊息而已」:同一檔、同一份判別式,一個部位只留「進場」「平倉」各一張 ——
+    // 上一張進場還沒出現平倉前再來的進場卡(判二強訊號 10:52 之後 11:17 又一張做多進場)不顯示;注意 / 反彈卡不另外顯示,狀態仍寫在進場卡的警示欄。
+    // 判一、判二各自算(各一進一出);雲端紀錄不刪,手機通知照發。
+    { const keep = []; const open = new Map();   // key = code|rs → 進場卡已顯示、還沒平倉
+      for (let k = cards.length - 1; k >= 0; k--){ const o = cards[k]; const kk = o.code + '|' + (o.rs || '');
+        if (o.type === 'entry'){ if (open.has(kk)){ o._hide = true; } else open.set(kk, true); }
+        else if (o.type === 'exit'){ open.delete(kk); }
+        else if (o.type === 'warn'){ o._hide = true; }
+        keep.push(o); }
       keep.reverse(); cards.length = 0; cards.push(...keep); }   // 2026-10-19 使用者:「價格超過限額,訊息就不用顯示」→ 一張就超過多空上限的不列(改了上限,舊訊息也跟著藏)
     window.NL_SHOWN = {d, codes: cards.map(o => o.code)};   // 2026-10-19 給股票清單排序用:通知欄正在顯示的股票(新的在前)排最前面,不管有沒有平倉
     { const sig = [...new Set(NL_SHOWN.codes)].join(','); if (sig !== (window.NL_SIG || '')){ window.NL_SIG = sig; if (typeof scan === 'function' && LAST_LIST){ clearTimeout(window.NL_SCAN_T); window.NL_SCAN_T = setTimeout(() => { try{ scan(); }catch(e){} }, 300); } } }   // 通知欄裡的股票變了 → 清單重新產生(補進新的、拿掉超過上限的)
@@ -5244,7 +5257,7 @@ window.bgTick = bgTick; window.BG = BG;
         if (!o.side) for (let j = k + 1; j < cards.length; j++){ const q = cards[j]; if (!same(q)) continue; if (q.type === 'entry'){ o.side = q.side; break; } }   // 通知內容沒寫方向(App 重啟後進的)→ 往前找同一檔同一份的進場卡
         return; }
       let st = '', stT = '', win = null;
-      for (let j = k - 1; j >= 0; j--){ const q = cards[j]; if (!same(q)) continue; if (q.type === 'entry') break; st = q.alert; stT = q.t; if (q.type === 'exit'){ win = q.win; break; } }
+      for (let j = k - 1; j >= 0; j--){ const q = cards[j]; if (!same(q)) continue; if (q.type === 'entry'){ if (q._hide) continue; break; } st = q.alert; stT = q.t; if (q.type === 'exit'){ win = q.win; break; } }   // 2026-10-20 被藏起來的重複進場卡不算下一筆交易,狀態繼續往後找
       o._alert = st; o._alertT = stT; o._win = win;
     });
     const lotsOf = o => { const p = POSITIONS.get(o.code); if (p && p.qty) return p.qty; const ent = o.entP || o.price || 0; return ent ? Math.max(1, Math.floor(capFund() / (ent * 1000))) : 0; };   // 2026-10-19 使用者:「設上限 20 萬,台玻怎麼還顯示 5 張」→ 張數改用設定的多空上限(原本寫死 35 萬)
@@ -5271,7 +5284,8 @@ window.bgTick = bgTick; window.BG = BG;
            + `<div class="ln sub"><span class="nmblk"><span class="cd">${esc(o.code)}</span></span><span class="px${ud(+o.price)}"><i class="s">${pxBot}</i></span><span class="sd"><i class="s rsb">${o.rs || ''}</i></span><span class="qt"></span><span class="exm"></span><span class="rs">${al === 'exit' && o._win != null ? `<i class="s wl ${o._win ? 'win' : 'lose'}">${o._win ? '贏' : '輸'}</i>` : ''}</span></div>`;   // 2026-10-18 使用者:平倉下面顯示 輸 / 贏,加框
     };
     const info = o => '';   // 2026-10-17 使用者:每一則下面的灰字明細都不顯示,只留代碼
-    box.innerHTML = hd + (cards.length ? cards.map((o, k) => `<div class="card ${o.side === 'long' ? 'c-long' : o.side === 'short' ? 'c-short' : ''}${posStatus(o.code) === 'open' ? ' mine' : posStatus(o.code) === 'closed' ? ' done' : ''}" data-i="${k}">${line(o)}</div>`).join('')
+    const shown = cards.filter(o => !o._hide); n = shown.length; const hd2 = hd.replace(/<span>\d+ 則<\/span>/, `<span>${n} 則</span>`);
+    box.innerHTML = hd2 + (shown.length ? shown.map((o, k) => `<div class="card ${o.side === 'long' ? 'c-long' : o.side === 'short' ? 'c-short' : ''}${posStatus(o.code) === 'open' ? ' mine' : posStatus(o.code) === 'closed' ? ' done' : ''}" data-i="${k}">${line(o)}</div>`).join('')
       : `<div class="empty">${d === today ? '今日還沒有通知<br>(進場 / 停利 / 停損 / 出場會列在這裡)' : '這天沒有紀錄'}</div>`);
     // 2026-10-17 自動縮字:真機系統字體放大時整列會超出卡片,量一下塞不下就縮,直到塞下為止(最小 11px)
     // 2026-10-17 字體自適:每一列先用 18px 畫,量出實際需要的寬度,再按「可用寬 ÷ 需要寬」一次算出剛好塞滿的字級(10~21px)。
@@ -5307,7 +5321,7 @@ window.bgTick = bgTick; window.BG = BG;
     if (prev) prev.onclick = () => { cur = ds[i - 1]; render(true); };
     if (next) next.onclick = () => { cur = ds[i + 1] || today; render(true); };   // 翻到今天就記住「今天」,不然 5 秒後自動又跳回前一個工作日(2026-10-19)
     box.querySelectorAll('.card').forEach(r => {
-      const c = cards[+r.dataset.i]; const code = c.code, name = c.name;
+      const c = shown[+r.dataset.i]; const code = c.code, name = c.name;   // 2026-10-20 data-i 是「顯示出來的卡」的序號(shown),不是全部 cards
       // 2026-10-19 使用者:「長按該股票沒有動作」→ 卡片長按不再記「我有做」(原本長按 600ms 記多 / 空、再長按取消);點一下照舊開那檔的圖
       r.addEventListener('click', () => openChart(code, name));
     });
