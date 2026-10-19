@@ -101,6 +101,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-20 01:30 判別式三加「開高不做」(使用者看輸的單:「只做開平或開低」→「改 開高不做」):brkMaxGapPct:0,今開 > 昨收那天不進。
+    輸的 26 筆多數進場後最多只漲 0.5%、拖到 13:25 平倉,而且開盤缺口平均 +0.4%(賺的 −0.6%)。九天 45 筆 42% +18,779 → 26 筆 15/11 57% +54,181。模擬器 BRKGAP=0。
   · 2026-10-20 01:20 判別式三改成「燿華型」起漲點(使用者看燿華 11:12、友達 10:37 的圖:「起漲點」→「燿華型寫入判三」):entryMode 'brk' = 前 20 根盤整
     (價幅 ≤ 1% 或三線黏合 < 3% OBV 範圍)+ OBV 均 10 最近 3 根內上穿 OBV 均 30 + 紅在藍上 + 最近 3 根有一根量 ≥ 前 20 根平均 2 倍 + 收盤破前 20 根高 + 價還在今開之下,只做多,
     那根直接進。均線用今天到目前為止的平均。保護只留 ±3.5% / −3% 不做多 / 紅線在退 / 12:00 後不進 / 不鎖方向(VWAP、量、量比、離均價、離高點、OBV30 方向、跳空、距離全關,
@@ -1524,7 +1526,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610200120">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610200130">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2504,7 +2506,7 @@ function render(list){
     '<b>進場</b>',
     '均價 K' + BASE.maPeriod + ' / OBV 均線 ' + BASE.obvMaPeriod + ';開盤 ' + SIG.skipMin + ' 分鐘內不進,' + SIG.noEntryAfter + ' 後不進',
     ...(SIG.entryMode === 'brk'
-      ? ['燿華型起漲點(只做多):前 20 根盤整(價幅 ≤ ' + SIG.brkFlatPct + '% 或紅藍紫三線黏合 < ' + SIG.brkTightPct + '% OBV 範圍)+ OBV 均 10(藍)最近 ' + (SIG.brkXWin + 1) + ' 根內上穿 OBV 均 30(紫)+ 紅在藍上 + 最近 ' + SIG.brkVolWin + ' 根有一根量 ≥ 前 20 根平均 ' + SIG.brkVolX + ' 倍 + 收盤破前 20 根高' + (SIG.brkBelowOpen ? ' + 價還在今開之下' : '') + ' → 那根直接進']
+      ? ['燿華型起漲點(只做多):前 20 根盤整(價幅 ≤ ' + SIG.brkFlatPct + '% 或紅藍紫三線黏合 < ' + SIG.brkTightPct + '% OBV 範圍)+ OBV 均 10(藍)最近 ' + (SIG.brkXWin + 1) + ' 根內上穿 OBV 均 30(紫)+ 紅在藍上 + 最近 ' + SIG.brkVolWin + ' 根有一根量 ≥ 前 20 根平均 ' + SIG.brkVolX + ' 倍 + 收盤破前 20 根高' + (SIG.brkBelowOpen ? ' + 價還在今開之下' : '') + (SIG.brkMaxGapPct < 99 ? ' + 開高不做(今開 ≤ 昨收' + (SIG.brkMaxGapPct ? ' + ' + SIG.brkMaxGapPct + '%' : '') + ')' : '') + ' → 那根直接進']
       : SIG.entryMode === 'seq'
       ? ['第一訊號 = K 收盤創 ' + SIG.seqNewHi + ' 根新高(只做多' + (SIG.seqSide === 'both' ? ',做空鏡像' : '') + ')+ 紅線在 OBV 均 10 之上、OBV 均 10 向上、OBV 均 ' + SIG.seqSlowMa + ' 向上,而且三者是在 ' + SIG.seqWin + ' 分鐘內依「紅先、藍次、紫最後」的順序轉向的;K 不是虛根且收在當日高低之間 = 確認點直接進(待修正)']
       : SIG.entryMode === 'gapdir'
@@ -3610,9 +3612,10 @@ const RULESETS = {
   // 2026-10-19 19:50 判別式三重建(使用者:「先把你剛剛說的適合放進判別三的,先放進去判別3」):價創 10 根新高 + 紅線 / OBV10 / OBV30 依序轉正(只做多)+ 判別式二的保護;原 gapdir 版(+28,056)作廢
   // 2026-10-20 判別式三改成「燿華型」起漲點(使用者:「燿華型寫入判三」):盤整 + 藍上穿紫 + 紅在藍上 + 大量 + 破 20 根高 + 價在今開下,只做多;seq 版作廢(見《判別式三.md》歷史)。
   //   保護只留:±3.5% / −3% 不做多(trendOnlyPct)、紅線在退、12:00 後不進、不鎖方向;VWAP / 量 / 量比 / 離均價 / 離高點 / OBV30 方向 / 跳空 / 距離 全關(回測加了都更差)。出場同判別式一。
-  //   模擬器:FPGAP=2.5 TAKE=2.5 VWAPF=0 FP=1 MAXDEV=99 MIRROR=1 PENDVOL=1 VOLMIN=0 RVOLMIN=0 CAP=350000 REVOK=1 ENTRYMAX=3.5 OBVX=2 OBVXMIN=1 OBVX2=1 OB2=30 SLOPEMIN=-99 GAPMODE=dir GAPTH=99 OB3MA=6 REDSLOPE=-2 EXITRESET=tp OBVDIR=0 NEARHL=0 NOLOCK=1 NOENTRYAFTER=12:00 MODE=brk BRKBELOW=1 BRKVBASE=pre OBMASLOPE=0
-  '三': { key: '三', btn: '判三', name: '判別式三', date: '2026-10-20', backtest: '10/06~10/19 九天只做多 46 筆,賺 20 賠 26,勝率 43%,淨 +21,615(燿華型:盤整後大量破高、藍上穿紫、價在今開下;勝率低單筆大,觀察中)',
-          sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'brk', brkFlatPct: 1.0, brkTightPct: 3, brkXWin: 2, brkVolWin: 3, brkVolX: 2, brkBelowOpen: true,
+  //   模擬器:FPGAP=2.5 TAKE=2.5 VWAPF=0 FP=1 MAXDEV=99 MIRROR=1 PENDVOL=1 VOLMIN=0 RVOLMIN=0 CAP=350000 REVOK=1 ENTRYMAX=3.5 OBVX=2 OBVXMIN=1 OBVX2=1 OB2=30 SLOPEMIN=-99 GAPMODE=dir GAPTH=99 OB3MA=6 REDSLOPE=-2 EXITRESET=tp OBVDIR=0 NEARHL=0 NOLOCK=1 NOENTRYAFTER=12:00 MODE=brk BRKBELOW=1 BRKVBASE=pre OBMASLOPE=0 BRKGAP=0
+  //   2026-10-20 01:30 加「開高不做」(使用者:「改 開高不做」):今開 > 昨收的那天不進(brkMaxGapPct:0);九天 45 筆 42% +18,779 → 26 筆 57% +54,181。
+  '三': { key: '三', btn: '判三', name: '判別式三', date: '2026-10-20', backtest: '10/06~10/19 九天只做多 26 筆,賺 15 賠 11,勝率 57%,淨 +54,181(燿華型:盤整後大量破高、藍上穿紫、價在今開下、開高不做;觀察中)',
+          sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'brk', brkFlatPct: 1.0, brkTightPct: 3, brkXWin: 2, brkVolWin: 3, brkVolX: 2, brkBelowOpen: true, brkMaxGapPct: 0,
                                                                   noLock: true, obmaSlopeMin: 0, noWeakEntry: false, confirmMinGapPct: 0, noEntryAfter: '12:00',
                                                                   vwapFilter: false, minDayVol: 0, rvolFilter: false, maxEntryDevPct: 99, nearHiLoPct: 0, obvDirMa: 0, gapChasePct: 99 }) },
 };
@@ -3890,7 +3893,8 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
         const bigv = vmax >= SIG.brkVolX * Math.max(vs / 20, 1e-9);
         const brk = b.close >= hh;
         const below = !SIG.brkBelowOpen || b.close < dayOpen;
-        if ((flat || tight) && cross && redUp && bigv && brk && below){ side = 'long'; xconf = true; }
+        const gapok = !(SIG.brkMaxGapPct < 99) || !(prevClose > 0) || dayOpen === null || (dayOpen - prevClose) / prevClose * 100 <= SIG.brkMaxGapPct;   // 2026-10-20 開高不做:今開對昨收的缺口 ≤ brkMaxGapPct%(0 = 只做開平或開低;模擬器 BRKGAP=0)
+        if ((flat || tight) && cross && redUp && bigv && brk && below && gapok){ side = 'long'; xconf = true; }
       }
     } else if (seqMode){
       // 判別式三(2026-10-19 使用者:「要先看價格上去,紅線藍線紫線有沒有照上升的規則走,如果有才算是上漲」→「先放進判別三」):

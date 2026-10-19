@@ -11,6 +11,7 @@ try:
     t = df[(df.date == DAY) & (df.time >= '09:00') & (df.time <= '13:30')].reset_index(drop=True)
     _s = [s for s in P['pool'] if s['code']==code][0]; prev = _s['close'] if _s.get('date','') < DAY else _s['prev']; src='GitHub 官方資料'   # 清單日期早於模擬日 → 昨收 = 清單那天的收盤
     if len(t)==0: raise Exception('no rows')
+    _pk = df[df.date < DAY]; prevK = float(_pk.close.values[-1]) if len(_pk) else prev   # 2026-10-20 判三開盤缺口用:K 線裡前一個交易日的最後收盤(回測池檔可能是兩天前的,昨收會錯)
 except Exception:
     r = json.load(open(f'{S}/y{code}.json'))['chart']['result'][0]; prev = r['meta']['chartPreviousClose']; q = r['indicators']['quote'][0]
     rows = [(datetime.datetime.fromtimestamp(ts, datetime.timezone(datetime.timedelta(hours=8))).strftime('%H:%M'), o, h, l, c, v or 0)
@@ -214,7 +215,8 @@ for i in range(1, len(c)):
             _bigv = (i-BRKVWIN+1-20 >= 0) and np.max(v[i-BRKVWIN+1:i+1]) >= BRKVOLX * max(np.mean(_vb), 1e-9)
             _brk = (c[i] >= np.max(h[_w])) if _sd == 1 else (c[i] <= np.min(l[_w]))
             _bm = os.environ.get('BRKBELOW','1'); _ref = prev if _bm == '2' else o[0]; _below = (_bm == '0') or ((c[i] - _ref) * _sd < 0)   # 1 多:價在今開之下 / 空:今開之上;2 用昨收;0 不限
-            if (_flat or _tight) and _cross and _redUp and _bigv and _brk and _below: side = (-_sd if BRKREV else _sd); xconf = True
+            _gapok = (o[0]/(prev if os.environ.get('BRKGAPREF','k') == 'pool' else globals().get('prevK', prev)) - 1)*100*_sd <= float(os.environ.get('BRKGAP','99'))   # 2026-10-20 測試(使用者:「只做開平或開低」):今開對昨收的缺口 ≤ BRKGAP% 才做(0 = 開高不做);昨收用 K 線前一天收盤(BRKGAPREF=pool 改用池檔昨收,只給 App 對照用,App 盤中用證交所昨收)
+            if (_flat or _tight) and _cross and _redUp and _bigv and _brk and _below and _gapok: side = (-_sd if BRKREV else _sd); xconf = True
     else:
         side = 1 if (kUp and oUp and between and pUp and not doji) else (-1 if (kDn and oDn and between and pDn and not doji) else 0)
     STRONG = os.environ.get('STRONG','0'); strong = False   # 2026-10-18 測試(使用者提議,友達 10/16 10:30):強訊號 = 紅線在 OBV10 與 OBV30 之下 + 兩條藍線都在降 + 價在均價下且均價降;剛成立那根直接當確認點
