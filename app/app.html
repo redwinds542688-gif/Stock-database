@@ -89,6 +89,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
+    十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
+    開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
   · 2026-10-19 09:55 App 1.5.43 螢幕綠點改到左上角(使用者:「出來了,但沒有改在左上角」),狀態列下方 30dp、離左邊 6dp。
   · 2026-10-19 09:40 App 1.5.42 螢幕綠點(使用者:「判一綠燈有閃但螢幕綠點不見」):(1) 懸浮窗權限沒開時,長按設定的選單自動多一條「允許螢幕角落監控點(需權限)」,
     允許後就不再出現(更新 App 後 OPPO 可能把這個權限收回);(2) 綠點被系統拿掉後能重新掛上(以前 view 還記著就永遠不再 addView)。
@@ -1412,7 +1415,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610190955">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610191000">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3248,8 +3251,13 @@ function showBarInfo(t){
   // 最後一根或沒有十字線 → 回到最新狀態。沒開平倉規則(stateAt 為空)時燈號不動,只動多空天秤。
   if (CUR.lampLast){
     const devPct = isFinite(d.ma) && d.ma > 0 ? (d.bar.close - d.ma) / d.ma * 100 : null;
-    if (isLast){ lampsFromBias(CUR.biasLast, d.bar.time, devPct, CUR.strongLast || 0); updateMeter(CUR.biasLast); }
-    else if (CUR.bars && CUR.maMap && d.i != null){ const b = biasScore(CUR.bars, CUR.maMap, CUR.obmaMap, CUR.obMap, d.i); lampsFromBias(b, d.bar.time, devPct, strongLampDir(CUR.bars, d.i, CUR.maMap, CUR.obMap, CUR.obmaMap, CUR.obSMap)); updateMeter(b); }
+    if (isLast){ lampsFromBias(CUR.biasLast, d.bar.time, devPct, CUR.strongLast || 0, !!CUR.waitLast); updateMeter(CUR.biasLast); }
+    else if (CUR.bars && CUR.maMap && d.i != null){
+      let nDay = 0; for (let i = d.i; i >= 0 && dayKey(CUR.bars[i].time) === dayKey(d.bar.time); i--) nDay++;   // 十字線那根是當天第幾根
+      const waiting = nDay < SIG.skipMin;
+      const b = waiting ? 0 : biasScore(CUR.bars, CUR.maMap, CUR.obmaMap, CUR.obMap, d.i);
+      lampsFromBias(b, d.bar.time, devPct, waiting ? 0 : strongLampDir(CUR.bars, d.i, CUR.maMap, CUR.obMap, CUR.obmaMap, CUR.obSMap), waiting); updateMeter(b);
+    }
   }
 }                 // 圖上的 ±entryMaxChg% 進場區間線
 
@@ -3839,7 +3847,13 @@ const toTimeMap = arr => { const m = new Map(); for (const x of arr) m.set(x.tim
 /* 燈號跟隨多空天秤(2026-10-18 使用者定案,「1~2 格注意、3 格才多空燈」):
    紅格 ≥ SIG.lampBars(3)→ 做多燈閃;1~2 格 → 做多燈暗色恆亮、字改「漸多」;綠格同理;0 格 → 監控。
    不再看訊號循環;十字線移到哪根就看那根。 */
-function lampsFromBias(b, time, devPct, strongDir){
+function lampsFromBias(b, time, devPct, strongDir, waiting){
+  // 2026-10-19 使用者錄影:開盤前幾分鐘今天只有幾根 K,每多一根燈就翻一次。規則本來就寫「今天不到 skipMin 根 K 顯示等待」,燈號現在也照做:等待時三顆都不亮、監控燈改字「等待」
+  if (waiting){
+    const eL0 = el('lampLong'), eS0 = el('lampShort'), eW0 = el('lampWatch');
+    eL0.classList.remove('on', 'pre', 'strong'); eL0.textContent = '做多'; eS0.classList.remove('on', 'pre', 'strong'); eS0.textContent = '做空';
+    eW0.classList.add('on'); eW0.textContent = '等待'; return;
+  }
   const closed = time != null && hmKey(time) >= '13:25';   // 13:25 起已強制平倉、13:30 是收盤集合競價:不再亮多空燈,只顯示監控(2026-10-18 使用者)
   // 價離均價線超過 SIG.maxEntryDevPct(1%)就是追高 / 追低,那個方向的燈不亮(2026-10-18 使用者:「35.9 均線 35.5 大於 1%,不適合建議做多」)
   const farUp = devPct != null && devPct > SIG.maxEntryDevPct, farDn = devPct != null && devPct < -SIG.maxEntryDevPct;
@@ -3851,7 +3865,7 @@ function lampsFromBias(b, time, devPct, strongDir){
   const eL = el('lampLong'), eS = el('lampShort'), eW = el('lampWatch');
   eL.classList.toggle('on', l); eL.classList.toggle('pre', lp); eL.classList.toggle('strong', lStrong); eL.textContent = lStrong ? '強多' : (lp ? '漸多' : '做多');
   eS.classList.toggle('on', sh); eS.classList.toggle('pre', sp); eS.classList.toggle('strong', sStrong); eS.textContent = sStrong ? '強空' : (sp ? '漸空' : '做空');
-  eW.classList.toggle('on', !l && !sh && !lp && !sp);
+  eW.classList.toggle('on', !l && !sh && !lp && !sp); eW.textContent = '監控';
 }
 (function buildMeter(){                                  // 左 10 格(外→內漸小)、中線、右 10 格(內→外漸大)
   const box = el('meterSegs'); if (!box) return;
@@ -4377,7 +4391,7 @@ function drawBars(bars, code, srcLabel, keepView){
   const maMap = toTimeMap(ma), obmaMap = toTimeMap(obma), obMap = toTimeMap(ob);
   const obSMap = (SIG.strong && SIG.strongSlowMa > 0) ? toTimeMap(sma(ob, SIG.strongSlowMa, 'value')) : null;   // 強訊號用的 OBV 均 30(判別式二)
   const strongLast = strongLampDir(bars, bars.length - 1, maMap, obMap, obmaMap, obSMap);
-  const bias = biasScore(bars, maMap, obmaMap, obMap);
+  const bias = todayBars.length < SIG.skipMin ? 0 : biasScore(bars, maMap, obmaMap, obMap);   // 不到 15 根 K 天秤歸零(2026-10-19)
   updateMeter(bias);
   // 今天的進場 / 平倉點位標在 K 線圖上;燈號 = 循環狀態(進場後持續亮到平倉訊號)
   const rp = replaySignals(bars, ma, ob, obma, prevClose, src ? !!src.dtShort : undefined);
@@ -4388,7 +4402,8 @@ function drawBars(bars, code, srcLabel, keepView){
   const cyc = YH.exitRule ? rpSig.state : null;    // 訊號循環(不受 3.5% 限制),只用來寫小字
   const trade = YH.exitRule ? rp.state : null;     // 真正的交易循環
   const lastMa = maMap.get(last.time);
-  lampsFromBias(bias, last.time, lastMa > 0 ? (last.close - lastMa) / lastMa * 100 : null, strongLast);   // 燈號跟隨多空天秤(2026-10-18);13:25 後只顯示監控;離均價超過 1% 不亮
+  const waiting = todayBars.length < SIG.skipMin;   // 今天還不到 skipMin(15)根 K:燈號等待、天秤歸零(2026-10-19)
+  lampsFromBias(bias, last.time, lastMa > 0 ? (last.close - lastMa) / lastMa * 100 : null, strongLast, waiting);   // 燈號跟隨多空天秤(2026-10-18);13:25 後只顯示監控;離均價超過 1% 不亮
   if (cyc && !cyc.gated){
     if (trade && trade.side === cyc.side){
       const pl = (last.close - trade.entry) / trade.entry * 100 * (trade.side === 'long' ? 1 : -1);
@@ -4400,7 +4415,7 @@ function drawBars(bars, code, srcLabel, keepView){
   // 十字線聯動(2026-10-17 使用者:「燈號需要用十字虛線聯動」):記住「最新」的燈號與偏向,十字線移到某一根 K 時改顯示那根當下的狀態,移開就回到最新
   if (CUR){
     CUR.lampLast = {long: el('lampLong').classList.contains('on'), short: el('lampShort').classList.contains('on'), watch: el('lampWatch').classList.contains('on')};
-    CUR.biasLast = bias; CUR.strongLast = strongLast; CUR.bars = bars; CUR.vw = vw; CUR.maMap = maMap; CUR.obmaMap = obmaMap; CUR.obMap = obMap; CUR.obSMap = obSMap; CUR.stateAt = (YH.exitRule && rpSig.stateAt) ? rpSig.stateAt : null;
+    CUR.biasLast = bias; CUR.strongLast = strongLast; CUR.waitLast = waiting; CUR.bars = bars; CUR.vw = vw; CUR.maMap = maMap; CUR.obmaMap = obmaMap; CUR.obMap = obMap; CUR.obSMap = obSMap; CUR.stateAt = (YH.exitRule && rpSig.stateAt) ? rpSig.stateAt : null;
   }
   const nLong = marks.filter(m => m.text.startsWith('多')).length, nShort = marks.filter(m => m.text.startsWith('空')).length;
   const nGated = marks.filter(m => m.text.endsWith('✕')).length, nConf = marks.filter(m => m.text.endsWith('✓')).length;
