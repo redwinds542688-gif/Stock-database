@@ -75,7 +75,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showMenu(anchor: TextView) {
         val m = PopupMenu(this, anchor)
-        // 2026-10-19 使用者:「啟動 / 停止背景監控」拿掉。監控全自動;要強制重啟就長按亮著的判鍵(Android.restartMonitor);要停就返回鍵 → 結束程式
+        // 2026-10-19 使用者:「啟動 / 停止背景監控」拿掉。監控全自動;要強制重啟就長按亮著的判鍵(Android.restartMonitor);沒有手動停止(2026-10-19 11:17 使用者:「結束程式部分 取消」)
         // 2026-10-19 使用者:「已經關閉最佳化,這條便不用再出現」→ 已排除省電就不列
         if (!(getSystemService(POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(packageName)) m.menu.add(0, 3, 2, "關閉電池最佳化(必做)")
         // 2026-10-19 使用者:「更新 App 那條,已經是最新版就不用出現」→ 只有上次檢查發現 GitHub 有新版才列;打開選單時順便在背景再查一次,查到新版直接跳安裝提示
@@ -120,20 +120,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
-    /** 返回鍵(2026-10-19 使用者:「虛擬按鍵 返回 出現離開程式 確認 結束程式」):圖表開著就只關圖表;否則跳「離開程式?」
-     *  確認 = 回桌面,背景監控照跑、通知照發;結束程式 = 停止背景監控(看門狗也不再自動啟動)並關閉;取消 = 留在程式 */
+    /** 返回鍵(2026-10-19 使用者:「虛擬按鍵 返回 出現離開程式 確認 結束程式」;同日 11:17「結束程式部分 取消」→ 只剩 確認 / 取消):
+     *  圖表開著就只關圖表;否則跳「離開程式?」確認 = 回桌面,背景監控照跑、通知照發;取消 = 留在程式。背景監控只能由看門狗自動管,沒有手動停止 */
     override fun onBackPressed() {
         web.evaluateJavascript("(function(){ try{ var s = document.getElementById('sheet'); if (s && s.classList.contains('open')){ closeChart(); return 'closed'; } }catch(e){} return ''; })()") { r ->
             if (r != null && r.contains("closed")) return@evaluateJavascript
             AlertDialog.Builder(this).setTitle("離開程式?")
-                .setMessage("確認:回到桌面,背景監控繼續跑、通知照發。\n結束程式:停止背景監控並關閉程式。")
+                .setMessage("確認:回到桌面,背景監控繼續跑、通知照發。")
                 .setPositiveButton("確認") { _, _ -> moveTaskToBack(true) }
-                .setNegativeButton("結束程式") { _, _ ->
-                    if (MonitorService.running) MonitorService.stop(this)
-                    getSharedPreferences("mysh", MODE_PRIVATE).edit().putBoolean("userStopped", true).apply()
-                    web.postDelayed({ finishAndRemoveTask() }, 300)
-                }
-                .setNeutralButton("取消", null).show()
+                .setNegativeButton("取消", null).show()
         }
     }
 }
