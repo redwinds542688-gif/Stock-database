@@ -122,7 +122,8 @@ async function dayBars(env, d, codes, since) {
   } while (cursor);
   keys.sort();
   let use = keys;
-  if (since) { const i = keys.findIndex(k => k.slice(-5) >= since); use = i < 0 ? [] : keys.slice(i); }   // 第一個 = 基準(手機已有的那根)
+  const snapOf = lb => { const m = +lb.slice(0, 2) * 60 + +lb.slice(3, 5) + 1; return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };   // 標籤 → 快照時間(+1 分鐘)
+  if (since) { const sk = snapOf(since); const i = keys.findIndex(k => k.slice(-5) >= sk); use = i < 0 ? [] : keys.slice(i); }   // 第一個 = 基準(手機已有的那根)
   const snaps = [];
   for (let i = 0; i < use.length; i += 25) {
     const part = use.slice(i, i + 25);
@@ -131,18 +132,22 @@ async function dayBars(env, d, codes, since) {
   }
   const want = codes && codes.length ? new Set(codes) : null;
   const bars = {}, prev = {};
-  for (const [hm, s] of snaps) {
+  // 2026-10-19 收盤後對照 Yahoo 整天 K 發現:HH:MM 的快照拿到的是「上一分鐘」的成交(12:01:0x 的快照 = 12:00 那一分鐘),
+  // 標籤要往前移一分鐘才和 Yahoo / 手機自拼的 K(都以成交那一分鐘的開頭當標籤)一致;09:00 的第一個快照(開盤撮合)仍標 09:00
+  const lbl = hm => { if (hm <= "09:00") return "09:00"; const m = +hm.slice(0, 2) * 60 + +hm.slice(3, 5) - 1; return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
+  for (const [hm0, s] of snaps) {
+    const hm = lbl(hm0);
     for (const c in s) {
       if (want && !want.has(c)) continue;
       const [z, v] = s[c]; const p = prev[c]; prev[c] = [z, v];
-      if (!p) { if (!since) bars[c] = [[hm, z, z, z, z, hm <= "09:02" ? Math.round(v * 1000) : 0]]; continue; }   // 當天第一個快照:09:00 開始存的話量 = 開盤撮合的累計;盤中才開始存(例如 2026-10-19 11:57 上線)就給 0,
+      if (!p) { if (!since) bars[c] = [[hm, z, z, z, z, hm0 <= "09:02" ? Math.round(v * 1000) : 0]]; continue; }   // 當天第一個快照:09:00 開始存的話量 = 開盤撮合的累計;盤中才開始存(例如 2026-10-19 11:57 上線)就給 0,
                                                                                                                        // 不然整個上午的累計量會灌進那一根,OBV 一次跳好幾千張(使用者截圖:燿華 12:05 跳 3,700 張)。那段的量由手機用 Yahoo 補
       const dv = Math.max(0, v - p[1]) * 1000;
       if (dv <= 0 && z === p[0]) continue;                   // 這分鐘沒成交
       (bars[c] = bars[c] || []).push([hm, p[0], Math.max(p[0], z), Math.min(p[0], z), z, Math.round(dv)]);
     }
   }
-  return { d, last: snaps.length ? snaps[snaps.length - 1][0] : "", n: snaps.length, bars };
+  return { d, last: snaps.length ? lbl(snaps[snaps.length - 1][0]) : "", n: snaps.length, bars };   // last = 最後一根的標籤(手機下次用 since 傳回來)
 }
 
 const CORS = {
