@@ -92,6 +92,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-19 16:00 同一檔同一種訊號 10 分鐘內只通知一次(使用者「做」):Yahoo 分K 慢 20 分鐘補進來會重寫前面的 K,同一個訊號換個時間又算出來一次就再通知一次
+    (今天金寶 OBV 停利判一 10:49~10:57 發 5 次、競國反彈重複多次);改成每份判別式、每檔、每種訊號(進多 / 進空 / 停利 / 停損 / 超6% / OBV / 出 / 彈 / 注)記上次通知時間,10 分鐘內同種不再發。
   · 2026-10-19 15:50 App 1.5.44 返回鍵的「離開程式?」視窗拿掉「結束程式」(使用者:「結束程式部分 取消」):只剩 確認(回桌面,背景監控照跑)/ 取消;背景監控沒有手動停止的方法,全由看門狗管。
   · 2026-10-19 15:40 一張就超過多空上限的股票不通知、不顯示(使用者:「價格超過限額,訊息就不用顯示」):背景監控發通知前先看進場價 × 1000 有沒有超過上限(平倉 / 反彈 / 注意看記住的進場價),超過就不發;
     通知欄也不列這種卡片(上限改小,舊訊息跟著藏;改回去又會出現),清單排序也不算它。倉和 303.5 在 20 萬上限下就不會再出現。
@@ -1443,7 +1445,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610191540">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610191600">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4740,7 +4742,7 @@ async function scan(){
    對清單上每一檔:即時價 → 合併雲端歷史 + Yahoo 今天 + 即時自組的 K → replaySignals(和圖上同一套規則),
    和上一次比,有新的「進場」「停利」「停損」「超6%」「出」就呼叫 Android.notify(標題, 內容, 類別)。
    沒有 Android 物件(在電腦瀏覽器測試)時寫進 BG.log。 */
-const BG = { last: new Map(), hist: new Map(), histDay: '', todayAt: new Map(), busy: false, startedAt: 0, log: [], ticks: 0, pos: new Map(), holiday: '' };
+const BG = { last: new Map(), hist: new Map(), histDay: '', todayAt: new Map(), busy: false, startedAt: 0, log: [], ticks: 0, pos: new Map(), holiday: '', recent: new Map() };   // recent:判別式|代碼|訊號種類 → 上次通知時間(10 分鐘內不重複)
 function bgLog(s){ const line = new Date().toLocaleTimeString('zh-TW', {hour12:false}) + ' ' + s; BG.log.push(line); if (BG.log.length > 300) BG.log.shift(); try{ if (window.Android && Android.log) Android.log(line); }catch(e){} }
 function bgNotify(title, body, kind){ body = (body || '') + ' · ' + RULESET.btn; bgLog('[通知] ' + title + ' | ' + body); try{ if (window.Android && Android.notify) Android.notify(title, body, kind || ''); }catch(e){} cloudLogAdd(title, body, kind || ''); }
 /* 2026-10-19 使用者:「通知欄的訊息需要紀錄在雲端,這樣不管那隻手機都可以看到相同的過往通知」
@@ -4793,7 +4795,7 @@ async function bgTick(force, replay){
       const ds = codes.map(c => (LIVE.get(c) || {}).d).filter(Boolean);
       if (ds.length && !ds.some(d => d === ymd)){ BG.holiday = ymd; return 'holiday ' + ds[0]; } }
     const day = new Date().toDateString();
-    if (BG.histDay !== day){ BG.hist.clear(); BG.todayAt.clear(); BG.last.clear(); BG.histDay = day; }
+    if (BG.histDay !== day){ BG.hist.clear(); BG.todayAt.clear(); BG.last.clear(); BG.recent.clear(); BG.histDay = day; }
     const names = new Map((SRC || []).map(s => [s.code, s.name || s.code]));
     let n = 0;
     for (const code of codes){
@@ -4836,6 +4838,10 @@ async function bgTick(force, replay){
           { const st0 = rp.state, pos0 = BG.pos.get(pk);
             const refPx = isEntry(m) ? ((st0 && st0.time === t && st0.entry) ? st0.entry : nowPx) : (pos0 ? pos0.entry : nowPx);
             if (refPx * 1000 > capFund()){ bgLog(code + ' 一張 ' + refPx + ' 超過多空上限,不通知 ' + k); continue; } }
+          // 2026-10-19 使用者「做」:同一檔、同一份判別式、同一種訊號 10 分鐘內只通知一次。Yahoo 慢 20 分鐘的 K 補進來會重寫前面的 K,
+          // 同一個訊號換個時間又算出來一次(今天金寶「OBV 反轉提早停利」判一 10:49~10:57 發了 5 次),第二次起不再通知
+          if (!replay){ const typ = isEntry(m) ? ('進' + (m.text.startsWith('多') ? '多' : '空')) : m.text; const rk = pk + '|' + typ; const at = BG.recent.get(rk) || 0;
+            if (Date.now() - at < 600000){ bgLog(code + ' ' + typ + ' 10 分鐘內已通知過,不重複 ' + k); continue; } BG.recent.set(rk, Date.now()); }
           if (isEntry(m)){
             const side = m.text.startsWith('多') ? '做多' : '做空', dir = side === '做多' ? 1 : -1;
             const st = rp.state;
