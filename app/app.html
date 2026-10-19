@@ -92,6 +92,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-19 15:30 清單補進通知欄裡的股票(使用者:「倉和訊息有,下面監控沒有出現監控中」):倉和 303.5 元,上限改 20 萬後監控高價降到 200,它被價格條件篩掉就不在清單裡;
+    改成通知欄裡有的股票一律放進清單(不受價格 / 振幅 / 檔數限制,也不佔檔數額度),排序照 15:00 的規則排前面、標籤「監控中」。
   · 2026-10-19 15:20 做空卡片的藍色斜紋網淡一半(使用者:「藍色網格太藍了,改更淺一點的」):底色透明度 .16 → .08、斜紋 .28 → .14;做多的紫色方格網不動。
   · 2026-10-19 15:10 通知卡片外框全部拿掉、長按不動作(使用者:「把通知訊息的外框都拿掉,有三種都拿掉;長按該股票沒有動作」):白框(沒長按過)、黃框(持倉中)、藍框(已平倉)三種都取消;
     卡片長按不再記「我有做」,點一下照舊開圖。清單的做多 / 做空 / 已平倉標籤只在有部位紀錄時才會出現,沒有長按就一律「監控中」。
@@ -1438,7 +1440,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610191520">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610191530">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4660,15 +4662,22 @@ async function scan(){
                           dir: 0}), pos: p.side, qty: p.qty };
   });
   const heldCodes = new Set(held.map(s => s.code));
+  // 2026-10-19 使用者:「倉和訊息有,下面監控沒有出現監控中」→ 通知欄裡有的股票就算價格已經超出監控範圍(改了上限 / 高價)或被檔數擠掉,
+  // 也一樣放進清單(排序規則會把它排前面);不佔監控檔數的額度
+  const noted = [...signalRank().keys()].filter(c => !heldCodes.has(c)).map(code => {
+    const found = pool.find(s => s.code === code) || (SRC || []).find(s => s.code === code);
+    return found || {code, name: ((SRC || []).find(s => s.code === code) || {}).name || code, close: 0, vol: 0, amp: null, dir: 0};
+  });
+  const notedCodes = new Set(noted.map(s => s.code));
 
   const cand = pool
-    .filter(s => !heldCodes.has(s.code)
+    .filter(s => !heldCodes.has(s.code) && !notedCodes.has(s.code)
       && s.close >= lo && s.close <= hi && s.amp >= minAmp);
 
   const rest = cand.filter(tradable);
 
-  // 持倉不佔用監控檔數的額度
-  const top = [...held, ...rest.slice(0, Math.max(0, cnt - held.length))];
+  // 持倉、通知欄裡的股票不佔用監控檔數的額度
+  const top = [...held, ...noted, ...rest.slice(0, Math.max(0, cnt - held.length))];
 
   // 交易清單:盤中第一次產生後即固定,供自動下單使用(顯示不受影響)
   const today = new Date().toDateString();
