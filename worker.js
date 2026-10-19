@@ -135,7 +135,8 @@ async function dayBars(env, d, codes, since) {
     for (const c in s) {
       if (want && !want.has(c)) continue;
       const [z, v] = s[c]; const p = prev[c]; prev[c] = [z, v];
-      if (!p) { if (!since) bars[c] = [[hm, z, z, z, z, Math.round(v * 1000)]]; continue; }   // 當天第一個快照:量 = 到此為止的累計(開盤撮合)
+      if (!p) { if (!since) bars[c] = [[hm, z, z, z, z, hm <= "09:02" ? Math.round(v * 1000) : 0]]; continue; }   // 當天第一個快照:09:00 開始存的話量 = 開盤撮合的累計;盤中才開始存(例如 2026-10-19 11:57 上線)就給 0,
+                                                                                                                       // 不然整個上午的累計量會灌進那一根,OBV 一次跳好幾千張(使用者截圖:燿華 12:05 跳 3,700 張)。那段的量由手機用 Yahoo 補
       const dv = Math.max(0, v - p[1]) * 1000;
       if (dv <= 0 && z === p[0]) continue;                   // 這分鐘沒成交
       (bars[c] = bars[c] || []).push([hm, p[0], Math.max(p[0], z), Math.min(p[0], z), z, Math.round(dv)]);
