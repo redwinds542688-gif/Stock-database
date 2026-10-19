@@ -89,6 +89,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     只記錄不出場,部位續抱;停利 / 停損 / 超 6% / 13:25 / 逆勢單遇反向點照舊。回測:前 3 週(沒調過)−0.156% → −0.130%、
     最近 3 週 −0.002% → +0.042%、6 週 −0.082% → −0.052%,10/15 當天 +116,174 → +147,268。例:友達 10/15 10:02 空單原本被
     10:35 的「多✓逆」叫出(−1,691),改後抱到 13:25(+5,512)。
+  · 2026-10-19 09:20 監控高價 ↔ 多空上限 滾輪連動(使用者:「多空上限需與監控高價聯動」→「做」):撥上限,高價超過「上限 ÷ 1000」就自動降到那個價(20 萬 → 200);
+    撥高價,上限不夠買一張就自動升(高價 260 → 26 萬);開啟時舊存檔不一致也先對齊。篩選本來就取兩者較小的,這次只是讓滾輪顯示一致。鐵律 11 範圍內的改動,使用者指令。
   · 2026-10-19 05:00 鐵律第 11 條:版面與顯示(通知卡片、設定滾輪、清單、標題、按鍵列)已定案最大化,沒有使用者指令不得變動(使用者:「寫進鐵律 顯示沒有指令不可改變 設定裡也一樣最大化 一樣寫進鐵律」);README、判別式一.md 同步。
   · 2026-10-19 04:45 通知卡片文字最大化(使用者):字級上限 21px → 40px,仍由最擠那一列塞滿卡片寬度決定,所以每列剛好填滿、欄位上下對齊;卡片變高,一頁看到的筆數變少,捲動看其餘。
   · 2026-10-19 04:30 App 1.5.41 右下角「≡」取消,改成長按「設定」鍵 0.7 秒開同一個選單(使用者指定):網頁長按設定呼叫 Android.openMenu,App 把選單開在原本右下角的位置(那顆鍵改成隱形錨點)。
@@ -1407,7 +1409,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610190500">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610190920">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2760,8 +2762,13 @@ function startVal(key, fallback){
   return String(v);
 }
 
+// 2026-10-19 使用者:「多空上限需與監控高價聯動,設 20 萬是無法買超過 200 元的股票」→ 兩個滾輪互相帶動:
+//   撥多空上限 → 監控高價超過「上限 ÷ 1000」就自動降到那個價;撥監控高價 → 上限不夠買一張就自動升到「高價 × 1000」(萬為單位無條件進位)。
+//   篩選時本來就取兩者較小的(scan 的 capMax),這裡只是讓滾輪顯示一致。高價滾輪最低 51,所以上限 5 萬時高價停在 51。
+const onHiChange = () => { try{ const need = Math.ceil(+wHi.value / 10); if (parseFloat(wCap.value) < need) wCap.setValue(Math.min(50, need) + '萬'); }catch(e){} onFeeChange(); };
+const onCapChange = () => { try{ const capMax = parseFloat(wCap.value) * 10; if (+wHi.value > capMax) wHi.setValue(Math.max(51, capMax)); }catch(e){} onFeeChange(); };
 const wHi  = makeWheel('wHi',  buildVals(CFG.hi   && CFG.hi.range),
-                       startVal('hi', 350), onFeeChange);
+                       startVal('hi', 350), onHiChange);
 const wLo  = makeWheel('wLo',  buildVals(CFG.lo   && CFG.lo.range),
                        startVal('lo', 10), onFeeChange);
 const wAmp = makeWheel('wAmp', buildVals(CFG.amp  && CFG.amp.range),
@@ -2769,7 +2776,8 @@ const wAmp = makeWheel('wAmp', buildVals(CFG.amp  && CFG.amp.range),
 const wCnt = makeWheel('wCnt', buildVals(CFG.cnt  && CFG.cnt.range),
                        startVal('cnt', 99), onFeeChange, {loop: true});   // 2026-10-18 使用者:最多 99,99/89/…/19 循環
 const wCap = makeWheel('wCap', buildVals(CFG.cap  && CFG.cap.range),
-                       startVal('cap', '35萬'), onFeeChange);
+                       startVal('cap', '35萬'), onCapChange);
+setTimeout(() => { try{ const capMax = parseFloat(wCap.value) * 10; if (+wHi.value > capMax) wHi.setValue(Math.max(51, capMax)); }catch(e){} }, 800);   // 開啟時舊存檔不一致(高價 350、上限 20 萬)也先對齊一次
 
 const wFee = makeWheel('wFee', buildVals(CFG.disc && CFG.disc.range),
                        startVal('disc', '30%'), onFeeChange);
