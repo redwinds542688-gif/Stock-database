@@ -36,6 +36,7 @@
                      → 存 KV 鍵 log:<d>:<t>:<key>(兩支手機發同一則 → 同一個鍵,不會重複);保留 90 天
      GET  ?log=get&d=2026-10-19 → 那天所有通知(JSON 陣列,新的在前)
      GET  ?log=days             → 有紀錄的日期(JSON 陣列,舊到新)
+     GET  ?log=del&d=2026-10-19&t=11:18&code=2402 → 刪掉那天那一分鐘那檔的紀錄(誤傳的測試資料用;回刪了幾筆)
      KV 命名空間由 deploy-worker.yml 自動建立並綁定(wrangler kv namespace create LOGS),不用手動設定。
    ══════════════════════════════════════════════════════ */
 
@@ -129,13 +130,22 @@ export default {
         do {
           const r = await env.LOGS.list({ prefix: `log:${d}:`, cursor, limit: 1000 });
           for (const k of r.keys) {
-            if (k.metadata && !k.metadata.big) out.push(k.metadata);
-            else { try { const v = await env.LOGS.get(k.name); if (v) out.push(JSON.parse(v)); } catch (e) {} }
+            let it = null;
+            if (k.metadata && !k.metadata.big) it = k.metadata;
+            else { try { const v = await env.LOGS.get(k.name); if (v) it = JSON.parse(v); } catch (e) {} }
+            if (it) out.push({ ...it, _k: k.name.slice(15) });   // _k = 鍵的後半(時間:代碼|標題|判別式),對照 / 刪除用
           }
           cursor = r.list_complete ? null : r.cursor;
         } while (cursor);
         out.sort((a, b) => (b.t || "").localeCompare(a.t || ""));   // 新的在前,和手機本機紀錄一樣
         return J(out);
+      }
+      if (lg === "del") {
+        const d = url.searchParams.get("d"), t = url.searchParams.get("t") || "", code = url.searchParams.get("code") || "";
+        if (!okDate(d) || !/^\d{2}:\d{2}$/.test(t) || !/^\d{4,6}[A-Z]*$/.test(code)) return J({ error: "要 d=YYYY-MM-DD、t=HH:MM、code=代號" }, 400);
+        const r = await env.LOGS.list({ prefix: `log:${d}:${t}:${code}|`, limit: 1000 });
+        for (const k of r.keys) await env.LOGS.delete(k.name);
+        return J({ ok: true, deleted: r.keys.length });
       }
       if (lg === "days") {
         const days = new Set(); let cursor;
