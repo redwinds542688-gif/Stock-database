@@ -30,6 +30,7 @@ class MainActivity : AppCompatActivity() {
         bridge.onMenu = { runOnUiThread { showMenu(findViewById(R.id.menuBtn)) } }   // 2026-10-19:長按網頁「設定」鍵 → 開選單;右下角的「≡」隱藏起來只當錨點
         Page.setup(web, bridge)
         web.loadUrl(Page.url(this)); loadedBuild = Page.currentBuild(this)
+        web.postDelayed({ openFromIntent(intent) }, 1500)   // 2026-10-19 從通知冷啟動也要開那檔的圖
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         // 第一次打開:自動啟動背景監控
@@ -61,7 +62,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onNewIntent(intent: Intent?) { super.onNewIntent(intent); handleTest(intent) }
+    override fun onNewIntent(intent: Intent?) { super.onNewIntent(intent); setIntent(intent); handleTest(intent); openFromIntent(intent) }
+
+    /** 2026-10-19 使用者:點通知直接跳到那檔的 K 線圖。網頁可能還沒載好,每 0.7 秒試一次,最多 20 次 */
+    private fun openFromIntent(intent: Intent?, tries: Int = 0) {
+        val code = intent?.getStringExtra("open_code") ?: return
+        val name = intent.getStringExtra("open_name") ?: code
+        if (tries >= 20) return
+        val js = "(function(){ try{ if (typeof openChart === 'function' && typeof LAST_LIST !== 'undefined' && LAST_LIST){ openChart('" + code.replace("'", "") + "', '" + name.replace("'", "") + "'); return 'ok'; } }catch(e){} return ''; })()"
+        web.evaluateJavascript(js) { r -> if (r == null || !r.contains("ok")) web.postDelayed({ openFromIntent(intent, tries + 1) }, 700) else intent.removeExtra("open_code") }
+    }
 
     /** 測試鉤子(adb):am start -n tw.mysh.monitor/.MainActivity --es test notify|tick|replay */
     private fun handleTest(intent: Intent?) {

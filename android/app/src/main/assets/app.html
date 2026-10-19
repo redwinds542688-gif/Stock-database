@@ -92,6 +92,15 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-19 17:10 App 1.5.45 點通知直接開那檔的 K 線圖(使用者:「在這點選泰鼎,程式就直接跳到泰鼎 K 線圖畫面」):通知帶代號 / 名稱,點了 MainActivity 呼叫網頁 openChart;網頁還沒載好就每 0.7 秒再試,最多 20 次。
+  · 2026-10-19 17:00 自組 K 的量差修正(使用者:台玻 11:56 股價還在衝、OBV 卻掉 7,000 張,「這顯示做空合理嗎?」→ 不合理,是資料錯):螢幕關掉 / 退到背景時沒在問價,
+    再問到時累計量差是好幾分鐘的量,全部灌進當下那一根,那根剛好收低 OBV 就暴跌、天秤偏空。改成上次問價超過 90 秒前的量差不算(那幾分鐘的量由雲端 1 分K 補)。
+    另:雲端 1 分K 補救機制 — 盤中雲端最後一根落後 2 分鐘以上,手機就叫 Worker ?bars=snap 立刻存一個快照(Cloudflare 的 Cron 還沒看到它每分鐘跑,先靠這個)。
+  · 2026-10-19 16:40 圖表右上角「返回」鍵拿掉(使用者:「那個用不到」):關圖用手機的返回鍵;標題列右邊只剩 ▶。
+  · 2026-10-19 16:30 今天的 K 改讀雲端 1 分K(使用者:「Yahoo 延遲問題有什麼辦法解決嗎」→「做」):Worker 的 Cron 每分鐘(台灣 09:00~13:35)向證交所抓 pool.json 全部候選股的最新價 + 累計量,
+    存 KV(bar:日期:HHMM,保留 14 天);?bars=日期 拼成每檔 1 分K(量 = 累計量差、收 = 那分鐘最後成交價、開 = 前一根收、高低 = 開收大小,沒成交的分鐘不出 K)。
+    網頁 loadTodayBars 先用雲端(全部代號一次抓,之後只抓 since 之後的,55 秒內不重抓),雲端沒那檔才退回 Yahoo;自拼的即時 K 照舊接在後面。
+    效果:今天的 K 從 09:00 起每分鐘都有、不再慢 20 分鐘、背景重啟沒有空白、兩支手機一樣。狀態頁多一列「雲端 1 分K」。歷史 K(前幾天)照舊用每日爬蟲的 Yahoo 資料。
   · 2026-10-19 16:00 同一檔同一種訊號 10 分鐘內只通知一次(使用者「做」):Yahoo 分K 慢 20 分鐘補進來會重寫前面的 K,同一個訊號換個時間又算出來一次就再通知一次
     (今天金寶 OBV 停利判一 10:49~10:57 發 5 次、競國反彈重複多次);改成每份判別式、每檔、每種訊號(進多 / 進空 / 停利 / 停損 / 超6% / OBV / 出 / 彈 / 注)記上次通知時間,10 分鐘內同種不再發。
   · 2026-10-19 15:50 App 1.5.44 返回鍵的「離開程式?」視窗拿掉「結束程式」(使用者:「結束程式部分 取消」):只剩 確認(回桌面,背景監控照跑)/ 取消;背景監控沒有手動停止的方法,全由看門狗管。
@@ -1445,7 +1454,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610191600">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610191700">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1882,7 +1891,7 @@ except Exception:
     <div class="yh-px" id="shPx">—</div>
     <div class="yh-chg"><div id="shChg">—</div><div id="shChgPct"></div></div>
     <button class="yh-nav" id="shNext">▶</button>
-    <button class="sh-btn" id="shX">返回</button>
+    <!-- 2026-10-19 使用者:「右上角返回鍵取消,那個用不到」→ 拿掉,關圖用手機的返回鍵(App 1.5.30 起返回鍵先關圖) -->
   </div>
   <div class="yh-info" id="shInfo">
     <div class="t"><span id="iTime">—</span><span class="iv">量<b id="iV">—</b>萬</span></div><div>高 <b id="iH">—</b></div><div>低 <b id="iL">—</b></div>
@@ -2393,6 +2402,7 @@ function render(list){
       ['即時報價', LIVE_ERR ? '⚠ 斷線(' + LIVE_ERR + ')' : (LIVE_LAST_OK ? '● ' + Math.round((Date.now() - LIVE_LAST_OK) / 1000) + ' 秒前' : (inSession() ? '連線中' : '非交易時段'))],
       ['背景監控', svcState()],
       ['監控清單', (LIST_CODES || []).length + ' 檔'],
+      ['雲端 1 分K', (CLOUD_BARS.ok ? `今天到 ${CLOUD_BARS.last}(${CLOUD_BARS.n} 分鐘快照)` : (CLOUD_BARS.err ? '讀不到:' + CLOUD_BARS.err : '還沒讀(開盤後 Worker 每分鐘存一次)')) + (CLOUD_BARS.snap ? ' · 補存:' + CLOUD_BARS.snap : '')],   // 2026-10-19
       ['監控價格', wLo.value + ' ~ ' + wHi.value + ' 元,振幅 ≥ ' + wAmp.value],
       ['手續費 / 上限', wFee.value + ' · ' + wCap.value],
       ['判別式', '背景監控同時跑 ' + BG_RS.map(k => RULESETS[k].name).join('、') + ',各自進出場、各自通知(訊息尾巴 · 判一 / · 判二);圖上畫 ' + RULESET.name + '(' + RULESET.date + ')'],   // 2026-10-19 判一、判二同時跑
@@ -3015,6 +3025,7 @@ async function loadMinuteBars(code, onProgress){
    ══════════════════════════════════════════════════════ */
 const LIVE = new Map();        // code → {z, y, o, h, l, v, t, ts, chgPct}
 const LIVE_BARS = new Map();   // code → [{time, open, high, low, close, volume}]  今日自組 1 分K
+const LIVE_PREV_TS = new Map();   // code → 上次問到價的時間(ms);隔太久的量差不算進自組 K(2026-10-19)
 const LIVE_PREV_V = new Map(); // code → 上一筆累積量(張),算每分鐘增量
 const HIST_BARS = new Map();   // code → 雲端歷史分K(開圖時載入)
 let LIST_CODES = [];           // 目前畫面上的股票(scan 寫入)
@@ -3053,8 +3064,11 @@ function liveTick(m){
     const bars = LIVE_BARS.get(code) || [];
     const last = bars[bars.length - 1];
     const pv = LIVE_PREV_V.get(code);
-    const dv = (isFinite(v) && pv != null && v >= pv) ? (v - pv) * 1000 : 0;   // 張 → 股
-    if (isFinite(v)) LIVE_PREV_V.set(code, v);
+    // 2026-10-19 使用者:「股價還在衝,這顯示做空合理嗎?」→ 不合理:螢幕關掉 / 退到背景時沒在問價,再問到時「累計量 − 上次累計量」是好幾分鐘的量,
+    // 全部灌進當下這一根,那根剛好收低就讓 OBV 掉一大截(台玻 11:56 掉 7,000 張)。上次問價超過 90 秒前 → 這次的量差不算(那幾分鐘的量由雲端 1 分K 補)
+    const pts = LIVE_PREV_TS.get(code) || 0, gap = pts && Date.now() - pts > 90000;
+    const dv = (!gap && isFinite(v) && pv != null && v >= pv) ? (v - pv) * 1000 : 0;   // 張 → 股
+    if (isFinite(v)){ LIVE_PREV_V.set(code, v); LIVE_PREV_TS.set(code, Date.now()); }
     if (!last || last.time !== minute){
       if (last && minute < last.time) return;                 // 亂序,略過
       bars.push({time: minute, open: rec.z, high: rec.z, low: rec.z, close: rec.z, volume: dv});
@@ -3071,9 +3085,52 @@ function liveTick(m){
    和收盤後都拿得到今天 09:00 起的全部 K,所以開圖時先補這段,再接即時自組的 K。
    worker.js 要有 ?yahoo= 這條路(2026-10-15 版)。讀不到時回空陣列並記錄原因,不影響其他部分。 */
 const TODAY_BARS = new Map();   // code → {at, bars, err}
+/* 2026-10-19 雲端 1 分K(使用者:「Yahoo 延遲問題有什麼辦法解決嗎」→「做」):Worker 每分鐘向證交所存一次全部候選股的快照,
+   ?bars=today 拼成每檔今天的 1 分K(量 = 累計量差,收 = 那分鐘最後成交價),09:00 起每分鐘都有、不慢 20 分鐘、兩支手機一樣。
+   全部代號一次抓(第一次全天,之後只抓 since 之後的新 K),55 秒內不重抓;雲端沒有那檔(不在候選池)才退回 Yahoo */
+const CLOUD_BARS = { d: '', at: 0, last: '', busy: false, ok: false, err: '', n: 0 };
+const taipeiYmd = () => new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+async function loadCloudBars(){
+  if (!liveOn()) return false;
+  const d = taipeiYmd();
+  if (CLOUD_BARS.d !== d){ CLOUD_BARS.d = d; CLOUD_BARS.last = ''; CLOUD_BARS.ok = false; CLOUD_BARS.n = 0; }
+  if (CLOUD_BARS.busy || Date.now() - CLOUD_BARS.at < 55000) return CLOUD_BARS.ok;
+  CLOUD_BARS.busy = true;
+  try{
+    const u = `${BASE.liveUrl.replace(/\/$/, '')}/?bars=${d}${CLOUD_BARS.last ? '&since=' + CLOUD_BARS.last : ''}&_=${Date.now()}`;
+    const r = await fetch(u, {cache: 'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    if (!j || !j.bars) throw new Error(j && j.error || '沒有資料');
+    const base = Date.parse(d + 'T00:00:00+08:00') / 1000;
+    for (const code in j.bars){
+      const add = j.bars[code].map(b => ({time: base + (+b[0].slice(0, 2)) * 3600 + (+b[0].slice(3, 5)) * 60, open: b[1], high: b[2], low: b[3], close: b[4], volume: b[5]}));
+      if (!add.length) continue;
+      const cur = TODAY_BARS.get(code);
+      const old = (CLOUD_BARS.last && cur && cur.cloud) ? cur.bars.filter(x => x.time < add[0].time) : [];
+      TODAY_BARS.set(code, {at: Date.now(), bars: old.concat(add), err: '', cloud: true});
+    }
+    if (j.last) CLOUD_BARS.last = j.last;
+    if (j.n > 0) { CLOUD_BARS.ok = true; CLOUD_BARS.n = j.n; }
+    CLOUD_BARS.err = '';
+    // 補救:盤中雲端最後一根落後現在 2 分鐘以上(Cron 沒跑)→ 叫 Worker 現在就存一個快照,下一輪就有了;手機每 55 秒問一次,等於自己當排程
+    if (inSession()){ const n = new Date(Date.now() + 8 * 3600000), nowHm = n.getUTCHours() * 60 + n.getUTCMinutes();
+      const lastHm = CLOUD_BARS.last ? (+CLOUD_BARS.last.slice(0, 2)) * 60 + (+CLOUD_BARS.last.slice(3, 5)) : -1;
+      if (nowHm - lastHm >= 2 && Date.now() - (CLOUD_BARS.snapAt || 0) > 50000){ CLOUD_BARS.snapAt = Date.now();
+        fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?bars=snap&_=${Date.now()}`, {cache: 'no-store'}).then(r => r.json()).then(x => { CLOUD_BARS.snap = (x && (x.msg || x.error)) || ''; }).catch(() => {}); } }
+  }catch(e){ CLOUD_BARS.err = e.message; }
+  finally{ CLOUD_BARS.at = Date.now(); CLOUD_BARS.busy = false; }
+  return CLOUD_BARS.ok;
+}
+window.CLOUD_BARS = CLOUD_BARS;
 async function loadTodayBars(code, force){
   const cached = TODAY_BARS.get(code);
   if (!force && cached && Date.now() - cached.at < 120000) return cached;
+  if (liveOn()){
+    await loadCloudBars();
+    const c2 = TODAY_BARS.get(code);
+    if (c2 && c2.cloud && c2.bars.length){ c2.at = Date.now(); return c2; }   // 雲端有這檔 → 用雲端,不再問 Yahoo
+  }
   const out = {at: Date.now(), bars: [], err: ''};
   if (!liveOn()){ TODAY_BARS.set(code, out); return out; }
   try{
@@ -3102,8 +3159,8 @@ async function loadTodayBars(code, force){
   return out;
 }
 
-/* 三段合併:雲端歷史(到昨天,或 14:30 後含今天)→ Yahoo 今天的 K → 即時自組的 K。
-   重疊的分鐘:雲端 > Yahoo > 即時;只有 Yahoo 的最後一根(可能還沒走完)讓即時覆蓋。 */
+/* 三段合併:雲端歷史(到昨天,或 14:30 後含今天)→ 今天的 K(2026-10-19 起優先雲端 1 分K,沒有才 Yahoo)→ 即時自組的 K。
+   重疊的分鐘:雲端 > 今天的 K > 即時;只有今天 K 的最後一根(可能還沒走完)讓即時覆蓋。 */
 function mergeLive(code, hist){
   const today = (TODAY_BARS.get(code) || {}).bars || [];
   let out = hist;
@@ -4510,7 +4567,7 @@ function parseCSV(text){
   return out.sort((a, b) => a.time - b.time);
 }
 
-el('shX').addEventListener('click', closeChart);
+{ const x = el('shX'); if (x) x.addEventListener('click', closeChart); }   // 2026-10-19 返回鍵已拿掉,保留保護
 /* 兩指縮放只作用在圖表上,不放大整個頁面。
    Android Chrome 看 viewport 的 user-scalable=no 就夠;iOS Safari 不理會,要把手勢事件擋掉。
    圖表套件自己的捏合縮放不受影響(它在自己的畫布上處理,這裡只是擋瀏覽器的預設動作)。 */
