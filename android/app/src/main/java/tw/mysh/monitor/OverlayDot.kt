@@ -29,7 +29,7 @@ class OverlayDot(private val ctx: Context) {
         val lp = WindowManager.LayoutParams(size, size, type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT)
-        lp.gravity = Gravity.TOP or Gravity.END
+        lp.gravity = Gravity.TOP or Gravity.START   // 2026-10-19 使用者:綠點改到左上角(原本右上角)
         lp.x = (6 * d).toInt(); lp.y = (30 * d).toInt()   // 狀態列下方,不蓋到電量
         try { wm.addView(v, lp); view = v } catch (e: Exception) { return }
         anim = ObjectAnimator.ofFloat(v, "alpha", 1f, 0.15f).apply { duration = 500; repeatMode = ValueAnimator.REVERSE; repeatCount = ValueAnimator.INFINITE; start() }
