@@ -38,6 +38,16 @@
      GET  ?log=days             → 有紀錄的日期(JSON 陣列,舊到新)
      GET  ?log=del&d=2026-10-19&t=11:18&code=2402 → 刪掉那天那一分鐘那檔的紀錄(誤傳的測試資料用;回刪了幾筆)
      KV 命名空間由 deploy-worker.yml 自動建立並綁定(wrangler kv namespace create LOGS),不用手動設定。
+
+   第五條路(2026-10-19 新增):雲端 1 分K(使用者:「Yahoo 延遲問題有什麼辦法解決嗎」→「做」)
+     Yahoo 的今日分K 慢約 20 分鐘,手機自己拼的 K 又只從開程式那一刻開始;改成 Cloudflare 每分鐘自己抓:
+     Cron 每分鐘醒來,台灣 09:00~13:35 向證交所抓 pool.json 全部候選股的最新價 + 累計量,存 KV 鍵 bar:<日期>:<HHMM>
+     (每分鐘一個鍵,不做讀改寫,保留 14 天;一天約 270 次寫入,免費額度 1000)。
+     GET ?bars=2026-10-19[&codes=2409,1802][&since=10:05]
+       → {d, last:'13:30', bars:{代號:[[HHMM, 開, 高, 低, 收, 量(股)], …]}}
+       每根 = 這一分鐘快照和前一分鐘快照相減:量 = 累計量差 × 1000,收 = 快照時最後成交價,開 = 前一根收,高低 = 開收的大小
+       (沒有分鐘內的高低,影線比券商短);這分鐘沒成交就沒有那根(和 Yahoo 一樣)。since = 手機已有的最後一根時間,只回之後的。
+       全天的查詢(沒 since)在邊緣快取 50 秒,KV 讀取量才不會爆。
    ══════════════════════════════════════════════════════ */
 
 const GH_OWNER = "redwinds542688-gif", GH_REPO = "Stock-database", GH_REF = "main";
@@ -57,6 +67,83 @@ async function dispatch(env, what) {
   return { ok: r.status === 204, status: r.status, msg: r.status === 204 ? `已叫 GitHub 跑 ${file}` : txt.slice(0, 300) };
 }
 
+// ── 第五條路:雲端 1 分K ──
+const RAW = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_REF}`;
+const MIS_HDR = { "User-Agent": "Mozilla/5.0", "Accept": "application/json", "Referer": "https://mis.twse.com.tw/stock/fibest.jsp" };
+const twNow = () => new Date(Date.now() + 8 * 3600e3);
+const ymdOf = t => t.toISOString().slice(0, 10);
+const hhmmOf = t => t.toISOString().slice(11, 16);
+async function poolCodes() {
+  const r = await fetch(`${RAW}/pool.json`, { cf: { cacheTtl: 1800, cacheEverything: true } });
+  if (!r.ok) throw new Error("pool.json " + r.status);
+  const j = await r.json(); const pool = Array.isArray(j) ? j : (j.pool || []);
+  return pool.map(s => ({ code: String(s.code), mkt: (s.market === "tpex" || s.market === "otc") ? "otc" : "tse" }));
+}
+async function misFetch(list) {
+  const out = [];
+  for (let i = 0; i < list.length; i += 50) {
+    const ex_ch = list.slice(i, i + 50).map(s => `${s.mkt}_${s.code}.tw`).join("|");
+    try {
+      const r = await fetch(`https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${ex_ch}&json=1&delay=0&_=${Date.now()}`, { headers: MIS_HDR, cf: { cacheTtl: 0 } });
+      if (!r.ok) continue;
+      const j = await r.json(); for (const m of (j.msgArray || [])) out.push(m);
+    } catch (e) { console.log("mis " + e); }
+  }
+  return out;
+}
+/** Cron 每分鐘:盤中把全部候選股的 [最新價, 累計量(張)] 存成一個鍵 */
+async function snapshotBars(env) {
+  if (!env || !env.LOGS) return "no KV";
+  const t = twNow(); const hm = t.getUTCHours() * 60 + t.getUTCMinutes();
+  if (hm < 9 * 60 || hm > 13 * 60 + 35) return "off-hours";
+  const list = await poolCodes();
+  const msgs = await misFetch(list);
+  const d = ymdOf(t), ymd = d.replace(/-/g, "");
+  const s = {}; let n = 0, dOk = false;
+  for (const m of msgs) {
+    if (m.d && m.d !== ymd) continue;                       // 證交所回的交易日不是今天 → 休市
+    dOk = true;
+    let z = parseFloat(m.z); if (!isFinite(z) && m.trade) z = parseFloat(m.trade.z); if (!isFinite(z)) z = parseFloat(m.pz);
+    const v = parseFloat(m.v);
+    if (!isFinite(z) || !isFinite(v)) continue;
+    s[m.c] = [z, v]; n++;
+  }
+  if (!dOk) return "holiday";
+  await env.LOGS.put(`bar:${d}:${hhmmOf(t)}`, JSON.stringify(s), { expirationTtl: 14 * 86400 });
+  return `bar ${d} ${hhmmOf(t)} ${n} 檔`;
+}
+/** 把一天的快照拼成每檔的 1 分K */
+async function dayBars(env, d, codes, since) {
+  const keys = []; let cursor;
+  do {
+    const r = await env.LOGS.list({ prefix: `bar:${d}:`, cursor, limit: 1000 });
+    for (const k of r.keys) keys.push(k.name);
+    cursor = r.list_complete ? null : r.cursor;
+  } while (cursor);
+  keys.sort();
+  let use = keys;
+  if (since) { const i = keys.findIndex(k => k.slice(-5) >= since); use = i < 0 ? [] : keys.slice(i); }   // 第一個 = 基準(手機已有的那根)
+  const snaps = [];
+  for (let i = 0; i < use.length; i += 25) {
+    const part = use.slice(i, i + 25);
+    const vals = await Promise.all(part.map(k => env.LOGS.get(k)));
+    part.forEach((k, j) => { if (vals[j]) { try { snaps.push([k.slice(-5), JSON.parse(vals[j])]); } catch (e) {} } });
+  }
+  const want = codes && codes.length ? new Set(codes) : null;
+  const bars = {}, prev = {};
+  for (const [hm, s] of snaps) {
+    for (const c in s) {
+      if (want && !want.has(c)) continue;
+      const [z, v] = s[c]; const p = prev[c]; prev[c] = [z, v];
+      if (!p) { if (!since) bars[c] = [[hm, z, z, z, z, Math.round(v * 1000)]]; continue; }   // 當天第一個快照:量 = 到此為止的累計(開盤撮合)
+      const dv = Math.max(0, v - p[1]) * 1000;
+      if (dv <= 0 && z === p[0]) continue;                   // 這分鐘沒成交
+      (bars[c] = bars[c] || []).push([hm, p[0], Math.max(p[0], z), Math.min(p[0], z), z, Math.round(dv)]);
+    }
+  }
+  return { d, last: snaps.length ? snaps[snaps.length - 1][0] : "", n: snaps.length, bars };
+}
+
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -68,21 +155,43 @@ export default {
   // ── Cloudflare Cron Trigger 到點 → 叫 GitHub 跑對應的 workflow ──
   // Workers 免費方案整個帳號只能有 5 條 Cron(樂透的 Worker 已經用掉),所以這裡只用 1 條:
   //   5,20,30,45 0,1,6,8,12 * * MON-FRI  → 每天醒來 20 次,只在下面這幾個台灣時間真的去叫 GitHub,其他時候什麼都不做
+  // 2026-10-19 起 Cron 改成每分鐘(* 0-6,8,12 * * MON-FRI):台灣 09:00~13:35 每分鐘存一次雲端 1 分K 快照;原本的六個時段照舊叫 GitHub
   async scheduled(event, env, ctx) {
     const t = new Date(Date.now() + 8 * 3600e3);                      // 台灣時間
     const key = `${t.getUTCHours()}:${String(t.getUTCMinutes()).padStart(2, "0")}`;
     const SLOTS = { "8:20": "recheck", "8:45": "recheck", "9:05": "recheck", "14:30": "daily", "16:30": "daily", "20:30": "daily" };
     const what = SLOTS[key];
-    if (!what) { console.log(`cron ${event.cron} 台灣 ${key}:不是排定時段,略過`); return; }
-    const r = await dispatch(env, what);
-    console.log(`cron ${event.cron} 台灣 ${key} → ${what}: ${r.msg}`);
+    if (what) { const r = await dispatch(env, what); console.log(`cron ${event.cron} 台灣 ${key} → ${what}: ${r.msg}`); }
+    try { const r = await snapshotBars(env); if (r !== "off-hours") console.log(`cron 台灣 ${key} 分K:${r}`); } catch (e) { console.log("分K 快照失敗 " + e); }
   },
 
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
 
     const url = new URL(request.url);
     const J = (obj, status = 200) => new Response(JSON.stringify(obj, null, 1), { status, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });
+
+    // ── 第五條路:?bars=YYYY-MM-DD[&codes=…][&since=HH:MM] → 雲端 1 分K ──
+    const bd = url.searchParams.get("bars");
+    if (bd) {
+      if (!env || !env.LOGS) return J({ error: "Worker 還沒綁定 KV(LOGS)" }, 503);
+      const d = bd === "today" ? ymdOf(twNow()) : bd;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return J({ error: "bars 要是 YYYY-MM-DD 或 today" }, 400);
+      const codes = (url.searchParams.get("codes") || "").split(",").map(x => x.trim()).filter(Boolean);
+      const since = url.searchParams.get("since") || "";
+      if (since && !/^\d{2}:\d{2}$/.test(since)) return J({ error: "since 要是 HH:MM" }, 400);
+      const ck = new Request(`${url.origin}/__bars?d=${d}&codes=${codes.join(",")}&since=${since}`);
+      const cache = caches.default;
+      const hit = await cache.match(ck);
+      if (hit) { const h = new Headers(hit.headers); for (const [k, v] of Object.entries(CORS)) h.set(k, v); return new Response(hit.body, { status: 200, headers: h }); }
+      const out = await dayBars(env, d, codes, since);
+      const body = JSON.stringify(out);
+      const resp = new Response(body, { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });
+      const ttl = since ? 20 : 50;    // 全天的查詢要讀幾百個鍵,邊緣快取 50 秒;增量的 20 秒
+      const cached = new Response(body, { status: 200, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": `public, max-age=${ttl}` } });
+      if (ctx && ctx.waitUntil) ctx.waitUntil(cache.put(ck, cached)); else await cache.put(ck, cached);
+      return resp;
+    }
 
     // ── 第三條路:?gh=status / ?gh=run&what=daily&key=… ──
     const gh = url.searchParams.get("gh");
