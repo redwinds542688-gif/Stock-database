@@ -92,6 +92,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-19 11:30 背景監控判一、判二同時跑(使用者:「改成二版同時啟動,各自抓各自的,通知訊息可以知道是判一或判二的訊息」):bgTick 每檔股票同一組 K 用判一、判二各算一次訊號(BG_RS = ['一','二']),
+    已通知記錄、持倉記錄各自一份(鍵 = 判別式|代碼),通知尾巴照舊「· 判一」「· 判二」,同一檔兩份都有點就各發各的;判三不跑。判一、判二兩顆判鍵監控燈都亮;長按判鍵只換圖上畫哪一份(不再重載背景那份,免得洗掉持倉記錄);
+    狀態頁「判別式」改寫成「同時跑判別式一、判別式二,圖上畫 ○○」。驗證:友達 10/16 只有判二發(10:35 強空 · 判二 → 11:45 OBV 停利);毅嘉 10/16 判一、判二各自 09:27 空 → 11:23 停利,判二再 11:25 空 → 13:30 出,每則都帶標記。
   · 2026-10-19 09:55 App 1.5.43 螢幕綠點改到左上角(使用者:「出來了,但沒有改在左上角」),狀態列下方 30dp、離左邊 6dp。
   · 2026-10-19 09:40 App 1.5.42 螢幕綠點(使用者:「判一綠燈有閃但螢幕綠點不見」):(1) 懸浮窗權限沒開時,長按設定的選單自動多一條「允許螢幕角落監控點(需權限)」,
     允許後就不再出現(更新 App 後 OPPO 可能把這個權限收回);(2) 綠點被系統拿掉後能重新掛上(以前 view 還記著就永遠不再 addView)。
@@ -1415,7 +1418,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610191000">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610191130">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1782,9 +1785,9 @@ except Exception:
   <div class="toolbar">
     <button class="tool txt" id="refreshBtn" aria-label="訊息"
             title="顯示監控訊息;長按重新讀取雲端資料">訊息</button>
-    <button class="tool txt rs" id="btnReload" data-rs="一" aria-label="判別式一" title="亮燈 = 背景監控正在用判別式一;單擊看規則;長按沒亮的切換、長按亮著的強制重新啟動監控">判一<i class="mdot"></i></button>   <!-- 2026-10-18 使用者:第二顆設「判一」;同日加判二(判三加了又刪);mdot = 背景監控燈(亮在正在用的那顆右上角) -->
-    <button class="tool txt rs" id="btnState" data-rs="二" aria-label="判別式二" title="判別式二;長按 0.6 秒切換背景監控">判二<i class="mdot"></i></button>
-    <button class="tool txt rs" id="btnRules" data-rs="三" aria-label="判別式三" title="判別式三(OBV10−OBV30 差擴散邏輯,待修正);長按 0.6 秒切換背景監控">判三<i class="mdot"></i></button>
+    <button class="tool txt rs" id="btnReload" data-rs="一" aria-label="判別式一" title="亮燈 = 背景監控執行中(判一、判二同時跑,各自通知);單擊看規則;長按圖上沒在用的 = 圖改畫那份、長按圖上正在用的 = 強制重新啟動監控">判一<i class="mdot"></i></button>   <!-- 2026-10-18 使用者:第二顆設「判一」;同日加判二(判三加了又刪);mdot = 背景監控燈(亮在正在用的那顆右上角) -->
+    <button class="tool txt rs" id="btnState" data-rs="二" aria-label="判別式二" title="判別式二(背景監控和判一同時跑,通知尾巴 · 判二);單擊看規則;長按 0.6 秒讓圖改畫判二">判二<i class="mdot"></i></button>
+    <button class="tool txt rs" id="btnRules" data-rs="三" aria-label="判別式三" title="判別式三(OBV10−OBV30 差擴散邏輯,待修正;背景監控沒跑它);長按 0.6 秒讓圖改畫判三">判三<i class="mdot"></i></button>
     <button class="tool gear txt" id="gear" aria-label="設定" title="單擊開 / 關監控設定">設定</button>
   </div>
   <div class="wheels">
@@ -2363,7 +2366,7 @@ function render(list){
       ['監控清單', (LIST_CODES || []).length + ' 檔'],
       ['監控價格', wLo.value + ' ~ ' + wHi.value + ' 元,振幅 ≥ ' + wAmp.value],
       ['手續費 / 上限', wFee.value + ' · ' + wCap.value],
-      ['判別式', RULESET.name + '(' + RULESET.date + ')'],
+      ['判別式', '背景監控同時跑 ' + BG_RS.map(k => RULESETS[k].name).join('、') + ',各自進出場、各自通知(訊息尾巴 · 判一 / · 判二);圖上畫 ' + RULESET.name + '(' + RULESET.date + ')'],   // 2026-10-19 判一、判二同時跑
       ['圖表手勢', GESTURE.frames ? `${GESTURE.t} 平均每格 ${GESTURE.avg.toFixed(0)} ms(最慢 ${GESTURE.max.toFixed(0)} ms,${GESTURE.frames} 格)· 標記 ${MARKS.length} 個 · 畫布 ${window.devicePixelRatio} 倍` : '還沒量到(在圖上拖一下再來看)'],
       ['捲動診斷', (() => { try{ const se = el('result'); return `現在 ${Math.round(se.scrollTop)}px,最多捲過 ${Math.round(window.SCROLL_MAX || 0)}px;清單區高 ${se.scrollHeight} / 可見 ${se.clientHeight},視窗 ${innerHeight}` + (window.visualViewport ? `,可視 ${Math.round(visualViewport.height)}` : '') + `;清單 ${document.querySelectorAll('#bands .row').length} 列,高 ${Math.round(el('result').getBoundingClientRect().height)};body ${getComputedStyle(document.body).overflowY} / html ${getComputedStyle(document.documentElement).overflowY}`; }catch(e){ return '算不出來 ' + e.message; } })()],   // 2026-10-18 查「清單滑不動」
       ['清單跳回頂端', window.SCROLL_RESET ? `${SCROLL_RESET.at} 從 ${SCROLL_RESET.from}px 跳回 0;前 1.5 秒程式動作:${SCROLL_RESET.recent || '(沒有)'};resize ${SCROLL_RESET.resizes} 次` : '沒發生過'],   // 2026-10-18 查「清單自動彈回」用
@@ -2374,7 +2377,7 @@ function render(list){
   };
   const rulesHtml = (k = ACTIVE_RS) => { const SIG = RULESETS[k].sig, RULESET = RULESETS[k]; return [   // 2026-10-18 可看任一份判別式的規則(按沒在用的判鍵 = 看它的規則,不切換)
     '<b>' + RULESET.name + '</b>(' + RULESET.date + ' 定案)· 回測 ' + RULESET.backtest,
-    (k === ACTIVE_RS ? '背景監控現在用的是這一份' : '背景監控現在用的是 ' + RULESETS[ACTIVE_RS].name + ',這是 ' + RULESET.name + ' 的規則') + ';要換成哪一份監控,長按那顆判鍵 0.6 秒',
+    (BG_RS.includes(k) ? '背景監控同時跑判一、判二,這份(' + RULESET.name + ')有在跑,通知尾巴標 · ' + RULESET.btn : '背景監控同時跑判一、判二,這份(' + RULESET.name + ')沒在跑') + ';圖上畫的是 ' + RULESETS[ACTIVE_RS].name + ' 的訊號,要換圖上用哪一份,長按那顆判鍵 0.6 秒',
     '',
     '<b>選股(每日 14:30 雲端重算)</b>',
     '上市 / 上櫃普通股(非 ETF、非金融)、官方可現股當沖且可先賣後買、非注意 / 處置股、昨日未收漲跌停',
@@ -2453,7 +2456,7 @@ function render(list){
     const g = document.getElementById('gear'); if (g) g.classList.toggle('on', panelOpen);
     let mon = false; try{ mon = !!(window.Android && Android.monitorRunning && Android.monitorRunning()); }catch(e){}
     // 2026-10-18 使用者:「判一 通知欄顯示內容(規則頁)時燈號要亮著」→ 正在用的那顆:背景監控執行中 或 規則頁 / 狀態頁顯示中 就亮
-    document.querySelectorAll('.tool.rs').forEach(b => { const k = b.dataset.rs; b.classList.toggle('on', (k === ACTIVE_RS && (mon || (infoShown && infoKind === 'state'))) || (infoShown && infoKind === 'rules' && infoRs === k)); });
+    document.querySelectorAll('.tool.rs').forEach(b => { const k = b.dataset.rs; b.classList.toggle('on', ((BG_RS.includes(k) && mon) || (k === ACTIVE_RS && infoShown && infoKind === 'state')) || (infoShown && infoKind === 'rules' && infoRs === k)); });   // 2026-10-19 背景監控執行中 → 判一、判二都亮
   };
   window.refreshToolbar = refreshToolbar;
   setInterval(refreshToolbar, 3000); setTimeout(refreshToolbar, 500);
@@ -3417,8 +3420,10 @@ function saveRuleset(k){
 }
 let ACTIVE_RS = readRuleset() || '一';
 try{ if (window.Android && Android.setRuleset && !String(Android.getRuleset() || '')) Android.setRuleset(ACTIVE_RS); }catch(e){}   // 舊版只存 localStorage 的,第一次開啟就補存到 App
-const RULESET = RULESETS[ACTIVE_RS];
-const SIG = RULESET.sig;
+let RULESET = RULESETS[ACTIVE_RS];
+let SIG = RULESET.sig;   // 2026-10-19 改成 let:背景監控一輪裡輪流切成判一、判二(bgTick),跑完切回 ACTIVE_RS
+const BG_RS = ['一', '二'];   // 2026-10-19 使用者:「二版同時啟動,各自抓各自的,通知訊息可以知道是判一或判二的訊息」→ 背景監控同時跑這幾份,各自進出場、各自通知(訊息尾巴 · 判一 / · 判二)
+window.BG_RS = BG_RS;
 function signalLight(bars, ma, ob, obma, prevClose, canShort, dayHi, dayLo){
   const last = bars[bars.length - 1];
   const day = dayKey(last.time);
@@ -4704,7 +4709,7 @@ const BG = { last: new Map(), hist: new Map(), histDay: '', todayAt: new Map(), 
 function bgLog(s){ const line = new Date().toLocaleTimeString('zh-TW', {hour12:false}) + ' ' + s; BG.log.push(line); if (BG.log.length > 300) BG.log.shift(); try{ if (window.Android && Android.log) Android.log(line); }catch(e){} }
 function bgNotify(title, body, kind){ body = (body || '') + ' · ' + RULESET.btn; bgLog('[通知] ' + title + ' | ' + body); try{ if (window.Android && Android.notify) Android.notify(title, body, kind || ''); }catch(e){} }   // 2026-10-18 使用者:通知內容最後加「· 判一 / 判二 / 判三」,通知欄代碼後面顯示是哪一份判別式發的
 async function bgTick(force, replay){
-  try{ const v = readRuleset(); if (v && RULESETS[v] && v !== ACTIVE_RS){ location.reload(); return 'reload:' + v; } }catch(e){}   // 2026-10-18:前景那份切換了判別式 → 背景這份自己重載,下一輪就用新的
+  try{ const v = readRuleset(); if (v && RULESETS[v] && v !== ACTIVE_RS) ACTIVE_RS = v; }catch(e){}   // 2026-10-18 前景切換判別式 → 背景跟上;2026-10-19 改成只換變數不重載(判一、判二本來就同時跑,重載會洗掉持倉記錄)
   if (BG.busy) return 'busy';
   if (replay) BG.last.clear();                      // 測試用:今天所有進出場點重新通知一次
   if (!force && !inSession()) return 'off';
@@ -4741,16 +4746,19 @@ async function bgTick(force, replay){
         const prevBar = [...bars].reverse().find(b => dayKey(b.time) !== lastDay);
         const src = (SRC || []).find(x => x.code === code) || {};
         const prevClose = liveRec.y || (prevBar ? prevBar.close : null) || src.prev || null;
+        for (const rs of BG_RS){   // 2026-10-19 每一份判別式各跑一次:同一組 K,換 SIG / RULESET 重算訊號,進出場、已通知的記錄各自一份(鍵 = 判別式|代碼)
+        RULESET = RULESETS[rs]; SIG = RULESET.sig;
+        const pk = rs + '|' + code;
         const rp = replaySignals(bars, ma, ob, obma, prevClose, src.dtShort === undefined ? undefined : !!src.dtShort);
         const isEntry = m => m.shape !== 'circle' && (m.color === CHART_THEME.up || m.color === CHART_THEME.down);
         const isExit  = m => m.shape === 'circle';
         const key = m => m.time + '|' + m.text;
         const events = rp.marks.filter(m => isEntry(m) || isExit(m));
-        if (!BG.last.has(code)){                                   // 第一次看到這檔:只通知最近 3 分鐘內的點(replay 測試時全部通知)
+        if (!BG.last.has(pk)){                                   // 第一次看到這檔:只通知最近 3 分鐘內的點(replay 測試時全部通知)
           const cut = replay ? 0 : Math.floor(Date.now() / 1000) - 180;
-          BG.last.set(code, new Set(events.filter(m => m.time < cut).map(key)));
+          BG.last.set(pk, new Set(events.filter(m => m.time < cut).map(key)));
         }
-        const seen = BG.last.get(code);
+        const seen = BG.last.get(pk);
         for (const m of events){
           const k = key(m); if (seen.has(k)) continue; seen.add(k);
           if (!replay && m.time < Math.floor(Date.now() / 1000) - 600){ bgLog(code + ' 舊訊號不通知 ' + k); continue; }   // Yahoo 分K 延遲補進來會「重寫」早先的訊號,超過 10 分鐘前的點不通知
@@ -4762,23 +4770,23 @@ async function bgTick(force, replay){
             const st = rp.state;
             const px = (st && st.time === t && st.entry) ? st.entry : nowPx;
             const tp = (px * (1 + SIG.takePct / 100 * dir)).toFixed(2), sl = (px * (1 - SIG.stopPct / 100 * dir)).toFixed(2);
-            BG.pos.set(code, {side, dir, entry: +px, time: t});
+            BG.pos.set(pk, {side, dir, entry: +px, time: t});
             bgNotify(`${nm} ${code} ${side}${m.text.includes('強') ? '強訊號' : ''}進場 ${(+px).toFixed(2)}`, `${t} ${m.text} · 停利 ${tp} 停損 ${sl}`, side === '做多' ? 'long' : 'short');
           }else if (m.text === '彈'){
             // 2026-10-18 反彈警示:紅線反向穿過 OBV 均 30、帳面不到 1% 所以沒平倉 → 通知「股價已反彈」,部位不動
-            const pos = BG.pos.get(code);
+            const pos = BG.pos.get(pk);
             const pl = pos ? (nowPx - pos.entry) / pos.entry * 100 * pos.dir : null;
             const plTxt = pl === null ? '' : ` 帳面 ${pl >= 0 ? '+' : ''}${pl.toFixed(1)}%`;
             bgNotify(`⚠ ${nm} ${code} 股價已反彈${plTxt}`, `${t} ${pos ? `${pos.side} ${pos.time} 進 ${pos.entry.toFixed(2)} → ` : ''}現價 ${nowPx} · OBV 反向穿越 OBV 均${SIG.obvExitMa},帳面未達 ${SIG.obvExitMinGain}% 不平倉`, 'warn');
           }else if (m.text === '注'){
             // 正在反彈警示:只通知,部位不動(2026-10-17)
-            const pos = BG.pos.get(code);
+            const pos = BG.pos.get(pk);
             const pl = pos ? (nowPx - pos.entry) / pos.entry * 100 * pos.dir : null;
             const plTxt = pl === null ? '' : ` 帳面 ${pl >= 0 ? '+' : ''}${pl.toFixed(1)}%`;
             bgNotify(`⚠ ${nm} ${code} 可能正在反彈,注意${plTxt}`, `${t} ${pos ? `${pos.side} ${pos.time} 進 ${pos.entry.toFixed(2)} → ` : ''}現價 ${nowPx} · OBV 反向穿越 OBV 均${SIG.obvWarnMa}`, 'warn');
           }else{
             // 平倉:算這筆賺賠(用記住的進場價;App 啟動後才進的才有),賠錢的用鬧鐘聲 + 長震動 + 紅色
-            const pos = BG.pos.get(code); BG.pos.delete(code);
+            const pos = BG.pos.get(pk); BG.pos.delete(pk);
             const pl = pos ? (nowPx - pos.entry) / pos.entry * 100 * pos.dir : null;
             const plTxt = pl === null ? '' : ` ${pl >= 0 ? '+' : ''}${pl.toFixed(1)}%`;
             const act = '立即平倉';   // 2026-10-17 使用者:做多做空都叫「平倉」,不分回補 / 賣出
@@ -4790,12 +4798,14 @@ async function bgTick(force, replay){
             else bgNotify(`${nm} ${code} 出場${plTxt}:${m.text}`, `${t} ${from}現價 ${nowPx}`, 'exit');
           }
         }
+        }   // for rs
         n++;
       }catch(e){ bgLog(code + ' ' + e.message); }
+      finally{ RULESET = RULESETS[ACTIVE_RS]; SIG = RULESET.sig; }
     }
     return 'ok ' + n + '/' + codes.length;
   }catch(e){ bgLog('tick ' + e.message); return 'err ' + e.message; }
-  finally{ BG.busy = false; }
+  finally{ BG.busy = false; RULESET = RULESETS[ACTIVE_RS]; SIG = RULESET.sig; }
 }
 window.bgTick = bgTick; window.BG = BG;
 /* 顯示區:監控紀錄。Android App 裡由 Android.logDays() / Android.logFor(日期) 取得服務發過的通知(JSON,保留 10 天);
@@ -4940,7 +4950,7 @@ window.bgTick = bgTick; window.BG = BG;
         if (!(wd === 0 || wd === 6 || hm < 8 * 60 + 45 || hm > 13 * 60 + 35)) st = Android.monitorRunning() ? 'live' : 'dead';   // 非交易時段服務休眠,不亮
       }
     }catch(e){ st = ''; }
-    document.querySelectorAll('.tool.rs').forEach(b => { b.classList.toggle('live', st === 'live' && b.dataset.rs === ACTIVE_RS); b.classList.toggle('dead', st === 'dead' && b.dataset.rs === ACTIVE_RS); });
+    document.querySelectorAll('.tool.rs').forEach(b => { const run = BG_RS.includes(b.dataset.rs); b.classList.toggle('live', st === 'live' && run); b.classList.toggle('dead', st === 'dead' && run); });   // 2026-10-19 判一、判二同時跑 → 兩顆都亮監控燈
     const d = el('bgDot'); if (d) d.className = '';
   }
   upd(); setInterval(upd, 3000);
