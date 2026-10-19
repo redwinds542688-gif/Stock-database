@@ -101,6 +101,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-20 01:00 K 線圖只留進場箭頭與平倉圓點(使用者看台玻圖:「K 線 空平 空逆…那些都拿掉不要」):第 1 個訊號、被擋住的確認點(平 / 缺 / 逆 / 遠 / 距 / 離 / 向 / 勢 / 量 / 比 / ✕)不畫;通知、燈號不受影響。
   · 2026-10-20 00:50 反彈中 / 請注意改顯示在股票清單(使用者:「反彈中跟請注意改顯示在監控欄位的股票下方監控中那邊」):bgTick 的「彈」「注」恢復記雲端
     (bgNotify 對 warn 不推手機),通知欄不顯示這些卡、進場卡的警示欄也不放,改由通知欄算出每檔「最新一張還沒平倉的進場卡」的反彈 / 注意狀態(NL_STATUS),
     股票清單那格由「監控中」換成紅字「反彈中」或橘字「請注意」;平倉後回到監控中。
@@ -1519,7 +1520,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610200050">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610200100">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4660,7 +4661,9 @@ function drawBars(bars, code, srcLabel, keepView){
   updateMeter(bias);
   // 今天的進場 / 平倉點位標在 K 線圖上;燈號 = 循環狀態(進場後持續亮到平倉訊號)
   const rp = replaySignals(bars, ma, ob, obma, prevClose, src ? !!src.dtShort : undefined);
-  const marks = YH.showSignalMarks ? rp.marks : [];
+  // 2026-10-20 使用者(台玻圖:「K 線 空平 空逆…那些都拿掉不要」):圖上只留真正的進場箭頭(亮色)和平倉 / 反彈 / 注意的小圓點,
+  // 第 1 個訊號和被保護擋住的確認點(平 / 缺 / 逆 / 遠 / 距 / 離 / 向 / 勢 / 量 / 比 / ✕)全部不畫。背景通知、燈號仍用完整的 rp.marks。
+  const marks = YH.showSignalMarks ? rp.marks.filter(m => m.shape === 'circle' || m.color === CHART_THEME.up || m.color === CHART_THEME.down) : [];
   // 多空天秤的燈號(2026-10-18):不受 ±3.5% 限制,訊號確認就亮;rp 仍是真正的交易狀態(圖上 ✕ 標記、通知、部位都照 rp)
   const rpSig = YH.exitRule ? replaySignals(bars, ma, ob, obma, prevClose, src ? !!src.dtShort : undefined, {ignoreGate: true}) : rp;
   MARKS = marks; marksHidden = false; candle.setMarkers(marks);
