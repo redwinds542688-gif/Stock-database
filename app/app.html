@@ -2437,7 +2437,7 @@ function render(list){
     '累積量 ≥ ' + SIG.minDayVol + ' 張且量比 ≥ ' + SIG.rvolMin + ' 才進(量夠後下一個訊號直接進;量比 = 今天到此刻累積量 ÷ 前 5 天同時刻平均)',
     ...(SIG.redSlopeMin != null ? ['確認點 OBV 紅線最近 ' + SIG.obmaSlopeBars + ' 根斜率(÷當日 OBV 範圍)低於 ' + SIG.redSlopeMin + '%(紅線在退)只記錄不進(退)'] : []),
     ...(SIG.confirmMinGapPct > 0 ? ['確認點紅線離藍線的距離(÷當日 OBV 範圍)不到 ' + SIG.confirmMinGapPct + '% 只記錄不進(距)'] : []),
-    ...(SIG.obvDirMa > 0 ? ['OBV 均 ' + SIG.obvDirMa + ' 最近 ' + (SIG.obvDirBars || 1) + ' 根向上只做多、向下只做空,持平不進;不同向只記錄不進(向)'] : []),
+    ...(SIG.obvDirMa > 0 ? ['OBV 均 ' + SIG.obvDirMa + ' 最近 ' + (SIG.obvDirBars || 1) + ' 根向上只做多、向下只做空,持平不進;不同向只記錄不進(向);開盤 ' + SIG.obvDirMa + ' 根內算不出來不看'] : []),
     ...(SIG.resetAfterTp ? ['停利出場後,同方向的第 1 個點作廢,要重新等第 1 點 + 確認點才再進'] : []),
     ...(SIG.noLock ? ['不鎖方向(確認點被漲跌幅擋到,之後同方向仍可進)'] : ['同一邊第一次放棄的方向,當天不再做(單邊鎖)']),
     ...(SIG.weakByOrder ? ['逆勢單(碰到任何反向點就出)要「反方向第 1 點價格較高 / 低」且「比自己方向的第 1 點早出現」才算;否則等反向確認點才出'] : []),
@@ -3858,7 +3858,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
     if (SIG.obvDirMa > 0 && entryOk && !far && !opts.ignoreGate){
       const k = SIG.obvDirBars || 1, j = iObmaDir.get(b.time), jp = iObmaDir.get(bars[bi - k] ? bars[bi - k].time : -1);
       const cur = j == null ? null : obmaDir[j].value, pv = jp == null ? null : obmaDir[jp].value;
-      if (cur == null || pv == null || !((cur - pv) * (side === 'long' ? 1 : -1) > 0)){ dirBad = true; far = true; }
+      if (cur != null && pv != null && !((cur - pv) * (side === 'long' ? 1 : -1) > 0)){ dirBad = true; far = true; }   // 開盤 30 根內 OBV30 還算不出來 → 不看(同 crossSlowMa2;模擬器 OBVDIRNAN=skip)。擋在開盤前 30 分鐘會少掉敬鵬 09:25、毅嘉 09:27 這種早盤單
     }
     const canEnter = entryOk && !gated && (opts.ignoreGate || tStr < SIG.noEntryAfter) && !locked[side] && !far && !againstVwap && !volShort;
     const opp = side === 'long' ? 'short' : 'long';
