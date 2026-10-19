@@ -93,6 +93,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-19 19:00 今天沒成交的分鐘補平 K(使用者:「要與元大一樣」):mergeLive 最後把今天的缺口補成開高低收 = 前一根收、量 0 的 K,每分鐘一根,
+    均價 10、OBV 均線、「N 根內」都以分鐘計,和券商的圖一致。只補今天、缺口 ≤ 60 分鐘;歷史 K 照舊。注意:回測用的歷史 K 沒有平 K,量小的股票盤中和回測會有一點不一致,量夠的股票幾乎每分鐘有成交,影響小。
   · 2026-10-19 18:40 今天的 K 重新拼一次(使用者:「能夠直接回溯重新排版 K 線 K 棒嗎」):Worker 已改好「盤中才開始存的第一根量給 0」,這版只是換版本戳讓兩支手機重載網頁,
     今天的 K 會重新用 Yahoo(09:00~11:56)+ 雲端(11:57 起)+ 即時拼一次,燿華那種 OBV 跳一截就消失。收盤後 14:30 爬蟲會把今天整天存成 Yahoo 的歷史 K,明天看今天就是單一來源。
   · 2026-10-19 18:15 OBV 均 30 方向:開盤 30 根內改用「今天到目前為止全部 K 的 OBV 平均」看方向(使用者:「OBV 還沒到 30 時便以當時時間為依據,09:15 就是 OBV15、09:20 就是 OBV20」),
@@ -1463,7 +1465,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610191840">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610191900">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3192,12 +3194,29 @@ function mergeLive(code, hist){
     out = hist.concat(today.filter(b => b.time > lastHist));
   }
   const live = LIVE_BARS.get(code) || [];
-  if (!live.length || !out.length) return live.length ? out.concat(live) : out;
+  if (!live.length || !out.length) return fillFlat(live.length ? out.concat(live) : out);
   const lastT = out[out.length - 1].time;
   const lastIsYahoo = today.length && today[today.length - 1].time === lastT;
   const extra = live.filter(b => lastIsYahoo ? b.time >= lastT : b.time > lastT);
   if (extra.length && extra[0].time === lastT) out = out.slice(0, -1);
-  return out.concat(extra);
+  return fillFlat(out.concat(extra));
+}
+/* 2026-10-19 使用者:「要與元大一樣」→ 今天(最後一天)沒成交的分鐘也補一根平的 K(開高低收 = 前一根收、量 0),每分鐘一根,
+   均線、「N 根」都變成以分鐘計,和券商的圖一致。只補今天、只補 09:00~13:30 之間的缺口;歷史 K(Yahoo 爬蟲)照舊不補 */
+function fillFlat(out){
+  if (out.length < 2) return out;
+  const ld = dayKey(out[out.length - 1].time);
+  let i0 = out.length; while (i0 > 0 && dayKey(out[i0 - 1].time) === ld) i0--;
+  if (out.length - i0 < 2) return out;
+  const res = out.slice(0, i0); let prev = out[i0]; res.push(prev);
+  for (let k = i0 + 1; k < out.length; k++){
+    const b = out[k];
+    if (b.time - prev.time > 60 && b.time - prev.time <= 3600){
+      for (let t = prev.time + 60; t < b.time; t += 60) res.push({time: t, open: prev.close, high: prev.close, low: prev.close, close: prev.close, volume: 0, flat: true});
+    }
+    res.push(b); prev = b;
+  }
+  return res;
 }
 
 /* 把即時價寫回清單的每一列 */
