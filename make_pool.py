@@ -183,7 +183,8 @@ def normalize(rows, market):
             "prev": round(prev, 2),                       # 昨收(進場 ±3% 的基準)
             "chg_pct": round(chg / prev * 100, 2),
             "tick_pct": round(tick_pct, 3),               # 一檔 ÷ 股價 %
-            "limit_hit": 1 if (close >= up or close <= dn) else 0,   # 收在漲停或跌停
+            "limit_hit": 1 if close <= dn else 0,   # 收在跌停(2026-10-19 使用者選「1」:漲停放行、跌停照擋;原本漲停也算)
+            "limit_up": 1 if close >= up else 0,    # 收在漲停(只記錄,不再剔除:隔天常開低洗盤,台虹 10/19 就是空單機會)
         })
     return out
 
@@ -347,13 +348,13 @@ def is_financial(r):
 for r in rows:
     r["industry"] = industry.get(r["code"], "")
 
-# ── 2. 價格 / 振幅 / tick 成本 / 漲跌停 / 金融股 粗篩,依成交張數排序 ──
+# ── 2. 價格 / 振幅 / tick 成本 / 跌停 / 金融股 粗篩,依成交張數排序 ──(漲停 2026-10-19 起放行)
 def why_out(r):
     if is_financial(r):               return "金融股"
     if not (LO <= r["close"] <= HI):  return "價格"
     if r["amp"] < MIN_AMP:            return "振幅"
     if r["tick_pct"] > TICK_MAX_PCT:  return "tick成本"
-    if r["limit_hit"]:                return "漲跌停"
+    if r["limit_hit"]:                return "跌停"      # 2026-10-19 起只擋跌停,漲停放行(使用者選「1」)
     return ""
 
 reasons = {}
@@ -612,7 +613,7 @@ js = f"""/* ══════════════════════�
    來源:證交所 OpenAPI + 櫃買 OpenAPI(行情與可當沖名單)
    資格來源:{' + '.join(src_note) or '無'}
    規則:僅上市/上櫃 4 碼普通股(無 ETF)、官方可現股當沖名單內、非注意/處置股、
-         非金融保險業、一檔跳動 ≤ {TICK_MAX_PCT}%、昨日未收在漲跌停、
+         非金融保險業、一檔跳動 ≤ {TICK_MAX_PCT}%、昨日未收在跌停(漲停放行)、
          最近 {AVG_DAYS} 日平均振幅 ≥ {AVG5_MIN_AMP}%;
          依成交張數排序取前 {SIZE} 檔
 
