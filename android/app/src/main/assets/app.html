@@ -92,6 +92,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-19 15:10 通知卡片外框全部拿掉、長按不動作(使用者:「把通知訊息的外框都拿掉,有三種都拿掉;長按該股票沒有動作」):白框(沒長按過)、黃框(持倉中)、藍框(已平倉)三種都取消;
+    卡片長按不再記「我有做」,點一下照舊開圖。清單的做多 / 做空 / 已平倉標籤只在有部位紀錄時才會出現,沒有長按就一律「監控中」。
   · 2026-10-19 15:00 股票清單排序(使用者:「通知欄裡面有的股票,在下面的監控股票裡面就直接排序在前面,不管有沒有平倉」):以通知欄正在顯示那一天的卡片為準(含雲端合併的),
     最新一則的股票排最上面,已平倉的也照排,其餘照成交量;原本平倉超過 1 分鐘就回到一般排序、標籤變回「未」→ 改成一直排前面、標籤一直是「已平倉」。
   · 2026-10-19 14:40 通知欄一次剛好容納 4 張卡(使用者:「現在好像是 3.5 個訊息,切到了不好看」):字級先照舊由最擠那列塞滿寬度決定,再量前 4 張卡總高,超過可見高度就按比例縮到第 4 張完整在框內;不到 4 張不縮。欄位、順序不動。
@@ -1435,7 +1437,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610191500">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610191510">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1516,12 +1518,11 @@ except Exception:
   #notifLog .row .tx .cd{font-weight:600}
   #notifLog .row.mine{outline:1px solid #FFD54F;outline-offset:-1px}   /* 長按記「我有做」 */
   /* 2026-10-17 18:30 三列卡片 */
-  #notifLog .card{margin:3px 0;padding:2px 2px 1px;border-radius:0;cursor:pointer;outline:2px solid rgba(255,255,255,.75);outline-offset:-2px}   /* 沒長按過:白框 */
+  #notifLog .card{margin:3px 0;padding:2px 2px 1px;border-radius:0;cursor:pointer}   /* 2026-10-19 使用者:「通知訊息的外框都拿掉,有三種都拿掉」→ 白框、黃框、藍框全部取消 */
   /* 2026-10-18 使用者:做多淺紫色網狀底、做空淺藍色網狀底(原本做多淺紅、做空淺綠) */
   #notifLog .card.c-long{background-color:rgba(170,120,255,.16);background-image:repeating-linear-gradient(0deg,rgba(190,150,255,.30) 0 1px,transparent 1px 6px),repeating-linear-gradient(90deg,rgba(190,150,255,.30) 0 1px,transparent 1px 6px)}   /* 做多:直橫方格網(做空是斜紋交叉網),2026-10-18 使用者:「做多的網狀改別種形式」 */
   #notifLog .card.c-short{background-color:rgba(90,170,255,.16);background-image:repeating-linear-gradient(45deg,rgba(120,190,255,.28) 0 1px,transparent 1px 7px),repeating-linear-gradient(-45deg,rgba(120,190,255,.28) 0 1px,transparent 1px 7px)}
-  #notifLog .card.mine{outline:2px solid #FFD54F;outline-offset:-2px}   /* 有交易(持倉中) */
-  #notifLog .card.done{outline:2px solid #4FC3F7;outline-offset:-2px}   /* 結束交易(已平倉)藍框 */
+  /* 2026-10-19 .card.mine(黃框)/ .card.done(藍框)取消,卡片一律無框 */
   #notifLog .card .ln{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:18px;font-weight:700;line-height:1.25;min-height:1.3em;overflow:hidden}   /* 2026-10-17 其餘欄位字體最大化、垂直置中;寬度不夠時由程式自動縮字 */
   #notifLog .card .ln .nmblk{flex:0 0 5.2em;min-width:0;overflow:hidden;display:flex;align-items:center;font-size:.9em;line-height:1.15}   /* 2026-10-18 一張卡兩列:第 1 列放名稱、第 2 列放代碼,其餘欄位上下對齊 */
   #notifLog .card .ln .nmblk .cd{font-size:.62em;font-weight:600;color:#1DD75B;line-height:1.1;white-space:nowrap;margin-left:2px}   /* 2026-10-18 使用者:代碼向右移 2px */
@@ -5016,13 +5017,8 @@ window.bgTick = bgTick; window.BG = BG;
     if (next) next.onclick = () => { cur = ds[i + 1] || today; render(true); };   // 翻到今天就記住「今天」,不然 5 秒後自動又跳回前一個工作日(2026-10-19)
     box.querySelectorAll('.card').forEach(r => {
       const c = cards[+r.dataset.i]; const code = c.code, name = c.name;
-      // 長按 600ms → 記「我有做」(方向照這一則);再長按取消
-      let lp = 0, fired = false;
-      const start = () => { fired = false; clearTimeout(lp); lp = setTimeout(() => { fired = true; togglePosition(code, c.side || 'long', c.entP || c.price || 0); try{ navigator.vibrate && navigator.vibrate(30); }catch(e){} render(true); }, 600); };
-      const end = () => clearTimeout(lp);
-      r.addEventListener('touchstart', start, {passive: true}); r.addEventListener('touchend', end); r.addEventListener('touchmove', end); r.addEventListener('touchcancel', end);
-      r.addEventListener('mousedown', start); r.addEventListener('mouseup', end); r.addEventListener('mouseleave', end);
-      r.addEventListener('click', () => { if (fired){ fired = false; return; } openChart(code, name); });
+      // 2026-10-19 使用者:「長按該股票沒有動作」→ 卡片長按不再記「我有做」(原本長按 600ms 記多 / 空、再長按取消);點一下照舊開那檔的圖
+      r.addEventListener('click', () => openChart(code, name));
     });
   }
   function upd(){ try{ if (window.Android && Android.isService && Android.isService()) return; }catch(e){} render(false); }
