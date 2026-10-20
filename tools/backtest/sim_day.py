@@ -44,6 +44,24 @@ OBF = int(os.environ.get('OBF','3')); obmaF = pd.Series(ob).rolling(OBF).mean().
 hi = np.maximum.accumulate(h); lo = np.minimum.accumulate(l)
 cv = np.cumsum(v); vwapArr = np.cumsum((h+l+c)/3*v)/np.maximum(cv, 1e-9)
 rvBase = None
+# 2026-10-21 指標三測試(使用者:「先測 判一,二,三 效果好再改」):KAKB = Ka(均價 10,當天)要在 Kb(均價 24,跨日)之上才做多(L)/ 之下才做空(S);
+#   ORG2 = 橘線(Oa 穿越 Ob 的點)要「雙升」才做多(L)/「雙降」才做空(S):最近兩個往上穿的低點、最近兩個往下穿的高點都墊高 / 都降低
+KAKB = os.environ.get('KAKB',''); ORG2 = os.environ.get('ORG2','')
+if KAKB:
+    try:
+        _pc = df[(df.date < DAY) & (df.time >= '09:00') & (df.time <= '13:30')].sort_values(['date','time']).close.values[-23:]
+    except Exception: _pc = np.array([])
+    _cc = np.concatenate([np.round(_pc.astype(float),2), c]); KB = pd.Series(_cc).rolling(24, min_periods=1).mean().values[len(_pc):]
+if ORG2:
+    _up = []; _dn = []; ORGPAT = np.zeros(len(c))
+    for _q in range(1, len(c)):
+        if not np.isnan(obma[_q]) and not np.isnan(obma[_q-1]):
+            _d0 = ob[_q-1]-obma[_q-1]; _d1 = ob[_q]-obma[_q]
+            if _d1 > 0 and _d0 <= 0: _up.append(l[_q])
+            elif _d1 < 0 and _d0 >= 0: _dn.append(h[_q])
+        if len(_up) >= 2 and len(_dn) >= 2:
+            if _up[-1] > _up[-2] and _dn[-1] > _dn[-2]: ORGPAT[_q] = 1
+            elif _up[-1] < _up[-2] and _dn[-1] < _dn[-2]: ORGPAT[_q] = -1
 if RVOLMIN:
     import glob as _g
     fs = sorted(_g.glob(f'{ROOT}/kline/{code}/*.csv'))
@@ -487,6 +505,8 @@ for i in range(1, len(c)):
         _rng = (np.nanmax(ob[:i+1]) - np.nanmin(ob[:i+1])) or 1; _g = (ob[i]-obma[i])*side/_rng*100
         if _g < MINGAP: far = True; tag += f' [紅藍差距 {_g:.1f}% 不足,只記錄]'
     globals()['_chop_side'] = side
+    if conf and not far and KAKB and (('L' in KAKB and side == 1 and not (ma[i] > KB[i])) or ('S' in KAKB and side == -1 and not (ma[i] < KB[i]))): far = True; tag += ' [Ka/Kb 不符,只記錄]'
+    if conf and not far and ORG2 and (('L' in ORG2 and side == 1 and ORGPAT[i] != 1) or ('S' in ORG2 and side == -1 and ORGPAT[i] != -1)): far = True; tag += ' [指標三橘線不符,只記錄]'
     if conf and not far and os.environ.get('CHOP','0') == '1' and _is_chop(i): far = True; tag += ' [震盪盤,只記錄]'
     OB10DIR = os.environ.get('OB10DIR','0') == '1'   # 2026-10-20 測試(使用者看富喬 09:26:「OBV10 藍線也沒有往下」):確認點 OBV 均 10(藍)最近 1 根要和方向同向
     if conf and not far and OB10DIR and not np.isnan(obma[i-1]) and not ((obma[i] - obma[i-1]) * side > 0): far = True; tag += ' [藍線方向不符,只記錄]'
