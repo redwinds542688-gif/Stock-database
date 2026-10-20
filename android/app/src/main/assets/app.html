@@ -3634,7 +3634,7 @@ const RULESETS = {
   //   九天研究(停利 2.5 停損 1.5、13:25 平倉):壓線 + 三線向下本身 4,678 次 30 分內先跌 1% 25.3% / 先漲 24.0%(沒優勢);加量先價行 277 次 34.3% / 24.5%、139 筆 46% −3,540;
   //   再加不追空 26 筆 61% +39,753;再排開平 23 筆 69% +51,455(樣本小,觀察用)。保護同判別式三(±3.5%、+3% 不做空、紅線在退、12:00 後不進、不鎖方向;其餘全關)。出場同判別式一。
   //   模擬器:判別式三的保護旗標 + MODE=press(PRESSTOUCH=0.15 PRESSCHASE=2 PRESSRVOL=1.2 PRESSLO=0.5 PRESSGAP=1 PRESSNL=30)。
-  '四': { key: '四', btn: '判四', name: '判別式四', date: '2026-10-20', backtest: '10/06~10/19 九天只做空(研究版 23 筆,賺 16 賠 7,勝率 69%,淨 +51,455;模擬器完整版見《判別式四.md》;觀察中)',
+  '四': { key: '四', btn: '判四', name: '判別式四', date: '2026-10-20', backtest: '10/06~10/19 九天只做空 10 筆,賺 7 賠 3,勝率 70%,淨 +23,644(模擬器完整版;研究版 23 筆 69% +51,455;壓線 + 三線向下 + 量先價行 + 不追空 + 開平不做;觀察中)',
           sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'press', pressTouchPct: 0.15, pressChasePct: 2, pressRvolMax: 1.2, pressLoPct: 0.5, pressGapPct: 1, pressLookback: 30,
                                                                   noLock: true, obmaSlopeMin: 0, noWeakEntry: false, confirmMinGapPct: 0, noEntryAfter: '12:00',
                                                                   vwapFilter: false, minDayVol: 0, rvolFilter: false, maxEntryDevPct: 99, nearHiLoPct: 0, obvDirMa: 0, gapChasePct: 99 }) },
