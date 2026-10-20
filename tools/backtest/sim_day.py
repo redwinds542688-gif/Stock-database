@@ -458,6 +458,10 @@ for i in range(1, len(c)):
         if 'kma2' not in globals() or globals().get('kma2n') != KMA2: globals()['kma2'] = pd.Series(c).rolling(KMA2).mean().values; globals()['kma2n'] = KMA2
         _m2 = globals()['kma2'][i]
         if np.isnan(_m2) or (ma[i] - _m2) * side < 0: far = True; tag += f' [均價 10 在均價 {KMA2} {"之下" if side==1 else "之上"},只記錄]'
+        KMA2X = int(os.environ.get('KMA2X','0'))   # 2026-10-20 測試(使用者看富喬 10:15:「做多需 K10 穿越 K24」):均價 10 要在最近 KMA2X 根內才剛穿過均價 KMA2(穿越後的那一段才算)
+        if not far and KMA2X > 0:
+            _k2 = globals()['kma2']
+            if not any(i-j-1 >= 0 and not np.isnan(_k2[i-j-1]) and (ma[i-j]-_k2[i-j])*side > 0 and (ma[i-j-1]-_k2[i-j-1])*side <= 0 for j in range(KMA2X)): far = True; tag += f' [均價 10 沒有在 {KMA2X} 根內穿過均價 {KMA2},只記錄]'
     NEARHL = float(os.environ.get('NEARHL','0'))   # 2026-10-19 測試(台玻 11:44 做多在高點 69.7 之下 2%):做多時價離當日高點超過 NEARHL% 不進(做空看當日低點),第二波不追
     if conf and NEARHL > 0 and not far:
         _dh = np.nanmax(h[:i+1]); _dl = np.nanmin(l[:i+1])
