@@ -101,6 +101,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-21 03:00 燈號不閃(使用者「改」):新狀態要連 2 根(YH.lampHold)才換燈,只出現 1 根就維持原本的燈;天秤照舊每根即時。友達 10/20 換燈 57 次 → 33 次,
+    10:11~10:56 的閃爍消掉;12:18~12:19 的做多連了 2 根,仍會在 12:19~12:21 亮(要消掉需連 3 根,換燈 20 次但慢 2 根)。
   · 2026-10-21 02:45 燈號第四件改成 Ka 2 根方向(使用者:「Ka 瞬間高又低下來 燈號要配合」):Ka 比 2 根前高 = 偏多、低 = 偏空(原本 Ka、Kb 5 根同方向,Kb 慢跟不上)。
     Ka 一拉高燈號跟著偏多,一掉下來就跟著退。九天:做多 51%、漸多 50%、監控 47%、漸空 55%、做空 55%。
   · 2026-10-21 02:30 燈號改看四件平均分數(使用者:「Ka 瞬間拉那麼高 訊號只顯示監控 也不合理」):b = (Ka/Kb 位置 + 橘線 + 指標二方向 + Ka/Kb 方向)/ 4,
@@ -1640,7 +1642,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610210245">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610210300">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3531,6 +3533,7 @@ const SHOW_VWAP_PANE = false   /* 乖離圖已停用(2026-10-16 使用者要求�
 /* ── 比照元大 App 的圖表版面(2026-10-15)。想回到舊的樣子改這裡 ── */
 const YH = {
   zzPct: 0.5,           // 2026-10-20 22:10 高低點連線:回落 / 反彈幾 % 才算確立一個高 / 低點(22:40 起不用)
+  lampHold: 2,          // 2026-10-21 燈號新狀態要連幾根才換(只出現 1 根就維持原燈)
   ind3SlopeBars: 5,     // 2026-10-21 燈號的指標二方向:Ob / Oc 和幾根前比
   swingPct: 0.8,        // 2026-10-20 22:40 股票高低價連線:相鄰高低差不到這個 % 的小波動拿掉
   swingMinBars: 2,      //   均價方向連幾根反過來才算換段
@@ -3599,13 +3602,13 @@ function showBarInfo(t){
   // 最後一根或沒有十字線 → 回到最新狀態。沒開平倉規則(stateAt 為空)時燈號不動,只動多空天秤。
   if (CUR.lampLast){
     const devPct = isFinite(d.ma) && d.ma > 0 ? (d.bar.close - d.ma) / d.ma * 100 : null;
-    if (isLast){ lampsFromInd3(CUR.i3 && CUR.i3.get(d.bar.time), d.bar.time, !!CUR.waitLast); updateMeter(CUR.biasLast); }   // 2026-10-21 燈號看指標三
+    if (isLast){ lampsFromInd3(CUR.lamps && CUR.lamps.get(d.bar.time)); updateMeter(CUR.biasLast); }   // 2026-10-21 燈號看指標三(連 2 根才換)   // 2026-10-21 燈號看指標三
     else if (CUR.bars && CUR.maMap && d.i != null){
       let nDay = 0; for (let i = d.i; i >= 0 && dayKey(CUR.bars[i].time) === dayKey(d.bar.time); i--) nDay++;   // 十字線那根是當天第幾根
       const waiting = nDay < SIG.skipMin;
       const st = CUR.i3 && CUR.i3.get(d.bar.time);   // 2026-10-21 燈號 / 天秤看指標三(十字線那根)
       const b = waiting ? 0 : ind3Bias(st);
-      lampsFromInd3(st, d.bar.time, waiting); updateMeter(b);
+      lampsFromInd3(CUR.lamps && CUR.lamps.get(d.bar.time)); updateMeter(b);
     }
   }
 }                 // 圖上的 ±entryMaxChg% 進場區間線
@@ -4393,19 +4396,37 @@ function ind3Series(bars, ma, ma24, ob, obma, obma30){
   return out;
 }
 const ind3Bias = st => st ? (st.k + (st.lo > 0 && st.hi > 0 ? 1 : st.lo < 0 && st.hi < 0 ? -1 : 0) + (st.o2 || 0) + (st.ks || 0)) / 4 : 0;   // 2026-10-21 四件事平均(Ka/Kb 位置、橘線雙升 +1 / 雙降 −1、指標二方向、Ka/Kb 方向)
-function lampsFromInd3(st, time, waiting){
-  if (waiting || !st) return lampsFromBias(0, time, null, 0, !!waiting);
-  const closed = time != null && hmKey(time) >= '13:25';
+// 單根的燈號狀態(還沒平滑):'等待' / '做多' / '漸多' / '監控' / '漸空' / '做空'
+function ind3Raw(st, time, waiting){
+  if (waiting || !st) return waiting ? '等待' : '監控';
+  if (time != null && hmKey(time) >= '13:25') return '監控';
   // 2026-10-21 02:30 使用者:「Ka 瞬間拉那麼高 訊號只顯示監控 也不合理」→ 不再要求四件全同方向,改看四件平均分數 b(−1~+1):
-  //   b ≥ 0.75 做多、0.25~0.75 漸多、−0.25~0.25 監控、−0.75~−0.25 漸空、≤ −0.75 做空(例:友達 13:17 Ka 上、橘雙升、Ka/Kb 往上,只有指標二往下 → b 0.5 = 漸多)。
-  //   九天(studies/lamp_ind3.py 分數版):做多 52%、漸多 50%、監控 47%、漸空 55%、做空 54%(四件全同方向版的做空只有 50%)
+  //   b ≥ 0.75 做多、0.25~0.75 漸多、−0.25~0.25 監控、−0.75~−0.25 漸空、≤ −0.75 做空(例:友達 13:17 → 漸多)。
+  //   九天(studies/lamp_ind3.py 分數版):做多 52%、漸多 50%、監控 47%、漸空 55%、做空 54%
   const b = ind3Bias(st);
-  const l = !closed && b >= 0.75, sh = !closed && b <= -0.75;
-  const lp = !closed && !l && b >= 0.25, sp = !closed && !sh && b <= -0.25;
+  return b >= 0.75 ? '做多' : b >= 0.25 ? '漸多' : b > -0.25 ? '監控' : b > -0.75 ? '漸空' : '做空';
+}
+/* 2026-10-21 03:00 使用者:「改」(燈號太敏感會閃 → 新狀態要連 YH.lampHold(2)根才換,只出現 1 根就維持原本的燈):
+   今天每一根依序算,回傳 Map(time → 平滑後的狀態)。等待 / 13:25 後直接照用。友達 10/20 換燈 57 次 → 33 次 */
+function ind3Lamps(bars, I3){
+  const out = new Map(), N = YH.lampHold || 2; let day = null, n = 0, cur = null, cand = null, cnt = 0;
+  for (const b of bars){
+    const d = dayKey(b.time); if (d !== day){ day = d; n = 0; cur = null; cand = null; cnt = 0; } n++;
+    const raw = ind3Raw(I3.get(b.time), b.time, n < SIG.skipMin);
+    if (raw === '等待' || hmKey(b.time) >= '13:25' || cur === null || cur === '等待'){ cur = raw; cand = null; cnt = 0; }
+    else if (raw === cur){ cand = null; cnt = 0; }
+    else { if (raw === cand) cnt++; else { cand = raw; cnt = 1; } if (cnt >= N){ cur = raw; cand = null; cnt = 0; } }
+    out.set(b.time, cur);
+  }
+  return out;
+}
+function lampsFromInd3(state){
+  if (!state || state === '等待') return lampsFromBias(0, null, null, 0, state === '等待');
+  const l = state === '做多', sh = state === '做空', lp = state === '漸多', sp = state === '漸空';
   const eL = el('lampLong'), eS = el('lampShort'), eW = el('lampWatch');
   eL.classList.toggle('on', l); eL.classList.toggle('pre', lp); eL.classList.remove('strong'); eL.textContent = lp ? '漸多' : '做多';
   eS.classList.toggle('on', sh); eS.classList.toggle('pre', sp); eS.classList.remove('strong'); eS.textContent = sp ? '漸空' : '做空';
-  eW.classList.toggle('on', !l && !sh && !lp && !sp); eW.textContent = '監控';
+  eW.classList.toggle('on', state === '監控'); eW.textContent = '監控';
 }
 (function buildMeter(){                                  // 左 10 格(外→內漸小)、中線、右 10 格(內→外漸大)
   const box = el('meterSegs'); if (!box) return;
@@ -5223,7 +5244,8 @@ function drawBars(bars, code, srcLabel, keepView){
   const trade = YH.exitRule ? rp.state : null;     // 真正的交易循環
   const lastMa = maMap.get(last.time);
   const waiting = todayBars.length < SIG.skipMin;   // 今天還不到 skipMin(15)根 K:燈號等待、天秤歸零(2026-10-19)
-  lampsFromInd3(i3Last, last.time, waiting);   // 2026-10-21 燈號改看指標三。原:lampsFromBias(bias, last.time, 離均價 %, strongLast, waiting)
+  const LAMPS = ind3Lamps(bars, I3);   // 2026-10-21 03:00 連 2 根才換燈
+  lampsFromInd3(LAMPS.get(last.time));   // 2026-10-21 燈號改看指標三。原:lampsFromBias(bias, last.time, 離均價 %, strongLast, waiting)
     // 燈號跟隨多空天秤(2026-10-18);13:25 後只顯示監控;離均價超過 1% 不亮
   if (cyc && !cyc.gated){
     if (trade && trade.side === cyc.side){
@@ -5236,7 +5258,7 @@ function drawBars(bars, code, srcLabel, keepView){
   // 十字線聯動(2026-10-17 使用者:「燈號需要用十字虛線聯動」):記住「最新」的燈號與偏向,十字線移到某一根 K 時改顯示那根當下的狀態,移開就回到最新
   if (CUR){
     CUR.lampLast = {long: el('lampLong').classList.contains('on'), short: el('lampShort').classList.contains('on'), watch: el('lampWatch').classList.contains('on')};
-    CUR.biasLast = bias; CUR.i3 = I3; CUR.strongLast = strongLast; CUR.waitLast = waiting; CUR.bars = bars; CUR.vw = vw; CUR.maMap = maMap; CUR.obmaMap = obmaMap; CUR.obMap = obMap; CUR.obSMap = obSMap; CUR.stateAt = (YH.exitRule && rpSig.stateAt) ? rpSig.stateAt : null;
+    CUR.biasLast = bias; CUR.i3 = I3; CUR.lamps = LAMPS; CUR.strongLast = strongLast; CUR.waitLast = waiting; CUR.bars = bars; CUR.vw = vw; CUR.maMap = maMap; CUR.obmaMap = obmaMap; CUR.obMap = obMap; CUR.obSMap = obSMap; CUR.stateAt = (YH.exitRule && rpSig.stateAt) ? rpSig.stateAt : null;
   }
   const nLong = marks.filter(m => m.text.startsWith('多')).length, nShort = marks.filter(m => m.text.startsWith('空')).length;
   const nGated = marks.filter(m => m.text.endsWith('✕')).length, nConf = marks.filter(m => m.text.endsWith('✓')).length;
