@@ -2,7 +2,7 @@ import os
 import json, subprocess, re, os, sys
 S=os.environ.get('SIM_DIR', os.path.dirname(os.path.abspath(__file__)))
 flags=dict(kv.split('=',1) for kv in sys.argv[1].split())
-DAYS={"2026-10-06":f"{S}/hist_2026-10-06.json","2026-10-07":f"{S}/hist_2026-10-07.json","2026-10-08":f"{S}/hist_2026-10-08.json","2026-10-12":f"{S}/hist_2026-10-12.json",'2026-10-13':f'{S}/pools/hi350_2026-10-13.json','2026-10-14':f'{S}/pools/hi350_2026-10-14.json','2026-10-15':f'{S}/pools/hi350_2026-10-15.json','2026-10-16':f'{S}/pools/hi350_2026-10-16.json','2026-10-19':f'{S}/pools/pool_morning.json'}
+DAYS={"2026-10-06":f"{S}/pools/hist_2026-10-06.json","2026-10-07":f"{S}/pools/hist_2026-10-07.json","2026-10-08":f"{S}/pools/hist_2026-10-08.json","2026-10-12":f"{S}/pools/hist_2026-10-12.json",'2026-10-13':f'{S}/pools/hi350_2026-10-13.json','2026-10-14':f'{S}/pools/hi350_2026-10-14.json','2026-10-15':f'{S}/pools/hi350_2026-10-15.json','2026-10-16':f'{S}/pools/hi350_2026-10-16.json','2026-10-19':f'{S}/pools/pool_morning.json'}
 tot=0; win=0; net=0; rows=[]
 for d,pool in DAYS.items():
     P=json.load(open(pool,encoding='utf-8')); dn=dw=dnet=0
