@@ -101,6 +101,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-20 22:40 白線「股票高低價連線」改成連波段高低點(使用者拿元大友達 10/20 圖標了 09:00 低、09:07 高、09:13 低、09:26 高、09:34 低、09:43 高、10:07 低:
+    「這些就是高價低價連線的點」):均價 10 往上那段取最高價、往下那段取最低價,相鄰高低差不到 0.8%(YH.swingPct)的小波動拿掉。
+    友達 10/20 算出 09:07 37.4 / 09:13 36.7 / 09:26 37.65 / 09:33 37.2 / 09:45 37.55 / 10:07 36.85,和元大標的一樣。
   · 2026-10-20 22:20 白線改成「股票高低價連線」(使用者:「股票高低價連線」→ 選「當天最高價連最低價」):每天各自把最高價那根和最低價那根連一條直線,
     不跨日相連;今天盤中 = 到目前為止的最高 / 最低。22:10 的 zigzag(zigzagOf)不再畫。橘線起漲起跌連線不變。
   · 2026-10-20 22:10 K 線圖最下一格改成「高低點連線 + 起漲起跌連線」(使用者:「把均線乖離率 改成 股票高低點連線 加上起漲點 起跌點 也連線」):
@@ -1596,7 +1599,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610202220">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610202240">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3483,7 +3486,9 @@ let ENTRY_LINES = [];
 const SHOW_VWAP_PANE = false   /* 乖離圖已停用(2026-10-16 使用者要求拿掉;不影響訊號與選股) */;          // 元大版面沒有 VWAP 乖離柱狀圖,預設不顯示
 /* ── 比照元大 App 的圖表版面(2026-10-15)。想回到舊的樣子改這裡 ── */
 const YH = {
-  zzPct: 0.5,           // 2026-10-20 22:10 高低點連線:回落 / 反彈幾 % 才算確立一個高 / 低點
+  zzPct: 0.5,           // 2026-10-20 22:10 高低點連線:回落 / 反彈幾 % 才算確立一個高 / 低點(22:40 起不用)
+  swingPct: 0.8,        // 2026-10-20 22:40 股票高低價連線:相鄰高低差不到這個 % 的小波動拿掉
+  swingMinBars: 2,      //   均價方向連幾根反過來才算換段
   defaultBars   : 45,     // 開圖只顯示最近幾根 K(元大約 40 根,K 棒才夠粗);往左滑可看更早的
   showVwapLine  : false,  // 圖上不畫橘色 VWAP 線(2026-10-16 使用者要求;VWAP 過濾照算,只是不畫)。原:畫橘色 VWAP 線(= 元大分時頁的黃色均價線;2026-10-15 23:30 因 VWAP 過濾打開)
   showRiskLines : false,  // 圖上畫 ATR 停損 / 停利線(元大沒有;數值仍在最下面小字)
@@ -4357,6 +4362,50 @@ function lineThrough(bars, pts){
   return out;
 }
 window.zigzagOf = zigzagOf;
+/* 股票高低價連線的點(2026-10-20 22:40 使用者拿元大友達 10/20 標了 09:00 低、09:07 高、09:13 低、09:26 高、09:34 低、09:43 高、10:07 低:「這些就是高價低價連線的點」):
+   1. 均價 10(跨日連續算)往上的那一段取最高價那根 = 高點,往下的那一段取最低價那根 = 低點(高低輪流);
+   1b. 均價方向要連 2 根(YH.swingMinBars)反過來才算換段,只翻 1 根就翻回來的不算;
+   2. 相鄰一高一低差不到 pct%(YH.swingPct 0.8)的是小波動,兩點一起拿掉,前後同類的點留比較極端的那個,一直做到沒有為止。
+   友達 10/20 Yahoo 1 分K 算出來:09:07 高 37.4、09:13 低 36.7、09:26 高 37.65、09:33 低 37.2、09:45 高 37.55、10:07 低 36.85,和元大標的一樣(差一兩分鐘是資料源不同)。
+   回傳 [{s:1 高 / -1 低, k:K 的索引, v:價}],最後一點是還在走的那一段(會變) */
+function swingPoints(bars, n, pct){
+  // 均價 n 這裡自己算:跨日連續、開頭不足 n 根用已有的平均(圖上的均價每天重算,開盤前 9 根沒有值,早盤 09:00~09:09 的高低點會漏掉)
+  // 均價方向要連 YH.swingMinBars(2)根都反過來才算換段(只翻 1 根就翻回來的不算,例:友達 10/20 09:18 / 09:19)
+  const legs = []; let pm = null, sg = 0, sum = 0, pend = 0, ps = -1;
+  const ext = (L, i) => { if (L.s > 0 ? bars[i].high > bars[L.k].high : bars[i].low < bars[L.k].low) L.k = i; };
+  for (let i = 0; i < bars.length; i++){
+    sum += bars[i].close; if (i >= n) sum -= bars[i - n].close;
+    const m = sum / Math.min(i + 1, n);
+    if (pm != null){
+      const sd = m > pm ? 1 : m < pm ? -1 : sg;
+      const L = legs[legs.length - 1];
+      if (sd !== 0 && !L){ legs.push({s: sd, k: i}); }
+      else if (L && sd === L.s){ pend = 0; ext(L, i); }
+      else if (L && sd !== 0){
+        if (pend !== sd){ pend = sd; ps = i; }
+        if (i - ps + 1 >= (YH.swingMinBars || 2)){ const N = {s: sd, k: ps}; for (let j = ps; j <= i; j++) ext(N, j); legs.push(N); pend = 0; }
+        else ext(L, i);
+      }
+      if (sd !== 0) sg = sd;
+    }
+    pm = m;
+  }
+  const P = legs.map(L => ({s: L.s, k: L.k, v: L.s > 0 ? bars[L.k].high : bars[L.k].low}));
+  for (;;){
+    let best = -1, bm = Infinity;
+    for (let q = 0; q < P.length - 2; q++){   // 最後一點(還在走)不拿掉
+      const mv = Math.abs(P[q].v - P[q + 1].v) / Math.min(P[q].v, P[q + 1].v) * 100;
+      if (mv < pct && mv < bm){ bm = mv; best = q; }
+    }
+    if (best < 0) break;
+    const A = P[best], B = P[best + 1];
+    if (best > 0 && (B.s > 0 ? B.v > P[best - 1].v : B.v < P[best - 1].v)) P[best - 1] = B;
+    if (A.s > 0 ? A.v > P[best + 2].v : A.v < P[best + 2].v) P[best + 2] = A;
+    P.splice(best, 2);
+  }
+  return P;
+}
+window.swingPoints = swingPoints;
 /* 股票高低價連線(2026-10-20 22:20 使用者:「股票高低價連線」→ 選「當天最高價連最低價」):每一天各自把最高價那根和最低價那根用直線連起來(先出現的在前),
    兩點以外、和別天之間都是空白(不跨日相連)。今天盤中 = 到目前為止的最高 / 最低 */
 function dayHiLoLine(bars){
@@ -4566,7 +4615,7 @@ function initChart(){
     leftPriceScale:{visible:true, borderColor:CHART_THEME.axis, scaleMargins:{top:.12, bottom:.08}},
     timeScale:{...CHART_OPTS.timeScale, visible:false}});
   // 2026-10-20 22:10 使用者:「把均線乖離率 改成 股票高低點連線 加上起漲點 起跌點 也連線」:
-  //   白線 = 股票高低價連線(22:20 改:每天最高價那根連最低價那根,dayHiLoLine;22:10 原本是 zigzag);
+  //   白線 = 股票高低價連線(22:40 改:波段高低點 swingPoints,見函式說明;22:20 是每天最高連最低、22:10 是 zigzag);
   //   橘線 = 起漲起跌連線(K 線圖上標的起漲點取那根最低價、起跌點取最高價,依序相連;點上有小圓點,起漲藍、起跌橘)。
   const pxFmt = {type:'price', precision:2, minMove:0.01};
   zzLine = chartB.addLineSeries({priceScaleId:'left', color:'#FFFFFF', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:false});
@@ -4876,7 +4925,7 @@ function drawBars(bars, code, srcLabel, keepView){
   obvMaLine.setData(obma);
   const obma30 = sma(ob, 30, 'value');
   obvMa30Line.setData(obma30);
-  const zz = dayHiLoLine(bars);                                      // 2026-10-20 22:20 股票高低價連線:每天最高價那根連最低價那根(22:10 是 zigzag)
+  const zz = lineThrough(bars, swingPoints(bars, BASE.maPeriod, YH.swingPct).map(p => ({time: bars[p.k].time, value: p.v})));   // 2026-10-20 22:40 股票高低價連線:波段高低點(22:20 是當天最高連最低、22:10 是 zigzag)
   const orgPts = originPoints(bars, ma, ob, obma);                    // 起漲 / 起跌點(和 K 線圖上標的同一套,整根 K)
   const org = lineThrough(bars, orgPts.map(p => ({time: p.time, value: p.price})));
   if (zzLine){ zzLine.setData(zz); orgLine.setData(org);
