@@ -32,7 +32,7 @@
 
    第四條路(2026-10-19 新增):通知紀錄存雲端(Cloudflare KV,綁定名 LOGS)
      使用者:「通知欄的訊息需要紀錄在雲端,這樣不管那隻手機都可以看到相同的過往通知」
-     POST ?log=add   body = JSON {d:'2026-10-19', key:'…', t:'09:27', title, body, kind, prev}
+     POST ?log=add   body = JSON {d:'2026-10-19', key:'…', t:'09:27', title, body, kind, prev[, pos]}  pos = 部位鍵,同一部位只留一則(2026-10-20)
                      → 存 KV 鍵 log:<d>:<t>:<key>(兩支手機發同一則 → 同一個鍵,不會重複);保留 90 天
      GET  ?log=get&d=2026-10-19 → 那天所有通知(JSON 陣列,新的在前)
      GET  ?log=days             → 有紀錄的日期(JSON 陣列,舊到新)
@@ -266,6 +266,12 @@ export default {
         const item = { t: it.t, title: String(it.title).slice(0, 200), body: String(it.body || "").slice(0, 500), kind: String(it.kind || "").slice(0, 10) };
         if (it.prev != null && isFinite(+it.prev)) item.prev = +it.prev;
         const key = `log:${it.d}:${it.t}:${String(it.key || item.title).replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 120)}`;
+        // 2026-10-20 部位鍵去重(使用者:同一筆平倉發三次 → 「改」):手機帶 pos = 判別式|代碼|進場時間,同一個部位的平倉雲端只留第一則(兩支手機、服務重啟都不重複)
+        if (it.pos) {
+          const mk = `exited:${it.d}:${String(it.pos).replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 80)}`;
+          if (await env.LOGS.get(mk)) return J({ ok: true, dup: true, key: mk });
+          await env.LOGS.put(mk, item.t, { expirationTtl: 3 * 86400 });
+        }
         const meta = JSON.stringify(item);
         // KV 的 list 只回 metadata(上限 1024 bytes),一則通知通常 300~500 bytes 就放 metadata,一次 list 全拿;太長的放 value
         const big = new TextEncoder().encode(meta).length > 1000;

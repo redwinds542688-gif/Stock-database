@@ -101,6 +101,10 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-20 15:00 通知改成「部位帳本」為準(使用者看當天結算:判二 5 筆、判一 1 筆有進場沒平倉;正文判一同一筆平倉發三次 → 「改」):
+    進場通知後 BG.pos 記住進場價 / 時間,之後停利 / 停損 / 13:25 用記住的進場價盯盤(bgManagePos),盤中 K 被改寫、重算訊號消失也照樣平倉;重算出來的 OBV 反轉 / 反向確認點平倉只對帳本上有的部位通知。
+    反方向進場訊號來了而部位還在 → 先用現價平掉(通知「反向」)再進。帳本存 localStorage(mysh.bgstate),服務重啟不忘;雲端紀錄帶部位鍵(判別式|代碼|進場時間),Worker 同一部位只留一則平倉(兩支手機不重複)。
+    判一二三四的訊號邏輯不動,只動通知。
   · 2026-10-20 14:50 OBV 紅線改黃線(#FFE14D)、乖離率那格的 132 根平均黃線改白線(使用者:「OBV 紅線改黃線 乖離黃線改白線」);文字列顏色跟著換。
   · 2026-10-20 14:40 均價 10 線改依昨收上色(使用者:「我說的是紫色 K 線 K 大於昨日收盤改紅線 反之改綠線 平盤白線」「線用最細的」):均價線逐根上色,那根收盤在昨收之上紅、之下綠、平盤白;線寬 2 → 1。14:30 加的昨收橫線拿掉(誤會)。
   · 2026-10-20 14:20 按鍵列六顆同一列(使用者:「同一列加上判四 縮減間隔 須在同一列上」):格子 5 → 6 欄,字 22 → 20px、最小寬 60 → 50px、左右內距縮小,判四不再掉到第二列。
@@ -1542,7 +1546,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610201450">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610201500">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5140,7 +5144,7 @@ async function scan(){
    沒有 Android 物件(在電腦瀏覽器測試)時寫進 BG.log。 */
 const BG = { last: new Map(), hist: new Map(), histDay: '', todayAt: new Map(), busy: false, startedAt: 0, log: [], ticks: 0, pos: new Map(), holiday: '', recent: new Map() };   // recent:判別式|代碼|訊號種類 → 上次通知時間(10 分鐘內不重複)
 function bgLog(s){ const line = new Date().toLocaleTimeString('zh-TW', {hour12:false}) + ' ' + s; BG.log.push(line); if (BG.log.length > 300) BG.log.shift(); try{ if (window.Android && Android.log) Android.log(line); }catch(e){} }
-function bgNotify(title, body, kind){ body = (body || '') + ' · ' + RULESET.btn; bgLog('[通知] ' + title + ' | ' + body); try{ if (window.Android && Android.notify && kind !== 'warn') Android.notify(title, body, kind || ''); }catch(e){} cloudLogAdd(title, body, kind || ''); }   // 2026-10-20 鐵律 17:注意 / 反彈不推到手機,只記雲端(進場卡的警示欄用)
+function bgNotify(title, body, kind, pos){ body = (body || '') + ' · ' + RULESET.btn; bgLog('[通知] ' + title + ' | ' + body); try{ if (window.Android && Android.notify && kind !== 'warn') Android.notify(title, body, kind || ''); }catch(e){} cloudLogAdd(title, body, kind || '', pos); }   // pos = 部位鍵(判別式|代碼|進場時間):平倉用,雲端同一個部位只留一則(2026-10-20)   // 2026-10-20 鐵律 17:注意 / 反彈不推到手機,只記雲端(進場卡的警示欄用)
 /* 2026-10-19 使用者:「通知欄的訊息需要紀錄在雲端,這樣不管那隻手機都可以看到相同的過往通知」
    每發一則通知就 POST 到 Worker(?log=add → Cloudflare KV,保留 90 天);送不出去的排隊,下一輪 bgTick 再送。
    鍵 = 日期|時間|代碼|標題去掉數字|判別式:兩支手機同一分鐘發的同一則 → 同一個鍵,雲端只留一份 */
@@ -5148,12 +5152,12 @@ const CLOUD_LOG = { q: [], days: null, daysAt: 0, items: {}, at: {}, busy: false
 const cloudLogUrl = () => liveOn() ? BASE.liveUrl.replace(/\/$/, '') + '/?log=' : '';
 const cloudLogKey = x => { const m = (x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?\S+ (\d{4,6}[A-Z]*)/); const rs = ((x.body || '').match(/· (判[一二三])\s*$/) || [])[1] || '';
   return (x.t || '') + '|' + (m ? m[1] : '') + '|' + (x.title || '').replace(/[\d.,+\-−%↑↓\s⚠✅]/g, '') + '|' + rs; };
-function cloudLogAdd(title, body, kind){
+function cloudLogAdd(title, body, kind, pos){
   if (!cloudLogUrl()) return;
   const n = new Date(Date.now() + 8 * 3600000);
   const d = n.toISOString().slice(0, 10), t = n.toISOString().slice(11, 16);
   const m = title.match(/^(?:⚠⚠ |⚠ |✅ )?\S+ (\d{4,6}[A-Z]*)/); const prev = m ? ((LIVE.get(m[1]) || {}).y || null) : null;
-  const it = {d, t, title, body, kind, prev};
+  const it = {d, t, title, body, kind, prev}; if (pos) it.pos = pos;
   it.key = cloudLogKey(it).replace(/^[^|]*\|/, '');   // 時間 Worker 自己放在鍵前面
   CLOUD_LOG.q.push(it); if (CLOUD_LOG.q.length > 200) CLOUD_LOG.q.shift();
   cloudLogFlush();
@@ -5172,6 +5176,42 @@ async function cloudLogFlush(){
   finally{ CLOUD_LOG.busy = false; }
 }
 window.CLOUD_LOG = CLOUD_LOG;   // 2026-10-18 使用者:通知內容最後加「· 判一 / 判二 / 判三」,通知欄代碼後面顯示是哪一份判別式發的
+/* 2026-10-20 使用者「改」(當天結算發現判二 5 筆、判一 1 筆有進場沒平倉;正文判一同一筆平倉發三次):
+   (1) 部位帳本:進場通知發出後,BG.pos 記住進場價 / 時間,之後這個部位的停利 / 停損 / 13:25 一律用記住的進場價盯盤(bgManagePos),
+       不管盤中 K 被改寫後重算的訊號還在不在;重算出來的平倉點(OBV 反轉、反向確認點)仍照舊,但只對帳本上有的部位通知。
+   (2) 帳本存 localStorage(mysh.bgstate),背景服務重啟不會忘記部位、也不會把已平倉的部位再平一次;雲端紀錄用部位鍵去重,兩支手機同一個部位只留一則平倉。
+   (3) 反方向的進場訊號來了而部位還在 → 先用現價平掉(反向),再進新的。 */
+const BG_STATE_KEY = 'mysh.bgstate';
+function bgSave(){ try{ localStorage.setItem(BG_STATE_KEY, JSON.stringify({day: BG.histDay, pos: [...BG.pos], exited: [...(BG.exited || new Map())]})); }catch(e){} }
+function bgRestore(day){ try{ const j = JSON.parse(localStorage.getItem(BG_STATE_KEY) || 'null'); if (!j || j.day !== day) return; BG.pos = new Map(j.pos || []); BG.exited = new Map(j.exited || []); bgLog('帳本還原 ' + BG.pos.size + ' 個部位'); }catch(e){} }
+function bgExit(pk, pos, text, nowPx, t, nm, code){
+  // 平倉通知(帳本為準):text = 停利 / 停損 / OBV / 出 / 反向 / 超6%
+  const xk = pk + '|' + pos.time;
+  if (!BG.exited) BG.exited = new Map();
+  if (BG.exited.has(xk)){ bgLog(code + ' 這個部位已通知過平倉,不重複 ' + xk); BG.pos.delete(pk); bgSave(); return; }
+  BG.exited.set(xk, BG.histDay); BG.pos.delete(pk); bgSave();
+  const pl = (nowPx - pos.entry) / pos.entry * 100 * pos.dir;
+  const plTxt = ` ${pl >= 0 ? '+' : ''}${pl.toFixed(1)}%`;
+  const from = `${pos.side} ${pos.time} 進 ${pos.entry.toFixed(2)} → `;
+  const lose = text === '停損' || text === '超6%' || pl < 0;
+  if (lose) bgNotify(`⚠⚠ ${nm} ${code} ${text}${plTxt} 立即平倉`, `${t} ${from}現價 ${nowPx}`, 'loss', xk);
+  else if (text === '停利') bgNotify(`✅ ${nm} ${code} 停利${plTxt}`, `${t} ${from}現價 ${nowPx}`, 'profit', xk);
+  else if (text === 'OBV') bgNotify(`✅ ${nm} ${code} OBV 反轉提早停利${plTxt} 立即平倉`, `${t} ${from}現價 ${nowPx}`, 'profit', xk);
+  else bgNotify(`${nm} ${code} 出場${plTxt}:${text}`, `${t} ${from}現價 ${nowPx}`, 'exit', xk);
+}
+function bgManagePos(pk, pos, nowPx, nm, code){
+  // 盯盤:用記住的進場價看停利 / 停損 / 13:25(台灣時間)
+  if (!pos || !(nowPx > 0)) return false;
+  const hm = new Date(Date.now() + 8 * 3600000).toISOString().slice(11, 16);
+  const pl = (nowPx - pos.entry) / pos.entry * 100 * pos.dir;
+  let why = null;
+  if (hm >= '13:25') why = '出';
+  else if (pl >= SIG.takePct) why = '停利';
+  else if (pl <= -SIG.stopPct) why = '停損';
+  if (!why) return false;
+  bgExit(pk, pos, why, nowPx, hm, nm, code); return true;
+}
+window.bgManagePos = bgManagePos; window.bgExit = bgExit;
 async function bgTick(force, replay){
   try{ await poolWatch(); }catch(e){}   // 2026-10-19 雲端名單換了(資格複檢 / 收盤後新名單)背景也跟著換
   try{ const v = readRuleset(); if (v && RULESETS[v] && v !== ACTIVE_RS) ACTIVE_RS = v; }catch(e){}   // 2026-10-18 前景切換判別式 → 背景跟上;2026-10-19 改成只換變數不重載(判一、判二本來就同時跑,重載會洗掉持倉記錄)
@@ -5192,7 +5232,7 @@ async function bgTick(force, replay){
       const ds = codes.map(c => (LIVE.get(c) || {}).d).filter(Boolean);
       if (ds.length && !ds.some(d => d === ymd)){ BG.holiday = ymd; return 'holiday ' + ds[0]; } }
     const day = new Date().toDateString();
-    if (BG.histDay !== day){ BG.hist.clear(); BG.todayAt.clear(); BG.last.clear(); BG.recent.clear(); if (BG.exited) BG.exited.clear(); BG.histDay = day; }
+    if (BG.histDay !== day){ BG.hist.clear(); BG.todayAt.clear(); BG.last.clear(); BG.recent.clear(); if (BG.exited) BG.exited.clear(); BG.pos.clear(); BG.histDay = day; bgRestore(day); }   // 2026-10-20 帳本從 localStorage 還原(同一天才還原)
     const names = new Map((SRC || []).map(s => [s.code, s.name || s.code]));
     let n = 0;
     for (const code of codes){
@@ -5244,9 +5284,12 @@ async function bgTick(force, replay){
             const st = rp.state;
             const px = (st && st.time === t && st.entry) ? st.entry : nowPx;
             const tp = (px * (1 + SIG.takePct / 100 * dir)).toFixed(2), sl = (px * (1 - SIG.stopPct / 100 * dir)).toFixed(2);
-            if (BG.pos.has(pk)){ bgLog(code + ' 部位還在,不重複進場通知 ' + k); continue; }   // 2026-10-20 鐵律 17:一個部位只通知一次進場(判二 10:52 強訊號後 11:17 又發了一次做多進場)
-            if (BG.exited) BG.exited.delete(pk);   // 新的進場 → 之後的平倉可以再通知一次(2026-10-19)
-            BG.pos.set(pk, {side, dir, entry: +px, time: t});
+            if (BG.pos.has(pk)){
+              const p0 = BG.pos.get(pk);
+              if (p0.side === side){ bgLog(code + ' 部位還在,不重複進場通知 ' + k); continue; }   // 2026-10-20 鐵律 17:一個部位只通知一次進場
+              bgExit(pk, p0, '反向', nowPx, t, nm, code);   // 2026-10-20 反方向的進場來了 → 先把舊部位用現價平掉(通知),再進新的
+            }
+            BG.pos.set(pk, {side, dir, entry: +px, time: t}); bgSave();
             bgNotify(`${nm} ${code} ${side}${m.text.includes('強') ? '強訊號' : ''}進場 ${(+px).toFixed(2)}`, `${t} ${m.text} · 停利 ${tp} 停損 ${sl}`, side === '做多' ? 'long' : 'short');
           }else if (m.text === '彈'){
             // 2026-10-18 反彈警示:紅線反向穿過 OBV 均 30、帳面不到 1% 所以沒平倉 → 通知「股價已反彈」,部位不動
@@ -5265,20 +5308,14 @@ async function bgTick(force, replay){
             // 2026-10-19 使用者:「為什麼同一支股票會有這麼多的平倉訊息」:台玻 判一 12:36 / 12:38 / 12:41 發了三次「出場:出」(67.5 / 67.4 / 67.3)。
             // 原因:雲端 1 分 K 一直在重寫最近幾根(即時自組的 K 被雲端快照取代、收盤價變了),平倉那根的時間 / 價錢跟著變,key(time|text)就變成新事件;
             // 10 分鐘 dedupe 只擋同一個文字,「出」換個時間又算一次。改成:一個部位只通知一次平倉(BG.exited 記住),要再通知得先有新的進場。
-            if (BG.exited && BG.exited.get(pk) === day){ bgLog(code + ' 這個部位已通知過平倉,不重複 ' + k); continue; }
-            if (!BG.exited) BG.exited = new Map(); BG.exited.set(pk, day);
-            const pos = BG.pos.get(pk); BG.pos.delete(pk);
-            const pl = pos ? (nowPx - pos.entry) / pos.entry * 100 * pos.dir : null;
-            const plTxt = pl === null ? '' : ` ${pl >= 0 ? '+' : ''}${pl.toFixed(1)}%`;
-            const act = '立即平倉';   // 2026-10-17 使用者:做多做空都叫「平倉」,不分回補 / 賣出
-            const lose = m.text === '停損' || m.text === '超6%' || (pl !== null && pl < 0);
-            const from = pos ? `${pos.side} ${pos.time} 進 ${pos.entry.toFixed(2)} → ` : '';
-            if (lose) bgNotify(`⚠⚠ ${nm} ${code} ${m.text}${plTxt} ${act}`, `${t} ${from}現價 ${nowPx}`, 'loss');
-            else if (m.text === '停利') bgNotify(`✅ ${nm} ${code} 停利${plTxt}`, `${t} ${from}現價 ${nowPx}`, 'profit');
-            else if (m.text === 'OBV') bgNotify(`✅ ${nm} ${code} OBV 反轉提早停利${plTxt} ${act}`, `${t} ${from}現價 ${nowPx}`, 'profit');
-            else bgNotify(`${nm} ${code} 出場${plTxt}:${m.text}`, `${t} ${from}現價 ${nowPx}`, 'exit');
+            // 2026-10-20 改成帳本為準:沒有這個部位的進場紀錄就不通知平倉(以前沒部位也發,服務重啟後同一筆平倉會發好幾次);有部位就走 bgExit(每個部位只平一次)
+            const pos = BG.pos.get(pk);
+            if (!pos){ bgLog(code + ' 帳本沒有這個部位,不通知平倉 ' + k); continue; }
+            bgExit(pk, pos, m.text, nowPx, t, nm, code);
           }
         }
+        // 2026-10-20 盯盤:帳本上還有部位 → 用記住的進場價看停利 / 停損 / 13:25,不管重算後訊號還在不在
+        if (!replay){ const pos = BG.pos.get(pk); if (pos) bgManagePos(pk, pos, liveRec.z || bars[bars.length - 1].close, names.get(code) || code, code); }
         }   // for rs
         n++;
       }catch(e){ bgLog(code + ' ' + e.message); }
