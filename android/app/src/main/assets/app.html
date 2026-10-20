@@ -101,6 +101,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-21 01:25 K 線圖最高 / 最低價數字亂跑修正(使用者錄影):拖圖時數字停在原地不跟 K,放手後用還沒縮放完的刻度算位置 → 手指按著時先藏起來,放手等兩格畫面再算位置顯示。
   · 2026-10-21 01:15 Oa(OBV 黃線)改虛線(使用者:「Oa 用虛線」)。
   · 2026-10-21 01:10 指標二標出 Ob 穿越 Oc(使用者:「Ob 穿越 Oc 標示」):Ob 和 Oc 每次交叉,在 Ob 線上標小點,往上穿紅、往下穿綠(maCrossPoints)。
   · 2026-10-21 01:05 指標二文字改名(使用者:「OBV 改 Oa Ob Oc」):Oa = OBV(黃)、Ob = OBV 均線 10(藍)、Oc = OBV 均線 30(紫),計算和線都不變。
@@ -1624,7 +1625,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610210115">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610210125">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4722,7 +4723,10 @@ function initChart(){
     }catch(e){}
   };
   window.alignScales = alignScales;
-  const scheduleHiLo = () => { if (touching || hiloReq) return; hiloReq = requestAnimationFrame(() => { hiloReq = 0; alignScales(); updateHiLo(); }); };
+  // 2026-10-21 使用者錄影「這數字亂跑」:手指拖圖時最高 / 最低價數字停在原地不跟 K 走,放手後又用「還沒自動縮放完」的刻度算位置,數字離 K 棒很遠。
+  //   改:手指按著圖時先把兩個數字藏起來;放手 / 慣性停下後等兩格畫面(刻度自動縮放套用完)再算位置顯示。
+  const hideHiLo = () => { const a = el('hiLbl'), b = el('loLbl'); if (a) a.classList.add('hidden'); if (b) b.classList.add('hidden'); };
+  const scheduleHiLo = () => { if (touching){ hideHiLo(); return; } if (hiloReq) return; hiloReq = requestAnimationFrame(() => requestAnimationFrame(() => { hiloReq = 0; alignScales(); updateHiLo(); })); };
   for (const a of charts) a.timeScale().subscribeVisibleLogicalRangeChange(r => {
     if (syncing || !r) return;
     // 最後一根 K 之後只留 3 格空白,不能再往右拖出一大片空白;最少也要看得到 12 根(避免縮到只剩一根)
@@ -4746,7 +4750,7 @@ function initChart(){
     for (const [e, c] of [[top, chart], [mid, chartM], [bot, chartB]]){ if (!c || !e || !e.clientHeight) continue; c.applyOptions({width: e.clientWidth, height: e.clientHeight + dh}); }
   };
   window.setChartDpr = setChartDpr;
-  const tStart = () => { touching = true; clearTimeout(touchGuard); touchGuard = setTimeout(tEnd, 1500); gestureStart(); setChartDpr(1); };
+  const tStart = () => { touching = true; hideHiLo(); clearTimeout(touchGuard); touchGuard = setTimeout(tEnd, 1500); gestureStart(); setChartDpr(1); };
   // 放手後慣性捲動約 1.5 秒:每格檢查兩張圖的範圍是否一樣,不一樣就以剛才拖的那張為準(慣性動畫只在被拖的那張跑)
   let settle = 0, settleSrc = null;
   const sameRange = (a, b) => a && b && Math.abs(a.from - b.from) < 1e-6 && Math.abs(a.to - b.to) < 1e-6;
@@ -4901,7 +4905,7 @@ function initChart(){
     chart.applyOptions({width: top.clientWidth, height: top.clientHeight});
     chartM.applyOptions({width: mid.clientWidth, height: mid.clientHeight});
     if (chartB) chartB.applyOptions({width: bot.clientWidth, height: bot.clientHeight});
-    updateHiLo();
+    requestAnimationFrame(() => requestAnimationFrame(updateHiLo));   // 2026-10-21 等刻度自動縮放套用完再算數字位置
   }).observe(document.getElementById('chart'));
 }
 
@@ -5113,7 +5117,7 @@ function drawBars(bars, code, srcLabel, keepView){
     CUR = {byTime, last: byTime.get(last.time), prevClose};
     showBarInfo(null);
   }
-  updateHiLo();
+  requestAnimationFrame(() => requestAnimationFrame(updateHiLo));   // 2026-10-21 等刻度自動縮放套用完再算數字位置
   if (window.syncX) syncX();                           // 十字線永遠存在:開圖放在最新一根,即時更新時跟著最新或留在使用者停的那根
   if (code) el('shCode').textContent = code;
   const src = (SRC || []).find(s => s.code === BARS_CODE);
