@@ -121,6 +121,7 @@ def _is_chop(i):
     """2026-10-20 使用者:「起漲起跌距離太近,感覺就是橫盤,也就是震盪盤」:過去 CHOPW 根內 ≥ CHOPN 個輪流的起漲 / 起跌點,價格都在 CHOPR% 內 = 震盪"""
     W = int(os.environ.get('CHOPW','60')); N = int(os.environ.get('CHOPN','3')); RG = float(os.environ.get('CHOPR','1.5'))
     rec = [p for p in _alt_points(i) if i - W <= p[0] <= i]
+    if os.environ.get('CHOPMODE','n') == 'pair': rec = rec[-2:]; N = 2   # 2026-10-20 測試:使用者「起漲跟起跌距離很近才是震盪」:只看最近一組相鄰的起漲 + 起跌
     if len(rec) < N: return False
     px = [p[2] for p in rec]
     if (max(px) - min(px)) / min(px) * 100 > RG: return False
