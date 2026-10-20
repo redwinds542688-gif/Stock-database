@@ -101,6 +101,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-21 05:50 當天漲 ≥ 2.5% 不亮做空(使用者「改」;榮科、建榮、中釉大漲中的做空 7 錯 3 對)。今天 14 檔做多 / 做空燈 34 對 31 錯 → 31 對 27 錯;
+    有變的只有榮科、建榮、中釉(錯的消掉)、聯嘉投控(09:24 對的消掉、09:31 / 09:39 多 2 次錯)、光鼎(09:51 晚 1 根),其他 9 檔不變。
   · 2026-10-21 05:30 「貼當日高低 0.3% 不追」09:45 前不套用:第一個燈號改要連 3 根後,今國光 10/20 開盤直衝漲停整段被擋成監控(今天高低點才剛形成,貼著高點是正常的)。
   · 2026-10-21 05:20 開盤第一個燈號也要連 3 根(使用者「改」;中揚光 10/20 09:14 等待一結束就亮做空,接著拉到 64.3):等待結束先從監控開始。
   · 2026-10-21 05:00 燈號加「價格沒在動只顯示監控」(使用者「改」;台塑化 10/20 下午 107~107.5 燈號亂跳):今天最近 30 根高低差 ≤ 2 檔(升降單位)→ 監控。
@@ -1654,7 +1656,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610210530">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610210550">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3546,6 +3548,7 @@ const SHOW_VWAP_PANE = false   /* 乖離圖已停用(2026-10-16 使用者要求�
 const YH = {
   zzPct: 0.5,           // 2026-10-20 22:10 高低點連線:回落 / 反彈幾 % 才算確立一個高 / 低點(22:40 起不用)
   lampFlatBars: 30, lampFlatTicks: 2,   // 2026-10-21 05:00 最近 30 根高低差 ≤ 2 檔 = 價格沒在動,燈號只顯示監控
+  lampNoShortUpPct: 2.5,   // 2026-10-21 05:50 當天漲 ≥ 2.5% 不亮做空(漸空不擋)
   lampExtPct: 0.3, lampExtFrom: '09:45',   // 2026-10-21 05:30 貼高低不追從 09:45 才開始套用     // 2026-10-21 04:20 使用者「改 0.3%」:價貼今天最高(做多)/ 最低(做空)0.3% 以內不亮順勢燈(不追在轉折點)
   lampChopWin: 45, lampChopN: 3, lampChopRange: 1.5, lampBrkPct: 0.5, lampBrkBars: 2,   // 2026-10-21 04:00 突破要超出震盪區間 0.5% 且連 2 根(富喬 / 友達試 0.3 / 0.5 × 1 / 2 根,0.5% 連 2 根最好)   // 2026-10-21 燈號的震盪判斷(同判二)
   lampHold: 3,          // 2026-10-21 燈號新狀態要連幾根才換;03:10 使用者「改 3 根」(原 2)
@@ -4425,7 +4428,7 @@ function ind3Raw(st, time, waiting){
    今天每一根依序算,回傳 Map(time → 平滑後的狀態)。等待 / 13:25 後直接照用。友達 10/20 換燈 57 次 → 33 次 */
 // 2026-10-21 03:30 使用者「改」(富喬早盤 156~159 震盪,燈號做多做空亂換):震盪盤只顯示監控。isChop(i) = 第 i 根是不是震盪盤(和判二同一套:
 //   45 根內 ≥ 3 個輪流的起漲 / 起跌點,價格都在 1.5% 內;YH.lampChopWin / lampChopN / lampChopRange)
-function ind3Lamps(bars, I3, isChop){
+function ind3Lamps(bars, I3, isChop, prevClose){
   const out = new Map(), N = YH.lampHold || 2; let day = null, n = 0, cur = null, cand = null, cnt = 0, dHi = 0, dLo = 0;
   for (let i = 0; i < bars.length; i++){
     const b = bars[i];
@@ -4440,6 +4443,8 @@ function ind3Lamps(bars, I3, isChop){
     // 2026-10-21 05:30 開盤到 YH.lampExtFrom(09:45)不套用(今天的高低點才剛形成;第一個燈號改要連 3 根後,今國光開盤直衝漲停整段被當「貼當日高點」擋成監控)
     if (ex > 0 && hmKey(b.time) >= (YH.lampExtFrom || '09:45') && dirOf(raw) !== 0 && dirOf(raw) !== lit && ((dirOf(raw) > 0 && b.close >= dHi * (1 - ex / 100)) || (dirOf(raw) < 0 && b.close <= dLo * (1 + ex / 100)))) raw = '監控';
     if (raw !== '等待' && raw !== '監控' && isChop && isChop(i)) raw = '監控';
+    // 2026-10-21 05:50 使用者「改」(榮科 / 建榮 / 中釉 當天大漲還亮做空,7 錯 3 對):當天漲幅 ≥ YH.lampNoShortUpPct(2.5)% 不亮做空(同判一「漲超過 3% 不做空」的想法);漸空不擋(擋漸空會讓富喬等其他股票的燈號跟著變,YH.lampNoShortPre=true 才擋)
+    if ((raw === '做空' || (YH.lampNoShortPre && raw === '漸空')) && prevClose > 0 && (b.close - prevClose) / prevClose * 100 >= (YH.lampNoShortUpPct || 99)) raw = '監控';
     // 2026-10-21 05:00 使用者「改」(台塑化 10/20 下午卡在 107~108,燈號做多做空來回換十幾次):今天最近 YH.lampFlatBars(30)根高低差 ≤ YH.lampFlatTicks(2)檔
     //   = 價格沒在動,只顯示監控。用「檔」不用 %:台塑化 107~108 是 2 檔(0.9%),友達 36.75~36.9 慢慢跌是 3 檔(0.4%),用 % 分不開
     if (raw !== '等待' && raw !== '監控' && (YH.lampFlatTicks || 0) > 0){
@@ -5293,7 +5298,7 @@ function drawBars(bars, code, srcLabel, keepView){
     const out = k => k >= 0 && (bars[k].close < mn * (1 - f) || bars[k].close > mx * (1 + f));
     for (let k = bi; k > bi - nb; k--) if (!out(k)) return true;
     return false; };   // 2026-10-21 03:45 使用者「改」:收盤已經跌破 / 漲破震盪區間(那些起漲起跌點的最低 / 最高價)= 突破,不算震盪
-  const LAMPS = ind3Lamps(bars, I3, lampIsChop);   // 2026-10-21 連 YH.lampHold 根才換燈
+  const LAMPS = ind3Lamps(bars, I3, lampIsChop, prevClose);   // 2026-10-21 連 YH.lampHold 根才換燈
   lampsFromInd3(LAMPS.get(last.time));   // 2026-10-21 燈號改看指標三。原:lampsFromBias(bias, last.time, 離均價 %, strongLast, waiting)
     // 燈號跟隨多空天秤(2026-10-18);13:25 後只顯示監控;離均價超過 1% 不亮
   if (cyc && !cyc.gated){
