@@ -113,6 +113,17 @@ for i in range(1, len(c)):
         _oUp = ob[i] > ob[i-1] and obma[i] > obma[i-1] and ob[i] > obma[i]; _oDn = ob[i] < ob[i-1] and obma[i] < obma[i-1] and ob[i] < obma[i]
         print(f'  [{tm}] 開{o[i]:.2f} 高{h[i]:.2f} 低{l[i]:.2f} 收{c[i]:.2f} 均{ma[i]:.2f}({"升" if ma[i]>ma[i-1] else "降"}) OBV {ob[i]:.0f}/{obma[i]:.0f}({"升" if obma[i]>obma[i-1] else "降"}) 量{cv[i]:.0f} | K多{"✓" if _kUp else "✗"} K空{"✓" if _kDn else "✗"} OBV多{"✓" if _oUp else "✗"} OBV空{"✓" if _oDn else "✗"} 低碰均{"✓" if l[i] <= ma[i]+1e-4 else "✗"} 高碰均{"✓" if h[i] >= ma[i]-1e-4 else "✗"} 在高低間{"✓" if lo[i] < c[i] < hi[i] else "✗"}')
     if i+1 < int(os.environ.get('SKIPMIN','15')) or np.isnan(ma[i-1]) or np.isnan(obma[i-1]) or i+1 >= len(c): continue
+    if 'delayOrd' not in globals(): globals()['delayOrd'] = None
+    if delayOrd is not None and cyc is None and i >= delayOrd['at']:   # 2026-10-20 測試(使用者:友達 09:30 多單通知 09:33 才到、K 已在線下 → 「先跑看看利弊勝負」):訊號後 ENTRYDELAY 根才進,進場前再確認
+        sd = delayOrd['side']; ok = True; why = ''
+        if os.environ.get('RECHECK','0') == '1' and not ((c[i-1] - ma[i-1]) * sd > 0): ok = False; why = f'現價 {c[i-1]:.2f} 已在均價 {ma[i-1]:.2f} 另一側'
+        RM = float(os.environ.get('RECHECKMAX','99'))
+        if ok and abs(c[i-1] - delayOrd['sig']) / delayOrd['sig'] * 100 > RM: ok = False; why = f'離訊號價 {abs(c[i-1]-delayOrd["sig"])/delayOrd["sig"]*100:.2f}% 超過 {RM}%'
+        if ok:
+            ent = o[i]; lots = int(CAP // (ent*1000)); cyc = (sd, tm, ent, lots); last[-sd] = None; pending[sd] = False
+            log.append(f'{tm} 延遲進場 {ent:.2f} ×{lots}張(訊號 {delayOrd["tm"]})')
+        else: log.append(f'{tm} 延遲進場取消:{why}(訊號 {delayOrd["tm"]})')
+        globals()['delayOrd'] = None
     if limitOrd is not None and cyc is None:
         if i > limitOrd['exp']: log.append(f'{tm} 掛單 {limitOrd["px"]:.2f} 逾時取消'); limitOrd = None
         elif (limitOrd['side']==1 and l[i] <= limitOrd['px']) or (limitOrd['side']==-1 and h[i] >= limitOrd['px']):
@@ -429,6 +440,7 @@ for i in range(1, len(c)):
     if can and os.environ.get('NOWEAK','0')=='1' and first[1] is not None and first[-1] is not None and ((side==1 and first[-1] > first[1]) or (side==-1 and first[1] > first[-1])): can = False; far = True; tag += ' [逆勢單(反方向第1點價位較有利),不進]'   # 2026-10-19 測試:逆勢單乾脆不進
     if can and os.environ.get('REVWEAK','0')=='1' and first[1] is not None and first[-1] is not None and ((side==1 and first[-1] > first[1]) or (side==-1 and first[1] > first[-1])): side = -side; tag += f' [逆勢單 → 反向改做{"多" if side==1 else "空"}]'   # 2026-10-19 使用者:「逆勢單反向做呢」
     if limitOrd is not None and cyc is None and conf and side != limitOrd['side']: log.append(f'{tm} 反向確認點,取消掛單 {limitOrd["px"]:.2f}'); limitOrd = None
+    if globals().get('delayOrd') is not None and cyc is None and conf and side != delayOrd['side']: log.append(f'{tm} 反向確認點,取消等待中的延遲進場'); globals()['delayOrd'] = None
     if cyc and side == cyc[0]: log.append(tag + ' (同向,略)'); continue
     if cyc and side != cyc[0]:
         weak = first[1] is not None and first[-1] is not None and ((cyc[0]==1 and first[-1] > first[1]) or (MIRROR and cyc[0]==-1 and first[1] > first[-1]))
@@ -452,6 +464,10 @@ for i in range(1, len(c)):
             px = round(ma[i], 2) if chaseWait else ((l[i] if side==1 else h[i]) if LIMITFAR=='low' else round(ma[i], 2))
             limitOrd = {'side': side, 'px': px, 'exp': i + LIMITN, 'tm': tm}; last[-side] = None; pending[side] = False
             log.append(tag + f' [離均價 {abs(c[i]-ma[i])/ma[i]*100:.2f}%] → 掛單 {px:.2f} 等回檔({LIMITN} 分鐘內)'); continue
+        ED = int(os.environ.get('ENTRYDELAY','0'))
+        if ED > 0:
+            globals()['delayOrd'] = {'side': side, 'at': i + ED, 'sig': c[i], 'tm': tm}; last[-side] = None; pending[side] = False; falseFirst[1] = falseFirst[-1] = None
+            log.append(tag + f' → {ED} 分鐘後進場(模擬通知延遲)'); continue
         ent = o[i+1]; lots = int(CAP // (ent*1000)); cyc = (side, tm, ent, lots); last[-side] = None; pending[side] = False; falseFirst[1] = falseFirst[-1] = None; log.append(tag + f' → 進場 {ent:.2f} ×{lots}張')
         if MODE == 'cross': cand[side] = None
         if MODE == 'gapdir': gcand[side] = None
