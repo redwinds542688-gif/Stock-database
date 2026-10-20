@@ -101,6 +101,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-21 02:00 燈號再加指標二方向(使用者看友達 13:17 亮做多:「好像不合理 再參考指標二 因為指標二的線都向下傾斜」):Ob、Oc 和 5 根前比都往上 = 偏多、都往下 = 偏空。
+    做多 = Ka 在 Kb 上 + 橘線雙升 + 指標二往上;做空 = 三件都偏空;只有偏多(沒有偏空)= 漸多,只有偏空 = 漸空;有多有空 = 監控。天秤 = 三件平均。
+    友達 10/20 13:17:Ka 上、橘雙升,但 Ob / Oc 都往下 → 監控(原本做多)。
   · 2026-10-21 01:50 燈號 / 多空天秤改看指標三(使用者:「再用指標三 作為上面燈號的依據」):做多 = Ka 在 Kb 上 + 橘線雙升(Oa 穿越 Ob 的低點、高點都墊高);
     做空 = Ka 在 Kb 下 + 橘線雙降;只一邊偏多(另一邊沒偏空)= 漸多,漸空同理;其他 = 監控。天秤 = 0.5×Ka/Kb + 0.25×低點方向 + 0.25×高點方向。
     十字線那根照樣聯動;不到 15 根 K 等待、13:25 後監控照舊;不再看強訊號和離均價 1%。只換燈號與天秤,進出場訊號、通知、帳本不變。
@@ -1629,7 +1632,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610210150">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610210200">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3520,6 +3523,7 @@ const SHOW_VWAP_PANE = false   /* 乖離圖已停用(2026-10-16 使用者要求�
 /* ── 比照元大 App 的圖表版面(2026-10-15)。想回到舊的樣子改這裡 ── */
 const YH = {
   zzPct: 0.5,           // 2026-10-20 22:10 高低點連線:回落 / 反彈幾 % 才算確立一個高 / 低點(22:40 起不用)
+  ind3SlopeBars: 5,     // 2026-10-21 燈號的指標二方向:Ob / Oc 和幾根前比
   swingPct: 0.8,        // 2026-10-20 22:40 股票高低價連線:相鄰高低差不到這個 % 的小波動拿掉
   swingMinBars: 2,      //   均價方向連幾根反過來才算換段
   defaultBars   : 45,     // 開圖只顯示最近幾根 K(元大約 40 根,K 棒才夠粗);往左滑可看更早的
@@ -4356,26 +4360,33 @@ function lampsFromBias(b, time, devPct, strongDir, waiting){
    做多 = Ka 在 Kb 上 + 橘線雙升(低點、高點都墊高);做空 = Ka 在 Kb 下 + 橘線雙降;只有一邊偏多、另一邊沒偏空 = 漸多(漸空同理);其他 = 監控。
    九天研究(studies/ind3_lines.py):Ka 上 + 橘雙升 做多 60 根內先漲 1% 55%;Ka 下 + 橘雙降 做空 52%(基準 50%)。今天不到 15 根 K = 等待,13:25 後 = 監控。
    多空天秤 = 0.5×k + 0.25×lo + 0.25×hi(−1~+1,做多 / 做空燈時滿格)。只換燈號和天秤,進出場訊號、通知、帳本不變 */
-function ind3Series(bars, ma, ma24, ob, obma){
-  const mk = toTimeMap(ma), mb = toTimeMap(ma24), mo = toTimeMap(ob), mm = toTimeMap(obma);
+// 2026-10-21 02:00 使用者(友達 13:17 燈亮做多:「好像不合理 再參考指標二 因為指标二的線都向下傾斜」):加第三件事 o2 = 指標二 Ob(OBV 均 10)、Oc(OBV 均 30)
+//   最近 YH.ind3SlopeBars(5)根都往上 = +1、都往下 = −1、不一致 = 0(Oc 還沒值時只看 Ob)。做多要三件都偏多、做空要三件都偏空;有偏多也有偏空 = 監控。
+function ind3Series(bars, ma, ma24, ob, obma, obma30){
+  const mk = toTimeMap(ma), mb = toTimeMap(ma24), mo = toTimeMap(ob), mm = toTimeMap(obma), m30 = obma30 ? toTimeMap(obma30) : new Map();
+  const N = YH.ind3SlopeBars || 5;
   const out = new Map(), up = [], dn = []; let prev = null;
   for (const b of bars){
     const o = mo.get(b.time), m = mm.get(b.time);
     if (o != null && m != null){ const d = o - m; if (prev != null){ if (d > 0 && prev <= 0) up.push(b.low); else if (d < 0 && prev >= 0) dn.push(b.high); } prev = d; } else prev = null;
     const ka = mk.get(b.time), kb = mb.get(b.time);
-    out.set(b.time, {k: (ka != null && kb != null) ? Math.sign(ka - kb) : 0,
+    const bi = out.size, t0 = bi >= N ? bars[bi - N].time : null;
+    const sl = (M) => { const a = M.get(b.time), z = t0 != null ? M.get(t0) : null; return (a != null && z != null) ? Math.sign(a - z) : null; };
+    const sOb = sl(mm), sOc = sl(m30);
+    const o2 = sOb == null ? 0 : (sOc == null ? sOb : (sOb === sOc ? sOb : 0));
+    out.set(b.time, {k: (ka != null && kb != null) ? Math.sign(ka - kb) : 0, o2,
                      lo: up.length >= 2 ? Math.sign(up[up.length - 1] - up[up.length - 2]) : 0,
                      hi: dn.length >= 2 ? Math.sign(dn[dn.length - 1] - dn[dn.length - 2]) : 0});
   }
   return out;
 }
-const ind3Bias = st => st ? 0.5 * st.k + 0.25 * st.lo + 0.25 * st.hi : 0;
+const ind3Bias = st => st ? (st.k + (st.lo + st.hi) / 2 + (st.o2 || 0)) / 3 : 0;   // 2026-10-21 02:00 三件事平均(Ka/Kb、橘線、指標二方向)
 function lampsFromInd3(st, time, waiting){
   if (waiting || !st) return lampsFromBias(0, time, null, 0, !!waiting);
   const closed = time != null && hmKey(time) >= '13:25';
-  const bull = (st.k > 0 ? 1 : 0) + (st.lo > 0 && st.hi > 0 ? 1 : 0), bear = (st.k < 0 ? 1 : 0) + (st.lo < 0 && st.hi < 0 ? 1 : 0);
-  const l = !closed && bull === 2, sh = !closed && bear === 2;
-  const lp = !closed && !l && bull === 1 && bear === 0, sp = !closed && !sh && bear === 1 && bull === 0;
+  const bull = (st.k > 0 ? 1 : 0) + (st.lo > 0 && st.hi > 0 ? 1 : 0) + (st.o2 > 0 ? 1 : 0), bear = (st.k < 0 ? 1 : 0) + (st.lo < 0 && st.hi < 0 ? 1 : 0) + (st.o2 < 0 ? 1 : 0);
+  const l = !closed && bull === 3, sh = !closed && bear === 3;
+  const lp = !closed && !l && bull >= 1 && bear === 0, sp = !closed && !sh && bear >= 1 && bull === 0;   // 只有偏多(沒有偏空)= 漸多
   const eL = el('lampLong'), eS = el('lampShort'), eW = el('lampWatch');
   eL.classList.toggle('on', l); eL.classList.toggle('pre', lp); eL.classList.remove('strong'); eL.textContent = lp ? '漸多' : '做多';
   eS.classList.toggle('on', sh); eS.classList.toggle('pre', sp); eS.classList.remove('strong'); eS.textContent = sp ? '漸空' : '做空';
@@ -5176,7 +5187,7 @@ function drawBars(bars, code, srcLabel, keepView){
   const maMap = toTimeMap(ma), obmaMap = toTimeMap(obma), obMap = toTimeMap(ob);
   const obSMap = (SIG.strong && SIG.strongSlowMa > 0) ? toTimeMap(sma(ob, SIG.strongSlowMa, 'value')) : null;   // 強訊號用的 OBV 均 30(判別式二)
   const strongLast = strongLampDir(bars, bars.length - 1, maMap, obMap, obmaMap, obSMap);
-  const I3 = ind3Series(bars, ma, ma24, ob, obma), i3Last = I3.get(last.time);   // 2026-10-21 燈號 / 天秤改看指標三
+  const I3 = ind3Series(bars, ma, ma24, ob, obma, obma30), i3Last = I3.get(last.time);   // 2026-10-21 燈號 / 天秤改看指標三
   const bias = todayBars.length < SIG.skipMin ? 0 : ind3Bias(i3Last);   // 不到 15 根 K 天秤歸零(2026-10-19);原:biasScore(價 / 均價 / OBV 斜率)
   updateMeter(bias);
   // 今天的進場 / 平倉點位標在 K 線圖上;燈號 = 循環狀態(進場後持續亮到平倉訊號)
