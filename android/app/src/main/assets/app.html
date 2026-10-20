@@ -101,6 +101,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-21 02:45 燈號第四件改成 Ka 2 根方向(使用者:「Ka 瞬間高又低下來 燈號要配合」):Ka 比 2 根前高 = 偏多、低 = 偏空(原本 Ka、Kb 5 根同方向,Kb 慢跟不上)。
+    Ka 一拉高燈號跟著偏多,一掉下來就跟著退。九天:做多 51%、漸多 50%、監控 47%、漸空 55%、做空 55%。
   · 2026-10-21 02:30 燈號改看四件平均分數(使用者:「Ka 瞬間拉那麼高 訊號只顯示監控 也不合理」):b = (Ka/Kb 位置 + 橘線 + 指標二方向 + Ka/Kb 方向)/ 4,
     ≥ 0.75 做多、0.25~0.75 漸多、±0.25 內監控、反向同理(不再要求四件全同方向,有一件相反也能亮漸多 / 漸空)。九天:做多 52%、漸多 50%、監控 47%、漸空 55%、做空 54%。
     友達 10/20 13:17 → 漸多(原監控)。天秤 = 同一個分數。
@@ -1638,7 +1640,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610210230">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610210245">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4380,7 +4382,10 @@ function ind3Series(bars, ma, ma24, ob, obma, obma30){
     const sl = (M) => { const a = M.get(b.time), z = t0 != null ? M.get(t0) : null; return (a != null && z != null) ? Math.sign(a - z) : null; };
     const sOb = sl(mm), sOc = sl(m30);
     const o2 = sOb == null ? 0 : (sOc == null ? sOb : (sOb === sOc ? sOb : 0));
-    const sKa = sl(mk), sKb = sl(mb), ks = (sKa != null && sKb != null && sKa === sKb) ? sKa : 0;   // 2026-10-21 02:15 Ka、Kb 和 5 根前比都往上 = +1、都往下 = −1
+    // 2026-10-21 02:45 使用者:「Ka 瞬間高又低下來 燈號要配合」:第四件改成 Ka 自己 2 根的方向(比 2 根前高 +1、低 −1),Ka 一拉高燈就偏多、一掉下來就跟著退。
+    //   原(02:15):Ka、Kb 和 5 根前比都同方向(Kb 慢,要等很久)。九天:做多 51%、漸空 55%、做空 55%(原版做多 52%、做空 54%)
+    const t2 = bi >= 2 ? bars[bi - 2].time : null, ka2 = t2 != null ? mk.get(t2) : null;
+    const ks = (ka != null && ka2 != null) ? Math.sign(ka - ka2) : 0;
     out.set(b.time, {k: (ka != null && kb != null) ? Math.sign(ka - kb) : 0, o2, ks,
                      lo: up.length >= 2 ? Math.sign(up[up.length - 1] - up[up.length - 2]) : 0,
                      hi: dn.length >= 2 ? Math.sign(dn[dn.length - 1] - dn[dn.length - 2]) : 0});

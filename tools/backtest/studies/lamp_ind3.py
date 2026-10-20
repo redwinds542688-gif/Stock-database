@@ -39,8 +39,10 @@ for d,pool in DAYS.items():
             o2=0 if sob is None else (sob if soc is None else (sob if sob==soc else 0))
             ska=np.sign(ka[q]-ka[q-N]) if q>=N and not np.isnan(ka[q-N]) else None; skb=np.sign(kb[q]-kb[q-N]) if q>=N else None
             ks=0 if ska is None else (ska if ska==skb else 0)
+            ks2=np.sign(ka[q]-ka[q-2]) if q>=2 and not np.isnan(ka[q-2]) else 0   # 2026-10-21 Ka 2 根方向(使用者:「Ka 瞬間高又低下來 燈號要配合」)
+            ks1=np.sign(ka[q]-ka[q-1]) if q>=1 and not np.isnan(ka[q-1]) else 0
             i=off+q; ent=o[i+1]
-            rows.append(dict(k=k,org=org,o2=o2,ks=ks,ft1=first_touch(h,l,ent,i+1,1),ftm1=first_touch(h,l,ent,i+1,-1),r30=(c[min(len(c)-1,i+30)]-ent)/ent*100))
+            rows.append(dict(k=k,org=org,o2=o2,ks=ks,ks2=ks2,ks1=ks1,ft1=first_touch(h,l,ent,i+1,1),ftm1=first_touch(h,l,ent,i+1,-1),r30=(c[min(len(c)-1,i+30)]-ent)/ent*100))
 df=pd.DataFrame(rows); df.to_csv(f'{S}/results/lamp_ind3.csv',index=False)
 def lamp(r,fs):
     vals=[r[f] for f in fs]; bull=sum(1 for x in vals if x>0); bear=sum(1 for x in vals if x<0)
@@ -68,3 +70,10 @@ for s_,sd,a,b in (('做多',1,0.75,9),('漸多',1,0.25,0.75),('監控',1,-0.25,0
     g=df[(df.sc>=a)&(df.sc<b)] if s_!='做多' else df[df.sc>=a]
     if s_=='做空': g=df[df.sc<=-0.75]
     show(g,s_,sd)
+
+for col,nm in (('ks2','Ka 2 根方向'),('ks1','Ka 1 根方向')):
+    df['sc2']=(df.k+df.org+df.o2+df[col])/4
+    print(f'== 分數版,第四件改成 {nm}(不看 Kb)')
+    for s_,sd,a,b in (('做多',1,0.75,9),('漸多',1,0.25,0.75),('監控',1,-0.25,0.25),('漸空',-1,-0.75,-0.25),('做空',-1,-9,-0.75)):
+        g=df[(df.sc2>a-1e-9)&(df.sc2<b-1e-9)] if s_ not in ('做多','做空') else (df[df.sc2>=0.75] if s_=='做多' else df[df.sc2<=-0.75])
+        show(g,s_,sd)
