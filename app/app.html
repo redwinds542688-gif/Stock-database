@@ -101,6 +101,10 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-20 21:40 面板與背景監控(使用者:「目前開盤啟動 判一,二,四 判三不啟動」「判三先隱藏 把判四改判三」「面板改回 訊息 判一 判二 判三 設定」):
+    下方按鍵改回五顆:訊息 / 判一 / 判二 / 判三 / 設定。畫面上的「判三」= 原判四(壓線空點,內部代號仍是 RULESETS['四'],通知尾巴 · 判三);
+    原判三(燿華型起漲點,RULESETS['三'])按鍵隱藏、不跑,程式保留(改名「舊判三」)。背景監控 BG_RS = 一、二、四 同時跑,各自進出場、各自通知。
+    之前選在舊判三的,開啟時回判一。
   · 2026-10-20 21:30 判別式三修改:成交量門檻 6,000 張(使用者:「當沖沒量很危險」→「改 判三6000張」):判三 minDayVol 0 → 6000,判一二三四都是 6,000 張。
     九天 25 筆 56% +39,719 → 8 筆 62% +10,149;10/20 雲端 K 4 筆 1 賺 3 賠 −12,389 → 0 筆;十天 +27,330 → +10,149(錢少、勝率高,照使用者以風險為準)。
   · 2026-10-20 21:20 判別式四修改:成交量門檻 6,000 張(使用者看判四輸單後:「判四為啥沒有量大」→「一樣6000張」):判四 minDayVol 0 → 6000,和判一判二一樣
@@ -1579,7 +1583,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610202130">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610202140">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1704,9 +1708,9 @@ except Exception:
   #notifLog .empty{color:var(--dim);text-align:center;margin-top:60px;font-size:12px}
   /* 顯示區固定存在,開啟設定也不消失、不縮放 */
 
-  /* 顯示區下方的六顆按鍵(訊息 / 判一 / 判二 / 判三 / 判四 / 設定),平均分配螢幕寬度,同一列(2026-10-20 使用者:「同一列加上判四 縮減間隔 須在同一列上」) */
+  /* 2026-10-20 21:40 使用者「面板改回 訊息 判一 判二 判三 設定」:五顆(舊判三隱藏,判四顯示成判三)。原:顯示區下方的六顆按鍵(訊息 / 判一 / 判二 / 判三 / 判四 / 設定),平均分配螢幕寬度,同一列(2026-10-20 使用者:「同一列加上判四 縮減間隔 須在同一列上」) */
   .toolbar{position:absolute;bottom:4px;left:0;right:0;z-index:6;
-           display:grid;grid-template-columns:repeat(6,1fr);column-gap:2px;padding:0 2px;
+           display:grid;grid-template-columns:repeat(5,1fr);column-gap:2px;padding:0 2px;
            align-items:center;justify-items:center}
   .tool{width:38px;height:38px;padding:0;display:grid;place-items:center;touch-action:manipulation;   /* 2026-10-18 按鍵不等雙擊判定,點了就反應 */
         background:none;border:none;color:var(--dim);cursor:pointer;
@@ -1951,8 +1955,8 @@ except Exception:
             title="顯示監控訊息;長按重新讀取雲端資料">訊息</button>
     <button class="tool txt rs" id="btnReload" data-rs="一" aria-label="判別式一" title="亮燈 = 背景監控執行中(判一、判二同時跑,各自通知);單擊看規則;長按圖上沒在用的 = 圖改畫那份、長按圖上正在用的 = 強制重新啟動監控">判一<i class="mdot"></i></button>   <!-- 2026-10-18 使用者:第二顆設「判一」;同日加判二(判三加了又刪);mdot = 背景監控燈(亮在正在用的那顆右上角) -->
     <button class="tool txt rs" id="btnState" data-rs="二" aria-label="判別式二" title="判別式二(背景監控和判一同時跑,通知尾巴 · 判二);單擊看規則;長按 0.6 秒讓圖改畫判二">判二<i class="mdot"></i></button>
-    <button class="tool txt rs" id="btnRules" data-rs="三" aria-label="判別式三" title="判別式三(OBV10−OBV30 差擴散邏輯,待修正;背景監控沒跑它);長按 0.6 秒讓圖改畫判三">判三<i class="mdot"></i></button>
-    <button class="tool txt rs" id="btnRs4" data-rs="四" aria-label="判別式四" title="判別式四(壓線空點,只做空;背景監控沒跑它);單擊看規則;長按 0.6 秒讓圖改畫判四">判四<i class="mdot"></i></button>
+    <button class="tool txt rs" id="btnRules" data-rs="三" hidden style="display:none" aria-label="判別式三" title="判別式三(OBV10−OBV30 差擴散邏輯,待修正;背景監控沒跑它);長按 0.6 秒讓圖改畫判三">判三<i class="mdot"></i></button>
+    <button class="tool txt rs" id="btnRs4" data-rs="四" aria-label="判別式三" title="判別式三(壓線空點,只做空;內部代號「四」,2026-10-20 使用者「把判四改判三」;背景監控和判一判二同時跑);單擊看規則;長按 0.6 秒讓圖改畫它">判三<i class="mdot"></i></button>
     <button class="tool gear txt" id="gear" aria-label="設定" title="單擊開 / 關監控設定">設定</button>
   </div>
   <div class="wheels">
@@ -2543,7 +2547,7 @@ function render(list){
       ['雲端 1 分K', (CLOUD_BARS.ok ? `今天到 ${CLOUD_BARS.last}(${CLOUD_BARS.n} 分鐘快照)` : (CLOUD_BARS.err ? '讀不到:' + CLOUD_BARS.err : '還沒讀(開盤後 Worker 每分鐘存一次)')) + (CLOUD_BARS.snap ? ' · 補存:' + CLOUD_BARS.snap : '')],   // 2026-10-19
       ['監控價格', wLo.value + ' ~ ' + wHi.value + ' 元,振幅 ≥ ' + wAmp.value],
       ['手續費 / 上限', wFee.value + ' · ' + wCap.value],
-      ['判別式', '背景監控同時跑 ' + BG_RS.map(k => RULESETS[k].name).join('、') + ',各自進出場、各自通知(訊息尾巴 · 判一 / · 判二);圖上畫 ' + RULESET.name + '(' + RULESET.date + ')'],   // 2026-10-19 判一、判二同時跑
+      ['判別式', '背景監控同時跑 ' + BG_RS.map(k => RULESETS[k].name).join('、') + ',各自進出場、各自通知(訊息尾巴 · ' + BG_RS.map(k => RULESETS[k].btn).join(' / · ') + ');圖上畫 ' + RULESET.name + '(' + RULESET.date + ')'],   // 2026-10-19 判一、判二同時跑
       ['圖表手勢', GESTURE.frames ? `${GESTURE.t} 平均每格 ${GESTURE.avg.toFixed(0)} ms(最慢 ${GESTURE.max.toFixed(0)} ms,${GESTURE.frames} 格)· 標記 ${MARKS.length} 個 · 畫布 ${window.devicePixelRatio} 倍` : '還沒量到(在圖上拖一下再來看)'],
       ['捲動診斷', (() => { try{ const se = el('result'); return `現在 ${Math.round(se.scrollTop)}px,最多捲過 ${Math.round(window.SCROLL_MAX || 0)}px;清單區高 ${se.scrollHeight} / 可見 ${se.clientHeight},視窗 ${innerHeight}` + (window.visualViewport ? `,可視 ${Math.round(visualViewport.height)}` : '') + `;清單 ${document.querySelectorAll('#bands .row').length} 列,高 ${Math.round(el('result').getBoundingClientRect().height)};body ${getComputedStyle(document.body).overflowY} / html ${getComputedStyle(document.documentElement).overflowY}`; }catch(e){ return '算不出來 ' + e.message; } })()],   // 2026-10-18 查「清單滑不動」
       ['清單跳回頂端', window.SCROLL_RESET ? `${SCROLL_RESET.at} 從 ${SCROLL_RESET.from}px 跳回 0;前 1.5 秒程式動作:${SCROLL_RESET.recent || '(沒有)'};resize ${SCROLL_RESET.resizes} 次` : '沒發生過'],   // 2026-10-18 查「清單自動彈回」用
@@ -2554,7 +2558,7 @@ function render(list){
   };
   const rulesHtml = (k = ACTIVE_RS) => { const SIG = RULESETS[k].sig, RULESET = RULESETS[k]; return [   // 2026-10-18 可看任一份判別式的規則(按沒在用的判鍵 = 看它的規則,不切換)
     '<b>' + RULESET.name + '</b>(' + RULESET.date + ' 定案)· 回測 ' + RULESET.backtest,
-    (BG_RS.includes(k) ? '背景監控同時跑判一、判二,這份(' + RULESET.name + ')有在跑,通知尾巴標 · ' + RULESET.btn : '背景監控同時跑判一、判二,這份(' + RULESET.name + ')沒在跑') + ';圖上畫的是 ' + RULESETS[ACTIVE_RS].name + ' 的訊號,要換圖上用哪一份,長按那顆判鍵 0.6 秒',
+    (BG_RS.includes(k) ? '背景監控同時跑' + BG_RS.map(q => RULESETS[q].btn).join('、') + ',這份(' + RULESET.name + ')有在跑,通知尾巴標 · ' + RULESET.btn : '背景監控同時跑' + BG_RS.map(q => RULESETS[q].btn).join('、') + ',這份(' + RULESET.name + ')沒在跑') + ';圖上畫的是 ' + RULESETS[ACTIVE_RS].name + ' 的訊號,要換圖上用哪一份,長按那顆判鍵 0.6 秒',
     '',
     '<b>選股(每日 14:30 雲端重算)</b>',
     '上市 / 上櫃普通股(非 ETF、非金融)、官方可現股當沖且可先賣後買、非注意 / 處置股、昨日未收跌停(漲停放行)',
@@ -3681,7 +3685,7 @@ const RULESETS = {
   //   保護只留:±3.5% / −3% 不做多(trendOnlyPct)、紅線在退、12:00 後不進、不鎖方向;VWAP / 量 / 量比 / 離均價 / 離高點 / OBV30 方向 / 跳空 / 距離 全關(回測加了都更差)。出場同判別式一。
   //   模擬器:FPGAP=2.5 TAKE=2.5 VWAPF=0 FP=1 MAXDEV=99 MIRROR=1 PENDVOL=1 VOLMIN=0 RVOLMIN=0 CAP=350000 REVOK=1 ENTRYMAX=3.5 OBVX=2 OBVXMIN=1 OBVX2=1 OB2=30 SLOPEMIN=-99 GAPMODE=dir GAPTH=99 OB3MA=6 REDSLOPE=-2 EXITRESET=tp OBVDIR=0 NEARHL=0 NOLOCK=1 NOENTRYAFTER=12:00 MODE=brk BRKBELOW=1 BRKVBASE=pre OBMASLOPE=0 BRKGAP=0
   //   2026-10-20 01:30 加「開高不做」(使用者:「改 開高不做」):今開 > 昨收的那天不進(brkMaxGapPct:0);九天 45 筆 42% +18,779 → 26 筆 57% +54,181。
-  '三': { key: '三', btn: '判三', name: '判別式三', date: '2026-10-20', backtest: '10/06~10/19 九天只做多 26 筆,賺 15 賠 11,勝率 57%,淨 +54,181(燿華型:盤整後大量破高、藍上穿紫、價在今開下、開高不做;觀察中)',
+  '三': { key: '三', btn: '舊判三', name: '判別式三(舊,隱藏)', date: '2026-10-20', backtest: '10/06~10/19 九天只做多 26 筆,賺 15 賠 11,勝率 57%,淨 +54,181(燿華型:盤整後大量破高、藍上穿紫、價在今開下、開高不做;觀察中)',
           sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'brk', brkFlatPct: 1.0, brkTightPct: 3, brkXWin: 2, brkVolWin: 3, brkVolX: 2, brkBelowOpen: true, brkMaxGapPct: 0,
                                                                   noLock: true, obmaSlopeMin: 0, noWeakEntry: false, confirmMinGapPct: 0, noEntryAfter: '12:00',
                                                                   vwapFilter: false, minDayVol: 6000, rvolFilter: false, maxEntryDevPct: 99, nearHiLoPct: 0, obvDirMa: 0, gapChasePct: 99, stopMode: 'pct', chopWin: 0 }) },   // 2026-10-20 21:30 量 6,000 張(使用者「改 判三6000張」:「當沖沒量很危險」)   // 2026-10-20 判三不加震盪過濾:九天 27 筆 59% +54,235 → 13 筆 38% +4,185(盤整後突破本來就在震盪之後)   // 停損照舊 1.5%(2026-10-20 起漲 / 起跌點停損只改判一、判二)
@@ -3692,7 +3696,7 @@ const RULESETS = {
   //   九天研究(停利 2.5 停損 1.5、13:25 平倉):壓線 + 三線向下本身 4,678 次 30 分內先跌 1% 25.3% / 先漲 24.0%(沒優勢);加量先價行 277 次 34.3% / 24.5%、139 筆 46% −3,540;
   //   再加不追空 26 筆 61% +39,753;再排開平 23 筆 69% +51,455(樣本小,觀察用)。保護同判別式三(±3.5%、+3% 不做空、紅線在退、12:00 後不進、不鎖方向;其餘全關)。出場同判別式一。
   //   模擬器:判別式三的保護旗標 + MODE=press(PRESSTOUCH=0.15 PRESSCHASE=2 PRESSRVOL=1.2 PRESSLO=0.5 PRESSGAP=1 PRESSNL=30)。
-  '四': { key: '四', btn: '判四', name: '判別式四', date: '2026-10-20', backtest: '10/06~10/19 九天只做空 10 筆,賺 7 賠 3,勝率 70%,淨 +23,644(模擬器完整版;研究版 23 筆 69% +51,455;壓線 + 三線向下 + 量先價行 + 不追空 + 開平不做;觀察中)',
+  '四': { key: '四', btn: '判三', name: '判別式三', date: '2026-10-20', backtest: '10/06~10/19 九天只做空 4 筆,全賺,淨 +18,831;10/20 雲端 K 2 筆全賺 +14,662(壓線 + 三線向下 + 量先價行 + 不追空 + 開平不做 + 量 6,000 張 + 震盪 30 根;原判四,2026-10-20 改名判三)',
           sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'press', pressTouchPct: 0.15, pressChasePct: 2, pressRvolMax: 1.2, pressLoPct: 0.5, pressGapPct: 1, pressLookback: 30,
                                                                   noLock: true, obmaSlopeMin: 0, noWeakEntry: false, confirmMinGapPct: 0, noEntryAfter: '12:00',
                                                                   vwapFilter: false, minDayVol: 6000, rvolFilter: false, maxEntryDevPct: 99, nearHiLoPct: 0, obvDirMa: 0, gapChasePct: 99, stopMode: 'pct', chopWin: 30 }) },   // 2026-10-20 21:20 量 6,000 張(使用者「一樣6000張」)   // 停損照舊 1.5%(2026-10-20 起漲 / 起跌點停損只改判一、判二)   // 2026-10-20 20:50 震盪 30 根(使用者「改 判一60 判四30」)
@@ -3704,8 +3708,8 @@ const RS_KEY = 'mysh.ruleset';
 function readRuleset(){
   let a = '';
   try{ if (window.Android && Android.getRuleset) a = String(Android.getRuleset() || ''); }catch(e){}
-  if (RULESETS[a]) return a;
-  try{ const v = localStorage.getItem(RS_KEY); if (RULESETS[v]) return v; }catch(e){}
+  if (RULESETS[a] && a !== '三') return a;   // 2026-10-20 舊判三隱藏:存的是它就回判一
+  try{ const v = localStorage.getItem(RS_KEY); if (RULESETS[v] && v !== '三') return v; }catch(e){}
   return '';
 }
 function saveRuleset(k){
@@ -3716,7 +3720,7 @@ let ACTIVE_RS = readRuleset() || '一';
 try{ if (window.Android && Android.setRuleset && !String(Android.getRuleset() || '')) Android.setRuleset(ACTIVE_RS); }catch(e){}   // 舊版只存 localStorage 的,第一次開啟就補存到 App
 let RULESET = RULESETS[ACTIVE_RS];
 let SIG = RULESET.sig;   // 2026-10-19 改成 let:背景監控一輪裡輪流切成判一、判二(bgTick),跑完切回 ACTIVE_RS
-const BG_RS = ['一', '二'];   // 2026-10-19 使用者:「二版同時啟動,各自抓各自的,通知訊息可以知道是判一或判二的訊息」→ 背景監控同時跑這幾份,各自進出場、各自通知(訊息尾巴 · 判一 / · 判二)
+const BG_RS = ['一', '二', '四'];   // 2026-10-20 21:40 使用者「目前開盤啟動 判一,二,四 判三不啟動」→ 加內部「四」(畫面上叫判三,壓線空點);舊判三不跑。   // 2026-10-19 使用者:「二版同時啟動,各自抓各自的,通知訊息可以知道是判一或判二的訊息」→ 背景監控同時跑這幾份,各自進出場、各自通知(訊息尾巴 · 判一 / · 判二)
 window.BG_RS = BG_RS;
 function signalLight(bars, ma, ob, obma, prevClose, canShort, dayHi, dayLo){
   const last = bars[bars.length - 1];
