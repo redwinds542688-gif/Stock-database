@@ -101,6 +101,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-21 01:50 燈號 / 多空天秤改看指標三(使用者:「再用指標三 作為上面燈號的依據」):做多 = Ka 在 Kb 上 + 橘線雙升(Oa 穿越 Ob 的低點、高點都墊高);
+    做空 = Ka 在 Kb 下 + 橘線雙降;只一邊偏多(另一邊沒偏空)= 漸多,漸空同理;其他 = 監控。天秤 = 0.5×Ka/Kb + 0.25×低點方向 + 0.25×高點方向。
+    十字線那根照樣聯動;不到 15 根 K 等待、13:25 後監控照舊;不再看強訊號和離均價 1%。只換燈號與天秤,進出場訊號、通知、帳本不變。
   · 2026-10-21 01:35 指標一不畫進場箭頭和出場 / 提醒小圓點(使用者:「這些都不要」):YH.showSignalMarks = false。燈號、通知、部位帳本、回測都不受影響;起漲 / 起跌標示、Ka×Kb 小點、最高 / 最低價照舊。
   · 2026-10-21 01:25 K 線圖最高 / 最低價數字亂跑修正(使用者錄影):拖圖時數字停在原地不跟 K,放手後用還沒縮放完的刻度算位置 → 手指按著時先藏起來,放手等兩格畫面再算位置顯示。
   · 2026-10-21 01:15 Oa(OBV 黃線)改虛線(使用者:「Oa 用虛線」)。
@@ -1626,7 +1629,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610210135">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610210150">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3584,12 +3587,13 @@ function showBarInfo(t){
   // 最後一根或沒有十字線 → 回到最新狀態。沒開平倉規則(stateAt 為空)時燈號不動,只動多空天秤。
   if (CUR.lampLast){
     const devPct = isFinite(d.ma) && d.ma > 0 ? (d.bar.close - d.ma) / d.ma * 100 : null;
-    if (isLast){ lampsFromBias(CUR.biasLast, d.bar.time, devPct, CUR.strongLast || 0, !!CUR.waitLast); updateMeter(CUR.biasLast); }
+    if (isLast){ lampsFromInd3(CUR.i3 && CUR.i3.get(d.bar.time), d.bar.time, !!CUR.waitLast); updateMeter(CUR.biasLast); }   // 2026-10-21 燈號看指標三
     else if (CUR.bars && CUR.maMap && d.i != null){
       let nDay = 0; for (let i = d.i; i >= 0 && dayKey(CUR.bars[i].time) === dayKey(d.bar.time); i--) nDay++;   // 十字線那根是當天第幾根
       const waiting = nDay < SIG.skipMin;
-      const b = waiting ? 0 : biasScore(CUR.bars, CUR.maMap, CUR.obmaMap, CUR.obMap, d.i);
-      lampsFromBias(b, d.bar.time, devPct, waiting ? 0 : strongLampDir(CUR.bars, d.i, CUR.maMap, CUR.obMap, CUR.obmaMap, CUR.obSMap), waiting); updateMeter(b);
+      const st = CUR.i3 && CUR.i3.get(d.bar.time);   // 2026-10-21 燈號 / 天秤看指標三(十字線那根)
+      const b = waiting ? 0 : ind3Bias(st);
+      lampsFromInd3(st, d.bar.time, waiting); updateMeter(b);
     }
   }
 }                 // 圖上的 ±entryMaxChg% 進場區間線
@@ -4345,6 +4349,36 @@ function lampsFromBias(b, time, devPct, strongDir, waiting){
   const eL = el('lampLong'), eS = el('lampShort'), eW = el('lampWatch');
   eL.classList.toggle('on', l); eL.classList.toggle('pre', lp); eL.classList.toggle('strong', lStrong); eL.textContent = lStrong ? '強多' : (lp ? '漸多' : '做多');
   eS.classList.toggle('on', sh); eS.classList.toggle('pre', sp); eS.classList.toggle('strong', sStrong); eS.textContent = sStrong ? '強空' : (sp ? '漸空' : '做空');
+  eW.classList.toggle('on', !l && !sh && !lp && !sp); eW.textContent = '監控';
+}
+/* 燈號 / 多空天秤改看指標三(2026-10-21 使用者:「再用指標三 作為上面燈號的依據」):
+   每一根(只用到這根為止的點)看兩件事:Ka(均價 10)在 Kb(均價 24)之上 / 之下(k = +1 / −1);橘線(Oa 穿越 Ob 的點)最近兩個往上穿的低點、最近兩個往下穿的高點是墊高還是降低(lo / hi = +1 / −1)。
+   做多 = Ka 在 Kb 上 + 橘線雙升(低點、高點都墊高);做空 = Ka 在 Kb 下 + 橘線雙降;只有一邊偏多、另一邊沒偏空 = 漸多(漸空同理);其他 = 監控。
+   九天研究(studies/ind3_lines.py):Ka 上 + 橘雙升 做多 60 根內先漲 1% 55%;Ka 下 + 橘雙降 做空 52%(基準 50%)。今天不到 15 根 K = 等待,13:25 後 = 監控。
+   多空天秤 = 0.5×k + 0.25×lo + 0.25×hi(−1~+1,做多 / 做空燈時滿格)。只換燈號和天秤,進出場訊號、通知、帳本不變 */
+function ind3Series(bars, ma, ma24, ob, obma){
+  const mk = toTimeMap(ma), mb = toTimeMap(ma24), mo = toTimeMap(ob), mm = toTimeMap(obma);
+  const out = new Map(), up = [], dn = []; let prev = null;
+  for (const b of bars){
+    const o = mo.get(b.time), m = mm.get(b.time);
+    if (o != null && m != null){ const d = o - m; if (prev != null){ if (d > 0 && prev <= 0) up.push(b.low); else if (d < 0 && prev >= 0) dn.push(b.high); } prev = d; } else prev = null;
+    const ka = mk.get(b.time), kb = mb.get(b.time);
+    out.set(b.time, {k: (ka != null && kb != null) ? Math.sign(ka - kb) : 0,
+                     lo: up.length >= 2 ? Math.sign(up[up.length - 1] - up[up.length - 2]) : 0,
+                     hi: dn.length >= 2 ? Math.sign(dn[dn.length - 1] - dn[dn.length - 2]) : 0});
+  }
+  return out;
+}
+const ind3Bias = st => st ? 0.5 * st.k + 0.25 * st.lo + 0.25 * st.hi : 0;
+function lampsFromInd3(st, time, waiting){
+  if (waiting || !st) return lampsFromBias(0, time, null, 0, !!waiting);
+  const closed = time != null && hmKey(time) >= '13:25';
+  const bull = (st.k > 0 ? 1 : 0) + (st.lo > 0 && st.hi > 0 ? 1 : 0), bear = (st.k < 0 ? 1 : 0) + (st.lo < 0 && st.hi < 0 ? 1 : 0);
+  const l = !closed && bull === 2, sh = !closed && bear === 2;
+  const lp = !closed && !l && bull === 1 && bear === 0, sp = !closed && !sh && bear === 1 && bull === 0;
+  const eL = el('lampLong'), eS = el('lampShort'), eW = el('lampWatch');
+  eL.classList.toggle('on', l); eL.classList.toggle('pre', lp); eL.classList.remove('strong'); eL.textContent = lp ? '漸多' : '做多';
+  eS.classList.toggle('on', sh); eS.classList.toggle('pre', sp); eS.classList.remove('strong'); eS.textContent = sp ? '漸空' : '做空';
   eW.classList.toggle('on', !l && !sh && !lp && !sp); eW.textContent = '監控';
 }
 (function buildMeter(){                                  // 左 10 格(外→內漸小)、中線、右 10 格(內→外漸大)
@@ -5142,7 +5176,8 @@ function drawBars(bars, code, srcLabel, keepView){
   const maMap = toTimeMap(ma), obmaMap = toTimeMap(obma), obMap = toTimeMap(ob);
   const obSMap = (SIG.strong && SIG.strongSlowMa > 0) ? toTimeMap(sma(ob, SIG.strongSlowMa, 'value')) : null;   // 強訊號用的 OBV 均 30(判別式二)
   const strongLast = strongLampDir(bars, bars.length - 1, maMap, obMap, obmaMap, obSMap);
-  const bias = todayBars.length < SIG.skipMin ? 0 : biasScore(bars, maMap, obmaMap, obMap);   // 不到 15 根 K 天秤歸零(2026-10-19)
+  const I3 = ind3Series(bars, ma, ma24, ob, obma), i3Last = I3.get(last.time);   // 2026-10-21 燈號 / 天秤改看指標三
+  const bias = todayBars.length < SIG.skipMin ? 0 : ind3Bias(i3Last);   // 不到 15 根 K 天秤歸零(2026-10-19);原:biasScore(價 / 均價 / OBV 斜率)
   updateMeter(bias);
   // 今天的進場 / 平倉點位標在 K 線圖上;燈號 = 循環狀態(進場後持續亮到平倉訊號)
   const rp = replaySignals(sBars, sMa, sOb, sObma, prevClose, src ? !!src.dtShort : undefined);
@@ -5162,7 +5197,8 @@ function drawBars(bars, code, srcLabel, keepView){
   const trade = YH.exitRule ? rp.state : null;     // 真正的交易循環
   const lastMa = maMap.get(last.time);
   const waiting = todayBars.length < SIG.skipMin;   // 今天還不到 skipMin(15)根 K:燈號等待、天秤歸零(2026-10-19)
-  lampsFromBias(bias, last.time, lastMa > 0 ? (last.close - lastMa) / lastMa * 100 : null, strongLast, waiting);   // 燈號跟隨多空天秤(2026-10-18);13:25 後只顯示監控;離均價超過 1% 不亮
+  lampsFromInd3(i3Last, last.time, waiting);   // 2026-10-21 燈號改看指標三。原:lampsFromBias(bias, last.time, 離均價 %, strongLast, waiting)
+    // 燈號跟隨多空天秤(2026-10-18);13:25 後只顯示監控;離均價超過 1% 不亮
   if (cyc && !cyc.gated){
     if (trade && trade.side === cyc.side){
       const pl = (last.close - trade.entry) / trade.entry * 100 * (trade.side === 'long' ? 1 : -1);
@@ -5174,7 +5210,7 @@ function drawBars(bars, code, srcLabel, keepView){
   // 十字線聯動(2026-10-17 使用者:「燈號需要用十字虛線聯動」):記住「最新」的燈號與偏向,十字線移到某一根 K 時改顯示那根當下的狀態,移開就回到最新
   if (CUR){
     CUR.lampLast = {long: el('lampLong').classList.contains('on'), short: el('lampShort').classList.contains('on'), watch: el('lampWatch').classList.contains('on')};
-    CUR.biasLast = bias; CUR.strongLast = strongLast; CUR.waitLast = waiting; CUR.bars = bars; CUR.vw = vw; CUR.maMap = maMap; CUR.obmaMap = obmaMap; CUR.obMap = obMap; CUR.obSMap = obSMap; CUR.stateAt = (YH.exitRule && rpSig.stateAt) ? rpSig.stateAt : null;
+    CUR.biasLast = bias; CUR.i3 = I3; CUR.strongLast = strongLast; CUR.waitLast = waiting; CUR.bars = bars; CUR.vw = vw; CUR.maMap = maMap; CUR.obmaMap = obmaMap; CUR.obMap = obMap; CUR.obSMap = obSMap; CUR.stateAt = (YH.exitRule && rpSig.stateAt) ? rpSig.stateAt : null;
   }
   const nLong = marks.filter(m => m.text.startsWith('多')).length, nShort = marks.filter(m => m.text.startsWith('空')).length;
   const nGated = marks.filter(m => m.text.endsWith('✕')).length, nConf = marks.filter(m => m.text.endsWith('✓')).length;
