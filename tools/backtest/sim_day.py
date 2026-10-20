@@ -79,6 +79,31 @@ def _origin_stop(sd, upto):
             if (ob[k]-obma[k])*sd > 0 and (ob[k-1]-obma[k-1])*sd <= 0:
                 sb = max(j, k); return (h[sb] if sd == -1 else l[sb]), t.time[sb]
     return None, None
+def _origin_points(upto):
+    """2026-10-20 和 App originPoints 同一套:今天創新高後第一次「整根 K 跌破均價 + OBV 跌破 OBV 均線」(相差 ≤ 2 根)= 起跌;創新低後第一次兩個都往上穿 = 起漲。回傳 [(index, side)]"""
+    out = []; hi = -1e18; lo = 1e18; armD = armU = False; lk = {1: -99, -1: -99}; lo2 = {1: -99, -1: -99}
+    for q in range(0, upto + 1):
+        if h[q] > hi: hi = h[q]; armD = True
+        if l[q] < lo: lo = l[q]; armU = True
+        if q == 0 or np.isnan(ma[q]) or np.isnan(ma[q-1]) or np.isnan(obma[q]) or np.isnan(obma[q-1]): continue
+        for sd in (1, -1):
+            _in = (lambda z: l[z] > ma[z]) if sd == 1 else (lambda z: h[z] < ma[z])
+            if os.environ.get('STOPKBAR','whole') == 'close': _in = lambda z, sd=sd: (c[z]-ma[z])*sd > 0
+            if _in(q) and not _in(q-1): lk[sd] = q
+            if (ob[q]-obma[q])*sd > 0 and (ob[q-1]-obma[q-1])*sd <= 0: lo2[sd] = q
+        if armD and q - lk[-1] <= 2 and q - lo2[-1] <= 2 and (lk[-1] == q or lo2[-1] == q): out.append((q, -1)); armD = False
+        if armU and q - lk[1] <= 2 and q - lo2[1] <= 2 and (lk[1] == q or lo2[1] == q): out.append((q, 1)); armU = False
+    return out
+def _pts_stop(sd, upto, ent):
+    """2026-10-20 使用者:「找出起漲起跌點,做空就以最高為準,不管是起漲或起跌;做多就找起漲起跌最低點」
+    STOPSCOPE=last2:進場前最近一個起漲 + 最近一個起跌,做空取兩根 K 的最高價較高者、做多取最低價較低者;day:今天進場前全部的點。只取在進場價虧損那一側的"""
+    P = _origin_points(upto)
+    if os.environ.get('STOPSCOPE','last2') == 'last2':
+        lastU = [q for q, s_ in P if s_ == 1][-1:]; lastD = [q for q, s_ in P if s_ == -1][-1:]; idx = lastU + lastD
+    else: idx = [q for q, s_ in P]
+    if sd == -1:
+        cand = [h[q] for q in idx if h[q] > ent]; return (max(cand), ','.join(t.time[q] for q in idx)) if cand else (None, None)
+    cand = [l[q] for q in idx if l[q] < ent]; return (min(cand), ','.join(t.time[q] for q in idx)) if cand else (None, None)
 def close_trade(sd, k0, ent, lots, tm, ex, why):
     gross = (ex-ent)*sd*1000*lots; fee = (ent+ex)*1000*lots*(0.001425*0.30 + 0.0000565); tax = (ex if sd==1 else ent)*1000*lots*0.0015
     trades.append((sd, k0, ent, lots, tm, ex, why, gross, fee, tax))
@@ -90,10 +115,10 @@ for i in range(1, len(c)):
         why = None
         if tm >= '13:25': why = '13:25 強制平倉'
         elif gain >= TAKE: why = f'停利 {TAKE:g}%'
-        elif os.environ.get('STOPMODE','pct') == 'origin' and globals().get('_osk') != (k0, ent):
-            globals()['_osk'] = (k0, ent); globals()['_ost'] = _origin_stop(sd, i-1)
+        elif os.environ.get('STOPMODE','pct') in ('origin', 'pts') and globals().get('_osk') != (k0, ent):
+            globals()['_osk'] = (k0, ent); globals()['_ost'] = _origin_stop(sd, i-1) if os.environ.get('STOPMODE') == 'origin' else _pts_stop(sd, i-1, ent)
             if os.environ.get('TRACESTOP'): print(f'TRACESTOP {k0} 進 {ent} 起{"跌" if sd==-1 else "漲"}點 {globals()["_ost"]}')
-        if why is None and os.environ.get('STOPMODE','pct') == 'origin' and globals().get('_ost', (None,))[0] is not None and (globals()['_ost'][0]-ent)*sd < 0:
+        if why is None and os.environ.get('STOPMODE','pct') in ('origin', 'pts') and globals().get('_ost', (None,))[0] is not None and (globals()['_ost'][0]-ent)*sd < 0:
             _op = globals()['_ost'][0]; _risk = abs(_op-ent)/ent*100
             _cap = float(os.environ.get('STOPCAP','99')); _mn = float(os.environ.get('STOPMIN','0'))
             if _risk > _cap: _hit = loss >= _cap; _lb = f'停損 {_cap:g}%(起點太遠)'
