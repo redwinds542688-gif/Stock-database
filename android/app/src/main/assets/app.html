@@ -101,6 +101,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-20 14:00 圖表版面改成元大的三段(使用者看友達元大圖:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」):K 線 / OBV / 均線乖離率。
+    最下一格:柱狀 = 乖離率 10(收盤對均價 10,正紅負青)、橘線 = 乖離率 30(對均價 30)、黃線 = 乖離率 10 的 132 根平均(跨日算);上方文字列「乖離率10 / 乖離率30 / 乖離均132」隨十字線顯示值與 ↑↓。
+    三張圖時間軸、十字線、縮放、點選同步;時間刻度移到最下一格。判一二三四不動(乖離率只顯示,不進訊號)。
   · 2026-10-20 13:30 箭頭改成使用者給的樣式(「這種箭頭」):紅色實心塊狀箭頭、白色描邊,內嵌 SVG 28×17,位置不變。
   · 2026-10-20 13:20 K 圖右下角的「最新」鍵取消,改成 OBV 那一列(OBV / 均線10 / 均線30)最右邊一個向右實心箭頭 ▶(使用者:「K 圖 OBV 間有一個最新取消 改設一個向右實心箭頭 放在圖一那一列最右邊」):
     功能不變(十字線不在最新一根時才出現,點了回到最新一根並跟著新 K),只是不再浮在 K 圖上擋住右下角。
@@ -1535,7 +1538,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610201330">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610201400">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1993,7 +1996,10 @@ except Exception:
         <span style="color:#19D3F5">均線<span id="lblObvMaN">10</span>:<span id="lblObvMaV">—</span></span>
         <span style="color:#B47CFF">均線30:<span id="lblObvMa30V">—</span></span><button id="xhairClose" class="xgo hidden" aria-label="十字線回到最新一根"><svg viewBox="0 0 30 18" width="28" height="17" aria-hidden="true"><path d="M1.5 5.5 H16 V1.5 L28.5 9 L16 16.5 V12.5 H1.5 Z" fill="#E53935" stroke="#FFFFFF" stroke-width="1.6" stroke-linejoin="round"/></svg></button></div>
       <div id="chartMid"></div>
-      <div id="chartBot" class="hidden"></div>
+      <div class="yh-lbl"><span style="color:#FF3B3B">乖離率10:<span id="lblBias10V">—</span></span>
+        <span style="color:#FF9F43">乖離率30:<span id="lblBias30V">—</span></span>
+        <span style="color:#FFE14D">乖離均132:<span id="lblBiasAvgV">—</span></span></div>   <!-- 2026-10-20 使用者:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」 -->
+      <div id="chartBot"></div>
     </div>
     <div class="sh-msg" id="shMsg">讀取 1 分K …</div>
   </div>
@@ -3406,7 +3412,7 @@ function liveStart(){
 /* ── 圖表 ── */
 let chart, candle, maLine, vwapLine;           // 上圖:1 分K + MA + VWAP
 let chartM, obvSeries, obvMaLine, obvMa30Line;  // 中圖:OBV + OBV 均線 + OBV 均 30(紫,2026-10-19)
-let chartB, vwapDev;                           // 下圖:VWAP 乖離率
+let chartB, vwapDev = null, biasHist, bias30Line, biasAvgLine;   // 下圖:均線乖離率(2026-10-20 使用者:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」;原 VWAP 乖離柱狀圖作廢)
 const OBV_RESET_DAILY = true;          // true = 每個交易日開盤歸零(2026-10-15 用力積電實測:元大 -47,362、開盤歸零算 -44,257、跨日累計 -20,310 ~ -133,694,元大是每日歸零);false = 跨日累加
 let BARS = [], BARS_CODE = '';
 let ENTRY_LINES = [];
@@ -3467,6 +3473,7 @@ function showBarInfo(t){
   el('lblObvV').innerHTML = isFinite(d.ob) ? Math.round(d.ob).toLocaleString() + trend(d.ob, d.obPrev) : '—';
   el('lblObvMaV').innerHTML = isFinite(d.obma) ? Math.round(d.obma).toLocaleString() + trend(d.obma, d.obmaPrev) : '—';
   { const e = el('lblObvMa30V'); if (e) e.innerHTML = isFinite(d.obma30) ? Math.round(d.obma30).toLocaleString() + trend(d.obma30, d.obma30Prev) : '—'; }   // 2026-10-19 OBV 均 30
+  { const f = (id, v, pv) => { const e = el(id); if (e) e.innerHTML = isFinite(v) ? v.toFixed(3) + trend(v, pv) : '—'; }; f('lblBias10V', d.b10, d.b10Prev); f('lblBias30V', d.b30, d.b30Prev); f('lblBiasAvgV', d.bavg, d.bavgPrev); }   // 2026-10-20 均線乖離率 10 / 30 / 132
   // 燈號 + 多空天秤跟著十字線走(2026-10-17):十字線在某根 K 上 → 顯示那根處理完當下的循環狀態(做多 / 做空 / 監控)與偏向;
   // 最後一根或沒有十字線 → 回到最新狀態。沒開平倉規則(stateAt 為空)時燈號不動,只動多空天秤。
   if (CUR.lampLast){
@@ -4229,6 +4236,22 @@ function updateMeter(b){
 }
 
 /* 乖離率:(收盤 − VWAP) ÷ VWAP × 100,紅柱在上(多方)、綠柱在下(空方) */
+/* 均線乖離率(2026-10-20):(收盤 − 均線)÷ 均線 ×100;柱狀顏色正紅負青(元大) */
+function biasOf(bars, maArr){
+  // 每一根都要有一筆(沒均線的根給只有 time 的空白點):三張圖用「邏輯索引」同步,資料長度不一樣 x 就對不齊(2026-10-20 實測下圖十字線跑掉)
+  const m = new Map(); maArr.forEach(x => m.set(x.time, x.value));
+  return bars.map(b => { const v = m.get(b.time); if (v == null || !(v > 0)) return {time: b.time}; const d = (b.close - v) / v * 100; return {time: b.time, value: +d.toFixed(3), color: d >= 0 ? '#FF3B3B' : '#19D3F5'}; });
+}
+/* 乖離率的 n 根平均(跨日連續算,略過空白點;不足 n 根給空白點) */
+function biasAvgOf(arr, n){
+  const out = []; const q = []; let sum = 0;
+  for (const x of arr){
+    if (x.value == null){ out.push({time: x.time}); continue; }
+    q.push(x.value); sum += x.value; if (q.length > n) sum -= q.shift();
+    out.push(q.length >= n ? {time: x.time, value: +(sum / n).toFixed(3)} : {time: x.time});
+  }
+  return out;
+}
 function vwapDeviation(bars, vw){
   return bars.map((b, i) => {
     const d = vw[i].value > 0 ? (b.close - vw[i].value) / vw[i].value * 100 : 0;
@@ -4335,17 +4358,18 @@ function initChart(){
                                       priceLineVisible:false, lastValueVisible:false,
                                       priceFormat: lotsFmt});
 
-  // 下圖:VWAP 乖離率(柱狀,0 軸為界)。元大版面沒有這一格,預設隱藏(SHOW_VWAP_PANE=false);
-  // VWAP 乖離改在均價列文字顯示。想看柱狀圖把 SHOW_VWAP_PANE 改 true。
-  if (SHOW_VWAP_PANE){ bot.classList.remove('hidden');
+  // 下圖:均線乖離率(2026-10-20 使用者看元大的三段版面:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」):
+  //   柱狀 = 乖離率 10 = (收盤 − 均價 10)÷ 均價 10 ×100(正紅、負青,和元大一樣);橘線 = 乖離率 30(對均價 30);黃線 = 乖離率 10 的 132 根平均(跨日算,開盤就有)。
+  //   原本這一格是 VWAP 乖離柱狀圖(SHOW_VWAP_PANE),2026-10-16 停用,現在直接作廢。
+  bot.classList.remove('hidden');
   chartB = LightweightCharts.createChart(bot, {...CHART_OPTS,
-    leftPriceScale:{visible:true, borderColor:CHART_THEME.axis, scaleMargins:{top:.15, bottom:.1}},
+    leftPriceScale:{visible:true, borderColor:CHART_THEME.axis, scaleMargins:{top:.12, bottom:.08}},
     timeScale:{...CHART_OPTS.timeScale, visible:false}});
-  vwapDev = chartB.addHistogramSeries({priceScaleId:'left', priceLineVisible:false, lastValueVisible:true,
-                                       base:0, priceFormat:{type:'custom', minMove:0.01,
-                                       formatter: v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%'}});
-  vwapDev.createPriceLine({price:0, color:'#555555', lineWidth:1, lineStyle:0, axisLabelVisible:false});
-  }
+  const pctFmt = {type:'custom', minMove:0.01, formatter: v => v.toFixed(2)};
+  biasHist = chartB.addHistogramSeries({priceScaleId:'left', priceLineVisible:false, lastValueVisible:false, base:0, priceFormat: pctFmt});
+  bias30Line = chartB.addLineSeries({priceScaleId:'left', color:'#FF9F43', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pctFmt});
+  biasAvgLine = chartB.addLineSeries({priceScaleId:'left', color:'#FFE14D', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pctFmt});
+  biasHist.createPriceLine({price:0, color:'#555555', lineWidth:1, lineStyle:0, axisLabelVisible:false});
   // 時間軸放在最下面那張圖(元大的時間標籤在 OBV 下方)
   (chartB || chartM).applyOptions({timeScale:{...CHART_OPTS.timeScale, visible:true}});
   chart.applyOptions({timeScale:{...CHART_OPTS.timeScale, visible:false}});
@@ -4360,8 +4384,8 @@ function initChart(){
   let scaleW = 0;
   const alignScales = () => {
     try{
-      const w = Math.max(chart.priceScale('left').width() || 0, chartM.priceScale('left').width() || 0);
-      if (w && w !== scaleW){ scaleW = w; [chart, chartM].forEach(c => c.applyOptions({leftPriceScale:{minimumWidth: w}})); }
+      const w = Math.max(chart.priceScale('left').width() || 0, chartM.priceScale('left').width() || 0, chartB ? (chartB.priceScale('left').width() || 0) : 0);
+      if (w && w !== scaleW){ scaleW = w; [chart, chartM, chartB].filter(Boolean).forEach(c => c.applyOptions({leftPriceScale:{minimumWidth: w}})); }
     }catch(e){}
   };
   window.alignScales = alignScales;
@@ -4409,12 +4433,14 @@ function initChart(){
   let XLOCK = null, xApplying = false, longPress = false, lpTimer = 0;
   const idxOf = t => { let lo = 0, hi = BARS.length - 1; while (lo <= hi){ const m = (lo + hi) >> 1; if (BARS[m].time < t) lo = m + 1; else if (BARS[m].time > t) hi = m - 1; else return m; } return -1; };
   const obvAt = i => { try{ const d = obvSeries.dataByIndex(i); return d && d.value != null ? d.value : 0; }catch(e){ return 0; } };
+  const biasAt = i => { try{ const d = biasHist.dataByIndex(i); return d && d.value != null ? d.value : 0; }catch(e){ return 0; } };
   const xBtn = el('xhairClose');
   const applyX = (time, info = true) => {
     const i = idxOf(time); if (i < 0) return;
     xApplying = true;
     chart.setCrosshairPosition(BARS[i].close, time, candle);
     chartM.setCrosshairPosition(obvAt(i), time, obvSeries);
+    if (chartB) chartB.setCrosshairPosition(biasAt(i), time, biasHist);
     xApplying = false;
     if (info) showBarInfo(time);
   };
@@ -4456,23 +4482,25 @@ function initChart(){
     if (p.time){
       const i = idxOf(p.time);
       xApplying = true;
-      if (src === chart) chartM.setCrosshairPosition(i >= 0 ? obvAt(i) : 0, p.time, obvSeries);
-      else chart.setCrosshairPosition(i >= 0 ? BARS[i].close : 0, p.time, candle);
+      if (src !== chart) chart.setCrosshairPosition(i >= 0 ? BARS[i].close : 0, p.time, candle);
+      if (src !== chartM) chartM.setCrosshairPosition(i >= 0 ? obvAt(i) : 0, p.time, obvSeries);
+      if (chartB && src !== chartB) chartB.setCrosshairPosition(i >= 0 ? biasAt(i) : 0, p.time, biasHist);
       xApplying = false;
       showBarInfo(p.time);
     }else{
-      xApplying = true; chart.clearCrosshairPosition(); chartM.clearCrosshairPosition(); xApplying = false;
+      xApplying = true; chart.clearCrosshairPosition(); chartM.clearCrosshairPosition(); if (chartB) chartB.clearCrosshairPosition(); xApplying = false;
       showBarInfo(null);
     }
   };
   chart.subscribeCrosshairMove(p => onMove(chart, p));
   chartM.subscribeCrosshairMove(p => onMove(chartM, p));
+  if (chartB) chartB.subscribeCrosshairMove(p => onMove(chartB, p));
   // 兩指縮放(自己做,1:1 跟手指距離):以兩指中點那根 K 為中心,可見範圍寬度 = 起始寬度 ÷ (目前距離 ÷ 起始距離)。
   // 在 capture 階段擋住兩指期間(到全部放開為止)的 touchmove,不讓套件拿第一指去捲圖;touchstart / touchend 照常給套件。
   let pinch = null, pinchReq = 0, pinchRange = null;
   const applyPinch = () => { pinchReq = 0; if (!pinchRange) return; const r = pinchRange; pinchRange = null;
     syncing = true; for (const c of charts) c.timeScale().setVisibleLogicalRange(r); syncing = false; keepXInView(r); };
-  [[top, chart], [mid, chartM]].forEach(([e, c]) => {
+  [[top, chart], [mid, chartM], [bot, chartB]].filter(([e, c]) => c).forEach(([e, c]) => {
     e.addEventListener('touchstart', ev => {
       if (ev.touches.length !== 2){ if (ev.touches.length === 0) pinch = null; return; }
       const r0 = c.timeScale().getVisibleLogicalRange(); if (!r0) return;
@@ -4496,7 +4524,7 @@ function initChart(){
     e.addEventListener('touchcancel', () => { pinch = null; }, {passive:true, capture:true});
   });
   // 點一下(單指、沒移動、0.35 秒內)= 放十字線
-  [[top, chart], [mid, chartM]].forEach(([e, c]) => {
+  [[top, chart], [mid, chartM], [bot, chartB]].filter(([e, c]) => c).forEach(([e, c]) => {
     let t0 = 0, x0 = 0, y0 = 0, multi = false, vz = null;   // vz:單指上下滑縮放的狀態(null = 還沒判定;false = 這次手勢不是縮放)
     e.addEventListener('touchstart', ev => { multi = ev.touches.length > 1; clearTimeout(lpTimer); longPress = false; vz = null; if (multi){ t0 = 0; return; }
       t0 = Date.now(); x0 = ev.touches[0].clientX; y0 = ev.touches[0].clientY;
@@ -4647,7 +4675,9 @@ function drawBars(bars, code, srcLabel, keepView){
   obvMaLine.setData(obma);
   const obma30 = sma(ob, 30, 'value');
   obvMa30Line.setData(obma30);
-  if (vwapDev) vwapDev.setData(vwapDeviation(bars, vw));
+  const ma30p = sma(bars, 30);                                      // 乖離率 30 用的均價 30
+  const bias10 = biasOf(bars, ma), bias30 = biasOf(bars, ma30p), biasAvg = biasAvgOf(bias10, 132);   // 2026-10-20 均線乖離率 10 / 30 / 132
+  if (biasHist){ biasHist.setData(bias10); bias30Line.setData(bias30.map(x => x.value == null ? {time: x.time} : {time: x.time, value: x.value})); biasAvgLine.setData(biasAvg); }
   if (window.alignScales) requestAnimationFrame(() => alignScales());   // 左刻度寬度對齊,十字線才會上下同一條
   if (!keepView){
     // 元大風格:開圖只顯示最近 YH.defaultBars 根(K 棒才夠粗),往左滑可看更早的;其他兩張圖會同步
@@ -4708,10 +4738,10 @@ function drawBars(bars, code, srcLabel, keepView){
   {
     const byTime = new Map();
     const idx = (arr) => { const m = new Map(); arr.forEach((x, i) => m.set(x.time, i)); return m; };
-    const iMa = idx(ma), iVw = idx(vw), iOb = idx(ob), iObma = idx(obma), iObma30 = idx(obma30);
+    const iMa = idx(ma), iVw = idx(vw), iOb = idx(ob), iObma = idx(obma), iObma30 = idx(obma30), iB10 = idx(bias10), iB30 = idx(bias30), iBA = idx(biasAvg);
     let cumVol = 0, cumDay = null;                     // 當天累積成交量(股),跨日歸零
     bars.forEach((b, i) => {
-      const k = iMa.get(b.time), k2 = iObma.get(b.time), kv = iVw.get(b.time), ko = iOb.get(b.time), k3 = iObma30.get(b.time);
+      const k = iMa.get(b.time), k2 = iObma.get(b.time), kv = iVw.get(b.time), ko = iOb.get(b.time), k3 = iObma30.get(b.time), kb1 = iB10.get(b.time), kb3 = iB30.get(b.time), kba = iBA.get(b.time);
       const day = dayKey(b.time);
       if (day !== cumDay){ cumVol = 0; cumDay = day; }
       cumVol += b.volume;
@@ -4722,6 +4752,9 @@ function drawBars(bars, code, srcLabel, keepView){
         ob: ko != null ? ob[ko].value : NaN, obPrev: ko != null && ko > 0 ? ob[ko - 1].value : null,
         obma: k2 != null ? obma[k2].value : NaN, obmaPrev: k2 != null && k2 > 0 ? obma[k2 - 1].value : null,
         obma30: k3 != null ? obma30[k3].value : NaN, obma30Prev: k3 != null && k3 > 0 ? obma30[k3 - 1].value : null,
+        b10: kb1 != null ? bias10[kb1].value : NaN, b10Prev: kb1 != null && kb1 > 0 ? bias10[kb1 - 1].value : null,
+        b30: kb3 != null ? bias30[kb3].value : NaN, b30Prev: kb3 != null && kb3 > 0 ? bias30[kb3 - 1].value : null,
+        bavg: kba != null ? biasAvg[kba].value : NaN, bavgPrev: kba != null && kba > 0 ? biasAvg[kba - 1].value : null,
       });
     });
     CUR = {byTime, last: byTime.get(last.time), prevClose};
