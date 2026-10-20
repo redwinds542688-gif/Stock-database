@@ -101,6 +101,10 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-20 20:45 判別式一第九次修改、判別式四修改:震盪盤不進場只留判二(使用者看 OBV 震盪校正後:「改 震盪只留判二」):
+    判一 SIG1.chopWin 45 → 0、判四 30 → 0(不加),判二自己設 chopWin:45,判三本來就不加。
+    十天(九天 Yahoo K + 10/20 雲端 K):判一 33 筆 +81,520 → 37 筆 +84,950(九天 +59,473 → +57,884、10/20 +22,047 → +27,066,友達 10:07、光鼎 12:01 回來);
+    判四 14 筆 +32,163 → 20 筆 +49,811(九天 +17,501 → +14,317、10/20 +14,662 → +35,494);判二維持 48 筆 +118,764(不加 68 筆 +103,624)。
   · 2026-10-20 20:35 判別式四震盪視窗 45 → 30 根(使用者看回測後:「判四30根」):判四 chopWin:30,其他條件不變(≥ 3 個輪流的起漲 / 起跌點、1.5% 內)。
     回測:九天 11 筆 63% +17,501 → 11 筆 63% +17,501(一樣);10/20 雲端 K 3 筆 +14,662 → 4 筆 75% +20,884(多新唐 10:30 空 +6,222)。
     判一、判二維持 45(30 根:判一十天 +81,520 → +80,379、判二 +118,764 → +105,165)。模擬器 CHOP=1 CHOPW=30(results/chase/*_chopw30.txt)。
@@ -1566,7 +1570,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610202035">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610202045">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3622,7 +3626,7 @@ const SIG1 = { skipMin: 15, slopeBars: 10, maxDev: 2.0, noEntryAfter: '13:00', t
               noWeakEntry: true,   // 2026-10-19 第七次修改(使用者「下手」):逆勢單不進(勢);九天回測逆勢單 20 筆 7/13 沒優勢。判二、三設 false 不受影響。模擬器 NOWEAK=1
               redSlopeMin: -2, resetAfterTp: true,
               stopMode: 'pts', stopCapPct: 3, stopMinPct: 0,
-              chopWin: 45, chopN: 3, chopRange: 1.5 };   // 2026-10-20 震盪盤不進場(判一二三四都加,判二三四複製自 SIG1)   // 2026-10-20 第八次修改(使用者「改」):停損改起漲 / 起跌點(最近一個起漲 + 起跌,空取最高、多取最低),上限 3%;九天 +55,284 → +57,884。
+              chopWin: 0, chopN: 3, chopRange: 1.5 };   // 2026-10-20 震盪盤不進場:20:45 使用者「改 震盪只留判二」→ 判一 chopWin:0(不加),判二自己設 45;chopN / chopRange 給判二複製用   // 2026-10-20 第八次修改(使用者「改」):停損改起漲 / 起跌點(最近一個起漲 + 起跌,空取最高、多取最低),上限 3%;九天 +55,284 → +57,884。
               //   // 2026-10-18 第三次修改(使用者「都加」→「判別式一,三也跟著改」→ 選 1):redSlopeMin 確認點紅線 5 根斜率 < −2%(在退)不進、標「退」;resetAfterTp 停利後同方向第 1 點重數   // rvol:量比 = 今天到此刻累計量 ÷ 前 5 天同一時刻平均;rvolFilter=true 時量比 < rvolMin 不進場(只記錄,標「比」);false 只顯示(2026-10-16 01:40)   // minDayVol:當天累計成交量(張)未達 6000 不進場;達到後下一個同向點直接進(2026-10-16 01:10)   // vwapFilter:價在 VWAP 上只做多、下只做空(23:30);vwapSlope:VWAP 最近 10 分鐘要往進場方向走 ≥ 0.05%(23:55)   // confirmMaxGapPct:確認點與前一個同向點的價差上限 %(2026-10-15 22:35 定 1%,22:45 改 2%);maxEntryDevPct:訊號價離均價超過 1% 只記錄不進場(23:15)   // 平倉:獲利 2.5% 停利(2026-10-17 由 4% 改,回測 10/13~16 +29,382 → +40,767)、反向 1.5% 停損、距昨收超過 6% 強制出(2026-10-15)   // trendOnlyPct:距昨收超過 ±3%(到 entryMaxChg 為止)只收順勢訊號   // noEntryAfter:13:00 後不進場、只監控平倉(2026-10-15);slopeBars / maxDev 給多空天秤用
 /* ── 判別式二、三(2026-10-18 使用者指令「把現在判別式一複製給判別式二跟三,按鍵名稱也放上去」;23:30「把判別三刪除」;23:50 判別式三改放差擴散邏輯重建)──
    判別式二從判別式一複製後已多次修改(見 RULESETS['二'] 的註解與《判別式二.md》);判別式三 = 差擴散邏輯 + 判別式二的保護(《判別式三.md》,待修正);判別式一照舊鎖定。
@@ -3657,7 +3661,7 @@ const RULESETS = {
                                                                   strong: true, strongSlowMa: 30, strongDxBars: 5, strongSlowBars: 2, strongExtBars: 10, strongWin: 5, strongMaxChg: 4, strongNoAfter: '11:30',
                                                                   confirmMinGapPct: 4, noEntryAfter: '12:00',
                                                                   crossSlowMa2: 30, weakByOrder: true,
-                                                                  nearHiLoPct: 2, noWeakEntry: false, stopMinPct: 1.5, ob10Dir: true }) },   // 2026-10-20 起漲 / 起跌點停損,但不小於 1.5%(九天 63 筆 61% +95,259 → 60 筆 65% +102,788)   // noWeakEntry:false = 判一第七次修改(不做逆勢單)只改判一,判二照舊   // 2026-10-19 第六次修改:離當日高點(多)/ 低點(空)超過 2% 不進(離)
+                                                                  nearHiLoPct: 2, noWeakEntry: false, stopMinPct: 1.5, ob10Dir: true, chopWin: 45 }) },   // 2026-10-20 20:45 震盪盤不進場只留判二(45 根)   // 2026-10-20 起漲 / 起跌點停損,但不小於 1.5%(九天 63 筆 61% +95,259 → 60 筆 65% +102,788)   // noWeakEntry:false = 判一第七次修改(不做逆勢單)只改判一,判二照舊   // 2026-10-19 第六次修改:離當日高點(多)/ 低點(空)超過 2% 不進(離)
   // 判別式三(2026-10-18 23:30 使用者「把判別三刪除」拿掉舊的複製版;23:50 使用者「連擴 2 根 + 判別式二全部保護 把這放進判別三 找時間再來修正」重建):
   //   entryMode:'gapdir' = 使用者提的「OBV10 − OBV30 相減之差」邏輯:差剛翻正(做空翻負)= 起始,gapWinBars(10)根內「紅線在 OBV10 與 OBV gapSlowMa(30)之上(空:之下)
   //   + 差連續擴大 gapGrowBars(2)根 + K 不是虛根、收在當日高低之間」= 確認點直接進;窗口過期或差翻回去 → 候選作廢。保護全部照判別式二(3.5%、順勢、VWAP、量、量比、離均價 1%、
@@ -3682,7 +3686,7 @@ const RULESETS = {
   '四': { key: '四', btn: '判四', name: '判別式四', date: '2026-10-20', backtest: '10/06~10/19 九天只做空 10 筆,賺 7 賠 3,勝率 70%,淨 +23,644(模擬器完整版;研究版 23 筆 69% +51,455;壓線 + 三線向下 + 量先價行 + 不追空 + 開平不做;觀察中)',
           sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'press', pressTouchPct: 0.15, pressChasePct: 2, pressRvolMax: 1.2, pressLoPct: 0.5, pressGapPct: 1, pressLookback: 30,
                                                                   noLock: true, obmaSlopeMin: 0, noWeakEntry: false, confirmMinGapPct: 0, noEntryAfter: '12:00',
-                                                                  vwapFilter: false, minDayVol: 0, rvolFilter: false, maxEntryDevPct: 99, nearHiLoPct: 0, obvDirMa: 0, gapChasePct: 99, stopMode: 'pct', chopWin: 30 }) },   // 停損照舊 1.5%(2026-10-20 起漲 / 起跌點停損只改判一、判二)   // 2026-10-20 20:35 震盪視窗 30 根(使用者「判四30根」;判一二維持 45)
+                                                                  vwapFilter: false, minDayVol: 0, rvolFilter: false, maxEntryDevPct: 99, nearHiLoPct: 0, obvDirMa: 0, gapChasePct: 99, stopMode: 'pct', chopWin: 0 }) },   // 停損照舊 1.5%(2026-10-20 起漲 / 起跌點停損只改判一、判二)   // 2026-10-20 20:45 震盪不加(使用者「改 震盪只留判二」;20:35 的 30 根取消)
 };
 const RS_KEY = 'mysh.ruleset';
 // 正在用的判別式:先問 App(SharedPreferences,1.5.28 起有 Android.getRuleset),沒有才看 localStorage。
@@ -4128,7 +4132,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
     }
     // 2026-10-20 判別式二修改(使用者看富喬 09:26:「OBV10 藍線也沒有往下」→「改 判二藍線同向」):確認點 OBV 均 10(藍)最近 1 根要和方向同向,否則只記錄、標「藍」。
     // 九天(新停損下)60 筆 65% +102,788 → +102,389(只動到漢磊 10/06 晚 4 分鐘進);10/20 雲端 K −543 → +1,235(擋掉富喬 09:26 空單)。模擬器 OB10DIR=1
-    // 2026-10-20 判一二三四都加(使用者:「起漲起跌距離太近,感覺就是橫盤,也就是震盪盤」→「改 震盪不進場 都用 45 判一二三四都加」):
+    // 2026-10-20 判一二三四都加(使用者:「起漲起跌距離太近,感覺就是橫盤,也就是震盪盤」→「改 震盪不進場 都用 45 判一二三四都加」): 20:45「改 震盪只留判二」→ 現在只有判二 chopWin:45,其他 0
     // 過去 SIG.chopWin(45)根內 ≥ SIG.chopN(3)個輪流的起漲 / 起跌點(整根 K 穿均價 + OBV 穿 OBV 均 10),價格都在 SIG.chopRange(1.5)% 內 = 震盪盤 → 只記錄、標「盤」。模擬器 CHOP=1 CHOPW=45
     let chopBad = false;
     if (SIG.chopWin > 0 && entryOk && !far && !opts.ignoreGate){
