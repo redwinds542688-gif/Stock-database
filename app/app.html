@@ -101,6 +101,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-20 09:40 即時價與雲端 1 分K 的落後縮短(使用者富喬 09:21 截圖對元大:「差了快二分鐘」→「改」):查出證交所免費接口後面好幾台伺服器新舊不一,同一秒 5 個請求相差 25~60 秒,
+    整點快照抓到舊的就少一根 K、下一根併兩分鐘(富喬 09:00~09:23 少 5 根)。Worker 改每次同時發 4 個請求、每檔取累計量最大的那筆(快照與 ?codes 即時價都用);
+    手機圖開著 / 背景判別補雲端 K 由 2 分鐘改 55 秒(雲端本身 55 秒內不重抓,請求數不變)。免費接口仍至少慢十幾秒,無法和券商完全同步;判一二三不動。
   · 2026-10-20 01:30 判別式三加「開高不做」(使用者看輸的單:「只做開平或開低」→「改 開高不做」):brkMaxGapPct:0,今開 > 昨收那天不進。
     輸的 26 筆多數進場後最多只漲 0.5%、拖到 13:25 平倉,而且開盤缺口平均 +0.4%(賺的 −0.6%)。九天 45 筆 42% +18,779 → 26 筆 15/11 57% +54,181。模擬器 BRKGAP=0。
   · 2026-10-20 01:20 判別式三改成「燿華型」起漲點(使用者看燿華 11:12、友達 10:37 的圖:「起漲點」→「燿華型寫入判三」):entryMode 'brk' = 前 20 根盤整
@@ -1526,7 +1529,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610200130">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610200940">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3212,7 +3215,7 @@ async function loadCloudBars(){
 window.CLOUD_BARS = CLOUD_BARS;
 async function loadTodayBars(code, force){
   const cached = TODAY_BARS.get(code);
-  if (!force && cached && Date.now() - cached.at < 120000) return cached;
+  if (!force && cached && Date.now() - cached.at < 55000) return cached;   // 2026-10-20 09:40 2 分鐘 → 55 秒(使用者:富喬「差了快二分鐘」→「改」)
   if (liveOn()){
     await loadCloudBars();
     const c2 = TODAY_BARS.get(code);
@@ -3342,7 +3345,7 @@ async function livePoll(){
     // 圖表開著 → 最右邊的 K 即時更新;每 2 分鐘再向 Yahoo 補一次今天的 K(補斷線漏掉的分鐘)
     if (BARS_CODE && el('sheet').classList.contains('open')){
       const tb = TODAY_BARS.get(BARS_CODE);
-      if (!tb || Date.now() - tb.at > 120000){
+      if (!tb || Date.now() - tb.at > 55000){   // 2026-10-20 09:40 圖開著時每 55 秒補一次雲端 K(原 2 分鐘)
         const c = BARS_CODE;
         loadTodayBars(c).then(() => { if (BARS_CODE === c) redrawLive(); });
       }
@@ -5117,7 +5120,7 @@ async function bgTick(force, replay){
           BG.hist.set(code, h || []);
         }
         const ta = BG.todayAt.get(code) || 0;
-        if (Date.now() - ta > 120000){ await loadTodayBars(code, true); BG.todayAt.set(code, Date.now()); }   // 每 2 分鐘補一次今天的 K
+        if (Date.now() - ta > 55000){ await loadTodayBars(code, true); BG.todayAt.set(code, Date.now()); }   // 每 55 秒補一次今天的 K(2026-10-20 原 2 分鐘;雲端本身 55 秒內不重抓,請求數不變)
         const bars = mergeLive(code, BG.hist.get(code));
         if (!bars.length) continue;
         const ma = sma(bars, BASE.maPeriod), ob = obv(bars), obma = sma(ob, BASE.obvMaPeriod, 'value');

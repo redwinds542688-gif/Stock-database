@@ -48,6 +48,8 @@
        每根 = 這一分鐘快照和前一分鐘快照相減:量 = 累計量差 × 1000,收 = 快照時最後成交價,開 = 前一根收,高低 = 開收的大小
        (沒有分鐘內的高低,影線比券商短);這分鐘沒成交就沒有那根(和 Yahoo 一樣)。since = 手機已有的最後一根時間,只回之後的。
        全天的查詢(沒 since)在邊緣快取 50 秒,KV 讀取量才不會爆。
+     2026-10-20 09:40 取價改「同時發 4 個請求、每檔取累計量最大(最新)的那筆」(misFresh):證交所接口各伺服器新舊差 25~60 秒,
+       單發一次常拿到舊資料,快照那分鐘就少一根 K(使用者:富喬「差了快二分鐘」→「改」)。?codes= 即時價同樣處理。
    ══════════════════════════════════════════════════════ */
 
 const GH_OWNER = "redwinds542688-gif", GH_REPO = "Stock-database", GH_REF = "main";
@@ -79,14 +81,36 @@ async function poolCodes() {
   const j = await r.json(); const pool = Array.isArray(j) ? j : (j.pool || []);
   return pool.map(s => ({ code: String(s.code), mkt: (s.market === "tpex" || s.market === "otc") ? "otc" : "tse" }));
 }
+/* 2026-10-20 09:40 使用者(富喬 09:21 截圖:「差了快二分鐘」→「改」):證交所接口後面有好幾台伺服器,每台更新時間不同,
+   開盤時同一秒發 5 個請求拿到的資料相差 25~60 秒,有時 70 秒後還在回同一筆舊資料(09:26~09:31 實測)。
+   每分鐘整點的快照抓到舊資料 → 那分鐘「沒成交」不出 K,下一分鐘兩分鐘併成一根(富喬 09:00~09:23 少了 5 根)。
+   改成每次同時發 FRESH_N 個請求,每檔取累計量 v 最大(= 最新)的那筆;sysTime 也取最新。快照與手機即時價都用這條。 */
+const FRESH_N = 4;
+async function misFresh(ex_ch) {
+  const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${ex_ch}&json=1&delay=0&_=`;
+  const rs = await Promise.all(Array.from({ length: FRESH_N }, (_, i) =>
+    fetch(url + (Date.now() + i), { headers: MIS_HDR, cf: { cacheTtl: 0 } }).then(r => r.ok ? r.json() : null).catch(() => null)));
+  let best = null; const by = new Map();
+  for (const j of rs) {
+    if (!j || !Array.isArray(j.msgArray)) continue;
+    const st = (j.queryTime && j.queryTime.sysTime) || "";
+    if (!best || st > ((best.queryTime && best.queryTime.sysTime) || "")) best = j;
+    for (const m of j.msgArray) {
+      const o = by.get(m.c);
+      const v = parseFloat(m.v) || 0, ov = o ? (parseFloat(o.v) || 0) : -1;
+      if (!o || v > ov || (v === ov && (m.tlong || "") > (o.tlong || ""))) by.set(m.c, m);
+    }
+  }
+  if (!best) return null;
+  return { ...best, msgArray: [...by.values()] };
+}
 async function misFetch(list) {
   const out = [];
   for (let i = 0; i < list.length; i += 50) {
     const ex_ch = list.slice(i, i + 50).map(s => `${s.mkt}_${s.code}.tw`).join("|");
     try {
-      const r = await fetch(`https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${ex_ch}&json=1&delay=0&_=${Date.now()}`, { headers: MIS_HDR, cf: { cacheTtl: 0 } });
-      if (!r.ok) continue;
-      const j = await r.json(); for (const m of (j.msgArray || [])) out.push(m);
+      const j = await misFresh(ex_ch);
+      for (const m of ((j && j.msgArray) || [])) out.push(m);
     } catch (e) { console.log("mis " + e); }
   }
   return out;
@@ -318,20 +342,12 @@ export default {
 
     // 組證交所要的格式:tse_2409.tw|otc_6147.tw|...
     const ex_ch = codes.map((c, i) => `${(mkts[i] || "tse") === "otc" ? "otc" : "tse"}_${c}.tw`).join("|");
-    const target = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${ex_ch}&json=1&delay=0&_=${Date.now()}`;
-
     try {
-      const r = await fetch(target, {
-        headers: {
-          "User-Agent": "Mozilla/5.0",
-          "Accept": "application/json",
-          "Referer": "https://mis.twse.com.tw/stock/fibest.jsp",
-        },
-        cf: { cacheTtl: 0 },
-      });
-      const body = await r.text();
-      return new Response(body, {
-        status: r.status,
+      // 2026-10-20:同時發 FRESH_N 個請求、每檔取最新的那筆(見 misFresh)
+      const j = await misFresh(ex_ch);
+      if (!j) return new Response(JSON.stringify({ error: "證交所接口沒有回應" }), { status: 502, headers: { ...CORS, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify(j), {
+        status: 200,
         headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" },
       });
     } catch (e) {
