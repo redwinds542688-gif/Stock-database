@@ -385,6 +385,12 @@ for i in range(1, len(c)):
     if conf and MINGAP > 0 and not far:
         _rng = (np.nanmax(ob[:i+1]) - np.nanmin(ob[:i+1])) or 1; _g = (ob[i]-obma[i])*side/_rng*100
         if _g < MINGAP: far = True; tag += f' [紅藍差距 {_g:.1f}% 不足,只記錄]'
+    KMADIR = os.environ.get('KMADIR','0') == '1'; KMA2 = int(os.environ.get('KMA2','0'))   # 2026-10-20 測試(使用者看友達元大圖:「判二 9:37 K10 是下跌、9:42 K10 在 K24 下面,這兩種情況都不適合做多」):確認點(含強訊號)均價 10 要同向;均價 10 要在均價 KMA2 的正確側
+    if conf and not far and KMADIR and not ((ma[i] - ma[i-1]) * side > 0): far = True; tag += f' [均價 10 {"降" if side==1 else "升"},不符方向,只記錄]'
+    if conf and not far and KMA2 > 0:
+        if 'kma2' not in globals() or globals().get('kma2n') != KMA2: globals()['kma2'] = pd.Series(c).rolling(KMA2).mean().values; globals()['kma2n'] = KMA2
+        _m2 = globals()['kma2'][i]
+        if np.isnan(_m2) or (ma[i] - _m2) * side < 0: far = True; tag += f' [均價 10 在均價 {KMA2} {"之下" if side==1 else "之上"},只記錄]'
     NEARHL = float(os.environ.get('NEARHL','0'))   # 2026-10-19 測試(台玻 11:44 做多在高點 69.7 之下 2%):做多時價離當日高點超過 NEARHL% 不進(做空看當日低點),第二波不追
     if conf and NEARHL > 0 and not far:
         _dh = np.nanmax(h[:i+1]); _dl = np.nanmin(l[:i+1])
