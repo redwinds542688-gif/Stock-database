@@ -361,6 +361,11 @@ for i in range(1, len(c)):
         _dh = np.nanmax(h[:i+1]); _dl = np.nanmin(l[:i+1])
         _dist = (_dh - c[i]) / _dh * 100 if side == 1 else (c[i] - _dl) / _dl * 100
         if _dist > NEARHL: far = True; tag += f' [離當日{"高" if side==1 else "低"}點 {_dist:.1f}% 太遠,只記錄]'
+    CHASEHI = float(os.environ.get('CHASEHI','0')); CHASELO = float(os.environ.get('CHASELO','0'))   # 2026-10-20 測試(使用者:「不追空如何」):做空時價離當日高點超過 CHASEHI% = 已跌一段,不追空;做多鏡像 CHASELO 看當日低點
+    if conf and not far and (CHASEHI > 0 or CHASELO > 0):
+        _dh = np.nanmax(h[:i+1]); _dl = np.nanmin(l[:i+1])
+        if side == -1 and CHASEHI > 0 and (_dh - c[i]) / _dh * 100 > CHASEHI: far = True; tag += f' [離今高 {(_dh-c[i])/_dh*100:.1f}% 已跌一段,不追空,只記錄]'
+        if side == 1 and CHASELO > 0 and (c[i] - _dl) / _dl * 100 > CHASELO: far = True; tag += f' [離今低 {(c[i]-_dl)/_dl*100:.1f}% 已漲一段,不追多,只記錄]'
     SHORTMAXPCT = float(os.environ.get('SHORTMAXPCT','99')); LONGMINPCT = float(os.environ.get('LONGMINPCT','-99'))   # 2026-10-19 測試(使用者「找破解」):做空只在當日漲跌 ≤ SHORTMAXPCT%、做多只在 ≥ LONGMINPCT%
     if conf and not far and ((side==-1 and pct > SHORTMAXPCT) or (side==1 and pct < LONGMINPCT)): far = True; tag += f' [當日 {pct:+.2f}% 不符{"做空" if side==-1 else "做多"}條件,只記錄]'
     OPENMOVE = float(os.environ.get('OPENMOVE','0'))   # 2026-10-19 測試(使用者:「訊號沒錯但我們忽視了什麼關鍵的訊號」):價要先相對今開朝方向走 OPENMOVE% 以上才進(只有 OBV、價還沒跟上 = 不進)
