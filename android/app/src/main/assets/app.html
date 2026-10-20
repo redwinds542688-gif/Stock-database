@@ -101,6 +101,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-20 16:40 起漲 / 起跌點的 K 穿越改用整根 K(使用者:「起跌點 K 棒取最高交易價格,起漲點取 K 棒最低價格,9:42 K 棒最低價格沒有超越均線」):起跌要 K 最高價 < 均價,起漲要 K 最低價 > 均價。
   · 2026-10-20 16:20 K 線圖標示起漲點 / 起跌點(使用者看中揚光 09:25:「照這邏輯找出起漲點跟起跌點,然後標示出來」):今天創新高後第一次「收盤跌破均價 + OBV 跌破 OBV 均線」(相差 ≤ 2 根)= 起跌(橘▼,
     文字帶那根的高點 = 起跌點停損參考);創新低後第一次兩個都往上穿 = 起漲(青▲,帶低點)。每段走勢只標一次(要再創新高 / 新低才會標下一個),一天約 4~7 個。只標示,不進訊號,判一二三四不動。
   · 2026-10-20 15:10 判別式只用雲端 K(使用者看友達 09:30 多單:用雲端 K 截到 09:31 / 09:33 / 整天重算都沒有這個多點,是手機自拼 K 算出來的 → 「改」):
@@ -1551,7 +1552,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610201620">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610201640">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4270,7 +4271,7 @@ function biasAvgOf(arr, n){
   return out;
 }
 /* 起漲點 / 起跌點(2026-10-20 使用者看中揚光 09:25:「K 剛穿過均線,OBV 也剛穿過 OBV 均線,把這個點記起來」→「照這邏輯找出起漲點跟起跌點,然後標示出來」)
-   每天各自算:今天創新高(盤中最高)之後,第一次「收盤跌破均價」且「OBV 跌破 OBV 均線」(兩個穿越相差 ≤ 2 根)的那根 = 起跌點,回傳那根的高點(停損參考);
+   每天各自算:今天創新高(盤中最高)之後,第一次「K 棒最高價跌破均價(整根在線下)」且「OBV 跌破 OBV 均線」(兩個穿越相差 ≤ 2 根)的那根 = 起跌點,回傳那根的高點(停損參考);
    創新低之後第一次兩個都往上穿 = 起漲點,回傳低點。標過一次後,要再創新高(低)才會再標下一個,所以一段走勢只標一次。 */
 function originPoints(bars, ma, ob, obma){
   const M = a => { const m = new Map(); a.forEach(x => m.set(x.time, x.value)); return m; };
@@ -4283,10 +4284,11 @@ function originPoints(bars, ma, ob, obma){
     if (b.high > hi){ hi = b.high; armD = true; }
     if (b.low < lo){ lo = b.low; armU = true; }
     const m0 = mm.get(b.time), o0 = mo.get(b.time), om0 = mom.get(b.time);
-    const cur = (m0 == null || o0 == null || om0 == null) ? null : {c: b.close, m: m0, o: o0, om: om0};
+    const cur = (m0 == null || o0 == null || om0 == null) ? null : {h: b.high, l: b.low, m: m0, o: o0, om: om0};
     if (prev && cur){
       for (const sd of [1, -1]){
-        if ((cur.c - cur.m) * sd > 0 && (prev.c - prev.m) * sd <= 0) lk[sd] = n;
+        const kIn = x => sd > 0 ? x.l > x.m : x.h < x.m;   // 2026-10-20 使用者:「起跌點 K 棒取最高價、起漲點取最低價」→ 整根 K 都在均價另一側才算穿越(09:42 最低價還壓在均線上,不算起漲)
+        if (kIn(cur) && !kIn(prev)) lk[sd] = n;
         if ((cur.o - cur.om) * sd > 0 && (prev.o - prev.om) * sd <= 0) lo2[sd] = n;
       }
       if (armD && n - lk[-1] <= 2 && n - lo2[-1] <= 2 && (lk[-1] === n || lo2[-1] === n)){ out.push({time: b.time, side: -1, price: b.high}); armD = false; }

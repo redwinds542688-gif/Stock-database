@@ -71,7 +71,9 @@ def _origin_stop(sd, upto):
         _order = list(range(max(1, _x+1), upto+1)) + list(range(upto, 0, -1))
     for j in _order:
         if np.isnan(ma[j]) or np.isnan(ma[j-1]): continue
-        if not ((c[j]-ma[j])*sd > 0 and (c[j-1]-ma[j-1])*sd <= 0): continue
+        _kin = (lambda q: l[q] > ma[q]) if sd == 1 else (lambda q: h[q] < ma[q])   # 2026-10-20 使用者:起跌點用 K 最高價、起漲點用 K 最低價(整根 K 穿過均價才算)
+        if os.environ.get('STOPKBAR','whole') == 'close': _kin = lambda q: (c[q]-ma[q])*sd > 0
+        if not (_kin(j) and not _kin(j-1)): continue
         for k in range(max(1, j-XW), min(upto, j+XW)+1):
             if np.isnan(obma[k]) or np.isnan(obma[k-1]): continue
             if (ob[k]-obma[k])*sd > 0 and (ob[k-1]-obma[k-1])*sd <= 0:
