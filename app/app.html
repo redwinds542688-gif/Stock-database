@@ -101,6 +101,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-21 02:30 燈號改看四件平均分數(使用者:「Ka 瞬間拉那麼高 訊號只顯示監控 也不合理」):b = (Ka/Kb 位置 + 橘線 + 指標二方向 + Ka/Kb 方向)/ 4,
+    ≥ 0.75 做多、0.25~0.75 漸多、±0.25 內監控、反向同理(不再要求四件全同方向,有一件相反也能亮漸多 / 漸空)。九天:做多 52%、漸多 50%、監控 47%、漸空 55%、做空 54%。
+    友達 10/20 13:17 → 漸多(原監控)。天秤 = 同一個分數。
   · 2026-10-21 02:15 燈號再加 Ka / Kb 方向(使用者:「也要參考 ka kb 的變化」):Ka、Kb 和 5 根前比都往上 = 偏多、都往下 = 偏空。做多 / 做空要四件同方向
     (Ka/Kb 位置、橘線、指標二方向、Ka/Kb 方向),有偏多沒偏空 = 漸多、反之漸空、有多有空 = 監控;天秤 = 四件平均。
     九天統計(studies/lamp_ind3.py,60 根內先走 1%):做多 53%、漸多 50%、監控 49%、漸空 55%、做空 50%(三件版:做多 53%、漸空 55%、做空 51%)。
@@ -1635,7 +1638,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610210215">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610210230">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4384,13 +4387,16 @@ function ind3Series(bars, ma, ma24, ob, obma, obma30){
   }
   return out;
 }
-const ind3Bias = st => st ? (st.k + (st.lo + st.hi) / 2 + (st.o2 || 0) + (st.ks || 0)) / 4 : 0;   // 2026-10-21 02:15 四件事平均(Ka/Kb 位置、橘線、指標二方向、Ka/Kb 方向)
+const ind3Bias = st => st ? (st.k + (st.lo > 0 && st.hi > 0 ? 1 : st.lo < 0 && st.hi < 0 ? -1 : 0) + (st.o2 || 0) + (st.ks || 0)) / 4 : 0;   // 2026-10-21 四件事平均(Ka/Kb 位置、橘線雙升 +1 / 雙降 −1、指標二方向、Ka/Kb 方向)
 function lampsFromInd3(st, time, waiting){
   if (waiting || !st) return lampsFromBias(0, time, null, 0, !!waiting);
   const closed = time != null && hmKey(time) >= '13:25';
-  const bull = (st.k > 0 ? 1 : 0) + (st.lo > 0 && st.hi > 0 ? 1 : 0) + (st.o2 > 0 ? 1 : 0) + (st.ks > 0 ? 1 : 0), bear = (st.k < 0 ? 1 : 0) + (st.lo < 0 && st.hi < 0 ? 1 : 0) + (st.o2 < 0 ? 1 : 0) + (st.ks < 0 ? 1 : 0);
-  const l = !closed && bull === 4, sh = !closed && bear === 4;   // 2026-10-21 02:15 四件都同方向才亮做多 / 做空
-  const lp = !closed && !l && bull >= 1 && bear === 0, sp = !closed && !sh && bear >= 1 && bull === 0;   // 只有偏多(沒有偏空)= 漸多
+  // 2026-10-21 02:30 使用者:「Ka 瞬間拉那麼高 訊號只顯示監控 也不合理」→ 不再要求四件全同方向,改看四件平均分數 b(−1~+1):
+  //   b ≥ 0.75 做多、0.25~0.75 漸多、−0.25~0.25 監控、−0.75~−0.25 漸空、≤ −0.75 做空(例:友達 13:17 Ka 上、橘雙升、Ka/Kb 往上,只有指標二往下 → b 0.5 = 漸多)。
+  //   九天(studies/lamp_ind3.py 分數版):做多 52%、漸多 50%、監控 47%、漸空 55%、做空 54%(四件全同方向版的做空只有 50%)
+  const b = ind3Bias(st);
+  const l = !closed && b >= 0.75, sh = !closed && b <= -0.75;
+  const lp = !closed && !l && b >= 0.25, sp = !closed && !sh && b <= -0.25;
   const eL = el('lampLong'), eS = el('lampShort'), eW = el('lampWatch');
   eL.classList.toggle('on', l); eL.classList.toggle('pre', lp); eL.classList.remove('strong'); eL.textContent = lp ? '漸多' : '做多';
   eS.classList.toggle('on', sh); eS.classList.toggle('pre', sp); eS.classList.remove('strong'); eS.textContent = sp ? '漸空' : '做空';
