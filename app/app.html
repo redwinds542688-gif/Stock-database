@@ -101,6 +101,11 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-20 18:00 判別式一第八次修改、判別式二修改:停損改「起漲 / 起跌點」(使用者看中揚光 09:25:「反彈沒有超過這個都不必贖回」→「找出起漲起跌點,做空就以最高為準,
+    不管是起漲或起跌;做多就找起漲起跌最低點」→ 回測 → 「改」):進場時取今天到訊號那根為止最近一個起漲點 + 最近一個起跌點(收盤價判斷穿越,和圖上整根 K 的標示不同),
+    做空停損 = 兩根 K 最高價中高於進場價的較高者,反彈「超過」才停;做多鏡像取最低價。超過 3% 用 3%;判二離進場不到 1.5% 用 1.5%;找不到照舊 1.5%。判三、判四照舊 1.5%。
+    九天 Yahoo K:判一 31 筆 67% +55,284 → +57,884;判二 63 筆 61% +95,259 → 60 筆 65% +102,788。10/20 雲端 K:判一 +13,960 → +27,066(中揚光 −6,254 → +6,852)、判二 −8,392 → −193。
+    部位帳本同步:進場記住停損價(BG.pos.stopPx / stopPct),通知裡的「停損」改顯示這個價。模擬器 STOPMODE=pts STOPSCOPE=last2 STOPKBAR=close STOPCAP=3(判二加 STOPMIN=1.5)。
   · 2026-10-20 16:40 起漲 / 起跌點的 K 穿越改用整根 K(使用者:「起跌點 K 棒取最高交易價格,起漲點取 K 棒最低價格,9:42 K 棒最低價格沒有超越均線」):起跌要 K 最高價 < 均價,起漲要 K 最低價 > 均價。
   · 2026-10-20 16:20 K 線圖標示起漲點 / 起跌點(使用者看中揚光 09:25:「照這邏輯找出起漲點跟起跌點,然後標示出來」):今天創新高後第一次「收盤跌破均價 + OBV 跌破 OBV 均線」(相差 ≤ 2 根)= 起跌(橘▼,
     文字帶那根的高點 = 起跌點停損參考);創新低後第一次兩個都往上穿 = 起漲(青▲,帶低點)。每段走勢只標一次(要再創新高 / 新低才會標下一個),一天約 4~7 個。只標示,不進訊號,判一二三四不動。
@@ -1552,7 +1557,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610201640">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610201800">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3606,7 +3611,9 @@ const SIG1 = { skipMin: 15, slopeBars: 10, maxDev: 2.0, noEntryAfter: '13:00', t
               obvDirMa: 30, obvDirBars: 1,   // 2026-10-19 使用者:「OBV30 藍線向上不做空只做多,反之亦然,寫進判別式一跟二」(判別式一第四次修改;判二複製自 SIG1 所以一起有)
               nearHiLoPct: 2,   // 2026-10-19 第六次修改(使用者「加上」):離當日高點(多)/ 低點(空)超過 2% 不進(離);判二、三複製自 SIG1 一起有
               noWeakEntry: true,   // 2026-10-19 第七次修改(使用者「下手」):逆勢單不進(勢);九天回測逆勢單 20 筆 7/13 沒優勢。判二、三設 false 不受影響。模擬器 NOWEAK=1
-              redSlopeMin: -2, resetAfterTp: true };   // 2026-10-18 第三次修改(使用者「都加」→「判別式一,三也跟著改」→ 選 1):redSlopeMin 確認點紅線 5 根斜率 < −2%(在退)不進、標「退」;resetAfterTp 停利後同方向第 1 點重數   // rvol:量比 = 今天到此刻累計量 ÷ 前 5 天同一時刻平均;rvolFilter=true 時量比 < rvolMin 不進場(只記錄,標「比」);false 只顯示(2026-10-16 01:40)   // minDayVol:當天累計成交量(張)未達 6000 不進場;達到後下一個同向點直接進(2026-10-16 01:10)   // vwapFilter:價在 VWAP 上只做多、下只做空(23:30);vwapSlope:VWAP 最近 10 分鐘要往進場方向走 ≥ 0.05%(23:55)   // confirmMaxGapPct:確認點與前一個同向點的價差上限 %(2026-10-15 22:35 定 1%,22:45 改 2%);maxEntryDevPct:訊號價離均價超過 1% 只記錄不進場(23:15)   // 平倉:獲利 2.5% 停利(2026-10-17 由 4% 改,回測 10/13~16 +29,382 → +40,767)、反向 1.5% 停損、距昨收超過 6% 強制出(2026-10-15)   // trendOnlyPct:距昨收超過 ±3%(到 entryMaxChg 為止)只收順勢訊號   // noEntryAfter:13:00 後不進場、只監控平倉(2026-10-15);slopeBars / maxDev 給多空天秤用
+              redSlopeMin: -2, resetAfterTp: true,
+              stopMode: 'pts', stopCapPct: 3, stopMinPct: 0 };   // 2026-10-20 第八次修改(使用者「改」):停損改起漲 / 起跌點(最近一個起漲 + 起跌,空取最高、多取最低),上限 3%;九天 +55,284 → +57,884。
+              //   // 2026-10-18 第三次修改(使用者「都加」→「判別式一,三也跟著改」→ 選 1):redSlopeMin 確認點紅線 5 根斜率 < −2%(在退)不進、標「退」;resetAfterTp 停利後同方向第 1 點重數   // rvol:量比 = 今天到此刻累計量 ÷ 前 5 天同一時刻平均;rvolFilter=true 時量比 < rvolMin 不進場(只記錄,標「比」);false 只顯示(2026-10-16 01:40)   // minDayVol:當天累計成交量(張)未達 6000 不進場;達到後下一個同向點直接進(2026-10-16 01:10)   // vwapFilter:價在 VWAP 上只做多、下只做空(23:30);vwapSlope:VWAP 最近 10 分鐘要往進場方向走 ≥ 0.05%(23:55)   // confirmMaxGapPct:確認點與前一個同向點的價差上限 %(2026-10-15 22:35 定 1%,22:45 改 2%);maxEntryDevPct:訊號價離均價超過 1% 只記錄不進場(23:15)   // 平倉:獲利 2.5% 停利(2026-10-17 由 4% 改,回測 10/13~16 +29,382 → +40,767)、反向 1.5% 停損、距昨收超過 6% 強制出(2026-10-15)   // trendOnlyPct:距昨收超過 ±3%(到 entryMaxChg 為止)只收順勢訊號   // noEntryAfter:13:00 後不進場、只監控平倉(2026-10-15);slopeBars / maxDev 給多空天秤用
 /* ── 判別式二、三(2026-10-18 使用者指令「把現在判別式一複製給判別式二跟三,按鍵名稱也放上去」;23:30「把判別三刪除」;23:50 判別式三改放差擴散邏輯重建)──
    判別式二從判別式一複製後已多次修改(見 RULESETS['二'] 的註解與《判別式二.md》);判別式三 = 差擴散邏輯 + 判別式二的保護(《判別式三.md》,待修正);判別式一照舊鎖定。
    按鍵列第 2~4 顆 = 判一 / 判二 / 判三:亮燈 = 背景監控正在用那一份;單擊看規則;長按 0.6 秒切換
@@ -3640,7 +3647,7 @@ const RULESETS = {
                                                                   strong: true, strongSlowMa: 30, strongDxBars: 5, strongSlowBars: 2, strongExtBars: 10, strongWin: 5, strongMaxChg: 4, strongNoAfter: '11:30',
                                                                   confirmMinGapPct: 4, noEntryAfter: '12:00',
                                                                   crossSlowMa2: 30, weakByOrder: true,
-                                                                  nearHiLoPct: 2, noWeakEntry: false }) },   // noWeakEntry:false = 判一第七次修改(不做逆勢單)只改判一,判二照舊   // 2026-10-19 第六次修改:離當日高點(多)/ 低點(空)超過 2% 不進(離)
+                                                                  nearHiLoPct: 2, noWeakEntry: false, stopMinPct: 1.5 }) },   // 2026-10-20 起漲 / 起跌點停損,但不小於 1.5%(九天 63 筆 61% +95,259 → 60 筆 65% +102,788)   // noWeakEntry:false = 判一第七次修改(不做逆勢單)只改判一,判二照舊   // 2026-10-19 第六次修改:離當日高點(多)/ 低點(空)超過 2% 不進(離)
   // 判別式三(2026-10-18 23:30 使用者「把判別三刪除」拿掉舊的複製版;23:50 使用者「連擴 2 根 + 判別式二全部保護 把這放進判別三 找時間再來修正」重建):
   //   entryMode:'gapdir' = 使用者提的「OBV10 − OBV30 相減之差」邏輯:差剛翻正(做空翻負)= 起始,gapWinBars(10)根內「紅線在 OBV10 與 OBV gapSlowMa(30)之上(空:之下)
   //   + 差連續擴大 gapGrowBars(2)根 + K 不是虛根、收在當日高低之間」= 確認點直接進;窗口過期或差翻回去 → 候選作廢。保護全部照判別式二(3.5%、順勢、VWAP、量、量比、離均價 1%、
@@ -3654,7 +3661,7 @@ const RULESETS = {
   '三': { key: '三', btn: '判三', name: '判別式三', date: '2026-10-20', backtest: '10/06~10/19 九天只做多 26 筆,賺 15 賠 11,勝率 57%,淨 +54,181(燿華型:盤整後大量破高、藍上穿紫、價在今開下、開高不做;觀察中)',
           sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'brk', brkFlatPct: 1.0, brkTightPct: 3, brkXWin: 2, brkVolWin: 3, brkVolX: 2, brkBelowOpen: true, brkMaxGapPct: 0,
                                                                   noLock: true, obmaSlopeMin: 0, noWeakEntry: false, confirmMinGapPct: 0, noEntryAfter: '12:00',
-                                                                  vwapFilter: false, minDayVol: 0, rvolFilter: false, maxEntryDevPct: 99, nearHiLoPct: 0, obvDirMa: 0, gapChasePct: 99 }) },
+                                                                  vwapFilter: false, minDayVol: 0, rvolFilter: false, maxEntryDevPct: 99, nearHiLoPct: 0, obvDirMa: 0, gapChasePct: 99, stopMode: 'pct' }) },   // 停損照舊 1.5%(2026-10-20 起漲 / 起跌點停損只改判一、判二)
   // 判別式四(2026-10-20 使用者看光鼎 09:49、友達 10:37 的元大圖:「這種壓在線上 指標全部向下 就是最漂亮的空點」→ 九天研究 → 「我想把這個設為判四」):「壓線空點」,只做空。
   //   entryMode:'press' = 均價 10 連 2 根向下 + 這根或前一根最高碰到均價 10(差 ≤ pressTouchPct%)+ 收在均價 10 之下且收黑 + 紅 < 藍 < 紫、藍(OBV 均 10)紫(OBV 均 30)都向下
   //   + 量先價行:OBV 創 pressLookback 根新低而價還在 pressLookback 根低點之上 0.3%
@@ -3665,7 +3672,7 @@ const RULESETS = {
   '四': { key: '四', btn: '判四', name: '判別式四', date: '2026-10-20', backtest: '10/06~10/19 九天只做空 10 筆,賺 7 賠 3,勝率 70%,淨 +23,644(模擬器完整版;研究版 23 筆 69% +51,455;壓線 + 三線向下 + 量先價行 + 不追空 + 開平不做;觀察中)',
           sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'press', pressTouchPct: 0.15, pressChasePct: 2, pressRvolMax: 1.2, pressLoPct: 0.5, pressGapPct: 1, pressLookback: 30,
                                                                   noLock: true, obmaSlopeMin: 0, noWeakEntry: false, confirmMinGapPct: 0, noEntryAfter: '12:00',
-                                                                  vwapFilter: false, minDayVol: 0, rvolFilter: false, maxEntryDevPct: 99, nearHiLoPct: 0, obvDirMa: 0, gapChasePct: 99 }) },
+                                                                  vwapFilter: false, minDayVol: 0, rvolFilter: false, maxEntryDevPct: 99, nearHiLoPct: 0, obvDirMa: 0, gapChasePct: 99, stopMode: 'pct' }) },   // 停損照舊 1.5%(2026-10-20 起漲 / 起跌點停損只改判一、判二)
 };
 const RS_KEY = 'mysh.ruleset';
 // 正在用的判別式:先問 App(SharedPreferences,1.5.28 起有 Android.getRuleset),沒有才看 localStorage。
@@ -3830,7 +3837,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
       let why = null;
       if (tStr >= '13:25') why = '出';
       else if (gain >= SIG.takePct) why = '停利';
-      else if (loss >= SIG.stopPct) why = '停損';
+      else if (cyc.stop && cyc.stop.px != null ? (dir < 0 ? b.high > cyc.stop.px : b.low < cyc.stop.px) : loss >= ((cyc.stop && cyc.stop.pct) || SIG.stopPct)) why = '停損';   // 2026-10-20 起漲 / 起跌點停損
       else if (dir === -1 && move >= SIG.maxMovePct) why = '超6%';
       else if (dir === 1 && move <= -SIG.maxMovePct) why = '超6%';
       else if (SIG.obvExitMa > 0 && iObma2.has(b.time) && pt !== null && iObma2.has(pt) && o !== undefined && okPrev(ob, o)){
@@ -4142,7 +4149,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
       if (canEnter){                                                               // 進場(或反手),反向計數歸零
         mk(true, tag);
         const entry = (bi + 1 < bars.length) ? bars[bi + 1].open : b.close;        // 下一根開盤執行
-        cyc = {side, time: tStr, price: b.close, entry, gated: false}; lastSig[opp] = null; pending[side] = false; if (crossMode) cand[side] = null; if (gapMode) gcand[side] = null;
+        cyc = {side, time: tStr, price: b.close, entry, gated: false, stop: originStop(bars, ma, ob, obma, bi, side, entry)}; lastSig[opp] = null; pending[side] = false; if (crossMode) cand[side] = null; if (gapMode) gcand[side] = null;
       }
       else mk(false, tag);
       continue;
@@ -4273,7 +4280,7 @@ function biasAvgOf(arr, n){
 /* 起漲點 / 起跌點(2026-10-20 使用者看中揚光 09:25:「K 剛穿過均線,OBV 也剛穿過 OBV 均線,把這個點記起來」→「照這邏輯找出起漲點跟起跌點,然後標示出來」)
    每天各自算:今天創新高(盤中最高)之後,第一次「K 棒最高價跌破均價(整根在線下)」且「OBV 跌破 OBV 均線」(兩個穿越相差 ≤ 2 根)的那根 = 起跌點,回傳那根的高點(停損參考);
    創新低之後第一次兩個都往上穿 = 起漲點,回傳低點。標過一次後,要再創新高(低)才會再標下一個,所以一段走勢只標一次。 */
-function originPoints(bars, ma, ob, obma){
+function originPoints(bars, ma, ob, obma, kMode){   // kMode 'close' = K 穿越用收盤價判斷(停損用,2026-10-20 回測較好);預設整根 K(圖上標示)
   const M = a => { const m = new Map(); a.forEach(x => m.set(x.time, x.value)); return m; };
   const mm = M(ma), mo = M(ob), mom = M(obma), out = [];
   let day = null, hi = -Infinity, lo = Infinity, armD = false, armU = false, n = 0, prev = null, lk = {}, lo2 = {};
@@ -4284,21 +4291,39 @@ function originPoints(bars, ma, ob, obma){
     if (b.high > hi){ hi = b.high; armD = true; }
     if (b.low < lo){ lo = b.low; armU = true; }
     const m0 = mm.get(b.time), o0 = mo.get(b.time), om0 = mom.get(b.time);
-    const cur = (m0 == null || o0 == null || om0 == null) ? null : {h: b.high, l: b.low, m: m0, o: o0, om: om0};
+    const cur = (m0 == null || o0 == null || om0 == null) ? null : {h: b.high, l: b.low, c: b.close, m: m0, o: o0, om: om0};
     if (prev && cur){
       for (const sd of [1, -1]){
-        const kIn = x => sd > 0 ? x.l > x.m : x.h < x.m;   // 2026-10-20 使用者:「起跌點 K 棒取最高價、起漲點取最低價」→ 整根 K 都在均價另一側才算穿越(09:42 最低價還壓在均線上,不算起漲)
+        const kIn = kMode === 'close' ? (x => (x.c - x.m) * sd > 0) : (x => sd > 0 ? x.l > x.m : x.h < x.m);   // 2026-10-20 使用者:「起跌點 K 棒取最高價、起漲點取最低價」→ 整根 K 都在均價另一側才算穿越(09:42 最低價還壓在均線上,不算起漲)
         if (kIn(cur) && !kIn(prev)) lk[sd] = n;
         if ((cur.o - cur.om) * sd > 0 && (prev.o - prev.om) * sd <= 0) lo2[sd] = n;
       }
-      if (armD && n - lk[-1] <= 2 && n - lo2[-1] <= 2 && (lk[-1] === n || lo2[-1] === n)){ out.push({time: b.time, side: -1, price: b.high}); armD = false; }
-      if (armU && n - lk[1] <= 2 && n - lo2[1] <= 2 && (lk[1] === n || lo2[1] === n)){ out.push({time: b.time, side: 1, price: b.low}); armU = false; }
+      if (armD && n - lk[-1] <= 2 && n - lo2[-1] <= 2 && (lk[-1] === n || lo2[-1] === n)){ out.push({time: b.time, side: -1, price: b.high, high: b.high, low: b.low}); armD = false; }
+      if (armU && n - lk[1] <= 2 && n - lo2[1] <= 2 && (lk[1] === n || lo2[1] === n)){ out.push({time: b.time, side: 1, price: b.low, high: b.high, low: b.low}); armU = false; }
     }
     prev = cur;
   }
   return out;
 }
 window.originPoints = originPoints;
+/* 起漲 / 起跌點停損(2026-10-20 使用者:「找出起漲起跌點,做空就以最高為準,不管是起漲或起跌;做多就找起漲起跌最低點」→ 九天回測 → 「改」):
+   進場時取「今天到訊號那根為止」最近一個起漲點 + 最近一個起跌點(收盤價判斷穿越),做空停損 = 兩根 K 最高價中、高於進場價的較高者;做多 = 最低價中、低於進場價的較低者。
+   離進場不到 SIG.stopMinPct% → 用 stopMinPct%(判二 1.5%);超過 SIG.stopCapPct%(3%)→ 用 3%;找不到 → 照舊 stopPct%。
+   回傳 {px} = 價位停損(反彈 / 回檔「超過」才停)或 {pct} = 百分比停損。模擬器 STOPMODE=pts STOPSCOPE=last2 STOPKBAR=close STOPCAP=3(判二加 STOPMIN=1.5) */
+function originStop(bars, ma, ob, obma, bi, side, entry){
+  const dir = side === 'long' ? 1 : -1, fb = {pct: SIG.stopPct};
+  if (SIG.stopMode !== 'pts') return fb;
+  const ld = dayKey(bars[bi].time);
+  const pts = originPoints(bars.slice(0, bi + 1), ma, ob, obma, 'close').filter(p => dayKey(p.time) === ld);
+  const lu = pts.filter(p => p.side > 0).slice(-1), ldn = pts.filter(p => p.side < 0).slice(-1), use = lu.concat(ldn);
+  const cand = dir < 0 ? use.map(p => p.high).filter(x => x > entry) : use.map(p => p.low).filter(x => x < entry);
+  if (!cand.length) return fb;
+  const px = dir < 0 ? Math.max(...cand) : Math.min(...cand), risk = Math.abs(px - entry) / entry * 100;
+  if (SIG.stopCapPct > 0 && risk > SIG.stopCapPct) return {pct: SIG.stopCapPct, why: '起點太遠'};
+  if (SIG.stopMinPct > 0 && risk < SIG.stopMinPct) return {pct: SIG.stopMinPct, why: '起點太近'};
+  return {px};
+}
+window.originStop = originStop;
 function vwapDeviation(bars, vw){
   return bars.map((b, i) => {
     const d = vw[i].value > 0 ? (b.close - vw[i].value) / vw[i].value * 100 : 0;
@@ -5258,7 +5283,7 @@ function bgManagePos(pk, pos, nowPx, nm, code){
   let why = null;
   if (hm >= '13:25') why = '出';
   else if (pl >= SIG.takePct) why = '停利';
-  else if (pl <= -SIG.stopPct) why = '停損';
+  else if (pos.stopPx != null ? (pos.dir < 0 ? nowPx > pos.stopPx : nowPx < pos.stopPx) : pl <= -(pos.stopPct || SIG.stopPct)) why = '停損';   // 2026-10-20 起漲 / 起跌點停損
   if (!why) return false;
   bgExit(pk, pos, why, nowPx, hm, nm, code); return true;
 }
@@ -5334,13 +5359,14 @@ async function bgTick(force, replay){
             const side = m.text.startsWith('多') ? '做多' : '做空', dir = side === '做多' ? 1 : -1;
             const st = rp.state;
             const px = (st && st.time === t && st.entry) ? st.entry : nowPx;
-            const tp = (px * (1 + SIG.takePct / 100 * dir)).toFixed(2), sl = (px * (1 - SIG.stopPct / 100 * dir)).toFixed(2);
+            const stp = (st && st.time === t && st.stop) ? st.stop : {pct: SIG.stopPct};   // 2026-10-20 起漲 / 起跌點停損(replaySignals 進場時算好)
+            const tp = (px * (1 + SIG.takePct / 100 * dir)).toFixed(2), sl = (stp.px != null ? +stp.px : px * (1 - stp.pct / 100 * dir)).toFixed(2);
             if (BG.pos.has(pk)){
               const p0 = BG.pos.get(pk);
               if (p0.side === side){ bgLog(code + ' 部位還在,不重複進場通知 ' + k); continue; }   // 2026-10-20 鐵律 17:一個部位只通知一次進場
               bgExit(pk, p0, '反向', nowPx, t, nm, code);   // 2026-10-20 反方向的進場來了 → 先把舊部位用現價平掉(通知),再進新的
             }
-            BG.pos.set(pk, {side, dir, entry: +px, time: t}); bgSave();
+            BG.pos.set(pk, {side, dir, entry: +px, time: t, stopPx: stp.px != null ? +stp.px : null, stopPct: stp.pct || null}); bgSave();
             bgNotify(`${nm} ${code} ${side}${m.text.includes('強') ? '強訊號' : ''}進場 ${(+px).toFixed(2)}`, `${t} ${m.text} · 停利 ${tp} 停損 ${sl}`, side === '做多' ? 'long' : 'short');
           }else if (m.text === '彈'){
             // 2026-10-18 反彈警示:紅線反向穿過 OBV 均 30、帳面不到 1% 所以沒平倉 → 通知「股價已反彈」,部位不動
