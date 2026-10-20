@@ -61,6 +61,22 @@ seq = {1: 0, -1: 0}; firstT = {1: None, -1: None}; lastTP = {1: None, -1: None};
 falseFirst = {1: None, -1: None}; FALSEGAP = float(os.environ.get('FALSEGAP','0'))   # 第一個虛假點(條件都對、只差沒壓線)的價格;FALSEGAP>0 時,確認點離它超過 FALSEGAP% 就不進
 GAPTH = float(os.environ.get('GAPTH','3'));  GAPMODE = os.environ.get('GAPMODE','off')   # off=照舊;need3=跳空股要第 3 個訊號;skip=跳空股訊號全部失效
 isGap = abs((o[0]-prev)/prev*100) > GAPTH
+def _origin_stop(sd, upto):
+    """2026-10-20 使用者(中揚光 09:25:「K 剛穿過均線、OBV 也剛穿過 OBV 均線,把這個點記起來,62.6~63.4 反彈沒有超過這個都不必贖回」):
+    起跌點 / 起漲點 = 最近一次「K 收盤穿過均價」且「OBV 穿過 OBV 均線」(兩個穿越相差 ≤ STOPXW 根)那根;做空停損放在那根的高點,做多放在低點"""
+    XW = int(os.environ.get('STOPXW','2'))
+    _order = range(upto, 0, -1)
+    if os.environ.get('STOPPICK','first') == 'first':   # first = 今天高點(做空)/ 低點(做多)之後第一次兩個都穿越的那根 = 起跌點本身;recent = 進場前最近一次
+        _x = int(np.argmax(h[:upto+1])) if sd == -1 else int(np.argmin(l[:upto+1]))
+        _order = list(range(max(1, _x+1), upto+1)) + list(range(upto, 0, -1))
+    for j in _order:
+        if np.isnan(ma[j]) or np.isnan(ma[j-1]): continue
+        if not ((c[j]-ma[j])*sd > 0 and (c[j-1]-ma[j-1])*sd <= 0): continue
+        for k in range(max(1, j-XW), min(upto, j+XW)+1):
+            if np.isnan(obma[k]) or np.isnan(obma[k-1]): continue
+            if (ob[k]-obma[k])*sd > 0 and (ob[k-1]-obma[k-1])*sd <= 0:
+                sb = max(j, k); return (h[sb] if sd == -1 else l[sb]), t.time[sb]
+    return None, None
 def close_trade(sd, k0, ent, lots, tm, ex, why):
     gross = (ex-ent)*sd*1000*lots; fee = (ent+ex)*1000*lots*(0.001425*0.30 + 0.0000565); tax = (ex if sd==1 else ent)*1000*lots*0.0015
     trades.append((sd, k0, ent, lots, tm, ex, why, gross, fee, tax))
@@ -72,7 +88,17 @@ for i in range(1, len(c)):
         why = None
         if tm >= '13:25': why = '13:25 強制平倉'
         elif gain >= TAKE: why = f'停利 {TAKE:g}%'
-        elif loss >= float(os.environ.get('STOP','1.5')): why = f'停損 {float(os.environ.get("STOP","1.5")):g}%'
+        elif os.environ.get('STOPMODE','pct') == 'origin' and globals().get('_osk') != (k0, ent):
+            globals()['_osk'] = (k0, ent); globals()['_ost'] = _origin_stop(sd, i-1)
+            if os.environ.get('TRACESTOP'): print(f'TRACESTOP {k0} 進 {ent} 起{"跌" if sd==-1 else "漲"}點 {globals()["_ost"]}')
+        if why is None and os.environ.get('STOPMODE','pct') == 'origin' and globals().get('_ost', (None,))[0] is not None and (globals()['_ost'][0]-ent)*sd < 0:
+            _op = globals()['_ost'][0]; _risk = abs(_op-ent)/ent*100
+            _cap = float(os.environ.get('STOPCAP','99')); _mn = float(os.environ.get('STOPMIN','0'))
+            if _risk > _cap: _hit = loss >= _cap; _lb = f'停損 {_cap:g}%(起點太遠)'
+            elif _risk < _mn: _hit = loss >= _mn; _lb = f'停損 {_mn:g}%(起點太近)'
+            else: _hit = (h[i] > _op) if sd == -1 else (l[i] < _op); _lb = f'起{"跌" if sd==-1 else "漲"}點停損 {_op:g}'
+            if _hit: why = _lb
+        elif why is None and loss >= float(os.environ.get('STOP','1.5')): why = f'停損 {float(os.environ.get("STOP","1.5")):g}%'
         elif (sd == -1 and move >= 6) or (sd == 1 and move <= -6): why = '超過 6%'
         OBVX = os.environ.get('OBVX','0'); OBVXMIN = float(os.environ.get('OBVXMIN','0'))
         OBFPCT = float(os.environ.get('OBFPCT','0')); OBFMODE = os.environ.get('OBFMODE','all')   # 快速 OBV 均線:紅線反向超過藍線 OBFPCT%(÷當日 OBV 範圍)就出;mode all/gain0/gain1
