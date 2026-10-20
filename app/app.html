@@ -101,6 +101,10 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-20 22:10 K 線圖最下一格改成「高低點連線 + 起漲起跌連線」(使用者:「把均線乖離率 改成 股票高低點連線 加上起漲點 起跌點 也連線」):
+    白線 = 高低點連線(zigzag:從高點回落 YH.zzPct 0.5% 確立高點、從低點反彈 0.5% 確立低點,高低點直線相連,最後一段連到目前最高 / 最低);
+    橘線 = 起漲起跌連線(K 線圖上標的起漲點 = 那根最低價、起跌點 = 最高價,依序相連,點上小圓點起漲藍、起跌橘)。上方文字:高低點連線在十字線那根的價位、最近一個起漲 / 起跌點。
+    20:00 的均線乖離率 10 / 30 / 132 拿掉(biasOf / biasAvgOf 函式留著)。
   · 2026-10-20 22:00 清單名稱變號碼修正(使用者截圖:5340、1815、5498 顯示代號、價 0.00):晚上 20:34 名單換成明天的以後,今天通知過的股票
     (通知欄裡有 → 一樣放進清單)不在新名單裡,名稱只剩代號,也不知道上市上櫃,即時價一律用上市(tse)去問 → 上櫃股問不到 = 0.00。
     改:名稱先用今天通知標題裡的(SIG_NAMES),再用證交所回的名稱;不知道市場的送 mkt=any,Worker 上市上櫃都問(worker.js),問到的記住市場。
@@ -1590,7 +1594,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610202200">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610202210">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2049,9 +2053,8 @@ except Exception:
         <span style="color:#19D3F5">均線<span id="lblObvMaN">10</span>:<span id="lblObvMaV">—</span></span>
         <span style="color:#B47CFF">均線30:<span id="lblObvMa30V">—</span></span><button id="xhairClose" class="xgo hidden" aria-label="十字線回到最新一根"><svg viewBox="0 0 30 18" width="28" height="17" aria-hidden="true"><path d="M1.5 5.5 H16 V1.5 L28.5 9 L16 16.5 V12.5 H1.5 Z" fill="#E53935" stroke="#FFFFFF" stroke-width="1.6" stroke-linejoin="round"/></svg></button></div>
       <div id="chartMid"></div>
-      <div class="yh-lbl sep"><span style="color:#FF3B3B">乖離率10:<span id="lblBias10V">—</span></span>
-        <span style="color:#FF9F43">乖離率30:<span id="lblBias30V">—</span></span>
-        <span style="color:#FFFFFF">乖離均132:<span id="lblBiasAvgV">—</span></span></div>   <!-- 2026-10-20 使用者:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」 -->
+      <div class="yh-lbl sep"><span style="color:#FFFFFF">高低點連線:<span id="lblZzV">—</span></span>
+        <span style="color:#FF9F43">起漲起跌連線:<span id="lblOrgV">—</span></span></div>   <!-- 2026-10-20 22:10 使用者:「把均線乖離率 改成 股票高低點連線 加上起漲點 起跌點 也連線」(原 20:00 的均線乖離率 10/30/132) -->
       <div id="chartBot"></div>
     </div>
     <div class="sh-msg" id="shMsg">讀取 1 分K …</div>
@@ -3471,13 +3474,14 @@ function liveStart(){
 /* ── 圖表 ── */
 let chart, candle, maLine, vwapLine;           // 上圖:1 分K + MA + VWAP
 let chartM, obvSeries, obvMaLine, obvMa30Line;  // 中圖:OBV + OBV 均線 + OBV 均 30(紫,2026-10-19)
-let chartB, vwapDev = null, biasHist, bias30Line, biasAvgLine;   // 下圖:均線乖離率(2026-10-20 使用者:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」;原 VWAP 乖離柱狀圖作廢)
+let chartB, vwapDev = null, zzLine, orgLine;   // 2026-10-20 22:10 下圖改成「高低點連線(白)+ 起漲起跌連線(橘)」。原:   // 下圖:均線乖離率(2026-10-20 使用者:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」;原 VWAP 乖離柱狀圖作廢)
 const OBV_RESET_DAILY = true;          // true = 每個交易日開盤歸零(2026-10-15 用力積電實測:元大 -47,362、開盤歸零算 -44,257、跨日累計 -20,310 ~ -133,694,元大是每日歸零);false = 跨日累加
 let BARS = [], BARS_CODE = '';
 let ENTRY_LINES = [];
 const SHOW_VWAP_PANE = false   /* 乖離圖已停用(2026-10-16 使用者要求拿掉;不影響訊號與選股) */;          // 元大版面沒有 VWAP 乖離柱狀圖,預設不顯示
 /* ── 比照元大 App 的圖表版面(2026-10-15)。想回到舊的樣子改這裡 ── */
 const YH = {
+  zzPct: 0.5,           // 2026-10-20 22:10 高低點連線:回落 / 反彈幾 % 才算確立一個高 / 低點
   defaultBars   : 45,     // 開圖只顯示最近幾根 K(元大約 40 根,K 棒才夠粗);往左滑可看更早的
   showVwapLine  : false,  // 圖上不畫橘色 VWAP 線(2026-10-16 使用者要求;VWAP 過濾照算,只是不畫)。原:畫橘色 VWAP 線(= 元大分時頁的黃色均價線;2026-10-15 23:30 因 VWAP 過濾打開)
   showRiskLines : false,  // 圖上畫 ATR 停損 / 停利線(元大沒有;數值仍在最下面小字)
@@ -3534,7 +3538,8 @@ function showBarInfo(t){
   el('lblObvV').innerHTML = isFinite(d.ob) ? Math.round(d.ob).toLocaleString() + trend(d.ob, d.obPrev) : '—';
   el('lblObvMaV').innerHTML = isFinite(d.obma) ? Math.round(d.obma).toLocaleString() + trend(d.obma, d.obmaPrev) : '—';
   { const e = el('lblObvMa30V'); if (e) e.innerHTML = isFinite(d.obma30) ? Math.round(d.obma30).toLocaleString() + trend(d.obma30, d.obma30Prev) : '—'; }   // 2026-10-19 OBV 均 30
-  { const f = (id, v, pv) => { const e = el(id); if (e) e.innerHTML = isFinite(v) ? v.toFixed(3) + trend(v, pv) : '—'; }; f('lblBias10V', d.b10, d.b10Prev); f('lblBias30V', d.b30, d.b30Prev); f('lblBiasAvgV', d.bavg, d.bavgPrev); }   // 2026-10-20 均線乖離率 10 / 30 / 132
+  { const e = el('lblZzV'); if (e) e.innerHTML = isFinite(d.zz) ? d.zz.toFixed(2) + trend(d.zz, d.zzPrev) : '—'; }   // 2026-10-20 22:10 高低點連線在這根的位置
+  { const e = el('lblOrgV'); if (e) e.textContent = d.org || '—'; }                                                  // 最近一個起漲 / 起跌點
   // 燈號 + 多空天秤跟著十字線走(2026-10-17):十字線在某根 K 上 → 顯示那根處理完當下的循環狀態(做多 / 做空 / 監控)與偏向;
   // 最後一根或沒有十字線 → 回到最新狀態。沒開平倉規則(stateAt 為空)時燈號不動,只動多空天秤。
   if (CUR.lampLast){
@@ -4323,6 +4328,33 @@ function biasOf(bars, maArr){
   const m = new Map(); maArr.forEach(x => m.set(x.time, x.value));
   return bars.map(b => { const v = m.get(b.time); if (v == null || !(v > 0)) return {time: b.time}; const d = (b.close - v) / v * 100; return {time: b.time, value: +d.toFixed(3), color: d >= 0 ? '#FF3B3B' : '#19D3F5'}; });
 }
+/* 高低點連線(2026-10-20 22:10):zigzag。價從目前高點回落 pct% → 那個高點確立;從目前低點反彈 pct% → 那個低點確立;
+   高低點之間用直線補每一根(三張圖用邏輯索引同步,每根都要有值),最後一段連到目前還沒確立的最高 / 最低。用的是 K 的最高價 / 最低價 */
+function zigzagOf(bars, pct){
+  const f = pct / 100, piv = []; let hiI = 0, loI = 0, tr = 0;
+  for (let i = 1; i < bars.length; i++){
+    const b = bars[i];
+    if (b.high > bars[hiI].high) hiI = i;
+    if (b.low < bars[loI].low) loI = i;
+    if (tr >= 0 && hiI !== i && b.low <= bars[hiI].high * (1 - f)){ if (tr === 0 && loI < hiI) piv.push({i: loI, v: bars[loI].low}); piv.push({i: hiI, v: bars[hiI].high}); tr = -1; loI = i; }
+    else if (tr <= 0 && loI !== i && b.high >= bars[loI].low * (1 + f)){ if (tr === 0 && hiI < loI) piv.push({i: hiI, v: bars[hiI].high}); piv.push({i: loI, v: bars[loI].low}); tr = 1; hiI = i; }
+  }
+  if (tr > 0) piv.push({i: hiI, v: bars[hiI].high}); else if (tr < 0) piv.push({i: loI, v: bars[loI].low});
+  return lineThrough(bars, piv.map(p => ({time: bars[p.i].time, value: p.v})));
+}
+/* 把幾個點 {time, value} 用直線連起來,每一根 K 都給一筆(第一點之前、最後一點之後 = 空白) */
+function lineThrough(bars, pts){
+  const at = new Map(); bars.forEach((b, i) => at.set(b.time, i));
+  const P = pts.map(p => ({i: at.get(p.time), v: p.value})).filter(p => p.i != null).sort((a, b) => a.i - b.i);
+  const out = bars.map(b => ({time: b.time}));
+  for (let k = 0; k < P.length; k++){
+    const a = P[k], z = P[k + 1];
+    if (!z){ out[a.i] = {time: bars[a.i].time, value: a.v}; break; }
+    for (let j = a.i; j <= z.i; j++) out[j] = {time: bars[j].time, value: z.i === a.i ? z.v : +(a.v + (z.v - a.v) * (j - a.i) / (z.i - a.i)).toFixed(3)};
+  }
+  return out;
+}
+window.zigzagOf = zigzagOf;
 /* 乖離率的 n 根平均(跨日連續算,略過空白點;不足 n 根給空白點) */
 function biasAvgOf(arr, n){
   const out = []; const q = []; let sum = 0;
@@ -4516,11 +4548,12 @@ function initChart(){
   chartB = LightweightCharts.createChart(bot, {...CHART_OPTS,
     leftPriceScale:{visible:true, borderColor:CHART_THEME.axis, scaleMargins:{top:.12, bottom:.08}},
     timeScale:{...CHART_OPTS.timeScale, visible:false}});
-  const pctFmt = {type:'custom', minMove:0.01, formatter: v => v.toFixed(2)};
-  biasHist = chartB.addHistogramSeries({priceScaleId:'left', priceLineVisible:false, lastValueVisible:false, base:0, priceFormat: pctFmt});
-  bias30Line = chartB.addLineSeries({priceScaleId:'left', color:'#FF9F43', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pctFmt});
-  biasAvgLine = chartB.addLineSeries({priceScaleId:'left', color:'#FFFFFF', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pctFmt});
-  biasHist.createPriceLine({price:0, color:'#555555', lineWidth:1, lineStyle:0, axisLabelVisible:false});
+  // 2026-10-20 22:10 使用者:「把均線乖離率 改成 股票高低點連線 加上起漲點 起跌點 也連線」:
+  //   白線 = 高低點連線(zigzag:價從高點回落 YH.zzPct% 就確立那個高點、從低點反彈 YH.zzPct% 就確立那個低點,高低點之間直線相連,最後一段連到目前的最高 / 最低);
+  //   橘線 = 起漲起跌連線(K 線圖上標的起漲點取那根最低價、起跌點取最高價,依序相連;點上有小圓點,起漲藍、起跌橘)。
+  const pxFmt = {type:'price', precision:2, minMove:0.01};
+  zzLine = chartB.addLineSeries({priceScaleId:'left', color:'#FFFFFF', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:false});
+  orgLine = chartB.addLineSeries({priceScaleId:'left', color:'#FF9F43', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:false});
   // 時間軸放在最下面那張圖(元大的時間標籤在 OBV 下方)
   (chartB || chartM).applyOptions({timeScale:{...CHART_OPTS.timeScale, visible:true}});
   chart.applyOptions({timeScale:{...CHART_OPTS.timeScale, visible:false}});
@@ -4584,14 +4617,14 @@ function initChart(){
   let XLOCK = null, xApplying = false, longPress = false, lpTimer = 0;
   const idxOf = t => { let lo = 0, hi = BARS.length - 1; while (lo <= hi){ const m = (lo + hi) >> 1; if (BARS[m].time < t) lo = m + 1; else if (BARS[m].time > t) hi = m - 1; else return m; } return -1; };
   const obvAt = i => { try{ const d = obvSeries.dataByIndex(i); return d && d.value != null ? d.value : 0; }catch(e){ return 0; } };
-  const biasAt = i => { try{ const d = biasHist.dataByIndex(i); return d && d.value != null ? d.value : 0; }catch(e){ return 0; } };
+  const biasAt = i => { try{ const d = zzLine.dataByIndex(i); return d && d.value != null ? d.value : 0; }catch(e){ return 0; } };   // 下圖十字線跟高低點連線走
   const xBtn = el('xhairClose');
   const applyX = (time, info = true) => {
     const i = idxOf(time); if (i < 0) return;
     xApplying = true;
     chart.setCrosshairPosition(BARS[i].close, time, candle);
     chartM.setCrosshairPosition(obvAt(i), time, obvSeries);
-    if (chartB) chartB.setCrosshairPosition(biasAt(i), time, biasHist);
+    if (chartB) chartB.setCrosshairPosition(biasAt(i), time, zzLine);
     xApplying = false;
     if (info) showBarInfo(time);
   };
@@ -4635,7 +4668,7 @@ function initChart(){
       xApplying = true;
       if (src !== chart) chart.setCrosshairPosition(i >= 0 ? BARS[i].close : 0, p.time, candle);
       if (src !== chartM) chartM.setCrosshairPosition(i >= 0 ? obvAt(i) : 0, p.time, obvSeries);
-      if (chartB && src !== chartB) chartB.setCrosshairPosition(i >= 0 ? biasAt(i) : 0, p.time, biasHist);
+      if (chartB && src !== chartB) chartB.setCrosshairPosition(i >= 0 ? biasAt(i) : 0, p.time, zzLine);
       xApplying = false;
       showBarInfo(p.time);
     }else{
@@ -4826,9 +4859,11 @@ function drawBars(bars, code, srcLabel, keepView){
   obvMaLine.setData(obma);
   const obma30 = sma(ob, 30, 'value');
   obvMa30Line.setData(obma30);
-  const ma30p = sma(bars, 30);                                      // 乖離率 30 用的均價 30
-  const bias10 = biasOf(bars, ma), bias30 = biasOf(bars, ma30p), biasAvg = biasAvgOf(bias10, 132);   // 2026-10-20 均線乖離率 10 / 30 / 132
-  if (biasHist){ biasHist.setData(bias10); bias30Line.setData(bias30.map(x => x.value == null ? {time: x.time} : {time: x.time, value: x.value})); biasAvgLine.setData(biasAvg); }
+  const zz = zigzagOf(bars, YH.zzPct);                                // 2026-10-20 22:10 高低點連線
+  const orgPts = originPoints(bars, ma, ob, obma);                    // 起漲 / 起跌點(和 K 線圖上標的同一套,整根 K)
+  const org = lineThrough(bars, orgPts.map(p => ({time: p.time, value: p.price})));
+  if (zzLine){ zzLine.setData(zz); orgLine.setData(org);
+    orgLine.setMarkers(orgPts.map(p => ({time: p.time, position: 'inBar', color: p.side < 0 ? '#FF9F43' : '#4FC3F7', shape: 'circle', size: 0.6}))); }
   if (window.alignScales) requestAnimationFrame(() => alignScales());   // 左刻度寬度對齊,十字線才會上下同一條
   if (!keepView){
     // 元大風格:開圖只顯示最近 YH.defaultBars 根(K 棒才夠粗),往左滑可看更早的;其他兩張圖會同步
@@ -4892,10 +4927,10 @@ function drawBars(bars, code, srcLabel, keepView){
   {
     const byTime = new Map();
     const idx = (arr) => { const m = new Map(); arr.forEach((x, i) => m.set(x.time, i)); return m; };
-    const iMa = idx(ma), iVw = idx(vw), iOb = idx(ob), iObma = idx(obma), iObma30 = idx(obma30), iB10 = idx(bias10), iB30 = idx(bias30), iBA = idx(biasAvg);
+    const iMa = idx(ma), iVw = idx(vw), iOb = idx(ob), iObma = idx(obma), iObma30 = idx(obma30), iZz = idx(zz);
     let cumVol = 0, cumDay = null;                     // 當天累積成交量(股),跨日歸零
     bars.forEach((b, i) => {
-      const k = iMa.get(b.time), k2 = iObma.get(b.time), kv = iVw.get(b.time), ko = iOb.get(b.time), k3 = iObma30.get(b.time), kb1 = iB10.get(b.time), kb3 = iB30.get(b.time), kba = iBA.get(b.time);
+      const k = iMa.get(b.time), k2 = iObma.get(b.time), kv = iVw.get(b.time), ko = iOb.get(b.time), k3 = iObma30.get(b.time), kz = iZz.get(b.time);
       const day = dayKey(b.time);
       if (day !== cumDay){ cumVol = 0; cumDay = day; }
       cumVol += b.volume;
@@ -4906,9 +4941,8 @@ function drawBars(bars, code, srcLabel, keepView){
         ob: ko != null ? ob[ko].value : NaN, obPrev: ko != null && ko > 0 ? ob[ko - 1].value : null,
         obma: k2 != null ? obma[k2].value : NaN, obmaPrev: k2 != null && k2 > 0 ? obma[k2 - 1].value : null,
         obma30: k3 != null ? obma30[k3].value : NaN, obma30Prev: k3 != null && k3 > 0 ? obma30[k3 - 1].value : null,
-        b10: kb1 != null ? bias10[kb1].value : NaN, b10Prev: kb1 != null && kb1 > 0 ? bias10[kb1 - 1].value : null,
-        b30: kb3 != null ? bias30[kb3].value : NaN, b30Prev: kb3 != null && kb3 > 0 ? bias30[kb3 - 1].value : null,
-        bavg: kba != null ? biasAvg[kba].value : NaN, bavgPrev: kba != null && kba > 0 ? biasAvg[kba - 1].value : null,
+        zz: kz != null && zz[kz].value != null ? zz[kz].value : NaN, zzPrev: kz != null && kz > 0 ? zz[kz - 1].value : null,
+        org: (() => { let q = null; for (const p of orgPts){ if (p.time > b.time) break; q = p; } return q ? (q.side < 0 ? '起跌 ' : '起漲 ') + q.price + ' ' + hmKey(q.time) : ''; })(),
       });
     });
     CUR = {byTime, last: byTime.get(last.time), prevClose};
