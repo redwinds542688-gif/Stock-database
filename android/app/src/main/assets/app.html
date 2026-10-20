@@ -101,6 +101,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-20 15:10 判別式只用雲端 K(使用者看友達 09:30 多單:用雲端 K 截到 09:31 / 09:33 / 整天重算都沒有這個多點,是手機自拼 K 算出來的 → 「改」):
+    YH.signalsCloudOnly = true:背景通知(bgTick)、圖上的訊號標記 / 燈號 / 天秤都用「雲端歷史 K + 雲端今日 1 分K」算,手機每 5 秒自拼的即時 K 只畫在圖上、不進判別。
+    訊號因此晚 1~2 分鐘(九天回測:延遲 3 分鐘進場 判一 +55,284 → +58,500、判二 +95,259 → +86,707,影響小),換來盤中通知、收盤重算、兩支手機看的是同一份 K。判一二三四規則不動。
   · 2026-10-20 15:00 通知改成「部位帳本」為準(使用者看當天結算:判二 5 筆、判一 1 筆有進場沒平倉;正文判一同一筆平倉發三次 → 「改」):
     進場通知後 BG.pos 記住進場價 / 時間,之後停利 / 停損 / 13:25 用記住的進場價盯盤(bgManagePos),盤中 K 被改寫、重算訊號消失也照樣平倉;重算出來的 OBV 反轉 / 反向確認點平倉只對帳本上有的部位通知。
     反方向進場訊號來了而部位還在 → 先用現價平掉(通知「反向」)再進。帳本存 localStorage(mysh.bgstate),服務重啟不忘;雲端紀錄帶部位鍵(判別式|代碼|進場時間),Worker 同一部位只留一則平倉(兩支手機不重複)。
@@ -1546,7 +1549,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610201500">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610201510">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3288,13 +3291,14 @@ async function yahooTodayBars(code){
 
 /* 三段合併:雲端歷史(到昨天,或 14:30 後含今天)→ 今天的 K(2026-10-19 起優先雲端 1 分K,沒有才 Yahoo)→ 即時自組的 K。
    重疊的分鐘:雲端 > 今天的 K > 即時;只有今天 K 的最後一根(可能還沒走完)讓即時覆蓋。 */
-function mergeLive(code, hist){
+function mergeLive(code, hist, noLive){
   const today = (TODAY_BARS.get(code) || {}).bars || [];
   let out = hist;
   if (today.length){
     const lastHist = hist.length ? hist[hist.length - 1].time : 0;
     out = hist.concat(today.filter(b => b.time > lastHist));
   }
+  if (noLive) return fillFlat(out);   // 2026-10-20 訊號只用雲端 K(使用者「改」):不接手機自拼的即時 K,訊號、通知、收盤重算、兩支手機看同一份 K
   const live = LIVE_BARS.get(code) || [];
   if (!live.length || !out.length) return fillFlat(live.length ? out.concat(live) : out);
   const lastT = out[out.length - 1].time;
@@ -3432,6 +3436,7 @@ const YH = {
   showVwapLine  : false,  // 圖上不畫橘色 VWAP 線(2026-10-16 使用者要求;VWAP 過濾照算,只是不畫)。原:畫橘色 VWAP 線(= 元大分時頁的黃色均價線;2026-10-15 23:30 因 VWAP 過濾打開)
   showRiskLines : false,  // 圖上畫 ATR 停損 / 停利線(元大沒有;數值仍在最下面小字)
   showEntryLines: false,  // 圖上畫 ±entryMaxChg% 進場區間虛線(元大沒有;距昨收 % 仍在最下面小字)
+  signalsCloudOnly: true,  // 2026-10-20 使用者「改」(友達 09:30 多單:手機自拼 K 算出的訊號,雲端 K 一來就消失):判別式只用雲端 1 分K + 歷史 K 算,手機自拼的即時 K 只畫圖、不進訊號;訊號晚 1~2 分鐘(九天回測延遲 3 分鐘影響很小)
   showSignalMarks: true,  // 圖上標出今天燈號亮起的位置:▲多(紅,K 棒下)、▼空(綠,K 棒上)、出(灰點,訊號結束)
   confirmByObv: true,     // 第 7 條(2026-10-15 友達 10:24→10:28 定案):同方向第 2 個以後的訊號,OBV(紅線)與 OBV 均線14(藍線)
                           // 都要比前一個同向訊號更低(做空)/ 更高(做多)才是「確認點」,燈只在確認點亮;第 1 個點只標記不亮燈。
@@ -4782,7 +4787,14 @@ function drawBars(bars, code, srcLabel, keepView){
   const todayBars = bars.filter(b => dayKey(b.time) === lastDayStr);
   let dayHi = Math.max(...todayBars.map(b => b.high)), dayLo = Math.min(...todayBars.map(b => b.low));
   if (liveRec && liveRec.h > 0 && liveRec.l > 0){ dayHi = Math.max(dayHi, liveRec.h); dayLo = Math.min(dayLo, liveRec.l); }
-  const sig = signalLight(bars, ma, ob, obma, prevClose, src ? !!src.dtShort : undefined, dayHi, dayLo);
+  // 2026-10-20 訊號只用雲端 K:圖上畫的 bars 含手機自拼的即時 K,但訊號 / 燈號 / 標記用不含自拼 K 的那份(和背景通知、收盤重算同一份)
+  let sBars = bars, sMa = ma, sOb = ob, sObma = obma;
+  if (YH.signalsCloudOnly && code && HIST_BARS.has(code) && (LIVE_BARS.get(code) || []).length){
+    sBars = mergeLive(code, HIST_BARS.get(code) || [], true);
+    if (sBars.length && sBars.length !== bars.length){ sMa = sma(sBars, BASE.maPeriod); sOb = obv(sBars); sObma = sma(sOb, BASE.obvMaPeriod, 'value'); }
+    else { sBars = bars; }
+  }
+  const sig = signalLight(sBars, sMa, sOb, sObma, prevClose, src ? !!src.dtShort : undefined, dayHi, dayLo);
   el('lampLong').classList.toggle('on', sig.cls === 'long');     // 可做多 → 紅燈閃;訊號離開 → 熄
   el('lampShort').classList.toggle('on', sig.cls === 'short');   // 可做空 → 綠燈閃
   el('lampWatch').classList.toggle('on', sig.cls === 'wait');    // 觀望 / 等待 → 黃燈恆亮
@@ -4792,12 +4804,12 @@ function drawBars(bars, code, srcLabel, keepView){
   const bias = todayBars.length < SIG.skipMin ? 0 : biasScore(bars, maMap, obmaMap, obMap);   // 不到 15 根 K 天秤歸零(2026-10-19)
   updateMeter(bias);
   // 今天的進場 / 平倉點位標在 K 線圖上;燈號 = 循環狀態(進場後持續亮到平倉訊號)
-  const rp = replaySignals(bars, ma, ob, obma, prevClose, src ? !!src.dtShort : undefined);
+  const rp = replaySignals(sBars, sMa, sOb, sObma, prevClose, src ? !!src.dtShort : undefined);
   // 2026-10-20 使用者(台玻圖:「K 線 空平 空逆…那些都拿掉不要」):圖上只留真正的進場箭頭(亮色)和平倉 / 反彈 / 注意的小圓點,
   // 第 1 個訊號和被保護擋住的確認點(平 / 缺 / 逆 / 遠 / 距 / 離 / 向 / 勢 / 量 / 比 / ✕)全部不畫。背景通知、燈號仍用完整的 rp.marks。
   const marks = YH.showSignalMarks ? rp.marks.filter(m => m.shape === 'circle' || m.color === CHART_THEME.up || m.color === CHART_THEME.down) : [];
   // 多空天秤的燈號(2026-10-18):不受 ±3.5% 限制,訊號確認就亮;rp 仍是真正的交易狀態(圖上 ✕ 標記、通知、部位都照 rp)
-  const rpSig = YH.exitRule ? replaySignals(bars, ma, ob, obma, prevClose, src ? !!src.dtShort : undefined, {ignoreGate: true}) : rp;
+  const rpSig = YH.exitRule ? replaySignals(sBars, sMa, sOb, sObma, prevClose, src ? !!src.dtShort : undefined, {ignoreGate: true}) : rp;
   MARKS = marks; marksHidden = false; candle.setMarkers(marks);
   const cyc = YH.exitRule ? rpSig.state : null;    // 訊號循環(不受 3.5% 限制),只用來寫小字
   const trade = YH.exitRule ? rp.state : null;     // 真正的交易循環
@@ -5244,7 +5256,7 @@ async function bgTick(force, replay){
         }
         const ta = BG.todayAt.get(code) || 0;
         if (Date.now() - ta > 55000){ await loadTodayBars(code, true); BG.todayAt.set(code, Date.now()); }   // 每 55 秒補一次今天的 K(2026-10-20 原 2 分鐘;雲端本身 55 秒內不重抓,請求數不變)
-        const bars = mergeLive(code, BG.hist.get(code));
+        const bars = mergeLive(code, BG.hist.get(code), YH.signalsCloudOnly);   // 2026-10-20 訊號只用雲端 K(自拼 K 不進判別)
         if (!bars.length) continue;
         const ma = sma(bars, BASE.maPeriod), ob = obv(bars), obma = sma(ob, BASE.obvMaPeriod, 'value');
         const liveRec = LIVE.get(code) || {};
