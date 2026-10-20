@@ -104,6 +104,25 @@ def _pts_stop(sd, upto, ent):
     if sd == -1:
         cand = [h[q] for q in idx if h[q] > ent]; return (max(cand), ','.join(t.time[q] for q in idx)) if cand else (None, None)
     cand = [l[q] for q in idx if l[q] < ent]; return (min(cand), ','.join(t.time[q] for q in idx)) if cand else (None, None)
+def _alt_points(upto):
+    """2026-10-20 起漲 / 起跌點(整根 K、輪流):給震盪判斷用。回傳 [(index, side, price)]"""
+    out = []; lk = {1: -99, -1: -99}; lo2 = {1: -99, -1: -99}; last = None
+    for q in range(1, upto + 1):
+        if np.isnan(ma[q-1]) or np.isnan(obma[q-1]) or np.isnan(ma[q]) or np.isnan(obma[q]): continue
+        for sd in (1, -1):
+            _in = (lambda z: l[z] > ma[z]) if sd == 1 else (lambda z: h[z] < ma[z])
+            if _in(q) and not _in(q-1): lk[sd] = q
+            if (ob[q]-obma[q])*sd > 0 and (ob[q-1]-obma[q-1])*sd <= 0: lo2[sd] = q
+        for sd in (-1, 1):
+            if q - lk[sd] <= 2 and q - lo2[sd] <= 2 and (lk[sd] == q or lo2[sd] == q) and last != sd:
+                out.append((q, sd, h[q] if sd == -1 else l[q])); last = sd
+    return out
+def _is_chop(i):
+    """2026-10-20 使用者:「起漲起跌距離太近,感覺就是橫盤,也就是震盪盤」:過去 CHOPW 根內 ≥ CHOPN 個輪流的起漲 / 起跌點,價格都在 CHOPR% 內 = 震盪"""
+    W = int(os.environ.get('CHOPW','60')); N = int(os.environ.get('CHOPN','3')); RG = float(os.environ.get('CHOPR','1.5'))
+    rec = [p for p in _alt_points(i) if i - W <= p[0] <= i]
+    if len(rec) < N: return False
+    px = [p[2] for p in rec]; return (max(px) - min(px)) / min(px) * 100 <= RG
 def close_trade(sd, k0, ent, lots, tm, ex, why):
     gross = (ex-ent)*sd*1000*lots; fee = (ent+ex)*1000*lots*(0.001425*0.30 + 0.0000565); tax = (ex if sd==1 else ent)*1000*lots*0.0015
     trades.append((sd, k0, ent, lots, tm, ex, why, gross, fee, tax))
@@ -450,6 +469,7 @@ for i in range(1, len(c)):
     if conf and MINGAP > 0 and not far:
         _rng = (np.nanmax(ob[:i+1]) - np.nanmin(ob[:i+1])) or 1; _g = (ob[i]-obma[i])*side/_rng*100
         if _g < MINGAP: far = True; tag += f' [紅藍差距 {_g:.1f}% 不足,只記錄]'
+    if conf and not far and os.environ.get('CHOP','0') == '1' and _is_chop(i): far = True; tag += ' [震盪盤,只記錄]'
     OB10DIR = os.environ.get('OB10DIR','0') == '1'   # 2026-10-20 測試(使用者看富喬 09:26:「OBV10 藍線也沒有往下」):確認點 OBV 均 10(藍)最近 1 根要和方向同向
     if conf and not far and OB10DIR and not np.isnan(obma[i-1]) and not ((obma[i] - obma[i-1]) * side > 0): far = True; tag += ' [藍線方向不符,只記錄]'
     KMADIR = os.environ.get('KMADIR','0') == '1'; KMA2 = int(os.environ.get('KMA2','0'))   # 2026-10-20 測試(使用者看友達元大圖:「判二 9:37 K10 是下跌、9:42 K10 在 K24 下面,這兩種情況都不適合做多」):確認點(含強訊號)均價 10 要同向;均價 10 要在均價 KMA2 的正確側
