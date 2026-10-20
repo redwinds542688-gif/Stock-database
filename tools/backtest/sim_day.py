@@ -131,6 +131,15 @@ def _is_chop(i):
     if os.environ.get('CHOPBRK','0') == '1' and globals().get('_chop_side'):   # 2026-10-20 測試:價格已經跌破(空)/ 站上(多)橫盤範圍 = 突破,放行
         if (globals()['_chop_side'] == -1 and c[i] < min(px)) or (globals()['_chop_side'] == 1 and c[i] > max(px)): return False
     return True
+def _obc_str(i):
+    """2026-10-20 使用者(富喬 10:00~10:55 OBV 三條線在 -20K~-24K 遊走):「用 OBV 觀測震盪」。進場點印出:視窗內 OBV / 均10 / 均30 三條線的上下寬度 ÷ 視窗成交量(eff)、÷ 當日 OBV 範圍(day)、藍紫交叉次數(x)"""
+    out = []
+    for W in (20, 30, 45):
+        a = max(0, i-W+1); seg = np.concatenate([ob[a:i+1], obma[a:i+1], obma2[a:i+1]]); seg = seg[~np.isnan(seg)]
+        band = (seg.max() - seg.min()) if len(seg) else 0; vs = max(np.sum(v[a:i+1]), 1e-9); dr = (np.nanmax(ob[:i+1]) - np.nanmin(ob[:i+1])) or 1
+        d_ = obma[a:i+1] - obma2[a:i+1]; d_ = d_[~np.isnan(d_)]; x = int(np.sum(np.sign(d_[1:]) != np.sign(d_[:-1]))) if len(d_) > 1 else 0
+        out.append(f'W{W} eff {band/vs:.3f} day {band/dr:.3f} x {x}')
+    return ' | '.join(out)
 def close_trade(sd, k0, ent, lots, tm, ex, why):
     gross = (ex-ent)*sd*1000*lots; fee = (ent+ex)*1000*lots*(0.001425*0.30 + 0.0000565); tax = (ex if sd==1 else ent)*1000*lots*0.0015
     trades.append((sd, k0, ent, lots, tm, ex, why, gross, fee, tax))
@@ -574,6 +583,7 @@ for i in range(1, len(c)):
         if ED > 0:
             globals()['delayOrd'] = {'side': side, 'at': i + ED, 'sig': c[i], 'tm': tm}; last[-side] = None; pending[side] = False; falseFirst[1] = falseFirst[-1] = None
             log.append(tag + f' → {ED} 分鐘後進場(模擬通知延遲)'); continue
+        if os.environ.get('OBCTRACE'): globals()['_chop_side'] = side; print(f'OBC {tm} ' + _obc_str(i) + f' | chop45 {int(_is_chop(i))}')
         ent = o[i+1]; lots = int(CAP // (ent*1000)); cyc = (side, tm, ent, lots); last[-side] = None; pending[side] = False; falseFirst[1] = falseFirst[-1] = None; log.append(tag + f' → 進場 {ent:.2f} ×{lots}張')
         if MODE == 'cross': cand[side] = None
         if MODE == 'gapdir': gcand[side] = None
