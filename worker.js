@@ -96,6 +96,7 @@ async function misFresh(ex_ch) {
     const st = (j.queryTime && j.queryTime.sysTime) || "";
     if (!best || st > ((best.queryTime && best.queryTime.sysTime) || "")) best = j;
     for (const m of j.msgArray) {
+      if (!m || !m.c) continue;   // 2026-10-20 問錯市場的代號回的是空的一筆
       const o = by.get(m.c);
       const v = parseFloat(m.v) || 0, ov = o ? (parseFloat(o.v) || 0) : -1;
       if (!o || v > ov || (v === ov && (m.tlong || "") > (o.tlong || ""))) by.set(m.c, m);
@@ -349,7 +350,8 @@ export default {
     }
 
     // 組證交所要的格式:tse_2409.tw|otc_6147.tw|...
-    const ex_ch = codes.map((c, i) => `${(mkts[i] || "tse") === "otc" ? "otc" : "tse"}_${c}.tw`).join("|");
+    // 2026-10-20 mkt=any:不知道上市上櫃(App 名單裡沒有的股票),兩邊都問,證交所只會回對的那一邊(錯的回空的,misFresh 會丟掉)
+    const ex_ch = codes.flatMap((c, i) => (mkts[i] === "any") ? [`tse_${c}.tw`, `otc_${c}.tw`] : [`${(mkts[i] || "tse") === "otc" ? "otc" : "tse"}_${c}.tw`]).join("|");
     try {
       // 2026-10-20:同時發 FRESH_N 個請求、每檔取最新的那筆(見 misFresh)
       const j = await misFresh(ex_ch);

@@ -101,6 +101,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-20 22:00 清單名稱變號碼修正(使用者截圖:5340、1815、5498 顯示代號、價 0.00):晚上 20:34 名單換成明天的以後,今天通知過的股票
+    (通知欄裡有 → 一樣放進清單)不在新名單裡,名稱只剩代號,也不知道上市上櫃,即時價一律用上市(tse)去問 → 上櫃股問不到 = 0.00。
+    改:名稱先用今天通知標題裡的(SIG_NAMES),再用證交所回的名稱;不知道市場的送 mkt=any,Worker 上市上櫃都問(worker.js),問到的記住市場。
   · 2026-10-20 21:50 判三 / 判四正式對調(使用者:「判四改判三後 直接定名為判三 原判三改判四 隱藏起來」):
     判別式三 = 壓線空點(只做空,原判四),內部代號也改成 RULESETS['三'],按鍵 btnRules 顯示「判三」,背景監控 BG_RS = 一、二、三;
     判別式四 = 燿華型起漲點(只做多,原判三),RULESETS['四'],按鍵 btnRs4 隱藏、不跑,程式保留。文件對調:《判別式三.md》= 壓線空點、《判別式四.md》= 燿華型;
@@ -1587,7 +1590,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610202150">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610202200">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2435,6 +2438,7 @@ let LAST_LIST = null;
 /* 通知欄裡有的股票 → {code: 名次};0 = 最新一則。
    2026-10-19 使用者:「通知欄裡面有的股票,在下面的監控股票裡面就直接排序在前面,不管有沒有平倉」→ 以通知欄「正在顯示的那一天」的卡片為準
    (window.NL_SHOWN,通知欄每次重畫時更新,含雲端合併進來的),已平倉的也照排;通知欄還沒畫出來時用手機本機今天的紀錄 */
+const SIG_NAMES = new Map();   // 2026-10-20 代號 → 名稱(從今天的通知標題來)
 function signalRank(){
   if (window.NL_SHOWN && Array.isArray(NL_SHOWN.codes)){ const r = new Map(); NL_SHOWN.codes.forEach(c => { if (!r.has(c)) r.set(c, r.size); }); return r; }
   const todayStr = (() => { const n = new Date(); return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0'); })();
@@ -2446,6 +2450,7 @@ function signalRank(){
     if (x.kind === 'sys') continue;
     const m = (x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?\S+ (\d{4,6})(?:\s|$)/);
     if (!m) continue;
+    { const nm = ((x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?(\S+) \d{4,6}(?:\s|$)/) || [])[1]; if (nm && nm !== m[1]) SIG_NAMES.set(m[1], nm); }   // 2026-10-20 通知標題裡的名稱(名單換掉後補名字用)
     { const px = +(((x.body || '').match(/進 ([\d.]+)/) || [])[1]) || +(((x.title || '').match(/([\d.]+)\s*$/) || [])[1]) || 0; if (px > 0 && px * 1000 > capFund()) continue; }   // 一張超過多空上限的不算(通知欄也不顯示它)
     if (!rank.has(m[1])) rank.set(m[1], rank.size);   // 2026-10-19 已平倉的也照排(原本平倉超過 1 分鐘就回到一般排序)
   }
@@ -3210,6 +3215,7 @@ function liveTick(m){
     z: price, y: isFinite(y) ? y : prev.y,
     o: parseFloat(m.o) || prev.o, h: parseFloat(m.h) || prev.h, l: parseFloat(m.l) || prev.l,
     v: isFinite(v) ? v : prev.v, t: m.t, ts: Date.now(), d: m.d || prev.d,   // d = 證交所回的交易日期 YYYYMMDD(休市判斷用)
+    n: m.n || prev.n, ex: m.ex || prev.ex,   // 2026-10-20 名稱 / 市場(清單裡沒有的股票靠這個補名字)
   };
   rec.chgPct = (rec.z && rec.y) ? (rec.z - rec.y) / rec.y * 100 : null;
   LIVE.set(code, rec);
@@ -3372,6 +3378,7 @@ function applyLiveToList(){
     const cls = d > 0 ? 'up' : d < 0 ? 'down' : 'flat';
     const px = row.querySelector('.px'), mv = row.querySelector('.mv');
     if (px){ px.textContent = r.z.toFixed(2); px.className = 'px ' + cls; }
+    { const nm = row.querySelector('.nm'); if (nm && r.n && nm.textContent.trim() === row.dataset.code) nm.textContent = r.n; }   // 2026-10-20 名字只有代號的(名單裡沒有),用證交所回的名稱
     if (mv){ mv.textContent = d > 0 ? '▲' : d < 0 ? '▼' : '─'; mv.className = 'mv ' + cls; }
     const vol = row.querySelector('.vol');            // 成交量改成今天到目前的累積張數
     if (vol && isFinite(r.v)) vol.textContent = (r.v / 10000).toFixed(2);   // 萬張
@@ -3380,7 +3387,8 @@ function applyLiveToList(){
 
 /* 向 Worker 要這些代號的即時行情,寫進 LIVE / LIVE_BARS */
 async function liveFetch(arr){
-  const mkt = arr.map(c => { const s = (SRC || []).find(x => x.code === c); return s && s.market === 'tpex' ? 'otc' : 'tse'; });
+  // 2026-10-20 不在今天名單裡的股票(例:晚上換成明天名單後,今天通知過的)不知道上市上櫃 → 送 any,Worker 兩邊都問;問過的記住市場
+  const mkt = arr.map(c => { const s = (SRC || []).find(x => x.code === c); if (s) return s.market === 'tpex' ? 'otc' : 'tse'; const l = LIVE.get(c); return l && l.ex ? (l.ex === 'otc' ? 'otc' : 'tse') : 'any'; });
   const u = `${BASE.liveUrl.replace(/\/$/, '')}/?codes=${arr.join(',')}&mkt=${mkt.join(',')}&_=${Date.now()}`;
   const r = await fetch(u, {cache: 'no-store'});
   if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -5219,7 +5227,7 @@ async function scan(){
   // 也一樣放進清單(排序規則會把它排前面);不佔監控檔數的額度
   const noted = [...signalRank().keys()].filter(c => !heldCodes.has(c)).map(code => {
     const found = pool.find(s => s.code === code) || (SRC || []).find(s => s.code === code);
-    return found || {code, name: ((SRC || []).find(s => s.code === code) || {}).name || code, close: 0, vol: 0, amp: null, dir: 0};
+    return found || {code, name: ((SRC || []).find(s => s.code === code) || {}).name || SIG_NAMES.get(code) || (LIVE.get(code) || {}).n || code, close: (LIVE.get(code) || {}).z || 0, vol: 0, amp: null, dir: 0};   // 2026-10-20 名單換成明天的以後,今天通知過的股票不在名單裡:名稱用通知標題 / 證交所的
   });
   const notedCodes = new Set(noted.map(s => s.code));
 
