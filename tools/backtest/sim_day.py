@@ -122,7 +122,11 @@ def _is_chop(i):
     W = int(os.environ.get('CHOPW','60')); N = int(os.environ.get('CHOPN','3')); RG = float(os.environ.get('CHOPR','1.5'))
     rec = [p for p in _alt_points(i) if i - W <= p[0] <= i]
     if len(rec) < N: return False
-    px = [p[2] for p in rec]; return (max(px) - min(px)) / min(px) * 100 <= RG
+    px = [p[2] for p in rec]
+    if (max(px) - min(px)) / min(px) * 100 > RG: return False
+    if os.environ.get('CHOPBRK','0') == '1' and globals().get('_chop_side'):   # 2026-10-20 測試:價格已經跌破(空)/ 站上(多)橫盤範圍 = 突破,放行
+        if (globals()['_chop_side'] == -1 and c[i] < min(px)) or (globals()['_chop_side'] == 1 and c[i] > max(px)): return False
+    return True
 def close_trade(sd, k0, ent, lots, tm, ex, why):
     gross = (ex-ent)*sd*1000*lots; fee = (ent+ex)*1000*lots*(0.001425*0.30 + 0.0000565); tax = (ex if sd==1 else ent)*1000*lots*0.0015
     trades.append((sd, k0, ent, lots, tm, ex, why, gross, fee, tax))
@@ -469,6 +473,7 @@ for i in range(1, len(c)):
     if conf and MINGAP > 0 and not far:
         _rng = (np.nanmax(ob[:i+1]) - np.nanmin(ob[:i+1])) or 1; _g = (ob[i]-obma[i])*side/_rng*100
         if _g < MINGAP: far = True; tag += f' [紅藍差距 {_g:.1f}% 不足,只記錄]'
+    globals()['_chop_side'] = side
     if conf and not far and os.environ.get('CHOP','0') == '1' and _is_chop(i): far = True; tag += ' [震盪盤,只記錄]'
     OB10DIR = os.environ.get('OB10DIR','0') == '1'   # 2026-10-20 測試(使用者看富喬 09:26:「OBV10 藍線也沒有往下」):確認點 OBV 均 10(藍)最近 1 根要和方向同向
     if conf and not far and OB10DIR and not np.isnan(obma[i-1]) and not ((obma[i] - obma[i-1]) * side > 0): far = True; tag += ' [藍線方向不符,只記錄]'
