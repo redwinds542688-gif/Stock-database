@@ -450,6 +450,8 @@ for i in range(1, len(c)):
     if conf and MINGAP > 0 and not far:
         _rng = (np.nanmax(ob[:i+1]) - np.nanmin(ob[:i+1])) or 1; _g = (ob[i]-obma[i])*side/_rng*100
         if _g < MINGAP: far = True; tag += f' [紅藍差距 {_g:.1f}% 不足,只記錄]'
+    OB10DIR = os.environ.get('OB10DIR','0') == '1'   # 2026-10-20 測試(使用者看富喬 09:26:「OBV10 藍線也沒有往下」):確認點 OBV 均 10(藍)最近 1 根要和方向同向
+    if conf and not far and OB10DIR and not np.isnan(obma[i-1]) and not ((obma[i] - obma[i-1]) * side > 0): far = True; tag += ' [藍線方向不符,只記錄]'
     KMADIR = os.environ.get('KMADIR','0') == '1'; KMA2 = int(os.environ.get('KMA2','0'))   # 2026-10-20 測試(使用者看友達元大圖:「判二 9:37 K10 是下跌、9:42 K10 在 K24 下面,這兩種情況都不適合做多」):確認點(含強訊號)均價 10 要同向;均價 10 要在均價 KMA2 的正確側
     if conf and not far and KMADIR and not ((ma[i] - ma[i-1]) * side > 0): far = True; tag += f' [均價 10 {"降" if side==1 else "升"},不符方向,只記錄]'
     if conf and not far and KMA2 > 0:
