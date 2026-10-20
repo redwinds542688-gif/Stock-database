@@ -287,6 +287,7 @@ for i in range(1, len(c)):
     tag = f'{tm} {"強" if strong else ""}{nm}{"✓" if conf else ""}{"✕" if gated else ""} 價 {c[i]:.2f} ({pct:+.2f}%) OBV {ob[i]:.0f}/{obma[i]:.0f}'
     if conf and gated and not locked[side] and os.environ.get('NOLOCK','0')!='1': locked[side] = True; tag += ' [此方向今天鎖住]'   # NOLOCK=1:測試不鎖方向(2026-10-18)
     farDev = abs(c[i]-ma[i])/ma[i]*100 > MAXDEV
+    chaseWait = False   # 2026-10-20 CHASEWAIT=1:追空的確認點不直接進,改掛均價線等反彈壓線再空
     far = farDev and not LIMITFAR
     _fe = (c[i]-lo[i])/lo[i]*100 if side==1 else (hi[i]-c[i])/hi[i]*100
     if _fe > MAXFROMEXT: far = True; tag += f' [離當日{"低" if side==1 else "高"}點 {_fe:.1f}%,只記錄]'
@@ -364,8 +365,13 @@ for i in range(1, len(c)):
     CHASEHI = float(os.environ.get('CHASEHI','0')); CHASELO = float(os.environ.get('CHASELO','0'))   # 2026-10-20 測試(使用者:「不追空如何」):做空時價離當日高點超過 CHASEHI% = 已跌一段,不追空;做多鏡像 CHASELO 看當日低點
     if conf and not far and (CHASEHI > 0 or CHASELO > 0):
         _dh = np.nanmax(h[:i+1]); _dl = np.nanmin(l[:i+1])
-        if side == -1 and CHASEHI > 0 and (_dh - c[i]) / _dh * 100 > CHASEHI: far = True; tag += f' [離今高 {(_dh-c[i])/_dh*100:.1f}% 已跌一段,不追空,只記錄]'
-        if side == 1 and CHASELO > 0 and (c[i] - _dl) / _dl * 100 > CHASELO: far = True; tag += f' [離今低 {(c[i]-_dl)/_dl*100:.1f}% 已漲一段,不追多,只記錄]'
+        _cw = os.environ.get('CHASEWAIT','0') == '1'
+        if side == -1 and CHASEHI > 0 and (_dh - c[i]) / _dh * 100 > CHASEHI:
+            if _cw: chaseWait = True; tag += f' [離今高 {(_dh-c[i])/_dh*100:.1f}%,不追空,等反彈到均價]'
+            else: far = True; tag += f' [離今高 {(_dh-c[i])/_dh*100:.1f}% 已跌一段,不追空,只記錄]'
+        if side == 1 and CHASELO > 0 and (c[i] - _dl) / _dl * 100 > CHASELO:
+            if _cw: chaseWait = True; tag += f' [離今低 {(c[i]-_dl)/_dl*100:.1f}%,不追多,等回檔到均價]'
+            else: far = True; tag += f' [離今低 {(c[i]-_dl)/_dl*100:.1f}% 已漲一段,不追多,只記錄]'
     SHORTMAXPCT = float(os.environ.get('SHORTMAXPCT','99')); LONGMINPCT = float(os.environ.get('LONGMINPCT','-99'))   # 2026-10-19 測試(使用者「找破解」):做空只在當日漲跌 ≤ SHORTMAXPCT%、做多只在 ≥ LONGMINPCT%
     if conf and not far and ((side==-1 and pct > SHORTMAXPCT) or (side==1 and pct < LONGMINPCT)): far = True; tag += f' [當日 {pct:+.2f}% 不符{"做空" if side==-1 else "做多"}條件,只記錄]'
     OPENMOVE = float(os.environ.get('OPENMOVE','0'))   # 2026-10-19 測試(使用者:「訊號沒錯但我們忽視了什麼關鍵的訊號」):價要先相對今開朝方向走 OPENMOVE% 以上才進(只有 OBV、價還沒跟上 = 不進)
@@ -425,8 +431,8 @@ for i in range(1, len(c)):
             _pos = (c[i]-lo[i])/((hi[i]-lo[i]) or 1)*100; _vwd = (c[i]-vwapArr[i])/vwapArr[i]*100*side; _opd = (c[i]-o[0])/o[0]*100*side; _ma5 = (ma[i]-ma[i-5])/ma[i]*100*side if i>=5 else 0
             _amp = (hi[i]-lo[i])/prev*100; _rv = (cv[i]*1000/rvBase[tm]) if (RVOLMIN and rvBase and rvBase.get(tm,0)>0) else 0
             print(f'TRACE {tm} {"多" if side==1 else "空"} {"強" if strong else "穿"} 差距 {_gap:.1f}% 紅5 {_sl5:.1f}% 藍5 {_obma5:.1f}% OBV極 {"是" if _obext else "否"} 價極 {"是" if _pext else "否"} 位置 {_pos:.0f}% 離VWAP {_vwd:+.2f}% 離今開 {_opd:+.2f}% 均5 {_ma5:+.2f}% 振幅 {_amp:.1f}% 量比 {_rv:.2f} 漲跌 {pct:+.2f}% weak {int(first[1] is not None and first[-1] is not None and ((side==1 and first[-1] > first[1]) or (side==-1 and first[1] > first[-1])))} bar {i} 開缺 {(o[0]-prev)/prev*100*side:+.2f}% 離均 {(c[i]-ma[i])/ma[i]*100*side:+.2f}% 均30斜 {((ma[i]-ma[i-30])/ma[i]*100*side if i>=30 else 0):+.2f}% OBV30斜 {((globals()["obmaDir"][i]-globals()["obmaDir"][i-5])*side/_rng*100 if i>=35 and "obmaDir" in globals() and not np.isnan(globals()["obmaDir"][i-5]) else 0):+.1f}% 距首同 {i-(firstT[side] if firstT[side] is not None else i)} 距首反 {(i-firstT[-side]) if firstT[-side] is not None else -1} K幅 {(h[i]-l[i])/c[i]*100:.2f}% 今高低幅 {(hi[i]-lo[i])/prev*100:.2f}%')
-        if LIMITFAR and farDev:
-            px = (l[i] if side==1 else h[i]) if LIMITFAR=='low' else round(ma[i], 2)
+        if (LIMITFAR and farDev) or chaseWait:
+            px = round(ma[i], 2) if chaseWait else ((l[i] if side==1 else h[i]) if LIMITFAR=='low' else round(ma[i], 2))
             limitOrd = {'side': side, 'px': px, 'exp': i + LIMITN, 'tm': tm}; last[-side] = None; pending[side] = False
             log.append(tag + f' [離均價 {abs(c[i]-ma[i])/ma[i]*100:.2f}%] → 掛單 {px:.2f} 等回檔({LIMITN} 分鐘內)'); continue
         ent = o[i+1]; lots = int(CAP // (ent*1000)); cyc = (side, tm, ent, lots); last[-side] = None; pending[side] = False; falseFirst[1] = falseFirst[-1] = None; log.append(tag + f' → 進場 {ent:.2f} ×{lots}張')
