@@ -221,18 +221,19 @@ for i in range(1, len(c)):
         #   均價 10 連 2 根向下 + 這根或前一根最高碰到均價 10(差 ≤ PRESSTOUCH%)+ 收在均價 10 之下且收黑 + 紅 < 藍 < 紫、藍紫都向下
         #   + 量先價行:OBV 創 PRESSNL 根新低而價還在 PRESSNL 根低點之上 0.3%
         #   + 不追空:離今高 ≤ PRESSCHASE%、離今低 ≥ PRESSLO%、最近 10 根均量 ÷ 今天均量 < PRESSRVOL(量沒爆)+ 不是開平(|今開−昨收| > PRESSGAP%,0 = 不看)
-        PT = float(os.environ.get('PRESSTOUCH','0.15')); PCH = float(os.environ.get('PRESSCHASE','2')); PRV = float(os.environ.get('PRESSRVOL','1.2')); PLO = float(os.environ.get('PRESSLO','0.5')); PGAP = float(os.environ.get('PRESSGAP','1')); PNL = int(os.environ.get('PRESSNL','30'))
+        PT = float(os.environ.get('PRESSTOUCH','0.15')); PCH = float(os.environ.get('PRESSCHASE','2')); PRV = float(os.environ.get('PRESSRVOL','1.2')); PLO = float(os.environ.get('PRESSLO','0.5')); PGAP = float(os.environ.get('PRESSGAP','1')); PNL = int(os.environ.get('PRESSNL','30')); PNLM = float(os.environ.get('PRESSNLM','0.3')); PRED = os.environ.get('PRESSRED','0') == '1'   # 2026-10-20 修正搜尋:PRESSNLM 價要在 PNL 根低點之上幾 %;PRESSRED=1 只做價還在今開之上(紅盤)的
         side = 0; xconf = False
         if i >= PNL and i >= 2 and not any(np.isnan(x) for x in (ma[i], ma[i-1], ma[i-2], obma[i], obma[i-1], obma2[i], obma2[i-1])):
             _maDown = ma[i] < ma[i-1] < ma[i-2]
             _touch = max(h[i], h[i-1]) >= ma[i] * (1 - PT/100)
             _under = c[i] < ma[i] and c[i] < o[i]
             _obvDown = ob[i] < obma[i] < obma2[i] and obma[i] < obma[i-1] and obma2[i] < obma2[i-1]
-            _newlow = ob[i] <= np.min(ob[i-PNL:i]) and c[i] > np.min(l[i-PNL:i]) * 1.003
+            _newlow = ob[i] <= np.min(ob[i-PNL:i]) and c[i] > np.min(l[i-PNL:i]) * (1 + PNLM/100)
+            _redok = (not PRED) or c[i] >= o[0]
             _offhi = (np.max(h[:i+1]) - c[i]) / c[i] * 100; _offlo = (c[i] - np.min(l[:i+1])) / c[i] * 100
             _rv = np.mean(v[max(0,i-10):i+1]) / max(np.mean(v[:i+1]), 1e-9)
             _gapok = PGAP <= 0 or abs(o[0] - prev) / prev * 100 > PGAP
-            if _maDown and _touch and _under and _obvDown and _newlow and _offhi <= PCH and _offlo >= PLO and _rv < PRV and _gapok: side = -1; xconf = True
+            if _maDown and _touch and _under and _obvDown and _newlow and _offhi <= PCH and _offlo >= PLO and _rv < PRV and _gapok and _redok: side = -1; xconf = True
     else:
         side = 1 if (kUp and oUp and between and pUp and not doji) else (-1 if (kDn and oDn and between and pDn and not doji) else 0)
     STRONG = os.environ.get('STRONG','0'); strong = False   # 2026-10-18 測試(使用者提議,友達 10/16 10:30):強訊號 = 紅線在 OBV10 與 OBV30 之下 + 兩條藍線都在降 + 價在均價下且均價降;剛成立那根直接當確認點
