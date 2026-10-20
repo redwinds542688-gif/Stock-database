@@ -4418,11 +4418,15 @@ function ind3Raw(st, time, waiting){
 // 2026-10-21 03:30 使用者「改」(富喬早盤 156~159 震盪,燈號做多做空亂換):震盪盤只顯示監控。isChop(i) = 第 i 根是不是震盪盤(和判二同一套:
 //   45 根內 ≥ 3 個輪流的起漲 / 起跌點,價格都在 1.5% 內;YH.lampChopWin / lampChopN / lampChopRange)
 function ind3Lamps(bars, I3, isChop){
-  const out = new Map(), N = YH.lampHold || 2; let day = null, n = 0, cur = null, cand = null, cnt = 0;
+  const out = new Map(), N = YH.lampHold || 2; let day = null, n = 0, cur = null, cand = null, cnt = 0, dHi = 0, dLo = 0;
   for (let i = 0; i < bars.length; i++){
     const b = bars[i];
     const d = dayKey(b.time); if (d !== day){ day = d; n = 0; cur = null; cand = null; cnt = 0; } n++;
     let raw = ind3Raw(I3.get(b.time), b.time, n < SIG.skipMin);
+    if (n === 1){ dHi = b.high; dLo = b.low; } else { dHi = Math.max(dHi, b.high); dLo = Math.min(dLo, b.low); }
+    // 2026-10-21 測試(YH.lampExtPct,0 = 關):價已經貼著今天最高(做多)/ 最低(做空)lampExtPct% 以內 → 不亮順勢燈,當監控(不追在轉折點)
+    const ex = YH.lampExtPct || 0;
+    if (ex > 0 && ((raw === '做多' || raw === '漸多') && b.close >= dHi * (1 - ex / 100) || (raw === '做空' || raw === '漸空') && b.close <= dLo * (1 + ex / 100))) raw = '監控';
     if (raw !== '等待' && raw !== '監控' && isChop && isChop(i)) raw = '監控';
     if (raw === '等待' || hmKey(b.time) >= '13:25' || cur === null || cur === '等待'){ cur = raw; cand = null; cnt = 0; }
     else if (raw === cur){ cand = null; cnt = 0; }
