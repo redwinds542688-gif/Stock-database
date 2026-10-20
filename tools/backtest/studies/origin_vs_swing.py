@@ -65,47 +65,51 @@ def origins(day,h,l,c,ma,ob,obma,armed=True):
                 if sd==1 and armU: out.append((q,1)); armU=False
             elif last!=sd: out.append((q,sd)); last=sd
     return out
-rows=[]
-for d,pool in DAYS.items():
-    P=json.load(open(f'{S}/{pool}',encoding='utf-8'))
-    for s in P['pool']:
-        fs=sorted(glob.glob(f"{R}/kline/{s['code']}/2026-W4*.csv"))
-        if not fs: continue
-        df=pd.concat([pd.read_csv(f,dtype={'date':str,'time':str}) for f in fs]).drop_duplicates(['date','time']).sort_values(['date','time'])
-        df=df[(df.time>='09:00')&(df.time<='13:30')&(df.low>0)]
-        prv=df[df.date<d].tail(30); t=df[df.date==d]
-        if len(t)<100: continue
-        allb=pd.concat([prv,t]).reset_index(drop=True); off=len(prv)
-        h=allb.high.values; l=allb.low.values; c=allb.close.values; o=allb.open.values; v=allb.volume.values/1000
-        SW=[p for p in swings(h,l,c) if p[1]>=off]
-        th=t.high.values; tl=t.low.values; tc=t.close.values; tv=t.volume.values/1000; to=t.open.values; tm=t.time.values
-        ma=pd.Series(tc).rolling(10).mean().values; ob=np.concatenate([[0],np.cumsum(np.sign(np.diff(tc))*tv[1:])]); obma=pd.Series(ob).rolling(10).mean().values
-        sw=[(s_,k-off,v_) for s_,k,v_ in SW]
-        for armed in (True,False):
-            for q,sd in origins(d,th,tl,tc,ma,ob,obma,armed):
-                if q+1>=len(tc): continue
-                prev=[p for p in sw if p[1]<=q]; nxt=[p for p in sw if p[1]>q]
-                if not prev or not nxt: continue
-                P0=prev[-1]; N1=nxt[0]
-                ent=to[q+1]
-                # 起跌(sd=-1):對的位置 = 前一個點是高點(在下跌段裡),下一個點是低點
-                inleg = (P0[0]==-sd*-1*-1) if False else (P0[0]==(1 if sd==-1 else -1))
-                same=[p for p in nxt if p[0]==(-1 if sd==-1 else 1)]   # 下一個同向終點(起跌 → 下一個低點)
-                tgt=same[0] if same else None
-                opp=[p for p in nxt if p[0]==(1 if sd==-1 else -1)]   # 下一個反向點(起跌 → 下一個高點)
-                rows.append(dict(day=d[5:],name=s.get('name'),t=tm[q],sd=sd,armed=armed,inleg=inleg,
-                    lag=q-P0[1], lagpct=abs(P0[2]-(th[q] if sd==-1 else tl[q]))/P0[2]*100 if inleg else np.nan,
-                    swing=abs(P0[2]-N1[2])/P0[2]*100 if inleg else np.nan,
-                    rest=((ent-tgt[2])*(-sd)*-1/ent*100*-1 if False else (ent-tgt[2])/ent*100*(1 if sd==-1 else -1)) if tgt else np.nan,
-                    adverse=((opp[0][2]-ent)/ent*100*(1 if sd==-1 else -1)) if opp and (not tgt or opp[0][1]<tgt[1]) else 0.0))
-df=pd.DataFrame(rows)
-df.to_csv(f'{S}/results/origin_vs_swing.csv',index=False)
-for armed in (True,False):
-    print('=====', '起漲起跌點(圖上標的,創新高 / 新低後第一次)' if armed else '輪流版(每次穿越都算)')
-    for sd,nm in ((-1,'起跌'),(1,'起漲')):
-        x=df[(df.armed==armed)&(df.sd==sd)]
-        if not len(x): continue
-        a=x[x.inleg]; b=x[~x.inleg]
-        print(f"{nm} {len(x)} 個:在對的段裡(起跌在高點之後、低點之前) {len(a)} 個 {len(a)*100//len(x)}% / 在反的段裡 {len(b)} 個")
-        if len(a): print(f"   對的:離前一個{'高' if sd==-1 else '低'}點 中位 {a.lag.median():.0f} 根、價差 {a.lagpct.median():.2f}%(這段全長中位 {a.swing.median():.2f}%);進場後到下一個{'低' if sd==-1 else '高'}點還有 中位 {a['rest'].median():.2f}%、平均 {a['rest'].mean():.2f}%;≥1% 的 {(a['rest']>=1).mean()*100:.0f}%")
-        if len(b): print(f"   反的:進場後先被反向推 中位 {b.adverse.median():.2f}%;之後到下一個{'低' if sd==-1 else '高'}點 中位 {b['rest'].median():.2f}%")
+def main():
+    rows=[]
+    for d,pool in DAYS.items():
+        P=json.load(open(f'{S}/{pool}',encoding='utf-8'))
+        for s in P['pool']:
+            fs=sorted(glob.glob(f"{R}/kline/{s['code']}/2026-W4*.csv"))
+            if not fs: continue
+            df=pd.concat([pd.read_csv(f,dtype={'date':str,'time':str}) for f in fs]).drop_duplicates(['date','time']).sort_values(['date','time'])
+            df=df[(df.time>='09:00')&(df.time<='13:30')&(df.low>0)]
+            prv=df[df.date<d].tail(30); t=df[df.date==d]
+            if len(t)<100: continue
+            allb=pd.concat([prv,t]).reset_index(drop=True); off=len(prv)
+            h=allb.high.values; l=allb.low.values; c=allb.close.values; o=allb.open.values; v=allb.volume.values/1000
+            SW=[p for p in swings(h,l,c) if p[1]>=off]
+            th=t.high.values; tl=t.low.values; tc=t.close.values; tv=t.volume.values/1000; to=t.open.values; tm=t.time.values
+            ma=pd.Series(tc).rolling(10).mean().values; ob=np.concatenate([[0],np.cumsum(np.sign(np.diff(tc))*tv[1:])]); obma=pd.Series(ob).rolling(10).mean().values
+            sw=[(s_,k-off,v_) for s_,k,v_ in SW]
+            for armed in (True,False):
+                for q,sd in origins(d,th,tl,tc,ma,ob,obma,armed):
+                    if q+1>=len(tc): continue
+                    prev=[p for p in sw if p[1]<=q]; nxt=[p for p in sw if p[1]>q]
+                    if not prev or not nxt: continue
+                    P0=prev[-1]; N1=nxt[0]
+                    ent=to[q+1]
+                    # 起跌(sd=-1):對的位置 = 前一個點是高點(在下跌段裡),下一個點是低點
+                    inleg = (P0[0]==-sd*-1*-1) if False else (P0[0]==(1 if sd==-1 else -1))
+                    same=[p for p in nxt if p[0]==(-1 if sd==-1 else 1)]   # 下一個同向終點(起跌 → 下一個低點)
+                    tgt=same[0] if same else None
+                    opp=[p for p in nxt if p[0]==(1 if sd==-1 else -1)]   # 下一個反向點(起跌 → 下一個高點)
+                    rows.append(dict(day=d[5:],name=s.get('name'),t=tm[q],sd=sd,armed=armed,inleg=inleg,
+                        lag=q-P0[1], lagpct=abs(P0[2]-(th[q] if sd==-1 else tl[q]))/P0[2]*100 if inleg else np.nan,
+                        swing=abs(P0[2]-N1[2])/P0[2]*100 if inleg else np.nan,
+                        rest=((ent-tgt[2])*(-sd)*-1/ent*100*-1 if False else (ent-tgt[2])/ent*100*(1 if sd==-1 else -1)) if tgt else np.nan,
+                        adverse=((opp[0][2]-ent)/ent*100*(1 if sd==-1 else -1)) if opp and (not tgt or opp[0][1]<tgt[1]) else 0.0))
+    df=pd.DataFrame(rows)
+    df.to_csv(f'{S}/results/origin_vs_swing.csv',index=False)
+    for armed in (True,False):
+        print('=====', '起漲起跌點(圖上標的,創新高 / 新低後第一次)' if armed else '輪流版(每次穿越都算)')
+        for sd,nm in ((-1,'起跌'),(1,'起漲')):
+            x=df[(df.armed==armed)&(df.sd==sd)]
+            if not len(x): continue
+            a=x[x.inleg]; b=x[~x.inleg]
+            print(f"{nm} {len(x)} 個:在對的段裡(起跌在高點之後、低點之前) {len(a)} 個 {len(a)*100//len(x)}% / 在反的段裡 {len(b)} 個")
+            if len(a): print(f"   對的:離前一個{'高' if sd==-1 else '低'}點 中位 {a.lag.median():.0f} 根、價差 {a.lagpct.median():.2f}%(這段全長中位 {a.swing.median():.2f}%);進場後到下一個{'低' if sd==-1 else '高'}點還有 中位 {a['rest'].median():.2f}%、平均 {a['rest'].mean():.2f}%;≥1% 的 {(a['rest']>=1).mean()*100:.0f}%")
+            if len(b): print(f"   反的:進場後先被反向推 中位 {b.adverse.median():.2f}%;之後到下一個{'低' if sd==-1 else '高'}點 中位 {b['rest'].median():.2f}%")
+
+if __name__ == "__main__":
+    main()
