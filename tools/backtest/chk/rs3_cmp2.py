@@ -4,8 +4,8 @@ from playwright.async_api import async_playwright
 S=os.environ.get('SIM_DIR', os.path.dirname(os.path.abspath(__file__)))
 RS=sys.argv[1]
 J1="OBMASLOPE=4 FPGAP=2.5 TAKE=2.5 VWAPF=1 FP=1 MAXDEV=1 MIRROR=1 PENDVOL=1 VOLMIN=6000 RVOLMIN=0.9 CAP=350000 REVOK=1 ENTRYMAX=3.5 OBVX=2 OBVXMIN=1 OBVX2=1 OB2=30 SLOPEMIN=-99 GAPMODE=dir GAPTH=2 OB3MA=6 REDSLOPE=-2 EXITRESET=tp OBVDIR=30 NEARHL=2 NOWEAK=1 STOPMODE=pts STOPSCOPE=last2 STOPKBAR=close STOPCAP=3 CHOP=1 CHOPW=60"
-J3="FPGAP=2.5 TAKE=2.5 VWAPF=0 FP=1 MAXDEV=99 MIRROR=1 PENDVOL=1 VOLMIN=6000 RVOLMIN=0 CAP=350000 REVOK=1 ENTRYMAX=3.5 OBVX=2 OBVXMIN=1 OBVX2=1 OB2=30 SLOPEMIN=-99 GAPMODE=dir GAPTH=99 OB3MA=6 REDSLOPE=-2 EXITRESET=tp OBVDIR=0 NEARHL=0 NOLOCK=1 NOENTRYAFTER=12:00 MODE=brk BRKBELOW=1 BRKVBASE=pre OBMASLOPE=0 BRKGAP=0 BRKGAPREF=pool"
-J4="FPGAP=2.5 TAKE=2.5 VWAPF=0 FP=1 MAXDEV=99 MIRROR=1 PENDVOL=1 VOLMIN=6000 RVOLMIN=0 CAP=350000 REVOK=1 ENTRYMAX=3.5 OBVX=2 OBVXMIN=1 OBVX2=1 OB2=30 SLOPEMIN=-99 GAPMODE=dir GAPTH=99 OB3MA=6 REDSLOPE=-2 EXITRESET=tp OBVDIR=0 NEARHL=0 NOLOCK=1 NOENTRYAFTER=12:00 OBMASLOPE=0 MODE=press CHOP=1 CHOPW=30"   # 2026-10-20 判四 壓線空點
+J3="FPGAP=2.5 TAKE=2.5 VWAPF=0 FP=1 MAXDEV=99 MIRROR=1 PENDVOL=1 VOLMIN=6000 RVOLMIN=0 CAP=350000 REVOK=1 ENTRYMAX=3.5 OBVX=2 OBVXMIN=1 OBVX2=1 OB2=30 SLOPEMIN=-99 GAPMODE=dir GAPTH=99 OB3MA=6 REDSLOPE=-2 EXITRESET=tp OBVDIR=0 NEARHL=0 NOLOCK=1 NOENTRYAFTER=12:00 OBMASLOPE=0 MODE=press CHOP=1 CHOPW=30"   # 2026-10-20 判三 壓線空點(21:50 原判四改名判三)
+J4="FPGAP=2.5 TAKE=2.5 VWAPF=0 FP=1 MAXDEV=99 MIRROR=1 PENDVOL=1 VOLMIN=6000 RVOLMIN=0 CAP=350000 REVOK=1 ENTRYMAX=3.5 OBVX=2 OBVXMIN=1 OBVX2=1 OB2=30 SLOPEMIN=-99 GAPMODE=dir GAPTH=99 OB3MA=6 REDSLOPE=-2 EXITRESET=tp OBVDIR=0 NEARHL=0 NOLOCK=1 NOENTRYAFTER=12:00 MODE=brk BRKBELOW=1 BRKVBASE=pre OBMASLOPE=0 BRKGAP=0 BRKGAPREF=pool"   # 2026-10-20 21:50 判四 = 原判三 燿華型(隱藏)
 BASE=(J1 if RS=="一" else J3 if RS=="三" else J4 if RS=="四" else "FPGAP=2.5 TAKE=2.5 VWAPF=1 FP=1 MAXDEV=1 MIRROR=1 PENDVOL=1 VOLMIN=6000 RVOLMIN=0.9 CAP=350000 REVOK=1 ENTRYMAX=3.5 OBVX=2 OBVXMIN=1 OBVX2=1 OB2=30 SLOPEMIN=-99 GAPMODE=dir GAPTH=2 OB3MA=5 REDSLOPE=-2 EXITRESET=tp MODE=cross XWIN=10 OBMASLOPE=0 XSTR=2 XNEWHI=1 XOB2=20 XOB2DIR=slope XKMA=0 NOLOCK=1 STRONG=1 SREQ=1030,dx,ext SBARS=2 SWIN=5 STRONGMAX=4 SNOAFTER=11:30 MINGAP=4 NOENTRYAFTER=12:00 XOB3=30 WEAKORDER=1 STOPMODE=pts STOPSCOPE=last2 STOPKBAR=close STOPCAP=3 STOPMIN=1.5 OB10DIR=1 CHOP=1 CHOPW=45") + ("" if RS=="三" else " OBVDIR=30" + (" NEARHL=2" if RS=="二" else ""))
 ENV=dict(os.environ); ENV.update(dict(kv.split('=',1) for kv in BASE.split()))
 def load(code, upto):
@@ -39,6 +39,7 @@ async def main():
         ctx = await b.new_context(timezone_id='Asia/Taipei', locale='zh-TW'); pg = await ctx.new_page(); errs=[]; pg.on('pageerror', lambda e: errs.append(str(e)))
         await pg.add_init_script("const real = window.fetch; window.fetch = async (u, i) => String(u).includes('?log=') || String(u).includes('?bars=') ? new Response('[]', {status:200}) : real(u, i); window.Android = { monitorRunning: () => true, isService: () => false, notify: () => {}, log: () => {}, ready: () => {}, todayLog: () => '[]', logDays: () => '[]', logFor: (d) => '[]' }; try{ localStorage.setItem('mysh.ruleset', '" + RS + "'); }catch(e){}")
         await pg.goto('file:///home/user/Stock-database/app/app.html'); await pg.wait_for_timeout(5000)
+        await pg.evaluate("k => { RULESET = RULESETS[k]; SIG = RULESET.sig; }", RS)   # 2026-10-20 隱藏的判四(readRuleset 不讓選)也能對照:直接切
         tot=0; diff=0; nstrong=0
         for day in ['2026-10-13','2026-10-14','2026-10-15','2026-10-16']:
             P=json.load(open(f'{S}/pools/hi350_{day}.json',encoding='utf-8'))
