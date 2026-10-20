@@ -31,6 +31,17 @@ except Exception:
     rows = [r for r, ts in zip(rows, [x for x, o, c_ in zip(r['timestamp'], q['open'], q['close']) if o is not None and c_ is not None]) if datetime.datetime.fromtimestamp(ts, datetime.timezone(datetime.timedelta(hours=8))).strftime('%Y-%m-%d') == DAY]
     if not rows: print(f'{name} {DAY} 無資料'); sys.exit(0)
     t = pd.DataFrame(rows, columns=['time','open','high','low','close','volume']); t = t[(t.time >= '09:00') & (t.time <= '13:30')].reset_index(drop=True); src='Yahoo'
+# 2026-10-21 使用者(光鼎 10/20 OBV 和元大不一樣 →「有傾斜角度 跟 原來沒傾斜的 判斷會有差別的」):BLK=1 和 App dropBlockTrades 同一套,
+#   Yahoo 鉅額交易那根(量 ≥ 同日前後 10 根中位數 80 倍且 ≥ 300 張,09:00、13:30 除外)量改成中位數;量比基準的前 5 天也一樣處理
+BLK = os.environ.get('BLK','0')=='1'
+def _blk(vol, tms):
+    raw = np.array(vol, dtype=float); out = raw.copy()
+    for _i in range(len(raw)):
+        if tms[_i] in ('09:00','13:30') or raw[_i] < 300000: continue
+        _nb = np.concatenate([raw[max(0,_i-10):_i], raw[_i+1:_i+11]])
+        if len(_nb) and raw[_i] >= 80*max(float(np.median(_nb)), 500): out[_i] = float(np.median(_nb))
+    return out
+if BLK: t = t.assign(volume=_blk(t.volume.values, list(t.time)))
 c = np.round(t.close.values,2); o = np.round(t.open.values,2); h = np.round(t.high.values,2); l = np.round(t.low.values,2); v = t.volume.values/1000
 ma = pd.Series(c).rolling(MA).mean().values
 ob = np.zeros(len(c)); acc = 0
@@ -68,6 +79,7 @@ if RVOLMIN:
     if fs:
         dfa = pd.concat([pd.read_csv(f, dtype={'date':str,'time':str}) for f in fs]).drop_duplicates(['date','time']).sort_values(['date','time'])
         dfa = dfa[(dfa.date < DAY) & (dfa.time >= '09:00') & (dfa.time <= '13:30')]
+        if BLK: dfa = pd.concat([g.assign(volume=_blk(g.volume.values, list(g.time))) for _, g in dfa.groupby('date')])
         dfa['cum'] = dfa.groupby('date')['volume'].cumsum()
         pv = dfa.pivot_table(index='date', columns='time', values='cum', aggfunc='last').sort_index(axis=1).ffill(axis=1).tail(5)
         rvBase = pv.mean(axis=0).to_dict() if len(pv) >= 3 else None
