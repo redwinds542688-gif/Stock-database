@@ -217,6 +217,22 @@ for i in range(1, len(c)):
             _bm = os.environ.get('BRKBELOW','1'); _ref = prev if _bm == '2' else o[0]; _below = (_bm == '0') or ((c[i] - _ref) * _sd < 0)   # 1 多:價在今開之下 / 空:今開之上;2 用昨收;0 不限
             _gapok = (o[0]/(prev if os.environ.get('BRKGAPREF','k') == 'pool' else globals().get('prevK', prev)) - 1)*100*_sd <= float(os.environ.get('BRKGAP','99'))   # 2026-10-20 測試(使用者:「只做開平或開低」):今開對昨收的缺口 ≤ BRKGAP% 才做(0 = 開高不做);昨收用 K 線前一天收盤(BRKGAPREF=pool 改用池檔昨收,只給 App 對照用,App 盤中用證交所昨收)
             if (_flat or _tight) and _cross and _redUp and _bigv and _brk and _below and _gapok: side = (-_sd if BRKREV else _sd); xconf = True
+    elif MODE == 'press':   # 2026-10-20 判別式四「壓線空點」(使用者看光鼎 09:49、友達 10:37 的元大圖:「壓在線上 指標全部向下 就是最漂亮的空點」→「我想把這個設為判四」),只做空:
+        #   均價 10 連 2 根向下 + 這根或前一根最高碰到均價 10(差 ≤ PRESSTOUCH%)+ 收在均價 10 之下且收黑 + 紅 < 藍 < 紫、藍紫都向下
+        #   + 量先價行:OBV 創 PRESSNL 根新低而價還在 PRESSNL 根低點之上 0.3%
+        #   + 不追空:離今高 ≤ PRESSCHASE%、離今低 ≥ PRESSLO%、最近 10 根均量 ÷ 今天均量 < PRESSRVOL(量沒爆)+ 不是開平(|今開−昨收| > PRESSGAP%,0 = 不看)
+        PT = float(os.environ.get('PRESSTOUCH','0.15')); PCH = float(os.environ.get('PRESSCHASE','2')); PRV = float(os.environ.get('PRESSRVOL','1.2')); PLO = float(os.environ.get('PRESSLO','0.5')); PGAP = float(os.environ.get('PRESSGAP','1')); PNL = int(os.environ.get('PRESSNL','30'))
+        side = 0; xconf = False
+        if i >= PNL and i >= 2 and not any(np.isnan(x) for x in (ma[i], ma[i-1], ma[i-2], obma[i], obma[i-1], obma2[i], obma2[i-1])):
+            _maDown = ma[i] < ma[i-1] < ma[i-2]
+            _touch = max(h[i], h[i-1]) >= ma[i] * (1 - PT/100)
+            _under = c[i] < ma[i] and c[i] < o[i]
+            _obvDown = ob[i] < obma[i] < obma2[i] and obma[i] < obma[i-1] and obma2[i] < obma2[i-1]
+            _newlow = ob[i] <= np.min(ob[i-PNL:i]) and c[i] > np.min(l[i-PNL:i]) * 1.003
+            _offhi = (np.max(h[:i+1]) - c[i]) / c[i] * 100; _offlo = (c[i] - np.min(l[:i+1])) / c[i] * 100
+            _rv = np.mean(v[max(0,i-10):i+1]) / max(np.mean(v[:i+1]), 1e-9)
+            _gapok = PGAP <= 0 or abs(o[0] - prev) / prev * 100 > PGAP
+            if _maDown and _touch and _under and _obvDown and _newlow and _offhi <= PCH and _offlo >= PLO and _rv < PRV and _gapok: side = -1; xconf = True
     else:
         side = 1 if (kUp and oUp and between and pUp and not doji) else (-1 if (kDn and oDn and between and pDn and not doji) else 0)
     STRONG = os.environ.get('STRONG','0'); strong = False   # 2026-10-18 測試(使用者提議,友達 10/16 10:30):強訊號 = 紅線在 OBV10 與 OBV30 之下 + 兩條藍線都在降 + 價在均價下且均價降;剛成立那根直接當確認點
@@ -251,8 +267,8 @@ for i in range(1, len(c)):
     if FALSEGAP > 0: falseFirst[-side] = None
     prv = last[side]
     conf = prv is not None and ((side==1 and ob[i]>prv[0] and obma[i]>prv[1] and c[i]>prv[2]) or (side==-1 and ob[i]<prv[0] and obma[i]<prv[1] and c[i]<prv[2])) and abs(c[i]-prv[2])/prv[2]*100 <= 2.0
-    if MODE in ('cross', 'gapdir', 'seq', 'brk'): conf = xconf
-    if os.environ.get('ENTER1','0')=='1' and MODE not in ('cross','gapdir','seq','brk'): conf = True   # 2026-10-19 測試(使用者:「驗證第一訊號進場跟第二訊號才進場」):每個訊號都當確認點,第 1 個訊號就進
+    if MODE in ('cross', 'gapdir', 'seq', 'brk', 'press'): conf = xconf
+    if os.environ.get('ENTER1','0')=='1' and MODE not in ('cross','gapdir','seq','brk','press'): conf = True   # 2026-10-19 測試(使用者:「驗證第一訊號進場跟第二訊號才進場」):每個訊號都當確認點,第 1 個訊號就進
     if strong: conf = True
     seq[side] = seq[side] + 1 if conf else 1
     if isGap and GAPMODE == 'need3' and conf and seq[side] < 3: conf = False   # 跳空股:第 2 個點不算確認,要第 3 個

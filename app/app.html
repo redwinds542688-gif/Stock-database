@@ -101,6 +101,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-20 12:40 判別式四新增「壓線空點」(使用者看光鼎 09:49、友達 10:37 的元大圖:「這種壓在線上 指標全部向下 就是最漂亮的空點」→ 九天研究勝率約 50% → 「找出輸的為什麼輸」= 追空 → 「我想把這個設為判四」):
+    RULESETS['四'] entryMode 'press',只做空:均價 10 向下、反彈碰均價被壓回收黑、紅 < 藍 < 紫且藍紫向下、OBV 創 30 根新低而價未破(量先價行)、不追空(離今高 ≤ 2%、離今低 ≥ 0.5%、量比 < 1.2)、開平不做。
+    保護同判別式三;出場同判別式一。按鍵列加「判四」(單擊看規則、長按圖改畫判四);背景監控仍只跑判一、判二。研究版九天 23 筆 69% +51,455(樣本小);模擬器 MODE=press,完整回測見《判別式四.md》。判一二三不動。
   · 2026-10-20 09:40 即時價與雲端 1 分K 的落後縮短(使用者富喬 09:21 截圖對元大:「差了快二分鐘」→「改」):查出證交所免費接口後面好幾台伺服器新舊不一,同一秒 5 個請求相差 25~60 秒,
     整點快照抓到舊的就少一根 K、下一根併兩分鐘(富喬 09:00~09:23 少 5 根)。Worker 改每次同時發 4 個請求、每檔取累計量最大的那筆(快照與 ?codes 即時價都用);
     手機圖開著 / 背景判別補雲端 K 由 2 分鐘改 55 秒(雲端本身 55 秒內不重抓,請求數不變)。免費接口仍至少慢十幾秒,無法和券商完全同步;判一二三不動。
@@ -1529,7 +1532,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610200940">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610201240">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1901,6 +1904,7 @@ except Exception:
     <button class="tool txt rs" id="btnReload" data-rs="一" aria-label="判別式一" title="亮燈 = 背景監控執行中(判一、判二同時跑,各自通知);單擊看規則;長按圖上沒在用的 = 圖改畫那份、長按圖上正在用的 = 強制重新啟動監控">判一<i class="mdot"></i></button>   <!-- 2026-10-18 使用者:第二顆設「判一」;同日加判二(判三加了又刪);mdot = 背景監控燈(亮在正在用的那顆右上角) -->
     <button class="tool txt rs" id="btnState" data-rs="二" aria-label="判別式二" title="判別式二(背景監控和判一同時跑,通知尾巴 · 判二);單擊看規則;長按 0.6 秒讓圖改畫判二">判二<i class="mdot"></i></button>
     <button class="tool txt rs" id="btnRules" data-rs="三" aria-label="判別式三" title="判別式三(OBV10−OBV30 差擴散邏輯,待修正;背景監控沒跑它);長按 0.6 秒讓圖改畫判三">判三<i class="mdot"></i></button>
+    <button class="tool txt rs" id="btnRs4" data-rs="四" aria-label="判別式四" title="判別式四(壓線空點,只做空;背景監控沒跑它);單擊看規則;長按 0.6 秒讓圖改畫判四">判四<i class="mdot"></i></button>
     <button class="tool gear txt" id="gear" aria-label="設定" title="單擊開 / 關監控設定">設定</button>
   </div>
   <div class="wheels">
@@ -2508,7 +2512,9 @@ function render(list){
     '',
     '<b>進場</b>',
     '均價 K' + BASE.maPeriod + ' / OBV 均線 ' + BASE.obvMaPeriod + ';開盤 ' + SIG.skipMin + ' 分鐘內不進,' + SIG.noEntryAfter + ' 後不進',
-    ...(SIG.entryMode === 'brk'
+    ...(SIG.entryMode === 'press'
+      ? ['壓線空點(只做空):均價 10 連 2 根向下 + 這根或前一根最高碰到均價 10(差 ≤ ' + SIG.pressTouchPct + '%)+ 收在均價之下且收黑 + 紅 < 藍 < 紫、OBV 均 10 與 OBV 均 30 都向下 + OBV 創 ' + SIG.pressLookback + ' 根新低而價還在低點之上(量先價行)+ 不追空:離今高 ≤ ' + SIG.pressChasePct + '%、離今低 ≥ ' + SIG.pressLoPct + '%、最近 10 根均量 ÷ 今天均量 < ' + SIG.pressRvolMax + (SIG.pressGapPct > 0 ? '、今開對昨收 ±' + SIG.pressGapPct + '% 內(開平)不做' : '') + ';成立那根直接是確認點(觀察中)']
+      : SIG.entryMode === 'brk'
       ? ['燿華型起漲點(只做多):前 20 根盤整(價幅 ≤ ' + SIG.brkFlatPct + '% 或紅藍紫三線黏合 < ' + SIG.brkTightPct + '% OBV 範圍)+ OBV 均 10(藍)最近 ' + (SIG.brkXWin + 1) + ' 根內上穿 OBV 均 30(紫)+ 紅在藍上 + 最近 ' + SIG.brkVolWin + ' 根有一根量 ≥ 前 20 根平均 ' + SIG.brkVolX + ' 倍 + 收盤破前 20 根高' + (SIG.brkBelowOpen ? ' + 價還在今開之下' : '') + (SIG.brkMaxGapPct < 99 ? ' + 開高不做(今開 ≤ 昨收' + (SIG.brkMaxGapPct ? ' + ' + SIG.brkMaxGapPct + '%' : '') + ')' : '') + ' → 那根直接進']
       : SIG.entryMode === 'seq'
       ? ['第一訊號 = K 收盤創 ' + SIG.seqNewHi + ' 根新高(只做多' + (SIG.seqSide === 'both' ? ',做空鏡像' : '') + ')+ 紅線在 OBV 均 10 之上、OBV 均 10 向上、OBV 均 ' + SIG.seqSlowMa + ' 向上,而且三者是在 ' + SIG.seqWin + ' 分鐘內依「紅先、藍次、紫最後」的順序轉向的;K 不是虛根且收在當日高低之間 = 確認點直接進(待修正)']
@@ -3621,6 +3627,17 @@ const RULESETS = {
           sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'brk', brkFlatPct: 1.0, brkTightPct: 3, brkXWin: 2, brkVolWin: 3, brkVolX: 2, brkBelowOpen: true, brkMaxGapPct: 0,
                                                                   noLock: true, obmaSlopeMin: 0, noWeakEntry: false, confirmMinGapPct: 0, noEntryAfter: '12:00',
                                                                   vwapFilter: false, minDayVol: 0, rvolFilter: false, maxEntryDevPct: 99, nearHiLoPct: 0, obvDirMa: 0, gapChasePct: 99 }) },
+  // 判別式四(2026-10-20 使用者看光鼎 09:49、友達 10:37 的元大圖:「這種壓在線上 指標全部向下 就是最漂亮的空點」→ 九天研究 → 「我想把這個設為判四」):「壓線空點」,只做空。
+  //   entryMode:'press' = 均價 10 連 2 根向下 + 這根或前一根最高碰到均價 10(差 ≤ pressTouchPct%)+ 收在均價 10 之下且收黑 + 紅 < 藍 < 紫、藍(OBV 均 10)紫(OBV 均 30)都向下
+  //   + 量先價行:OBV 創 pressLookback 根新低而價還在 pressLookback 根低點之上 0.3%
+  //   + 不追空(九天 139 筆賠的分析:賠的是追空):離今高 ≤ pressChasePct%、離今低 ≥ pressLoPct%、最近 10 根均量 ÷ 今天均量 < pressRvolMax、不是開平(|今開−昨收| > pressGapPct%)。
+  //   九天研究(停利 2.5 停損 1.5、13:25 平倉):壓線 + 三線向下本身 4,678 次 30 分內先跌 1% 25.3% / 先漲 24.0%(沒優勢);加量先價行 277 次 34.3% / 24.5%、139 筆 46% −3,540;
+  //   再加不追空 26 筆 61% +39,753;再排開平 23 筆 69% +51,455(樣本小,觀察用)。保護同判別式三(±3.5%、+3% 不做空、紅線在退、12:00 後不進、不鎖方向;其餘全關)。出場同判別式一。
+  //   模擬器:判別式三的保護旗標 + MODE=press(PRESSTOUCH=0.15 PRESSCHASE=2 PRESSRVOL=1.2 PRESSLO=0.5 PRESSGAP=1 PRESSNL=30)。
+  '四': { key: '四', btn: '判四', name: '判別式四', date: '2026-10-20', backtest: '10/06~10/19 九天只做空(研究版 23 筆,賺 16 賠 7,勝率 69%,淨 +51,455;模擬器完整版見《判別式四.md》;觀察中)',
+          sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'press', pressTouchPct: 0.15, pressChasePct: 2, pressRvolMax: 1.2, pressLoPct: 0.5, pressGapPct: 1, pressLookback: 30,
+                                                                  noLock: true, obmaSlopeMin: 0, noWeakEntry: false, confirmMinGapPct: 0, noEntryAfter: '12:00',
+                                                                  vwapFilter: false, minDayVol: 0, rvolFilter: false, maxEntryDevPct: 99, nearHiLoPct: 0, obvDirMa: 0, gapChasePct: 99 }) },
 };
 const RS_KEY = 'mysh.ruleset';
 // 正在用的判別式:先問 App(SharedPreferences,1.5.28 起有 Android.getRuleset),沒有才看 localStorage。
@@ -3727,6 +3744,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
   const gapMode = SIG.entryMode === 'gapdir';                                                      // 判別式三(2026-10-18 23:50):OBV10 − OBV30 差擴散起手
   const seqMode = SIG.entryMode === 'seq';                                                         // 判別式三(2026-10-19 19:50):價創新高 + 紅→藍→紫 依序轉正
   const brkMode = SIG.entryMode === 'brk';                                                         // 判別式三(2026-10-20):「燿華型」盤整後大量破高起漲點,只做多
+  const pressMode = SIG.entryMode === 'press';                                                     // 判別式四(2026-10-20):「壓線空點」反彈碰向下的均價被壓回 + 三線向下 + 量先價行 + 不追空,只做空
   const slowN = strongOn ? SIG.strongSlowMa : (gapMode ? SIG.gapSlowMa : (seqMode ? SIG.seqSlowMa : 0));
   const obmaS = slowN > 0 ? ((slowN === SIG.obvExitMa && obma2.length) ? obma2 : sma(ob, slowN, 'value')) : [];
   const SM = slowN > 0 ? {ma: toTimeMap(ma), ob: toTimeMap(ob), obma: toTimeMap(obma), obS: toTimeMap(obmaS)} : null;
@@ -3899,6 +3917,27 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
         const gapok = !(SIG.brkMaxGapPct < 99) || !(prevClose > 0) || dayOpen === null || (dayOpen - prevClose) / prevClose * 100 <= SIG.brkMaxGapPct;   // 2026-10-20 開高不做:今開對昨收的缺口 ≤ brkMaxGapPct%(0 = 只做開平或開低;模擬器 BRKGAP=0)
         if ((flat || tight) && cross && redUp && bigv && brk && below && gapok){ side = 'long'; xconf = true; }
       }
+    } else if (pressMode){
+      // 判別式四「壓線空點」(2026-10-20 使用者:「這種壓在線上 指標全部向下 就是最漂亮的空點」→「我想把這個設為判四」),只做空。線用圖上的:均價 = 均價 10、藍 = OBV 均 10、紫 = OBV 均 30(obvExitMa)。
+      //   均價 10 連 2 根向下 + 這根或前一根最高碰到均價 10(差 ≤ pressTouchPct%)+ 收在均價之下且收黑 + 紅 < 藍 < 紫、藍紫都向下
+      //   + OBV 創今天 pressLookback 根新低而價還在那段低點之上 0.3%(量先價行)+ 離今高 ≤ pressChasePct%、離今低 ≥ pressLoPct%、最近 10 根均量 ÷ 今天均量 < pressRvolMax、不是開平(|今開−昨收| > pressGapPct%)。
+      side = 0; xconf = false;
+      const L = SIG.pressLookback;
+      if (canShort !== false && n > L + 2 && k >= 2 && om >= 1 && o - n + 1 >= 0 && iObma2.has(b.time) && pt !== null && iObma2.has(pt)){
+        const m2 = ma[k - 2].value, omp = obma[om - 1].value;
+        const p30 = obma2[iObma2.get(b.time)].value, p30p = obma2[iObma2.get(pt)].value;
+        const maDown = m0 < m1 && m1 < m2;
+        const touch = Math.max(b.high, bars[bi - 1].high) >= m0 * (1 - SIG.pressTouchPct / 100);
+        const under = b.close < m0 && b.close < b.open;
+        const obvDown = ov < omv && omv < p30 && omv < omp && p30 < p30p;
+        let obMin = Infinity, pLow = Infinity; for (let j = 1; j <= L; j++){ obMin = Math.min(obMin, ob[o - j].value); pLow = Math.min(pLow, bars[bi - j].low); }
+        const newLow = ov <= obMin && b.close > pLow * 1.003;
+        const offHi = (hi - b.close) / b.close * 100, offLo = (b.close - lo) / b.close * 100;
+        let vs = 0, vn = 0; for (let j = 0; j <= 10 && j < n; j++){ vs += (bars[bi - j].volume || 0); vn++; }
+        const rvol = (vs / vn) / Math.max(cumVol / n, 1e-9);
+        const gapok = !(SIG.pressGapPct > 0) || !(prevClose > 0) || dayOpen === null || Math.abs(dayOpen - prevClose) / prevClose * 100 > SIG.pressGapPct;
+        if (maDown && touch && under && obvDown && newLow && offHi <= SIG.pressChasePct && offLo >= SIG.pressLoPct && rvol < SIG.pressRvolMax && gapok){ side = 'short'; xconf = true; }
+      }
     } else if (seqMode){
       // 判別式三(2026-10-19 使用者:「要先看價格上去,紅線藍線紫線有沒有照上升的規則走,如果有才算是上漲」→「先放進判別三」):
       // 價收盤創 seqNewHi 根新高(空:新低)+ 紅線在 OBV10 順向側、OBV10 斜率順向、OBV seqSlowMa(30)斜率順向,而且三者是在 seqWin 根內依「紅先、藍次、紫最後」的順序轉向的
@@ -3946,7 +3985,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
                                               : (!!(prevClose && !entryAllowed(b.close, prevClose).ok) || !!counterTrend));   // 超過 ±entryMaxChg%,或 ±trendOnlyPct% 外的逆勢訊號 → ✕(ignoreGate 模式一律不擋、不鎖)
     // 第 7 條:同方向第 2 個以後的訊號,OBV(紅線)與 OBV 均線(藍線)都要比前一個同向訊號更低(空)/ 更高(多)才算確認點
     let confirmed = true;
-    if (crossMode || gapMode || seqMode || brkMode){ confirmed = xconf; lastSig[side] = {ob: ov, obma: omv, price: b.close, high: b.high, low: b.low}; }
+    if (crossMode || gapMode || seqMode || brkMode || pressMode){ confirmed = xconf; lastSig[side] = {ob: ov, obma: omv, price: b.close, high: b.high, low: b.low}; }
     else if (YH.confirmByObv){
       const prev = lastSig[side];
       confirmed = !!prev && (side === 'short' ? (ov < prev.ob && omv < prev.obma && b.close < prev.price)
