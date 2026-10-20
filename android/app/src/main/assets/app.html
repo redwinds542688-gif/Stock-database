@@ -101,6 +101,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-20 19:00 判別式二修改:確認點藍線(OBV 均 10)要同向(使用者看富喬 09:26 空單:「K 線明明上漲」「OBV10 藍線也沒有往下」→「改 判二藍線同向」):
+    藍線最近 1 根沒和做單方向同向 → 只記錄、標「藍」。九天(新停損下)+102,788 → +102,389;10/20 雲端 K −543 → +1,235。均價方向一起要求的版本九天 +93,040,不採用。
   · 2026-10-20 18:00 判別式一第八次修改、判別式二修改:停損改「起漲 / 起跌點」(使用者看中揚光 09:25:「反彈沒有超過這個都不必贖回」→「找出起漲起跌點,做空就以最高為準,
     不管是起漲或起跌;做多就找起漲起跌最低點」→ 回測 → 「改」):進場時取今天到訊號那根為止最近一個起漲點 + 最近一個起跌點(收盤價判斷穿越,和圖上整根 K 的標示不同),
     做空停損 = 兩根 K 最高價中高於進場價的較高者,反彈「超過」才停;做多鏡像取最低價。超過 3% 用 3%;判二離進場不到 1.5% 用 1.5%;找不到照舊 1.5%。判三、判四照舊 1.5%。
@@ -1557,7 +1559,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610201800">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610201900">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3647,7 +3649,7 @@ const RULESETS = {
                                                                   strong: true, strongSlowMa: 30, strongDxBars: 5, strongSlowBars: 2, strongExtBars: 10, strongWin: 5, strongMaxChg: 4, strongNoAfter: '11:30',
                                                                   confirmMinGapPct: 4, noEntryAfter: '12:00',
                                                                   crossSlowMa2: 30, weakByOrder: true,
-                                                                  nearHiLoPct: 2, noWeakEntry: false, stopMinPct: 1.5 }) },   // 2026-10-20 起漲 / 起跌點停損,但不小於 1.5%(九天 63 筆 61% +95,259 → 60 筆 65% +102,788)   // noWeakEntry:false = 判一第七次修改(不做逆勢單)只改判一,判二照舊   // 2026-10-19 第六次修改:離當日高點(多)/ 低點(空)超過 2% 不進(離)
+                                                                  nearHiLoPct: 2, noWeakEntry: false, stopMinPct: 1.5, ob10Dir: true }) },   // 2026-10-20 起漲 / 起跌點停損,但不小於 1.5%(九天 63 筆 61% +95,259 → 60 筆 65% +102,788)   // noWeakEntry:false = 判一第七次修改(不做逆勢單)只改判一,判二照舊   // 2026-10-19 第六次修改:離當日高點(多)/ 低點(空)超過 2% 不進(離)
   // 判別式三(2026-10-18 23:30 使用者「把判別三刪除」拿掉舊的複製版;23:50 使用者「連擴 2 根 + 判別式二全部保護 把這放進判別三 找時間再來修正」重建):
   //   entryMode:'gapdir' = 使用者提的「OBV10 − OBV30 相減之差」邏輯:差剛翻正(做空翻負)= 起始,gapWinBars(10)根內「紅線在 OBV10 與 OBV gapSlowMa(30)之上(空:之下)
   //   + 差連續擴大 gapGrowBars(2)根 + K 不是虛根、收在當日高低之間」= 確認點直接進;窗口過期或差翻回去 → 候選作廢。保護全部照判別式二(3.5%、順勢、VWAP、量、量比、離均價 1%、
@@ -4115,6 +4117,12 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
       }
       if (cur != null && pv != null && !((cur - pv) * (side === 'long' ? 1 : -1) > 0)){ dirBad = true; far = true; }   // 模擬器 OBVDIR=30(預設 OBVDIRNAN=expand)
     }
+    // 2026-10-20 判別式二修改(使用者看富喬 09:26:「OBV10 藍線也沒有往下」→「改 判二藍線同向」):確認點 OBV 均 10(藍)最近 1 根要和方向同向,否則只記錄、標「藍」。
+    // 九天(新停損下)60 筆 65% +102,788 → +102,389(只動到漢磊 10/06 晚 4 分鐘進);10/20 雲端 K −543 → +1,235(擋掉富喬 09:26 空單)。模擬器 OB10DIR=1
+    let blueBad = false;
+    if (SIG.ob10Dir && entryOk && !far && !opts.ignoreGate && om !== undefined && om > 0){
+      if (!((obma[om].value - obma[om - 1].value) * (side === 'long' ? 1 : -1) > 0)){ blueBad = true; far = true; }
+    }
     // 2026-10-19 判別式一第七次修改(使用者「下手」):逆勢單不進(勢)。反方向的第 1 個訊號價位比自己方向的第 1 個更有利(做多:第 1 個空點比第 1 個多點高;做空:第 1 個多點比第 1 個空點低)
     // = 在跟當天的走勢對作。九天回測(10/06~08、10/12~19)逆勢單 20 筆 7 賺 13 賠淨 +1,500,沒優勢;擋掉後九天 51 筆 54% → 31 筆 67%,五天 20 筆 90% → 13 筆 100%。模擬器 NOWEAK=1
     let weakEntry = false;
@@ -4126,7 +4134,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
     const mk = (bright, tag) => side === 'long'
       ? marks.push({time: b.time, position: 'belowBar', color: gated ? '#8A3A3A' : (bright ? CHART_THEME.up : '#B36A6A'), shape: 'arrowUp', text: '多' + tag})
       : marks.push({time: b.time, position: 'aboveBar', color: gated ? '#2A6A4A' : (bright ? CHART_THEME.down : '#4A9A7A'), shape: 'arrowDown', text: '空' + tag});
-    const tag = (gated ? '✕' : (confirmed ? '✓' : '')) + (strong ? '強' : '') + (far && !gated ? (obmaFlat ? '平' : (gapChase ? '缺' : (redFalling ? '退' : (gapLow ? '距' : (farHiLo ? '離' : (dirBad ? '向' : (weakEntry ? '勢' : '遠'))))))) : '') + (againstVwap && !gated ? '逆' : '') + (volShort && !gated ? '量' : '') + (rvolLow && !gated ? '比' : '');   // 2026-10-19 量比不足改成 far 後,「比」要另外標
+    const tag = (gated ? '✕' : (confirmed ? '✓' : '')) + (strong ? '強' : '') + (far && !gated ? (obmaFlat ? '平' : (gapChase ? '缺' : (redFalling ? '退' : (gapLow ? '距' : (farHiLo ? '離' : (dirBad ? '向' : (blueBad ? '藍' : (weakEntry ? '勢' : '遠')))))))) : '') + (againstVwap && !gated ? '逆' : '') + (volShort && !gated ? '量' : '') + (rvolLow && !gated ? '比' : '');   // 2026-10-19 量比不足改成 far 後,「比」要另外標
     if (YH.exitRule){
       /* 循環規則(2026-10-15 19:50 使用者定案):
          進場 = 確認點(同方向第 2 個以後、紅藍都更強);進場後不看同方向的點,只看反方向:
