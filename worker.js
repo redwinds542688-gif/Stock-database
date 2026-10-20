@@ -168,7 +168,9 @@ async function dayBars(env, d, codes, since) {
                                                                                                                        // 不然整個上午的累計量會灌進那一根,OBV 一次跳好幾千張(使用者截圖:燿華 12:05 跳 3,700 張)。那段的量由手機用 Yahoo 補
       const dv = Math.max(0, v - p[1]) * 1000;
       if (dv <= 0 && z === p[0]) continue;                   // 這分鐘沒成交
-      (bars[c] = bars[c] || []).push([hm, p[0], Math.max(p[0], z), Math.min(p[0], z), z, Math.round(dv)]);
+      const arr = (bars[c] = bars[c] || []), lb = arr[arr.length - 1];
+      if (lb && lb[0] === hm) { lb[2] = Math.max(lb[2], z); lb[3] = Math.min(lb[3], z); lb[4] = z; lb[5] += Math.round(dv); continue; }   // 2026-10-20 同一個標籤(開盤撮合快照 09:00 + 09:01 快照也標 09:00)併成一根;原本 130 檔有 104 檔開盤兩根 09:00
+      arr.push([hm, p[0], Math.max(p[0], z), Math.min(p[0], z), z, Math.round(dv)]);
     }
   }
   return { d, last: snaps.length ? lbl(snaps[snaps.length - 1][0]) : "", n: snaps.length, bars };   // last = 最後一根的標籤(手機下次用 since 傳回來)

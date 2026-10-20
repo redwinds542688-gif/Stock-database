@@ -9,6 +9,18 @@ P2 = json.load(open(f'{ROOT}/pool.json', encoding='utf-8')); P['pool'] = P['pool
 try:
     df = pd.concat([pd.read_csv(f, dtype={'date':str,'time':str}) for f in sorted(__import__('glob').glob(f'{ROOT}/kline/{code}/2026-W4*.csv'))], ignore_index=True)
     t = df[(df.date == DAY) & (df.time >= '09:00') & (df.time <= '13:30')].reset_index(drop=True)
+    if os.environ.get('KSRC','yahoo') == 'cloud':   # 2026-10-20 使用者:「好 那只能針對用雲 K」:當天改讀 kline_cloud/(盤中判別式看的雲端快照 K),沒成交的分鐘照 App fillFlat 補平 K
+        _cf = sorted(__import__('glob').glob(f'{ROOT}/kline_cloud/{code}/2026-W*.csv'))
+        _cd = pd.concat([pd.read_csv(f, dtype={'date':str,'time':str}) for f in _cf], ignore_index=True) if _cf else pd.DataFrame(columns=['date','time'])
+        _cd = _cd[(_cd.date == DAY) & (_cd.time >= '09:00') & (_cd.time <= '13:30')].drop_duplicates(['time'], keep='last').sort_values('time').reset_index(drop=True)
+        if len(_cd) == 0: raise Exception('no cloud rows')
+        _rows = []; _pm = None
+        for _r in _cd.itertuples():
+            _m = int(_r.time[:2]) * 60 + int(_r.time[3:5])
+            if _pm is not None and 1 < _m - _pm[0] <= 60:
+                for _k in range(_pm[0] + 1, _m): _rows.append((f'{_k//60:02d}:{_k%60:02d}', _pm[1], _pm[1], _pm[1], _pm[1], 0.0))
+            _rows.append((_r.time, float(_r.open), float(_r.high), float(_r.low), float(_r.close), float(_r.volume))); _pm = (_m, float(_r.close))
+        t = pd.DataFrame(_rows, columns=['time','open','high','low','close','volume'])
     _s = [s for s in P['pool'] if s['code']==code][0]; prev = _s['close'] if _s.get('date','') < DAY else _s['prev']; src='GitHub 官方資料'   # 清單日期早於模擬日 → 昨收 = 清單那天的收盤
     if len(t)==0: raise Exception('no rows')
     _pk = df[df.date < DAY]; prevK = float(_pk.close.values[-1]) if len(_pk) else prev   # 2026-10-20 判三開盤缺口用:K 線裡前一個交易日的最後收盤(回測池檔可能是兩天前的,昨收會錯)

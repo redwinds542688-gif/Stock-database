@@ -1,0 +1,1046 @@
+{
+"date": "2026-10-20",
+"src": "save_cloud_bars.py",
+"pool": [
+{
+"code": "1301",
+"name": "台塑",
+"market": "twse",
+"close": 78.2,
+"prev": 78.2,
+"date": ""
+},
+{
+"code": "1303",
+"name": "南亞",
+"market": "twse",
+"close": 303.5,
+"prev": 303.5,
+"date": ""
+},
+{
+"code": "1312",
+"name": "國喬",
+"market": "twse",
+"close": 15.2,
+"prev": 15.2,
+"date": ""
+},
+{
+"code": "1528",
+"name": "恩德",
+"market": "twse",
+"close": 24.9,
+"prev": 24.9,
+"date": ""
+},
+{
+"code": "1709",
+"name": "和益",
+"market": "twse",
+"close": 51.4,
+"prev": 51.4,
+"date": ""
+},
+{
+"code": "1710",
+"name": "東聯",
+"market": "twse",
+"close": 17.6,
+"prev": 17.6,
+"date": ""
+},
+{
+"code": "1711",
+"name": "永光",
+"market": "twse",
+"close": 46.0,
+"prev": 46.0,
+"date": ""
+},
+{
+"code": "1802",
+"name": "台玻",
+"market": "twse",
+"close": 66.0,
+"prev": 66.0,
+"date": ""
+},
+{
+"code": "1809",
+"name": "中釉",
+"market": "twse",
+"close": 43.75,
+"prev": 43.75,
+"date": ""
+},
+{
+"code": "1815",
+"name": "富喬",
+"market": "tpex",
+"close": 154.0,
+"prev": 154.0,
+"date": ""
+},
+{
+"code": "2033",
+"name": "佳大",
+"market": "twse",
+"close": 65.7,
+"prev": 65.7,
+"date": ""
+},
+{
+"code": "2241",
+"name": "艾姆勒",
+"market": "twse",
+"close": 48.55,
+"prev": 48.55,
+"date": ""
+},
+{
+"code": "2305",
+"name": "全友",
+"market": "twse",
+"close": 55.6,
+"prev": 55.6,
+"date": ""
+},
+{
+"code": "2312",
+"name": "金寶",
+"market": "twse",
+"close": 32.05,
+"prev": 32.05,
+"date": ""
+},
+{
+"code": "2313",
+"name": "華通",
+"market": "twse",
+"close": 248.0,
+"prev": 248.0,
+"date": ""
+},
+{
+"code": "2316",
+"name": "楠梓電",
+"market": "twse",
+"close": 159.5,
+"prev": 159.5,
+"date": ""
+},
+{
+"code": "2340",
+"name": "台亞",
+"market": "twse",
+"close": 47.7,
+"prev": 47.7,
+"date": ""
+},
+{
+"code": "2355",
+"name": "敬鵬",
+"market": "twse",
+"close": 52.9,
+"prev": 52.9,
+"date": ""
+},
+{
+"code": "2367",
+"name": "燿華",
+"market": "twse",
+"close": 46.4,
+"prev": 46.4,
+"date": ""
+},
+{
+"code": "2375",
+"name": "凱美",
+"market": "twse",
+"close": 116.0,
+"prev": 116.0,
+"date": ""
+},
+{
+"code": "2408",
+"name": "南亞科",
+"market": "twse",
+"close": 436.0,
+"prev": 436.0,
+"date": ""
+},
+{
+"code": "2409",
+"name": "友達",
+"market": "twse",
+"close": 36.7,
+"prev": 36.7,
+"date": ""
+},
+{
+"code": "2413",
+"name": "環科",
+"market": "twse",
+"close": 53.5,
+"prev": 53.5,
+"date": ""
+},
+{
+"code": "2426",
+"name": "鼎元",
+"market": "twse",
+"close": 92.6,
+"prev": 92.6,
+"date": ""
+},
+{
+"code": "2455",
+"name": "全新",
+"market": "twse",
+"close": 491.5,
+"prev": 491.5,
+"date": ""
+},
+{
+"code": "2468",
+"name": "華經",
+"market": "twse",
+"close": 49.3,
+"prev": 49.3,
+"date": ""
+},
+{
+"code": "2472",
+"name": "立隆電",
+"market": "twse",
+"close": 214.0,
+"prev": 214.0,
+"date": ""
+},
+{
+"code": "2478",
+"name": "大毅",
+"market": "twse",
+"close": 122.0,
+"prev": 122.0,
+"date": ""
+},
+{
+"code": "2481",
+"name": "強茂",
+"market": "twse",
+"close": 157.5,
+"prev": 157.5,
+"date": ""
+},
+{
+"code": "2484",
+"name": "希華",
+"market": "twse",
+"close": 81.3,
+"prev": 81.3,
+"date": ""
+},
+{
+"code": "2489",
+"name": "瑞軒",
+"market": "twse",
+"close": 40.3,
+"prev": 40.3,
+"date": ""
+},
+{
+"code": "2493",
+"name": "揚博",
+"market": "twse",
+"close": 188.5,
+"prev": 188.5,
+"date": ""
+},
+{
+"code": "2615",
+"name": "萬海",
+"market": "twse",
+"close": 118.5,
+"prev": 118.5,
+"date": ""
+},
+{
+"code": "3006",
+"name": "晶豪科",
+"market": "twse",
+"close": 239.0,
+"prev": 239.0,
+"date": ""
+},
+{
+"code": "3016",
+"name": "嘉晶",
+"market": "twse",
+"close": 149.5,
+"prev": 149.5,
+"date": ""
+},
+{
+"code": "3035",
+"name": "智原",
+"market": "twse",
+"close": 195.5,
+"prev": 195.5,
+"date": ""
+},
+{
+"code": "3042",
+"name": "晶技",
+"market": "twse",
+"close": 182.5,
+"prev": 182.5,
+"date": ""
+},
+{
+"code": "3090",
+"name": "日電貿",
+"market": "twse",
+"close": 162.5,
+"prev": 162.5,
+"date": ""
+},
+{
+"code": "3094",
+"name": "聯傑",
+"market": "twse",
+"close": 56.0,
+"prev": 56.0,
+"date": ""
+},
+{
+"code": "3105",
+"name": "穩懋",
+"market": "tpex",
+"close": 482.0,
+"prev": 482.0,
+"date": ""
+},
+{
+"code": "3147",
+"name": "大綜",
+"market": "tpex",
+"close": 293.5,
+"prev": 293.5,
+"date": ""
+},
+{
+"code": "3149",
+"name": "正達",
+"market": "twse",
+"close": 73.7,
+"prev": 73.7,
+"date": ""
+},
+{
+"code": "3264",
+"name": "欣銓",
+"market": "tpex",
+"close": 258.0,
+"prev": 258.0,
+"date": ""
+},
+{
+"code": "3311",
+"name": "閎暉",
+"market": "twse",
+"close": 47.15,
+"prev": 47.15,
+"date": ""
+},
+{
+"code": "3362",
+"name": "先進光",
+"market": "tpex",
+"close": 168.5,
+"prev": 168.5,
+"date": ""
+},
+{
+"code": "3374",
+"name": "精材",
+"market": "tpex",
+"close": 438.0,
+"prev": 438.0,
+"date": ""
+},
+{
+"code": "3450",
+"name": "聯鈞",
+"market": "twse",
+"close": 444.0,
+"prev": 444.0,
+"date": ""
+},
+{
+"code": "3498",
+"name": "陽程",
+"market": "tpex",
+"close": 236.5,
+"prev": 236.5,
+"date": ""
+},
+{
+"code": "3504",
+"name": "揚明光",
+"market": "twse",
+"close": 77.0,
+"prev": 77.0,
+"date": ""
+},
+{
+"code": "3518",
+"name": "柏騰",
+"market": "twse",
+"close": 39.3,
+"prev": 39.3,
+"date": ""
+},
+{
+"code": "3532",
+"name": "台勝科",
+"market": "twse",
+"close": 394.5,
+"prev": 394.5,
+"date": ""
+},
+{
+"code": "3535",
+"name": "晶彩科",
+"market": "twse",
+"close": 97.7,
+"prev": 97.7,
+"date": ""
+},
+{
+"code": "3543",
+"name": "州巧",
+"market": "twse",
+"close": 48.35,
+"prev": 48.35,
+"date": ""
+},
+{
+"code": "3580",
+"name": "友威科",
+"market": "tpex",
+"close": 118.0,
+"prev": 118.0,
+"date": ""
+},
+{
+"code": "3605",
+"name": "宏致",
+"market": "twse",
+"close": 168.0,
+"prev": 168.0,
+"date": ""
+},
+{
+"code": "3624",
+"name": "光頡",
+"market": "tpex",
+"close": 138.0,
+"prev": 138.0,
+"date": ""
+},
+{
+"code": "3701",
+"name": "大眾控",
+"market": "twse",
+"close": 63.2,
+"prev": 63.2,
+"date": ""
+},
+{
+"code": "3715",
+"name": "定穎投控",
+"market": "twse",
+"close": 134.0,
+"prev": 134.0,
+"date": ""
+},
+{
+"code": "3717",
+"name": "聯嘉投控",
+"market": "twse",
+"close": 28.5,
+"prev": 28.5,
+"date": ""
+},
+{
+"code": "4174",
+"name": "浩鼎",
+"market": "tpex",
+"close": 52.6,
+"prev": 52.6,
+"date": ""
+},
+{
+"code": "4526",
+"name": "東台",
+"market": "twse",
+"close": 35.65,
+"prev": 35.65,
+"date": ""
+},
+{
+"code": "4540",
+"name": "全球傳動",
+"market": "twse",
+"close": 59.4,
+"prev": 59.4,
+"date": ""
+},
+{
+"code": "4577",
+"name": "達航科技",
+"market": "tpex",
+"close": 101.5,
+"prev": 101.5,
+"date": ""
+},
+{
+"code": "4707",
+"name": "磐亞",
+"market": "tpex",
+"close": 29.6,
+"prev": 29.6,
+"date": ""
+},
+{
+"code": "4760",
+"name": "勤凱",
+"market": "tpex",
+"close": 338.0,
+"prev": 338.0,
+"date": ""
+},
+{
+"code": "4903",
+"name": "聯光通",
+"market": "tpex",
+"close": 53.7,
+"prev": 53.7,
+"date": ""
+},
+{
+"code": "4906",
+"name": "正文",
+"market": "twse",
+"close": 43.5,
+"prev": 43.5,
+"date": ""
+},
+{
+"code": "4908",
+"name": "前鼎",
+"market": "tpex",
+"close": 203.5,
+"prev": 203.5,
+"date": ""
+},
+{
+"code": "4919",
+"name": "新唐",
+"market": "twse",
+"close": 136.0,
+"prev": 136.0,
+"date": ""
+},
+{
+"code": "4927",
+"name": "泰鼎-KY",
+"market": "twse",
+"close": 58.9,
+"prev": 58.9,
+"date": ""
+},
+{
+"code": "4956",
+"name": "光鋐",
+"market": "twse",
+"close": 39.7,
+"prev": 39.7,
+"date": ""
+},
+{
+"code": "4960",
+"name": "誠美材",
+"market": "twse",
+"close": 27.8,
+"prev": 27.8,
+"date": ""
+},
+{
+"code": "4977",
+"name": "眾達-KY",
+"market": "twse",
+"close": 175.0,
+"prev": 175.0,
+"date": ""
+},
+{
+"code": "4989",
+"name": "榮科",
+"market": "twse",
+"close": 68.8,
+"prev": 68.8,
+"date": ""
+},
+{
+"code": "4991",
+"name": "環宇-KY",
+"market": "tpex",
+"close": 431.5,
+"prev": 431.5,
+"date": ""
+},
+{
+"code": "5013",
+"name": "強新",
+"market": "tpex",
+"close": 45.1,
+"prev": 45.1,
+"date": ""
+},
+{
+"code": "5314",
+"name": "世紀*",
+"market": "tpex",
+"close": 27.5,
+"prev": 27.5,
+"date": ""
+},
+{
+"code": "5328",
+"name": "華容",
+"market": "tpex",
+"close": 52.3,
+"prev": 52.3,
+"date": ""
+},
+{
+"code": "5340",
+"name": "建榮",
+"market": "tpex",
+"close": 97.5,
+"prev": 97.5,
+"date": ""
+},
+{
+"code": "5498",
+"name": "凱崴",
+"market": "tpex",
+"close": 65.7,
+"prev": 65.7,
+"date": ""
+},
+{
+"code": "6108",
+"name": "競國",
+"market": "twse",
+"close": 31.6,
+"prev": 31.6,
+"date": ""
+},
+{
+"code": "6147",
+"name": "頎邦",
+"market": "tpex",
+"close": 208.0,
+"prev": 208.0,
+"date": ""
+},
+{
+"code": "6153",
+"name": "嘉聯益",
+"market": "twse",
+"close": 18.65,
+"prev": 18.65,
+"date": ""
+},
+{
+"code": "6155",
+"name": "鈞寶",
+"market": "twse",
+"close": 66.0,
+"prev": 66.0,
+"date": ""
+},
+{
+"code": "6168",
+"name": "宏齊",
+"market": "twse",
+"close": 35.7,
+"prev": 35.7,
+"date": ""
+},
+{
+"code": "6179",
+"name": "亞通",
+"market": "tpex",
+"close": 37.6,
+"prev": 37.6,
+"date": ""
+},
+{
+"code": "6182",
+"name": "合晶",
+"market": "tpex",
+"close": 107.5,
+"prev": 107.5,
+"date": ""
+},
+{
+"code": "6191",
+"name": "精成科",
+"market": "twse",
+"close": 91.0,
+"prev": 91.0,
+"date": ""
+},
+{
+"code": "6197",
+"name": "佳必琪",
+"market": "twse",
+"close": 333.5,
+"prev": 333.5,
+"date": ""
+},
+{
+"code": "6207",
+"name": "雷科",
+"market": "tpex",
+"close": 132.0,
+"prev": 132.0,
+"date": ""
+},
+{
+"code": "6209",
+"name": "今國光",
+"market": "twse",
+"close": 102.0,
+"prev": 102.0,
+"date": ""
+},
+{
+"code": "6218",
+"name": "豪勉",
+"market": "tpex",
+"close": 53.3,
+"prev": 53.3,
+"date": ""
+},
+{
+"code": "6221",
+"name": "晉泰",
+"market": "tpex",
+"close": 35.0,
+"prev": 35.0,
+"date": ""
+},
+{
+"code": "6226",
+"name": "光鼎",
+"market": "twse",
+"close": 41.7,
+"prev": 41.7,
+"date": ""
+},
+{
+"code": "6257",
+"name": "矽格",
+"market": "twse",
+"close": 247.0,
+"prev": 247.0,
+"date": ""
+},
+{
+"code": "6269",
+"name": "台郡",
+"market": "twse",
+"close": 80.3,
+"prev": 80.3,
+"date": ""
+},
+{
+"code": "6278",
+"name": "台表科",
+"market": "twse",
+"close": 289.5,
+"prev": 289.5,
+"date": ""
+},
+{
+"code": "6415",
+"name": "矽力*-KY",
+"market": "twse",
+"close": 475.5,
+"prev": 475.5,
+"date": ""
+},
+{
+"code": "6443",
+"name": "元晶",
+"market": "twse",
+"close": 25.55,
+"prev": 25.55,
+"date": ""
+},
+{
+"code": "6449",
+"name": "鈺邦",
+"market": "twse",
+"close": 239.0,
+"prev": 239.0,
+"date": ""
+},
+{
+"code": "6456",
+"name": "GIS-KY",
+"market": "twse",
+"close": 84.4,
+"prev": 84.4,
+"date": ""
+},
+{
+"code": "6465",
+"name": "威潤",
+"market": "tpex",
+"close": 47.45,
+"prev": 47.45,
+"date": ""
+},
+{
+"code": "6505",
+"name": "台塑化",
+"market": "twse",
+"close": 116.0,
+"prev": 116.0,
+"date": ""
+},
+{
+"code": "6517",
+"name": "保勝光學",
+"market": "tpex",
+"close": 74.5,
+"prev": 74.5,
+"date": ""
+},
+{
+"code": "6532",
+"name": "瑞耘",
+"market": "tpex",
+"close": 124.0,
+"prev": 124.0,
+"date": ""
+},
+{
+"code": "6533",
+"name": "晶心科",
+"market": "twse",
+"close": 295.5,
+"prev": 295.5,
+"date": ""
+},
+{
+"code": "6538",
+"name": "倉和",
+"market": "tpex",
+"close": 297.0,
+"prev": 297.0,
+"date": ""
+},
+{
+"code": "6548",
+"name": "長科*",
+"market": "tpex",
+"close": 80.9,
+"prev": 80.9,
+"date": ""
+},
+{
+"code": "6620",
+"name": "漢達",
+"market": "tpex",
+"close": 138.0,
+"prev": 138.0,
+"date": ""
+},
+{
+"code": "6668",
+"name": "中揚光",
+"market": "twse",
+"close": 61.5,
+"prev": 61.5,
+"date": ""
+},
+{
+"code": "6706",
+"name": "惠特",
+"market": "twse",
+"close": 143.0,
+"prev": 143.0,
+"date": ""
+},
+{
+"code": "6715",
+"name": "嘉基",
+"market": "twse",
+"close": 480.5,
+"prev": 480.5,
+"date": ""
+},
+{
+"code": "6727",
+"name": "亞泰金屬",
+"market": "tpex",
+"close": 486.0,
+"prev": 486.0,
+"date": ""
+},
+{
+"code": "6742",
+"name": "澤米",
+"market": "twse",
+"close": 61.1,
+"prev": 61.1,
+"date": ""
+},
+{
+"code": "6756",
+"name": "威鋒電子",
+"market": "twse",
+"close": 121.0,
+"prev": 121.0,
+"date": ""
+},
+{
+"code": "6770",
+"name": "力積電",
+"market": "twse",
+"close": 65.3,
+"prev": 65.3,
+"date": ""
+},
+{
+"code": "6834",
+"name": "天二科技",
+"market": "twse",
+"close": 133.5,
+"prev": 133.5,
+"date": ""
+},
+{
+"code": "6933",
+"name": "AMAX-KY",
+"market": "twse",
+"close": 406.5,
+"prev": 406.5,
+"date": ""
+},
+{
+"code": "6949",
+"name": "沛爾生醫*-創",
+"market": "twse",
+"close": 35.9,
+"prev": 35.9,
+"date": ""
+},
+{
+"code": "8028",
+"name": "昇陽半導體",
+"market": "twse",
+"close": 260.0,
+"prev": 260.0,
+"date": ""
+},
+{
+"code": "8039",
+"name": "台虹",
+"market": "twse",
+"close": 299.0,
+"prev": 299.0,
+"date": ""
+},
+{
+"code": "8042",
+"name": "金山電",
+"market": "tpex",
+"close": 131.0,
+"prev": 131.0,
+"date": ""
+},
+{
+"code": "8043",
+"name": "蜜望實",
+"market": "tpex",
+"close": 134.0,
+"prev": 134.0,
+"date": ""
+},
+{
+"code": "8064",
+"name": "東捷",
+"market": "tpex",
+"close": 117.0,
+"prev": 117.0,
+"date": ""
+},
+{
+"code": "8074",
+"name": "鉅橡",
+"market": "tpex",
+"close": 61.1,
+"prev": 61.1,
+"date": ""
+},
+{
+"code": "8086",
+"name": "宏捷科",
+"market": "tpex",
+"close": 129.5,
+"prev": 129.5,
+"date": ""
+},
+{
+"code": "8089",
+"name": "康全電訊",
+"market": "tpex",
+"close": 23.8,
+"prev": 23.8,
+"date": ""
+},
+{
+"code": "8096",
+"name": "擎亞",
+"market": "tpex",
+"close": 85.1,
+"prev": 85.1,
+"date": ""
+},
+{
+"code": "8227",
+"name": "巨有科技",
+"market": "tpex",
+"close": 277.5,
+"prev": 277.5,
+"date": ""
+},
+{
+"code": "8431",
+"name": "匯鑽科",
+"market": "tpex",
+"close": 67.5,
+"prev": 67.5,
+"date": ""
+}
+]
+}
