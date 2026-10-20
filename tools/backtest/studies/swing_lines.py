@@ -49,8 +49,13 @@ for d,pool in DAYS.items():
             # 跌破低點延伸線 / 突破高點延伸線:這根才發生(前一根還沒)
             pl=Ls[1][2]+(Ls[1][2]-Ls[0][2])/max(1,Ls[1][1]-Ls[0][1])*(i-1-Ls[1][1]); ph=Hs[1][2]+(Hs[1][2]-Hs[0][2])/max(1,Hs[1][1]-Hs[0][1])*(i-1-Hs[1][1])
             row['brkdn']=bool(c[i]<ll and c[i-1]>=pl); row['brkup']=bool(c[i]>hl and c[i-1]<=ph)
+            # 2026-10-20 使用者:「也可以看高線與低線的距離 放遠或縮近」:兩條延伸線在這根的距離(% of 價),和 10 根前比
+            row['w']=(hl-ll)/c[i]*100; row['pos']=(c[i]-ll)/(hl-ll) if hl>ll else np.nan
+            row['key']=(d,s['code']); row['q']=q
             base.append(row)
-df=pd.DataFrame(base); df.to_csv(f'{S}/results/swing_lines.csv',index=False)
+df=pd.DataFrame(base)
+df['w10']=df.groupby('key')['w'].shift(10); df['dw']=df.w-df.w10
+df.drop(columns=['key']).to_csv(f'{S}/results/swing_lines.csv',index=False)
 def show(g,lab,sd):
     if not len(g): return
     ft=g.ftS if sd==-1 else g.ftL; w=(ft==1).sum(); L_=(ft==-1).sum()
@@ -72,3 +77,20 @@ print('== 跌破低點延伸線(做空)/ 突破高點延伸線(做多)')
 show(df[df.brkdn],'跌破低點線 做空',-1); show(df[df.brkup],'突破高點線 做多',1)
 for cat in ('雙降','雙升','收斂','擴張'):
     show(df[df.brkdn&(df.cat==cat)],f'跌破低點線 + {cat}',-1); show(df[df.brkup&(df.cat==cat)],f'突破高點線 + {cat}',1)
+
+print('== 高線與低線的距離(延伸線在這根的寬度,% of 價)')
+for a,b in ((-99,0),(0,0.5),(0.5,1),(1,2),(2,99)):
+    g=df[(df.w>=a)&(df.w<b)]; show(g,f'寬 {a}~{b}% 做空',-1); show(g,f'寬 {a}~{b}% 做多',1)
+print('== 距離和 10 根前比:放遠 / 縮近')
+for a,b,lab in ((-99,-0.5,'縮近 >0.5%'),(-0.5,-0.1,'縮近 0.1~0.5%'),(-0.1,0.1,'差不多'),(0.1,0.5,'放遠 0.1~0.5%'),(0.5,99,'放遠 >0.5%')):
+    g=df[(df.dw>=a)&(df.dw<b)]; show(g,f'{lab} 做空',-1); show(g,f'{lab} 做多',1)
+print('== 起跌 / 起漲 × 距離變化')
+for a,b,lab in ((-99,-0.1,'縮近'),(-0.1,0.1,'差不多'),(0.1,99,'放遠')):
+    g=df[(df.dw>=a)&(df.dw<b)]
+    show(g[g.org==-1],f'起跌 + {lab}',-1); show(g[g.org==1],f'起漲 + {lab}',1)
+print('== 起跌 + 雙降 × 距離變化')
+for a,b,lab in ((-99,-0.1,'縮近'),(-0.1,0.1,'差不多'),(0.1,99,'放遠')):
+    g=df[(df.dw>=a)&(df.dw<b)&(df.cat=='雙降')]; show(g[g.org==-1],f'起跌 + 雙降 + {lab}',-1)
+print('== 價在兩線之間的位置(0 = 低線、1 = 高線)')
+for a,b in ((-99,0),(0,0.33),(0.33,0.67),(0.67,1),(1,99)):
+    g=df[(df.pos>=a)&(df.pos<b)]; show(g,f'位置 {a}~{b} 做空',-1); show(g,f'位置 {a}~{b} 做多',1)
