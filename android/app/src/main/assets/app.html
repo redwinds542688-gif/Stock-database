@@ -101,6 +101,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-20 21:30 判別式三修改:成交量門檻 6,000 張(使用者:「當沖沒量很危險」→「改 判三6000張」):判三 minDayVol 0 → 6000,判一二三四都是 6,000 張。
+    九天 25 筆 56% +39,719 → 8 筆 62% +10,149;10/20 雲端 K 4 筆 1 賺 3 賠 −12,389 → 0 筆;十天 +27,330 → +10,149(錢少、勝率高,照使用者以風險為準)。
   · 2026-10-20 21:20 判別式四修改:成交量門檻 6,000 張(使用者看判四輸單後:「判四為啥沒有量大」→「一樣6000張」):判四 minDayVol 0 → 6000,和判一判二一樣
     (訊號那根為止當天累計量不到 6,000 張只記錄、標「量」;量夠後下一個同向點直接進)。九天 11 筆 63% +17,501 → 4 筆 4 賺 100% +18,831(立隆電、柏騰、建漢、富驊 4 筆賠的全擋,
     鑫科、艾姆勒、宏致 3 筆賺的也擋);10/20 雲端 K +20,884 → +14,662(擋掉新唐 10:30 +6,222)。1,500 / 3,000 張也測過:1,500 九天 6 筆 83% +17,624;3,000 和 6,000 一樣。
@@ -1577,7 +1579,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610202120">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610202130">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3682,7 +3684,7 @@ const RULESETS = {
   '三': { key: '三', btn: '判三', name: '判別式三', date: '2026-10-20', backtest: '10/06~10/19 九天只做多 26 筆,賺 15 賠 11,勝率 57%,淨 +54,181(燿華型:盤整後大量破高、藍上穿紫、價在今開下、開高不做;觀察中)',
           sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'brk', brkFlatPct: 1.0, brkTightPct: 3, brkXWin: 2, brkVolWin: 3, brkVolX: 2, brkBelowOpen: true, brkMaxGapPct: 0,
                                                                   noLock: true, obmaSlopeMin: 0, noWeakEntry: false, confirmMinGapPct: 0, noEntryAfter: '12:00',
-                                                                  vwapFilter: false, minDayVol: 0, rvolFilter: false, maxEntryDevPct: 99, nearHiLoPct: 0, obvDirMa: 0, gapChasePct: 99, stopMode: 'pct', chopWin: 0 }) },   // 2026-10-20 判三不加震盪過濾:九天 27 筆 59% +54,235 → 13 筆 38% +4,185(盤整後突破本來就在震盪之後)   // 停損照舊 1.5%(2026-10-20 起漲 / 起跌點停損只改判一、判二)
+                                                                  vwapFilter: false, minDayVol: 6000, rvolFilter: false, maxEntryDevPct: 99, nearHiLoPct: 0, obvDirMa: 0, gapChasePct: 99, stopMode: 'pct', chopWin: 0 }) },   // 2026-10-20 21:30 量 6,000 張(使用者「改 判三6000張」:「當沖沒量很危險」)   // 2026-10-20 判三不加震盪過濾:九天 27 筆 59% +54,235 → 13 筆 38% +4,185(盤整後突破本來就在震盪之後)   // 停損照舊 1.5%(2026-10-20 起漲 / 起跌點停損只改判一、判二)
   // 判別式四(2026-10-20 使用者看光鼎 09:49、友達 10:37 的元大圖:「這種壓在線上 指標全部向下 就是最漂亮的空點」→ 九天研究 → 「我想把這個設為判四」):「壓線空點」,只做空。
   //   entryMode:'press' = 均價 10 連 2 根向下 + 這根或前一根最高碰到均價 10(差 ≤ pressTouchPct%)+ 收在均價 10 之下且收黑 + 紅 < 藍 < 紫、藍(OBV 均 10)紫(OBV 均 30)都向下
   //   + 量先價行:OBV 創 pressLookback 根新低而價還在 pressLookback 根低點之上 0.3%
