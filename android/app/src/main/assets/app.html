@@ -101,6 +101,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-21 04:40 「貼當日高低 0.3% 不追」只擋剛要亮的(使用者「改」):燈已經是同方向就不擋,友達一路破底的做空不再被切段;富喬 13:01 那種底部才要亮的做空照擋。
   · 2026-10-21 04:20 燈號不追轉折點(使用者「改 0.3%」):價已經在今天最高價 0.3% 以內不亮做多 / 漸多、在最低價 0.3% 以內不亮做空 / 漸空,當監控。
     九天:做多 50% → 51%、做空 54% → 55%。富喬 10/20 13:01 底部做空消掉、主跌段 11:58~12:47 做空保留;友達 09:25 追高做多縮成 09:29~09:33。
   · 2026-10-21 04:00 突破放行要「超出區間 0.5% 且連 2 根」(使用者「改」;富喬早盤剛跌破又拉回的假突破):富喬 10:09~10:25 的假做空消掉,
@@ -1650,7 +1651,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610210420">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610210440">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4429,7 +4430,10 @@ function ind3Lamps(bars, I3, isChop){
     if (n === 1){ dHi = b.high; dLo = b.low; } else { dHi = Math.max(dHi, b.high); dLo = Math.min(dLo, b.low); }
     // 2026-10-21 04:20 開(YH.lampExtPct 0.3;0 = 關):價已經貼著今天最高(做多)/ 最低(做空)lampExtPct% 以內 → 不亮順勢燈,當監控(不追在轉折點)
     const ex = YH.lampExtPct || 0;
-    if (ex > 0 && ((raw === '做多' || raw === '漸多') && b.close >= dHi * (1 - ex / 100) || (raw === '做空' || raw === '漸空') && b.close <= dLo * (1 + ex / 100))) raw = '監控';
+    // 2026-10-21 04:40 使用者「改」(友達一路破底,做空被切成好幾段):只擋「剛要亮」的;燈已經是同方向(做空 / 漸空 → 做空;做多 / 漸多 → 做多)就不擋,讓趨勢連成一段
+    const dirOf = x => (x === '做多' || x === '漸多') ? 1 : (x === '做空' || x === '漸空') ? -1 : 0;
+    const lit = cur === '做多' ? 1 : cur === '做空' ? -1 : 0;   // 只有已經亮「做多 / 做空」才算已亮(漸多 / 漸空不算,富喬 13:01 漸空 → 做空在底部照擋)
+    if (ex > 0 && dirOf(raw) !== 0 && dirOf(raw) !== lit && ((dirOf(raw) > 0 && b.close >= dHi * (1 - ex / 100)) || (dirOf(raw) < 0 && b.close <= dLo * (1 + ex / 100)))) raw = '監控';
     if (raw !== '等待' && raw !== '監控' && isChop && isChop(i)) raw = '監控';
     if (raw === '等待' || hmKey(b.time) >= '13:25' || cur === null || cur === '等待'){ cur = raw; cand = null; cnt = 0; }
     else if (raw === cur){ cand = null; cnt = 0; }
