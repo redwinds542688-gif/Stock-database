@@ -101,6 +101,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-19 09:50 燈號 / 天秤開盤等待(使用者錄影:「做多做空亂跳,多空天秤訊號也是」):今天不到 SIG.skipMin(15)根 K 時,做多 / 做空燈都不亮、監控燈改字「等待」、天秤歸零;
     十字線移到當天前 15 根也一樣。規則頁本來就寫「不到 15 根顯示等待」,燈號之前沒做到。另查到 Yahoo 今天的分 K 延遲約 20 分鐘(09:39 只到 09:19),
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
+  · 2026-10-20 23:45 下圖改成「OBV 穿越點連線」(使用者:「這樣的點不對 改紀錄 obv 黃線穿越藍線的點 所有的點連線」):OBV 黃線每次穿越藍線(OBV 均 10)的那根 K
+    都記一個點,依序連線:往上穿標那根最低價(藍、標在下)、往下穿標最高價(橘、標在上)。K 線圖上的起漲 / 起跌箭頭、停損用的起漲 / 起跌點不變。
   · 2026-10-20 23:30 下圖只留起漲起跌連線(使用者:「把高低連線拿掉 留起漲起跌連線 價格要註記上去」):高點 / 低點連線拿掉,
     起漲起跌連線的每個點標上價格(起跌橘色標在上、起漲藍色標在下);上方文字「起漲起跌連線」= 十字線那根之前最近一個點。
   · 2026-10-20 23:10 高低價連線改成兩條(使用者:「我看乾脆改高點連高點 低點連低點」):波段高點(swingPoints 找的,規則不變)用紅線一個接一個連,
@@ -1608,7 +1610,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610202330">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610202345">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2067,7 +2069,7 @@ except Exception:
         <span style="color:#19D3F5">均線<span id="lblObvMaN">10</span>:<span id="lblObvMaV">—</span></span>
         <span style="color:#B47CFF">均線30:<span id="lblObvMa30V">—</span></span><button id="xhairClose" class="xgo hidden" aria-label="十字線回到最新一根"><svg viewBox="0 0 30 18" width="28" height="17" aria-hidden="true"><path d="M1.5 5.5 H16 V1.5 L28.5 9 L16 16.5 V12.5 H1.5 Z" fill="#E53935" stroke="#FFFFFF" stroke-width="1.6" stroke-linejoin="round"/></svg></button></div>
       <div id="chartMid"></div>
-      <div class="yh-lbl sep"><span style="color:#FF9F43">起漲起跌連線:<span id="lblOrgV">—</span></span></div>   <!-- 2026-10-20 23:30 使用者:「把高低連線拿掉 留起漲起跌連線 價格要註記上去」 -->   <!-- 2026-10-20 23:10 使用者:「乾脆改高點連高點 低點連低點」 -->   <!-- 2026-10-20 22:10 使用者:「把均線乖離率 改成 股票高低點連線 加上起漲點 起跌點 也連線」(原 20:00 的均線乖離率 10/30/132) -->
+      <div class="yh-lbl sep"><span style="color:#FF9F43">OBV 穿越點連線:<span id="lblOrgV">—</span></span></div>   <!-- 2026-10-20 23:45 使用者:「這樣的點不對 改紀錄 obv 黃線穿越藍線的點 所有的點連線」 -->   <!-- 2026-10-20 23:30 使用者:「把高低連線拿掉 留起漲起跌連線 價格要註記上去」 -->   <!-- 2026-10-20 23:10 使用者:「乾脆改高點連高點 低點連低點」 -->   <!-- 2026-10-20 22:10 使用者:「把均線乖離率 改成 股票高低點連線 加上起漲點 起跌點 也連線」(原 20:00 的均線乖離率 10/30/132) -->
       <div id="chartBot"></div>
     </div>
     <div class="sh-msg" id="shMsg">讀取 1 分K …</div>
@@ -4369,6 +4371,24 @@ function lineThrough(bars, pts){
   return out;
 }
 window.zigzagOf = zigzagOf;
+/* OBV 穿越點(2026-10-20 23:45):OBV(黃)和 OBV 均線(藍)每次交叉的那根 K。往上穿 → side 1、price = 那根最低價;往下穿 → side -1、price = 最高價 */
+function obvCrossPoints(bars, ob, obma){
+  const mo = new Map(); ob.forEach(x => mo.set(x.time, x.value));
+  const mm = new Map(); obma.forEach(x => mm.set(x.time, x.value));
+  const out = []; let prev = null;
+  for (const b of bars){
+    const o = mo.get(b.time), m = mm.get(b.time);
+    if (o == null || m == null){ prev = null; continue; }
+    const d = o - m;
+    if (prev != null){
+      if (d > 0 && prev <= 0) out.push({time: b.time, side: 1, price: b.low});
+      else if (d < 0 && prev >= 0) out.push({time: b.time, side: -1, price: b.high});
+    }
+    prev = d;
+  }
+  return out;
+}
+window.obvCrossPoints = obvCrossPoints;
 /* 股票高低價連線的點(2026-10-20 22:40 使用者拿元大友達 10/20 標了 09:00 低、09:07 高、09:13 低、09:26 高、09:34 低、09:43 高、10:07 低:「這些就是高價低價連線的點」):
    1. 收盤在均價 10(跨日連續算)之上的那一段取最高價那根 = 高點,之下的那一段取最低價那根 = 低點(高低輪流;23:00 前是用均價方向分段);
    1b. 要連 2 根(YH.swingMinBars)換邊才算換段,只穿 1 根就回來的不算;
@@ -4946,10 +4966,12 @@ function drawBars(bars, code, srcLabel, keepView){
   const obma30 = sma(ob, 30, 'value');
   obvMa30Line.setData(obma30);
   // 2026-10-20 23:30 使用者:「把高低連線拿掉 留起漲起跌連線 價格要註記上去」(swingPoints 函式留著,沒畫)
-  const orgPts = originPoints(bars, ma, ob, obma);                    // 起漲 / 起跌點(和 K 線圖上標的同一套,整根 K)
+  // 2026-10-20 23:45 使用者:「這樣的點不對 改紀錄 obv 黃線穿越藍線的點 所有的點連線」:下圖改成 OBV(黃)穿越 OBV 均線(藍)的每一個點連線。
+  //   黃線往上穿藍線 = 標那根 K 的最低價(藍點,標在線下方);往下穿 = 標那根 K 的最高價(橘點,標在線上方)。K 線圖上的起漲 / 起跌標示和停損用的起漲 / 起跌點不變。
+  const orgPts = obvCrossPoints(bars, ob, obma);
   const org = lineThrough(bars, orgPts.map(p => ({time: p.time, value: p.price})));
   if (orgLine){ orgLine.setData(org);
-    // 點上標價:起跌(橘)標在線上方、起漲(藍)標在線下方
+    // 點上標價:黃線往下穿(橘)標在線上方、往上穿(藍)標在線下方
     orgLine.setMarkers(orgPts.map(p => ({time: p.time, position: p.side < 0 ? 'aboveBar' : 'belowBar', color: p.side < 0 ? '#FF9F43' : '#4FC3F7', shape: 'circle', size: 0.6, text: (+p.price).toFixed(2)}))); }
   if (window.alignScales) requestAnimationFrame(() => alignScales());   // 左刻度寬度對齊,十字線才會上下同一條
   if (!keepView){
@@ -5028,7 +5050,7 @@ function drawBars(bars, code, srcLabel, keepView){
         ob: ko != null ? ob[ko].value : NaN, obPrev: ko != null && ko > 0 ? ob[ko - 1].value : null,
         obma: k2 != null ? obma[k2].value : NaN, obmaPrev: k2 != null && k2 > 0 ? obma[k2 - 1].value : null,
         obma30: k3 != null ? obma30[k3].value : NaN, obma30Prev: k3 != null && k3 > 0 ? obma30[k3 - 1].value : null,
-        org: (() => { let q = null; for (const p of orgPts){ if (p.time > b.time) break; q = p; } return q ? (q.side < 0 ? '起跌 ' : '起漲 ') + q.price + ' ' + hmKey(q.time) : ''; })(),
+        org: (() => { let q = null; for (const p of orgPts){ if (p.time > b.time) break; q = p; } return q ? (q.side < 0 ? '往下穿 ' : '往上穿 ') + q.price + ' ' + hmKey(q.time) : ''; })(),
       });
     });
     CUR = {byTime, last: byTime.get(last.time), prevClose};
