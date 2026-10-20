@@ -123,6 +123,9 @@ def _is_chop(i):
     rec = [p for p in _alt_points(i) if i - W <= p[0] <= i]
     if os.environ.get('CHOPMODE','n') == 'pair': rec = rec[-2:]; N = 2   # 2026-10-20 測試:使用者「起漲跟起跌距離很近才是震盪」:只看最近一組相鄰的起漲 + 起跌
     if len(rec) < N: return False
+    if os.environ.get('PAIRBRK','0') == '1' and len(rec) >= 2:   # 2026-10-20 測試:「第三個起漲是真正的起漲,價格就是看出真漲的訊號」:最新起漲整根 K 最低 > 前一個起跌最高(空:最新起跌最高 < 前一個起漲最低)= 真漲 / 真跌,不算震盪
+        a, b = rec[-2], rec[-1]
+        if (b[1] == 1 and a[1] == -1 and b[2] > a[2]) or (b[1] == -1 and a[1] == 1 and b[2] < a[2]): return False
     px = [p[2] for p in rec]
     if (max(px) - min(px)) / min(px) * 100 > RG: return False
     if os.environ.get('CHOPBRK','0') == '1' and globals().get('_chop_side'):   # 2026-10-20 測試:價格已經跌破(空)/ 站上(多)橫盤範圍 = 突破,放行
