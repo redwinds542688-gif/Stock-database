@@ -113,6 +113,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-21 12:55 K 線圖取消起漲 / 起跌標示(使用者:友達 12:46「K 棒怎麼有起跌」→「這取消」;YH.showOriginMarks false)。只拿掉圖上的字,判一 / 判二停損照樣用起漲 / 起跌點。
   · 2026-10-21 13:20 今日監控紀錄的進場卡右邊留白(使用者:時碩「第一個通知就後面顯示平倉」→「改」):「平倉 / 輸贏」只顯示在平倉那張;原本進場卡會顯示這筆交易後來的最新狀態,看起來像一進場就平倉。
   · 2026-10-21 13:30 今日監控紀錄:代碼放大(.62em → .8em,使用者「股票代碼太小」);張數下面顯示這則通知的時間(使用者「張數下面 顯示提示交易的時間」)。
+  · 2026-10-21 14:25 股票清單照今天的即時成交量排序(使用者:「股票怎麼沒有按成交量排序」;原本照名單上昨天的量排,右邊卻顯示今天的量)。有訊號的照舊排最前面;即時量順序變了最多 1 分鐘重排一次。
   · 2026-10-21 06:00 撤掉 05:50 的「當天漲 ≥ 2.5% 不亮做空」(使用者「撤掉 重新找其他方法」):YH.lampNoShortUpPct = 0。
   · 2026-10-21 05:50 當天漲 ≥ 2.5% 不亮做空(使用者「改」;榮科、建榮、中釉大漲中的做空 7 錯 3 對)。今天 14 檔做多 / 做空燈 34 對 31 錯 → 31 對 27 錯;
     有變的只有榮科、建榮、中釉(錯的消掉)、聯嘉投控(09:24 對的消掉、09:31 / 09:39 多 2 次錯)、光鼎(09:51 晚 1 根),其他 9 檔不變。
@@ -1669,7 +1670,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610211330">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610211425">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2548,7 +2549,9 @@ function render(list){
   LAST_LIST = list;
   const rank = signalRank();                       // 有買賣訊號的排前面(最新在最上),其餘照原順序(成交量)
   const R = s => rank.has(s.code) ? rank.get(s.code) : 1e9;
-  list = list.map((s, i) => [s, i]).sort((a, b) => (R(a[0]) - R(b[0])) || (a[1] - b[1])).map(x => x[0]);
+  // 2026-10-21 使用者:「股票怎麼沒有按成交量排序」:原本照名單的成交量(昨天)排,右邊顯示的卻是今天即時累計量 → 有即時量就照今天的量排
+  const LV = s => { const r = LIVE.get(s.code); return r && isFinite(r.v) && r.v > 0 ? r.v * 1000 : (s.vol || 0); };
+  list = list.map((s, i) => [s, i]).sort((a, b) => (R(a[0]) - R(b[0])) || (LV(b[0]) - LV(a[0])) || (a[1] - b[1])).map(x => x[0]);
 
   const bands = el('bands');
   bands.innerHTML = '';
@@ -3494,6 +3497,12 @@ function applyLiveToList(){
     const vol = row.querySelector('.vol');            // 成交量改成今天到目前的累積張數
     if (vol && isFinite(r.v)) vol.textContent = (r.v / 10000).toFixed(2);   // 萬張
   });
+  // 2026-10-21 即時量的大小順序變了(訊號列以外)→ 重新排序,最多 1 分鐘一次(免得清單一直跳)
+  try{
+    const vs = [...document.querySelectorAll('#bands .row:not(.sig)')].map(row => { const r = LIVE.get(row.dataset.code); return r && isFinite(r.v) ? r.v : null; }).filter(v => v != null);
+    const unsorted = vs.some((v, k) => k > 0 && v > vs[k - 1]);
+    if (unsorted && Date.now() - (window.LIST_RESORT_AT || 0) > 60000){ window.LIST_RESORT_AT = Date.now(); setTimeout(resortList, 0); }
+  }catch(e){}
 }
 
 /* 向 Worker 要這些代號的即時行情,寫進 LIVE / LIVE_BARS */
