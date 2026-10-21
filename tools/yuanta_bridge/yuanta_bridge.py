@@ -139,7 +139,8 @@ class Bridge:
                         o = r.StkOrderList[i]; self.resume_buf["tags"][str(o.OrderNo).strip()] = str(o.BasketNo).strip()
                         rest = int(o.AfterQty) - int(o.OkQty)
                         if int(o.OrderStatus) in (0, 20) and rest > 0:          # 0 傳輸中、20 委託成功(還掛著)
-                            self.resume_buf["working"].append({"code": str(o.CompanyNo).strip(), "bs": str(o.BS).strip(), "lots": lots_of(rest)})
+                            self.resume_buf["working"].append({"code": str(o.CompanyNo).strip(), "bs": str(o.BS).strip(), "lots": lots_of(rest),
+                                                               "no": str(o.OrderNo).strip(), "typ": str(o.OrderType).strip()})
                     for i in range(r.StkTradeList.Count):
                         x = r.StkTradeList[i]; q = int(x.OkQty)
                         self.resume_buf["trades"].append({"code": str(x.CompanyNo).strip(), "bs": str(x.BS).strip(), "lots": q // 1000 if q >= 1000 else q,   # 成交量單位文件沒寫:股(≥1000)或張都能處理;使用者只做整張、不做零股(2026-10-22),不會混淆
@@ -152,8 +153,9 @@ class Bridge:
                     for i in range(lst.Count):
                         x = lst[i]
                         if int(x.StrategyStatus) in (0, 1, 99, 100, 101):          # 建立 / 執行中 / 觸發子單中 = 還有效
-                            self.resume_buf["oco"].append({"no": str(x.StrategyNo).strip(), "code": str(x.StkCode).strip(), "status": int(x.StrategyStatus)})
-                    self.resume_buf["got_oco"] = True
+                            self.resume_buf["oco"].append({"no": str(x.StrategyNo).strip(), "code": str(x.StkCode).strip(), "status": int(x.StrategyStatus), "type": int(x.StrategyType)})
+                    self.resume_buf["n_oco"] = self.resume_buf.get("n_oco", 0) + 1
+                    self.resume_buf["got_oco"] = self.resume_buf["n_oco"] >= self.resume_buf.get("want_oco", 1)
                     log(f"接回查詢:有效的二擇一條件單 {len(self.resume_buf['oco'])} 張")
                     return
                 if strIndex == "GetKLine" and self.kline_out is not None:
@@ -270,11 +272,11 @@ class Bridge:
         if not ok: log("!! SendStockOrder 回傳失敗")
         return None   # 委託書號從回應事件來(trader 用 BasketNo 對)
 
-    def cancel_order(self, order_no, code):
+    def cancel_order(self, order_no, code, bs=None, typ=None):
         lo = getattr(self, "_last_order", None) or {}
         o = self.Y.StockOrder()
-        o.Identify = 2; o.Account = CFG["YT_ACCOUNT"]; o.APCode = 0; o.TradeKind = 4; o.OrderType = str(lo.get("typ", "0"))   # TradeKind 04 = 取消
-        o.StkCode = code or lo.get("code", ""); o.PriceFlag = " "; o.Price = 0; o.OrderQty = 0; o.BuySell = lo.get("side", "B")
+        o.Identify = 2; o.Account = CFG["YT_ACCOUNT"]; o.APCode = 0; o.TradeKind = 4; o.OrderType = str(typ or lo.get("typ", "0"))   # TradeKind 04 = 取消
+        o.StkCode = code or lo.get("code", ""); o.PriceFlag = " "; o.Price = 0; o.OrderQty = 0; o.BuySell = bs or lo.get("side", "B")
         o.OrderNo = order_no; o.TradeDate = now_tw().strftime("%Y/%m/%d"); o.BasketNo = ""; o.Time_in_force = "0"
         lst = self.List[self.Y.StockOrder](); lst.Add(o)
         self.api.SendStockOrder(CFG["YT_ACCOUNT"], lst)
@@ -304,8 +306,11 @@ class Bridge:
         if not ok and self.trader: self.trader.on_strategy_reply("", False, "SendAlgoCOOdrStrategy 回傳失敗")
 
     def delete_oco(self, no):
+        self.delete_strategy(3, no)                                                     # 3 二擇一
+
+    def delete_strategy(self, typ, no):
         Y = self.Y
-        x = Y.DeleteStrategy(); x.Account = CFG["YT_ACCOUNT"]; x.StrategyType = Y.StrategyType(3); x.StrategyNo = str(no).strip()   # 3 二擇一
+        x = Y.DeleteStrategy(); x.Account = CFG["YT_ACCOUNT"]; x.StrategyType = Y.StrategyType(int(typ)); x.StrategyNo = str(no).strip()
         lst = self.List[Y.DeleteStrategy](); lst.Add(x)
         self.api.DeleteAlgoCOOdrStrategy(CFG["YT_ACCOUNT"], lst)
 
@@ -364,6 +369,46 @@ class Bridge:
             return dict(self.resume_buf) if self.resume_buf["got_rpt"] else None
         finally:
             self.resume_buf = None
+
+    def query_strategies(self, types=(1, 2, 3, 4, 5)):
+        """查全部有效條件單(1 停損利、2 移動鎖利、3 二擇一、4 母子單、5 多條件)"""
+        self.resume_buf = {"trades": [], "tags": {}, "oco": [], "working": [], "got_rpt": True, "got_oco": False, "want_oco": len(types), "n_oco": 0}
+        try:
+            for t in types:
+                self.api.GetConditionStrategy(CFG["YT_ACCOUNT"], self.Y.StrategyType(t), ""); time.sleep(1.2)   # 查詢類一秒最多 3 次
+            for _ in range(20):
+                if self.resume_buf["got_oco"]: break
+                time.sleep(0.5)
+            return list(self.resume_buf["oco"])
+        finally:
+            self.resume_buf = None
+
+    def close_all(self, at):
+        """2026-10-22 使用者:「13:20 就要先取消所有掛單 再進行贖回動作」:
+           1. 程式自己的條件單 / 委託先取消 2. 查元大全部還掛著的委託 + 全部有效條件單,通通取消(含手動的) 3. 再查確認(最多 3 次)
+           4. 用最新的成交回報算還沒沖銷的部位 → 漲停買回 / 跌停賣出 ROD(trader.recheck)"""
+        log(f"[交易] {at} 取消全部掛單 → 再平倉")
+        self.trader.prepare_close_all()
+        for k in range(3):
+            r = self.query_today(with_oco=False) or {"working": [], "trades": []}
+            st = self.query_strategies()
+            if not r["working"] and not st:
+                log(f"[交易] {at} 確認:沒有掛著的委託和條件單"); break
+            for w in r["working"]:
+                log(f"[交易] {at} 取消委託 {w['code']} {w['bs']} {w['lots']} 張 書號 {w['no']}")
+                self.cancel_order(w["no"], w["code"], w["bs"], w["typ"]); time.sleep(0.15)   # 交易類一秒最多 10 次
+            for x in st:
+                log(f"[交易] {at} 刪除條件單 {x['code']} 類別 {x['type']} 編號 {x['no']}")
+                self.delete_strategy(x["type"], x["no"]); time.sleep(0.15)
+            time.sleep(2)
+        else:
+            self.phone_alert(f"⚠ {at} 還有取消不掉的掛單", "請在投資先生確認委託 / 條件單")
+        r = self.query_today(with_oco=False)
+        if not r:
+            log(f"!! {at} 查不到成交回報,改用程式記的部位平倉")
+            p = self.trader.pos
+            r = {"trades": [{"code": p["code"], "bs": "B" if p["dir"] > 0 else "S", "lots": p["qty"]}] if p and p["qty"] else [], "working": []}
+        self.trader.recheck(r["trades"], r["working"], at)
 
     def resume_positions(self, day):
         """2026-10-22 使用者:「加 啟動時接回部位」:查元大今天的委託成交回報 + 有效的二擇一條件單,交給 trader 接回程式開的未平部位"""
@@ -445,7 +490,7 @@ class Bridge:
         self.codes = self.load_codes()
         self.trader = self.make_trader()
         self.trader.prime(fetch_signals(CFG["WORKER_URL"], day))
-        fails = 0; k = 0; resumed = False; rechecked = set()
+        fails = 0; k = 0; resumed = False; rechecked = set(); closed_all = False
         while now_tw().strftime("%H:%M") < "13:36":
             try:
                 if self.login_fail:
@@ -458,6 +503,10 @@ class Bridge:
                 sig = fetch_signals(CFG["WORKER_URL"], day) if (self.trader.enabled and k % 3 == 0) else None   # 手機通知每 3 秒看一次
                 self.trader.step(sig)
                 hm_now = now_tw().strftime("%H:%M")
+                if self.trader.enabled and self.trader.cancel_all and not closed_all and hm_now >= self.trader.force_exit:
+                    closed_all = True
+                    try: self.close_all(self.trader.force_exit)
+                    except Exception as e: log("13:20 取消 / 平倉失敗(13:21 trader 會自己強制平倉)", e)
                 for at in self.trader.recheck_times:                     # 13:22 / 13:23 / 13:24 各一次
                     if at not in rechecked and hm_now >= at:
                         rechecked.add(at); self.recheck_positions(at); break

@@ -44,7 +44,7 @@ t5, g5 = mk(); t5.n_trades = 2; t5.on_tick("6269", 86.2); t5.step([ENT]); assert
 # 6) 緊急停止檔
 stop.write_text("1"); t6, g6 = mk(); t6.on_tick("6269", 86.2); t6.step([ENT]); assert t6.state == IDLE and "緊急停止" in logs[-1]; os.remove(stop)
 # 7) 13:25 強制平倉
-t7, g7 = mk(); t7.on_tick("6269", 86.2); t7.step([ENT]); t7.on_report(51, "A0001", 0, 1000, 86.2)
+t7, g7 = mk(TRADE_CANCEL_ALL="0"); t7.on_tick("6269", 86.2); t7.step([ENT]); t7.on_report(51, "A0001", 0, 1000, 86.2)
 NOW[0] = dt.datetime(2026, 10, 22, 13, 25, tzinfo=TW); t7.step(); assert t7.state == EXITING; NOW[0] = dt.datetime(2026, 10, 22, 10, 0, tzinfo=TW)
 # 8) 現價離訊號價太遠 → 不追
 t8, g8 = mk(); t8.on_tick("6269", 87.0); t8.step([ENT]); assert t8.state == IDLE and "太晚" in logs[-1]
@@ -98,20 +98,20 @@ assert t19.n_trades == 2 and t19.pnl < -3000 and g19.sent[-1] == ("oco", "6269",
 # 20) 沒有未平部位 → 空閒
 t20, g20 = mk(); assert t20.resume([{"code": "6269", "bs": "S", "lots": 1, "price": 86.1, "time": "1", "order_no": "A1"}, {"code": "6269", "bs": "B", "lots": 1, "price": 85.0, "time": "2", "order_no": "A2"}], {"A1": "T1"}, [], []) is None and t20.state == IDLE and t20.n_trades == 1 and t20.pnl > 0
 # 21) 平倉設定成「讓檔 + IOC」也一樣:13:25 強制平倉一律掛漲停 / 跌停 ROD(集合競價不收 IOC)
-t21, g21 = mk(TRADE_EXIT_MODE="slip"); t21.on_tick("6269", 86.2); t21.step([ENT]); t21.on_report(51, "A0001", 0, 1000, 86.1)
+t21, g21 = mk(TRADE_EXIT_MODE="slip", TRADE_CANCEL_ALL="0"); t21.on_tick("6269", 86.2); t21.step([ENT]); t21.on_report(51, "A0001", 0, 1000, 86.1)
 NOW[0] = dt.datetime(2026, 10, 22, 13, 25, tzinfo=TW); t21.step()
 assert g21.sent[-1] == ("6269", "B", 1, 0, "9", "0", "H"), g21.sent[-1]
 t21.on_report(50, "A0002", 24, 0, 0, basket=g21.tags[-1]); assert g21.sent[-1][6] == "H"      # 失效再送也是漲停 ROD
 NOW[0] = dt.datetime(2026, 10, 22, 10, 0, tzinfo=TW)
 # 22) 13:20 強制平倉(集合競價前,還在逐筆撮合);13:10 以後不進場
-t22, g22 = mk(); t22.on_tick("6269", 86.2); t22.step([ENT]); t22.on_report(51, "A0001", 0, 1000, 86.1)
+t22, g22 = mk(TRADE_CANCEL_ALL="0"); t22.on_tick("6269", 86.2); t22.step([ENT]); t22.on_report(51, "A0001", 0, 1000, 86.1)
 NOW[0] = dt.datetime(2026, 10, 22, 13, 19, tzinfo=TW); t22.step(); assert t22.state == HOLDING
 NOW[0] = dt.datetime(2026, 10, 22, 13, 20, tzinfo=TW); t22.step(); assert t22.state == EXITING and g22.sent[-1][5:] == ("0", "H") and "13:20 強制平倉" in t22.pos["exit_why"]
 NOW[0] = dt.datetime(2026, 10, 22, 13, 12, tzinfo=TW); t23, g23 = mk(); t23.on_tick("6269", 86.2); t23.step([ENT]); assert t23.state == IDLE and "13:10" in logs[-1]
 NOW[0] = dt.datetime(2026, 10, 22, 10, 0, tzinfo=TW)
 # 24) 13:23 複查:程式的空單還沒平(平倉單失效了)→ 再掛漲停;手動空單 → 掛漲停買回;手動多單 → 只提醒
 alerts = []
-t24, g24 = mk(); t24.alert = lambda a, b="": alerts.append(a)
+t24, g24 = mk(TRADE_CANCEL_ALL="0"); t24.alert = lambda a, b="": alerts.append(a)
 t24.on_tick("6269", 86.2); t24.step([ENT]); t24.on_report(51, "A0001", 0, 1000, 86.1)
 NOW[0] = dt.datetime(2026, 10, 22, 13, 20, tzinfo=TW); t24.step(); t24.on_report(50, "A0002", 24, 0, 0, basket=g24.tags[-1])   # 平倉單失效 → 會自己再送
 n0 = len(g24.sent); t24.order["dead"] = True                                                                          # 假裝重送的也失效
@@ -128,7 +128,21 @@ assert not [x for x in g24.sent[n1:] if x[0] in ("6269", "2409")], g24.sent[n1:]
 left = t24.recheck([{"code": "2409", "bs": "S", "lots": 2}], [], at="13:24")
 assert g24.sent[-1][:3] == ("2409", "B", 2) and g24.sent[-1][6] == "H"                      # 沒掛著了 → 再補
 assert t24.recheck_times == ["13:22", "13:23", "13:24"]
+# 26) 13:20 取消全部掛單 → 再平倉:持倉中、條件單在 → 先刪條件單;13:20 這裡不自己平(等 bridge),用元大成交回報平倉
+NOW[0] = dt.datetime(2026, 10, 22, 10, 0, tzinfo=TW); t26, g26 = mk(); t26.on_tick("6269", 86.2); t26.step([ENT]); t26.on_report(51, "A0001", 0, 1000, 86.1); t26.on_strategy_reply("K9", True, "")
+NOW[0] = dt.datetime(2026, 10, 22, 13, 20, tzinfo=TW); n2 = len(g26.sent); t26.step(); assert len(g26.sent) == n2      # 13:20 交給 bridge
+t26.prepare_close_all(); assert g26.sent[-1] == ("del_oco", "K9")
+t26.recheck([{"code": "6269", "bs": "S", "lots": 1}], [], at="13:20"); assert t26.state == EXITING and g26.sent[-1][:3] == ("6269", "B", 1) and g26.sent[-1][6] == "H"
+# 27) bridge 沒做(例如查詢失敗)→ 13:21 自己強制平倉
+t27, g27 = mk(); NOW[0] = dt.datetime(2026, 10, 22, 10, 0, tzinfo=TW); t27.on_tick("6269", 86.2); t27.step([ENT]); t27.on_report(51, "A0001", 0, 1000, 86.1)
+NOW[0] = dt.datetime(2026, 10, 22, 13, 21, tzinfo=TW); t27.step(); assert t27.state == EXITING and g27.sent[-1][6] == "H"
+# 28) 進場單還在等就到 13:20:取消後元大顯示成交了 1 張 → 平 1 張;元大顯示沒成交 → 回空閒
+NOW[0] = dt.datetime(2026, 10, 22, 13, 9, tzinfo=TW); t28, g28 = mk(); t28.on_tick("6269", 86.2); t28.step([ENT]); assert t28.state == ENTERING
+NOW[0] = dt.datetime(2026, 10, 22, 13, 20, tzinfo=TW); t28.order["no"] = "A0001"; t28.prepare_close_all(); assert g28.sent[-1][0] == "cancel"
+t28.recheck([{"code": "6269", "bs": "S", "lots": 1}], [], at="13:20"); assert t28.state == EXITING and g28.sent[-1][:3] == ("6269", "B", 1)
+t29, g29 = mk(); NOW[0] = dt.datetime(2026, 10, 22, 13, 9, tzinfo=TW); t29.on_tick("6269", 86.2); t29.step([ENT]); NOW[0] = dt.datetime(2026, 10, 22, 13, 20, tzinfo=TW)
+t29.prepare_close_all(); t29.recheck([], [], at="13:20"); assert t29.state == IDLE and t29.pos is None
 NOW[0] = dt.datetime(2026, 10, 22, 10, 0, tzinfo=TW)
 # 10) 沒開啟 → 不交易
 t10, g10 = mk(TRADE_ENABLE="0"); t10.on_tick("6269", 86.2); t10.step([ENT]); assert not g10.sent
-print("trader.py 測試通過(25 種情況)")
+print("trader.py 測試通過(29 種情況)")

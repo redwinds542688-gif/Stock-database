@@ -64,6 +64,9 @@ class Trader:
         self.recheck_at = self.recheck_times[0] if self.recheck_times else "13:23"
         self.recheck_close = cfg.get("TRADE_RECHECK_CLOSE", "short")
         self.alert = lambda title, body="": None      # bridge 會換成「發通知到手機」
+        # 2026-10-22 使用者:「13:20 就要先取消所有掛單 再進行贖回動作」:TRADE_CANCEL_ALL=1 時 13:20 由 bridge 先取消全部委託 / 條件單、
+        #   確認後再用元大成交回報算部位平倉(prepare_close_all → recheck);bridge 沒做到的話 13:21 這裡自己強制平倉當備援
+        self.cancel_all = cfg.get("TRADE_CANCEL_ALL", "1") == "1"
         self.type_long = cfg.get("TRADE_TYPE_LONG", "0")           # 委託種類:0 現股(使用者:「做多只需要 現股 亮起來即可」),買進、賣出都用 0
         self.type_short = cfg.get("TRADE_TYPE_SHORT", "9")         # 9 現股當沖委託控管(先賣後買)= 元大 App 下單畫面的「沖」(使用者:「做空要按 沖 亮起來才能做空」)
         self.stop_file = Path(cfg.get("TRADE_STOP_FILE", "/opt/yuanta_bridge/STOP"))
@@ -138,6 +141,18 @@ class Trader:
                 self.log("[交易] !! 找不到這檔的停利 / 停損價,只剩手機平倉通知和 13:25 強制平倉會出場")
             return c
 
+    def prepare_close_all(self):
+        """13:20 取消全部掛單的第一步:刪程式自己的條件單、取消還在等的委託;部位以之後查到的元大成交回報為準"""
+        with self.lock:
+            p, o = self.pos, self.order
+            if p and p.get("oco_live"):
+                self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False; self.log(f"[交易] 13:20 取消:刪除元大條件單 {p['oco_no']}")
+            if o and not o.get("dead") and o.get("no"):
+                self.gw.cancel(o["no"], p["code"] if p else ""); self.log(f"[交易] 13:20 取消:{o['purpose']}委託 {o['no']}")
+            self.order = None
+            if p:
+                p["force_limit"] = True
+
     def recheck(self, trades, working=(), at=None):
         """收盤前複查:trades = 元大今天的成交回報(同 resume);working = 還掛著沒成交的委託 [{code, bs, lots}]。
         回傳還沒沖銷、而且掛著的委託也不夠平掉的 [(code, 淨張數)]"""
@@ -155,6 +170,9 @@ class Trader:
                 if pend >= abs(n):
                     self.log(f"[交易] {at} 複查:{c} 未沖銷 {abs(n)} 張,已有 {pend} 張平倉委託掛著,不重複下單"); continue
                 left.append((c, n, abs(n) - pend))
+            p = self.pos
+            if p and net.get(p["code"], 0) == 0 and self.state in (ENTERING, HOLDING, EXITING) and not (self.order and not self.order.get("dead")):
+                self.log(f"[交易] {at} 複查:元大顯示 {p['code']} 已經沒有部位 → 程式這邊結束"); self.pos = None; self.state = IDLE
             if not left:
                 self.log(f"[交易] {at} 複查:沒有需要補單的未沖銷股票"); return []
             for c, n, need in left:
@@ -163,8 +181,10 @@ class Trader:
                 if p and p["code"] == c:                                   # 程式的部位
                     if p["qty"] != abs(n):
                         self.log(f"[交易] 複查:{c} 程式記 {p['qty']} 張、元大 {abs(n)} 張 → 以元大為準"); p["qty"] = abs(n)
-                    if self.state == HOLDING:
-                        self.exit_pos(f"{at} 複查還沒平", self.last_px.get(c, p["entry"]), force_limit=True)
+                    if self.state in (ENTERING, HOLDING):
+                        if self.state == ENTERING:
+                            p["entry"] = p["entry"] or self.last_px.get(c, 0); self.state = HOLDING
+                        self.exit_pos(f"{at} 平倉", self.last_px.get(c, p["entry"]), force_limit=True)
                     elif self.state == EXITING and self.order and not self.order.get("dead"):
                         self.log(f"[交易] {at} 複查:{c} 程式的平倉單還在送 / 等回報,不重複")
                     else:
@@ -285,7 +305,10 @@ class Trader:
     def step(self, signals=None):
         with self.lock:
             hm = self.now().strftime("%H:%M")
-            if self.state == HOLDING and hm >= self.force_exit:
+            fe = self.force_exit
+            if self.cancel_all:                                   # 13:20 由 bridge 先取消全部掛單再平倉;這裡晚 1 分鐘當備援
+                h, m = map(int, fe.split(":")); fe = f"{h + (m + 1) // 60:02d}:{(m + 1) % 60:02d}"
+            if self.state == HOLDING and hm >= fe:
                 # 2026-10-22 使用者:「1:25 後還有沒贖回的股票,必須掛漲停價(做空)或跌停價(做多)贖回,1:30 一定會成交(除非漲停或跌停)」:
                 #   13:25~13:30 收盤集合競價不接受市價 / IOC / FOK,一律掛漲停 / 跌停 ROD(不管 TRADE_EXIT_MODE)
                 self.exit_pos(f"{self.force_exit} 強制平倉", self.last_px.get(self.pos["code"], self.pos["entry"]), force_limit=True)
