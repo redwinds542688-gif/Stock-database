@@ -105,6 +105,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-21 06:40 撤掉 06:20 的雲端 K 取代(使用者:「元大是下滑的」;元大的 1 分 K 和 Yahoo 同一份,雲端 K 的分鐘形狀反而不像),改成 Yahoo 鉅額交易那根量不算:某根量 ≥ 同日前後 10 根中位數 80 倍且 ≥ 300 張 → 量改成中位數(dropBlockTrades)。10/20 對證交所日量抓到 49 檔、漏 3、誤抓 3。
   · 2026-10-21 10:05 證交所舊快照不收(使用者:台郡「量不對」):證交所偶爾回時間倒退、累計量變少的舊資料,原本會把同一段量再算一次(09:54 有 45 檔雲端 K 總量多 1% 以上)。手機 liveTick:同一天時間比上一筆早 → 整筆不收;Worker 拼 K:累計量比上一個快照少 → 那個快照不算。
   · 2026-10-21 10:30 頂端「量」改成永遠是今天到現在的總量(使用者:「App 才 3 萬多 元大已經 7-8 萬了」→「選 1」;原本是到十字線那分鐘的累積量);十字線那根自己的量(張)顯示在 K 圖虛線旁(placeXVol)。
+  · 2026-10-21 10:45 紅色「回到最新一根」箭頭按下去,圖也捲回最右邊(使用者:「按下去也沒有跑到最新的啊」;原本只把十字線移到最新一根,最新一根不在畫面裡就看起來沒反應)。真正原因:指標三的兩條線只畫到最後一個交叉點,時間軸比 K 線短,三張圖同步捲動時被指標三卡住,最新幾根 K 一直在畫面外;指標三補一條看不見、每根 K 都有值的線把時間軸撐到最新一根。
   · 2026-10-21 06:00 撤掉 05:50 的「當天漲 ≥ 2.5% 不亮做空」(使用者「撤掉 重新找其他方法」):YH.lampNoShortUpPct = 0。
   · 2026-10-21 05:50 當天漲 ≥ 2.5% 不亮做空(使用者「改」;榮科、建榮、中釉大漲中的做空 7 錯 3 對)。今天 14 檔做多 / 做空燈 34 對 31 錯 → 31 對 27 錯;
     有變的只有榮科、建榮、中釉(錯的消掉)、聯嘉投控(09:24 對的消掉、09:31 / 09:39 多 2 次錯)、光鼎(09:51 晚 1 根),其他 9 檔不變。
@@ -1661,7 +1662,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610211030">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610211045">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3571,7 +3572,7 @@ function liveStart(){
 /* ── 圖表 ── */
 let chart, candle, maLine, ma24Line, vwapLine;   // ma24Line:2026-10-21 均價 24(K24,藍)           // 上圖:1 分K + MA + VWAP
 let chartM, obvSeries, obvMaLine, obvMa30Line;  // 中圖:OBV + OBV 均線 + OBV 均 30(紫,2026-10-19)
-let chartB, vwapDev = null, orgLine, kxLine;   // 2026-10-20 23:30 下圖只留起漲起跌連線(高點 / 低點連線拿掉)。   // 2026-10-20 23:10 zzLine = 高點連線(紅)、loLine = 低點連線(綠)   // 2026-10-20 22:10 下圖改成「高低點連線(白)+ 起漲起跌連線(橘)」。原:   // 下圖:均線乖離率(2026-10-20 使用者:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」;原 VWAP 乖離柱狀圖作廢)
+let chartB, vwapDev = null, orgLine, kxLine, padB;   // 2026-10-20 23:30 下圖只留起漲起跌連線(高點 / 低點連線拿掉)。   // 2026-10-20 23:10 zzLine = 高點連線(紅)、loLine = 低點連線(綠)   // 2026-10-20 22:10 下圖改成「高低點連線(白)+ 起漲起跌連線(橘)」。原:   // 下圖:均線乖離率(2026-10-20 使用者:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」;原 VWAP 乖離柱狀圖作廢)
 const OBV_RESET_DAILY = true;          // true = 每個交易日開盤歸零(2026-10-15 用力積電實測:元大 -47,362、開盤歸零算 -44,257、跨日累計 -20,310 ~ -133,694,元大是每日歸零);false = 跨日累加
 let BARS = [], BARS_CODE = '';
 let ENTRY_LINES = [];
@@ -4862,6 +4863,7 @@ function initChart(){
   //   橘線 = 起漲起跌連線(K 線圖上標的起漲點取那根最低價、起跌點取最高價,依序相連;點上有小圓點,起漲藍、起跌橘)。
   const pxFmt = {type:'price', precision:2, minMove:0.01};
   orgLine = chartB.addLineSeries({priceScaleId:'left', color:'#FF9F43', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:false});
+  padB = chartB.addLineSeries({priceScaleId:'left', lineVisible:false, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, autoscaleInfoProvider: () => null});   // 撐時間軸用,看不見、不影響刻度
   kxLine = chartB.addLineSeries({priceScaleId:'left', color:'#D63AF9', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:false});   // 2026-10-21 Ka 穿越 Kb 的點連線(紫)
   // 時間軸放在最下面那張圖(元大的時間標籤在 OBV 下方)
   (chartB || chartM).applyOptions({timeScale:{...CHART_OPTS.timeScale, visible:true}});
@@ -4957,7 +4959,13 @@ function initChart(){
   const isLastT = time => BARS.length > 0 && time === BARS[BARS.length - 1].time;
   const showBtn = () => { if (xBtn) xBtn.classList.toggle('hidden', !XLOCK || !!XLOCK.follow); };
   const setX = time => { XLOCK = {time, follow: isLastT(time)}; applyX(time); showBtn(); };
-  const clearX = () => { if (BARS.length) setX(BARS[BARS.length - 1].time); };                 // 回到最新一根(不再收掉)
+  // 回到最新一根(不再收掉)。2026-10-21 使用者:「那個按鍵按下去也沒有跑到最新的啊」→ 最新一根不在畫面裡就先把圖捲回最右邊(保留目前縮放寬度)
+  const clearX = () => {
+    if (!BARS.length) return;
+    const last = BARS.length - 1, r = chart.timeScale().getVisibleLogicalRange();
+    if (r && (r.to < last || r.from > last)) chart.timeScale().scrollToPosition(3, false);   // 最右邊留 3 格(同 rightOffset),不用動畫
+    setX(BARS[last].time);
+  };
   const syncX = () => { if (!BARS.length) return; if (!XLOCK || XLOCK.follow || idxOf(XLOCK.time) < 0) setX(BARS[BARS.length - 1].time); else applyX(XLOCK.time); };   // 重畫後(開圖 / 即時更新)補上十字線
   window.setX = setX; window.clearX = clearX; window.syncX = syncX; window.getXLock = () => XLOCK;
   if (xBtn){ xBtn.addEventListener('click', e => { e.preventDefault(); clearX(); }); xBtn.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); clearX(); }); }
@@ -5199,6 +5207,9 @@ function drawBars(bars, code, srcLabel, keepView){
   KX_PTS = kxPts;
   const kx = lineThrough(bars, kxPts.map(p => ({time: p.time, value: p.price})));
   try{ maLine.setMarkers(kxPts.map(p => ({time: p.time, position: 'inBar', color: p.side > 0 ? CHART_THEME.up : CHART_THEME.down, shape: 'circle', size: 0.5}))); }catch(e){}
+  // 2026-10-21 使用者:「那個按鍵按下去也沒有跑到最新的啊」:指標三的兩條線只畫到最後一個交叉點,套件把「最後一個有值的點」當最右邊,
+  //   三張圖同步捲動時被指標三卡在那裡,最新幾根 K 一直在畫面外(「回到最新」箭頭也到不了)。補一條看不見、每根 K 都有值的線把指標三的時間軸撐到最新一根
+  if (padB) padB.setData(bars.map(b => ({time: b.time, value: b.close})));
   if (orgLine){ orgLine.setData(org);
     orgLine.setMarkers(orgPts.map(p => ({time: p.time, position: 'inBar', color: p.side < 0 ? '#FF9F43' : '#4FC3F7', shape: 'circle', size: 0.6})));
     kxLine.setData(kx);
