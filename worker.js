@@ -319,6 +319,35 @@ export default {
       return resp;
     }
 
+    // ── 元大中繼(tools/yuanta_bridge):POST ?ybars=push 收 1 分 K;GET ?ybars=today|YYYY-MM-DD[&codes=][&since=] 讀(格式同 ?bars)──
+    // 2026-10-22 使用者(元大 SPARK API「先寫好 等營業員回覆」):先只收、只讀給比對用,手機還是讀 ?bars;驗證準了再切換
+    const yb = url.searchParams.get("ybars");
+    if (yb) {
+      if (!env || !env.LOGS) return J({ error: "Worker 還沒綁定 KV(LOGS)" }, 503);
+      if (yb === "push") {
+        if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
+        if (!env.YT_PUSH_KEY) return J({ error: "Worker 沒有設定 YT_PUSH_KEY 密鑰" }, 503);
+        if (request.headers.get("X-Push-Key") !== env.YT_PUSH_KEY) return J({ error: "金鑰不對" }, 403);
+        let b; try { b = await request.json(); } catch (e) { return J({ error: "JSON 格式錯誤" }, 400); }
+        if (!b || !/^\d{4}-\d{2}-\d{2}$/.test(b.d || "") || !/^\d{2}:\d{2}$/.test(b.m || "") || typeof b.bars !== "object") return J({ error: "要有 d(YYYY-MM-DD)、m(HH:MM)、bars" }, 400);
+        await env.LOGS.put(`ybar:${b.d}:${b.m}`, JSON.stringify(b.bars), { expirationTtl: 14 * 86400 });   // 一分鐘一個鍵(晚到的成交整分鐘重送覆蓋)
+        return J({ ok: true, n: Object.keys(b.bars).length });
+      }
+      const d = yb === "today" ? ymdOf(twNow()) : yb;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return J({ error: "ybars 要是 push、today 或 YYYY-MM-DD" }, 400);
+      const want = (url.searchParams.get("codes") || "").split(",").map(x => x.trim()).filter(Boolean), since = url.searchParams.get("since") || "";
+      const keys = []; let cursor;
+      do { const r = await env.LOGS.list({ prefix: `ybar:${d}:`, cursor, limit: 1000 }); for (const k of r.keys) keys.push(k.name); cursor = r.list_complete ? null : r.cursor; } while (cursor);
+      keys.sort();
+      const use = keys.filter(k => !since || k.slice(-5) >= since), bars = {};
+      for (let i = 0; i < use.length; i += 25) {
+        const part = use.slice(i, i + 25), vals = await Promise.all(part.map(k => env.LOGS.get(k)));
+        part.forEach((k, j) => { let o; try { o = JSON.parse(vals[j] || "{}"); } catch (e) { return; }
+          for (const c in o) if (!want.length || want.includes(c)) (bars[c] = bars[c] || []).push([k.slice(-5), ...o[c]]); });
+      }
+      return J({ d, src: "yuanta", last: use.length ? use[use.length - 1].slice(-5) : since, n: use.length, bars });
+    }
+
     // ── ?breadth=today|YYYY-MM-DD → 大盤寬度(每分鐘上漲比例),邊緣快取 50 秒 ──
     const bq = url.searchParams.get("breadth");
     if (bq) {
