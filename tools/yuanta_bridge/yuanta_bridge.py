@@ -7,12 +7,14 @@
   python3 yuanta_bridge.py run            # 常駐:每天 08:45 連線、13:36 收工,隔天再來
   python3 yuanta_bridge.py test 2330      # 連線 + 登入 + 訂閱一檔,印出逐筆成交 60 秒(驗證環境用)
   python3 yuanta_bridge.py kline 2330 2026/10/22   # 查元大當天 1 分 K(和推上去的比對用;上櫃股最後加 otc)
+  python3 yuanta_bridge.py order-test 2885 B 35.15  # 只限測試環境:送 1 張限價單看回應(下單流程驗證)
 
-只接行情,不下單。
+預設只接行情;TRADE_ENABLE=1 才會照手機通知「一次一單」自動交易(trader.py),正式環境還要 TRADE_ALLOW_PROD=1。
 """
 import json, os, re, sys, time, threading, urllib.request, datetime as dt
 from pathlib import Path
 from bars import BarBook
+from trader import Trader, fetch_signals
 
 HERE = Path(__file__).resolve().parent
 TW = dt.timezone(dt.timedelta(hours=8))
@@ -28,7 +30,7 @@ def load_env():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1); cfg[k.strip()] = re.split(r"\s+#", v, 1)[0].strip()   # 去掉行尾註解
-    for k in list(cfg) + ["YT_ACCOUNT", "YT_PASS", "YT_PFX", "YT_PFX_PASS", "YT_ENV", "YT_SDK_DIR", "WORKER_URL", "PUSH_KEY", "POOL_URL", "VOL_MULT", "MAX_CODES", "YT_PMM_CHECK"]:
+    for k in list(cfg) + ["YT_ACCOUNT", "YT_PASS", "YT_PFX", "YT_PFX_PASS", "YT_ENV", "YT_SDK_DIR", "WORKER_URL", "PUSH_KEY", "POOL_URL", "VOL_MULT", "MAX_CODES", "YT_PMM_CHECK", "TRADE_ENABLE", "TRADE_ALLOW_PROD"]:
         if os.environ.get(k): cfg[k] = os.environ[k]
     return cfg
 
@@ -83,6 +85,7 @@ class Bridge:
         self.printer = None      # test 模式:每筆印出
         self.kline_out = None
         self.n_ticks = 0
+        self.trader = None       # 一次一單自動交易(trader.py;TRADE_ENABLE=1 才會下單)
 
     # 回應事件(元大的執行緒呼叫,不能在這裡做耗時的事)
     def on_response(self, intMark, dwIndex, strIndex, objHandle, objValue):
@@ -104,6 +107,16 @@ class Bridge:
                     else:
                         # 元大文件「登入」:0000 執行失敗、0102 密碼凍結或未啟用、0112 無此權限使用功能
                         self.login_fail = f"{st.MsgCode} {st.MsgContent}"
+                    return
+                if strIndex == "SendStockOrder":
+                    r = objValue; st = r.ResultCount
+                    for i in range(st.Count):
+                        d = r.ResultList[i]
+                        ok = int(d.ReplyCode) == 0
+                        log(f"下單回應 {st.MsgCode} {st.MsgContent} 委託書號 {d.OrderNO} {'成功' if ok else '失敗 ' + str(d.ErrNO) + ' ' + str(d.Advisory)}")
+                        if self.trader: self.trader.on_order_reply(str(d.OrderNO), ok, f"{d.ErrNO} {d.Advisory}")
+                    if st.Count == 0 and self.trader:
+                        self.trader.on_order_reply("", False, f"{st.MsgCode} {st.MsgContent}")
                     return
                 if strIndex == "GetKLine" and self.kline_out is not None:
                     lst = objValue.KLineList
@@ -131,11 +144,19 @@ class Bridge:
                     sn = int(r.SerialNo)
                     if sn < 0:                   # -1 = 清盤(漲跌停 / 參考價),不是成交
                         return
-                    ok = self.book.add_tick(str(r.StkCode).strip(), t.bytHour, t.bytMin, sn, float(r.DealPrice), int(r.DealVol), self.sent)
+                    code, px = str(r.StkCode).strip(), float(r.DealPrice)
+                    ok = self.book.add_tick(code, t.bytHour, t.bytMin, sn, px, int(r.DealVol), self.sent)
                     if ok:
                         self.n_ticks += 1
+                        if self.trader and px > 0: self.trader.on_tick(code, px)
                     if self.printer:
                         self.printer(f"{r.StkCode} {t.bytHour:02d}:{t.bytMin:02d}:{t.bytSec:02d}.{t.ushtMSec:03d} 序 {sn} 價 {r.DealPrice} 量 {r.DealVol} 內外 {flag}")
+                    return
+                if strIndex == "RR_RealReport":       # 即時回報(登入即訂閱):50 股票委託、51 股票成交
+                    r = objValue; rt = int(r.RptType)
+                    if rt in (50, 51):
+                        log(f"回報 {'成交' if rt == 51 else '委託'} {r.CompanyNo} {r.BS} 數量 {r.OrderQty} 價 {r.Price} 狀態 {r.OrderStatus} 書號 {r.OrderNo} 編號 {r.BasketNo}")
+                        if self.trader: self.trader.on_report(rt, str(r.OrderNo), int(r.OrderStatus), int(r.OrderQty), float(r.Price), str(r.BasketNo))
                     return
                 if not strIndex or int(dwIndex) == 1:
                     log(f"!! 訂閱 / 取消訂閱失敗 [{dwIndex}] {strIndex or ''} {objValue}")
@@ -194,6 +215,36 @@ class Bridge:
         log(f"名單 {j.get('date', '') if isinstance(j, dict) else ''} 共 {len(out)} 檔")
         return out
 
+    # ── 下單通道(給 trader.py 用)──
+    def send_order(self, code, mkt, side, lots, price, typ, tif, tag):
+        """國內證券下單(元大文件「國內證券下單」):限價、整股、委託單;tif 0 ROD / 3 IOC / 4 FOK"""
+        o = self.Y.StockOrder()
+        o.Identify = 1; o.Account = CFG["YT_ACCOUNT"]; o.APCode = 0; o.TradeKind = 0; o.OrderType = str(typ)
+        o.StkCode = code; o.PriceFlag = " "; o.Price = float(price); o.OrderQty = int(lots); o.BuySell = side
+        o.OrderNo = ""; o.TradeDate = now_tw().strftime("%Y/%m/%d"); o.BasketNo = tag; o.Time_in_force = str(tif)
+        lst = self.List[self.Y.StockOrder](); lst.Add(o)
+        self._last_order = {"code": code, "side": side, "lots": lots, "price": price, "typ": typ}
+        ok = self.api.SendStockOrder(CFG["YT_ACCOUNT"], lst)
+        if not ok: log("!! SendStockOrder 回傳失敗")
+        return None   # 委託書號從回應事件來(trader 用 BasketNo 對)
+
+    def cancel_order(self, order_no, code):
+        lo = getattr(self, "_last_order", None) or {}
+        o = self.Y.StockOrder()
+        o.Identify = 2; o.Account = CFG["YT_ACCOUNT"]; o.APCode = 0; o.TradeKind = 4; o.OrderType = str(lo.get("typ", "0"))   # TradeKind 04 = 取消
+        o.StkCode = code or lo.get("code", ""); o.PriceFlag = " "; o.Price = 0; o.OrderQty = 0; o.BuySell = lo.get("side", "B")
+        o.OrderNo = order_no; o.TradeDate = now_tw().strftime("%Y/%m/%d"); o.BasketNo = ""; o.Time_in_force = "0"
+        lst = self.List[self.Y.StockOrder](); lst.Add(o)
+        self.api.SendStockOrder(CFG["YT_ACCOUNT"], lst)
+
+    def make_trader(self):
+        cfg = dict(CFG)
+        if CFG.get("YT_ENV", "UAT").upper() == "PROD" and CFG.get("TRADE_ALLOW_PROD", "0") != "1":
+            if cfg.get("TRADE_ENABLE") == "1": log("[交易] 正式環境沒有 TRADE_ALLOW_PROD=1,自動交易關閉(只接行情)")
+            cfg["TRADE_ENABLE"] = "0"
+        gw = type("GW", (), {"send": lambda _s, *a: self.send_order(*a), "cancel": lambda _s, no, code="": self.cancel_order(no, code)})()
+        return Trader(cfg, gw, log, now_tw)
+
     # ── 推到 Worker ──
     def push(self, day, minute, bars):
         if not bars:
@@ -228,16 +279,20 @@ class Bridge:
         day = now_tw().strftime("%Y-%m-%d")
         self.book = BarBook(vol_mult=int(CFG.get("VOL_MULT", "1000"))); self.sent = set(); self.n_ticks = 0
         self.codes = self.load_codes()
-        fails = 0
+        self.trader = self.make_trader()
+        self.trader.prime(fetch_signals(CFG["WORKER_URL"], day))
+        fails = 0; k = 0
         while now_tw().strftime("%H:%M") < "13:36":
             try:
                 if self.login_fail:
                     raise LoginRejected(self.login_fail)
                 if self.api is None or self.disconnected.is_set():
                     self.close(); self.connect(); self.subscribe(self.codes); fails = 0
-                for _ in range(10):
-                    time.sleep(1)
-                self.flush(day)
+                time.sleep(1); k += 1
+                sig = fetch_signals(CFG["WORKER_URL"], day) if (self.trader.enabled and k % 3 == 0) else None   # 手機通知每 3 秒看一次
+                self.trader.step(sig)
+                if k % 10 == 0:
+                    self.flush(day)
             except LoginRejected as e:
                 log(f"!! 元大拒絕登入:{e}。今天不再重試,請檢查 bridge.env 的帳號 / 密碼 / 權限後重啟服務")
                 self.close(); break
@@ -245,7 +300,7 @@ class Bridge:
                 fails += 1; log("錯誤", e, f"(第 {fails} 次)")
                 self.close(); time.sleep(min(60, 10 * fails))   # 登入失敗不能太頻繁(每 4 秒最多 1 次,一天 1000 次)
         self.flush(day, final=True)
-        log(f"收工:逐筆 {self.n_ticks} 筆,推送 {len(self.sent)} 分鐘")
+        log(f"收工:逐筆 {self.n_ticks} 筆,推送 {len(self.sent)} 分鐘;交易 {self.trader.n_trades} 筆 淨 {self.trader.pnl:+,.0f} {self.trader.journal}")
         self.close()
 
 
@@ -268,6 +323,13 @@ def main():
         time.sleep(5)
         for k in b.kline_out: print(*k)
         b.close(); return
+    if cmd == "order-test":
+        # 只在測試環境:送 1 張限價單,印 20 秒的下單回應和回報(元大測試環境依委託書號尾碼模擬全成交 / 不成交 / 部分成交 / 價穩失效)
+        if CFG.get("YT_ENV", "UAT").upper() != "UAT":
+            sys.exit("order-test 只能在測試環境(YT_ENV=UAT)")
+        code, side, price = sys.argv[2], sys.argv[3].upper(), float(sys.argv[4])
+        b.connect(); b.send_order(code, "TWSE", side, 1, price, "0", "0", "TEST1")
+        time.sleep(20); b.close(); return
     # run:常駐
     for k in ("WORKER_URL", "PUSH_KEY"):
         if not CFG.get(k):

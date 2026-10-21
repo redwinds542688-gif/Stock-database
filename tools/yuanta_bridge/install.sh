@@ -7,7 +7,7 @@ apt-get update && apt-get upgrade -y
 apt-get install -y dotnet-sdk-8.0 python3 python3-pip python3.12-venv openssl
 id -u yuanta >/dev/null 2>&1 || useradd -r -m -s /bin/bash yuanta
 mkdir -p $APP/sdk $APP/cert $APP/log
-cp yuanta_bridge.py bars.py test_bars.py bridge.env.example yuanta-bridge.service $APP/
+cp yuanta_bridge.py bars.py test_bars.py trader.py test_trader.py bridge.env.example yuanta-bridge.service $APP/
 [ -f $APP/bridge.env ] || cp bridge.env.example $APP/bridge.env
 python3 -m venv $APP/venv
 $APP/venv/bin/pip install --upgrade pip

@@ -1,0 +1,234 @@
+"""一次一單的自動交易(2026-10-22 使用者:「真的接通 可以先試 一次只掛一單 成交後才能繼續」→「先寫好 預設測試環境」)
+
+訊號來源 = 手機的通知(雲端紀錄 ?log=get):進場通知(做多 / 做空進場)→ 進場;同一檔的平倉通知 → 出場。
+停利 / 停損價(通知裡寫的)由這裡用元大逐筆成交盯,碰到就平倉(約 1 秒內),不等 1 分 K、不等通知。
+
+狀態:空閒 → 進場中(等成交回報)→ 持倉中 → 平倉中(等成交回報)→ 空閒。只有空閒時才接新訊號。
+保護:每筆 TRADE_QTY 張、一天最多 TRADE_MAX_PER_DAY 筆、當天虧損到 TRADE_MAX_LOSS 就停、13:25 一律平倉、
+      STOP 檔案(緊急停止:不再進場,有部位照樣平)、正式環境要 TRADE_ALLOW_PROD=1 才會下單。
+以元大的即時回報為準(RR_RealReport:51 = 股票成交),不自己假設成交。
+
+這個檔不依賴元大元件:下單 / 取消透過 gateway(bridge 提供),測試時可以換成假的。
+"""
+import json, re, time, threading, urllib.request
+from pathlib import Path
+
+
+def tick_size(p):
+    """台股升降單位"""
+    return 0.01 if p < 10 else 0.05 if p < 50 else 0.1 if p < 100 else 0.5 if p < 500 else 1 if p < 1000 else 5
+
+
+def shift(p, ticks):
+    """價格往上(+)/ 往下(−)移 ticks 檔"""
+    for _ in range(abs(ticks)):
+        p = p + tick_size(p) if ticks > 0 else p - tick_size(p - 1e-9)
+    return round(p, 2)
+
+
+IDLE, ENTERING, HOLDING, EXITING, HALT = "空閒", "進場中", "持倉中", "平倉中", "停止"
+RE_CODE = re.compile(r"\b(\d{4,6})\b")
+RE_TPSL = re.compile(r"停利\s*([\d.]+)\s*停損\s*([\d.]+)")
+RE_JUDGE = re.compile(r"判[一二三四]")
+
+
+class Trader:
+    def __init__(self, cfg, gateway, log, now):
+        """gateway:send(code, mkt, side 'B'/'S', qty 張, price, order_type, tif, tag) -> 委託書號或 None;cancel(order_no, code)
+           now():回傳台灣時間 datetime"""
+        self.cfg, self.gw, self.log, self.now = cfg, gateway, log, now
+        self.enabled = cfg.get("TRADE_ENABLE", "0") == "1"
+        self.qty = int(cfg.get("TRADE_QTY", "1"))
+        self.max_n = int(cfg.get("TRADE_MAX_PER_DAY", "3"))
+        self.max_loss = float(cfg.get("TRADE_MAX_LOSS", "3000"))
+        self.judges = set(x.strip() for x in cfg.get("TRADE_JUDGES", "判一,判二,判三").split(",") if x.strip())
+        self.slip = int(cfg.get("TRADE_SLIP_TICKS", "2"))          # 讓價檔數(確保成交)
+        self.max_dev = float(cfg.get("TRADE_MAX_DEV_PCT", "0.5"))  # 現價離訊號價超過 % 就不追
+        self.fill_wait = float(cfg.get("TRADE_FILL_WAIT", "8"))    # 送單後等成交回報幾秒
+        self.type_long = cfg.get("TRADE_TYPE_LONG", "0")           # 委託種類:0 現貨(買進當沖)
+        self.type_short = cfg.get("TRADE_TYPE_SHORT", "9")         # 9 現股當沖委託控管(先賣後買)——上線前請和元大確認
+        self.stop_file = Path(cfg.get("TRADE_STOP_FILE", "/opt/yuanta_bridge/STOP"))
+        self.lock = threading.RLock()
+        self.reset_day()
+
+    def reset_day(self):
+        self.state = IDLE if self.enabled else HALT
+        self.seen = set()          # 已處理的通知 _k
+        self.pos = None            # {code, mkt, dir, qty(張), entry, tp, sl, judge, typ}
+        self.order = None          # 進行中的委託 {no, side, want(股), filled(股), cost, at, purpose}
+        self.n_trades, self.pnl, self.last_px = 0, 0.0, {}
+        self.mkt_of = {}
+        self.journal = []
+
+    def prime(self, signals):
+        """啟動時把當天已經有的通知都標成「看過」,不會拿舊訊號進場"""
+        for it in signals:
+            self.seen.add(it.get("_k") or (it.get("t", "") + it.get("title", "")))
+        self.log(f"[交易] 啟動:略過今天已有的 {len(signals)} 則通知;{'開啟' if self.enabled else '關閉(TRADE_ENABLE=0)'},每筆 {self.qty} 張、一天最多 {self.max_n} 筆、虧損上限 {self.max_loss:,.0f}")
+
+    # ── 外部事件 ──
+    def on_tick(self, code, price):
+        self.last_px[code] = price
+        with self.lock:
+            p = self.pos
+            if self.state == HOLDING and p and p["code"] == code:
+                hit_tp = (price >= p["tp"]) if p["dir"] > 0 else (price <= p["tp"])
+                hit_sl = (price <= p["sl"]) if p["dir"] > 0 else (price >= p["sl"])
+                if hit_tp or hit_sl:
+                    self.exit_pos("停利" if hit_tp else "停損", price)
+
+    def on_report(self, rpt_type, order_no, status, qty_shares, price, basket=""):
+        """元大即時回報:rpt_type 50 委託、51 成交;status 見文件(1 失敗、2 取消成功、24 失效、25 價穩失效…)
+           用自訂編號 basket(下單時帶的 BasketNo)或委託書號對;委託書號可能比回報晚到,所以以 basket 為主"""
+        with self.lock:
+            o = self.order
+            mine = o and ((basket and str(basket).strip() == o["tag"]) or (o["no"] and str(order_no).strip() == o["no"]))
+            if not mine:
+                return
+            if not o["no"] and order_no:
+                o["no"] = str(order_no).strip()
+            if rpt_type == 51 and qty_shares > 0:
+                o["filled"] += qty_shares; o["cost"] += qty_shares * price
+                self.log(f"[交易] 成交 {o['purpose']} {o['side']} {qty_shares // 1000} 張 @ {price}(累計 {o['filled'] // 1000}/{o['want'] // 1000})")
+            elif rpt_type == 50 and status in (1, 2, 24, 25):
+                o["dead"] = True
+                self.log(f"[交易] 委託結束 狀態 {status}({ {1: '委託失敗', 2: '取消成功', 24: '委託失效', 25: '價穩失效'}[status] })")
+            self.after_report()
+
+    def on_order_reply(self, order_no, ok, msg):
+        with self.lock:
+            o = self.order
+            if not o or o.get("no"):
+                return
+            if ok:
+                o["no"] = str(order_no).strip()
+            else:
+                o["dead"] = True; self.log(f"[交易] 委託被拒:{msg}"); self.after_report()
+
+    # ── 每秒呼叫一次 ──
+    def step(self, signals=None):
+        with self.lock:
+            hm = self.now().strftime("%H:%M")
+            if self.state == HOLDING and hm >= "13:25":
+                self.exit_pos("13:25 強制平倉", self.last_px.get(self.pos["code"], self.pos["entry"]))
+            o = self.order
+            if o and not o.get("dead") and time.time() - o["at"] > self.fill_wait:
+                if o.get("no"):
+                    self.log(f"[交易] {o['purpose']} 委託 {self.fill_wait:.0f} 秒沒成交完,取消剩餘"); self.gw.cancel(o["no"], self.pos["code"] if self.pos else "")
+                o["dead"] = True; self.after_report()
+            for it in (signals or []):
+                self.on_signal(it)
+
+    # ── 訊號 ──
+    def on_signal(self, it):
+        k = it.get("_k") or (it.get("t", "") + it.get("title", ""))
+        if k in self.seen:
+            return
+        self.seen.add(k)
+        title, body, kind = it.get("title", ""), it.get("body", ""), it.get("kind", "")
+        m = RE_CODE.search(title)
+        if not m:
+            return
+        code = m.group(1); mj = RE_JUDGE.search(body); judge = mj.group(0) if mj else None
+        # 平倉通知:同一檔、持倉中 → 出場
+        if kind in ("loss", "profit", "exit") and self.state == HOLDING and self.pos and self.pos["code"] == code:
+            self.exit_pos("手機平倉通知:" + title, self.last_px.get(code, self.pos["entry"]))
+            return
+        if kind not in ("long", "short"):
+            return
+        why = self.can_enter(code, judge)
+        if why:
+            self.log(f"[交易] 不進場 {title}:{why}"); return
+        tpsl = RE_TPSL.search(body); px_sig = float((re.search(r"([\d.]+)\s*$", title) or [0, 0])[1] or 0)
+        if not tpsl or not px_sig:
+            self.log(f"[交易] 不進場 {title}:通知裡找不到進場價 / 停利 / 停損"); return
+        last = self.last_px.get(code)
+        if not last:
+            self.log(f"[交易] 不進場 {title}:還沒收到 {code} 的元大即時價"); return
+        if abs(last - px_sig) / px_sig * 100 > self.max_dev:
+            self.log(f"[交易] 不進場 {title}:現價 {last} 離訊號價 {px_sig} 超過 {self.max_dev}%(太晚了)"); return
+        d = 1 if kind == "long" else -1
+        typ = self.type_long if d > 0 else self.type_short
+        self.pos = {"code": code, "mkt": self.mkt_of.get(code, "TWSE"), "dir": d, "qty": 0, "entry": 0.0,
+                    "tp": float(tpsl.group(1)), "sl": float(tpsl.group(2)), "judge": judge, "typ": typ, "title": title}
+        price = shift(last, self.slip * d)                     # 買進往上讓、賣出往下讓
+        self.send("進場", "B" if d > 0 else "S", self.qty, price, typ)
+        self.state = ENTERING
+
+    def can_enter(self, code, judge):
+        if self.state != IDLE:
+            return f"目前{self.state}(一次只做一筆)"
+        if self.stop_file.exists():
+            return "緊急停止(STOP 檔案存在)"
+        if self.judges and judge not in self.judges:
+            return f"{judge} 不在 TRADE_JUDGES"
+        if self.n_trades >= self.max_n:
+            return f"今天已做 {self.n_trades} 筆(上限 {self.max_n})"
+        if self.pnl <= -self.max_loss:
+            return f"今天已虧 {-self.pnl:,.0f}(上限 {self.max_loss:,.0f})"
+        hm = self.now().strftime("%H:%M")
+        if not ("09:00" <= hm < "13:20"):
+            return "不在 09:00~13:20"
+        return None
+
+    # ── 下單 ──
+    def send(self, purpose, side, lots, price, typ):
+        p = self.pos
+        self.seq = getattr(self, "seq", 0) + 1
+        tag = f"T{self.now().strftime('%H%M%S')}{self.seq:03d}"           # 自訂編號(BasketNo,限 32 英數字),回報會帶回來
+        self.order = {"no": None, "tag": tag, "purpose": purpose, "side": side, "want": lots * 1000, "filled": 0, "cost": 0.0, "at": time.time(), "price": price}
+        self.log(f"[交易] 送單 {purpose} {p['code']} {'買' if side == 'B' else '賣'} {lots} 張 限價 {price}(委託種類 {typ},IOC)")
+        no = self.gw.send(p["code"], p["mkt"], side, lots, price, typ, "3", tag)
+        if no:
+            self.order["no"] = str(no).strip()
+
+    def exit_pos(self, why, px):
+        p = self.pos
+        if self.state != HOLDING or not p:
+            return
+        self.log(f"[交易] 出場 {p['code']}:{why}(現價 {px})")
+        p["exit_why"] = why
+        side = "S" if p["dir"] > 0 else "B"
+        self.send("平倉", side, p["qty"], shift(px, -self.slip * p["dir"]), p["typ"])
+        self.state = EXITING
+
+    def after_report(self):
+        o, p = self.order, self.pos
+        if not o:
+            return
+        done = o["filled"] >= o["want"] or o.get("dead")
+        if not done:
+            return
+        lots = o["filled"] // 1000; avg = o["cost"] / o["filled"] if o["filled"] else 0
+        self.order = None
+        if o["purpose"] == "進場":
+            if lots == 0:
+                self.log("[交易] 進場沒成交,回到空閒"); self.pos = None; self.state = IDLE; return
+            p["qty"], p["entry"] = lots, avg
+            self.state = HOLDING; self.n_trades += 1
+            self.log(f"[交易] 持倉 {p['code']} {'多' if p['dir'] > 0 else '空'} {lots} 張 均價 {avg:.2f} 停利 {p['tp']} 停損 {p['sl']}")
+            return
+        # 平倉
+        if lots:
+            pnl = (avg - p["entry"]) * lots * 1000 * p["dir"]
+            fee = (avg + p["entry"]) * lots * 1000 * 0.001425 * float(self.cfg.get("TRADE_FEE_DISCOUNT", "0.3"))
+            tax = (avg if p["dir"] > 0 else p["entry"]) * lots * 1000 * 0.0015
+            net = pnl - fee - tax; self.pnl += net
+            p["qty"] -= lots
+            self.journal.append({"code": p["code"], "dir": p["dir"], "entry": p["entry"], "exit": avg, "lots": lots, "net": round(net), "why": p.get("exit_why")})
+            self.log(f"[交易] 平倉 {p['code']} {lots} 張 @ {avg:.2f} 淨 {net:+,.0f}(今天累計 {self.pnl:+,.0f})")
+        if p["qty"] > 0:      # 還沒平完 → 讓價更多再送
+            px = self.last_px.get(p["code"], avg or p["entry"])
+            self.log(f"[交易] 還剩 {p['qty']} 張沒平,再送")
+            self.send("平倉", "S" if p["dir"] > 0 else "B", p["qty"], shift(px, -(self.slip + 3) * p["dir"]), p["typ"])
+            return
+        self.pos = None; self.state = IDLE
+
+
+def fetch_signals(worker_url, day):
+    """抓手機今天的通知(雲端紀錄,新的在前)→ 回傳舊到新"""
+    try:
+        r = urllib.request.urlopen(f"{worker_url.rstrip('/')}/?log=get&d={day}", timeout=10)
+        return list(reversed(json.loads(r.read().decode("utf-8"))))
+    except Exception:
+        return []
