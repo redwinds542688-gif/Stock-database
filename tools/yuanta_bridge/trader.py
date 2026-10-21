@@ -53,6 +53,10 @@ class Trader:
         # 2026-10-22 使用者:「在股票交易啟動當下 直接預掛停損是最好方式」:進場成交後馬上在元大主機掛二擇一條件單(OCO)——
         #   停損、停利兩個條件,觸發就送漲停買回 / 跌停賣出(ROD)。程式或網路斷了元大照樣平倉。OCO 在的時候,程式自己的停利停損只記錄不下單
         self.broker_stop = cfg.get("TRADE_BROKER_STOP", "1") == "1"
+        # 2026-10-22 使用者:「其實 1:25 到 1:30 才掛單很危險」(收盤集合競價,價格交給 13:30 撮合):強制平倉提早到 TRADE_FORCE_EXIT(13:20),
+        #   還在逐筆撮合,掛漲停 / 跌停 ROD 馬上照市價成交;新進場只到 TRADE_LAST_ENTRY(13:10),免得進場沒多久就被強制平倉
+        self.force_exit = cfg.get("TRADE_FORCE_EXIT", "13:20")
+        self.last_entry = cfg.get("TRADE_LAST_ENTRY", "13:10")
         self.type_long = cfg.get("TRADE_TYPE_LONG", "0")           # 委託種類:0 現股(使用者:「做多只需要 現股 亮起來即可」),買進、賣出都用 0
         self.type_short = cfg.get("TRADE_TYPE_SHORT", "9")         # 9 現股當沖委託控管(先賣後買)= 元大 App 下單畫面的「沖」(使用者:「做空要按 沖 亮起來才能做空」)
         self.stop_file = Path(cfg.get("TRADE_STOP_FILE", "/opt/yuanta_bridge/STOP"))
@@ -228,10 +232,10 @@ class Trader:
     def step(self, signals=None):
         with self.lock:
             hm = self.now().strftime("%H:%M")
-            if self.state == HOLDING and hm >= "13:25":
+            if self.state == HOLDING and hm >= self.force_exit:
                 # 2026-10-22 使用者:「1:25 後還有沒贖回的股票,必須掛漲停價(做空)或跌停價(做多)贖回,1:30 一定會成交(除非漲停或跌停)」:
                 #   13:25~13:30 收盤集合競價不接受市價 / IOC / FOK,一律掛漲停 / 跌停 ROD(不管 TRADE_EXIT_MODE)
-                self.exit_pos("13:25 強制平倉", self.last_px.get(self.pos["code"], self.pos["entry"]), force_limit=True)
+                self.exit_pos(f"{self.force_exit} 強制平倉", self.last_px.get(self.pos["code"], self.pos["entry"]), force_limit=True)
             o = self.order
             if o and o["purpose"] == "平倉" and o.get("tif") == "0":
                 if not o.get("dead") and time.time() - o["at"] > 30 and not o.get("warned"):
@@ -291,8 +295,8 @@ class Trader:
         if self.pnl <= -self.max_loss:
             return f"今天已虧 {-self.pnl:,.0f}(上限 {self.max_loss:,.0f})"
         hm = self.now().strftime("%H:%M")
-        if not ("09:00" <= hm < "13:20"):
-            return "不在 09:00~13:20"
+        if not ("09:00" <= hm < self.last_entry):
+            return f"不在 09:00~{self.last_entry}"
         return None
 
     # ── 下單 ──

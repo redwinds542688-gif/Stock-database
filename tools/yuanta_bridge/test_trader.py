@@ -103,6 +103,12 @@ NOW[0] = dt.datetime(2026, 10, 22, 13, 25, tzinfo=TW); t21.step()
 assert g21.sent[-1] == ("6269", "B", 1, 0, "9", "0", "H"), g21.sent[-1]
 t21.on_report(50, "A0002", 24, 0, 0, basket=g21.tags[-1]); assert g21.sent[-1][6] == "H"      # 失效再送也是漲停 ROD
 NOW[0] = dt.datetime(2026, 10, 22, 10, 0, tzinfo=TW)
+# 22) 13:20 強制平倉(集合競價前,還在逐筆撮合);13:10 以後不進場
+t22, g22 = mk(); t22.on_tick("6269", 86.2); t22.step([ENT]); t22.on_report(51, "A0001", 0, 1000, 86.1)
+NOW[0] = dt.datetime(2026, 10, 22, 13, 19, tzinfo=TW); t22.step(); assert t22.state == HOLDING
+NOW[0] = dt.datetime(2026, 10, 22, 13, 20, tzinfo=TW); t22.step(); assert t22.state == EXITING and g22.sent[-1][5:] == ("0", "H") and "13:20 強制平倉" in t22.pos["exit_why"]
+NOW[0] = dt.datetime(2026, 10, 22, 13, 12, tzinfo=TW); t23, g23 = mk(); t23.on_tick("6269", 86.2); t23.step([ENT]); assert t23.state == IDLE and "13:10" in logs[-1]
+NOW[0] = dt.datetime(2026, 10, 22, 10, 0, tzinfo=TW)
 # 10) 沒開啟 → 不交易
 t10, g10 = mk(TRADE_ENABLE="0"); t10.on_tick("6269", 86.2); t10.step([ENT]); assert not g10.sent
-print("trader.py 測試通過(21 種情況)")
+print("trader.py 測試通過(23 種情況)")
