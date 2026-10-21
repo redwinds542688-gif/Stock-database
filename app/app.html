@@ -117,6 +117,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-21 14:45 K 線圖拿掉 Ka 線上的 Ka×Kb 穿越小點(使用者:「K 圖要乾淨」);指標三的紫線照樣標這些點。K 線圖只留 K 棒、Ka、Kb、最高 / 最低價、十字線那根的量。
   · 2026-10-21 15:00 選股振幅 4% → 3%(使用者:「挑選股票 振幅改 3% 設定調整最低也一樣」):make_pool MIN_AMP / AVG5_MIN_AMP 3.0;設定「最低振幅」滾輪最低 3.0%、預設 3.0%,舊存檔 4.0% 的搬一次到 3.0%,長按 3/4/5/8 循環。
   · 2026-10-21 15:10 選股拿掉「5 天中至少 3 天振幅達標」,只看 5 日平均振幅 ≥ 3%(使用者:「選股 五天 平均 也一樣 3% 以上即可」;AVG5_MIN_HITS 0)。
+  · 2026-10-21 15:40 監控檔數改 49(使用者:「維持 6000 張 監控股票改為 49」):預設 49,舊存檔搬一次到 49,之後自己撥的會保留。
   · 2026-10-21 06:00 撤掉 05:50 的「當天漲 ≥ 2.5% 不亮做空」(使用者「撤掉 重新找其他方法」):YH.lampNoShortUpPct = 0。
   · 2026-10-21 05:50 當天漲 ≥ 2.5% 不亮做空(使用者「改」;榮科、建榮、中釉大漲中的做空 7 錯 3 對)。今天 14 檔做多 / 做空燈 34 對 31 錯 → 31 對 27 錯;
     有變的只有榮科、建榮、中釉(錯的消掉)、聯嘉投控(09:24 對的消掉、09:31 / 09:39 多 2 次錯)、光鼎(09:51 晚 1 根),其他 9 檔不變。
@@ -1673,7 +1674,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610211510">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610211540">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2222,7 +2223,7 @@ window.MONITOR_SETTINGS = {
 
   cnt: {                      // 監控檔數
     label: '監控檔數',
-    init : 99,                  // 2026-10-18 使用者:最多 99 股(之前 100);2026-10-17 由 33 改 100
+    init : 49,                  // 2026-10-21 使用者:「監控股票改為 49」(原 99);2026-10-18 使用者:最多 99 股(之前 100);2026-10-17 由 33 改 100
     range: ['99', '89', '79', '69', '59', '49', '39', '29', '19'],
   },
 
@@ -2967,13 +2968,15 @@ if (!['99','89','79','69','59','49','39','29','19'].includes(String(saved.cnt)))
 if (!saved.hi350 && String(saved.hi) === '300') saved.hi = '350';
 /* 2026-10-21 最低振幅預設 4.0% → 3.0%(使用者:「挑選股票 振幅改 3% 設定調整最低也一樣」):舊存檔還是 4.0% 的只搬一次 */
 if (!saved.amp3 && String(saved.amp) === '4.0%') saved.amp = '3.0%';
+/* 2026-10-21 使用者:「維持 6000 張 監控股票改為 49」:監控檔數改 49(只搬一次,之後自己撥的會保留) */
+if (!saved.cnt49) saved.cnt = '49';
 /* 任何滾輪一撥動就立刻寫入,不等退出、不等關閉 */
 const saveFees = () => {
   const txt = JSON.stringify({
     hi: wHi.value, lo: wLo.value, amp: wAmp.value,
     disc: wFee.value, cnt: wCnt.value, cap: wCap.value,
     broker: wBroker.value, exch: wExch.value, tax: wTax.value,
-    cnt100: true, hi350: true, amp3: true,
+    cnt100: true, hi350: true, amp3: true, cnt49: true,
   });
   try { localStorage.setItem(STORE_KEY, txt); } catch (e) { /* 無法存檔時忽略 */ }
   try { if (window.Android && Android.setPref) Android.setPref(STORE_KEY, txt); } catch (e) {}   // App 也存一份(2026-10-19)
@@ -3075,7 +3078,7 @@ const wLo  = makeWheel('wLo',  buildVals(CFG.lo   && CFG.lo.range),
 const wAmp = makeWheel('wAmp', buildVals(CFG.amp  && CFG.amp.range),
                        startVal('amp', '3.0%'), onFeeChange);
 const wCnt = makeWheel('wCnt', buildVals(CFG.cnt  && CFG.cnt.range),
-                       startVal('cnt', 99), onFeeChange, {loop: true});   // 2026-10-18 使用者:最多 99,99/89/…/19 循環
+                       startVal('cnt', 49), onFeeChange, {loop: true});   // 2026-10-18 使用者:最多 99,99/89/…/19 循環
 function capFund(){ const v = parseFloat((wCap && wCap.value) || '') * 10000; return v > 0 ? v : 350000; }   // 2026-10-19 多空上限(元):設定滾輪「35萬」→ 350000;讀不到才用 35 萬
 const wCap = makeWheel('wCap', buildVals(CFG.cap  && CFG.cap.range),
                        startVal('cap', '35萬'), onCapChange);
