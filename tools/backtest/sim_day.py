@@ -524,6 +524,8 @@ for i in range(1, len(c)):
     if conf and not far and OB10DIR and not np.isnan(obma[i-1]) and not ((obma[i] - obma[i-1]) * side > 0): far = True; tag += ' [藍線方向不符,只記錄]'
     KMADIR = os.environ.get('KMADIR','0') == '1'; KMA2 = int(os.environ.get('KMA2','0'))   # 2026-10-20 測試(使用者看友達元大圖:「判二 9:37 K10 是下跌、9:42 K10 在 K24 下面,這兩種情況都不適合做多」):確認點(含強訊號)均價 10 要同向;均價 10 要在均價 KMA2 的正確側
     if conf and not far and KMADIR and not ((ma[i] - ma[i-1]) * side > 0): far = True; tag += f' [均價 10 {"降" if side==1 else "升"},不符方向,只記錄]'
+    SHRINK = float(os.environ.get('SHRINK','0'))   # 2026-10-21 測試(使用者:GIS「回測量縮下跌不做空」):做空時最近 10 根均量 ÷ 今天到此刻每分鐘均量 < SHRINK → 只記錄
+    if conf and not far and SHRINK > 0 and side == -1 and i >= 10 and np.mean(v[i-9:i+1]) / max(cv[i] / (i + 1), 1e-9) < SHRINK: far = True; tag += f' [量縮下跌 {np.mean(v[i-9:i+1]) / max(cv[i] / (i + 1), 1e-9):.2f},只記錄]'
     if conf and not far and KMA2 > 0:
         if 'kma2' not in globals() or globals().get('kma2n') != KMA2: globals()['kma2'] = pd.Series(c).rolling(KMA2).mean().values; globals()['kma2n'] = KMA2
         _m2 = globals()['kma2'][i]
