@@ -375,7 +375,15 @@ for i in range(1, len(c)):
             _offhi = (np.max(h[:i+1]) - c[i]) / c[i] * 100; _offlo = (c[i] - np.min(l[:i+1])) / c[i] * 100
             _rv = np.mean(v[max(0,i-10):i+1]) / max(np.mean(v[:i+1]), 1e-9)
             _gapok = PGAP <= 0 or abs(o[0] - prev) / prev * 100 > PGAP
-            if _maDown and _touch and _under and _obvDown and _newlow and _offhi <= PCH and _offlo >= PLO and _rv < PRV and _gapok and _redok: side = -1; xconf = True
+            PSIDE = os.environ.get('PRESSSIDE', 'short')   # 2026-10-21 測試(使用者:「判三 做多不行嗎」):long = 鏡像「撐線多點」、both = 兩邊都做
+            if PSIDE in ('short', 'both') and _maDown and _touch and _under and _obvDown and _newlow and _offhi <= PCH and _offlo >= PLO and _rv < PRV and _gapok and _redok: side = -1; xconf = True
+            if PSIDE in ('long', 'both') and side == 0:
+                _maUp = ma[i] > ma[i-1] > ma[i-2]
+                _touchL = min(l[i], l[i-1]) <= ma[i] * (1 + PT/100)
+                _over = c[i] > ma[i] and c[i] > o[i]
+                _obvUp = ob[i] > obma[i] > obma2[i] and obma[i] > obma[i-1] and obma2[i] > obma2[i-1]
+                _newhi = ob[i] >= np.max(ob[i-PNL:i]) and c[i] < np.max(h[i-PNL:i]) * (1 - PNLM/100)
+                if _maUp and _touchL and _over and _obvUp and _newhi and _offlo <= PCH and _offhi >= PLO and _rv < PRV and _gapok: side = 1; xconf = True
     else:
         side = 1 if (kUp and oUp and between and pUp and not doji) else (-1 if (kDn and oDn and between and pDn and not doji) else 0)
     STRONG = os.environ.get('STRONG','0'); strong = False   # 2026-10-18 測試(使用者提議,友達 10/16 10:30):強訊號 = 紅線在 OBV10 與 OBV30 之下 + 兩條藍線都在降 + 價在均價下且均價降;剛成立那根直接當確認點
