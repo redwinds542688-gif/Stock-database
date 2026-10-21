@@ -21,6 +21,7 @@ try:
                 for _k in range(_pm[0] + 1, _m): _rows.append((f'{_k//60:02d}:{_k%60:02d}', _pm[1], _pm[1], _pm[1], _pm[1], 0.0))
             _rows.append((_r.time, float(_r.open), float(_r.high), float(_r.low), float(_r.close), float(_r.volume))); _pm = (_m, float(_r.close))
         t = pd.DataFrame(_rows, columns=['time','open','high','low','close','volume'])
+        _yd = df[df.date == DAY]; _yhl = dict(zip(_yd.time, zip(_yd.high.astype(float), _yd.low.astype(float))))   # XHL:Yahoo 同一分鐘的真實高低
     _s = [s for s in P['pool'] if s['code']==code][0]; prev = _s['close'] if _s.get('date','') < DAY else _s['prev']; src='GitHub 官方資料'   # 清單日期早於模擬日 → 昨收 = 清單那天的收盤
     if len(t)==0: raise Exception('no rows')
     _pk = df[df.date < DAY]; prevK = float(_pk.close.values[-1]) if len(_pk) else prev   # 2026-10-20 判三開盤缺口用:K 線裡前一個交易日的最後收盤(回測池檔可能是兩天前的,昨收會錯)
@@ -53,6 +54,14 @@ obma = pd.Series(ob).rolling(OB).mean().values
 OB2 = int(os.environ.get('OB2','20')); obma2 = pd.Series(ob).rolling(OB2).mean().values   # 第二條 OBV 均線(平倉用)
 OBF = int(os.environ.get('OBF','3')); obmaF = pd.Series(ob).rolling(OBF).mean().values   # 快速 OBV 均線(瞬間反彈警示用)
 hi = np.maximum.accumulate(h); lo = np.minimum.accumulate(l)
+# 2026-10-21 使用者(和益 09:53 手機停損、模擬器沒停 →「改 模擬器停損用 Yahoo 高低」):雲端 K 每分鐘只有一個快照價,高低點只是前後兩個快照,
+#   盤中衝高拉回看不到(和益 09:53 / 09:55 雲端高 57.0 / 57.1,Yahoo 真實高 57.5 / 57.7;手機每 5 秒看即時價 57.2 就停損)。
+#   KSRC=cloud 時停損 / 停利改用 Yahoo 同一分鐘的高低(和雲端高低取較寬的);停損出場價 = 停損價(手機碰到就用現價平),跳空超過才用下一根開盤。訊號照舊用雲端 K。XHL=0 關掉
+XHL = os.environ.get('KSRC','yahoo') == 'cloud' and os.environ.get('XHL','1') == '1' and '_yhl' in globals()
+xh = h.copy(); xl = l.copy()
+if XHL:
+    for _i, _tm in enumerate(t.time):
+        if _tm in _yhl: xh[_i] = max(h[_i], round(_yhl[_tm][0], 2)); xl[_i] = min(l[_i], round(_yhl[_tm][1], 2))
 cv = np.cumsum(v); vwapArr = np.cumsum((h+l+c)/3*v)/np.maximum(cv, 1e-9)
 rvBase = None
 # 2026-10-21 指標三測試(使用者:「先測 判一,二,三 效果好再改」):KAKB = Ka(均價 10,當天)要在 Kb(均價 24,跨日)之上才做多(L)/ 之下才做空(S);
@@ -176,7 +185,7 @@ def close_trade(sd, k0, ent, lots, tm, ex, why):
 for i in range(1, len(c)):
     tm = t.time[i]
     if cyc:
-        sd, k0, ent, lots = cyc; best = h[i] if sd == 1 else l[i]; worst = l[i] if sd == 1 else h[i]
+        sd, k0, ent, lots = cyc; best = xh[i] if sd == 1 else xl[i]; worst = xl[i] if sd == 1 else xh[i]; _spx = None
         gain = (best-ent)/ent*100*sd; loss = (ent-worst)/ent*100*sd; move = (c[i]-prev)/prev*100
         why = None
         if tm >= '13:25': why = '13:25 強制平倉'
@@ -191,11 +200,11 @@ for i in range(1, len(c)):
         if why is None and os.environ.get('STOPMODE','pct') in ('origin', 'pts') and globals().get('_ost', (None,))[0] is not None and (globals()['_ost'][0]-ent)*sd < 0:
             _op = globals()['_ost'][0]; _risk = abs(_op-ent)/ent*100
             _cap = float(os.environ.get('STOPCAP','99')); _mn = float(os.environ.get('STOPMIN','0'))
-            if _risk > _cap: _hit = loss >= _cap; _lb = f'停損 {_cap:g}%(起點太遠)'
-            elif _risk < _mn: _hit = loss >= _mn; _lb = f'停損 {_mn:g}%(起點太近)'
-            else: _hit = (h[i] > _op) if sd == -1 else (l[i] < _op); _lb = f'起{"跌" if sd==-1 else "漲"}點停損 {_op:g}'
+            if _risk > _cap: _hit = loss >= _cap; _lb = f'停損 {_cap:g}%(起點太遠)'; _spx = ent*(1-_cap/100*sd)
+            elif _risk < _mn: _hit = loss >= _mn; _lb = f'停損 {_mn:g}%(起點太近)'; _spx = ent*(1-_mn/100*sd)
+            else: _hit = (xh[i] > _op) if sd == -1 else (xl[i] < _op); _lb = f'起{"跌" if sd==-1 else "漲"}點停損 {_op:g}'; _spx = _op
             if _hit: why = _lb
-        elif why is None and loss >= float(os.environ.get('STOP','1.5')): why = f'停損 {float(os.environ.get("STOP","1.5")):g}%'
+        elif why is None and loss >= float(os.environ.get('STOP','1.5')): why = f'停損 {float(os.environ.get("STOP","1.5")):g}%'; _spx = ent*(1-float(os.environ.get('STOP','1.5'))/100*sd)
         elif (sd == -1 and move >= 6) or (sd == 1 and move <= -6): why = '超過 6%'
         OBVX = os.environ.get('OBVX','0'); OBVXMIN = float(os.environ.get('OBVXMIN','0'))
         OBFPCT = float(os.environ.get('OBFPCT','0')); OBFMODE = os.environ.get('OBFMODE','all')   # 快速 OBV 均線:紅線反向超過藍線 OBFPCT%(÷當日 OBV 範圍)就出;mode all/gain0/gain1
@@ -241,6 +250,7 @@ for i in range(1, len(c)):
             elif why.startswith('停利'): ex = round(ent*(1+TAKE/100*sd), 2)
             elif why.startswith('保本'): ex = ent
             else: ex = o[i+1] if i+1 < len(c) else c[i]
+            if XHL and '停損' in why and _spx is not None and (ex - _spx)*sd > 0: ex = round(_spx, 2)   # 停損價還沒到下一根開盤就已經碰到 → 用停損價
             close_trade(sd, k0, ent, lots, tm, ex, why); log.append(f'{tm} {why} 出 {ex:.2f}'); cyc = None
             if why.startswith('停利') or why.startswith('OBV'): lastTP[sd] = i   # 2026-10-18 測試:停利後同方向冷卻
             _er = os.environ.get('EXITRESET','0')   # 2026-10-18 測試:出場後同方向的「第 1 個點」作廢,要重新數(tp=只有停利後;all=任何出場後)
