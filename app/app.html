@@ -107,6 +107,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-21 10:30 頂端「量」改成永遠是今天到現在的總量(使用者:「App 才 3 萬多 元大已經 7-8 萬了」→「選 1」;原本是到十字線那分鐘的累積量);十字線那根自己的量(張)顯示在 K 圖虛線旁(placeXVol)。
   · 2026-10-21 10:45 紅色「回到最新一根」箭頭按下去,圖也捲回最右邊(使用者:「按下去也沒有跑到最新的啊」;原本只把十字線移到最新一根,最新一根不在畫面裡就看起來沒反應)。真正原因:指標三的兩條線只畫到最後一個交叉點,時間軸比 K 線短,三張圖同步捲動時被指標三卡住,最新幾根 K 一直在畫面外;指標三補一條看不見、每根 K 都有值的線把時間軸撐到最新一根。
   · 2026-10-21 11:00 十字線固定在舊的 K 時,燈號 / 多空天秤跟著那根(使用者:台郡 09:49「這是做空點嗎?」;原本盤中每次重畫都被蓋成最新一根的燈號,09:49 是做多卻亮著做空)。
+  · 2026-10-21 11:30 沒有通知過進場的部位不發反彈警示(使用者「改」;TPK 判一 10:23~10:25 收到「可能正在反彈」「股價已反彈」,但那筆 09:41 的進場是雲端 K 重算後才多出來的過去訊號,沒通知過)。只改通知,判別式進出場規則不變。
   · 2026-10-21 06:00 撤掉 05:50 的「當天漲 ≥ 2.5% 不亮做空」(使用者「撤掉 重新找其他方法」):YH.lampNoShortUpPct = 0。
   · 2026-10-21 05:50 當天漲 ≥ 2.5% 不亮做空(使用者「改」;榮科、建榮、中釉大漲中的做空 7 錯 3 對)。今天 14 檔做多 / 做空燈 34 對 31 錯 → 31 對 27 錯;
     有變的只有榮科、建榮、中釉(錯的消掉)、聯嘉投控(09:24 對的消掉、09:31 / 09:39 多 2 次錯)、光鼎(09:51 晚 1 根),其他 9 檔不變。
@@ -1663,7 +1664,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610211100">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610211130">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5854,12 +5855,15 @@ async function bgTick(force, replay){
           }else if (m.text === '彈'){
             // 2026-10-18 反彈警示:紅線反向穿過 OBV 均 30、帳面不到 1% 所以沒平倉 → 通知「股價已反彈」,部位不動
             const pos = BG.pos.get(pk);
+            // 2026-10-21 使用者「改」(TPK 判一 10:23 收到反彈警示,卻沒收到進場通知):沒有通知過進場的部位(雲端 K 重算後才多出來的過去訊號等)不發反彈警示
+            if (!pos){ bgLog(code + ' 沒有通知過進場,不發「股價已反彈」 ' + k); continue; }
             const pl = pos ? (nowPx - pos.entry) / pos.entry * 100 * pos.dir : null;
             const plTxt = pl === null ? '' : ` 帳面 ${pl >= 0 ? '+' : ''}${pl.toFixed(1)}%`;
             bgNotify(`⚠ ${nm} ${code} 股價已反彈${plTxt}`, `${t} ${pos ? `${pos.side} ${pos.time} 進 ${pos.entry.toFixed(2)} → ` : ''}現價 ${nowPx} · OBV 反向穿越 OBV 均${SIG.obvExitMa},帳面未達 ${SIG.obvExitMinGain}% 不平倉`, 'warn');
           }else if (m.text === '注'){
             // 正在反彈警示:只通知,部位不動(2026-10-17)
             const pos = BG.pos.get(pk);
+            if (!pos){ bgLog(code + ' 沒有通知過進場,不發「可能正在反彈」 ' + k); continue; }   // 2026-10-21 使用者「改」:同上
             const pl = pos ? (nowPx - pos.entry) / pos.entry * 100 * pos.dir : null;
             const plTxt = pl === null ? '' : ` 帳面 ${pl >= 0 ? '+' : ''}${pl.toFixed(1)}%`;
             bgNotify(`⚠ ${nm} ${code} 可能正在反彈,注意${plTxt}`, `${t} ${pos ? `${pos.side} ${pos.time} 進 ${pos.entry.toFixed(2)} → ` : ''}現價 ${nowPx} · OBV 反向穿越 OBV 均${SIG.obvWarnMa}`, 'warn');
