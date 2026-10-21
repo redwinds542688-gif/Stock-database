@@ -58,6 +58,14 @@ def load_sdk():
     return Y, List
 
 
+# 元大文件「回應事件」的 dwIndex 對照
+SYS_MSG = {0: "其他訊息", 1: "Connect", 2: "Disconnect", 3: "網路異常", 4: "需下載新版 API", 5: "尚未連線", 6: "系統公告"}
+QRY_MSG = {0: "總帳 / 子帳登入", 3: "尚未登入", 4: "輸入的登入帳號錯誤", 5: "功能代碼錯誤或權限不足", 6: "訂閱即時回報失敗",
+           7: "SocketRPRead 失敗", 9: "加簽失敗 / 憑證異常", 10: "Logout", 11: "帳號資訊異常", 12: "取得已訂閱商品清單異常"}
+QRY_FATAL = {4, 5, 9, 11}      # 帳號錯、沒權限、憑證壞、帳號資訊異常:重試也沒用,當天停止(錯的帳密連續試會被鎖)
+QRY_RELOGIN = {3, 10}          # 尚未登入、被登出:重新連線登入
+
+
 class LoginRejected(Exception):
     """元大明確拒絕登入(帳密錯、密碼凍結、沒權限):不能一直重試,錯的密碼連續試會把帳號鎖住"""
 
@@ -81,7 +89,7 @@ class Bridge:
         try:
             if intMark == 0:
                 msg = str(objValue)
-                log(f"系統 [{dwIndex}] {msg}")
+                log(f"系統 [{dwIndex} {SYS_MSG.get(int(dwIndex), '')}] {msg}")
                 if dwIndex in (2, 3, 5):        # 2 斷線、3 網路異常、5 尚未連線
                     self.disconnected.set(); self.logged_in.clear()
                 if dwIndex == 4:
@@ -103,8 +111,13 @@ class Bridge:
                         k = lst[i]
                         self.kline_out.append((str(k.TimeStamp), k.OpenPrice, k.HighPrice, k.LowPrice, k.ClosePrice, k.DealVol))
                     return
-                if not strIndex:
-                    log(f"查詢錯誤 [{dwIndex}] {objValue}")
+                if not strIndex or int(dwIndex) in QRY_FATAL or int(dwIndex) in QRY_RELOGIN:
+                    d = int(dwIndex)
+                    log(f"查詢回應 [{d} {QRY_MSG.get(d, '')}] {strIndex or ''} {objValue}")
+                    if d in QRY_FATAL:
+                        self.login_fail = f"{d} {QRY_MSG[d]} {objValue}"
+                    elif d in QRY_RELOGIN:
+                        self.logged_in.clear(); self.disconnected.set()
                     return
                 log(f"查詢回應 {strIndex} [{dwIndex}]")
                 return
@@ -124,8 +137,8 @@ class Bridge:
                     if self.printer:
                         self.printer(f"{r.StkCode} {t.bytHour:02d}:{t.bytMin:02d}:{t.bytSec:02d}.{t.ushtMSec:03d} 序 {sn} 價 {r.DealPrice} 量 {r.DealVol} 內外 {flag}")
                     return
-                if not strIndex:
-                    log(f"訂閱錯誤 [{dwIndex}] {objValue}")
+                if not strIndex or int(dwIndex) == 1:
+                    log(f"!! 訂閱 / 取消訂閱失敗 [{dwIndex}] {strIndex or ''} {objValue}")
                 return
         except Exception as e:      # 事件裡的例外不能丟回元大元件
             log("on_response 例外", e)
@@ -218,6 +231,8 @@ class Bridge:
         fails = 0
         while now_tw().strftime("%H:%M") < "13:36":
             try:
+                if self.login_fail:
+                    raise LoginRejected(self.login_fail)
                 if self.api is None or self.disconnected.is_set():
                     self.close(); self.connect(); self.subscribe(self.codes); fails = 0
                 for _ in range(10):
