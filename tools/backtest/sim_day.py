@@ -188,7 +188,8 @@ for i in range(1, len(c)):
         sd, k0, ent, lots = cyc; best = xh[i] if sd == 1 else xl[i]; worst = xl[i] if sd == 1 else xh[i]; _spx = None
         gain = (best-ent)/ent*100*sd; loss = (ent-worst)/ent*100*sd; move = (c[i]-prev)/prev*100
         why = None
-        if tm >= '13:25': why = '13:25 強制平倉'
+        _FE = os.environ.get('FORCEEXIT', '13:25')   # 2026-10-22 測試(使用者:「手機通知也改成 13:20」):強制平倉時間,預設 13:25
+        if tm >= _FE: why = f'{_FE} 強制平倉'
         elif gain >= TAKE: why = f'停利 {TAKE:g}%'
         # 2026-10-21 測試(使用者:今天和益 +1.6%、台郡 +0.9% 沒保住 →「跑」):BEPCT = 帳面曾經賺到 x% 後,價格回到進場價就保本出場;OBVXPEAK = 曾經賺到 x% 也算 OBV 反轉出場的「獲利中」
         if globals().get('_mfk') != (k0, ent): globals()['_mfk'] = (k0, ent); globals()['_mfe'] = 0.0
@@ -251,7 +252,7 @@ for i in range(1, len(c)):
                 elif DXEXIT in ('cross','both') and _cr: why = 'OBV10反向穿過OBV30'
         if why is None: globals()['_mfe'] = max(globals()['_mfe'], gain)
         if why:
-            if why.startswith('13:25'): ex = o[i]
+            if why.endswith('強制平倉'): ex = o[i]
             elif why.startswith('OBV'): ex = o[i+1] if i+1 < len(c) else c[i]
             elif why.startswith('停利'): ex = round(ent*(1+TAKE/100*sd), 2)
             elif why.startswith('保本'): ex = ent
@@ -261,7 +262,7 @@ for i in range(1, len(c)):
             if why.startswith('停利') or why.startswith('OBV'): lastTP[sd] = i   # 2026-10-18 測試:停利後同方向冷卻
             _er = os.environ.get('EXITRESET','0')   # 2026-10-18 測試:出場後同方向的「第 1 個點」作廢,要重新數(tp=只有停利後;all=任何出場後)
             if _er == 'all' or (_er == 'tp' and why.startswith('停利')): last[sd] = None
-            if why.startswith('13:25'): break
+            if why.endswith('強制平倉'): break
     if os.environ.get('DEBUGWIN') and os.environ['DEBUGWIN'].split('-')[0] <= tm <= os.environ['DEBUGWIN'].split('-')[1] and not np.isnan(ma[i-1]):
         _kUp = c[i] > ma[i] and ma[i] > ma[i-1]; _kDn = c[i] < ma[i] and ma[i] < ma[i-1]
         _oUp = ob[i] > ob[i-1] and obma[i] > obma[i-1] and ob[i] > obma[i]; _oDn = ob[i] < ob[i-1] and obma[i] < obma[i-1] and ob[i] < obma[i]
