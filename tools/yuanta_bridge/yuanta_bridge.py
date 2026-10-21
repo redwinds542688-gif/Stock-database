@@ -6,7 +6,7 @@
 用法(設定見 bridge.env.example,帳號密碼只放在主機上,不要進 GitHub):
   python3 yuanta_bridge.py run            # 常駐:每天 08:45 連線、13:36 收工,隔天再來
   python3 yuanta_bridge.py test 2330      # 連線 + 登入 + 訂閱一檔,印出逐筆成交 60 秒(驗證環境用)
-  python3 yuanta_bridge.py kline 2330 2026/10/22   # 查元大當天 1 分 K(和推上去的比對用)
+  python3 yuanta_bridge.py kline 2330 2026/10/22   # 查元大當天 1 分 K(和推上去的比對用;上櫃股最後加 otc)
 
 只接行情,不下單。
 """
@@ -262,8 +262,9 @@ def main():
         time.sleep(60); b.close(); return
     if cmd == "kline":
         code, day = sys.argv[2], sys.argv[3]
+        mkt = b.Y.enumMarketType.TWOTC if (len(sys.argv) > 4 and sys.argv[4].lower() in ("otc", "tpex", "twotc")) else b.Y.enumMarketType.TWSE
         b.kline_out = []; b.connect()
-        b.api.GetKLine(CFG["YT_ACCOUNT"], b.Y.KLineType(0), b.Y.enumMarketType.TWSE, code, day, day)   # 0 = 一分線
+        b.api.GetKLine(CFG["YT_ACCOUNT"], b.Y.KLineType(0), mkt, code, day, day)   # KLineType 0 = 一分線(元大文件「列舉物件」);上櫃股加參數 otc
         time.sleep(5)
         for k in b.kline_out: print(*k)
         b.close(); return
