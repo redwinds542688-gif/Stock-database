@@ -229,7 +229,9 @@ class Trader:
         with self.lock:
             hm = self.now().strftime("%H:%M")
             if self.state == HOLDING and hm >= "13:25":
-                self.exit_pos("13:25 強制平倉", self.last_px.get(self.pos["code"], self.pos["entry"]))
+                # 2026-10-22 使用者:「1:25 後還有沒贖回的股票,必須掛漲停價(做空)或跌停價(做多)贖回,1:30 一定會成交(除非漲停或跌停)」:
+                #   13:25~13:30 收盤集合競價不接受市價 / IOC / FOK,一律掛漲停 / 跌停 ROD(不管 TRADE_EXIT_MODE)
+                self.exit_pos("13:25 強制平倉", self.last_px.get(self.pos["code"], self.pos["entry"]), force_limit=True)
             o = self.order
             if o and o["purpose"] == "平倉" and o.get("tif") == "0":
                 if not o.get("dead") and time.time() - o["at"] > 30 and not o.get("warned"):
@@ -306,7 +308,7 @@ class Trader:
         if no:
             self.order["no"] = str(no).strip()
 
-    def exit_pos(self, why, px):
+    def exit_pos(self, why, px, force_limit=False):
         p = self.pos
         if self.state != HOLDING or not p:
             return
@@ -315,12 +317,13 @@ class Trader:
         if p.get("oco_live"):                                   # 先刪元大條件單,免得和程式的平倉單一起成交
             self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False
             self.log(f"[交易] 刪除元大條件單 {p['oco_no']}")
+        p["force_limit"] = force_limit or self.now().strftime("%H:%M") >= "13:25"
         self.send_exit(p["qty"], px)
         self.state = EXITING
 
     def send_exit(self, lots, px):
         p = self.pos; side = "S" if p["dir"] > 0 else "B"
-        if self.exit_mode == "limitup":
+        if self.exit_mode == "limitup" or p.get("force_limit") or self.now().strftime("%H:%M") >= "13:25":
             self.send("平倉", side, lots, 0, p["typ"], "H" if side == "B" else "L", "0")      # 空單買回掛漲停、多單賣出掛跌停,ROD
         else:
             self.send("平倉", side, lots, shift(px, -self.slip * p["dir"]), p["typ"])
@@ -351,7 +354,7 @@ class Trader:
         if p["qty"] > 0:      # 還沒平完(委託失效 / 被取消)→ 再送
             px = self.last_px.get(p["code"], avg or p["entry"])
             self.log(f"[交易] 還剩 {p['qty']} 張沒平,再送")
-            if self.exit_mode == "limitup":
+            if self.exit_mode == "limitup" or p.get("force_limit") or self.now().strftime("%H:%M") >= "13:25":
                 self.send_exit(p["qty"], px)
             else:
                 self.send("平倉", "S" if p["dir"] > 0 else "B", p["qty"], shift(px, -(self.slip + 3) * p["dir"]), p["typ"])

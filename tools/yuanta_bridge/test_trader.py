@@ -97,6 +97,12 @@ t19.resume(tr, {"A1": "T092100001", "A2": "T103701002"}, [], [ENT])
 assert t19.n_trades == 2 and t19.pnl < -3000 and g19.sent[-1] == ("oco", "6269", "TWSE", -1, 1, 84.05, 88.7)
 # 20) 沒有未平部位 → 空閒
 t20, g20 = mk(); assert t20.resume([{"code": "6269", "bs": "S", "lots": 1, "price": 86.1, "time": "1", "order_no": "A1"}, {"code": "6269", "bs": "B", "lots": 1, "price": 85.0, "time": "2", "order_no": "A2"}], {"A1": "T1"}, [], []) is None and t20.state == IDLE and t20.n_trades == 1 and t20.pnl > 0
+# 21) 平倉設定成「讓檔 + IOC」也一樣:13:25 強制平倉一律掛漲停 / 跌停 ROD(集合競價不收 IOC)
+t21, g21 = mk(TRADE_EXIT_MODE="slip"); t21.on_tick("6269", 86.2); t21.step([ENT]); t21.on_report(51, "A0001", 0, 1000, 86.1)
+NOW[0] = dt.datetime(2026, 10, 22, 13, 25, tzinfo=TW); t21.step()
+assert g21.sent[-1] == ("6269", "B", 1, 0, "9", "0", "H"), g21.sent[-1]
+t21.on_report(50, "A0002", 24, 0, 0, basket=g21.tags[-1]); assert g21.sent[-1][6] == "H"      # 失效再送也是漲停 ROD
+NOW[0] = dt.datetime(2026, 10, 22, 10, 0, tzinfo=TW)
 # 10) 沒開啟 → 不交易
 t10, g10 = mk(TRADE_ENABLE="0"); t10.on_tick("6269", 86.2); t10.step([ENT]); assert not g10.sent
-print("trader.py 測試通過(20 種情況)")
+print("trader.py 測試通過(21 種情況)")
