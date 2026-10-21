@@ -90,6 +90,6 @@ sudo -u yuanta /opt/yuanta_bridge/venv/bin/python /opt/yuanta_bridge/yuanta_brid
 - **預設關閉**:`TRADE_ENABLE=1` 才會下單;正式環境還要 `TRADE_ALLOW_PROD=1`。
 
 上線順序:測試環境 `order-test` 試下單回應 → 測試環境 `TRADE_ENABLE=1` 跑幾天(元大測試環境依委託書號尾碼模擬全成交 / 不成交 / 部分成交 / 價穩失效)
-→ 正式環境 1 張、一天 3 筆跑一兩週。**做空的委託種類(`TRADE_TYPE_SHORT`)上線前要和元大確認**(先賣後買要有當沖資格)。
+→ 正式環境 1 張、一天 3 筆跑一兩週。使用者已有當沖資格(2026-10-22);**做空的委託種類(`TRADE_TYPE_SHORT`,目前設 9 現股當沖委託控管)上線前要和元大確認**。
 
 限制:手機通知經過雲端紀錄,KV 列表最慢可能延遲約一分鐘,所以「進場」可能比通知晚;「出場」的停利停損由這裡即時盯,不受影響。
