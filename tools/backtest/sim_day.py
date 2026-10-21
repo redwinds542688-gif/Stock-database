@@ -566,6 +566,17 @@ for i in range(1, len(c)):
             else: far = True; tag += f' [離今低 {(c[i]-_dl)/_dl*100:.1f}% 已漲一段,不追多,只記錄]'
     SHORTMAXPCT = float(os.environ.get('SHORTMAXPCT','99')); LONGMINPCT = float(os.environ.get('LONGMINPCT','-99'))   # 2026-10-19 測試(使用者「找破解」):做空只在當日漲跌 ≤ SHORTMAXPCT%、做多只在 ≥ LONGMINPCT%
     if conf and not far and ((side==-1 and pct > SHORTMAXPCT) or (side==1 and pct < LONGMINPCT)): far = True; tag += f' [當日 {pct:+.2f}% 不符{"做空" if side==-1 else "做多"}條件,只記錄]'
+    # 2026-10-21 測試(使用者:「應該是偏多 少做空(讓做空變嚴格)反之亦然」):BREADTH=每分鐘名單上漲家數比例檔;比例 ≥ BRTH 時做空變嚴格、≤ 1−BRTH 時做多變嚴格
+    #   BRMODE=room:逆勢方向要離今天低點(做空)/ 高點(做多)≥ BRROOM%;black:做空只做黑盤、做多只做紅盤;ban:逆勢方向直接不做(對照)
+    if conf and not far and os.environ.get('BREADTH'):
+        if 'BRD' not in globals(): globals()['BRD'] = json.load(open(os.environ['BREADTH'])).get(DAY, {})
+        _br = BRD.get(tm); _th = float(os.environ.get('BRTH', '0.8')); _md = os.environ.get('BRMODE', 'room')
+        _against = _br is not None and ((side == -1 and _br >= _th) or (side == 1 and _br <= 1 - _th))
+        if _against:
+            _rm = (c[i]-lo[i])/c[i]*100 if side == -1 else (hi[i]-c[i])/c[i]*100
+            if (_md == 'ban') or (_md == 'room' and _rm < float(os.environ.get('BRROOM', '1'))) or (_md == 'black' and pct*side < 0) or (_md == 'both' and (_rm < float(os.environ.get('BRROOM', '1')) or pct*side < 0)):
+                far = True; tag += f' [大盤{"偏多" if side == -1 else "偏空"} {_br:.0%},逆勢條件不足,只記錄]'
+
     OPENMOVE = float(os.environ.get('OPENMOVE','0'))   # 2026-10-19 測試(使用者:「訊號沒錯但我們忽視了什麼關鍵的訊號」):價要先相對今開朝方向走 OPENMOVE% 以上才進(只有 OBV、價還沒跟上 = 不進)
     if conf and OPENMOVE > 0 and not far:
         _om = (c[i]-o[0])/o[0]*100*side
