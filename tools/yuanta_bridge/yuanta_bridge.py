@@ -346,25 +346,53 @@ class Bridge:
                 if last is None: log("等 cloudflared 通道…", e)
             time.sleep(60)
 
+    def query_today(self, with_oco=True):
+        """查元大今天的委託成交回報(+ 有效的二擇一條件單);查不到回 None"""
+        self.resume_buf = {"trades": [], "tags": {}, "oco": [], "got_rpt": False, "got_oco": not with_oco}
+        try:
+            self.api.GetOrderTradeReport(True, CFG["YT_ACCOUNT"])                       # True = 不列出取消單
+            if with_oco:
+                time.sleep(1.2)                                                         # 帳務 / 查詢類一秒最多 3 次
+                self.api.GetConditionStrategy(CFG["YT_ACCOUNT"], self.Y.StrategyType(3), "")   # 3 = 二擇一;空字串 = 全部股票
+            for _ in range(30):
+                if self.resume_buf["got_rpt"] and self.resume_buf["got_oco"]: break
+                time.sleep(0.5)
+            return dict(self.resume_buf) if self.resume_buf["got_rpt"] else None
+        finally:
+            self.resume_buf = None
+
     def resume_positions(self, day):
         """2026-10-22 使用者:「加 啟動時接回部位」:查元大今天的委託成交回報 + 有效的二擇一條件單,交給 trader 接回程式開的未平部位"""
         if not self.trader or not self.trader.enabled:
             return
-        self.resume_buf = {"trades": [], "tags": {}, "oco": [], "got_rpt": False, "got_oco": False}
         try:
-            self.api.GetOrderTradeReport(True, CFG["YT_ACCOUNT"])                       # True = 不列出取消單
-            time.sleep(1.2)                                                             # 帳務 / 查詢類一秒最多 3 次
-            self.api.GetConditionStrategy(CFG["YT_ACCOUNT"], self.Y.StrategyType(3), "") # 3 = 二擇一;空字串 = 全部股票
-            for _ in range(30):
-                if self.resume_buf["got_rpt"] and self.resume_buf["got_oco"]: break
-                time.sleep(0.5)
-            if not self.resume_buf["got_rpt"]:
+            r = self.query_today()
+            if not r:
                 log("!! 接回:查不到今天的成交回報,不接回(有部位請用投資先生手動處理)"); return
-            self.trader.resume(self.resume_buf["trades"], self.resume_buf["tags"], self.resume_buf["oco"], fetch_signals(CFG["WORKER_URL"], day))
+            self.trader.resume(r["trades"], r["tags"], r["oco"], fetch_signals(CFG["WORKER_URL"], day))
         except Exception as e:
             log("接回失敗", e)
-        finally:
-            self.resume_buf = None
+
+    def recheck_positions(self):
+        """2026-10-22 使用者:「13:23 分要再確認一次 還有沒有未沖銷的股票」"""
+        if not self.trader or not self.trader.enabled:
+            return
+        try:
+            r = self.query_today(with_oco=False)
+            if not r:
+                log("!! 13:23 複查:查不到成交回報"); self.trader.alert("⚠ 13:23 複查失敗", "查不到元大成交回報,請在投資先生確認有沒有未沖銷的股票"); return
+            self.trader.recheck(r["trades"])
+        except Exception as e:
+            log("複查失敗", e)
+
+    def phone_alert(self, title, body=""):
+        """發一則提醒到手機的「今日監控紀錄」(Worker ?log=add)"""
+        try:
+            n = now_tw(); it = {"d": n.strftime("%Y-%m-%d"), "t": n.strftime("%H:%M"), "title": title, "body": body + " · 元大中繼", "kind": "warn", "key": "yt|" + title}
+            req = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?log=add", data=json.dumps(it).encode(), method="POST", headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=10)
+        except Exception as e:
+            log("發手機提醒失敗", e)
 
     def make_trader(self):
         cfg = dict(CFG)
@@ -373,7 +401,8 @@ class Bridge:
             cfg["TRADE_ENABLE"] = "0"
         gw = type("GW", (), {"send": lambda _s, *a: self.send_order(*a), "cancel": lambda _s, no, code="": self.cancel_order(no, code),
                              "place_oco": lambda _s, *a: self.place_oco(*a), "delete_oco": lambda _s, no: self.delete_oco(no)})()
-        return Trader(cfg, gw, log, now_tw)
+        t = Trader(cfg, gw, log, now_tw); t.alert = self.phone_alert
+        return t
 
     # ── 推到 Worker ──
     def push(self, day, minute, bars):
@@ -412,7 +441,7 @@ class Bridge:
         self.codes = self.load_codes()
         self.trader = self.make_trader()
         self.trader.prime(fetch_signals(CFG["WORKER_URL"], day))
-        fails = 0; k = 0; resumed = False
+        fails = 0; k = 0; resumed = False; rechecked = False
         while now_tw().strftime("%H:%M") < "13:36":
             try:
                 if self.login_fail:
@@ -424,6 +453,8 @@ class Bridge:
                 time.sleep(1); k += 1
                 sig = fetch_signals(CFG["WORKER_URL"], day) if (self.trader.enabled and k % 3 == 0) else None   # 手機通知每 3 秒看一次
                 self.trader.step(sig)
+                if not rechecked and now_tw().strftime("%H:%M") >= self.trader.recheck_at:
+                    rechecked = True; self.recheck_positions()
                 if k % 10 == 0:
                     self.flush(day)
             except LoginRejected as e:

@@ -109,6 +109,18 @@ NOW[0] = dt.datetime(2026, 10, 22, 13, 19, tzinfo=TW); t22.step(); assert t22.st
 NOW[0] = dt.datetime(2026, 10, 22, 13, 20, tzinfo=TW); t22.step(); assert t22.state == EXITING and g22.sent[-1][5:] == ("0", "H") and "13:20 強制平倉" in t22.pos["exit_why"]
 NOW[0] = dt.datetime(2026, 10, 22, 13, 12, tzinfo=TW); t23, g23 = mk(); t23.on_tick("6269", 86.2); t23.step([ENT]); assert t23.state == IDLE and "13:10" in logs[-1]
 NOW[0] = dt.datetime(2026, 10, 22, 10, 0, tzinfo=TW)
+# 24) 13:23 複查:程式的空單還沒平(平倉單失效了)→ 再掛漲停;手動空單 → 掛漲停買回;手動多單 → 只提醒
+alerts = []
+t24, g24 = mk(); t24.alert = lambda a, b="": alerts.append(a)
+t24.on_tick("6269", 86.2); t24.step([ENT]); t24.on_report(51, "A0001", 0, 1000, 86.1)
+NOW[0] = dt.datetime(2026, 10, 22, 13, 20, tzinfo=TW); t24.step(); t24.on_report(50, "A0002", 24, 0, 0, basket=g24.tags[-1])   # 平倉單失效 → 會自己再送
+n0 = len(g24.sent); t24.order["dead"] = True                                                                          # 假裝重送的也失效
+left = t24.recheck([{"code": "6269", "bs": "S", "lots": 1}, {"code": "2409", "bs": "S", "lots": 2}, {"code": "2330", "bs": "B", "lots": 1}])
+assert dict(left) == {"6269": -1, "2409": -2, "2330": 1}
+assert g24.sent[n0][:3] == ("6269", "B", 1) and g24.sent[n0][6] == "H"                    # 程式的 → 漲停 ROD
+assert any(x[:3] == ("2409", "B", 2) and x[6] == "H" for x in g24.sent)                     # 手動空單 → 漲停買回
+assert not any(x[0] == "2330" for x in g24.sent) and len(alerts) == 3                       # 手動多單只提醒
+NOW[0] = dt.datetime(2026, 10, 22, 10, 0, tzinfo=TW)
 # 10) 沒開啟 → 不交易
 t10, g10 = mk(TRADE_ENABLE="0"); t10.on_tick("6269", 86.2); t10.step([ENT]); assert not g10.sent
-print("trader.py 測試通過(23 種情況)")
+print("trader.py 測試通過(24 種情況)")

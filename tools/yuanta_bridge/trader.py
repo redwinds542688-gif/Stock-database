@@ -57,6 +57,11 @@ class Trader:
         #   還在逐筆撮合,掛漲停 / 跌停 ROD 馬上照市價成交;新進場只到 TRADE_LAST_ENTRY(13:10),免得進場沒多久就被強制平倉
         self.force_exit = cfg.get("TRADE_FORCE_EXIT", "13:20")
         self.last_entry = cfg.get("TRADE_LAST_ENTRY", "13:10")
+        # 2026-10-22 使用者:「13:23 分要再確認一次 還有沒有未沖銷的股票」:TRADE_RECHECK(13:23)查元大今天的成交回報算淨部位,
+        #   程式的部位沒平完 → 再送漲停 / 跌停 ROD;不是程式開的(手動):空單照 TRADE_RECHECK_CLOSE 處理(short = 空單也平、all = 多單也平、none = 只提醒)
+        self.recheck_at = cfg.get("TRADE_RECHECK", "13:23")
+        self.recheck_close = cfg.get("TRADE_RECHECK_CLOSE", "short")
+        self.alert = lambda title, body="": None      # bridge 會換成「發通知到手機」
         self.type_long = cfg.get("TRADE_TYPE_LONG", "0")           # 委託種類:0 現股(使用者:「做多只需要 現股 亮起來即可」),買進、賣出都用 0
         self.type_short = cfg.get("TRADE_TYPE_SHORT", "9")         # 9 現股當沖委託控管(先賣後買)= 元大 App 下單畫面的「沖」(使用者:「做空要按 沖 亮起來才能做空」)
         self.stop_file = Path(cfg.get("TRADE_STOP_FILE", "/opt/yuanta_bridge/STOP"))
@@ -130,6 +135,40 @@ class Trader:
             elif not oco and not (tp and sl):
                 self.log("[交易] !! 找不到這檔的停利 / 停損價,只剩手機平倉通知和 13:25 強制平倉會出場")
             return c
+
+    def recheck(self, trades):
+        """13:23 複查:trades = 元大今天的成交回報(同 resume)。回傳還沒沖銷的 [(code, 淨張數)]"""
+        with self.lock:
+            net = {}
+            for t in trades:
+                net[t["code"]] = net.get(t["code"], 0) + t["lots"] * (1 if t["bs"] == "B" else -1)
+            left = [(c, n) for c, n in net.items() if n != 0]
+            if not left:
+                self.log(f"[交易] {self.recheck_at} 複查:沒有未沖銷的股票"); return []
+            for c, n in left:
+                d = 1 if n > 0 else -1; what = f"{c} {'多' if d > 0 else '空'} {abs(n)} 張"
+                p = self.pos
+                if p and p["code"] == c:                                   # 程式的部位
+                    if p["qty"] != abs(n):
+                        self.log(f"[交易] 複查:{c} 程式記 {p['qty']} 張、元大 {abs(n)} 張 → 以元大為準"); p["qty"] = abs(n)
+                    if self.state == HOLDING:
+                        self.exit_pos(f"{self.recheck_at} 複查還沒平", self.last_px.get(c, p["entry"]), force_limit=True)
+                    elif self.state == EXITING and (not self.order or self.order.get("dead")):
+                        self.order = None; p["force_limit"] = True; self.send_exit(p["qty"], self.last_px.get(c, p["entry"]))
+                    self.log(f"[交易] {self.recheck_at} 複查:程式的 {what} 還沒平完,已掛漲停 / 跌停 ROD")
+                    self.alert(f"⚠ {self.recheck_at} 還有未沖銷 {what}", "程式已掛漲停 / 跌停 ROD,13:30 前會成交(鎖漲停 / 跌停除外)")
+                    continue
+                close = self.recheck_close == "all" or (self.recheck_close == "short" and d < 0)
+                if close:
+                    tag = f"R{self.now().strftime('%H%M%S')}{c}"[:32]
+                    typ = self.type_short if d < 0 else self.type_long
+                    self.gw.send(c, self.mkt_of.get(c, "TWSE"), "B" if d < 0 else "S", abs(n), 0, typ, "0", tag, "H" if d < 0 else "L")
+                    self.log(f"[交易] {self.recheck_at} 複查:{what} 不是程式開的(手動),已掛{'漲停買回' if d < 0 else '跌停賣出'} ROD")
+                    self.alert(f"⚠ {self.recheck_at} 手動部位未沖銷 {what}", f"程式已掛{'漲停買回' if d < 0 else '跌停賣出'} ROD")
+                else:
+                    self.log(f"[交易] {self.recheck_at} 複查:{what} 不是程式開的(手動),只提醒不處理")
+                    self.alert(f"⚠ {self.recheck_at} 手動部位未沖銷 {what}", "程式沒有處理,請在投資先生確認")
+            return left
 
     # ── 外部事件 ──
     def on_tick(self, code, price):
