@@ -120,7 +120,15 @@ assert dict(left) == {"6269": -1, "2409": -2, "2330": 1}
 assert g24.sent[n0][:3] == ("6269", "B", 1) and g24.sent[n0][6] == "H"                    # 程式的 → 漲停 ROD
 assert any(x[:3] == ("2409", "B", 2) and x[6] == "H" for x in g24.sent)                     # 手動空單 → 漲停買回
 assert not any(x[0] == "2330" for x in g24.sent) and len(alerts) == 3                       # 手動多單只提醒
+# 25) 第二次複查(13:23):上一次的補單還掛著沒成交 → 不重複下單;補單失效(沒掛著)→ 再補
+n1 = len(g24.sent)
+working = [{"code": "6269", "bs": "B", "lots": 1}, {"code": "2409", "bs": "B", "lots": 2}]
+left = t24.recheck([{"code": "6269", "bs": "S", "lots": 1}, {"code": "2409", "bs": "S", "lots": 2}, {"code": "2330", "bs": "B", "lots": 1}], working, at="13:23")
+assert not [x for x in g24.sent[n1:] if x[0] in ("6269", "2409")], g24.sent[n1:]          # 掛著的夠了,不重複
+left = t24.recheck([{"code": "2409", "bs": "S", "lots": 2}], [], at="13:24")
+assert g24.sent[-1][:3] == ("2409", "B", 2) and g24.sent[-1][6] == "H"                      # 沒掛著了 → 再補
+assert t24.recheck_times == ["13:22", "13:23", "13:24"]
 NOW[0] = dt.datetime(2026, 10, 22, 10, 0, tzinfo=TW)
 # 10) 沒開啟 → 不交易
 t10, g10 = mk(TRADE_ENABLE="0"); t10.on_tick("6269", 86.2); t10.step([ENT]); assert not g10.sent
-print("trader.py 測試通過(24 種情況)")
+print("trader.py 測試通過(25 種情況)")

@@ -134,8 +134,12 @@ class Bridge:
                     return
                 if strIndex == "GetOrderTradeReport" and self.resume_buf is not None:
                     r = objValue
+                    lots_of = lambda q: q // 1000 if q >= 1000 else q
                     for i in range(r.StkOrderList.Count):
                         o = r.StkOrderList[i]; self.resume_buf["tags"][str(o.OrderNo).strip()] = str(o.BasketNo).strip()
+                        rest = int(o.AfterQty) - int(o.OkQty)
+                        if int(o.OrderStatus) in (0, 20) and rest > 0:          # 0 傳輸中、20 委託成功(還掛著)
+                            self.resume_buf["working"].append({"code": str(o.CompanyNo).strip(), "bs": str(o.BS).strip(), "lots": lots_of(rest)})
                     for i in range(r.StkTradeList.Count):
                         x = r.StkTradeList[i]; q = int(x.OkQty)
                         self.resume_buf["trades"].append({"code": str(x.CompanyNo).strip(), "bs": str(x.BS).strip(), "lots": q // 1000 if q >= 1000 else q,   # 成交量單位文件沒寫:股(≥1000)或張都能處理;使用者只做整張、不做零股(2026-10-22),不會混淆
@@ -348,7 +352,7 @@ class Bridge:
 
     def query_today(self, with_oco=True):
         """查元大今天的委託成交回報(+ 有效的二擇一條件單);查不到回 None"""
-        self.resume_buf = {"trades": [], "tags": {}, "oco": [], "got_rpt": False, "got_oco": not with_oco}
+        self.resume_buf = {"trades": [], "tags": {}, "oco": [], "working": [], "got_rpt": False, "got_oco": not with_oco}
         try:
             self.api.GetOrderTradeReport(True, CFG["YT_ACCOUNT"])                       # True = 不列出取消單
             if with_oco:
@@ -373,15 +377,15 @@ class Bridge:
         except Exception as e:
             log("接回失敗", e)
 
-    def recheck_positions(self):
-        """2026-10-22 使用者:「13:23 分要再確認一次 還有沒有未沖銷的股票」"""
+    def recheck_positions(self, at):
+        """2026-10-22 使用者:「13:23 分要再確認一次 還有沒有未沖銷的股票」→「13:22 / 13:23 / 13:24 確認三次 以保安全」"""
         if not self.trader or not self.trader.enabled:
             return
         try:
             r = self.query_today(with_oco=False)
             if not r:
-                log("!! 13:23 複查:查不到成交回報"); self.trader.alert("⚠ 13:23 複查失敗", "查不到元大成交回報,請在投資先生確認有沒有未沖銷的股票"); return
-            self.trader.recheck(r["trades"])
+                log(f"!! {at} 複查:查不到成交回報"); self.trader.alert(f"⚠ {at} 複查失敗", "查不到元大成交回報,請在投資先生確認有沒有未沖銷的股票"); return
+            self.trader.recheck(r["trades"], r["working"], at)
         except Exception as e:
             log("複查失敗", e)
 
@@ -441,7 +445,7 @@ class Bridge:
         self.codes = self.load_codes()
         self.trader = self.make_trader()
         self.trader.prime(fetch_signals(CFG["WORKER_URL"], day))
-        fails = 0; k = 0; resumed = False; rechecked = False
+        fails = 0; k = 0; resumed = False; rechecked = set()
         while now_tw().strftime("%H:%M") < "13:36":
             try:
                 if self.login_fail:
@@ -453,8 +457,10 @@ class Bridge:
                 time.sleep(1); k += 1
                 sig = fetch_signals(CFG["WORKER_URL"], day) if (self.trader.enabled and k % 3 == 0) else None   # 手機通知每 3 秒看一次
                 self.trader.step(sig)
-                if not rechecked and now_tw().strftime("%H:%M") >= self.trader.recheck_at:
-                    rechecked = True; self.recheck_positions()
+                hm_now = now_tw().strftime("%H:%M")
+                for at in self.trader.recheck_times:                     # 13:22 / 13:23 / 13:24 各一次
+                    if at not in rechecked and hm_now >= at:
+                        rechecked.add(at); self.recheck_positions(at); break
                 if k % 10 == 0:
                     self.flush(day)
             except LoginRejected as e:
