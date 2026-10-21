@@ -138,7 +138,7 @@ class Bridge:
                         o = r.StkOrderList[i]; self.resume_buf["tags"][str(o.OrderNo).strip()] = str(o.BasketNo).strip()
                     for i in range(r.StkTradeList.Count):
                         x = r.StkTradeList[i]; q = int(x.OkQty)
-                        self.resume_buf["trades"].append({"code": str(x.CompanyNo).strip(), "bs": str(x.BS).strip(), "lots": q // 1000 if q >= 1000 else q,   # 成交量:股(≥1000)或張
+                        self.resume_buf["trades"].append({"code": str(x.CompanyNo).strip(), "bs": str(x.BS).strip(), "lots": q // 1000 if q >= 1000 else q,   # 成交量單位文件沒寫:股(≥1000)或張都能處理;使用者只做整張、不做零股(2026-10-22),不會混淆
                                                           "price": float(x.SPrice), "time": str(x.DateTime), "order_no": str(x.OrderNo).strip()})
                     self.resume_buf["got_rpt"] = True
                     log(f"接回查詢:今天委託 {r.StkOrderList.Count} 筆、成交 {r.StkTradeList.Count} 筆")
