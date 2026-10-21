@@ -103,6 +103,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     開盤時圖上只有 Yahoo 幾根加即時自組的幾根,每多一根燈就重算,所以會翻;服務盤中重啟(今早裝了幾次 APK)會讓自組 K 從頭來,這段的訊號不可靠。
   · 2026-10-21 06:20 歷史 K 有雲端 K 的那天改用雲端 K(使用者:光鼎「覺得 obv 跟元大的不太一樣」):Yahoo 光鼎 10/20 11:20 有一根 7,291 張(OBV 掉 7 千),雲端 K 沒有;loadMinuteBars 另讀 kline_cloud/ 週檔,有的日子取代 Yahoo。
   · 2026-10-21 06:40 撤掉 06:20 的雲端 K 取代(使用者:「元大是下滑的」;元大的 1 分 K 和 Yahoo 同一份,雲端 K 的分鐘形狀反而不像),改成 Yahoo 鉅額交易那根量不算:某根量 ≥ 同日前後 10 根中位數 80 倍且 ≥ 300 張 → 量改成中位數(dropBlockTrades)。10/20 對證交所日量抓到 49 檔、漏 3、誤抓 3。
+  · 2026-10-21 10:05 證交所舊快照不收(使用者:台郡「量不對」):證交所偶爾回時間倒退、累計量變少的舊資料,原本會把同一段量再算一次(09:54 有 45 檔雲端 K 總量多 1% 以上)。手機 liveTick:同一天時間比上一筆早 → 整筆不收;Worker 拼 K:累計量比上一個快照少 → 那個快照不算。
   · 2026-10-21 06:00 撤掉 05:50 的「當天漲 ≥ 2.5% 不亮做空」(使用者「撤掉 重新找其他方法」):YH.lampNoShortUpPct = 0。
   · 2026-10-21 05:50 當天漲 ≥ 2.5% 不亮做空(使用者「改」;榮科、建榮、中釉大漲中的做空 7 錯 3 對)。今天 14 檔做多 / 做空燈 34 對 31 錯 → 31 對 27 錯;
     有變的只有榮科、建榮、中釉(錯的消掉)、聯嘉投控(09:24 對的消掉、09:31 / 09:39 多 2 次錯)、光鼎(09:51 晚 1 根),其他 9 檔不變。
@@ -1659,7 +1660,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610210640">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610211005">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3302,6 +3303,9 @@ function liveTick(m){
   const y = parseFloat(m.y), v = parseFloat(m.v);
   const minute = misMinute(m.d, m.t);
   const prev = LIVE.get(code) || {};
+  // 2026-10-21 使用者(台郡「量不對」):證交所偶爾回舊資料(同一天、時間倒退、累計量變少),原本量差當 0 但「上次累計量」被拉回去,
+  //   下一筆新資料又把同一段量算一次,價格也會跳回舊價 → 同一天時間比上一筆早的整筆不收
+  if (prev.d && m.d === prev.d && prev.t && m.t && m.t < prev.t) return;
   const price = isFinite(z) ? z : prev.z;
   const rec = {
     z: price, y: isFinite(y) ? y : prev.y,

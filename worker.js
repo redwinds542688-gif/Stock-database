@@ -164,7 +164,11 @@ async function dayBars(env, d, codes, since) {
     const hm = lbl(hm0);
     for (const c in s) {
       if (want && !want.has(c)) continue;
-      const [z, v] = s[c]; const p = prev[c]; prev[c] = [z, v];
+      const [z, v] = s[c]; const p = prev[c];
+      // 2026-10-21 使用者(台郡「量不對」):證交所偶爾回舊快照(時間倒退、累計量變少),原本 prev 被拉回舊的量,下一分鐘又把同一段量算一次
+      //   (09:54 時 130 檔有 45 檔雲端 K 總量比證交所多 1% 以上,台郡多 1,573 張)。累計量比上一個快照少 → 這個快照整個不算
+      if (p && v < p[1]) continue;
+      prev[c] = [z, v];
       if (!p) { if (!since) bars[c] = [[hm, z, z, z, z, hm0 <= "09:02" ? Math.round(v * 1000) : 0]]; continue; }   // 當天第一個快照:09:00 開始存的話量 = 開盤撮合的累計;盤中才開始存(例如 2026-10-19 11:57 上線)就給 0,
                                                                                                                        // 不然整個上午的累計量會灌進那一根,OBV 一次跳好幾千張(使用者截圖:燿華 12:05 跳 3,700 張)。那段的量由手機用 Yahoo 補
       const dv = Math.max(0, v - p[1]) * 1000;
