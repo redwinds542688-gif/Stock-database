@@ -109,6 +109,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-21 11:00 十字線固定在舊的 K 時,燈號 / 多空天秤跟著那根(使用者:台郡 09:49「這是做空點嗎?」;原本盤中每次重畫都被蓋成最新一根的燈號,09:49 是做多卻亮著做空)。
   · 2026-10-21 11:30 沒有通知過進場的部位不發反彈警示(使用者「改」;TPK 判一 10:23~10:25 收到「可能正在反彈」「股價已反彈」,但那筆 09:41 的進場是雲端 K 重算後才多出來的過去訊號,沒通知過)。只改通知,判別式進出場規則不變。
   · 2026-10-21 11:40 燈號熄得比較快(使用者:台郡 10:13「這地方怎麼還顯示做多」→「我只想改善這個燈號」):已亮做多 / 做空時,連 3 根不是這個燈就換成最新那根的狀態(原本要連 3 根同一種,分數一格一格掉時一直重算)。台郡 10:13 做多 → 監控。14 檔 28 天:對 71→72、錯 59 不變,有變 18/28(多半是做多 / 做空提早熄);還沒亮燈的照舊要同一種連 3 根(YH.lampLeave)。
+  · 2026-10-21 11:55 即時價修正(使用者:時碩 11:44「同股票 同時間 價格不同」:元大 87.00、App 86.50):證交所這 5 秒沒成交時 z 是「-」,備用的最後一筆(trade)有時好幾分鐘沒更新;z 是「-」時把價格夾在最佳買價 ~ 最佳賣價之間。手機 liveTick 和 Worker 快照同一套。
   · 2026-10-21 06:00 撤掉 05:50 的「當天漲 ≥ 2.5% 不亮做空」(使用者「撤掉 重新找其他方法」):YH.lampNoShortUpPct = 0。
   · 2026-10-21 05:50 當天漲 ≥ 2.5% 不亮做空(使用者「改」;榮科、建榮、中釉大漲中的做空 7 錯 3 對)。今天 14 檔做多 / 做空燈 34 對 31 錯 → 31 對 27 錯;
     有變的只有榮科、建榮、中釉(錯的消掉)、聯嘉投控(09:24 對的消掉、09:31 / 09:39 多 2 次錯)、光鼎(09:51 晚 1 根),其他 9 檔不變。
@@ -1665,7 +1666,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610211140">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610211155">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3308,6 +3309,8 @@ function liveTick(m){
   let z = parseFloat(m.z);
   if (!isFinite(z) && m.trade) z = parseFloat(m.trade.z);
   if (!isFinite(z)) z = parseFloat(m.pz);
+  // 2026-10-21 使用者(時碩 11:44「同股票 同時間 價格不同」:元大 87.00、App 86.50):z 是 "-" 時備用的 trade 有時好幾分鐘沒更新 → 夾在最佳買價 ~ 最佳賣價之間(和 Worker 快照同一套)
+  if (!isFinite(parseFloat(m.z)) && isFinite(z)){ const b1 = parseFloat(String(m.b || '').split('_')[0]), a1 = parseFloat(String(m.a || '').split('_')[0]); if (b1 > 0 && a1 > 0 && b1 <= a1) z = Math.min(Math.max(z, b1), a1); }
   const y = parseFloat(m.y), v = parseFloat(m.v);
   const minute = misMinute(m.d, m.t);
   const prev = LIVE.get(code) || {};

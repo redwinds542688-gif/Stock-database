@@ -129,6 +129,10 @@ async function snapshotBars(env) {
     if (m.d && m.d !== ymd) continue;                       // 證交所回的交易日不是今天 → 休市
     dOk = true;
     let z = parseFloat(m.z); if (!isFinite(z) && m.trade) z = parseFloat(m.trade.z); if (!isFinite(z)) z = parseFloat(m.pz);
+    // 2026-10-21 使用者(時碩 11:44「同股票 同時間 價格不同」:元大 87.00、App 86.50):這 5 秒沒成交時 z 是 "-",備用的 trade(最後一筆)
+    //   有時好幾分鐘沒更新(時碩停在 11:40:59 86.50,其實已經成交到 87);11:46 抽查 130 檔有 47 檔落後超過 1 分鐘。
+    //   z 是 "-" 時把價格夾在目前最佳買價 ~ 最佳賣價之間(舊價已經離開買賣價區間 = 價格早就動了)
+    if (!isFinite(parseFloat(m.z)) && isFinite(z)) { const b1 = parseFloat(String(m.b || "").split("_")[0]), a1 = parseFloat(String(m.a || "").split("_")[0]); if (b1 > 0 && a1 > 0 && b1 <= a1) z = Math.min(Math.max(z, b1), a1); }
     const v = parseFloat(m.v);
     if (!isFinite(z) || !isFinite(v)) continue;
     s[m.c] = [z, v]; n++;
