@@ -216,11 +216,11 @@ class Bridge:
         return out
 
     # ── 下單通道(給 trader.py 用)──
-    def send_order(self, code, mkt, side, lots, price, typ, tif, tag):
-        """國內證券下單(元大文件「國內證券下單」):限價、整股、委託單;tif 0 ROD / 3 IOC / 4 FOK"""
+    def send_order(self, code, mkt, side, lots, price, typ, tif, tag, flag=" "):
+        """國內證券下單(元大文件「國內證券下單」):整股、委託單;flag ' ' 限價 / H 漲停 / L 跌停(非限價 Price 填 0);tif 0 ROD / 3 IOC / 4 FOK"""
         o = self.Y.StockOrder()
         o.Identify = 1; o.Account = CFG["YT_ACCOUNT"]; o.APCode = 0; o.TradeKind = 0; o.OrderType = str(typ)
-        o.StkCode = code; o.PriceFlag = " "; o.Price = float(price); o.OrderQty = int(lots); o.BuySell = side
+        o.StkCode = code; o.PriceFlag = flag; o.Price = float(price) if flag == " " else 0.0; o.OrderQty = int(lots); o.BuySell = side
         o.OrderNo = ""; o.TradeDate = now_tw().strftime("%Y/%m/%d"); o.BasketNo = tag; o.Time_in_force = str(tif)
         lst = self.List[self.Y.StockOrder](); lst.Add(o)
         self._last_order = {"code": code, "side": side, "lots": lots, "price": price, "typ": typ}

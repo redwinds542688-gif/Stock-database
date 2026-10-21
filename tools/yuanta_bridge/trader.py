@@ -34,7 +34,7 @@ RE_JUDGE = re.compile(r"判[一二三四]")
 
 class Trader:
     def __init__(self, cfg, gateway, log, now):
-        """gateway:send(code, mkt, side 'B'/'S', qty 張, price, order_type, tif, tag) -> 委託書號或 None;cancel(order_no, code)
+        """gateway:send(code, mkt, side 'B'/'S', qty 張, price, order_type, tif, tag, price_flag ' '限價 / H 漲停 / L 跌停) -> 委託書號或 None;cancel(order_no, code)
            now():回傳台灣時間 datetime"""
         self.cfg, self.gw, self.log, self.now = cfg, gateway, log, now
         self.enabled = cfg.get("TRADE_ENABLE", "0") == "1"
@@ -44,7 +44,11 @@ class Trader:
         self.judges = set(x.strip() for x in cfg.get("TRADE_JUDGES", "判一,判二,判三").split(",") if x.strip())
         self.slip = int(cfg.get("TRADE_SLIP_TICKS", "2"))          # 讓價檔數(確保成交)
         self.max_dev = float(cfg.get("TRADE_MAX_DEV_PCT", "0.5"))  # 現價離訊號價超過 % 就不追
-        self.fill_wait = float(cfg.get("TRADE_FILL_WAIT", "8"))    # 送單後等成交回報幾秒
+        self.fill_wait = float(cfg.get("TRADE_FILL_WAIT", "8"))    # 進場送單後等成交回報幾秒(平倉不取消,等到成交)
+        # 2026-10-22 使用者:「30 元做空反漲到 30.5 觸發平倉,直接掛漲停價贖回,不管股價怎麼跑都會在第一時間平倉」:
+        #   平倉空單掛漲停(H)買回、平倉多單掛跌停(L)賣出,ROD。照價格優先會從最好的賣價 / 買價開始成交 = 實際成交是市價,保證排最前面;
+        #   用 ROD 不用 IOC:價格穩定措施(暫緩撮合)時 IOC / 市價會直接失效,ROD 會留著等撮合。TRADE_EXIT_MODE=slip 改回限價讓檔 + IOC
+        self.exit_mode = cfg.get("TRADE_EXIT_MODE", "limitup")
         self.type_long = cfg.get("TRADE_TYPE_LONG", "0")           # 委託種類:0 現貨(買進當沖)
         self.type_short = cfg.get("TRADE_TYPE_SHORT", "9")         # 9 現股當沖委託控管(先賣後買)——上線前請和元大確認
         self.stop_file = Path(cfg.get("TRADE_STOP_FILE", "/opt/yuanta_bridge/STOP"))
@@ -112,7 +116,10 @@ class Trader:
             if self.state == HOLDING and hm >= "13:25":
                 self.exit_pos("13:25 強制平倉", self.last_px.get(self.pos["code"], self.pos["entry"]))
             o = self.order
-            if o and not o.get("dead") and time.time() - o["at"] > self.fill_wait:
+            if o and o["purpose"] == "平倉" and o.get("tif") == "0":
+                if not o.get("dead") and time.time() - o["at"] > 30 and not o.get("warned"):
+                    o["warned"] = True; self.log(f"[交易] !! 漲停 / 跌停平倉單 30 秒還沒全部成交(可能鎖漲停 / 暫緩撮合),繼續等")
+            elif o and not o.get("dead") and time.time() - o["at"] > self.fill_wait:
                 if o.get("no"):
                     self.log(f"[交易] {o['purpose']} 委託 {self.fill_wait:.0f} 秒沒成交完,取消剩餘"); self.gw.cancel(o["no"], self.pos["code"] if self.pos else "")
                 o["dead"] = True; self.after_report()
@@ -172,13 +179,15 @@ class Trader:
         return None
 
     # ── 下單 ──
-    def send(self, purpose, side, lots, price, typ):
+    def send(self, purpose, side, lots, price, typ, flag=" ", tif="3"):
         p = self.pos
         self.seq = getattr(self, "seq", 0) + 1
         tag = f"T{self.now().strftime('%H%M%S')}{self.seq:03d}"           # 自訂編號(BasketNo,限 32 英數字),回報會帶回來
         self.order = {"no": None, "tag": tag, "purpose": purpose, "side": side, "want": lots * 1000, "filled": 0, "cost": 0.0, "at": time.time(), "price": price}
-        self.log(f"[交易] 送單 {purpose} {p['code']} {'買' if side == 'B' else '賣'} {lots} 張 限價 {price}(委託種類 {typ},IOC)")
-        no = self.gw.send(p["code"], p["mkt"], side, lots, price, typ, "3", tag)
+        how = {"H": "漲停價", "L": "跌停價"}.get(flag, f"限價 {price}")
+        self.log(f"[交易] 送單 {purpose} {p['code']} {'買' if side == 'B' else '賣'} {lots} 張 {how}(委託種類 {typ},{'ROD' if tif == '0' else 'IOC'})")
+        self.order["tif"] = tif
+        no = self.gw.send(p["code"], p["mkt"], side, lots, price, typ, tif, tag, flag)
         if no:
             self.order["no"] = str(no).strip()
 
@@ -188,9 +197,15 @@ class Trader:
             return
         self.log(f"[交易] 出場 {p['code']}:{why}(現價 {px})")
         p["exit_why"] = why
-        side = "S" if p["dir"] > 0 else "B"
-        self.send("平倉", side, p["qty"], shift(px, -self.slip * p["dir"]), p["typ"])
+        self.send_exit(p["qty"], px)
         self.state = EXITING
+
+    def send_exit(self, lots, px):
+        p = self.pos; side = "S" if p["dir"] > 0 else "B"
+        if self.exit_mode == "limitup":
+            self.send("平倉", side, lots, 0, p["typ"], "H" if side == "B" else "L", "0")      # 空單買回掛漲停、多單賣出掛跌停,ROD
+        else:
+            self.send("平倉", side, lots, shift(px, -self.slip * p["dir"]), p["typ"])
 
     def after_report(self):
         o, p = self.order, self.pos
@@ -217,10 +232,13 @@ class Trader:
             p["qty"] -= lots
             self.journal.append({"code": p["code"], "dir": p["dir"], "entry": p["entry"], "exit": avg, "lots": lots, "net": round(net), "why": p.get("exit_why")})
             self.log(f"[交易] 平倉 {p['code']} {lots} 張 @ {avg:.2f} 淨 {net:+,.0f}(今天累計 {self.pnl:+,.0f})")
-        if p["qty"] > 0:      # 還沒平完 → 讓價更多再送
+        if p["qty"] > 0:      # 還沒平完(委託失效 / 被取消)→ 再送
             px = self.last_px.get(p["code"], avg or p["entry"])
             self.log(f"[交易] 還剩 {p['qty']} 張沒平,再送")
-            self.send("平倉", "S" if p["dir"] > 0 else "B", p["qty"], shift(px, -(self.slip + 3) * p["dir"]), p["typ"])
+            if self.exit_mode == "limitup":
+                self.send_exit(p["qty"], px)
+            else:
+                self.send("平倉", "S" if p["dir"] > 0 else "B", p["qty"], shift(px, -(self.slip + 3) * p["dir"]), p["typ"])
             return
         self.pos = None; self.state = IDLE
 
