@@ -118,6 +118,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-21 15:00 選股振幅 4% → 3%(使用者:「挑選股票 振幅改 3% 設定調整最低也一樣」):make_pool MIN_AMP / AVG5_MIN_AMP 3.0;設定「最低振幅」滾輪最低 3.0%、預設 3.0%,舊存檔 4.0% 的搬一次到 3.0%,長按 3/4/5/8 循環。
   · 2026-10-21 15:10 選股拿掉「5 天中至少 3 天振幅達標」,只看 5 日平均振幅 ≥ 3%(使用者:「選股 五天 平均 也一樣 3% 以上即可」;AVG5_MIN_HITS 0)。
   · 2026-10-21 15:40 監控檔數改 49(使用者:「維持 6000 張 監控股票改為 49」):預設 49,舊存檔搬一次到 49,之後自己撥的會保留。
+  · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
+    七天(Y3+W6 燈號):30 根 58.0%、淨對 446 → 28 根 58.5%、淨對 495;16 根淨對最多 528(57.7%),35 根以上變差。判一 ~ 判三自己的 OBV 30 均線不動。
   · 2026-10-21 22:30 燈號改 Y3 + W6(使用者:時碩 11:06「指標三 二線都轉下」燈號還是漸多 → 回測 →「改 Y3+W6」):
     Y3 = 燈號四件事裡「橘線雙升 / 雙降」換成「Oa 現在在 Ob 之上 / 之下」(反應快);W6 = 大盤寬度(名單上漲比例)≥ 65% 不亮做空(降成漸空)、≤ 35% 不亮做多(降成漸多),沒有寬度資料不擋。
     七天 1,405 股票日(亮燈後 60 根內先走 1%):現行 對 2,138 錯 1,730 55.3% → 對 1,606 錯 1,166 57.9%。天秤也跟著 Y3 算。只換燈號 / 天秤,判別式、通知不變(YH.lampOaOb / lampBreadth)。
@@ -1692,7 +1694,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610212230">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610212255">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3652,6 +3654,7 @@ const YH = {
   lampObOc: true,       // 2026-10-21 20:40 使用者「先改 D」:亮「做多」還要 Ob(OBV 均 10)在 Oc(OBV 均 30)之上,否則降成漸多;做空鏡像(Oc 還沒值 = 不亮做多 / 做空)。七天 1,405 股票日:勝率 54.1% → 55.3%
   lampOaOb: true,       // 2026-10-21 22:30 使用者「改 Y3+W6」:燈號分數裡「橘線雙升 / 雙降」換成「Oa 現在在 Ob 之上 / 之下」(反應快;時碩 11:06 兩線都轉下)
   lampBreadth: 0.65,    // 2026-10-21 22:30 同上 W6:大盤寬度 ≥ 65% 不亮做空(降成漸空)、≤ 35% 不亮做多(降成漸多);0 = 關;沒有寬度資料不擋
+  ocPeriod: 28,         // 2026-10-21 22:55 使用者「改 28」:指標二 Oc(OBV 均線)30 → 28 根(燈號 / D 規則 / 紫線都用它);判別式自己的 OBV 30 均線不動
   ind3SlopeBars: 5,     // 2026-10-21 燈號的指標二方向:Ob / Oc 和幾根前比
   swingPct: 0.8,        // 2026-10-20 22:40 股票高低價連線:相鄰高低差不到這個 % 的小波動拿掉
   swingMinBars: 2,      //   均價方向連幾根反過來才算換段
@@ -5294,7 +5297,9 @@ function drawBars(bars, code, srcLabel, keepView){
   obvSeries.setData(ob);
   const obma = sma(ob, BASE.obvMaPeriod, 'value');
   obvMaLine.setData(obma);
-  const obma30 = sma(ob, 30, 'value');
+  // 2026-10-21 22:55 使用者(「oc 多少可以增加燈號準確率」→「改 28」):Oc 30 → YH.ocPeriod(28)。七天 1,405 股票日(Y3+W6 燈號):
+  //   30 根 對 1,609 錯 1,163 58.0% → 28 根 對 1,696 錯 1,201 58.5%(16 根淨對最多 528 但 57.7%;35 以上變差)。判別式的 OBV 30 均線在 replaySignals 裡自己算,不受影響
+  const obma30 = sma(ob, YH.ocPeriod || 30, 'value');
   obvMa30Line.setData(obma30);
   // 2026-10-21 使用者:「Ob 穿越 Oc 標示」:Ob(OBV 均 10,藍)和 Oc(OBV 均 30,紫)每次交叉,在 Ob 線上標小點:往上穿紅、往下穿綠(不標數字)
   try{ obvMaLine.setMarkers(maCrossPoints(obma, obma30).map(p => ({time: p.time, position: 'inBar', color: p.side > 0 ? CHART_THEME.up : CHART_THEME.down, shape: 'circle', size: 0.5}))); }catch(e){}
