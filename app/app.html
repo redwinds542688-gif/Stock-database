@@ -118,6 +118,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-21 15:00 選股振幅 4% → 3%(使用者:「挑選股票 振幅改 3% 設定調整最低也一樣」):make_pool MIN_AMP / AVG5_MIN_AMP 3.0;設定「最低振幅」滾輪最低 3.0%、預設 3.0%,舊存檔 4.0% 的搬一次到 3.0%,長按 3/4/5/8 循環。
   · 2026-10-21 15:10 選股拿掉「5 天中至少 3 天振幅達標」,只看 5 日平均振幅 ≥ 3%(使用者:「選股 五天 平均 也一樣 3% 以上即可」;AVG5_MIN_HITS 0)。
   · 2026-10-21 15:40 監控檔數改 49(使用者:「維持 6000 張 監控股票改為 49」):預設 49,舊存檔搬一次到 49,之後自己撥的會保留。
+  · 2026-10-21 17:20 判別式二第九次修改(使用者:「改 判二 大盤偏多只做黑盤空」):大盤寬度(名單 130 檔裡最新價 > 昨收的比例,平盤不算)≥ 80% 時,判二的空單只做當下黑盤(≤ 昨收)的股票;
+    鏡像:寬度 ≤ 20% 時多單只做紅盤(≥ 昨收)。不符合 → 只記錄、標「大」。寬度由 Worker 用雲端快照每分鐘算(?breadth=today),手機每 55 秒和雲端 K 一起抓。判一不加。
+    回測:九天 Yahoo K 45 筆 +100,234 → 44 筆 +93,128(擋掉南亞 10/16 +7,106);雲端 K 10/20~21 7 筆 +1,267 → 5 筆 +14,753(擋掉今天瑞軒 −6,812、GIS −6,674);合計 +101,501 → +107,881。模擬器 BREADTH BRTH=0.8 BRMODE=black
   · 2026-10-21 06:00 撤掉 05:50 的「當天漲 ≥ 2.5% 不亮做空」(使用者「撤掉 重新找其他方法」):YH.lampNoShortUpPct = 0。
   · 2026-10-21 05:50 當天漲 ≥ 2.5% 不亮做空(使用者「改」;榮科、建榮、中釉大漲中的做空 7 錯 3 對)。今天 14 檔做多 / 做空燈 34 對 31 錯 → 31 對 27 錯;
     有變的只有榮科、建榮、中釉(錯的消掉)、聯嘉投控(09:24 對的消掉、09:31 / 09:39 多 2 次錯)、光鼎(09:51 晚 1 根),其他 9 檔不變。
@@ -1674,7 +1677,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610211540">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610211720">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3394,6 +3397,7 @@ async function loadCloudBars(){
       TODAY_BARS.set(code, {at: Date.now(), bars: old.concat(add), err: '', cloud: true, yahooAt: cur && cur.yahooAt || 0, pre: cur && cur.pre || 0});
     }
     if (j.last) CLOUD_BARS.last = j.last;
+    await loadBreadth(d);
     if (j.n > 0) { CLOUD_BARS.ok = true; CLOUD_BARS.n = j.n; }
     CLOUD_BARS.err = '';
     // 補救:盤中雲端最後一根落後現在 2 分鐘以上(Cron 沒跑)→ 叫 Worker 現在就存一個快照,下一輪就有了;手機每 55 秒問一次,等於自己當排程
@@ -3406,6 +3410,23 @@ async function loadCloudBars(){
   return CLOUD_BARS.ok;
 }
 window.CLOUD_BARS = CLOUD_BARS;
+// 2026-10-21 判二「大盤偏多只做黑盤空」:大盤寬度(每分鐘上漲比例)。跟雲端 K 一起每 55 秒抓一次;沒抓到 = 不擋
+const BREADTH = { d: '', base: 0, arr: [], err: '' };
+async function loadBreadth(d){
+  try{
+    const r = await fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?breadth=${d}&_=${Date.now()}`, {cache: 'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json(); if (!j || !j.br) throw new Error(j && j.error || '沒有資料');
+    const base = Date.parse(d + 'T00:00:00+08:00') / 1000;
+    BREADTH.arr = Object.keys(j.br).sort().map(k => [base + (+k.slice(0, 2)) * 3600 + (+k.slice(3, 5)) * 60, j.br[k]]);
+    BREADTH.d = d; BREADTH.base = base; BREADTH.err = '';
+  }catch(e){ BREADTH.err = e.message; }
+}
+function breadthAt(t){   // t 那分鐘(含)以前最近的寬度;不是今天的 K → null
+  if (!BREADTH.arr.length || t < BREADTH.base || t >= BREADTH.base + 86400) return null;
+  let r = null; for (const [bt, v] of BREADTH.arr){ if (bt > t) break; r = v; } return r;
+}
+window.BREADTH = BREADTH;
 async function loadTodayBars(code, force){
   const cached = TODAY_BARS.get(code);
   if (!force && cached && Date.now() - cached.at < 55000) return cached;   // 2026-10-20 09:40 2 分鐘 → 55 秒(使用者:富喬「差了快二分鐘」→「改」)
@@ -3831,7 +3852,7 @@ const RULESETS = {
                                                                   strong: true, strongSlowMa: 30, strongDxBars: 5, strongSlowBars: 2, strongExtBars: 10, strongWin: 5, strongMaxChg: 4, strongNoAfter: '11:30',
                                                                   confirmMinGapPct: 4, noEntryAfter: '12:00',
                                                                   crossSlowMa2: 30, weakByOrder: true,
-                                                                  nearHiLoPct: 2, noWeakEntry: false, stopMinPct: 1.5, ob10Dir: true, chopWin: 45 }) },   // 2026-10-20 20:45 震盪盤不進場只留判二(45 根)   // 2026-10-20 起漲 / 起跌點停損,但不小於 1.5%(九天 63 筆 61% +95,259 → 60 筆 65% +102,788)   // noWeakEntry:false = 判一第七次修改(不做逆勢單)只改判一,判二照舊   // 2026-10-19 第六次修改:離當日高點(多)/ 低點(空)超過 2% 不進(離)
+                                                                  nearHiLoPct: 2, noWeakEntry: false, stopMinPct: 1.5, ob10Dir: true, chopWin: 45, breadthTh: 0.8 }) },   // 2026-10-21 17:20 第九次修改:大盤寬度 ≥ 80% 空單只做黑盤、≤ 20% 多單只做紅盤(大)   // 2026-10-20 20:45 震盪盤不進場只留判二(45 根)   // 2026-10-20 起漲 / 起跌點停損,但不小於 1.5%(九天 63 筆 61% +95,259 → 60 筆 65% +102,788)   // noWeakEntry:false = 判一第七次修改(不做逆勢單)只改判一,判二照舊   // 2026-10-19 第六次修改:離當日高點(多)/ 低點(空)超過 2% 不進(離)
   // 判別式三(2026-10-20 21:50 使用者「判四改判三後 直接定名為判三 原判三改判四 隱藏起來」:原判四「壓線空點」正式改名判三,內部代號也是「三」;下面是它當判四時的紀錄)
   //   (原判四)2026-10-20 使用者看光鼎 09:49、友達 10:37 的元大圖:「這種壓在線上 指標全部向下 就是最漂亮的空點」→ 九天研究 → 「我想把這個設為判四」):「壓線空點」,只做空。
   //   entryMode:'press' = 均價 10 連 2 根向下 + 這根或前一根最高碰到均價 10(差 ≤ pressTouchPct%)+ 收在均價 10 之下且收黑 + 紅 < 藍 < 紫、藍(OBV 均 10)紫(OBV 均 30)都向下
@@ -4322,12 +4343,22 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
     if (SIG.noWeakEntry && entryOk && !far && !opts.ignoreGate && firstPx.long !== null && firstPx.short !== null){
       if ((side === 'long' && firstPx.short > firstPx.long) || (side === 'short' && firstPx.long > firstPx.short)){ weakEntry = true; far = true; }
     }
+    // 2026-10-21 判別式二第九次修改(使用者:「改 判二 大盤偏多只做黑盤空」):大盤寬度 ≥ SIG.breadthTh(0.8)時空單只做當下黑盤(≤ 昨收),
+    // ≤ 1 − breadthTh 時多單只做紅盤(≥ 昨收);不符合 → 只記錄、標「大」。10/21 寬度整天 90% 以上,判二空了 GIS / 和益 / 台郡全賠。模擬器 BREADTH BRTH=0.8 BRMODE=black
+    let mktBad = false;
+    if (SIG.breadthTh > 0 && entryOk && !far && !opts.ignoreGate && prevClose > 0){
+      const br = breadthAt(b.time);
+      if (br != null){
+        const pct = (b.close - prevClose) / prevClose * 100;
+        if ((side === 'short' && br >= SIG.breadthTh && pct > 0) || (side === 'long' && br <= 1 - SIG.breadthTh && pct < 0)){ mktBad = true; far = true; }
+      }
+    }
     const canEnter = entryOk && !gated && (opts.ignoreGate || tStr < SIG.noEntryAfter) && !locked[side] && !far && !againstVwap && !volShort;
     const opp = side === 'long' ? 'short' : 'long';
     const mk = (bright, tag) => side === 'long'
       ? marks.push({time: b.time, position: 'belowBar', color: gated ? '#8A3A3A' : (bright ? CHART_THEME.up : '#B36A6A'), shape: 'arrowUp', text: '多' + tag})
       : marks.push({time: b.time, position: 'aboveBar', color: gated ? '#2A6A4A' : (bright ? CHART_THEME.down : '#4A9A7A'), shape: 'arrowDown', text: '空' + tag});
-    const tag = (gated ? '✕' : (confirmed ? '✓' : '')) + (strong ? '強' : '') + (far && !gated ? (obmaFlat ? '平' : (gapChase ? '缺' : (redFalling ? '退' : (gapLow ? '距' : (farHiLo ? '離' : (dirBad ? '向' : (chopBad ? '盤' : (blueBad ? '藍' : (weakEntry ? '勢' : '遠'))))))))) : '') + (againstVwap && !gated ? '逆' : '') + (volShort && !gated ? '量' : '') + (rvolLow && !gated ? '比' : '');   // 2026-10-19 量比不足改成 far 後,「比」要另外標
+    const tag = (gated ? '✕' : (confirmed ? '✓' : '')) + (strong ? '強' : '') + (far && !gated ? (obmaFlat ? '平' : (gapChase ? '缺' : (redFalling ? '退' : (gapLow ? '距' : (farHiLo ? '離' : (dirBad ? '向' : (chopBad ? '盤' : (blueBad ? '藍' : (weakEntry ? '勢' : (mktBad ? '大' : '遠')))))))))) : '') + (againstVwap && !gated ? '逆' : '') + (volShort && !gated ? '量' : '') + (rvolLow && !gated ? '比' : '');   // 2026-10-19 量比不足改成 far 後,「比」要另外標
     if (YH.exitRule){
       /* 循環規則(2026-10-15 19:50 使用者定案):
          進場 = 確認點(同方向第 2 個以後、紅藍都更強);進場後不看同方向的點,只看反方向:

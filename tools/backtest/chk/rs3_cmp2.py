@@ -7,6 +7,8 @@ J1="OBMASLOPE=4 FPGAP=2.5 TAKE=2.5 VWAPF=1 FP=1 MAXDEV=1 MIRROR=1 PENDVOL=1 VOLM
 J3="FPGAP=2.5 TAKE=2.5 VWAPF=0 FP=1 MAXDEV=99 MIRROR=1 PENDVOL=1 VOLMIN=6000 RVOLMIN=0 CAP=350000 REVOK=1 ENTRYMAX=3.5 OBVX=2 OBVXMIN=1 OBVX2=1 OB2=30 SLOPEMIN=-99 GAPMODE=dir GAPTH=99 OB3MA=6 REDSLOPE=-2 EXITRESET=tp OBVDIR=0 NEARHL=0 NOLOCK=1 NOENTRYAFTER=12:00 OBMASLOPE=0 MODE=press CHOP=1 CHOPW=30"   # 2026-10-20 判三 壓線空點(21:50 原判四改名判三)
 J4="FPGAP=2.5 TAKE=2.5 VWAPF=0 FP=1 MAXDEV=99 MIRROR=1 PENDVOL=1 VOLMIN=6000 RVOLMIN=0 CAP=350000 REVOK=1 ENTRYMAX=3.5 OBVX=2 OBVXMIN=1 OBVX2=1 OB2=30 SLOPEMIN=-99 GAPMODE=dir GAPTH=99 OB3MA=6 REDSLOPE=-2 EXITRESET=tp OBVDIR=0 NEARHL=0 NOLOCK=1 NOENTRYAFTER=12:00 MODE=brk BRKBELOW=1 BRKVBASE=pre OBMASLOPE=0 BRKGAP=0 BRKGAPREF=pool"   # 2026-10-20 21:50 判四 = 原判三 燿華型(隱藏)
 BASE=(J1 if RS=="一" else J3 if RS=="三" else J4 if RS=="四" else "FPGAP=2.5 TAKE=2.5 VWAPF=1 FP=1 MAXDEV=1 MIRROR=1 PENDVOL=1 VOLMIN=6000 RVOLMIN=0.9 CAP=350000 REVOK=1 ENTRYMAX=3.5 OBVX=2 OBVXMIN=1 OBVX2=1 OB2=30 SLOPEMIN=-99 GAPMODE=dir GAPTH=2 OB3MA=6 REDSLOPE=-2 EXITRESET=tp MODE=cross XWIN=10 OBMASLOPE=0 XSTR=2 XNEWHI=1 XOB2=20 XOB2DIR=slope XKMA=0 NOLOCK=1 STRONG=1 SREQ=1030,dx,ext SBARS=2 SWIN=5 STRONGMAX=4 SNOAFTER=11:30 MINGAP=4 NOENTRYAFTER=12:00 XOB3=30 WEAKORDER=1 OBVDIR=30 NEARHL=2 STOPMODE=pts STOPSCOPE=last2 STOPKBAR=close STOPCAP=3 STOPMIN=1.5 OB10DIR=1 CHOP=1 CHOPW=45") + ("" if RS=="三" else " OBVDIR=30" + (" NEARHL=2" if RS=="二" else ""))
+BRF=os.path.join(os.path.dirname(S.rstrip('/')) if S.endswith('chk') else S, 'results', 'breadth_2026-10-06_21.json')
+if RS=="二": BASE+=f" BREADTH={BRF} BRTH=0.8 BRMODE=black"   # 2026-10-21 判二第九次修改:大盤偏多只做黑盤空(App 每天換上同一份寬度)
 ENV=dict(os.environ); ENV.update(dict(kv.split('=',1) for kv in BASE.split()))
 def load(code, upto):
     bars=[]
@@ -43,6 +45,7 @@ async def main():
         tot=0; diff=0; nstrong=0
         for day in ['2026-10-13','2026-10-14','2026-10-15','2026-10-16']:
             P=json.load(open(f'{S}/pools/hi350_{day}.json',encoding='utf-8'))
+            if RS=="二": await pg.evaluate("([d, br]) => { const base = Date.parse(d + 'T00:00:00+08:00') / 1000; BREADTH.d = d; BREADTH.base = base; BREADTH.arr = Object.keys(br).sort().map(k => [base + (+k.slice(0, 2)) * 3600 + (+k.slice(3, 5)) * 60, br[k]]); }", [day, json.load(open(BRF))[day]])
             for s in P['pool']:
                 code=s['code']; f=f'/home/user/Stock-database/kline/{code}/2026-W42.csv'
                 if not os.path.exists(f) or day not in open(f).read(): continue

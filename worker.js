@@ -135,7 +135,8 @@ async function snapshotBars(env) {
     if (!isFinite(parseFloat(m.z)) && isFinite(z)) { const b1 = parseFloat(String(m.b || "").split("_")[0]), a1 = parseFloat(String(m.a || "").split("_")[0]); if (b1 > 0 && a1 > 0 && b1 <= a1) z = Math.min(Math.max(z, b1), a1); }
     const v = parseFloat(m.v);
     if (!isFinite(z) || !isFinite(v)) continue;
-    s[m.c] = [z, v]; n++;
+    const y = parseFloat(m.y);
+    s[m.c] = isFinite(y) && y > 0 ? [z, v, y] : [z, v]; n++;   // 2026-10-21 加昨收 y(?breadth 算大盤上漲比例用)
   }
   if (!dOk) return "holiday";
   await env.LOGS.put(`bar:${d}:${hhmmOf(t)}`, JSON.stringify(s), { expirationTtl: 14 * 86400 });
@@ -183,6 +184,43 @@ async function dayBars(env, d, codes, since) {
     }
   }
   return { d, last: snaps.length ? lbl(snaps[snaps.length - 1][0]) : "", n: snaps.length, bars };   // last = 最後一根的標籤(手機下次用 since 傳回來)
+}
+
+/* 2026-10-21 使用者「改 判二 大盤偏多只做黑盤空」:大盤寬度 = 名單上每檔最新價 > 昨收的比例(上漲 /(上漲 + 下跌),平盤不算),每分鐘一個值。
+   標籤規則和 dayBars 一樣(快照 HH:MM = 上一分鐘的成交);昨收用快照裡的 y,舊快照沒有 y 的用 pool.json(當天的 prev,收盤後換成明天名單時用 close)。
+   模擬器 BREADTH 檔(tools/backtest/results/breadth_*.json)是同一個算法 */
+async function dayBreadth(env, d) {
+  const keys = []; let cursor;
+  do {
+    const r = await env.LOGS.list({ prefix: `bar:${d}:`, cursor, limit: 1000 });
+    for (const k of r.keys) keys.push(k.name);
+    cursor = r.list_complete ? null : r.cursor;
+  } while (cursor);
+  keys.sort();
+  let pp = {};
+  try {
+    const r = await fetch(`${RAW}/pool.json`, { cf: { cacheTtl: 1800, cacheEverything: true } });
+    const j = await r.json(), pool = Array.isArray(j) ? j : (j.pool || []);
+    for (const s of pool) { const y = (s.date || j.date) === d ? +s.prev : (s.date || j.date) < d ? +s.close : NaN; if (y > 0) pp[String(s.code)] = y; }
+  } catch (e) {}
+  const lbl = hm => { if (hm <= "09:00") return "09:00"; const m = +hm.slice(0, 2) * 60 + +hm.slice(3, 5) - 1; return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
+  const last = {}, br = {};
+  for (let i = 0; i < keys.length; i += 25) {
+    const part = keys.slice(i, i + 25);
+    const vals = await Promise.all(part.map(k => env.LOGS.get(k)));
+    part.forEach((k, j) => {
+      if (!vals[j]) return; let s; try { s = JSON.parse(vals[j]); } catch (e) { return; }
+      for (const c in s) {
+        const [z, v, y] = s[c], p = last[c];
+        if (p && v < p[1]) continue;                          // 舊快照(累計量變少)不算,同 dayBars
+        last[c] = [z, v, y > 0 ? y : (p && p[2]) || pp[c]];
+      }
+      let u = 0, dn = 0;
+      for (const c in last) { const [z, , y] = last[c]; if (!(y > 0)) continue; if (z > y) u++; else if (z < y) dn++; }
+      if (u + dn) br[lbl(k.slice(-5))] = Math.round(u / (u + dn) * 1000) / 1000;
+    });
+  }
+  return { d, n: Object.keys(last).length, br };
 }
 
 const CORS = {
@@ -242,6 +280,21 @@ export default {
       const cached = new Response(body, { status: 200, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": `public, max-age=${ttl}` } });
       if (ctx && ctx.waitUntil) ctx.waitUntil(cache.put(ck, cached)); else await cache.put(ck, cached);
       return resp;
+    }
+
+    // ── ?breadth=today|YYYY-MM-DD → 大盤寬度(每分鐘上漲比例),邊緣快取 50 秒 ──
+    const bq = url.searchParams.get("breadth");
+    if (bq) {
+      if (!env || !env.LOGS) return J({ error: "Worker 還沒綁定 KV(LOGS)" }, 503);
+      const d = bq === "today" ? ymdOf(twNow()) : bq;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return J({ error: "breadth 要是 YYYY-MM-DD 或 today" }, 400);
+      const ck = new Request(`${url.origin}/__breadth?d=${d}`), cache = caches.default;
+      const hit = await cache.match(ck);
+      if (hit) { const h = new Headers(hit.headers); for (const [k, v] of Object.entries(CORS)) h.set(k, v); return new Response(hit.body, { status: 200, headers: h }); }
+      const body = JSON.stringify(await dayBreadth(env, d));
+      const cached = new Response(body, { status: 200, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=50" } });
+      if (ctx && ctx.waitUntil) ctx.waitUntil(cache.put(ck, cached)); else await cache.put(ck, cached);
+      return new Response(body, { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });
     }
 
     // ── 第三條路:?gh=status / ?gh=run&what=daily&key=… ──
