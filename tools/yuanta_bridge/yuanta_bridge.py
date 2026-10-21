@@ -58,11 +58,16 @@ def load_sdk():
     return Y, List
 
 
+class LoginRejected(Exception):
+    """元大明確拒絕登入(帳密錯、密碼凍結、沒權限):不能一直重試,錯的密碼連續試會把帳號鎖住"""
+
+
 class Bridge:
     def __init__(self):
         self.Y, self.List = load_sdk()
         self.api = None
         self.logged_in = threading.Event()
+        self.login_fail = None   # 登入被拒的原因(帳密錯、凍結、沒權限)→ 今天不再重試,免得把帳號鎖住
         self.disconnected = threading.Event()
         self.book = BarBook(vol_mult=int(CFG.get("VOL_MULT", "1000")))
         self.sent = set()
@@ -88,6 +93,9 @@ class Bridge:
                     log(f"登入 {st.MsgCode} {st.MsgContent} 帳號數 {st.Count}")
                     if st.MsgCode in ("0001", "00001") or st.Count > 0:
                         self.logged_in.set()
+                    else:
+                        # 元大文件「登入」:0000 執行失敗、0102 密碼凍結或未啟用、0112 無此權限使用功能
+                        self.login_fail = f"{st.MsgCode} {st.MsgContent}"
                     return
                 if strIndex == "GetKLine" and self.kline_out is not None:
                     lst = objValue.KLineList
@@ -134,12 +142,15 @@ class Bridge:
         self.api.Open(mode)
         time.sleep(2)
         acc, pw = CFG["YT_ACCOUNT"], CFG["YT_PASS"]
+        self.login_fail = None
         if sys.platform == "win32":
             self.api.Login(acc, pw)
         else:
             self.api.Login(CFG["YT_PFX"], CFG["YT_PFX_PASS"], acc, pw)   # Linux / Mac 要憑證絕對路徑 + 憑證密碼
-        if not self.logged_in.wait(20):
-            raise RuntimeError("登入逾時(帳號密碼、憑證、API 權限、固定 IP 是否開通?)")
+        for _ in range(40):
+            if self.logged_in.wait(0.5): return
+            if self.login_fail: raise LoginRejected(self.login_fail)
+        raise RuntimeError("登入逾時(網路、憑證、API 權限、固定 IP 是否開通?)")
 
     def close(self):
         try:
@@ -212,6 +223,9 @@ class Bridge:
                 for _ in range(10):
                     time.sleep(1)
                 self.flush(day)
+            except LoginRejected as e:
+                log(f"!! 元大拒絕登入:{e}。今天不再重試,請檢查 bridge.env 的帳號 / 密碼 / 權限後重啟服務")
+                self.close(); break
             except Exception as e:
                 fails += 1; log("錯誤", e, f"(第 {fails} 次)")
                 self.close(); time.sleep(min(60, 10 * fails))   # 登入失敗不能太頻繁(每 4 秒最多 1 次,一天 1000 次)
@@ -249,7 +263,8 @@ def main():
                 b.run_day()
             except Exception as e:
                 log("當天執行失敗", e)
-            time.sleep(120)
+            while now_tw().strftime("%H:%M") < "13:36":   # 今天收工(或登入被拒)後等到收盤時間過了,不重跑
+                time.sleep(60)
         else:
             time.sleep(30)
 
