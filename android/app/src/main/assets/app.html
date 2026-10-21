@@ -104,6 +104,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-21 06:20 歷史 K 有雲端 K 的那天改用雲端 K(使用者:光鼎「覺得 obv 跟元大的不太一樣」):Yahoo 光鼎 10/20 11:20 有一根 7,291 張(OBV 掉 7 千),雲端 K 沒有;loadMinuteBars 另讀 kline_cloud/ 週檔,有的日子取代 Yahoo。
   · 2026-10-21 06:40 撤掉 06:20 的雲端 K 取代(使用者:「元大是下滑的」;元大的 1 分 K 和 Yahoo 同一份,雲端 K 的分鐘形狀反而不像),改成 Yahoo 鉅額交易那根量不算:某根量 ≥ 同日前後 10 根中位數 80 倍且 ≥ 300 張 → 量改成中位數(dropBlockTrades)。10/20 對證交所日量抓到 49 檔、漏 3、誤抓 3。
   · 2026-10-21 10:05 證交所舊快照不收(使用者:台郡「量不對」):證交所偶爾回時間倒退、累計量變少的舊資料,原本會把同一段量再算一次(09:54 有 45 檔雲端 K 總量多 1% 以上)。手機 liveTick:同一天時間比上一筆早 → 整筆不收;Worker 拼 K:累計量比上一個快照少 → 那個快照不算。
+  · 2026-10-21 10:30 頂端「量」改成永遠是今天到現在的總量(使用者:「App 才 3 萬多 元大已經 7-8 萬了」→「選 1」;原本是到十字線那分鐘的累積量);十字線那根自己的量(張)顯示在 K 圖虛線旁(placeXVol)。
   · 2026-10-21 06:00 撤掉 05:50 的「當天漲 ≥ 2.5% 不亮做空」(使用者「撤掉 重新找其他方法」):YH.lampNoShortUpPct = 0。
   · 2026-10-21 05:50 當天漲 ≥ 2.5% 不亮做空(使用者「改」;榮科、建榮、中釉大漲中的做空 7 錯 3 對)。今天 14 檔做多 / 做空燈 34 對 31 錯 → 31 對 27 錯;
     有變的只有榮科、建榮、中釉(錯的消掉)、聯嘉投控(09:24 對的消掉、09:31 / 09:39 多 2 次錯)、光鼎(09:51 晚 1 根),其他 9 檔不變。
@@ -1660,7 +1661,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610211005">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610211030">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1974,6 +1975,9 @@ except Exception:
             color:var(--dim);font-family:var(--mono);pointer-events:none}
   .hilo{position:absolute;z-index:3;font-family:var(--mono);font-size:11px;line-height:1;
         pointer-events:none;transform:translateX(-50%);white-space:nowrap}
+  /* 2026-10-21 十字線那根 K 自己的量(張),貼在 K 圖虛線旁 */
+  .xvol{position:absolute;z-index:3;top:2px;font-family:var(--mono);font-size:11px;line-height:1;padding:2px 3px;border-radius:3px;
+        background:rgba(0,0,0,.65);color:#e6e6e6;pointer-events:none;white-space:nowrap}
   /* 監控燈(開高低收表左下那格):做多 紅燈閃、監控 黃燈恆亮、做空 綠燈閃;沒亮的是暗灰 */
   .yh-info>div.lamps{display:flex;gap:5px;align-items:center;padding:4px 6px}
   .lamp{flex:1;text-align:center;font-size:12px;font-weight:700;line-height:1;padding:4px 0;
@@ -2116,7 +2120,7 @@ except Exception:
         <span id="lblMaBox" style="color:#D63AF9">Ka<span id="lblMaN" hidden>10</span>:<span id="lblMaV">—</span></span>   <!-- 2026-10-21 使用者:「K10 改成 Ka」(Ka = 均價 10) -->
         <span id="lblMa24Box" style="color:#19D3F5">Kb:<span id="lblMa24V">—</span></span>   <!-- 2026-10-21 使用者:「k24 改成 Kb」(Kb = 均價 24) -->   <!-- 2026-10-21 使用者:「加一條 k24」 -->
         <span style="color:#FF9F43">Ap:<span id="lblVwapV">—</span></span></div>   <!-- 2026-10-21 使用者:「vwap 改顯示 Ap 後面的價上用箭頭顯示」 -->
-      <div id="chartTop"><span class="hilo up hidden" id="hiLbl"></span><span class="hilo down hidden" id="loLbl"></span></div>
+      <div id="chartTop"><span class="hilo up hidden" id="hiLbl"></span><span class="hilo down hidden" id="loLbl"></span><span class="xvol hidden" id="xVolLbl"></span></div>
       <div class="yh-lbl sep"><span style="color:#FFFFFF">指標二</span>   <!-- 2026-10-21 使用者:「OBV 指標二」 -->
         <span style="color:#FFE14D">Oa:<span id="lblObvV">—</span></span>   <!-- 2026-10-21 使用者:「OBV 改 Oa Ob Oc」:Oa = OBV(黃)、Ob = OBV 均 10(藍)、Oc = OBV 均 30(紫) -->
         <span style="color:#19D3F5">Ob<span id="lblObvMaN" hidden>10</span>:<span id="lblObvMaV">—</span></span>
@@ -3625,11 +3629,13 @@ function showBarInfo(t){
   if (isLast && lr && /^\d\d:\d\d:\d\d$/.test(lr.t || '')) ts = lr.t;
   el('iTime').textContent = ts;
   setPx('iH', d.bar.high); setPx('iL', d.bar.low);   // 開、收欄位已取消(2026-10-15),收盤價在標題列大字
-  // 量 = 當天到這一分鐘為止的累積成交量(張),不是單根的量,也不加箭頭;最後一根優先用即時行情的累積量 v
-  let cumLots = d.cumVol / 1000;
-  if (isLast && lr && isFinite(lr.v) && lr.v > 0) cumLots = lr.v;
+  // 量 = 今天到現在的總累積量(張),不跟十字線那根變(2026-10-21 使用者「App 才 3 萬多 元大已經 7-8 萬了」→「選 1」:
+  //   原本是「到十字線那一分鐘的累積量」,點在早上的 K 就只有幾萬,看起來像量不對);優先用即時行情的累積量 v。那根自己的量顯示在 K 圖虛線旁(placeXVol)
+  let cumLots = (CUR.last ? CUR.last.cumVol : d.cumVol) / 1000;
+  if (lr && isFinite(lr.v) && lr.v > 0) cumLots = lr.v;
   el('iV').textContent = (cumLots / 10000).toFixed(2);         // 以萬張為單位:337131 張 → 33.71(「萬」字固定在 HTML 裡)
   el('iV').className = '';                                    // 不上色、不加箭頭
+  placeXVol(d.bar.time);
   // 箭頭和元大一樣上色:比前一根高 ↑ 紅、低 ↓ 綠
   const trend = (v, prev) => (prev == null || !isFinite(v)) ? '' : v > prev ? '<span class="up">↑</span>' : v < prev ? '<span class="down">↓</span>' : '';
   el('lblMaN').textContent = BASE.maPeriod;
@@ -4932,7 +4938,7 @@ function initChart(){
     chartM.setCrosshairPosition(obvAt(i), time, obvSeries);
     if (chartB) chartB.setCrosshairPosition(biasAt(i), time, orgLine);
     xApplying = false;
-    if (info) showBarInfo(time);
+    if (info) showBarInfo(time); else placeXVol(time);   // 拖動 / 縮放時那根的量跟著虛線走
   };
   // 拖動 / 縮放時(每一格)十字線跟著固定的那根 K 走;那根被推出畫面就改固定到邊緣那根,之後被邊緣「推著走」,
   // 不會忽然跳(2026-10-18 使用者影片:拖圖時十字線停在舊像素位置顯示別的時間,放手才跳到最右邊)
@@ -5089,6 +5095,19 @@ function updateHiLo(){
   };
   place(hi, hb, hb.high, true);
   place(lo, lb, lb.low, false);
+}
+
+/* 2026-10-21 使用者「點哪根 自己的量顯示在 k 圖虛線旁」:十字線那根 K 自己的量(張)貼在 K 圖虛線右邊(太靠右就放左邊) */
+function placeXVol(t){
+  const e = el('xVolLbl'); if (!e) return;
+  const d = CUR && ((t && CUR.byTime.get(t)) || CUR.last);
+  const x = (chart && d) ? chart.timeScale().timeToCoordinate(d.bar.time) : null;
+  if (x == null) return e.classList.add('hidden');
+  e.textContent = Math.round((d.bar.volume || 0) / 1000).toLocaleString('en-US') + '張';
+  e.classList.remove('hidden');
+  const aw = chart.priceScale('left').width() || 0, px = aw + x, w = e.offsetWidth, W = el('chartTop').clientWidth;
+  if (px < aw || px > W) return e.classList.add('hidden');   // 那根不在畫面裡
+  e.style.left = (px + 4 + w > W ? px - 4 - w : px + 4) + 'px';
 }
 
 /* 關閉圖表(✕ 或手機返回鍵都走這裡) */
