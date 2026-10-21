@@ -106,6 +106,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-21 10:05 證交所舊快照不收(使用者:台郡「量不對」):證交所偶爾回時間倒退、累計量變少的舊資料,原本會把同一段量再算一次(09:54 有 45 檔雲端 K 總量多 1% 以上)。手機 liveTick:同一天時間比上一筆早 → 整筆不收;Worker 拼 K:累計量比上一個快照少 → 那個快照不算。
   · 2026-10-21 10:30 頂端「量」改成永遠是今天到現在的總量(使用者:「App 才 3 萬多 元大已經 7-8 萬了」→「選 1」;原本是到十字線那分鐘的累積量);十字線那根自己的量(張)顯示在 K 圖虛線旁(placeXVol)。
   · 2026-10-21 10:45 紅色「回到最新一根」箭頭按下去,圖也捲回最右邊(使用者:「按下去也沒有跑到最新的啊」;原本只把十字線移到最新一根,最新一根不在畫面裡就看起來沒反應)。真正原因:指標三的兩條線只畫到最後一個交叉點,時間軸比 K 線短,三張圖同步捲動時被指標三卡住,最新幾根 K 一直在畫面外;指標三補一條看不見、每根 K 都有值的線把時間軸撐到最新一根。
+  · 2026-10-21 11:00 十字線固定在舊的 K 時,燈號 / 多空天秤跟著那根(使用者:台郡 09:49「這是做空點嗎?」;原本盤中每次重畫都被蓋成最新一根的燈號,09:49 是做多卻亮著做空)。
   · 2026-10-21 06:00 撤掉 05:50 的「當天漲 ≥ 2.5% 不亮做空」(使用者「撤掉 重新找其他方法」):YH.lampNoShortUpPct = 0。
   · 2026-10-21 05:50 當天漲 ≥ 2.5% 不亮做空(使用者「改」;榮科、建榮、中釉大漲中的做空 7 錯 3 對)。今天 14 檔做多 / 做空燈 34 對 31 錯 → 31 對 27 錯;
     有變的只有榮科、建榮、中釉(錯的消掉)、聯嘉投控(09:24 對的消掉、09:31 / 09:39 多 2 次錯)、光鼎(09:51 晚 1 根),其他 9 檔不變。
@@ -1662,7 +1663,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610211045">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610211100">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5371,6 +5372,9 @@ function drawBars(bars, code, srcLabel, keepView){
   if (CUR){
     CUR.lampLast = {long: el('lampLong').classList.contains('on'), short: el('lampShort').classList.contains('on'), watch: el('lampWatch').classList.contains('on')};
     CUR.biasLast = bias; CUR.i3 = I3; CUR.lamps = LAMPS; CUR.strongLast = strongLast; CUR.waitLast = waiting; CUR.bars = bars; CUR.vw = vw; CUR.maMap = maMap; CUR.obmaMap = obmaMap; CUR.obMap = obMap; CUR.obSMap = obSMap; CUR.stateAt = (YH.exitRule && rpSig.stateAt) ? rpSig.stateAt : null;
+    // 2026-10-21 使用者(台郡 09:49 截圖:「這是做空點嗎?」):十字線固定在舊的 K 時,盤中每次重畫上面的 syncX 先跑(那時燈號還沒算好),
+    //   接著燈號 / 天秤被設成最新一根的狀態,和十字線那根對不起來(09:49 是做多,卻亮著 10:35 以後的做空)。燈號算好後再照十字線那根顯示一次
+    try{ const x = window.getXLock && getXLock(); if (x && !x.follow && x.time !== last.time) showBarInfo(x.time); }catch(e){}
   }
   const nLong = marks.filter(m => m.text.startsWith('多')).length, nShort = marks.filter(m => m.text.startsWith('空')).length;
   const nGated = marks.filter(m => m.text.endsWith('✕')).length, nConf = marks.filter(m => m.text.endsWith('✓')).length;
