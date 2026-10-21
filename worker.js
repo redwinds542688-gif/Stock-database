@@ -348,6 +348,25 @@ export default {
       return J({ d, src: "yuanta", last: use.length ? use[use.length - 1].slice(-5) : since, n: use.length, bars });
     }
 
+    // ── 元大即時價通道:POST ?yquote=register(中繼程式登記 cloudflared 通道網址);GET ?yquote=status ──
+    // 2026-10-22 使用者:「手機即時價也要改用元大」:手機的 ?codes 先問元大中繼(通道),不通才問證交所,手機不用改
+    const yq = url.searchParams.get("yquote");
+    if (yq) {
+      if (!env || !env.LOGS) return J({ error: "Worker 還沒綁定 KV(LOGS)" }, 503);
+      if (yq === "register") {
+        if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
+        if (!env.YT_PUSH_KEY || request.headers.get("X-Push-Key") !== env.YT_PUSH_KEY) return J({ error: "金鑰不對" }, 403);
+        let b; try { b = await request.json(); } catch (e) { return J({ error: "JSON 格式錯誤" }, 400); }
+        if (!b || !/^https:\/\/[\w.-]+$/.test(b.url || "")) return J({ error: "url 要是 https://主機名" }, 400);
+        await env.LOGS.put("yquote:url", b.url, { expirationTtl: 3 * 86400 });
+        return J({ ok: true, url: b.url });
+      }
+      const u = await env.LOGS.get("yquote:url");
+      let health = null;
+      if (u) { try { health = await (await fetch(u + "/health", { signal: AbortSignal.timeout(3000) })).json(); } catch (e) { health = { error: String(e) }; } }
+      return J({ url: u || null, health });
+    }
+
     // ── ?breadth=today|YYYY-MM-DD → 大盤寬度(每分鐘上漲比例),邊緣快取 50 秒 ──
     const bq = url.searchParams.get("breadth");
     if (bq) {
@@ -479,6 +498,22 @@ export default {
     // 組證交所要的格式:tse_2409.tw|otc_6147.tw|...
     // 2026-10-20 mkt=any:不知道上市上櫃(App 名單裡沒有的股票),兩邊都問,證交所只會回對的那一邊(錯的回空的,misFresh 會丟掉)
     const ex_ch = codes.flatMap((c, i) => (mkts[i] === "any") ? [`tse_${c}.tw`, `otc_${c}.tw`] : [`${(mkts[i] || "tse") === "otc" ? "otc" : "tse"}_${c}.tw`]).join("|");
+    // 2026-10-22 使用者:「手機即時價也要改用元大」:先問元大中繼(格式和證交所一樣);沒登記通道、連不上、超過 1.5 秒、
+    //   有要的股票元大沒有、或盤中元大資料超過 60 秒沒更新 → 照舊問證交所。&src=mis 強制問證交所
+    if (env && env.LOGS && env.YT_PUSH_KEY && url.searchParams.get("src") !== "mis") {
+      try {
+        const qu = await env.LOGS.get("yquote:url", { cacheTtl: 60 });
+        if (qu) {
+          const r = await fetch(`${qu}/quotes?codes=${codes.join(",")}`, { headers: { "X-Quote-Key": env.YT_PUSH_KEY }, signal: AbortSignal.timeout(1500) });
+          if (r.ok) {
+            const y = await r.json(), hm = hhmmOf(twNow());
+            const live = hm >= "09:00" && hm <= "13:31";
+            if (y && Array.isArray(y.msgArray) && !(y.missing || []).length && (!live || (y.age != null && y.age < 60)))
+              return new Response(JSON.stringify(y), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });
+          }
+        }
+      } catch (e) { /* 元大通道不通 → 證交所 */ }
+    }
     try {
       // 2026-10-20:同時發 FRESH_N 個請求、每檔取最新的那筆(見 misFresh)
       const j = await misFresh(ex_ch);

@@ -7,7 +7,7 @@ apt-get update && apt-get upgrade -y
 apt-get install -y dotnet-sdk-8.0 python3 python3-pip python3.12-venv openssl
 id -u yuanta >/dev/null 2>&1 || useradd -r -m -s /bin/bash yuanta
 mkdir -p $APP/sdk $APP/cert $APP/log
-cp yuanta_bridge.py bars.py test_bars.py trader.py test_trader.py bridge.env.example yuanta-bridge.service $APP/
+cp yuanta_bridge.py bars.py test_bars.py trader.py test_trader.py quotes.py test_quotes.py cloudflared-quote.service bridge.env.example yuanta-bridge.service $APP/
 [ -f $APP/bridge.env ] || cp bridge.env.example $APP/bridge.env
 python3 -m venv $APP/venv
 $APP/venv/bin/pip install --upgrade pip
@@ -21,3 +21,6 @@ echo " 2. 憑證檔放到 $APP/cert,編輯 $APP/bridge.env 填帳號、密碼、
 echo " 3. 測試:sudo -u yuanta $APP/venv/bin/python $APP/yuanta_bridge.py test 2330"
 echo " 4. 常駐:sudo cp $APP/yuanta-bridge.service /etc/systemd/system/ && sudo systemctl enable --now yuanta-bridge"
 echo "    看紀錄:journalctl -u yuanta-bridge -f"
+echo " 5.(選用)手機即時價走元大:bridge.env 設 QUOTE_ENABLE=1,再裝 cloudflared:"
+echo "    curl -L -o /tmp/cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb && sudo dpkg -i /tmp/cloudflared.deb"
+echo "    sudo cp $APP/cloudflared-quote.service /etc/systemd/system/ && sudo systemctl enable --now cloudflared-quote"

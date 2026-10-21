@@ -15,6 +15,9 @@ import json, os, re, sys, time, threading, urllib.request, datetime as dt
 from pathlib import Path
 from bars import BarBook
 from trader import Trader, fetch_signals
+from quotes import QuoteBook
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
 
 HERE = Path(__file__).resolve().parent
 TW = dt.timezone(dt.timedelta(hours=8))
@@ -30,7 +33,7 @@ def load_env():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1); cfg[k.strip()] = re.split(r"\s+#", v, 1)[0].strip()   # 去掉行尾註解
-    for k in list(cfg) + ["YT_ACCOUNT", "YT_PASS", "YT_PFX", "YT_PFX_PASS", "YT_ENV", "YT_SDK_DIR", "WORKER_URL", "PUSH_KEY", "POOL_URL", "VOL_MULT", "MAX_CODES", "YT_PMM_CHECK", "TRADE_ENABLE", "TRADE_ALLOW_PROD"]:
+    for k in list(cfg) + ["YT_ACCOUNT", "YT_PASS", "YT_PFX", "YT_PFX_PASS", "YT_ENV", "YT_SDK_DIR", "WORKER_URL", "PUSH_KEY", "POOL_URL", "VOL_MULT", "MAX_CODES", "YT_PMM_CHECK", "TRADE_ENABLE", "TRADE_ALLOW_PROD", "QUOTE_PORT", "CF_METRICS", "QUOTE_ENABLE"]:
         if os.environ.get(k): cfg[k] = os.environ[k]
     return cfg
 
@@ -87,6 +90,7 @@ class Bridge:
         self.kline_out = None
         self.n_ticks = 0
         self.trader = None       # 一次一單自動交易(trader.py;TRADE_ENABLE=1 才會下單)
+        self.quotes = QuoteBook(vol_mult=int(CFG.get("VOL_MULT", "1000")))   # 手機即時價(quotes.py)
 
     # 回應事件(元大的執行緒呼叫,不能在這裡做耗時的事)
     def on_response(self, intMark, dwIndex, strIndex, objHandle, objValue):
@@ -151,12 +155,14 @@ class Bridge:
                         return
                     t = r.Time
                     sn = int(r.SerialNo)
-                    if sn < 0:                   # -1 = 清盤(漲跌停 / 參考價),不是成交
+                    if sn < 0:                   # -1 = 清盤(漲跌停 / 參考價),不是成交;成交價欄位 = 開盤參考價(昨收)
+                        self.quotes.on_ref(str(r.StkCode).strip(), float(r.DealPrice))
                         return
                     code, px = str(r.StkCode).strip(), float(r.DealPrice)
                     ok = self.book.add_tick(code, t.bytHour, t.bytMin, sn, px, int(r.DealVol), self.sent)
                     if ok:
                         self.n_ticks += 1
+                        self.quotes.on_tick(code, now_tw().strftime("%Y%m%d"), t.bytHour, t.bytMin, t.bytSec, px, int(r.DealVol), float(r.BuyPrice), float(r.SellPrice))
                         if self.trader and px > 0: self.trader.on_tick(code, px)
                     if self.printer:
                         self.printer(f"{r.StkCode} {t.bytHour:02d}:{t.bytMin:02d}:{t.bytSec:02d}.{t.ushtMSec:03d} 序 {sn} 價 {r.DealPrice} 量 {r.DealVol} 內外 {flag}")
@@ -217,10 +223,12 @@ class Bridge:
         url = CFG.get("POOL_URL", "https://raw.githubusercontent.com/redwinds542688-gif/Stock-database/main/pool.json")
         j = json.loads(urllib.request.urlopen(url, timeout=30).read().decode("utf-8"))
         pool = j.get("pool", j) if isinstance(j, dict) else j
-        Y = self.Y; out = []
+        Y = self.Y; out = []; today = now_tw().strftime("%Y-%m-%d")
         for s in pool[: int(CFG.get("MAX_CODES", "200"))]:
             otc = s.get("market") in ("tpex", "otc")
             out.append((str(s["code"]), Y.enumMarketType.TWOTC if otc else Y.enumMarketType.TWSE))
+            y = s.get("close") if (s.get("date") or j.get("date", "")) < today else s.get("prev")     # 名單日期比今天早 → 那天的收盤 = 昨收
+            self.quotes.set_meta(str(s["code"]), s.get("name", ""), "otc" if otc else "tse", y)
         log(f"名單 {j.get('date', '') if isinstance(j, dict) else ''} 共 {len(out)} 檔")
         return out
 
@@ -276,6 +284,47 @@ class Bridge:
         lst = self.List[Y.DeleteStrategy](); lst.Add(x)
         self.api.DeleteAlgoCOOdrStrategy(CFG["YT_ACCOUNT"], lst)
 
+    # ── 手機即時價:本機小服務 + Cloudflare Tunnel(Worker 的 ?codes 先問這裡,不通才問證交所)──
+    def serve_quotes(self):
+        bridge = self
+        class H(BaseHTTPRequestHandler):
+            def log_message(self, *a): pass
+            def do_GET(self):
+                u = urlparse(self.path)
+                if u.path == "/health":
+                    return self.reply({"ok": True, "age": bridge.quotes.mis([])["age"]})
+                if u.path != "/quotes" or self.headers.get("X-Quote-Key") != CFG.get("PUSH_KEY"):
+                    return self.reply({"error": "not found"}, 404)
+                codes = [c for c in parse_qs(u.query).get("codes", [""])[0].split(",") if c]
+                self.reply(bridge.quotes.mis(codes))
+            def reply(self, obj, code=200):
+                b = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+                self.send_response(code); self.send_header("Content-Type", "application/json; charset=utf-8"); self.send_header("Content-Length", str(len(b)))
+                self.end_headers(); self.wfile.write(b)
+        port = int(CFG.get("QUOTE_PORT", "8787"))
+        srv = ThreadingHTTPServer(("127.0.0.1", port), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        threading.Thread(target=self.register_tunnel, daemon=True).start()
+        log(f"手機即時價服務:127.0.0.1:{port}")
+
+    def register_tunnel(self):
+        """cloudflared 快速通道每次啟動網址會變:每分鐘看一次(cloudflared metrics 的 /quicktunnel),變了就告訴 Worker"""
+        last = None
+        while True:
+            try:
+                j = json.loads(urllib.request.urlopen(f"http://{CFG.get('CF_METRICS', '127.0.0.1:20241')}/quicktunnel", timeout=5).read().decode())
+                host = j.get("hostname")
+                if host and host != last:
+                    body = json.dumps({"url": f"https://{host}"}).encode()
+                    req = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?yquote=register", data=body, method="POST",
+                                                 headers={"Content-Type": "application/json", "X-Push-Key": CFG["PUSH_KEY"]})
+                    r = json.loads(urllib.request.urlopen(req, timeout=15).read().decode())
+                    if r.get("ok"): last = host; log(f"即時價通道登記到 Worker:https://{host}")
+                    else: log("即時價通道登記失敗", r)
+            except Exception as e:
+                if last is None: log("等 cloudflared 通道…", e)
+            time.sleep(60)
+
     def make_trader(self):
         cfg = dict(CFG)
         if CFG.get("YT_ENV", "UAT").upper() == "PROD" and CFG.get("TRADE_ALLOW_PROD", "0") != "1":
@@ -318,6 +367,7 @@ class Bridge:
     def run_day(self):
         day = now_tw().strftime("%Y-%m-%d")
         self.book = BarBook(vol_mult=int(CFG.get("VOL_MULT", "1000"))); self.sent = set(); self.n_ticks = 0
+        self.quotes.q.clear()            # 新的一天:即時價從頭累計
         self.codes = self.load_codes()
         self.trader = self.make_trader()
         self.trader.prime(fetch_signals(CFG["WORKER_URL"], day))
@@ -374,6 +424,8 @@ def main():
     for k in ("WORKER_URL", "PUSH_KEY"):
         if not CFG.get(k):
             sys.exit(f"缺少設定 {k}")
+    if CFG.get("QUOTE_ENABLE", "0") == "1":        # 預設關閉:要使用者自己決定要不要讓手機即時價走元大(會透過 Cloudflare Tunnel 對外開一個唯讀、要金鑰的報價服務)
+        b.serve_quotes()
     while True:
         n = now_tw(); hm = n.strftime("%H:%M")
         if n.weekday() < 5 and "08:45" <= hm < "13:36":

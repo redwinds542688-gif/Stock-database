@@ -15,6 +15,8 @@
 |---|---|
 | `yuanta_bridge.py` | 主程式:`run` 常駐、`test 2330` 驗證連線(印逐筆 60 秒)、`kline 2330 2026/10/22` 查元大 1 分 K |
 | `trader.py` / `test_trader.py` | 一次一單自動交易(跟手機通知進出場;`python3 test_trader.py` 測 17 種情況) |
+| `quotes.py` / `test_quotes.py` | 手機即時價:逐筆 → 每檔最新報價(格式同證交所,手機不用改) |
+| `cloudflared-quote.service` | (選用)Cloudflare 快速通道,讓 Worker 拿得到本機報價 |
 | `bars.py` / `test_bars.py` | 逐筆 → 1 分 K(不需要元大元件,`python3 test_bars.py` 可單獨測) |
 | `bridge.env.example` | 設定範本(複製成 `bridge.env`,**只放在主機上**,已被 .gitignore 排除) |
 | `install.sh` | Ubuntu 24.04 一鍵安裝(.NET 8、Python venv、pythonnet 3.0.5,照元大文件) |
@@ -98,3 +100,19 @@ sudo -u yuanta /opt/yuanta_bridge/venv/bin/python /opt/yuanta_bridge/yuanta_brid
 有些股票不能現股當沖或平盤下不能放空(例如處置股),元大會拒絕委託,程式收到拒絕就回空閒、不重試。
 
 限制:手機通知經過雲端紀錄,KV 列表最慢可能延遲約一分鐘,所以「進場」可能比通知晚;「出場」的停利停損由這裡即時盯,不受影響。
+
+## 手機即時價走元大(選用,預設關閉)
+
+2026-10-22 使用者:「手機即時價也要改用元大」。
+
+```
+手機 ──?codes──▶ Worker ──先問──▶ cloudflared 通道 ──▶ 本機報價服務(127.0.0.1:8787,quotes.py)
+                     └─ 沒登記 / 連不上 / 超過 1.5 秒 / 有股票元大沒有 / 盤中 60 秒沒更新 ──▶ 照舊問證交所
+```
+
+- 手機 App 不用改:Worker 回的格式和證交所一樣(c、z、v、y、o、h、l、b、a、t、d)。
+- 開啟:`bridge.env` 設 `QUOTE_ENABLE=1`,裝 cloudflared(install.sh 最後有指令)並啟動 `cloudflared-quote` 服務。
+  通道網址每次重開會變,中繼程式每分鐘自動登記到 Worker(`?yquote=register`);`?yquote=status` 可以看目前網址和狀態。
+- **安全**:這會讓主機上的報價服務透過 Cloudflare 通道對外;服務只聽 127.0.0.1、只回報價(唯讀)、要帶和 `PUSH_KEY` 一樣的金鑰才回資料。
+  不想對外就維持 `QUOTE_ENABLE=0`,即時價照舊走證交所。
+- 中繼程式盤中才啟動的話,累計量只從啟動那刻算(價格不受影響)。
