@@ -53,7 +53,7 @@ class Trader:
         # 2026-10-22 使用者:「在股票交易啟動當下 直接預掛停損是最好方式」:進場成交後馬上在元大主機掛二擇一條件單(OCO)——
         #   停損、停利兩個條件,觸發就送漲停買回 / 跌停賣出(ROD)。程式或網路斷了元大照樣平倉。OCO 在的時候,程式自己的停利停損只記錄不下單
         self.broker_stop = cfg.get("TRADE_BROKER_STOP", "1") == "1"
-        self.type_long = cfg.get("TRADE_TYPE_LONG", "0")           # 委託種類:0 現貨(買進當沖)
+        self.type_long = cfg.get("TRADE_TYPE_LONG", "0")           # 委託種類:0 現股(使用者:「做多只需要 現股 亮起來即可」),買進、賣出都用 0
         self.type_short = cfg.get("TRADE_TYPE_SHORT", "9")         # 9 現股當沖委託控管(先賣後買)= 元大 App 下單畫面的「沖」(使用者:「做空要按 沖 亮起來才能做空」)
         self.stop_file = Path(cfg.get("TRADE_STOP_FILE", "/opt/yuanta_bridge/STOP"))
         self.lock = threading.RLock()
