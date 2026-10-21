@@ -118,6 +118,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-21 15:00 選股振幅 4% → 3%(使用者:「挑選股票 振幅改 3% 設定調整最低也一樣」):make_pool MIN_AMP / AVG5_MIN_AMP 3.0;設定「最低振幅」滾輪最低 3.0%、預設 3.0%,舊存檔 4.0% 的搬一次到 3.0%,長按 3/4/5/8 循環。
   · 2026-10-21 15:10 選股拿掉「5 天中至少 3 天振幅達標」,只看 5 日平均振幅 ≥ 3%(使用者:「選股 五天 平均 也一樣 3% 以上即可」;AVG5_MIN_HITS 0)。
   · 2026-10-21 15:40 監控檔數改 49(使用者:「維持 6000 張 監控股票改為 49」):預設 49,舊存檔搬一次到 49,之後自己撥的會保留。
+  · 2026-10-21 20:10 指標三加第三條線「Ob×Oc」(使用者:「加一條 Ob 穿 Oc」):Ob(OBV 均 10)和 Oc(OBV 均 30)每次交叉記一個點,青線依序相連;
+    往上穿標那根 K 的最低價(紅點)、往下穿標最高價(綠點),換日不比;上方多「Ob×Oc:上穿 / 下穿 時間」。只加畫面,燈號、判別式不變。
   · 2026-10-21 20:00 Ka 線每天用自己的昨收上色(使用者:時碩「前天收 80.2 所以昨天 80.2 以上皆紅色 以下都是綠色」):原本圖上每一天都拿今天的昨收比;
     改成前幾天各自用前一天最後一根的收盤,今天照舊用正式昨收。只動畫面。
   · 2026-10-21 19:50 K 線圖開盤的 Ka 連線改顏色(使用者:時碩「白色斜線 不符合股價平盤邏輯」→「應該是紅線 需要畫」):Ka 每天重算、開盤第 10 根(09:09)才有值,
@@ -1683,7 +1685,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610212000">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610212010">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2150,7 +2152,8 @@ except Exception:
         <span style="color:#B47CFF">Oc:<span id="lblObvMa30V">—</span></span><button id="xhairClose" class="xgo hidden" aria-label="十字線回到最新一根"><svg viewBox="0 0 30 18" width="28" height="17" aria-hidden="true"><path d="M1.5 5.5 H16 V1.5 L28.5 9 L16 16.5 V12.5 H1.5 Z" fill="#E53935" stroke="#FFFFFF" stroke-width="1.6" stroke-linejoin="round"/></svg></button></div>
       <div id="chartMid"></div>
       <div class="yh-lbl sep"><span style="color:#FF9F43">指標三:<span id="lblOrgV">—</span></span>
-        <span style="color:#D63AF9">Ka×Kb:<span id="lblKxV">—</span></span>   <!-- 2026-10-21 使用者:「Ka 穿越 Kb 的點標出來 記錄起來 在指標三那邊顯示出來 一樣連線 不用顯示價格」 -->   <!-- 2026-10-20 23:55 使用者:「這看 obv 黃線穿越藍線的指標 命名為指標三」 --></div>   <!-- 2026-10-20 23:45 使用者:「這樣的點不對 改紀錄 obv 黃線穿越藍線的點 所有的點連線」 -->   <!-- 2026-10-20 23:30 使用者:「把高低連線拿掉 留起漲起跌連線 價格要註記上去」 -->   <!-- 2026-10-20 23:10 使用者:「乾脆改高點連高點 低點連低點」 -->   <!-- 2026-10-20 22:10 使用者:「把均線乖離率 改成 股票高低點連線 加上起漲點 起跌點 也連線」(原 20:00 的均線乖離率 10/30/132) -->
+        <span style="color:#D63AF9">Ka×Kb:<span id="lblKxV">—</span></span>
+        <span style="color:#22D3EE">Ob×Oc:<span id="lblOcxV">—</span></span>   <!-- 2026-10-21 20:10 使用者:「指標三 加一條 Ob 穿 Oc」 -->   <!-- 2026-10-21 使用者:「Ka 穿越 Kb 的點標出來 記錄起來 在指標三那邊顯示出來 一樣連線 不用顯示價格」 -->   <!-- 2026-10-20 23:55 使用者:「這看 obv 黃線穿越藍線的指標 命名為指標三」 --></div>   <!-- 2026-10-20 23:45 使用者:「這樣的點不對 改紀錄 obv 黃線穿越藍線的點 所有的點連線」 -->   <!-- 2026-10-20 23:30 使用者:「把高低連線拿掉 留起漲起跌連線 價格要註記上去」 -->   <!-- 2026-10-20 23:10 使用者:「乾脆改高點連高點 低點連低點」 -->   <!-- 2026-10-20 22:10 使用者:「把均線乖離率 改成 股票高低點連線 加上起漲點 起跌點 也連線」(原 20:00 的均線乖離率 10/30/132) -->
       <div id="chartBot"></div>
     </div>
     <div class="sh-msg" id="shMsg">讀取 1 分K …</div>
@@ -3626,7 +3629,7 @@ function liveStart(){
 /* ── 圖表 ── */
 let chart, candle, maLine, ma24Line, vwapLine;   // ma24Line:2026-10-21 均價 24(K24,藍)           // 上圖:1 分K + MA + VWAP
 let chartM, obvSeries, obvMaLine, obvMa30Line;  // 中圖:OBV + OBV 均線 + OBV 均 30(紫,2026-10-19)
-let chartB, vwapDev = null, orgLine, kxLine, padB;   // 2026-10-20 23:30 下圖只留起漲起跌連線(高點 / 低點連線拿掉)。   // 2026-10-20 23:10 zzLine = 高點連線(紅)、loLine = 低點連線(綠)   // 2026-10-20 22:10 下圖改成「高低點連線(白)+ 起漲起跌連線(橘)」。原:   // 下圖:均線乖離率(2026-10-20 使用者:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」;原 VWAP 乖離柱狀圖作廢)
+let chartB, vwapDev = null, orgLine, kxLine, ocxLine, padB;   // 2026-10-20 23:30 下圖只留起漲起跌連線(高點 / 低點連線拿掉)。   // 2026-10-20 23:10 zzLine = 高點連線(紅)、loLine = 低點連線(綠)   // 2026-10-20 22:10 下圖改成「高低點連線(白)+ 起漲起跌連線(橘)」。原:   // 下圖:均線乖離率(2026-10-20 使用者:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」;原 VWAP 乖離柱狀圖作廢)
 const OBV_RESET_DAILY = true;          // true = 每個交易日開盤歸零(2026-10-15 用力積電實測:元大 -47,362、開盤歸零算 -44,257、跨日累計 -20,310 ~ -133,694,元大是每日歸零);false = 跨日累加
 let BARS = [], BARS_CODE = '';
 let ENTRY_LINES = [];
@@ -3705,7 +3708,8 @@ function showBarInfo(t){
   el('lblObvMaV').innerHTML = isFinite(d.obma) ? Math.round(d.obma).toLocaleString() + trend(d.obma, d.obmaPrev) : '—';
   { const e = el('lblObvMa30V'); if (e) e.innerHTML = isFinite(d.obma30) ? Math.round(d.obma30).toLocaleString() + trend(d.obma30, d.obma30Prev) : '—'; }   // 2026-10-19 OBV 均 30
   { const e = el('lblOrgV'); if (e) e.textContent = d.org || '—'; }
-  { const e = el('lblKxV'); if (e) e.textContent = d.kx || '—'; }   // 2026-10-21 最近一次 Ka × Kb 穿越                                                  // 最近一個起漲 / 起跌點
+  { const e = el('lblKxV'); if (e) e.textContent = d.kx || '—'; }
+  { const e = el('lblOcxV'); if (e) e.textContent = d.ocx || '—'; }   // 2026-10-21 最近一次 Ob × Oc 穿越   // 2026-10-21 最近一次 Ka × Kb 穿越                                                  // 最近一個起漲 / 起跌點
   // 燈號 + 多空天秤跟著十字線走(2026-10-17):十字線在某根 K 上 → 顯示那根處理完當下的循環狀態(做多 / 做空 / 監控)與偏向;
   // 最後一根或沒有十字線 → 回到最新狀態。沒開平倉規則(stateAt 為空)時燈號不動,只動多空天秤。
   if (CUR.lampLast){
@@ -4934,6 +4938,7 @@ function initChart(){
   orgLine = chartB.addLineSeries({priceScaleId:'left', color:'#FF9F43', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:false});
   padB = chartB.addLineSeries({priceScaleId:'left', lineVisible:false, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, autoscaleInfoProvider: () => null});   // 撐時間軸用,看不見、不影響刻度
   kxLine = chartB.addLineSeries({priceScaleId:'left', color:'#D63AF9', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:false});   // 2026-10-21 Ka 穿越 Kb 的點連線(紫)
+  ocxLine = chartB.addLineSeries({priceScaleId:'left', color:'#22D3EE', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:false});   // 2026-10-21 20:10 Ob 穿越 Oc 的點連線(青)
   // 時間軸放在最下面那張圖(元大的時間標籤在 OBV 下方)
   (chartB || chartM).applyOptions({timeScale:{...CHART_OPTS.timeScale, visible:true}});
   chart.applyOptions({timeScale:{...CHART_OPTS.timeScale, visible:false}});
@@ -5281,6 +5286,11 @@ function drawBars(bars, code, srcLabel, keepView){
   const kxPts = maCrossPoints(ma, ma24);
   KX_PTS = kxPts;
   const kx = lineThrough(bars, kxPts.map(p => ({time: p.time, value: p.price})));
+  // 2026-10-21 20:10 使用者:「指標三 加一條 Ob 穿 Oc」:Ob(OBV 均 10)和 Oc(OBV 均 30)每次交叉記一個點,青線依序相連;
+  //   和橘線一樣標價格位置:往上穿 = 那根 K 的最低價(紅點)、往下穿 = 最高價(綠點)。換日不比(maCrossPoints)
+  const bByT = new Map(bars.map(b => [b.time, b]));
+  const ocxPts = maCrossPoints(obma, obma30).map(p => { const b = bByT.get(p.time); return {time: p.time, side: p.side, price: p.side > 0 ? b.low : b.high}; });
+  const ocx = lineThrough(bars, ocxPts.map(p => ({time: p.time, value: p.price})));
   // 2026-10-21 使用者:「K 圖要乾淨」:K 線圖 Ka 線上的 Ka×Kb 穿越小點拿掉(指標三的紫線照樣標),只留 K 棒、Ka、Kb、最高 / 最低價
   try{ maLine.setMarkers([]); }catch(e){}
   // 2026-10-21 使用者:「那個按鍵按下去也沒有跑到最新的啊」:指標三的兩條線只畫到最後一個交叉點,套件把「最後一個有值的點」當最右邊,
@@ -5289,7 +5299,9 @@ function drawBars(bars, code, srcLabel, keepView){
   if (orgLine){ orgLine.setData(org);
     orgLine.setMarkers(orgPts.map(p => ({time: p.time, position: 'inBar', color: p.side < 0 ? '#FF9F43' : '#4FC3F7', shape: 'circle', size: 0.6})));
     kxLine.setData(kx);
-    kxLine.setMarkers(kxPts.map(p => ({time: p.time, position: 'inBar', color: p.side > 0 ? CHART_THEME.up : CHART_THEME.down, shape: 'circle', size: 0.6}))); }
+    kxLine.setMarkers(kxPts.map(p => ({time: p.time, position: 'inBar', color: p.side > 0 ? CHART_THEME.up : CHART_THEME.down, shape: 'circle', size: 0.6})));
+    if (ocxLine){ ocxLine.setData(ocx);
+      ocxLine.setMarkers(ocxPts.map(p => ({time: p.time, position: 'inBar', color: p.side > 0 ? CHART_THEME.up : CHART_THEME.down, shape: 'circle', size: 0.6}))); } }
   if (window.alignScales) requestAnimationFrame(() => alignScales());   // 左刻度寬度對齊,十字線才會上下同一條
   if (!keepView){
     // 元大風格:開圖只顯示最近 YH.defaultBars 根(K 棒才夠粗),往左滑可看更早的;其他兩張圖會同步
@@ -5374,6 +5386,7 @@ function drawBars(bars, code, srcLabel, keepView){
         obma: k2 != null ? obma[k2].value : NaN, obmaPrev: k2 != null && k2 > 0 ? obma[k2 - 1].value : null,
         obma30: k3 != null ? obma30[k3].value : NaN, obma30Prev: k3 != null && k3 > 0 ? obma30[k3 - 1].value : null,
         org: (() => { let q = null; for (const p of orgPts){ if (p.time > b.time) break; q = p; } return q ? (q.side < 0 ? '往下穿 ' : '往上穿 ') + hmKey(q.time) : ''; })(),
+        ocx: (() => { let q = null; for (const p of ocxPts){ if (p.time > b.time) break; q = p; } return q ? (q.side > 0 ? '上穿 ' : '下穿 ') + hmKey(q.time) : ''; })(),
         kx: (() => { let q = null; for (const p of kxPts){ if (p.time > b.time) break; q = p; } return q ? (q.side > 0 ? '上穿 ' : '下穿 ') + hmKey(q.time) : ''; })(),
       });
     });
