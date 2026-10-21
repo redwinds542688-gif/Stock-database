@@ -80,6 +80,23 @@ assert t15.state == EXITING and g15.sent[-1][:3] == ("6269", "S", 1) and g15.sen
 # 17) OCO 掛失敗 → 程式自己盯停利停損
 t17, g17 = mk(); t17.on_tick("6269", 86.2); t17.step([ENT]); t17.on_report(51, "A0001", 0, 1000, 86.1); t17.on_strategy_reply("", False, "權限不足")
 t17.on_tick("6269", 88.8); assert t17.state == EXITING and g17.sent[-1][6] == "H"
+# 18) 啟動時接回:程式開的空單還沒平、條件單還在 → 接回持倉、不重掛條件單;手動部位不管
+t18, g18 = mk()
+tr = [{"code": "6269", "bs": "S", "lots": 1, "price": 86.1, "time": "10:37:02", "order_no": "A1"},
+      {"code": "2409", "bs": "B", "lots": 2, "price": 37.3, "time": "10:40:00", "order_no": "M1"}]
+r = t18.resume(tr, {"A1": "T103701001", "M1": ""}, [{"no": "K77", "code": "6269", "status": 1}], [ENT])
+assert r == "6269" and t18.state == HOLDING and t18.pos["dir"] == -1 and t18.pos["entry"] == 86.1 and t18.pos["oco_live"] and t18.pos["tp"] == 84.05
+assert not [x for x in g18.sent if x[0] == "oco"] and t18.n_trades == 1
+t18.step([sig("10:50:6269|台郡出|判二", "exit", "台郡 6269 出場:出", "")]); assert g18.sent[-2] == ("del_oco", "K77")   # 接回後照常管理
+# 19) 接回:條件單不在 → 用手機通知的停利停損重掛;已平倉的筆數和損益算回來
+t19, g19 = mk()
+tr = [{"code": "1709", "bs": "S", "lots": 3, "price": 56.2, "time": "09:21:00", "order_no": "A1"},
+      {"code": "1709", "bs": "B", "lots": 3, "price": 57.2, "time": "09:53:00", "order_no": "K1"},
+      {"code": "6269", "bs": "S", "lots": 1, "price": 86.1, "time": "10:37:02", "order_no": "A2"}]
+t19.resume(tr, {"A1": "T092100001", "A2": "T103701002"}, [], [ENT])
+assert t19.n_trades == 2 and t19.pnl < -3000 and g19.sent[-1] == ("oco", "6269", "TWSE", -1, 1, 84.05, 88.7)
+# 20) 沒有未平部位 → 空閒
+t20, g20 = mk(); assert t20.resume([{"code": "6269", "bs": "S", "lots": 1, "price": 86.1, "time": "1", "order_no": "A1"}, {"code": "6269", "bs": "B", "lots": 1, "price": 85.0, "time": "2", "order_no": "A2"}], {"A1": "T1"}, [], []) is None and t20.state == IDLE and t20.n_trades == 1 and t20.pnl > 0
 # 10) 沒開啟 → 不交易
 t10, g10 = mk(TRADE_ENABLE="0"); t10.on_tick("6269", 86.2); t10.step([ENT]); assert not g10.sent
-print("trader.py 測試通過(17 種情況)")
+print("trader.py 測試通過(20 種情況)")

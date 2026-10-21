@@ -75,6 +75,58 @@ class Trader:
             self.seen.add(it.get("_k") or (it.get("t", "") + it.get("title", "")))
         self.log(f"[交易] 啟動:略過今天已有的 {len(signals)} 則通知;{'開啟' if self.enabled else '關閉(TRADE_ENABLE=0)'},每筆 {self.qty} 張、一天最多 {self.max_n} 筆、虧損上限 {self.max_loss:,.0f}")
 
+    def resume(self, trades, order_tags, strategies, signals):
+        """2026-10-22 使用者:「加 啟動時接回部位」:程式重開時,從元大今天的成交回報算出還沒平的部位,是這支程式開的就接回來管理。
+        trades:[{code, bs 'B'/'S', lots, price, time, order_no}](時間舊到新);order_tags:{委託書號: BasketNo};
+        strategies:[{no, code, status}](有效的二擇一條件單);signals:手機今天的通知(找停利 / 停損價)。
+        只接「程式送的單」(BasketNo 以 T 開頭)開的部位;手動在投資先生做的不管。今天已做筆數、已實現損益也一起算回來。"""
+        with self.lock:
+            net, cost, opened_by_me = {}, {}, {}
+            for t in sorted(trades, key=lambda x: x.get("time", "")):
+                c, q = t["code"], t["lots"] * (1 if t["bs"] == "B" else -1)
+                n0 = net.get(c, 0); n1 = n0 + q
+                if n0 == 0 and n1 != 0:                                     # 開新部位
+                    cost[c] = [abs(n1), t["price"] * abs(n1)]
+                    opened_by_me[c] = str(order_tags.get(t["order_no"], "")).startswith("T")
+                    if opened_by_me[c]: self.n_trades += 1
+                elif n0 != 0 and (n0 > 0) == (q > 0):                       # 同方向加碼
+                    cost[c][0] += abs(q); cost[c][1] += t["price"] * abs(q)
+                elif n0 != 0 and opened_by_me.get(c):                       # 平倉:算已實現損益
+                    lots = min(abs(q), abs(n0)); avg = cost[c][1] / cost[c][0]; d = 1 if n0 > 0 else -1
+                    self.pnl += (t["price"] - avg) * lots * 1000 * d - (t["price"] + avg) * lots * 1000 * 0.001425 * float(self.cfg.get("TRADE_FEE_DISCOUNT", "0.3")) - (t["price"] if d > 0 else avg) * lots * 1000 * 0.0015
+                net[c] = n1
+            open_mine = [c for c, n in net.items() if n != 0 and opened_by_me.get(c)]
+            manual = [c for c, n in net.items() if n != 0 and not opened_by_me.get(c)]
+            if manual:
+                self.log(f"[交易] 接回:{', '.join(manual)} 有未平部位但不是程式開的(手動),不管")
+            if not open_mine:
+                self.log(f"[交易] 接回:沒有程式開的未平部位;今天已做 {self.n_trades} 筆、已實現 {self.pnl:+,.0f}")
+                return None
+            c = open_mine[-1]
+            if len(open_mine) > 1:
+                self.log(f"[交易] !! 接回:程式開的未平部位有 {len(open_mine)} 檔({', '.join(open_mine)}),只接最後一檔 {c},其他請手動處理")
+            n = net[c]; d = 1 if n > 0 else -1; avg = cost[c][1] / cost[c][0]
+            tp = sl = 0.0; title = ""
+            for it in reversed(signals):                                     # 最近一則這檔的進場通知
+                if it.get("kind") in ("long", "short") and c in it.get("title", "") and (it["kind"] == "long") == (d > 0):
+                    m = RE_TPSL.search(it.get("body", ""))
+                    if m: tp, sl, title = float(m.group(1)), float(m.group(2)), it.get("title", "")
+                    break
+            self.pos = {"code": c, "mkt": self.mkt_of.get(c, "TWSE"), "dir": d, "qty": abs(n), "entry": avg, "tp": tp, "sl": sl,
+                        "judge": "接回", "typ": self.type_long if d > 0 else self.type_short, "title": title or "接回部位"}
+            oco = [x for x in strategies if x.get("code") == c]
+            if oco:
+                self.pos["oco_no"] = oco[-1]["no"]; self.pos["oco_live"] = True
+            self.state = HOLDING
+            self.log(f"[交易] 接回部位 {c} {'多' if d > 0 else '空'} {abs(n)} 張 均價 {avg:.2f} 停利 {tp or '?'} 停損 {sl or '?'};"
+                     f"元大條件單 {'在(' + self.pos['oco_no'] + ')' if oco else '沒有'};今天已做 {self.n_trades} 筆、已實現 {self.pnl:+,.0f}")
+            if not oco and self.broker_stop and tp and sl:
+                self.pos["oco_no"] = None
+                self.gw.place_oco(c, self.pos["mkt"], d, abs(n), tp, sl)
+            elif not oco and not (tp and sl):
+                self.log("[交易] !! 找不到這檔的停利 / 停損價,只剩手機平倉通知和 13:25 強制平倉會出場")
+            return c
+
     # ── 外部事件 ──
     def on_tick(self, code, price):
         self.last_px[code] = price

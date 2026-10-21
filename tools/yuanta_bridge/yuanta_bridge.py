@@ -91,6 +91,7 @@ class Bridge:
         self.n_ticks = 0
         self.trader = None       # 一次一單自動交易(trader.py;TRADE_ENABLE=1 才會下單)
         self.quotes = QuoteBook(vol_mult=int(CFG.get("VOL_MULT", "1000")))   # 手機即時價(quotes.py)
+        self.resume_buf = None   # 啟動時接回部位的查詢結果
 
     # 回應事件(元大的執行緒呼叫,不能在這裡做耗時的事)
     def on_response(self, intMark, dwIndex, strIndex, objHandle, objValue):
@@ -130,6 +131,26 @@ class Bridge:
                         log(f"條件單回應 {strIndex} 狀態 {st} 編號 {d.OrderNo} {d.Msg}")
                         if strIndex == "SendAlgoCOOdrStrategy" and self.trader:
                             self.trader.on_strategy_reply(str(d.OrderNo), st in (0, 1, 100, 101), str(d.Msg))
+                    return
+                if strIndex == "GetOrderTradeReport" and self.resume_buf is not None:
+                    r = objValue
+                    for i in range(r.StkOrderList.Count):
+                        o = r.StkOrderList[i]; self.resume_buf["tags"][str(o.OrderNo).strip()] = str(o.BasketNo).strip()
+                    for i in range(r.StkTradeList.Count):
+                        x = r.StkTradeList[i]; q = int(x.OkQty)
+                        self.resume_buf["trades"].append({"code": str(x.CompanyNo).strip(), "bs": str(x.BS).strip(), "lots": q // 1000 if q >= 1000 else q,   # 成交量:股(≥1000)或張
+                                                          "price": float(x.SPrice), "time": str(x.DateTime), "order_no": str(x.OrderNo).strip()})
+                    self.resume_buf["got_rpt"] = True
+                    log(f"接回查詢:今天委託 {r.StkOrderList.Count} 筆、成交 {r.StkTradeList.Count} 筆")
+                    return
+                if strIndex == "GetConditionStrategy" and self.resume_buf is not None:
+                    lst = objValue.ConditionStrategyList
+                    for i in range(lst.Count):
+                        x = lst[i]
+                        if int(x.StrategyStatus) in (0, 1, 99, 100, 101):          # 建立 / 執行中 / 觸發子單中 = 還有效
+                            self.resume_buf["oco"].append({"no": str(x.StrategyNo).strip(), "code": str(x.StkCode).strip(), "status": int(x.StrategyStatus)})
+                    self.resume_buf["got_oco"] = True
+                    log(f"接回查詢:有效的二擇一條件單 {len(self.resume_buf['oco'])} 張")
                     return
                 if strIndex == "GetKLine" and self.kline_out is not None:
                     lst = objValue.KLineList
@@ -325,6 +346,26 @@ class Bridge:
                 if last is None: log("等 cloudflared 通道…", e)
             time.sleep(60)
 
+    def resume_positions(self, day):
+        """2026-10-22 使用者:「加 啟動時接回部位」:查元大今天的委託成交回報 + 有效的二擇一條件單,交給 trader 接回程式開的未平部位"""
+        if not self.trader or not self.trader.enabled:
+            return
+        self.resume_buf = {"trades": [], "tags": {}, "oco": [], "got_rpt": False, "got_oco": False}
+        try:
+            self.api.GetOrderTradeReport(True, CFG["YT_ACCOUNT"])                       # True = 不列出取消單
+            time.sleep(1.2)                                                             # 帳務 / 查詢類一秒最多 3 次
+            self.api.GetConditionStrategy(CFG["YT_ACCOUNT"], self.Y.StrategyType(3), "") # 3 = 二擇一;空字串 = 全部股票
+            for _ in range(30):
+                if self.resume_buf["got_rpt"] and self.resume_buf["got_oco"]: break
+                time.sleep(0.5)
+            if not self.resume_buf["got_rpt"]:
+                log("!! 接回:查不到今天的成交回報,不接回(有部位請用投資先生手動處理)"); return
+            self.trader.resume(self.resume_buf["trades"], self.resume_buf["tags"], self.resume_buf["oco"], fetch_signals(CFG["WORKER_URL"], day))
+        except Exception as e:
+            log("接回失敗", e)
+        finally:
+            self.resume_buf = None
+
     def make_trader(self):
         cfg = dict(CFG)
         if CFG.get("YT_ENV", "UAT").upper() == "PROD" and CFG.get("TRADE_ALLOW_PROD", "0") != "1":
@@ -371,13 +412,15 @@ class Bridge:
         self.codes = self.load_codes()
         self.trader = self.make_trader()
         self.trader.prime(fetch_signals(CFG["WORKER_URL"], day))
-        fails = 0; k = 0
+        fails = 0; k = 0; resumed = False
         while now_tw().strftime("%H:%M") < "13:36":
             try:
                 if self.login_fail:
                     raise LoginRejected(self.login_fail)
                 if self.api is None or self.disconnected.is_set():
                     self.close(); self.connect(); self.subscribe(self.codes); fails = 0
+                    if not resumed:
+                        self.resume_positions(day); resumed = True          # 今天第一次連上:接回程式開的未平部位(斷線重連不用,部位一直在記憶體裡)
                 time.sleep(1); k += 1
                 sig = fetch_signals(CFG["WORKER_URL"], day) if (self.trader.enabled and k % 3 == 0) else None   # 手機通知每 3 秒看一次
                 self.trader.step(sig)
