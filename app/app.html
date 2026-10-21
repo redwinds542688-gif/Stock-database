@@ -118,6 +118,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-21 15:00 選股振幅 4% → 3%(使用者:「挑選股票 振幅改 3% 設定調整最低也一樣」):make_pool MIN_AMP / AVG5_MIN_AMP 3.0;設定「最低振幅」滾輪最低 3.0%、預設 3.0%,舊存檔 4.0% 的搬一次到 3.0%,長按 3/4/5/8 循環。
   · 2026-10-21 15:10 選股拿掉「5 天中至少 3 天振幅達標」,只看 5 日平均振幅 ≥ 3%(使用者:「選股 五天 平均 也一樣 3% 以上即可」;AVG5_MIN_HITS 0)。
   · 2026-10-21 15:40 監控檔數改 49(使用者:「維持 6000 張 監控股票改為 49」):預設 49,舊存檔搬一次到 49,之後自己撥的會保留。
+  · 2026-10-21 20:40 燈號加 Ob×Oc 條件(使用者:「用指標三搭配燈號試看看」→「先改 D」):亮「做多」還要 Ob(OBV 均 10)在 Oc(OBV 均 30)之上,否則只亮漸多;做空鏡像。
+    開盤 Oc 要 30 根才有值,之前只會到漸多 / 漸空。七天 1,405 股票日(亮燈後 60 根內先走 1%):對 2,621 錯 2,228 勝率 54.1% → 對 2,138 錯 1,730 55.3%。
+    其他試過:多加青線雙升 56.1%(亮燈少一半)、Ob/Oc 位置取代指標二方向 54.8%、青線取代橘線 54.1%。只換燈號,判別式、通知不變(YH.lampObOc)。
   · 2026-10-21 20:10 指標三加第三條線「Ob×Oc」(使用者:「加一條 Ob 穿 Oc」):Ob(OBV 均 10)和 Oc(OBV 均 30)每次交叉記一個點,青線依序相連;
     往上穿標那根 K 的最低價(紅點)、往下穿標最高價(綠點),換日不比;上方多「Ob×Oc:上穿 / 下穿 時間」。只加畫面,燈號、判別式不變。
   · 2026-10-21 20:00 Ka 線每天用自己的昨收上色(使用者:時碩「前天收 80.2 所以昨天 80.2 以上皆紅色 以下都是綠色」):原本圖上每一天都拿今天的昨收比;
@@ -1685,7 +1688,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610212010">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610212040">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3643,6 +3646,7 @@ const YH = {
   lampChopWin: 45, lampChopN: 3, lampChopRange: 1.5, lampBrkPct: 0.5, lampBrkBars: 2,   // 2026-10-21 04:00 突破要超出震盪區間 0.5% 且連 2 根(富喬 / 友達試 0.3 / 0.5 × 1 / 2 根,0.5% 連 2 根最好)   // 2026-10-21 燈號的震盪判斷(同判二)
   lampHold: 3,          // 2026-10-21 燈號新狀態要連幾根才換;03:10 使用者「改 3 根」(原 2)
   lampLeave: 1,         // 2026-10-21 11:40 使用者(台郡 10:13 天秤已到中間還亮做多):已亮做多 / 做空時,連 lampHold 根不是這個燈就換成最新那根的狀態(不必同一種);0 = 舊規則
+  lampObOc: true,       // 2026-10-21 20:40 使用者「先改 D」:亮「做多」還要 Ob(OBV 均 10)在 Oc(OBV 均 30)之上,否則降成漸多;做空鏡像(Oc 還沒值 = 不亮做多 / 做空)。七天 1,405 股票日:勝率 54.1% → 55.3%
   ind3SlopeBars: 5,     // 2026-10-21 燈號的指標二方向:Ob / Oc 和幾根前比
   swingPct: 0.8,        // 2026-10-20 22:40 股票高低價連線:相鄰高低差不到這個 % 的小波動拿掉
   swingMinBars: 2,      //   均價方向連幾根反過來才算換段
@@ -4511,7 +4515,8 @@ function ind3Series(bars, ma, ma24, ob, obma, obma30){
     //   原(02:15):Ka、Kb 和 5 根前比都同方向(Kb 慢,要等很久)。九天:做多 51%、漸空 55%、做空 55%(原版做多 52%、做空 54%)
     const t2 = bi >= 2 ? bars[bi - 2].time : null, ka2 = t2 != null ? mk.get(t2) : null;
     const ks = (ka != null && ka2 != null) ? Math.sign(ka - ka2) : 0;
-    out.set(b.time, {k: (ka != null && kb != null) ? Math.sign(ka - kb) : 0, o2, ks,
+    const c30 = m30.get(b.time), cOc = (m != null && c30 != null) ? Math.sign(m - c30) : 0;   // 2026-10-21 Ob 在 Oc 之上 +1 / 之下 −1(lampObOc)
+    out.set(b.time, {k: (ka != null && kb != null) ? Math.sign(ka - kb) : 0, o2, ks, c: cOc,
                      lo: up.length >= 2 ? Math.sign(up[up.length - 1] - up[up.length - 2]) : 0,
                      hi: dn.length >= 2 ? Math.sign(dn[dn.length - 1] - dn[dn.length - 2]) : 0});
   }
@@ -4526,7 +4531,12 @@ function ind3Raw(st, time, waiting){
   //   b ≥ 0.75 做多、0.25~0.75 漸多、−0.25~0.25 監控、−0.75~−0.25 漸空、≤ −0.75 做空(例:友達 13:17 → 漸多)。
   //   九天(studies/lamp_ind3.py 分數版):做多 52%、漸多 50%、監控 47%、漸空 55%、做空 54%
   const b = ind3Bias(st);
-  return b >= 0.75 ? '做多' : b >= 0.25 ? '漸多' : b > -0.25 ? '監控' : b > -0.75 ? '漸空' : '做空';
+  const r = b >= 0.75 ? '做多' : b >= 0.25 ? '漸多' : b > -0.25 ? '監控' : b > -0.75 ? '漸空' : '做空';
+  // 2026-10-21 20:40 使用者「先改 D」(指標三加 Ob×Oc 後回測):做多還要 Ob 在 Oc 之上、做空要在之下,不符合降一級(漸多 / 漸空)。
+  //   七天 1,405 股票日(亮燈後 60 根內先走 1%):現行 對 2,621 錯 2,228 54.1% → 對 2,138 錯 1,730 55.3%
+  if (YH.lampObOc && r === '做多' && !(st.c > 0)) return '漸多';
+  if (YH.lampObOc && r === '做空' && !(st.c < 0)) return '漸空';
+  return r;
 }
 /* 2026-10-21 03:00 使用者:「改」(燈號太敏感會閃 → 新狀態要連 YH.lampHold(2)根才換,只出現 1 根就維持原本的燈):
    今天每一根依序算,回傳 Map(time → 平滑後的狀態)。等待 / 13:25 後直接照用。友達 10/20 換燈 57 次 → 33 次 */
