@@ -114,6 +114,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-21 13:20 今日監控紀錄的進場卡右邊留白(使用者:時碩「第一個通知就後面顯示平倉」→「改」):「平倉 / 輸贏」只顯示在平倉那張;原本進場卡會顯示這筆交易後來的最新狀態,看起來像一進場就平倉。
   · 2026-10-21 13:30 今日監控紀錄:代碼放大(.62em → .8em,使用者「股票代碼太小」);張數下面顯示這則通知的時間(使用者「張數下面 顯示提示交易的時間」)。
   · 2026-10-21 14:25 股票清單照今天的即時成交量排序(使用者:「股票怎麼沒有按成交量排序」;原本照名單上昨天的量排,右邊卻顯示今天的量)。有訊號的照舊排最前面;即時量順序變了最多 1 分鐘重排一次。
+  · 2026-10-21 14:45 K 線圖拿掉 Ka 線上的 Ka×Kb 穿越小點(使用者:「K 圖要乾淨」);指標三的紫線照樣標這些點。K 線圖只留 K 棒、Ka、Kb、最高 / 最低價、十字線那根的量。
   · 2026-10-21 06:00 撤掉 05:50 的「當天漲 ≥ 2.5% 不亮做空」(使用者「撤掉 重新找其他方法」):YH.lampNoShortUpPct = 0。
   · 2026-10-21 05:50 當天漲 ≥ 2.5% 不亮做空(使用者「改」;榮科、建榮、中釉大漲中的做空 7 錯 3 對)。今天 14 檔做多 / 做空燈 34 對 31 錯 → 31 對 27 錯;
     有變的只有榮科、建榮、中釉(錯的消掉)、聯嘉投控(09:24 對的消掉、09:31 / 09:39 多 2 次錯)、光鼎(09:51 晚 1 根),其他 9 檔不變。
@@ -1670,7 +1671,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610211425">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610211445">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5227,7 +5228,8 @@ function drawBars(bars, code, srcLabel, keepView){
   const kxPts = maCrossPoints(ma, ma24);
   KX_PTS = kxPts;
   const kx = lineThrough(bars, kxPts.map(p => ({time: p.time, value: p.price})));
-  try{ maLine.setMarkers(kxPts.map(p => ({time: p.time, position: 'inBar', color: p.side > 0 ? CHART_THEME.up : CHART_THEME.down, shape: 'circle', size: 0.5}))); }catch(e){}
+  // 2026-10-21 使用者:「K 圖要乾淨」:K 線圖 Ka 線上的 Ka×Kb 穿越小點拿掉(指標三的紫線照樣標),只留 K 棒、Ka、Kb、最高 / 最低價
+  try{ maLine.setMarkers([]); }catch(e){}
   // 2026-10-21 使用者:「那個按鍵按下去也沒有跑到最新的啊」:指標三的兩條線只畫到最後一個交叉點,套件把「最後一個有值的點」當最右邊,
   //   三張圖同步捲動時被指標三卡在那裡,最新幾根 K 一直在畫面外(「回到最新」箭頭也到不了)。補一條看不見、每根 K 都有值的線把指標三的時間軸撐到最新一根
   if (padB) padB.setData(bars.map(b => ({time: b.time, value: b.close})));
