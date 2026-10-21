@@ -34,6 +34,7 @@ ENTRY_MAX_CHG = 3.5      # 進場時漲跌幅上限(%,寫進 pool.json 給 HTML 
 AVG5_MIN_AMP = 4.0       # 最近 5 個交易日「平均振幅」下限(%):擋掉只有昨天偶然動一次的股票
 AVG5_MIN_HITS = 3        # 最近 5 個交易日裡,至少要有幾天振幅 ≥ MIN_AMP:擋掉「平常不動、只靠一根大跌把平均撐起來」的股票(例:緯創)
 AVG_DAYS = 5
+MIN_LOTS = 6000          # 2026-10-21 使用者:「股票挑選 量第一位 振幅第二位 不要選那個沒有量的股票」:昨天成交 < 6000 張不進名單(和判別式進場的 6000 張同一個數)
 HIST_FILE = "amp_history.json"   # 每日振幅滾動存檔(全市場,保留最近 15 個交易日)
 EXCLUDE_INDUSTRY = {"17"}   # 排除的產業別代碼:17 = 金融保險業(金控、銀行、保險、證券)
 # 官方產業別抓不到時的備援:代號 28xx 與這幾檔都是金融股
@@ -352,6 +353,7 @@ for r in rows:
 def why_out(r):
     if is_financial(r):               return "金融股"
     if not (LO <= r["close"] <= HI):  return "價格"
+    if r["lots"] < MIN_LOTS:          return "量不足"
     if r["amp"] < MIN_AMP:            return "振幅"
     if r["tick_pct"] > TICK_MAX_PCT:  return "tick成本"
     if r["limit_hit"]:                return "跌停"      # 2026-10-19 起只擋跌停,漲停放行(使用者選「1」)
@@ -613,7 +615,7 @@ js = f"""/* ══════════════════════�
    來源:證交所 OpenAPI + 櫃買 OpenAPI(行情與可當沖名單)
    資格來源:{' + '.join(src_note) or '無'}
    規則:僅上市/上櫃 4 碼普通股(無 ETF)、官方可現股當沖名單內、非注意/處置股、
-         非金融保險業、一檔跳動 ≤ {TICK_MAX_PCT}%、昨日未收在跌停(漲停放行)、
+         非金融保險業、昨日成交 ≥ {MIN_LOTS} 張、一檔跳動 ≤ {TICK_MAX_PCT}%、昨日未收在跌停(漲停放行)、
          最近 {AVG_DAYS} 日平均振幅 ≥ {AVG5_MIN_AMP}%;
          依成交張數排序取前 {SIZE} 檔
 
@@ -631,7 +633,7 @@ with open("pool.js", "w", encoding="utf-8") as f:
 
 with open("pool.json", "w", encoding="utf-8") as f:
     json.dump({"date": LAST, "generated": stamp,
-               "rules": {"lo": LO, "hi": HI, "min_amp": MIN_AMP, "size": SIZE,
+               "rules": {"lo": LO, "hi": HI, "min_amp": MIN_AMP, "size": SIZE, "min_lots": MIN_LOTS,
                          "tick_max_pct": TICK_MAX_PCT, "exclude_industry": sorted(EXCLUDE_INDUSTRY),
                          "avg5_min_amp": AVG5_MIN_AMP, "avg5_min_hits": AVG5_MIN_HITS, "avg_days": AVG_DAYS,
                          "entry_max_chg": ENTRY_MAX_CHG},
