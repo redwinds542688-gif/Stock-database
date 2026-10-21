@@ -35,6 +35,7 @@ RE_JUDGE = re.compile(r"判[一二三四]")
 class Trader:
     def __init__(self, cfg, gateway, log, now):
         """gateway:send(code, mkt, side 'B'/'S', qty 張, price, order_type, tif, tag, price_flag ' '限價 / H 漲停 / L 跌停) -> 委託書號或 None;cancel(order_no, code)
+           place_oco(code, mkt, dir, 張, 停利價, 停損價)(結果從 on_strategy_reply 回來);delete_oco(策略編號)
            now():回傳台灣時間 datetime"""
         self.cfg, self.gw, self.log, self.now = cfg, gateway, log, now
         self.enabled = cfg.get("TRADE_ENABLE", "0") == "1"
@@ -49,6 +50,9 @@ class Trader:
         #   平倉空單掛漲停(H)買回、平倉多單掛跌停(L)賣出,ROD。照價格優先會從最好的賣價 / 買價開始成交 = 實際成交是市價,保證排最前面;
         #   用 ROD 不用 IOC:價格穩定措施(暫緩撮合)時 IOC / 市價會直接失效,ROD 會留著等撮合。TRADE_EXIT_MODE=slip 改回限價讓檔 + IOC
         self.exit_mode = cfg.get("TRADE_EXIT_MODE", "limitup")
+        # 2026-10-22 使用者:「在股票交易啟動當下 直接預掛停損是最好方式」:進場成交後馬上在元大主機掛二擇一條件單(OCO)——
+        #   停損、停利兩個條件,觸發就送漲停買回 / 跌停賣出(ROD)。程式或網路斷了元大照樣平倉。OCO 在的時候,程式自己的停利停損只記錄不下單
+        self.broker_stop = cfg.get("TRADE_BROKER_STOP", "1") == "1"
         self.type_long = cfg.get("TRADE_TYPE_LONG", "0")           # 委託種類:0 現貨(買進當沖)
         self.type_short = cfg.get("TRADE_TYPE_SHORT", "9")         # 9 現股當沖委託控管(先賣後買)——上線前請和元大確認
         self.stop_file = Path(cfg.get("TRADE_STOP_FILE", "/opt/yuanta_bridge/STOP"))
@@ -63,6 +67,7 @@ class Trader:
         self.n_trades, self.pnl, self.last_px = 0, 0.0, {}
         self.mkt_of = {}
         self.journal = []
+        self.flat_watch = None     # 剛平倉的部位 {code, dir, typ, until}:這段時間如果又有同方向平倉成交(OCO 同時觸發)= 多平了,要補回來
 
     def prime(self, signals):
         """啟動時把當天已經有的通知都標成「看過」,不會拿舊訊號進場"""
@@ -79,15 +84,21 @@ class Trader:
                 hit_tp = (price >= p["tp"]) if p["dir"] > 0 else (price <= p["tp"])
                 hit_sl = (price <= p["sl"]) if p["dir"] > 0 else (price >= p["sl"])
                 if hit_tp or hit_sl:
-                    self.exit_pos("停利" if hit_tp else "停損", price)
+                    if p.get("oco_live"):
+                        if not p.get("oco_noted"):
+                            p["oco_noted"] = True; self.log(f"[交易] 價格 {price} 碰到{'停利' if hit_tp else '停損'},由元大條件單(OCO)平倉")
+                    else:
+                        self.exit_pos("停利" if hit_tp else "停損", price)
 
-    def on_report(self, rpt_type, order_no, status, qty_shares, price, basket=""):
+    def on_report(self, rpt_type, order_no, status, qty_shares, price, basket="", code="", bs=""):
         """元大即時回報:rpt_type 50 委託、51 成交;status 見文件(1 失敗、2 取消成功、24 失效、25 價穩失效…)
            用自訂編號 basket(下單時帶的 BasketNo)或委託書號對;委託書號可能比回報晚到,所以以 basket 為主"""
         with self.lock:
             o = self.order
             mine = o and ((basket and str(basket).strip() == o["tag"]) or (o["no"] and str(order_no).strip() == o["no"]))
             if not mine:
+                if rpt_type == 51 and qty_shares > 0 and code:
+                    self.on_other_fill(str(code).strip(), bs, qty_shares, price)
                 return
             if not o["no"] and order_no:
                 o["no"] = str(order_no).strip()
@@ -98,6 +109,58 @@ class Trader:
                 o["dead"] = True
                 self.log(f"[交易] 委託結束 狀態 {status}({ {1: '委託失敗', 2: '取消成功', 24: '委託失效', 25: '價穩失效'}[status] })")
             self.after_report()
+
+    def on_other_fill(self, code, bs, qty_shares, price):
+        """不是這支程式送的單成交了:元大條件單(OCO)觸發的平倉,或程式平倉時 OCO 也同時觸發(多平了)"""
+        p = self.pos
+        close_side = lambda d: "B" if d < 0 else "S"
+        if p and p["code"] == code and self.state in (HOLDING, EXITING) and bs == close_side(p["dir"]):
+            lots = qty_shares // 1000
+            self.log(f"[交易] 元大條件單平倉成交 {code} {lots} 張 @ {price}")
+            p["exit_why"] = p.get("exit_why") or "元大條件單(OCO)"
+            self.book_close(lots, price)
+            if p["qty"] <= 0:
+                if self.state == EXITING and self.order:           # 程式自己的平倉單也還在 → 取消,避免多平
+                    if self.order.get("no"): self.gw.cancel(self.order["no"], code)
+                    self.order = None
+                self.finish_pos()
+            return
+        fw = self.flat_watch
+        if fw and fw["code"] == code and bs == close_side(fw["dir"]) and time.time() < fw["until"]:
+            lots = qty_shares // 1000
+            self.log(f"[交易] !! 已經平倉了又有 {lots} 張平倉成交(條件單同時觸發)→ 馬上反向補回")
+            self.pos = {"code": code, "mkt": fw["mkt"], "dir": -fw["dir"], "qty": lots, "entry": price, "tp": 0, "sl": 0, "judge": "補回", "typ": fw["typ"], "title": "多平補回"}
+            self.state = HOLDING; self.exit_pos("多平補回", price)
+
+    def book_close(self, lots, avg):
+        p = self.pos
+        if not lots:
+            return
+        pnl = (avg - p["entry"]) * lots * 1000 * p["dir"]
+        fee = (avg + p["entry"]) * lots * 1000 * 0.001425 * float(self.cfg.get("TRADE_FEE_DISCOUNT", "0.3"))
+        tax = (avg if p["dir"] > 0 else p["entry"]) * lots * 1000 * 0.0015
+        net = pnl - fee - tax; self.pnl += net
+        p["qty"] -= lots
+        self.journal.append({"code": p["code"], "dir": p["dir"], "entry": p["entry"], "exit": avg, "lots": lots, "net": round(net), "why": p.get("exit_why")})
+        self.log(f"[交易] 平倉 {p['code']} {lots} 張 @ {avg:.2f} 淨 {net:+,.0f}(今天累計 {self.pnl:+,.0f})")
+
+    def finish_pos(self):
+        p = self.pos
+        self.flat_watch = {"code": p["code"], "mkt": p["mkt"], "dir": p["dir"], "typ": p["typ"], "until": time.time() + 120}
+        self.pos = None; self.state = IDLE
+
+    def on_strategy_reply(self, strategy_no, ok, msg):
+        """元大新增條件單回應"""
+        with self.lock:
+            p = self.pos
+            if not p or p.get("oco_no") is not None:
+                return
+            if ok and strategy_no:
+                p["oco_no"] = str(strategy_no).strip(); p["oco_live"] = True
+                self.log(f"[交易] 元大條件單(OCO)已掛:策略編號 {p['oco_no']}(停利 {p['tp']} / 停損 {p['sl']})")
+            else:
+                p["oco_no"] = ""; p["oco_live"] = False
+                self.log(f"[交易] !! 元大條件單掛失敗:{msg} → 改由程式自己盯停利停損")
 
     def on_order_reply(self, order_no, ok, msg):
         with self.lock:
@@ -197,6 +260,9 @@ class Trader:
             return
         self.log(f"[交易] 出場 {p['code']}:{why}(現價 {px})")
         p["exit_why"] = why
+        if p.get("oco_live"):                                   # 先刪元大條件單,免得和程式的平倉單一起成交
+            self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False
+            self.log(f"[交易] 刪除元大條件單 {p['oco_no']}")
         self.send_exit(p["qty"], px)
         self.state = EXITING
 
@@ -222,16 +288,14 @@ class Trader:
             p["qty"], p["entry"] = lots, avg
             self.state = HOLDING; self.n_trades += 1
             self.log(f"[交易] 持倉 {p['code']} {'多' if p['dir'] > 0 else '空'} {lots} 張 均價 {avg:.2f} 停利 {p['tp']} 停損 {p['sl']}")
+            if self.broker_stop and p["tp"] and p["sl"]:
+                p["oco_no"] = None
+                self.gw.place_oco(p["code"], p["mkt"], p["dir"], lots, p["tp"], p["sl"])
             return
         # 平倉
-        if lots:
-            pnl = (avg - p["entry"]) * lots * 1000 * p["dir"]
-            fee = (avg + p["entry"]) * lots * 1000 * 0.001425 * float(self.cfg.get("TRADE_FEE_DISCOUNT", "0.3"))
-            tax = (avg if p["dir"] > 0 else p["entry"]) * lots * 1000 * 0.0015
-            net = pnl - fee - tax; self.pnl += net
-            p["qty"] -= lots
-            self.journal.append({"code": p["code"], "dir": p["dir"], "entry": p["entry"], "exit": avg, "lots": lots, "net": round(net), "why": p.get("exit_why")})
-            self.log(f"[交易] 平倉 {p['code']} {lots} 張 @ {avg:.2f} 淨 {net:+,.0f}(今天累計 {self.pnl:+,.0f})")
+        if not p:
+            return
+        self.book_close(lots, avg)
         if p["qty"] > 0:      # 還沒平完(委託失效 / 被取消)→ 再送
             px = self.last_px.get(p["code"], avg or p["entry"])
             self.log(f"[交易] 還剩 {p['qty']} 張沒平,再送")
@@ -240,7 +304,7 @@ class Trader:
             else:
                 self.send("平倉", "S" if p["dir"] > 0 else "B", p["qty"], shift(px, -(self.slip + 3) * p["dir"]), p["typ"])
             return
-        self.pos = None; self.state = IDLE
+        self.finish_pos()
 
 
 def fetch_signals(worker_url, day):

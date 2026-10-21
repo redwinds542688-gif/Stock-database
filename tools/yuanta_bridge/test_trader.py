@@ -9,6 +9,8 @@ class GW:
     def __init__(s): s.sent = []; s.n = 0; s.tags = []
     def send(s, code, mkt, side, lots, price, typ, tif, tag='', flag=' '): s.n += 1; s.sent.append((code, side, lots, price, typ, tif, flag)); s.tags.append(tag); return f"A{s.n:04d}"
     def cancel(s, no, code=''): s.sent.append(("cancel", no))
+    def place_oco(s, *a): s.sent.append(("oco",) + a)
+    def delete_oco(s, no): s.sent.append(("del_oco", no))
 stop = Path(tempfile.mkdtemp()) / "STOP"
 def mk(**kw):
     cfg = {"TRADE_ENABLE": "1", "TRADE_STOP_FILE": str(stop), "TRADE_MAX_PER_DAY": "2"}; cfg.update(kw)
@@ -60,6 +62,24 @@ class GW2(GW):
 t11 = Trader({"TRADE_ENABLE": "1", "TRADE_STOP_FILE": str(stop)}, GW2(), logs.append, lambda: NOW[0]); g11 = t11.gw
 t11.on_tick("6269", 86.2); t11.step([ENT]); t11.on_report(51, "B0009", 0, 1000, 86.1, basket=g11.tags[-1])
 assert t11.state == HOLDING and t11.order is None
+# 14) 進場成交 → 掛元大 OCO;OCO 在時程式碰停損只記錄不下單;OCO 成交(不是程式送的單)→ 平倉完成
+t14, g14 = mk(); t14.on_tick("6269", 86.2); t14.step([ENT]); t14.on_report(51, "A0001", 0, 1000, 86.1)
+assert g14.sent[-1] == ("oco", "6269", "TWSE", -1, 1, 84.05, 88.7), g14.sent[-1]
+t14.on_strategy_reply("K0001", True, ""); assert t14.pos["oco_live"]
+n = len(g14.sent); t14.on_tick("6269", 88.8); assert len(g14.sent) == n and t14.state == HOLDING      # 不重複下單
+t14.on_report(51, "Z9", 0, 1000, 88.9, basket="", code="6269", bs="B")
+assert t14.state == IDLE and t14.journal[-1]["why"].startswith("元大條件單") and t14.pnl < 0
+# 15) OCO 在、手機平倉通知 → 先刪 OCO 再送平倉
+t15, g15 = mk(); t15.on_tick("6269", 86.2); t15.step([ENT]); t15.on_report(51, "A0001", 0, 1000, 86.1); t15.on_strategy_reply("K0002", True, "")
+t15.step([sig("10:30:6269|台郡出|判二", "exit", "台郡 6269 出場:出", "")])
+assert g15.sent[-2] == ("del_oco", "K0002") and g15.sent[-1][:3] == ("6269", "B", 1) and t15.state == EXITING
+# 16) 程式平倉成交後 OCO 也成交了(多平 1 張 → 變成多單)→ 馬上賣出補回
+t15.on_report(51, "A0002", 0, 1000, 85.5, basket=g15.tags[-1]); assert t15.state == IDLE
+t15.on_report(51, "Z8", 0, 1000, 85.6, basket="", code="6269", bs="B")
+assert t15.state == EXITING and g15.sent[-1][:3] == ("6269", "S", 1) and g15.sent[-1][6] == "L", g15.sent[-1]
+# 17) OCO 掛失敗 → 程式自己盯停利停損
+t17, g17 = mk(); t17.on_tick("6269", 86.2); t17.step([ENT]); t17.on_report(51, "A0001", 0, 1000, 86.1); t17.on_strategy_reply("", False, "權限不足")
+t17.on_tick("6269", 88.8); assert t17.state == EXITING and g17.sent[-1][6] == "H"
 # 10) 沒開啟 → 不交易
 t10, g10 = mk(TRADE_ENABLE="0"); t10.on_tick("6269", 86.2); t10.step([ENT]); assert not g10.sent
-print("trader.py 測試通過(13 種情況)")
+print("trader.py 測試通過(17 種情況)")

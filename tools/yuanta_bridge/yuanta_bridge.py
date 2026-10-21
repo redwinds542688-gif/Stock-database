@@ -56,8 +56,9 @@ def load_sdk():
     clr.AddReference("System.Collections")
     clr.AddReference("YuantaSparkAPI")
     import YuantaOneAPI as Y
+    import System
     from System.Collections.Generic import List
-    return Y, List
+    return Y, List, System
 
 
 # 元大文件「回應事件」的 dwIndex 對照
@@ -74,7 +75,7 @@ class LoginRejected(Exception):
 
 class Bridge:
     def __init__(self):
-        self.Y, self.List = load_sdk()
+        self.Y, self.List, self.System = load_sdk()
         self.api = None
         self.logged_in = threading.Event()
         self.login_fail = None   # 登入被拒的原因(帳密錯、凍結、沒權限)→ 今天不再重試,免得把帳號鎖住
@@ -118,6 +119,14 @@ class Bridge:
                     if st.Count == 0 and self.trader:
                         self.trader.on_order_reply("", False, f"{st.MsgCode} {st.MsgContent}")
                     return
+                if strIndex in ("SendAlgoCOOdrStrategy", "DeleteAlgoCOOdrStrategy"):
+                    lst = objValue.ResultList
+                    for i in range(lst.Count):
+                        d = lst[i]; st = int(d.OrdStatus)   # 策略狀態:0 建立、1 執行中 = 成功;9 無法建立、911 建立失敗
+                        log(f"條件單回應 {strIndex} 狀態 {st} 編號 {d.OrderNo} {d.Msg}")
+                        if strIndex == "SendAlgoCOOdrStrategy" and self.trader:
+                            self.trader.on_strategy_reply(str(d.OrderNo), st in (0, 1, 100, 101), str(d.Msg))
+                    return
                 if strIndex == "GetKLine" and self.kline_out is not None:
                     lst = objValue.KLineList
                     for i in range(lst.Count):
@@ -156,7 +165,7 @@ class Bridge:
                     r = objValue; rt = int(r.RptType)
                     if rt in (50, 51):
                         log(f"回報 {'成交' if rt == 51 else '委託'} {r.CompanyNo} {r.BS} 數量 {r.OrderQty} 價 {r.Price} 狀態 {r.OrderStatus} 書號 {r.OrderNo} 編號 {r.BasketNo}")
-                        if self.trader: self.trader.on_report(rt, str(r.OrderNo), int(r.OrderStatus), int(r.OrderQty), float(r.Price), str(r.BasketNo))
+                        if self.trader: self.trader.on_report(rt, str(r.OrderNo), int(r.OrderStatus), int(r.OrderQty), float(r.Price), str(r.BasketNo), str(r.CompanyNo), str(r.BS).strip())
                     return
                 if not strIndex or int(dwIndex) == 1:
                     log(f"!! 訂閱 / 取消訂閱失敗 [{dwIndex}] {strIndex or ''} {objValue}")
@@ -237,12 +246,43 @@ class Bridge:
         lst = self.List[self.Y.StockOrder](); lst.Add(o)
         self.api.SendStockOrder(CFG["YT_ACCOUNT"], lst)
 
+    def place_oco(self, code, mkt, d, lots, tp, sl):
+        """元大二擇一條件單(元大文件「新增條件單」OCOStrategy):停損、停利兩個成交價條件,觸發就停;
+           平倉單 = 空單買回掛漲停 / 多單賣出掛跌停,ROD。做空 d=-1:停損 = 成交價 ≥ sl、停利 = 成交價 ≤ tp;做多相反"""
+        Y = self.Y
+        mk = Y.enumMarketType.TWOTC if str(mkt).upper() in ("TWOTC", "OTC", "TPEX") else Y.enumMarketType.TWSE
+        today = now_tw(); dt_ = self.System.DateTime(today.year, today.month, today.day)
+        def cond(value, direction):
+            c = Y.StrategySettings(); c.MarketType = mk; c.StkCode = code
+            c.Condition = Y.StrategyCondition1(1); c.Direction = direction; c.Value = float(value)   # 1 成交價;方向 1 ≥、2 ≤
+            return c
+        def order():
+            o = Y.OrderSettings2[Y.OrderType2, Y.OrderPriceType1]()
+            o.MarketType = mk; o.StkCode = code; o.TimeInforce = 0; o.OrderValue = 0; o.OrderQty = int(lots)
+            o.OrderType = Y.OrderType2(1 if d < 0 else 2)            # 1 現股買進(空單買回)、2 現股賣出(多單賣出)
+            o.PriceType = Y.OrderPriceType1(3 if d < 0 else 5)       # 3 漲停、5 跌停
+            return o
+        x = Y.OCOStrategy(); x.Account = CFG["YT_ACCOUNT"]; x.EffTime = dt_; x.ExpTime = dt_; x.Order = Y.StrategyOrder1(2)   # 觸發就停
+        x.StrategySettings1 = cond(sl, 1 if d < 0 else 2); x.OrderSettings1 = order()     # 條件 1:停損
+        x.StrategySettings2 = cond(tp, 2 if d < 0 else 1); x.OrderSettings2 = order()     # 條件 2:停利
+        lst = self.List[Y.OCOStrategy](); lst.Add(x)
+        ok = self.api.SendAlgoCOOdrStrategy[Y.OCOStrategy](CFG["YT_ACCOUNT"], lst)
+        log(f"[交易] 送元大條件單 OCO {code} {'空' if d < 0 else '多'} {lots} 張 停損 {sl} 停利 {tp}:{'送出' if ok else '失敗'}")
+        if not ok and self.trader: self.trader.on_strategy_reply("", False, "SendAlgoCOOdrStrategy 回傳失敗")
+
+    def delete_oco(self, no):
+        Y = self.Y
+        x = Y.DeleteStrategy(); x.Account = CFG["YT_ACCOUNT"]; x.StrategyType = Y.StrategyType(3); x.StrategyNo = str(no).strip()   # 3 二擇一
+        lst = self.List[Y.DeleteStrategy](); lst.Add(x)
+        self.api.DeleteAlgoCOOdrStrategy(CFG["YT_ACCOUNT"], lst)
+
     def make_trader(self):
         cfg = dict(CFG)
         if CFG.get("YT_ENV", "UAT").upper() == "PROD" and CFG.get("TRADE_ALLOW_PROD", "0") != "1":
             if cfg.get("TRADE_ENABLE") == "1": log("[交易] 正式環境沒有 TRADE_ALLOW_PROD=1,自動交易關閉(只接行情)")
             cfg["TRADE_ENABLE"] = "0"
-        gw = type("GW", (), {"send": lambda _s, *a: self.send_order(*a), "cancel": lambda _s, no, code="": self.cancel_order(no, code)})()
+        gw = type("GW", (), {"send": lambda _s, *a: self.send_order(*a), "cancel": lambda _s, no, code="": self.cancel_order(no, code),
+                             "place_oco": lambda _s, *a: self.place_oco(*a), "delete_oco": lambda _s, no: self.delete_oco(no)})()
         return Trader(cfg, gw, log, now_tw)
 
     # ── 推到 Worker ──
