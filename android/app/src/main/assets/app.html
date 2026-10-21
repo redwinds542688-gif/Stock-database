@@ -118,8 +118,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-21 15:00 選股振幅 4% → 3%(使用者:「挑選股票 振幅改 3% 設定調整最低也一樣」):make_pool MIN_AMP / AVG5_MIN_AMP 3.0;設定「最低振幅」滾輪最低 3.0%、預設 3.0%,舊存檔 4.0% 的搬一次到 3.0%,長按 3/4/5/8 循環。
   · 2026-10-21 15:10 選股拿掉「5 天中至少 3 天振幅達標」,只看 5 日平均振幅 ≥ 3%(使用者:「選股 五天 平均 也一樣 3% 以上即可」;AVG5_MIN_HITS 0)。
   · 2026-10-21 15:40 監控檔數改 49(使用者:「維持 6000 張 監控股票改為 49」):預設 49,舊存檔搬一次到 49,之後自己撥的會保留。
-  · 2026-10-21 19:40 K 線圖拿掉開盤的 Ka 白色斜線(使用者:時碩「白色斜線 不符合股價平盤邏輯」):Ka 每天重算、開盤第 10 根(09:09)才有值,原本昨天最後一點直接連到 09:09;
-    開盤前 9 根改成不畫,Ka 從 09:09 開始。只動畫面,判別式不受影響。
+  · 2026-10-21 19:50 K 線圖開盤的 Ka 連線改顏色(使用者:時碩「白色斜線 不符合股價平盤邏輯」→「應該是紅線 需要畫」):Ka 每天重算、開盤第 10 根(09:09)才有值,
+    昨天最後一點連到 09:09 那段原本跟著昨天最後一點上色(收盤 = 今天昨收 → 白);改成跟今天第一個 Ka 的顏色(收盤在昨收上紅、下綠)。只動畫面,判別式不受影響。
   · 2026-10-21 19:20 指標三紫線(Ka×Kb)、指標二 Ob×Oc 的穿越點換日不比(使用者:時碩 09:09「畫面上並沒有穿越」):Ka 每天重算、開盤第 10 根才有值,
     原本拿昨天最後的 Ka 和今天第一個 Ka 比,開盤跳空就標一個假的上穿 / 下穿。只動畫面上的點,判別式、燈號不受影響。
   · 2026-10-21 17:20 判別式二第九次修改(使用者:「改 判二 大盤偏多只做黑盤空」):大盤寬度(名單 130 檔裡最新價 > 昨收的比例,平盤不算)≥ 80% 時,判二的空單只做當下黑盤(≤ 昨收)的股票;
@@ -1681,7 +1681,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610211940">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610211950">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5251,9 +5251,10 @@ function drawBars(bars, code, srcLabel, keepView){
   candle.setData(bars);
   const ma = sma(bars, BASE.maPeriod);
   // 2026-10-21 19:40 使用者(時碩:「白色斜線 不符合股價平盤邏輯」):Ka 每天重算、開盤第 10 根才有值,原本昨天最後一點直接連到今天 09:09,
-  //   畫出一條白色斜線(昨天最後一點的收盤 = 今天的昨收 → 平盤白)。圖表元件遇到空白點仍會連線,線段顏色跟著起點 → 空白前最後一點設成透明,Ka 從 09:09 才看得到
-  const kaGap = (arr) => { const mm = new Map(arr.map(x => [x.time, x])); const out = bars.map(b => mm.get(b.time) || {time: b.time});
-    for (let i = 0; i + 1 < out.length; i++) if (out[i].value != null && out[i + 1].value == null) out[i] = {...out[i], color: 'rgba(0,0,0,0)'};
+  //   畫出一條白色斜線(線段顏色跟著起點 = 昨天最後一點,它的收盤 = 今天的昨收 → 平盤白)。
+  //   19:50 使用者:「剛剛那個白線 應該是紅線 需要畫」→ 連線照畫,顏色改跟今天第一個 Ka(那根收盤對昨收:上紅、下綠、平白)
+  const kaGap = (arr) => { const out = arr.slice();
+    for (let i = 0; i + 1 < out.length; i++) if (dayKey(out[i].time) !== dayKey(out[i + 1].time) && out[i + 1].color) out[i] = {...out[i], color: out[i + 1].color};
     return out; };
   maLine.setData(kaGap(ma));
   const ma24 = sma(bars, 24, 'close', false);   // 2026-10-21 K24
