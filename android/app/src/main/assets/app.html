@@ -122,6 +122,10 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     (1) 每筆快照存證交所自己的資料時間,拼 K 時照這個時間歸到那一分鐘(原本一律算快照前一分鐘,下一分鐘頭幾秒的成交會混進來);
     (2) 每分鐘除了開頭,再在 :30、:56 各抓一次,:56 那筆當這分鐘收盤,三筆合起來才有高低點。還沒走完的那一分鐘不給(訊號只看收完的 K)。
     10/21 雲端 K 和 Yahoo 比:11:55 後收盤仍有 8.3% 的分鐘差 0.3% 以上;模擬測試收盤完全相同 17% → 100%、高低點在 1 檔內 29% → 55%。舊資料照舊拼法。
+  · 2026-10-22 04:30 強制平倉 13:25 → 13:20(使用者:「手機通知也改成13:20」,和元大自動交易同一時間;判一 / 判二 / 判三都是):
+    13:20 那根 K 起標「出」、盯盤(bgManagePos)13:20 起發平倉通知;燈號 13:20 起只顯示監控。其他進出場規則不動。
+    回測(模擬器 FORCEEXIT=13:20,13:25 重跑和原基準完全一樣):判一 9 天 +59,277 → +68,980(26 筆 73% → 76%)、雲端 10/20–21 +16,970 → +17,221;
+    判二 9 天 +93,128 → +102,369(44 筆 68%)、雲端 +17,214 不變;判三 9 天 +18,831、雲端 +14,662 都不變。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1700,7 +1704,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610212340">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610220432">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4066,14 +4070,14 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
     if (!(okPrev(ma, k) && okPrev(ob, o) && okPrev(obma, om))) continue;
     const m0 = ma[k].value, m1 = ma[k - 1].value, ov = ob[o].value, omv = obma[om].value;
     const tStr = hmKey(b.time);
-    // 1. 循環中的強制平倉:停利 / 停損 / 距昨收超過 maxMovePct% / 13:25
+    // 1. 循環中的強制平倉:停利 / 停損 / 距昨收超過 maxMovePct% / 13:20
     if (YH.exitRule && cyc){
       const dir = cyc.side === 'long' ? 1 : -1;
       const best = dir === 1 ? b.high : b.low, worst = dir === 1 ? b.low : b.high;   // 這根 K 對部位最有利 / 最不利的價
       const gain = (best - cyc.entry) / cyc.entry * 100 * dir, loss = (cyc.entry - worst) / cyc.entry * 100 * dir;
       const move = prevClose ? (b.close - prevClose) / prevClose * 100 : 0;
       let why = null;
-      if (tStr >= '13:25') why = '出';
+      if (tStr >= '13:20') why = '出';   // 2026-10-22 13:25 → 13:20(使用者:「手機通知也改成13:20」,配合元大自動交易)
       else if (gain >= SIG.takePct) why = '停利';
       else if (cyc.stop && cyc.stop.px != null ? (dir < 0 ? b.high > cyc.stop.px : b.low < cyc.stop.px) : loss >= ((cyc.stop && cyc.stop.pct) || SIG.stopPct)) why = '停損';   // 2026-10-20 起漲 / 起跌點停損
       else if (dir === -1 && move >= SIG.maxMovePct) why = '超6%';
@@ -4495,7 +4499,7 @@ function lampsFromBias(b, time, devPct, strongDir, waiting){
     eL0.classList.remove('on', 'pre', 'strong'); eL0.textContent = '做多'; eS0.classList.remove('on', 'pre', 'strong'); eS0.textContent = '做空';
     eW0.classList.add('on'); eW0.textContent = '等待'; return;
   }
-  const closed = time != null && hmKey(time) >= '13:25';   // 13:25 起已強制平倉、13:30 是收盤集合競價:不再亮多空燈,只顯示監控(2026-10-18 使用者)
+  const closed = time != null && hmKey(time) >= '13:20';   // 13:20 起已強制平倉(2026-10-22 起,原 13:25)、13:30 是收盤集合競價:不再亮多空燈,只顯示監控(2026-10-18 使用者)
   // 價離均價線超過 SIG.maxEntryDevPct(1%)就是追高 / 追低,那個方向的燈不亮(2026-10-18 使用者:「35.9 均線 35.5 大於 1%,不適合建議做多」)
   const farUp = devPct != null && devPct > SIG.maxEntryDevPct, farDn = devPct != null && devPct < -SIG.maxEntryDevPct;
   const L = (closed || farUp) ? 0 : Math.round(Math.max(0, b) * 10), R = (closed || farDn) ? 0 : Math.round(Math.max(0, -b) * 10);
@@ -4545,7 +4549,7 @@ const ind3Bias = st => st ? (st.k + (YH.lampOaOb ? (st.oa || 0) : (st.lo > 0 && 
 // 單根的燈號狀態(還沒平滑):'等待' / '做多' / '漸多' / '監控' / '漸空' / '做空'
 function ind3Raw(st, time, waiting){
   if (waiting || !st) return waiting ? '等待' : '監控';
-  if (time != null && hmKey(time) >= '13:25') return '監控';
+  if (time != null && hmKey(time) >= '13:20') return '監控';
   // 2026-10-21 02:30 使用者:「Ka 瞬間拉那麼高 訊號只顯示監控 也不合理」→ 不再要求四件全同方向,改看四件平均分數 b(−1~+1):
   //   b ≥ 0.75 做多、0.25~0.75 漸多、−0.25~0.25 監控、−0.75~−0.25 漸空、≤ −0.75 做空(例:友達 13:17 → 漸多)。
   //   九天(studies/lamp_ind3.py 分數版):做多 52%、漸多 50%、監控 47%、漸空 55%、做空 54%
@@ -4592,7 +4596,7 @@ function ind3Lamps(bars, I3, isChop, prevClose){
       const tk = fl < 10 ? 0.01 : fl < 50 ? 0.05 : fl < 100 ? 0.1 : fl < 500 ? 0.5 : fl < 1000 ? 1 : 5;   // 台股升降單位
       if (fl > 0 && (fh - fl) <= tk * YH.lampFlatTicks + 1e-9) raw = '監控';
     }
-    if (raw === '等待' || hmKey(b.time) >= '13:25'){ cur = raw; cand = null; cnt = 0; }
+    if (raw === '等待' || hmKey(b.time) >= '13:20'){ cur = raw; cand = null; cnt = 0; }
     else {
     if (cur === null || cur === '等待'){ cur = '監控'; cand = null; cnt = 0; }   // 2026-10-21 05:20 使用者「改」(中揚光 09:14 等待一結束就直接亮做空,接著拉高):等待結束先從監控開始,第一個燈號也要連 3 根
     if (raw === cur){ cand = null; cnt = 0; }
@@ -5884,12 +5888,12 @@ function bgExit(pk, pos, text, nowPx, t, nm, code){
   else bgNotify(`${nm} ${code} 出場${plTxt}:${text}`, `${t} ${from}現價 ${nowPx}`, 'exit', xk);
 }
 function bgManagePos(pk, pos, nowPx, nm, code){
-  // 盯盤:用記住的進場價看停利 / 停損 / 13:25(台灣時間)
+  // 盯盤:用記住的進場價看停利 / 停損 / 13:20(台灣時間)
   if (!pos || !(nowPx > 0)) return false;
   const hm = new Date(Date.now() + 8 * 3600000).toISOString().slice(11, 16);
   const pl = (nowPx - pos.entry) / pos.entry * 100 * pos.dir;
   let why = null;
-  if (hm >= '13:25') why = '出';
+  if (hm >= '13:20') why = '出';
   else if (pl >= SIG.takePct) why = '停利';
   else if (pos.stopPx != null ? (pos.dir < 0 ? nowPx > pos.stopPx : nowPx < pos.stopPx) : pl <= -(pos.stopPct || SIG.stopPct)) why = '停損';   // 2026-10-20 起漲 / 起跌點停損
   if (!why) return false;
@@ -6091,7 +6095,7 @@ window.bgTick = bgTick; window.BG = BG;
         const pl = (rest.match(/([+\-−]?\d+(?:\.\d+)?)%/) || [])[1]; o.pl = pl != null ? +pl.replace('−', '-') : null;
         o.win = o.pl != null ? o.pl >= 0 : o.kind !== 'loss';
         const sm = b.match(/做[多空]/); o.side = sm ? (sm[0] === '做空' ? 'short' : 'long') : ((o.entP && o.price) ? (((o.price < o.entP) === o.win) ? 'short' : 'long') : '');
-        o.reason = /停損/.test(rest) ? '停損' : /OBV/.test(rest) ? 'OBV停利' : /停利/.test(rest) ? '停利' : /超6/.test(rest) ? '超6%' : /:出/.test(rest) ? '13:25平倉' : '反向點';
+        o.reason = /停損/.test(rest) ? '停損' : /OBV/.test(rest) ? 'OBV停利' : /停利/.test(rest) ? '停利' : /超6/.test(rest) ? '超6%' : /:出/.test(rest) ? '收盤前平倉' : '反向點';
       } else return null;
       return o;
     };

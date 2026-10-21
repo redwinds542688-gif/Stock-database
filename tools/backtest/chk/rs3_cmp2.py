@@ -26,7 +26,7 @@ JS='''([bars, prev]) => { const ma = sma(bars, BASE.maPeriod), ob = obv(bars), o
   const ent = ms.filter(m => m.shape !== 'circle' && (m.color === CHART_THEME.up || m.color === CHART_THEME.down)).map(m => hmKey(m.time) + (m.text.startsWith('多') ? '多' : '空') + (m.text.includes('強') ? '強' : ''));
   const ex = ms.filter(m => m.shape === 'circle' && ['出','停利','停損','超6%','OBV'].includes(m.text)).map(m => hmKey(m.time) + m.text);
   return {rs: RULESET.name, ent, ex, strong: ms.filter(m => m.text.includes('強')).map(m => hmKey(m.time) + m.text)}; }'''
-EXMAP={'停利 2.5%':'停利','停損 1.5%':'停損','13:25 強制平倉':'出','OBV反向穿越(獲利中)':'OBV','反向確認點':'出','逆勢單遇反向點':'出','超過 6%':'超6%'}
+EXMAP={'停利 2.5%':'停利','停損 1.5%':'停損','13:25 強制平倉':'出','13:20 強制平倉':'出','OBV反向穿越(獲利中)':'OBV','反向確認點':'出','逆勢單遇反向點':'出','超過 6%':'超6%'}
 def sim(code, name, day):
     out=subprocess.run(['python3','-I',f'{S}/sim_day.py',code,name,'10','10'],capture_output=True,text=True,env=dict(ENV,DAY=day,POOL=f'{S}/pools/hi350_{day}.json')).stdout
     ent=[]; ex=[]

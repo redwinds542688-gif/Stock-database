@@ -188,7 +188,7 @@ for i in range(1, len(c)):
         sd, k0, ent, lots = cyc; best = xh[i] if sd == 1 else xl[i]; worst = xl[i] if sd == 1 else xh[i]; _spx = None
         gain = (best-ent)/ent*100*sd; loss = (ent-worst)/ent*100*sd; move = (c[i]-prev)/prev*100
         why = None
-        _FE = os.environ.get('FORCEEXIT', '13:25')   # 2026-10-22 測試(使用者:「手機通知也改成 13:20」):強制平倉時間,預設 13:25
+        _FE = os.environ.get('FORCEEXIT', '13:20')   # 強制平倉時間:2026-10-22 起 13:20(使用者:「手機通知也改成13:20」),舊版 FORCEEXIT=13:25
         if tm >= _FE: why = f'{_FE} 強制平倉'
         elif gain >= TAKE: why = f'停利 {TAKE:g}%'
         # 2026-10-21 測試(使用者:今天和益 +1.6%、台郡 +0.9% 沒保住 →「跑」):BEPCT = 帳面曾經賺到 x% 後,價格回到進場價就保本出場;OBVXPEAK = 曾經賺到 x% 也算 OBV 反轉出場的「獲利中」
