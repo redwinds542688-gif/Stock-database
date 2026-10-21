@@ -54,7 +54,7 @@ class Trader:
         #   停損、停利兩個條件,觸發就送漲停買回 / 跌停賣出(ROD)。程式或網路斷了元大照樣平倉。OCO 在的時候,程式自己的停利停損只記錄不下單
         self.broker_stop = cfg.get("TRADE_BROKER_STOP", "1") == "1"
         self.type_long = cfg.get("TRADE_TYPE_LONG", "0")           # 委託種類:0 現貨(買進當沖)
-        self.type_short = cfg.get("TRADE_TYPE_SHORT", "9")         # 9 現股當沖委託控管(先賣後買)——上線前請和元大確認
+        self.type_short = cfg.get("TRADE_TYPE_SHORT", "9")         # 9 現股當沖委託控管(先賣後買)= 元大 App 下單畫面的「沖」(使用者:「做空要按 沖 亮起來才能做空」)
         self.stop_file = Path(cfg.get("TRADE_STOP_FILE", "/opt/yuanta_bridge/STOP"))
         self.lock = threading.RLock()
         self.reset_day()

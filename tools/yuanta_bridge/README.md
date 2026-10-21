@@ -14,7 +14,7 @@
 | 檔案 | 用途 |
 |---|---|
 | `yuanta_bridge.py` | 主程式:`run` 常駐、`test 2330` 驗證連線(印逐筆 60 秒)、`kline 2330 2026/10/22` 查元大 1 分 K |
-| `trader.py` / `test_trader.py` | 一次一單自動交易(跟手機通知進出場;`python3 test_trader.py` 測 11 種情況) |
+| `trader.py` / `test_trader.py` | 一次一單自動交易(跟手機通知進出場;`python3 test_trader.py` 測 17 種情況) |
 | `bars.py` / `test_bars.py` | 逐筆 → 1 分 K(不需要元大元件,`python3 test_bars.py` 可單獨測) |
 | `bridge.env.example` | 設定範本(複製成 `bridge.env`,**只放在主機上**,已被 .gitignore 排除) |
 | `install.sh` | Ubuntu 24.04 一鍵安裝(.NET 8、Python venv、pythonnet 3.0.5,照元大文件) |
@@ -90,6 +90,8 @@ sudo -u yuanta /opt/yuanta_bridge/venv/bin/python /opt/yuanta_bridge/yuanta_brid
 - **預設關閉**:`TRADE_ENABLE=1` 才會下單;正式環境還要 `TRADE_ALLOW_PROD=1`。
 
 上線順序:測試環境 `order-test` 試下單回應 → 測試環境 `TRADE_ENABLE=1` 跑幾天(元大測試環境依委託書號尾碼模擬全成交 / 不成交 / 部分成交 / 價穩失效)
-→ 正式環境 1 張、一天 3 筆跑一兩週。使用者已有當沖資格(2026-10-22);**做空的委託種類(`TRADE_TYPE_SHORT`,目前設 9 現股當沖委託控管)上線前要和元大確認**。
+→ 正式環境 1 張、一天 3 筆跑一兩週。使用者已有當沖資格(2026-10-22)。做空要用「沖」:元大 App 下單畫面要按「沖」亮起來才能賣出做空(使用者截圖 2026-10-22,時碩「可現股當沖、平盤下可放空」),
+對應 API 的委託種類 `9` 現股當沖委託控管 → `TRADE_TYPE_SHORT=9`,空單進場賣出和買回平倉都用 9。剩下要確認:條件單(OCO)的「現股買進」能不能沖銷當沖空單。
+有些股票不能現股當沖或平盤下不能放空(例如處置股),元大會拒絕委託,程式收到拒絕就回空閒、不重試。
 
 限制:手機通知經過雲端紀錄,KV 列表最慢可能延遲約一分鐘,所以「進場」可能比通知晚;「出場」的停利停損由這裡即時盯,不受影響。
