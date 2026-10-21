@@ -206,6 +206,12 @@ for i in range(1, len(c)):
             if _hit: why = _lb
         elif why is None and loss >= float(os.environ.get('STOP','1.5')): why = f'停損 {float(os.environ.get("STOP","1.5")):g}%'; _spx = ent*(1-float(os.environ.get('STOP','1.5'))/100*sd)
         elif (sd == -1 and move >= 6) or (sd == 1 and move <= -6): why = '超過 6%'
+        # 2026-10-22 測試(使用者:「回測進場那根 K 的量能 跟反向爆量出場」):REVSPIKE = 持倉中出現反向 K(做空遇紅 K、做多遇黑 K)且這根量 ≥ 前 REVN 根平均 × REVSPIKE 倍 → 下一根開盤出場
+        #   REVPL=gain:只在帳面賺錢時才這樣出;預設 any
+        REVX = float(os.environ.get('REVSPIKE','0'))
+        if why is None and REVX > 0 and i >= 2:
+            _n = int(os.environ.get('REVN','20')); _base = np.mean(v[max(1, i-_n):i])
+            if (c[i] - o[i]) * sd < 0 and _base > 0 and v[i] >= REVX * _base and (os.environ.get('REVPL','any') == 'any' or (c[i]-ent)/ent*100*sd >= 0): why = f'反向爆量 {v[i]/_base:.1f} 倍'
         OBVX = os.environ.get('OBVX','0'); OBVXMIN = float(os.environ.get('OBVXMIN','0'))
         OBFPCT = float(os.environ.get('OBFPCT','0')); OBFMODE = os.environ.get('OBFMODE','all')   # 快速 OBV 均線:紅線反向超過藍線 OBFPCT%(÷當日 OBV 範圍)就出;mode all/gain0/gain1
         if why is None and OBFPCT > 0 and i >= OBF and not np.isnan(obmaF[i]):
@@ -588,6 +594,11 @@ for i in range(1, len(c)):
                 far = True; tag += f' [大盤{"偏多" if side == -1 else "偏空"} {_br:.0%},逆勢條件不足,只記錄]'
 
     OPENMOVE = float(os.environ.get('OPENMOVE','0'))   # 2026-10-19 測試(使用者:「訊號沒錯但我們忽視了什麼關鍵的訊號」):價要先相對今開朝方向走 OPENMOVE% 以上才進(只有 OBV、價還沒跟上 = 不進)
+    # 2026-10-22 測試(同上):ENTVOLX = 進場(確認點)那根 K 的量要 ≥ 前 ENTVOLN 根平均 × ENTVOLX 倍,不夠只記錄(09:00 開盤撮合那根不算進平均)
+    ENTVOLX = float(os.environ.get('ENTVOLX','0'))
+    if conf and not far and ENTVOLX > 0 and i >= 2:
+        _n = int(os.environ.get('ENTVOLN','20')); _base = np.mean(v[max(1, i-_n):i])
+        if _base > 0 and v[i] < ENTVOLX * _base: far = True; tag += f' [進場量 {v[i]/_base:.1f} 倍不足,只記錄]'
     if conf and OPENMOVE > 0 and not far:
         _om = (c[i]-o[0])/o[0]*100*side
         if _om < OPENMOVE: far = True; tag += f' [離今開 {_om:+.2f}% 不足 {OPENMOVE}%,只記錄]'
