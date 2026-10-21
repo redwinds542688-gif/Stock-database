@@ -181,6 +181,10 @@ for i in range(1, len(c)):
         why = None
         if tm >= '13:25': why = '13:25 強制平倉'
         elif gain >= TAKE: why = f'停利 {TAKE:g}%'
+        # 2026-10-21 測試(使用者:今天和益 +1.6%、台郡 +0.9% 沒保住 →「跑」):BEPCT = 帳面曾經賺到 x% 後,價格回到進場價就保本出場;OBVXPEAK = 曾經賺到 x% 也算 OBV 反轉出場的「獲利中」
+        if globals().get('_mfk') != (k0, ent): globals()['_mfk'] = (k0, ent); globals()['_mfe'] = 0.0
+        _BE = float(os.environ.get('BEPCT','0'))
+        if why is None and _BE > 0 and globals()['_mfe'] >= _BE and ((h[i] >= ent) if sd == -1 else (l[i] <= ent)): why = f'保本停損(曾賺 {globals()["_mfe"]:.1f}%)'
         elif os.environ.get('STOPMODE','pct') in ('origin', 'pts') and globals().get('_osk') != (k0, ent):
             globals()['_osk'] = (k0, ent); globals()['_ost'] = _origin_stop(sd, i-1) if os.environ.get('STOPMODE') == 'origin' else _pts_stop(sd, i-1, ent)
             if os.environ.get('TRACESTOP'): print(f'TRACESTOP {k0} 進 {ent} 起{"跌" if sd==-1 else "漲"}點 {globals()["_ost"]}')
@@ -210,7 +214,8 @@ for i in range(1, len(c)):
             _cross = (not np.isnan(_m[i-1])) and ((sd == -1 and ob[i] > _m[i] and ob[i-1] <= _m[i-1]) or (sd == 1 and ob[i] < _m[i] and ob[i-1] >= _m[i-1]))
             _pl = (c[i]-ent)/ent*100*sd
             if _cross and os.environ.get('TRACEX'): print(f'TRACEX {tm} OBV反向穿越 帳面 {_pl:+.2f}%')
-            if _cross and (OBVX == '1' or (OBVX == '2' and _pl >= OBVXMIN)): why = f'OBV反向穿越{"(獲利中)" if OBVX=="2" else ""}'
+            _pk = float(os.environ.get('OBVXPEAK','99'))
+            if _cross and (OBVX == '1' or (OBVX == '2' and (_pl >= OBVXMIN or globals().get('_mfe', 0) >= _pk))): why = f'OBV反向穿越{"(獲利中)" if OBVX=="2" else ""}'
         OBVTURN = os.environ.get('OBVTURN','0'); OBVTURNMIN = float(os.environ.get('OBVTURNMIN','-99')); OBVTURNBARS = int(os.environ.get('OBVTURNBARS','1'))   # 2026-10-18 測試:紅線穿過藍線(OBV 均線)且藍線隨即轉向 → 平倉(判別式二候選)
         if why is None and OBVTURN != '0' and i >= OBVTURNBARS + 1 and not np.isnan(obma[i-OBVTURNBARS-1]):
             _cr = (sd == 1 and ob[i] < obma[i] and ob[i-1] >= obma[i-1]) or (sd == -1 and ob[i] > obma[i] and ob[i-1] <= obma[i-1])
@@ -229,10 +234,12 @@ for i in range(1, len(c)):
             if _pl >= DXEXITMIN:
                 if DXEXIT in ('narrow','both') and _nar: why = f'OBV10/30差距連縮{DXEXITBARS}根'
                 elif DXEXIT in ('cross','both') and _cr: why = 'OBV10反向穿過OBV30'
+        if why is None: globals()['_mfe'] = max(globals()['_mfe'], gain)
         if why:
             if why.startswith('13:25'): ex = o[i]
             elif why.startswith('OBV'): ex = o[i+1] if i+1 < len(c) else c[i]
             elif why.startswith('停利'): ex = round(ent*(1+TAKE/100*sd), 2)
+            elif why.startswith('保本'): ex = ent
             else: ex = o[i+1] if i+1 < len(c) else c[i]
             close_trade(sd, k0, ent, lots, tm, ex, why); log.append(f'{tm} {why} 出 {ex:.2f}'); cyc = None
             if why.startswith('停利') or why.startswith('OBV'): lastTP[sd] = i   # 2026-10-18 測試:停利後同方向冷卻
