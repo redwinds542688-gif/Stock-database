@@ -118,6 +118,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-21 15:00 選股振幅 4% → 3%(使用者:「挑選股票 振幅改 3% 設定調整最低也一樣」):make_pool MIN_AMP / AVG5_MIN_AMP 3.0;設定「最低振幅」滾輪最低 3.0%、預設 3.0%,舊存檔 4.0% 的搬一次到 3.0%,長按 3/4/5/8 循環。
   · 2026-10-21 15:10 選股拿掉「5 天中至少 3 天振幅達標」,只看 5 日平均振幅 ≥ 3%(使用者:「選股 五天 平均 也一樣 3% 以上即可」;AVG5_MIN_HITS 0)。
   · 2026-10-21 15:40 監控檔數改 49(使用者:「維持 6000 張 監控股票改為 49」):預設 49,舊存檔搬一次到 49,之後自己撥的會保留。
+  · 2026-10-21 20:00 Ka 線每天用自己的昨收上色(使用者:時碩「前天收 80.2 所以昨天 80.2 以上皆紅色 以下都是綠色」):原本圖上每一天都拿今天的昨收比;
+    改成前幾天各自用前一天最後一根的收盤,今天照舊用正式昨收。只動畫面。
   · 2026-10-21 19:50 K 線圖開盤的 Ka 連線改顏色(使用者:時碩「白色斜線 不符合股價平盤邏輯」→「應該是紅線 需要畫」):Ka 每天重算、開盤第 10 根(09:09)才有值,
     昨天最後一點連到 09:09 那段原本跟著昨天最後一點上色(收盤 = 今天昨收 → 白);改成跟今天第一個 Ka 的顏色(收盤在昨收上紅、下綠)。只動畫面,判別式不受影響。
   · 2026-10-21 19:20 指標三紫線(Ka×Kb)、指標二 Ob×Oc 的穿越點換日不比(使用者:時碩 09:09「畫面上並沒有穿越」):Ka 每天重算、開盤第 10 根才有值,
@@ -1681,7 +1683,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610211950">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610212000">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5313,8 +5315,12 @@ function drawBars(bars, code, srcLabel, keepView){
   let entryNote = '';
   if (prevClose && candle.createPriceLine){
     // 2026-10-20 使用者:「紫色 K 線(均價 10)K 大於昨日收盤改紅線 反之改綠線 平盤白線,線用最細的」:均價線逐根上色,那根收盤在昨收之上紅、之下綠、平盤白;線寬 1
-    { const cl = new Map(); bars.forEach(b => cl.set(b.time, b.close));
-      maLine.setData(kaGap(ma.map(x => { const c = cl.get(x.time); return {time: x.time, value: x.value, color: c > prevClose ? CHART_THEME.up : c < prevClose ? CHART_THEME.down : '#E6E6E6'}; }))); }
+    // 2026-10-21 20:00 使用者(時碩:「前天收 80.2 所以昨天 80.2 以上皆紅色 以下都是綠色」):每天用自己的昨收上色(前一天最後一根收盤);今天用正式昨收 prevClose;
+    //   K 線最早那一天沒有前一天 → 用預設色
+    { const cl = new Map(), pcOf = new Map(); let lastDay = null, lastClose = null;
+      bars.forEach(b => { cl.set(b.time, b.close); const dk = dayKey(b.time); if (dk !== lastDay){ if (lastDay !== null) pcOf.set(dk, lastClose); lastDay = dk; } lastClose = b.close; });
+      if (bars.length) pcOf.set(dayKey(bars[bars.length - 1].time), prevClose);
+      maLine.setData(kaGap(ma.map(x => { const c = cl.get(x.time), pc = pcOf.get(dayKey(x.time)); return {time: x.time, value: x.value, color: !(pc > 0) ? CHART_THEME.ma : c > pc ? CHART_THEME.up : c < pc ? CHART_THEME.down : '#E6E6E6'}; }))); }
     const k = BASE.entryMaxChg / 100;
     if (YH.showEntryLines) [[prevClose * (1 + k), '+' + BASE.entryMaxChg + '%'], [prevClose * (1 - k), '-' + BASE.entryMaxChg + '%']]
       .forEach(([price, title]) => ENTRY_LINES.push(candle.createPriceLine({
