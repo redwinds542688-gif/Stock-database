@@ -9,12 +9,22 @@
 元大 SPARK API ──逐筆成交──▶ 中繼程式(Linux 主機)──每分鐘 1 分 K──▶ Worker(?ybars=push)──▶ 手機(之後切換)
 ```
 
+## 目前進度(2026-10-22 05:00)
+
+- 程式都寫好了,只用假的 API / 假資料測過(`test_trader.py` 30 種、`test_bars.py`、`test_quotes.py`);**還沒連過元大、也還沒拿到元大的 K 線**。
+- 卡在:營業員開通 SPARK API + 給範例程式包(`YuantaAPI_TestAP.exe`、`NuGetPackages`)。
+- 已請使用者問營業員:測試 / 正式環境是否開通、要不要登記固定 IP、逐筆量的單位(張 / 股)、
+  現股當沖委託種類是不是 9(平倉用 9 還是 0)、API 和投資先生能不能同時登入。
+- 下一步(使用者回報後):Windows 電腦裝 .NET 8 → 匯入測試憑證 → 用 `YuantaAPI_TestAP.exe` 公開測試帳號登入
+  → 租 Linux 主機跑 `install.sh` → `test 2330` → `order-test` → 正式環境只收 K 線比對一天 → 手機切元大 → 最後才開自動交易(一次一單)。
+- 機密(帳號、密碼、憑證)只放主機 `bridge.env`;SDK 元件放主機 `/opt/yuanta_bridge/sdk`,都不進對話、不進 GitHub。
+
 ## 檔案
 
 | 檔案 | 用途 |
 |---|---|
 | `yuanta_bridge.py` | 主程式:`run` 常駐、`test 2330` 驗證連線(印逐筆 60 秒)、`kline 2330 2026/10/22` 查元大 1 分 K |
-| `trader.py` / `test_trader.py` | 一次一單自動交易(跟手機通知進出場;`python3 test_trader.py` 測 17 種情況) |
+| `trader.py` / `test_trader.py` | 一次一單自動交易(跟手機通知進出場;`python3 test_trader.py` 測 30 種情況) |
 | `quotes.py` / `test_quotes.py` | 手機即時價:逐筆 → 每檔最新報價(格式同證交所,手機不用改) |
 | `cloudflared-quote.service` | (選用)Cloudflare 快速通道,讓 Worker 拿得到本機報價 |
 | `bars.py` / `test_bars.py` | 逐筆 → 1 分 K(不需要元大元件,`python3 test_bars.py` 可單獨測) |
