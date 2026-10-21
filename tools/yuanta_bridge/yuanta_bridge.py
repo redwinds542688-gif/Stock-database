@@ -28,7 +28,7 @@ def load_env():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1); cfg[k.strip()] = re.split(r"\s+#", v, 1)[0].strip()   # 去掉行尾註解
-    for k in list(cfg) + ["YT_ACCOUNT", "YT_PASS", "YT_PFX", "YT_PFX_PASS", "YT_ENV", "YT_SDK_DIR", "WORKER_URL", "PUSH_KEY", "POOL_URL", "VOL_MULT", "MAX_CODES"]:
+    for k in list(cfg) + ["YT_ACCOUNT", "YT_PASS", "YT_PFX", "YT_PFX_PASS", "YT_ENV", "YT_SDK_DIR", "WORKER_URL", "PUSH_KEY", "POOL_URL", "VOL_MULT", "MAX_CODES", "YT_PMM_CHECK"]:
         if os.environ.get(k): cfg[k] = os.environ[k]
     return cfg
 
@@ -127,6 +127,8 @@ class Bridge:
         mode = Y.enumEnvironmentMode.PROD if CFG.get("YT_ENV", "UAT").upper() == "PROD" else Y.enumEnvironmentMode.UAT
         self.api = Y.YuantaSparkAPITrader(str(HERE / "log"))
         self.api.SetLogType(Y.enumLogType.COMMON)
+        if CFG.get("YT_PMM_CHECK", "1") == "0":
+            self.api.SetPMMServerCheck(False)    # 元大文件「API 相關設定」:是否檢查 PMMServer(預設檢查);連不上時可試著關掉
         self.api.OnResponse += self.on_response
         self.disconnected.clear(); self.logged_in.clear()
         self.api.Open(mode)

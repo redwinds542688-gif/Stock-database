@@ -26,6 +26,17 @@
 3. **憑證**:測試憑證在元大文件「測試環境 & 正式環境說明」頁下載(密碼 `yuanta`);正式憑證用自己的網路下單憑證(.pfx)。
 4. **主機**:Ubuntu 24.04、盤中不關機,建議租固定 IP 的 Linux 雲端主機。
 
+## 最快的第一步:Windows 上用元大的測試程式(不用寫程式)
+
+元大給的範例程式包裡有 `YuantaAPI_TestAP.exe`(元大文件「環境建置-C#」):
+1. 電腦裝 .NET 8(https://dotnet.microsoft.com/zh-tw/download/dotnet/8.0)
+2. 匯入測試憑證(憑證密碼 `yuanta`)
+3. 開 `YuantaAPI_TestAP.exe` → 帳號種類 `S`、帳號 `98875005091`、密碼 `1234`、選「測試環境」→ 按 Open → 按 Login
+4. 收到連線和登入成功訊息 = 你的 API 權限、網路(固定 IP)都通了,再來裝 Linux 主機
+   (正式環境:帳號換成自己的 11 碼證券帳號、選「正式環境」,憑證用自己的網路下單憑證)
+
+範例程式包裡的 `NuGetPackages` 資料夾就是 SDK 元件(YuantaSparkAPI 套件),Linux 主機要的 `.dll` / `.so` 從這裡取。
+
 ## 安裝與測試
 
 ```bash
