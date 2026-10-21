@@ -1,6 +1,6 @@
 {
  "date": "2026-10-21",
- "generated": "2026-10-21 15:03",
+ "generated": "2026-10-21 15:14",
  "rules": {
   "lo": 15,
   "hi": 500,
@@ -12,7 +12,7 @@
    "17"
   ],
   "avg5_min_amp": 3.0,
-  "avg5_min_hits": 3,
+  "avg5_min_hits": 0,
   "avg_days": 5,
   "entry_max_chg": 3.5
  },
