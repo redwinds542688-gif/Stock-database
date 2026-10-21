@@ -111,7 +111,7 @@ NOW[0] = dt.datetime(2026, 10, 22, 13, 12, tzinfo=TW); t23, g23 = mk(); t23.on_t
 NOW[0] = dt.datetime(2026, 10, 22, 10, 0, tzinfo=TW)
 # 24) 13:23 複查:程式的空單還沒平(平倉單失效了)→ 再掛漲停;手動空單 → 掛漲停買回;手動多單 → 只提醒
 alerts = []
-t24, g24 = mk(TRADE_CANCEL_ALL="0"); t24.alert = lambda a, b="": alerts.append(a)
+t24, g24 = mk(TRADE_CANCEL_ALL="0", TRADE_RECHECK_CLOSE="short"); t24.alert = lambda a, b="": alerts.append(a)
 t24.on_tick("6269", 86.2); t24.step([ENT]); t24.on_report(51, "A0001", 0, 1000, 86.1)
 NOW[0] = dt.datetime(2026, 10, 22, 13, 20, tzinfo=TW); t24.step(); t24.on_report(50, "A0002", 24, 0, 0, basket=g24.tags[-1])   # 平倉單失效 → 會自己再送
 n0 = len(g24.sent); t24.order["dead"] = True                                                                          # 假裝重送的也失效
@@ -120,6 +120,13 @@ assert dict(left) == {"6269": -1, "2409": -2, "2330": 1}
 assert g24.sent[n0][:3] == ("6269", "B", 1) and g24.sent[n0][6] == "H"                    # 程式的 → 漲停 ROD
 assert any(x[:3] == ("2409", "B", 2) and x[6] == "H" for x in g24.sent)                     # 手動空單 → 漲停買回
 assert not any(x[0] == "2330" for x in g24.sent) and len(alerts) == 3                       # 手動多單只提醒
+# 24b) 預設 TRADE_RECHECK_CLOSE=all(使用者:「平倉也是一樣 要包含投資先生手動交易尚未平倉的股票」):手動空單漲停買回、手動多單跌停賣出
+t24b, g24b = mk(TRADE_CANCEL_ALL="0")
+left = t24b.recheck([{"code": "2409", "bs": "S", "lots": 2}, {"code": "2330", "bs": "B", "lots": 1}, {"code": "2317", "bs": "B", "lots": 3}, {"code": "2317", "bs": "S", "lots": 3}])
+assert dict(left) == {"2409": -2, "2330": 1}                                                # 2317 今天已經沖掉,不動
+assert any(x[:3] == ("2409", "B", 2) and x[6] == "H" for x in g24b.sent)
+assert any(x[:3] == ("2330", "S", 1) and x[6] == "L" and x[5] == "0" for x in g24b.sent)      # 手動多單 → 跌停賣出(現股)
+assert not any(x[0] == "2317" for x in g24b.sent)
 # 25) 第二次複查(13:23):上一次的補單還掛著沒成交 → 不重複下單;補單失效(沒掛著)→ 再補
 n1 = len(g24.sent)
 working = [{"code": "6269", "bs": "B", "lots": 1}, {"code": "2409", "bs": "B", "lots": 2}]
@@ -145,4 +152,4 @@ t29.prepare_close_all(); t29.recheck([], [], at="13:20"); assert t29.state == ID
 NOW[0] = dt.datetime(2026, 10, 22, 10, 0, tzinfo=TW)
 # 10) 沒開啟 → 不交易
 t10, g10 = mk(TRADE_ENABLE="0"); t10.on_tick("6269", 86.2); t10.step([ENT]); assert not g10.sent
-print("trader.py 測試通過(29 種情況)")
+print("trader.py 測試通過(30 種情況)")

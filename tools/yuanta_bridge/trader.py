@@ -58,11 +58,12 @@ class Trader:
         self.force_exit = cfg.get("TRADE_FORCE_EXIT", "13:20")
         self.last_entry = cfg.get("TRADE_LAST_ENTRY", "13:10")
         # 2026-10-22 使用者:「13:23 分要再確認一次 還有沒有未沖銷的股票」:TRADE_RECHECK(13:23)查元大今天的成交回報算淨部位,
-        #   程式的部位沒平完 → 再送漲停 / 跌停 ROD;不是程式開的(手動):空單照 TRADE_RECHECK_CLOSE 處理(short = 空單也平、all = 多單也平、none = 只提醒)
+        #   程式的部位沒平完 → 再送漲停 / 跌停 ROD;不是程式開的(手動)照 TRADE_RECHECK_CLOSE 處理(all = 多空都平、short = 只平空單、none = 只提醒)
+        # 2026-10-22 使用者:「平倉也是一樣 要包含投資先生手動交易尚未平倉的股票」→ 預設 all(只算今天的成交,之前留的庫存不動)
         # 13:22 / 13:23 / 13:24 確認三次(使用者:「確認三次 以保安全」);每次扣掉「已經掛著還沒成交」的委託,不夠才補,避免重複下單
         self.recheck_times = [x.strip() for x in cfg.get("TRADE_RECHECK", "13:22,13:23,13:24").split(",") if x.strip()]
         self.recheck_at = self.recheck_times[0] if self.recheck_times else "13:23"
-        self.recheck_close = cfg.get("TRADE_RECHECK_CLOSE", "short")
+        self.recheck_close = cfg.get("TRADE_RECHECK_CLOSE", "all")
         self.alert = lambda title, body="": None      # bridge 會換成「發通知到手機」
         # 2026-10-22 使用者:「13:20 就要先取消所有掛單 再進行贖回動作」:TRADE_CANCEL_ALL=1 時 13:20 由 bridge 先取消全部委託 / 條件單、
         #   確認後再用元大成交回報算部位平倉(prepare_close_all → recheck);bridge 沒做到的話 13:21 這裡自己強制平倉當備援
