@@ -86,9 +86,9 @@ async function poolCodes() {
    每分鐘整點的快照抓到舊資料 → 那分鐘「沒成交」不出 K,下一分鐘兩分鐘併成一根(富喬 09:00~09:23 少了 5 根)。
    改成每次同時發 FRESH_N 個請求,每檔取累計量 v 最大(= 最新)的那筆;sysTime 也取最新。快照與手機即時價都用這條。 */
 const FRESH_N = 4;
-async function misFresh(ex_ch) {
+async function misFresh(ex_ch, n = FRESH_N) {
   const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${ex_ch}&json=1&delay=0&_=`;
-  const rs = await Promise.all(Array.from({ length: FRESH_N }, (_, i) =>
+  const rs = await Promise.all(Array.from({ length: n }, (_, i) =>
     fetch(url + (Date.now() + i), { headers: MIS_HDR, cf: { cacheTtl: 0 } }).then(r => r.ok ? r.json() : null).catch(() => null)));
   let best = null; const by = new Map();
   for (const j of rs) {
@@ -105,25 +105,24 @@ async function misFresh(ex_ch) {
   if (!best) return null;
   return { ...best, msgArray: [...by.values()] };
 }
-async function misFetch(list) {
+async function misFetch(list, n) {
   const out = [];
   for (let i = 0; i < list.length; i += 50) {
     const ex_ch = list.slice(i, i + 50).map(s => `${s.mkt}_${s.code}.tw`).join("|");
     try {
-      const j = await misFresh(ex_ch);
+      const j = await misFresh(ex_ch, n);
       for (const m of ((j && j.msgArray) || [])) out.push(m);
     } catch (e) { console.log("mis " + e); }
   }
   return out;
 }
 /** Cron 每分鐘:盤中把全部候選股的 [最新價, 累計量(張)] 存成一個鍵 */
-async function snapshotBars(env) {
-  if (!env || !env.LOGS) return "no KV";
-  const t = twNow(); const hm = t.getUTCHours() * 60 + t.getUTCMinutes();
-  if (hm < 9 * 60 || hm > 13 * 60 + 35) return "off-hours";
-  const list = await poolCodes();
-  const msgs = await misFetch(list);
-  const d = ymdOf(t), ymd = d.replace(/-/g, "");
+/* 2026-10-21 23:30 使用者(「改 兩個都改」):雲端 K 和 Yahoo 逐分鐘比,11:55 修正後收盤仍有 8% 的分鐘差 0.3% 以上,和益 09:53 真實高 57.5 雲端只有 57.0。
+   (1) 每筆存證交所自己的資料時間 t(HH:MM:SS),拼 K 時照 t 歸到那一分鐘,不再用「快照時間 − 1 分鐘」
+   (2) 每分鐘除了開頭那個快照(bar:日:時分),再在 :30、:56 各抓一次存到 bas:日:時分(兩筆一起寫,KV 一分鐘 2 次寫入,一天約 540 次 < 免費 1000);
+       :56 那筆最接近這分鐘的收盤,三筆合起來才有這分鐘的高低點。子請求 12 + 6 + 12 + pool 1 ≈ 31 < 免費 50
+   快照格式 [z, v, y, t](y = 昨收,子快照 0)。舊格式 [z, v] / [z, v, y] 沒有 t,照舊規則歸到快照前一分鐘 */
+function buildSnap(msgs, ymd) {
   const s = {}; let n = 0, dOk = false;
   for (const m of msgs) {
     if (m.d && m.d !== ymd) continue;                       // 證交所回的交易日不是今天 → 休市
@@ -135,41 +134,71 @@ async function snapshotBars(env) {
     if (!isFinite(parseFloat(m.z)) && isFinite(z)) { const b1 = parseFloat(String(m.b || "").split("_")[0]), a1 = parseFloat(String(m.a || "").split("_")[0]); if (b1 > 0 && a1 > 0 && b1 <= a1) z = Math.min(Math.max(z, b1), a1); }
     const v = parseFloat(m.v);
     if (!isFinite(z) || !isFinite(v)) continue;
-    const y = parseFloat(m.y);
-    s[m.c] = isFinite(y) && y > 0 ? [z, v, y] : [z, v]; n++;   // 2026-10-21 加昨收 y(?breadth 算大盤上漲比例用)
+    const y = parseFloat(m.y), t = /^\d\d:\d\d:\d\d$/.test(m.t || "") ? m.t : "";
+    s[m.c] = [z, v, isFinite(y) && y > 0 ? y : 0, t]; n++;   // 2026-10-21 加昨收 y(?breadth)、資料時間 t(拼 K 用)
   }
-  if (!dOk) return "holiday";
-  await env.LOGS.put(`bar:${d}:${hhmmOf(t)}`, JSON.stringify(s), { expirationTtl: 14 * 86400 });
-  return `bar ${d} ${hhmmOf(t)} ${n} 檔`;
+  return { s, n, dOk };
+}
+async function snapshotBars(env, subs) {
+  if (!env || !env.LOGS) return "no KV";
+  const t = twNow(); const hm = t.getUTCHours() * 60 + t.getUTCMinutes();
+  if (hm < 9 * 60 || hm > 13 * 60 + 35) return "off-hours";
+  const list = await poolCodes();
+  const d = ymdOf(t), ymd = d.replace(/-/g, ""), key = hhmmOf(t);
+  const r0 = buildSnap(await misFetch(list), ymd);
+  if (!r0.dOk) return "holiday";
+  await env.LOGS.put(`bar:${d}:${key}`, JSON.stringify(r0.s), { expirationTtl: 14 * 86400 });
+  if (!subs || hm > 13 * 60 + 30) return `bar ${d} ${key} ${r0.n} 檔`;
+  // 同一分鐘的 :30、:56 再各抓一次(:30 只問 2 次省子請求;:56 問 4 次取最新,當這分鐘的收盤)
+  const out = [];
+  for (const [sec, n] of [[30, 2], [56, FRESH_N]]) {
+    const wait = sec * 1000 - (Date.now() % 60000);
+    if (wait < 1000) continue;                               // 已經過了(Cron 晚醒)就跳過
+    await new Promise(r => setTimeout(r, wait));
+    try { const r = buildSnap(await misFetch(list, n), ymd); if (r.n) out.push(r.s); } catch (e) { console.log("子快照失敗 " + e); }
+  }
+  if (out.length) await env.LOGS.put(`bas:${d}:${key}`, JSON.stringify(out), { expirationTtl: 14 * 86400 });
+  return `bar ${d} ${key} ${r0.n} 檔 + 子快照 ${out.length}`;
 }
 /** 把一天的快照拼成每檔的 1 分K */
 async function dayBars(env, d, codes, since) {
-  const keys = []; let cursor;
-  do {
-    const r = await env.LOGS.list({ prefix: `bar:${d}:`, cursor, limit: 1000 });
-    for (const k of r.keys) keys.push(k.name);
-    cursor = r.list_complete ? null : r.cursor;
-  } while (cursor);
-  keys.sort();
+  const keys = [];
+  for (const pre of ["bar", "bas"]) {
+    let cursor;
+    do {
+      const r = await env.LOGS.list({ prefix: `${pre}:${d}:`, cursor, limit: 1000 });
+      for (const k of r.keys) keys.push(k.name);
+      cursor = r.list_complete ? null : r.cursor;
+    } while (cursor);
+  }
+  // 依時分排,同一分鐘 bar(開頭快照)在 bas(:30、:56 子快照)前面
+  keys.sort((a, b) => a.slice(-5) < b.slice(-5) ? -1 : a.slice(-5) > b.slice(-5) ? 1 : (a < b ? -1 : 1));
+  const addM = (hm, k) => { const m = +hm.slice(0, 2) * 60 + +hm.slice(3, 5) + k; return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
   let use = keys;
-  const snapOf = lb => { const m = +lb.slice(0, 2) * 60 + +lb.slice(3, 5) + 1; return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };   // 標籤 → 快照時間(+1 分鐘)
-  if (since) { const sk = snapOf(since); const i = keys.findIndex(k => k.slice(-5) >= sk); use = i < 0 ? [] : keys.slice(i); }   // 第一個 = 基準(手機已有的那根)
-  const snaps = [];
+  // 增量:從 since 前一分鐘的快照開始(當基準,不出那根),回傳 since 起的 K(since 那根可能還沒拼完,整根重給)
+  if (since) { const sk = addM(since, -1); use = keys.filter(k => k.slice(-5) >= sk); }
+  const obs = [];   // [快照時分, {code: rec}, 照 t 歸分鐘?]
+  // 開頭快照(:0x)只有在前一分鐘有 :30 / :56 子快照時才照 t 歸分鐘;前一分鐘沒有(舊資料、子快照失敗)= 這筆其實是上一分鐘的收盤,照舊規則標前一分鐘
+  const hasSub = new Set(keys.filter(k => k.startsWith("bas:")).map(k => k.slice(-5)));
   for (let i = 0; i < use.length; i += 25) {
     const part = use.slice(i, i + 25);
     const vals = await Promise.all(part.map(k => env.LOGS.get(k)));
-    part.forEach((k, j) => { if (vals[j]) { try { snaps.push([k.slice(-5), JSON.parse(vals[j])]); } catch (e) {} } });
+    part.forEach((k, j) => {
+      if (!vals[j]) return; let v; try { v = JSON.parse(vals[j]); } catch (e) { return; }
+      if (k.startsWith("bas:")) { for (const sub of (Array.isArray(v) ? v : [])) obs.push([k.slice(-5), sub, true]); } else obs.push([k.slice(-5), v, hasSub.has(addM(k.slice(-5), -1))]);
+    });
   }
+  const nSnap = use.filter(k => k.startsWith("bar:")).length;
   const want = codes && codes.length ? new Set(codes) : null;
   const bars = {}, prev = {};
   // 2026-10-19 收盤後對照 Yahoo 整天 K 發現:HH:MM 的快照拿到的是「上一分鐘」的成交(12:01:0x 的快照 = 12:00 那一分鐘),
   // 標籤要往前移一分鐘才和 Yahoo / 手機自拼的 K(都以成交那一分鐘的開頭當標籤)一致;09:00 的第一個快照(開盤撮合)仍標 09:00
-  const lbl = hm => { if (hm <= "09:00") return "09:00"; const m = +hm.slice(0, 2) * 60 + +hm.slice(3, 5) - 1; return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
-  for (const [hm0, s] of snaps) {
-    const hm = lbl(hm0);
+  // 2026-10-21 23:30 有資料時間 t 的快照改照 t 歸分鐘(見 buildSnap);沒有 t 的舊快照照舊
+  const lbl = (hm, rec, useT) => { const t = useT && rec && rec[3]; if (t && t.length >= 5) { const m = t.slice(0, 5); return m < "09:00" ? "09:00" : m > "13:30" ? "13:30" : m; } return hm <= "09:00" ? "09:00" : addM(hm, -1); };
+  for (const [hm0, s, useT] of obs) {
     for (const c in s) {
       if (want && !want.has(c)) continue;
-      const [z, v] = s[c]; const p = prev[c];
+      const rec = s[c], z = rec[0], v = rec[1], p = prev[c], hm = lbl(hm0, rec, useT);
       // 2026-10-21 使用者(台郡「量不對」):證交所偶爾回舊快照(時間倒退、累計量變少),原本 prev 被拉回舊的量,下一分鐘又把同一段量算一次
       //   (09:54 時 130 檔有 45 檔雲端 K 總量比證交所多 1% 以上,台郡多 1,573 張)。累計量比上一個快照少 → 這個快照整個不算
       if (p && v < p[1]) continue;
@@ -177,13 +206,21 @@ async function dayBars(env, d, codes, since) {
       if (!p) { if (!since) bars[c] = [[hm, z, z, z, z, hm0 <= "09:02" ? Math.round(v * 1000) : 0]]; continue; }   // 當天第一個快照:09:00 開始存的話量 = 開盤撮合的累計;盤中才開始存(例如 2026-10-19 11:57 上線)就給 0,
                                                                                                                        // 不然整個上午的累計量會灌進那一根,OBV 一次跳好幾千張(使用者截圖:燿華 12:05 跳 3,700 張)。那段的量由手機用 Yahoo 補
       const dv = Math.max(0, v - p[1]) * 1000;
-      if (dv <= 0 && z === p[0]) continue;                   // 這分鐘沒成交
+      if (dv <= 0 && z === p[0]) continue;                   // 這段沒成交
       const arr = (bars[c] = bars[c] || []), lb = arr[arr.length - 1];
-      if (lb && lb[0] === hm) { lb[2] = Math.max(lb[2], z); lb[3] = Math.min(lb[3], z); lb[4] = z; lb[5] += Math.round(dv); continue; }   // 2026-10-20 同一個標籤(開盤撮合快照 09:00 + 09:01 快照也標 09:00)併成一根;原本 130 檔有 104 檔開盤兩根 09:00
+      if (lb && lb[0] >= hm) { lb[2] = Math.max(lb[2], z); lb[3] = Math.min(lb[3], z); lb[4] = z; lb[5] += Math.round(dv); continue; }   // 同一分鐘(或資料時間比上一根還早)併進上一根
       arr.push([hm, p[0], Math.max(p[0], z), Math.min(p[0], z), z, Math.round(dv)]);
     }
   }
-  return { d, last: snaps.length ? lbl(snaps[snaps.length - 1][0]) : "", n: snaps.length, bars };   // last = 最後一根的標籤(手機下次用 since 傳回來)
+  // 今天還沒走完的這一分鐘不給(訊號只看收完的 K,和以前一樣);增量查詢只回 since 起的
+  const cut = d === ymdOf(twNow()) ? hhmmOf(twNow()) : "99:99";
+  let last = "";
+  for (const c in bars) {
+    bars[c] = bars[c].filter(b => b[0] < cut && (!since || b[0] >= since));
+    if (!bars[c].length) { delete bars[c]; continue; }
+    const lb = bars[c][bars[c].length - 1][0]; if (lb > last) last = lb;
+  }
+  return { d, last: last || since || "", n: nSnap, bars };   // last = 最後一根的標籤(手機下次用 since 傳回來)
 }
 
 /* 2026-10-21 使用者「改 判二 大盤偏多只做黑盤空」:大盤寬度 = 名單上每檔最新價 > 昨收的比例(上漲 /(上漲 + 下跌),平盤不算),每分鐘一個值。
@@ -241,7 +278,7 @@ export default {
     const SLOTS = { "8:20": "recheck", "8:45": "recheck", "9:05": "recheck", "14:30": "daily", "16:30": "daily", "20:30": "daily" };
     const what = SLOTS[key];
     if (what) { const r = await dispatch(env, what); console.log(`cron ${event.cron} 台灣 ${key} → ${what}: ${r.msg}`); }
-    try { const r = await snapshotBars(env); if (r !== "off-hours") console.log(`cron 台灣 ${key} 分K:${r}`); } catch (e) { console.log("分K 快照失敗 " + e); }
+    try { const r = await snapshotBars(env, true); if (r !== "off-hours") console.log(`cron 台灣 ${key} 分K:${r}`); } catch (e) { console.log("分K 快照失敗 " + e); }
   },
 
   async fetch(request, env, ctx) {
@@ -258,7 +295,7 @@ export default {
       try {
         const t = twNow(); const k = `bar:${ymdOf(t)}:${hhmmOf(t)}`;
         if (await env.LOGS.get(k)) return J({ ok: true, msg: "這一分鐘已有快照 " + k });
-        const r = await snapshotBars(env);
+        const r = await snapshotBars(env, false);   // 手動補救只存開頭那一筆,不等 :30 / :56
         return J({ ok: true, msg: r });
       } catch (e) { return J({ ok: false, error: String(e && e.stack || e) }, 500); }
     }
