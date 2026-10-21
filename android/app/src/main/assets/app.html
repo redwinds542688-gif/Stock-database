@@ -115,6 +115,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-21 13:30 今日監控紀錄:代碼放大(.62em → .8em,使用者「股票代碼太小」);張數下面顯示這則通知的時間(使用者「張數下面 顯示提示交易的時間」)。
   · 2026-10-21 14:25 股票清單照今天的即時成交量排序(使用者:「股票怎麼沒有按成交量排序」;原本照名單上昨天的量排,右邊卻顯示今天的量)。有訊號的照舊排最前面;即時量順序變了最多 1 分鐘重排一次。
   · 2026-10-21 14:45 K 線圖拿掉 Ka 線上的 Ka×Kb 穿越小點(使用者:「K 圖要乾淨」);指標三的紫線照樣標這些點。K 線圖只留 K 棒、Ka、Kb、最高 / 最低價、十字線那根的量。
+  · 2026-10-21 15:00 選股振幅 4% → 3%(使用者:「挑選股票 振幅改 3% 設定調整最低也一樣」):make_pool MIN_AMP / AVG5_MIN_AMP 3.0;設定「最低振幅」滾輪最低 3.0%、預設 3.0%,舊存檔 4.0% 的搬一次到 3.0%,長按 3/4/5/8 循環。
   · 2026-10-21 06:00 撤掉 05:50 的「當天漲 ≥ 2.5% 不亮做空」(使用者「撤掉 重新找其他方法」):YH.lampNoShortUpPct = 0。
   · 2026-10-21 05:50 當天漲 ≥ 2.5% 不亮做空(使用者「改」;榮科、建榮、中釉大漲中的做空 7 錯 3 對)。今天 14 檔做多 / 做空燈 34 對 31 錯 → 31 對 27 錯;
     有變的只有榮科、建榮、中釉(錯的消掉)、聯嘉投控(09:24 對的消掉、09:31 / 09:39 多 2 次錯)、光鼎(09:51 晚 1 根),其他 9 檔不變。
@@ -1671,7 +1672,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610211445">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610211500">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2164,7 +2165,7 @@ except Exception:
   <div class="foot" style="display:none">   <!-- 監控條件說明不顯示(使用者要求) -->
     監控條件:上市/上櫃普通股(非 ETF、非金融保險業)、官方可現股當沖名單內、<br>
     可先賣後買、非注意股、非處置股、昨日未收跌停(漲停放行)、<br>
-    一檔跳動 ≤ 0.5%、收盤價在監控區間內、振幅達門檻、5 日平均振幅 ≥ 4% 且 5 日中至少 3 天 ≥ 4%,<br>
+    一檔跳動 ≤ 0.5%、收盤價在監控區間內、振幅達門檻、5 日平均振幅 ≥ 3% 且 5 日中至少 3 天 ≥ 3%,<br>
     依成交張數由大到小排序取前 N 檔;高價另受「多空上限 ÷ 1000」限制。<br>
     資料為前一交易日盤後資訊,非即時報價。點任一列可開 K 線圖。
   </div>
@@ -2202,8 +2203,8 @@ window.MONITOR_SETTINGS = {
 
   amp: {                      // 最低振幅(含 % 符號)
     label: '最低振幅',
-    init : '4.0%',
-    range: [{ from: 4.0, to: 8, step: 0.1, decimals: 1, suffix: '%' }],  // 長按跳 4.0/5.0/8.0
+    init : '3.0%',
+    range: [{ from: 3.0, to: 8, step: 0.1, decimals: 1, suffix: '%' }],  // 長按跳 3.0/4.0/5.0/8.0(2026-10-21 使用者「振幅改 3% 設定調整最低也一樣」:最低 4.0 → 3.0)
   },
 
   disc: {                     // 手續費折扣
@@ -2264,12 +2265,12 @@ window.MONITOR_SETTINGS = {
 window.MONITOR_BASE = {
   lo  : 15,      // 最低價下限(要和 make_pool.py 的 LO 一致)
   hi  : 500,     // 最高價上限(要和 make_pool.py 的 HI 一致)
-  amp : 4.0,     // 振幅下限 %(要和 make_pool.py 的 MIN_AMP 一致)
+  amp : 3.0,     // 振幅下限 %(要和 make_pool.py 的 MIN_AMP 一致;2026-10-21 4.0 → 3.0)
   size: 130,     // 原始池最多存幾檔(前一交易日成交張數排行前 130 名;2026-10-17 100→130,雲端 pool.json 的 rules.size 讀到時會覆蓋)
 
   /* 以下三項與 make_pool.py 同名設定一致;雲端 pool.json 的 rules 讀到時會覆蓋 */
   excludeIndustry: ['17'],   // 排除的產業別:17 = 金融保險業(金控、銀行、保險、證券)
-  avg5MinAmp : 4.0,    // 最近 5 個交易日平均振幅下限(%):擋掉只有昨天偶然動一次的股票
+  avg5MinAmp : 3.0,    // 2026-10-21 4.0 → 3.0; 最近 5 個交易日平均振幅下限(%):擋掉只有昨天偶然動一次的股票
   avg5MinHits: 3,      // 最近 5 個交易日裡至少幾天振幅 ≥ amp 門檻(擋掉像緯創這種平常不動、只靠一根大跌撐平均的)
   tickMaxPct : 0.5,    // 一檔跳動 ÷ 股價 上限(%);雲端 pool.json 的 rules.tick_max_pct 會覆蓋。2026-10-19 0.35 → 0.5
   entryMaxChg: 3.5,    // 進場時漲跌幅上限(%):|現價 − 昨收| ÷ 昨收 超過就不進場(風控;2026-10-15 由 3 改 5,2026-10-16 回測後改 3.5)
@@ -2660,7 +2661,7 @@ function render(list){
     '',
     '<b>選股(每日 14:30 雲端重算)</b>',
     '上市 / 上櫃普通股(非 ETF、非金融)、官方可現股當沖且可先賣後買、非注意 / 處置股、昨日未收跌停(漲停放行)',
-    '價格 15~500、一檔跳動 ≤ 0.5%、昨日振幅 ≥ 4%、5 日平均振幅 ≥ 4% 且 5 日中至少 3 天 ≥ 4%',
+    '價格 15~500、一檔跳動 ≤ 0.5%、昨日振幅 ≥ 4%、5 日平均振幅 ≥ 3% 且 5 日中至少 3 天 ≥ 3%',
     '依成交張數取前 100 檔;高價另受「多空上限 ÷ 1000」限制',
     '',
     '<b>進場</b>',
@@ -2963,13 +2964,15 @@ if (!saved.cnt100 && String(saved.cnt) === '33') saved.cnt = '100';
 if (!['99','89','79','69','59','49','39','29','19'].includes(String(saved.cnt))) saved.cnt = '99';
 /* 2026-10-17 監控高價預設 300 → 350:同樣只搬一次 */
 if (!saved.hi350 && String(saved.hi) === '300') saved.hi = '350';
+/* 2026-10-21 最低振幅預設 4.0% → 3.0%(使用者:「挑選股票 振幅改 3% 設定調整最低也一樣」):舊存檔還是 4.0% 的只搬一次 */
+if (!saved.amp3 && String(saved.amp) === '4.0%') saved.amp = '3.0%';
 /* 任何滾輪一撥動就立刻寫入,不等退出、不等關閉 */
 const saveFees = () => {
   const txt = JSON.stringify({
     hi: wHi.value, lo: wLo.value, amp: wAmp.value,
     disc: wFee.value, cnt: wCnt.value, cap: wCap.value,
     broker: wBroker.value, exch: wExch.value, tax: wTax.value,
-    cnt100: true, hi350: true,
+    cnt100: true, hi350: true, amp3: true,
   });
   try { localStorage.setItem(STORE_KEY, txt); } catch (e) { /* 無法存檔時忽略 */ }
   try { if (window.Android && Android.setPref) Android.setPref(STORE_KEY, txt); } catch (e) {}   // App 也存一份(2026-10-19)
@@ -3069,7 +3072,7 @@ const wHi  = makeWheel('wHi',  buildVals(CFG.hi   && CFG.hi.range),
 const wLo  = makeWheel('wLo',  buildVals(CFG.lo   && CFG.lo.range),
                        startVal('lo', 10), onFeeChange);
 const wAmp = makeWheel('wAmp', buildVals(CFG.amp  && CFG.amp.range),
-                       startVal('amp', '4.0%'), onFeeChange);
+                       startVal('amp', '3.0%'), onFeeChange);
 const wCnt = makeWheel('wCnt', buildVals(CFG.cnt  && CFG.cnt.range),
                        startVal('cnt', 99), onFeeChange, {loop: true});   // 2026-10-18 使用者:最多 99,99/89/…/19 循環
 function capFund(){ const v = parseFloat((wCap && wCap.value) || '') * 10000; return v > 0 ? v : 350000; }   // 2026-10-19 多空上限(元):設定滾輪「35萬」→ 350000;讀不到才用 35 萬
@@ -3134,7 +3137,7 @@ attachCycle('cntWheel', wCnt, ['99', '89', '79', '69', '59', '49', '39', '29', '
 attachCycle('loWheel',  wLo,  ['50', '40', '30', '20', '15']);
 attachCycle('hiWheel',  wHi,  ['51','100','150','200','250','300',
                                '350','400','450','500']);
-attachCycle('ampWheel', wAmp, ['4.0%', '5.0%', '8.0%'], 'high');
+attachCycle('ampWheel', wAmp, ['3.0%', '4.0%', '5.0%', '8.0%'], 'high');
 attachCycle('capWheel', wCap, ['5萬','10萬','15萬','20萬','25萬',
                                '30萬','35萬','40萬','45萬','50萬']);
 
