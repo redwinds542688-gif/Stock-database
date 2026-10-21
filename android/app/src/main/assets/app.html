@@ -112,6 +112,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-21 11:55 即時價修正(使用者:時碩 11:44「同股票 同時間 價格不同」:元大 87.00、App 86.50):證交所這 5 秒沒成交時 z 是「-」,備用的最後一筆(trade)有時好幾分鐘沒更新;z 是「-」時把價格夾在最佳買價 ~ 最佳賣價之間。手機 liveTick 和 Worker 快照同一套。
   · 2026-10-21 12:55 K 線圖取消起漲 / 起跌標示(使用者:友達 12:46「K 棒怎麼有起跌」→「這取消」;YH.showOriginMarks false)。只拿掉圖上的字,判一 / 判二停損照樣用起漲 / 起跌點。
   · 2026-10-21 13:20 今日監控紀錄的進場卡右邊留白(使用者:時碩「第一個通知就後面顯示平倉」→「改」):「平倉 / 輸贏」只顯示在平倉那張;原本進場卡會顯示這筆交易後來的最新狀態,看起來像一進場就平倉。
+  · 2026-10-21 13:30 今日監控紀錄:代碼放大(.62em → .8em,使用者「股票代碼太小」);張數下面顯示這則通知的時間(使用者「張數下面 顯示提示交易的時間」)。
   · 2026-10-21 06:00 撤掉 05:50 的「當天漲 ≥ 2.5% 不亮做空」(使用者「撤掉 重新找其他方法」):YH.lampNoShortUpPct = 0。
   · 2026-10-21 05:50 當天漲 ≥ 2.5% 不亮做空(使用者「改」;榮科、建榮、中釉大漲中的做空 7 錯 3 對)。今天 14 檔做多 / 做空燈 34 對 31 錯 → 31 對 27 錯;
     有變的只有榮科、建榮、中釉(錯的消掉)、聯嘉投控(09:24 對的消掉、09:31 / 09:39 多 2 次錯)、光鼎(09:51 晚 1 根),其他 9 檔不變。
@@ -1668,7 +1669,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610211320">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610211330">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1756,9 +1757,10 @@ except Exception:
   /* 2026-10-19 .card.mine(黃框)/ .card.done(藍框)取消,卡片一律無框 */
   #notifLog .card .ln{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:18px;font-weight:700;line-height:1.25;min-height:1.3em;overflow:hidden}   /* 2026-10-17 其餘欄位字體最大化、垂直置中;寬度不夠時由程式自動縮字 */
   #notifLog .card .ln .nmblk{flex:0 0 5.2em;min-width:0;overflow:hidden;display:flex;align-items:center;font-size:.9em;line-height:1.15}   /* 2026-10-18 一張卡兩列:第 1 列放名稱、第 2 列放代碼,其餘欄位上下對齊 */
-  #notifLog .card .ln .nmblk .cd{font-size:.62em;font-weight:600;color:#1DD75B;line-height:1.1;white-space:nowrap;margin-left:2px}   /* 2026-10-18 使用者:代碼向右移 2px */
+  #notifLog .card .ln .nmblk .cd{font-size:.8em;font-weight:600;color:#1DD75B;line-height:1.1;white-space:nowrap;margin-left:2px}   /* 2026-10-18 使用者:代碼向右移 2px */
   #notifLog .card .ln.sub{min-height:1em;line-height:1;margin-top:-3px}   /* 第 2 列:代碼 | 平倉價 | 判一 */
   #notifLog .card .ln.sub .s{font-size:.62em;font-weight:600;font-style:normal;line-height:1.1}
+  #notifLog .card .ln.sub .qt{overflow:visible} #notifLog .card .ln.sub .qt .tm{font-size:.7em;color:#9AA4B2;letter-spacing:-.5px}   /* 2026-10-21 使用者:「張數下面顯示提示交易的時間」;代碼原 .62em 太小 → .8em */
   #notifLog .card .ln.sub .rsb{color:#C9A227;display:inline-block;border:1px solid #C9A227;border-radius:3px;padding:0 3px;line-height:1.15}
   #notifLog .card .ln.sub .rs .wl{display:inline-block;border:1px solid currentColor;border-radius:3px;padding:0 4px;line-height:1.15;font-weight:700} #notifLog .card .ln.sub .rs .wl.win{color:#FF3B3B} #notifLog .card .ln.sub .rs .wl.lose{color:#1DD75B}   /* 平倉下面的 贏(紅)/ 輸(綠) */   /* 判一金、加框(2026-10-18 使用者);平倉價顏色同上(漲紅跌綠) */
   #notifLog .card .ln .nm{color:var(--text);overflow:hidden;text-overflow:ellipsis;display:inline-block;align-self:center;line-height:1.15;font-family:var(--sans)}   /* 2026-10-18 名稱改白字、不加框,和下面清單一致(原本黃字黃框) */
@@ -6041,7 +6043,7 @@ window.bgTick = bgTick; window.BG = BG;
       const fresh = d === today && alT && (() => { const [h, mi] = alT.split(':').map(Number); const n = new Date(Date.now() + 8 * 3600000); return (n.getUTCHours() * 60 + n.getUTCMinutes()) - (h * 60 + mi) < 10; })();
       const rs = al ? `<span class="rs al al-${al}">${AL[al]}</span>` : '<span class="rs"></span>';   // 2026-10-19 使用者:「反彈 / 平倉 / 注意一直閃太干擾,不要閃了」→ 拿掉 blink,只用顏色,不再閃爍(fresh 保留給之後可能用)
       return `<div class="ln"><span class="nmblk"><span class="nm">${esc(o.name)}</span></span><span class="px${ud(+entP)}">${pxTop}</span><span class="sd${sideTxt ? (o.side === 'long' ? ' win' : ' lose') : ''}">${sideTxt}</span><span class="qt">${lots ? lots + '張' : ''}</span><span class="exm">${ex}</span>${rs}</div>`
-           + `<div class="ln sub"><span class="nmblk"><span class="cd">${esc(o.code)}</span></span><span class="px${ud(+o.price)}"><i class="s">${pxBot}</i></span><span class="sd"><i class="s rsb">${o.rs || ''}</i></span><span class="qt"></span><span class="exm"></span><span class="rs">${al === 'exit' && o._win != null ? `<i class="s wl ${o._win ? 'win' : 'lose'}">${o._win ? '贏' : '輸'}</i>` : ''}</span></div>`;   // 2026-10-18 使用者:平倉下面顯示 輸 / 贏,加框
+           + `<div class="ln sub"><span class="nmblk"><span class="cd">${esc(o.code)}</span></span><span class="px${ud(+o.price)}"><i class="s">${pxBot}</i></span><span class="sd"><i class="s rsb">${o.rs || ''}</i></span><span class="qt">${o.t ? `<i class="s tm">${esc(o.t)}</i>` : ''}</span><span class="exm"></span><span class="rs">${al === 'exit' && o._win != null ? `<i class="s wl ${o._win ? 'win' : 'lose'}">${o._win ? '贏' : '輸'}</i>` : ''}</span></div>`;   // 2026-10-18 使用者:平倉下面顯示 輸 / 贏,加框
     };
     const info = o => '';   // 2026-10-17 使用者:每一則下面的灰字明細都不顯示,只留代碼
     const shown = cards.filter(o => !o._hide); n = shown.length; const hd2 = hd.replace(/<span>\d+ 則<\/span>/, `<span>${n} 則</span>`);
