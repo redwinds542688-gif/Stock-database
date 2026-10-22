@@ -165,6 +165,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     寬度改成和雲端 K 共用同一份拼好的狀態(同一個 KV 鍵,寫入次數不增加)。模擬比對 371 次(K + 寬度)和舊算法完全相同。
   · 2026-10-22 19:55 進 K 圖先閃上一檔的圖(使用者錄影:點友達先出現合晶的圖、點台玻先出現友達的圖 →「改」):「讀取 1 分K …」那層被圖表蓋住(圖表 canvas 有 z-index),
     舊圖露出來 → 讀取那層改壓在最上面;上方時間 / 量 / 高 / 低也先清成「—」。資料到了才畫新的,判別式都沒動。
+  · 2026-10-22 20:00 收盤後進 K 圖不等證交所(使用者:「改 就是要快」):收盤後開圖會向證交所問一次最新價(0.6~2.2 秒),原本等它回來才畫 →
+    先用手上的 K 畫,價回來再重畫一次(保留縮放)。盤中本來就不問。圖和數字最後一樣。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1743,7 +1745,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610221955">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610222000">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5331,15 +5333,19 @@ async function openChart(code, name){
   let hist = null, histErr = null;
   try{ hist = await loadMinuteBars(code, t => { msg.textContent = t; }); }
   catch(e){ histErr = e; }
-  const today = await todayP; await quoteP;
+  const today = await todayP;
+  // 2026-10-22 19:53 使用者(「改 就是要快」):收盤後問證交所最新價要 0.6~2.2 秒,原本等它回來才畫 → 先畫,價回來再重畫一次(保留縮放);
+  //   手上完全沒有資料時才等它
+  let haveAny = (hist && hist.length) || today.bars.length || (LIVE_BARS.get(code) || []).length;
+  if (!haveAny){ await quoteP; haveAny = (LIVE_BARS.get(code) || []).length; }
   if (BARS_CODE !== code) return;                      // 等待期間使用者已切到別檔
-  const haveAny = (hist && hist.length) || today.bars.length || (LIVE_BARS.get(code) || []).length;
   if (haveAny){
     HIST_BARS.set(code, hist || []);
     const notes = [];
     if (histErr) notes.push('雲端歷史讀取失敗,只畫今天');
     if (today.err) notes.push('今天的分K讀取失敗:' + today.err);
     drawBars(mergeLive(code, hist || []), code, notes.join(' · '));
+    quoteP.then(q => { if (q && BARS_CODE === code && el('sheet').classList.contains('open')) drawBars(mergeLive(code, HIST_BARS.get(code) || []), code, notes.join(' · '), true); }).catch(() => {});
     return;
   }
   {
