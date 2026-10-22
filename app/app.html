@@ -152,6 +152,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     空點比較高 / 多點比較低 = 假點,畫灰色、不算翻轉、不連線(使用者:「11.35空 比照前一個空點的obv24 如果11.35比較高 則是假空點」→「改 再畫」)。
     全部股票 13 天(見點就翻轉):每筆 −0.41% → 假點完全不算 −0.39%;假點不進場 + 只做空 −0.24%(價差 +0.19%)。只是畫面,判別式、通知、燈號都沒動。
   · 2026-10-22 19:00 指標二拿掉 Od 線(使用者:「先把od 線取消 只留下上面od 就好」):粉紅 Od(OBV 均 16)線不畫,上方「Od:數字↑↓」照舊顯示。只是畫面。
+  · 2026-10-22 19:05 指標三改版(使用者:「指標三 怎麼那麼多點點」→「改」,選 3):橘線(OBV 穿 Ob,一天 30 多點)不畫;紫線拆成兩條:
+    紫上穿的點連線(紅)、紫下穿的點連線(綠),兩條同往上 = 漲、同往下 = 跌、一上一下 = 震盪。上方「指標三:」改顯示二線同上 / 二線同下 / 震盪 / 線未成形(當天各要 2 個點)。
+    燈號、天秤、判別式、通知都沒動(燈號用的 Oa / Ob 位置照舊)。只是畫面。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1730,7 +1733,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610221900">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610221905">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2199,7 +2202,7 @@ except Exception:
         <span style="color:#B47CFF">Oc:<span id="lblObvMa30V">—</span></span>
         <span style="color:#FF6FB5">Od:<span id="lblObvMa16V">—</span></span><button id="xhairClose" class="xgo hidden" aria-label="十字線回到最新一根"><svg viewBox="0 0 30 18" width="28" height="17" aria-hidden="true"><path d="M1.5 5.5 H16 V1.5 L28.5 9 L16 16.5 V12.5 H1.5 Z" fill="#E53935" stroke="#FFFFFF" stroke-width="1.6" stroke-linejoin="round"/></svg></button></div>
       <div id="chartMid"></div>
-      <div class="yh-lbl sep"><span style="color:#FF9F43">指標三:<span id="lblOrgV">—</span></span>
+      <div class="yh-lbl sep"><span style="color:#FF9F43">指標三:<span id="lblOrgV">—</span></span>   <!-- 2026-10-22 19:05 改顯示兩條紫線的方向(二線同上 / 二線同下 / 震盪 / 線未成形) -->
         <span style="color:#D63AF9">Ka×Kb:<span id="lblKxV">—</span></span>   <!-- 2026-10-21 使用者:「Ka 穿越 Kb 的點標出來 記錄起來 在指標三那邊顯示出來 一樣連線 不用顯示價格」 -->   <!-- 2026-10-20 23:55 使用者:「這看 obv 黃線穿越藍線的指標 命名為指標三」 --></div>   <!-- 2026-10-20 23:45 使用者:「這樣的點不對 改紀錄 obv 黃線穿越藍線的點 所有的點連線」 -->   <!-- 2026-10-20 23:30 使用者:「把高低連線拿掉 留起漲起跌連線 價格要註記上去」 -->   <!-- 2026-10-20 23:10 使用者:「乾脆改高點連高點 低點連低點」 -->   <!-- 2026-10-20 22:10 使用者:「把均線乖離率 改成 股票高低點連線 加上起漲點 起跌點 也連線」(原 20:00 的均線乖離率 10/30/132) -->
       <div id="chartBot"></div>
     </div>
@@ -3683,7 +3686,8 @@ let chart, candle, maLine, ma24Line, vwapLine;
 let rfLine = null, rfChain = null, rfAll = null, RF_MODE = false;   // 2026-10-22 漲跌圖:價格線(收盤)+ 三訊號多空點;RF_MODE true = 顯示漲跌圖、藏 K 棒
 try{ RF_MODE = localStorage.getItem('rfMode') === '1'; }catch(e){}   // ma24Line:2026-10-21 均價 24(K24,藍)           // 上圖:1 分K + MA + VWAP
 let chartM, obvSeries, obvMaLine, obvMa30Line, obvMa16Line;  // 中圖:OBV + OBV 均線 + OBV 均 30(紫,2026-10-19)
-let chartB, vwapDev = null, orgLine, kxLine, padB;   // 2026-10-20 23:30 下圖只留起漲起跌連線(高點 / 低點連線拿掉)。   // 2026-10-20 23:10 zzLine = 高點連線(紅)、loLine = 低點連線(綠)   // 2026-10-20 22:10 下圖改成「高低點連線(白)+ 起漲起跌連線(橘)」。原:   // 下圖:均線乖離率(2026-10-20 使用者:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」;原 VWAP 乖離柱狀圖作廢)
+let chartB, vwapDev = null, orgLine, kxLine, kxDnLine, padB;   // 2026-10-22 19:05 kxLine = 紫上穿連線(紅)、kxDnLine = 紫下穿連線(綠)
+   // 2026-10-20 23:30 下圖只留起漲起跌連線(高點 / 低點連線拿掉)。   // 2026-10-20 23:10 zzLine = 高點連線(紅)、loLine = 低點連線(綠)   // 2026-10-20 22:10 下圖改成「高低點連線(白)+ 起漲起跌連線(橘)」。原:   // 下圖:均線乖離率(2026-10-20 使用者:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」;原 VWAP 乖離柱狀圖作廢)
 const OBV_RESET_DAILY = true;          // true = 每個交易日開盤歸零(2026-10-15 用力積電實測:元大 -47,362、開盤歸零算 -44,257、跨日累計 -20,310 ~ -133,694,元大是每日歸零);false = 跨日累加
 let BARS = [], BARS_CODE = '';
 let ENTRY_LINES = [];
@@ -5019,9 +5023,11 @@ function initChart(){
   //   白線 = 股票高低價連線(22:40 改:波段高低點 swingPoints,見函式說明;22:20 是每天最高連最低、22:10 是 zigzag);
   //   橘線 = 起漲起跌連線(K 線圖上標的起漲點取那根最低價、起跌點取最高價,依序相連;點上有小圓點,起漲藍、起跌橘)。
   const pxFmt = {type:'price', precision:2, minMove:0.01};
-  orgLine = chartB.addLineSeries({priceScaleId:'left', color:'#FF9F43', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:false});
+  // 2026-10-22 19:05 使用者:「指標三 怎麼那麼多點點」→「改」(選 3):橘線(OBV 穿 Ob,一天 30 多點)不畫;線改透明、資料照留,十字線和刻度跟著它走
+  orgLine = chartB.addLineSeries({priceScaleId:'left', color:'rgba(0,0,0,0)', lineWidth:1, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:false});
   padB = chartB.addLineSeries({priceScaleId:'left', lineVisible:false, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, autoscaleInfoProvider: () => null});   // 撐時間軸用,看不見、不影響刻度
-  kxLine = chartB.addLineSeries({priceScaleId:'left', color:'#D63AF9', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:false});   // 2026-10-21 Ka 穿越 Kb 的點連線(紫)
+  kxLine = chartB.addLineSeries({priceScaleId:'left', color:'#FF5C6C', lineWidth:2, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:false});   // 2026-10-22 紫上穿的點連線(紅);原 2026-10-21 所有 Ka 穿越 Kb 的點連一條紫線
+  kxDnLine = chartB.addLineSeries({priceScaleId:'left', color:'#3EE6A0', lineWidth:2, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:false});   // 2026-10-22 紫下穿的點連線(綠)
   // 時間軸放在最下面那張圖(元大的時間標籤在 OBV 下方)
   (chartB || chartM).applyOptions({timeScale:{...CHART_OPTS.timeScale, visible:true}});
   chart.applyOptions({timeScale:{...CHART_OPTS.timeScale, visible:false}});
@@ -5458,10 +5464,13 @@ function drawBars(bars, code, srcLabel, keepView){
   // 2026-10-21 使用者:「那個按鍵按下去也沒有跑到最新的啊」:指標三的兩條線只畫到最後一個交叉點,套件把「最後一個有值的點」當最右邊,
   //   三張圖同步捲動時被指標三卡在那裡,最新幾根 K 一直在畫面外(「回到最新」箭頭也到不了)。補一條看不見、每根 K 都有值的線把指標三的時間軸撐到最新一根
   if (padB) padB.setData(bars.map(b => ({time: b.time, value: b.close})));
-  if (orgLine){ orgLine.setData(org);
-    orgLine.setMarkers(orgPts.map(p => ({time: p.time, position: 'inBar', color: p.side < 0 ? '#FF9F43' : '#4FC3F7', shape: 'circle', size: 0.6})));
-    kxLine.setData(kx);
-    kxLine.setMarkers(kxPts.map(p => ({time: p.time, position: 'inBar', color: p.side > 0 ? CHART_THEME.up : CHART_THEME.down, shape: 'circle', size: 0.6}))); }
+  if (orgLine){ orgLine.setData(org); orgLine.setMarkers([]);
+    // 2026-10-22 19:05 紫上穿連線(紅)、紫下穿連線(綠):兩條同往上 = 漲、同往下 = 跌、一上一下 / 糾纏 = 震盪
+    const kxUp = kxPts.filter(p => p.side > 0), kxDn = kxPts.filter(p => p.side < 0);
+    kxLine.setData(lineThrough(bars, kxUp.map(p => ({time: p.time, value: p.price}))));
+    kxLine.setMarkers(kxUp.map(p => ({time: p.time, position: 'inBar', color: '#FF5C6C', shape: 'circle', size: 0.6})));
+    if (kxDnLine){ kxDnLine.setData(lineThrough(bars, kxDn.map(p => ({time: p.time, value: p.price}))));
+      kxDnLine.setMarkers(kxDn.map(p => ({time: p.time, position: 'inBar', color: '#3EE6A0', shape: 'circle', size: 0.6}))); } }
   if (window.alignScales) requestAnimationFrame(() => alignScales());   // 左刻度寬度對齊,十字線才會上下同一條
   if (!keepView){
     // 元大風格:開圖只顯示最近 YH.defaultBars 根(K 棒才夠粗),往左滑可看更早的;其他兩張圖會同步
@@ -5546,7 +5555,10 @@ function drawBars(bars, code, srcLabel, keepView){
         obma: k2 != null ? obma[k2].value : NaN, obmaPrev: k2 != null && k2 > 0 ? obma[k2 - 1].value : null,
         obma30: k3 != null ? obma30[k3].value : NaN, obma30Prev: k3 != null && k3 > 0 ? obma30[k3 - 1].value : null,
         obma16: (k6 => k6 != null ? obma16[k6].value : NaN)(iObma16.get(b.time)), obma16Prev: (k6 => k6 != null && k6 > 0 ? obma16[k6 - 1].value : null)(iObma16.get(b.time)),
-        org: (() => { let q = null; for (const p of orgPts){ if (p.time > b.time) break; q = p; } return q ? (q.side < 0 ? '往下穿 ' : '往上穿 ') + hmKey(q.time) : ''; })(),
+        org: (() => { const u = [], w = []; for (const p of kxPts){ if (p.time > b.time) break; if (dayKey(p.time) !== dayKey(b.time)) continue; (p.side > 0 ? u : w).push(p.price); }   // 2026-10-22 19:05 指標三文字:兩條紫線的方向
+          if (u.length < 2 || w.length < 2) return '線未成形';
+          const su = Math.sign(u[u.length - 1] - u[u.length - 2]), sd = Math.sign(w[w.length - 1] - w[w.length - 2]);
+          return su > 0 && sd > 0 ? '二線同上' : su < 0 && sd < 0 ? '二線同下' : '震盪'; })(),
         kx: (() => { let q = null; for (const p of kxPts){ if (p.time > b.time) break; q = p; } return q ? (q.side > 0 ? '上穿 ' : '下穿 ') + hmKey(q.time) : ''; })(),
       });
     });
