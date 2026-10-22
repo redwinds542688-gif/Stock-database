@@ -148,6 +148,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-22 14:35 漲跌圖:空點取那根最高價、多點取最低價(使用者:「下跌的連高價 上漲的連低價」),點和黃線、藍線都用這個價。只是畫面。
   · 2026-10-22 15:40 漲跌圖:三訊號的「Ka 往上 / 往下」改成和 3 根前比(使用者:台塑化 10/21 10:25「紫色線已經向下 才做多不是怪怪的嗎」→「改」;原本只比前一根,一檔 0.5 元的股票 Ka 一根就小跳)。
     台塑化 10/21 23 點 → 20 點,10:25 多點不見;全部股票回測(見點就翻轉)13 天:每筆 −0.43% 不變。只是畫面,判別式、通知、燈號都沒動。
+  · 2026-10-22 15:50 漲跌圖:(1) Ka 要高(低)過 Kb 至少 0.05% 才算穿越(使用者:台塑化 11:03 只穿 0.008 元);(2) 假點:和同一天前一個同方向點比 OBV 均線 24,
+    空點比較高 / 多點比較低 = 假點,畫灰色、不算翻轉、不連線(使用者:「11.35空 比照前一個空點的obv24 如果11.35比較高 則是假空點」→「改 再畫」)。
+    全部股票 13 天(見點就翻轉):每筆 −0.41% → 假點完全不算 −0.39%;假點不進場 + 只做空 −0.24%(價差 +0.19%)。只是畫面,判別式、通知、燈號都沒動。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1726,7 +1729,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610221540">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610221555">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3693,7 +3696,8 @@ const YH = {
   lampChopWin: 45, lampChopN: 3, lampChopRange: 1.5, lampBrkPct: 0.5, lampBrkBars: 2,   // 2026-10-21 04:00 突破要超出震盪區間 0.5% 且連 2 根(富喬 / 友達試 0.3 / 0.5 × 1 / 2 根,0.5% 連 2 根最好)   // 2026-10-21 燈號的震盪判斷(同判二)
   lampHold: 3,          // 2026-10-21 燈號新狀態要連幾根才換;03:10 使用者「改 3 根」(原 2)
   rfPressPct: 0.2,
-  rfKaBars: 3,          // 2026-10-22 漲跌圖多空點的「Ka 往上 / 往下」和 3 根前比(一檔跳動大的股票,Ka 一根就會小跳一下)      // 2026-10-22 漲跌圖多空點的「壓線」:Ka、Kb 差距和那根 K 離均線都在 0.2% 內 → 實心
+  rfKaBars: 3,
+  rfMinCross: 0.05,     // 2026-10-22 漲跌圖:Ka 要高(低)過 Kb 至少 0.05% 才算穿越          // 2026-10-22 漲跌圖多空點的「Ka 往上 / 往下」和 3 根前比(一檔跳動大的股票,Ka 一根就會小跳一下)      // 2026-10-22 漲跌圖多空點的「壓線」:Ka、Kb 差距和那根 K 離均線都在 0.2% 內 → 實心
   lampLeave: 1,         // 2026-10-21 11:40 使用者(台郡 10:13 天秤已到中間還亮做多):已亮做多 / 做空時,連 lampHold 根不是這個燈就換成最新那根的狀態(不必同一種);0 = 舊規則
   lampObOc: true,       // 2026-10-21 20:40 使用者「先改 D」:亮「做多」還要 Ob(OBV 均 10)在 Oc(OBV 均 30)之上,否則降成漸多;做空鏡像(Oc 還沒值 = 不亮做多 / 做空)。七天 1,405 股票日:勝率 54.1% → 55.3%
   lampOaOb: true,       // 2026-10-21 22:30 使用者「改 Y3+W6」:燈號分數裡「橘線雙升 / 雙降」換成「Oa 現在在 Ob 之上 / 之下」(反應快;時碩 11:06 兩線都轉下)
@@ -5335,7 +5339,7 @@ async function openChart(code, name){
 /* 2026-10-22 漲跌圖的多空點(使用者 10/22 研究定的「三訊號」+「壓線」;只畫在漲跌圖,不進判別式、不推通知):
    多 = Ka 往上且在 Kb 上面 + OBV 在 Ob(OBV 均 10)上面 + OBV、Ob 都往上;空照鏡像。三件同時成立的第一根標一個點。
    壓線 = Ka、Kb 差距 ≤ YH.rfPressPct%,且那根 K 從均線旁邊出發(做多看開盤 / 最低、做空看開盤 / 最高離較近那條均線 ≤ YH.rfPressPct%)→ 實心亮色;沒壓線 → 淡色。 */
-function rfPoints(bars, ma, ma24, ob, obma){
+function rfPoints(bars, ma, ma24, ob, obma, ob24){
   const mk = toTimeMap(ma), mb = toTimeMap(ma24), mo = toTimeMap(ob), mm = toTimeMap(obma), P = YH.rfPressPct;
   const st = (i, d) => {
     const KN = YH.rfKaBars || 1;   // 2026-10-22 15:40 使用者(台塑化 10:25:「紫色線已經向下 才做多不是怪怪的嗎」→「改」):Ka 方向和 KN 根前比(原本只比前一根)
@@ -5343,7 +5347,8 @@ function rfPoints(bars, ma, ma24, ob, obma){
     const t = bars[i].time, t1 = bars[i - 1].time;
     const ka = mk.get(t), ka1 = mk.get(bars[i - KN].time), kb = mb.get(t), o = mo.get(t), o1 = mo.get(t1), m = mm.get(t), m1 = mm.get(t1);
     if ([ka, ka1, kb, o, o1, m, m1].some(x => x == null)) return false;
-    return d > 0 ? (ka > kb && ka > ka1 && o > m && o > o1 && m > m1) : (ka < kb && ka < ka1 && o < m && o < o1 && m < m1);
+    const X = YH.rfMinCross || 0;   // 2026-10-22 15:50 使用者(台塑化 11:03「紫色有穿越藍色嗎」→「改」):Ka 要高(低)過 Kb 至少 X% 才算穿越
+    return d > 0 ? ((ka - kb) / kb * 100 >= X && ka > kb && ka > ka1 && o > m && o > o1 && m > m1) : ((kb - ka) / kb * 100 >= X && ka < kb && ka < ka1 && o < m && o < o1 && m < m1);
   };
   const press = (i, d) => {
     const b = bars[i], ka = mk.get(b.time), kb = mb.get(b.time);
@@ -5361,6 +5366,12 @@ function rfPoints(bars, ma, ma24, ob, obma){
     if (done[d] || !brk(i, d)) continue;
     out.push({time: bars[i].time, side: d, price: d > 0 ? bars[i].low : bars[i].high, press: press(i, d)}); done[d] = true;   // 14:35 使用者:「下跌的連高價 上漲的連低價」
   }
+  // 2026-10-22 15:50 假點(使用者:「11.35空 比照前一個空點的obv24 如果11.35比較高 則是假空點」→「改」):
+  //   和同一天前一個同方向的點比 OBV 均線 24:空點比較高 / 多點比較低 = 假點(灰色,不算翻轉、不連線)
+  if (ob24){ const m24 = toTimeMap(ob24), last = {}; let day = null;
+    for (const p of out){ const dk = dayKey(p.time); if (dk !== day){ day = dk; last['1'] = last['-1'] = null; }
+      const v = m24.get(p.time), pv = last[p.side];
+      p.fake = v != null && pv != null && (v - pv) * p.side < 0; if (v != null) last[p.side] = v; } }
   return out;
 }
 // 2026-10-22 13:56 使用者:「實心才算數 但空心也要紀錄 看價格是往下還是往上 但只連續實心」:只有實心點算翻轉、標時間;空心淡色、不標字
@@ -5368,9 +5379,9 @@ function rfMarkers(pts){
   const out = []; let prev = 0, prevDay = null;
   for (const p of pts){
     const day = dayKey(p.time); if (day !== prevDay){ prev = 0; prevDay = day; }
-    const up = p.side > 0, flip = p.press && p.side !== prev; if (p.press) prev = p.side;
+    const up = p.side > 0, flip = !p.fake && p.press && p.side !== prev; if (p.press && !p.fake) prev = p.side;
     out.push({time: p.time, position: 'inBar', shape: up ? 'arrowUp' : 'arrowDown', size: p.press ? 1 : 0.7,   // 14:30 使用者:「藍虛線 這上漲空心沒有連線」→ 點畫在價格上(inBar),連線才會穿過三角形
-              color: up ? (p.press ? '#FF5C6C' : 'rgba(255,92,108,.45)') : (p.press ? '#3EE6A0' : 'rgba(62,230,160,.45)'),
+              color: p.fake ? 'rgba(150,155,165,.6)' : up ? (p.press ? '#FF5C6C' : 'rgba(255,92,108,.45)') : (p.press ? '#3EE6A0' : 'rgba(62,230,160,.45)'),
               text: flip ? (up ? '多 ' : '空 ') + hmKey(p.time) : ''});
   }
   return out;
@@ -5380,7 +5391,7 @@ function rfMarkers(pts){
 function rfChainData(bars, pts, all){
   const at = new Map(); bars.forEach((b, i) => at.set(b.time, i));
   const out = bars.map(b => ({time: b.time}));
-  const byDay = new Map(); for (const p of pts){ const d = dayKey(p.time); if (!byDay.has(d)) byDay.set(d, []); byDay.get(d).push(p); }
+  const byDay = new Map(); for (const p of pts){ if (p.fake) continue; const d = dayKey(p.time); if (!byDay.has(d)) byDay.set(d, []); byDay.get(d).push(p); }
   for (const arr of byDay.values()){
     const f = all ? -1 : arr.findIndex(p => p.press);
     const chain = (f < 0 ? arr : arr.slice(0, f).concat(arr.slice(f).filter(p => p.press))).map(p => ({i: at.get(p.time), v: p.price})).filter(p => p.i != null);
@@ -5586,7 +5597,7 @@ function drawBars(bars, code, srcLabel, keepView){
   //   收盤價線 + 三訊號多空點,只是畫面,判別式 / 通知 / 燈號都不用。多空點用和訊號同一份 K(sBars,只用雲端 K)
   if (rfLine){ try{
     const sMa24 = sBars === bars ? ma24 : sma(sBars, 24, 'close', false);
-    const rp2 = rfPoints(sBars, sMa, sMa24, sOb, sObma);
+    const rp2 = rfPoints(sBars, sMa, sMa24, sOb, sObma, sma(sOb, 24, 'value'));
     const pAt = new Map(rp2.map(p => [p.time, p.price]));   // 點畫在那根的高 / 低價上(透明線在點的那根取點價,其他取收盤)
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
     rfLine.setMarkers(rfMarkers(rp2));
