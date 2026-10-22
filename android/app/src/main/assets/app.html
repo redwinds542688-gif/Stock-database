@@ -181,6 +181,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     友達 10/22:只有 09:41 空一個轉折,11:26 等空點淡色標出;TPK 10/22:09:30 多 / 10:00 空 / 12:31 多 / 12:50 空。只是畫面,判別式、通知、燈號都沒動。
   · 2026-10-22 22:58 轉折圖壓線 0.2% → 0.1%(使用者:TPK 12:31「沒有壓線」→「設0.1」;YH.turnPressPct,漲跌圖照舊 0.2%)。只是畫面。
   · 2026-10-22 23:00 轉折圖壓線 0.1% → 0.15%(使用者「設,0.15」):TPK 10/22 09:30 起漲(離 Ka 0.14%)留下、12:31 假多(0.16%)擋掉。只是畫面。
+  · 2026-10-22 23:30 轉折圖加「Ka 要在 Kb 對的那一邊」(使用者:TPK 12:46 多點「Ka又沒有超越Kb 怎能贖回」→「寫進轉折圖」):做多要 Ka > Kb、做空要 Ka < Kb。
+    TPK 10/22:12:46 假多擋掉,10:00 空抱到 13:20(+5.11%),當天扣成本 +0.59% → +2.19%;友達 10/22:空點 09:41 → 09:46,+4.15%。
+    357 檔 13 天:點 11.2 → 9.1 / 檔天,準確率 52.9% → 53.9%,見轉折就翻轉扣成本每筆 −0.42% → −0.38%、只空 −0.29% → −0.25%。只是畫面。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1759,7 +1762,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610222300">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610222330">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5472,7 +5475,7 @@ function rfDraw(){
   }catch(e){ try{ rfLine.setMarkers([]); if (rfChain) rfChain.setData([]); if (rfAll) rfAll.setData([]); }catch(_){} }
 }
 /* 2026-10-22 22:42 轉折圖(使用者 20:38「現在修改都是轉折圖」… 22:42「改二根」):只是畫面,判別式 / 通知 / 燈號都不用。
-   點 = Ka 方向(和 YH.turnKaBars 根前比)+ OBV 在 Ob 同側 + OBV 方向 + Ob 方向(OBV 照元大跨日累計;一段只標第一根),
+   點 = Ka 在 Kb 對的那一邊(23:29 加)+ Ka 方向(和 YH.turnKaBars 根前比)+ OBV 在 Ob 同側 + OBV 方向 + Ob 方向(OBV 照元大跨日累計;一段只標第一根),
    還要:壓線(那根從均線旁邊出發:空看開盤 / 最高離較低那條均線、多看開盤 / 最低離較高那條 ≤ YH.rfPressPct%)、
    OBV 均 24(跨日)方向對(使用者:時碩 9:16「obv24 是上漲 所以不做空」)、Oc(OBV 均 YH.ocPeriod,和指標二同一條)方向對(友達 11:06「因為 obv28 向下」)。
    換方向的點 = 轉折:亮色大箭頭 + 時間,黃虛線依序相連;同方向再出現的點:淡色小箭頭(友達 11:26「是真正的空點」)。每天各自算。
@@ -5490,9 +5493,10 @@ function turnPoints(bars, ma, ma24, ob){
     for (const d of [1, -1]){
       let st = false;
       if (i >= KN && dayKey(bars[i - KN].time) === dk && dayKey(bars[i - 1].time) === dk && oa[i - 1] != null){
-        const ka = mk.get(b.time), ka0 = mk.get(bars[i - KN].time);
-        if (ka != null && ka0 != null) st = d > 0 ? (ka > ka0 && obc[i] > oa[i] && obc[i] > obc[i - 1] && oa[i] > oa[i - 1])
-                                                 : (ka < ka0 && obc[i] < oa[i] && obc[i] < obc[i - 1] && oa[i] < oa[i - 1]);
+        const ka = mk.get(b.time), ka0 = mk.get(bars[i - KN].time), kbNow = mb.get(b.time);
+        // 2026-10-22 23:29 使用者(TPK 12:46「Ka又沒有超越Kb 怎能贖回」→「寫進轉折圖」):做多要 Ka 在 Kb 上面、做空要 Ka 在 Kb 下面
+        if (ka != null && ka0 != null && kbNow != null) st = d > 0 ? (ka > kbNow && ka > ka0 && obc[i] > oa[i] && obc[i] > obc[i - 1] && oa[i] > oa[i - 1])
+                                                                   : (ka < kbNow && ka < ka0 && obc[i] < oa[i] && obc[i] < obc[i - 1] && oa[i] < oa[i - 1]);
       }
       if (!st){ done[d] = false; continue; }
       if (done[d]) continue;
