@@ -260,33 +260,70 @@ async function dayBars(env, d, codes, since) {
   feedBars(st, keys, vals, since, want);
   return barsOut(d, st.bars, st.n, since, want);
 }
-/** 整天的查詢:收完的分鐘(現在往前 2 分鐘以前,子快照 :56 也寫好了)拼好的狀態存邊緣快取,下次只讀之後的鍵 */
-async function dayBarsFull(env, ctx, origin, d, codes) {
-  const want = codes && codes.length ? new Set(codes) : null;
+/** 2026-10-22 19:45 使用者(「第一次進去還是那麼久」):大盤寬度也是整天一分鐘一分鐘讀,手機要等它才畫 K 圖 → 寬度也一起放進同一份狀態
+ *  寬度只看 bar: 鍵;st.bl = 每檔最後一筆 [z, v, y],st.br = 每分鐘上漲比例(和 dayBreadth 同一個算法) */
+const brLbl = hm => hm <= "09:00" ? "09:00" : addM(hm, -1);
+async function poolPrev(d) {
+  const pp = {};
+  try {
+    const r = await fetch(`${RAW}/pool.json`, { cf: { cacheTtl: 1800, cacheEverything: true } });
+    const j = await r.json(), pool = Array.isArray(j) ? j : (j.pool || []);
+    for (const s of pool) { const y = (s.date || j.date) === d ? +s.prev : (s.date || j.date) < d ? +s.close : NaN; if (y > 0) pp[String(s.code)] = y; }
+  } catch (e) {}
+  return pp;
+}
+function feedBreadth(st, keys, vals, pp) {
+  const last = st.bl, br = st.br;
+  keys.forEach((k, j) => {
+    if (!k.startsWith("bar:") || !vals[j]) return; let s; try { s = JSON.parse(vals[j]); } catch (e) { return; }
+    for (const c in s) {
+      const [z, v, y] = s[c], p = last[c];
+      if (p && v < p[1]) continue;                          // 舊快照(累計量變少)不算,同 dayBars
+      last[c] = [z, v, y > 0 ? y : (p && p[2]) || pp[c]];
+    }
+    let u = 0, dn = 0;
+    for (const c in last) { const [z, , y] = last[c]; if (!(y > 0)) continue; if (z > y) u++; else if (z < y) dn++; }
+    if (u + dn) br[brLbl(k.slice(-5))] = Math.round(u / (u + dn) * 1000) / 1000;
+  });
+}
+/** 整天的查詢(雲端 K、大盤寬度共用):收完的分鐘(現在往前 2 分鐘以前,子快照 :56 也寫好了)拼好的狀態存邊緣快取 + 每 5 分鐘一份 KV,下次只讀之後的鍵 */
+async function dayStateFull(env, ctx, origin, d) {
   const today = d === ymdOf(twNow());
   const safe = today ? m2hm(Math.min(hm2m(hhmmOf(twNow())) - 2, 13 * 60 + 35)) : "13:35";
-  const sk = new Request(`${origin}/__barsst?d=${d}&v=1`), cache = caches.default;
+  const sk = new Request(`${origin}/__barsst?d=${d}&v=2`), cache = caches.default, kk = `bst2:${d}`;
+  const ok = x => x && x.prev && x.bl && x.br;
   let st = null;
   try { const h = await cache.match(sk); if (h) st = await h.json(); } catch (e) { st = null; }
   // 2026-10-22 19:33 使用者「改」(每天第一次進 K 圖還要 6 秒):邊緣快取沒有(每天第一次、換機房)→ 讀 KV 存的那份(每 5 分鐘存一次),只補之後的幾分鐘
-  if (!st || !st.prev) { try { const v = await env.LOGS.get(`bst:${d}`); st = v ? JSON.parse(v) : null; } catch (e) { st = null; } }
-  if (!st || !st.prev) st = barsState();
-  const all = sortKeys([...minuteKeys(d, "bar", st.upto ? addM(st.upto, 1) : "09:00"), ...minuteKeys(d, "bas", st.upto ? addM(st.upto, 1) : "09:00")]);
+  if (!ok(st)) { try { const v = await env.LOGS.get(kk); st = v ? JSON.parse(v) : null; } catch (e) { st = null; } }
+  if (!ok(st)) st = { ...barsState(), bl: {}, br: {} };
+  const from = st.upto ? addM(st.upto, 1) : "09:00";
+  const all = sortKeys([...minuteKeys(d, "bar", from), ...minuteKeys(d, "bas", from)]);
+  if (!all.length) return st;
   const done = all.filter(k => k.slice(-5) <= safe), tail = all.filter(k => k.slice(-5) > safe);
-  const vals = await kvGetMany(env, all);
+  const [vals, pp] = await Promise.all([kvGetMany(env, all), poolPrev(d)]);
   if (done.length) {
-    feedBars(st, done, vals.slice(0, done.length), "", null);
+    const dv = vals.slice(0, done.length);
+    feedBars(st, done, dv, "", null); feedBreadth(st, done, dv, pp);
     st.upto = safe;
     // KV 一份:跨過 5 分鐘整點(或那天收完)才寫,一天約 56 次(KV 免費方案一天寫 1,000 次;19:37 使用者「5分」,原 10 分鐘)
     const toKv = Math.floor(hm2m(safe) / 5) > Math.floor(hm2m(st.kv || "00:00") / 5) || (safe === "13:35" && st.kv !== "13:35");
     if (toKv) st.kv = safe;
     const body = JSON.stringify(st);
     const put = cache.put(sk, new Response(body, { headers: { "Content-Type": "application/json", "Cache-Control": `public, max-age=${today ? 86400 : 7 * 86400}` } }));
-    const kvp = toKv ? env.LOGS.put(`bst:${d}`, body, { expirationTtl: 3 * 86400 }) : null;
+    const kvp = toKv ? env.LOGS.put(kk, body, { expirationTtl: 3 * 86400 }) : null;
     if (ctx && ctx.waitUntil) { ctx.waitUntil(put); if (kvp) ctx.waitUntil(kvp); } else { await put; if (kvp) await kvp; }
   }
-  if (tail.length) feedBars(st, tail, vals.slice(done.length), "", null);   // 還沒收完的幾分鐘只拿來回這一次,不存
-  return barsOut(d, st.bars, st.n, "", want);
+  if (tail.length) { const tv = vals.slice(done.length); feedBars(st, tail, tv, "", null); feedBreadth(st, tail, tv, pp); }   // 還沒收完的幾分鐘只拿來回這一次,不存
+  return st;
+}
+async function dayBarsFull(env, ctx, origin, d, codes) {
+  const st = await dayStateFull(env, ctx, origin, d);
+  return barsOut(d, st.bars, st.n, "", codes && codes.length ? new Set(codes) : null);
+}
+async function dayBreadthFull(env, ctx, origin, d) {
+  const st = await dayStateFull(env, ctx, origin, d);
+  return { d, n: Object.keys(st.bl).length, br: st.br };
 }
 
 /* 2026-10-21 使用者「改 判二 大盤偏多只做黑盤空」:大盤寬度 = 名單上每檔最新價 > 昨收的比例(上漲 /(上漲 + 下跌),平盤不算),每分鐘一個值。
@@ -459,7 +496,7 @@ export default {
       const ck = new Request(`${url.origin}/__breadth?d=${d}&since=${since}`), cache = caches.default;
       const hit = await cache.match(ck);
       if (hit) { const h = new Headers(hit.headers); for (const [k, v] of Object.entries(CORS)) h.set(k, v); return new Response(hit.body, { status: 200, headers: h }); }
-      const body = JSON.stringify(await dayBreadth(env, d, since));
+      const body = JSON.stringify(since ? await dayBreadth(env, d, since) : await dayBreadthFull(env, ctx, url.origin, d));
       const cached = new Response(body, { status: 200, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=50" } });
       if (ctx && ctx.waitUntil) ctx.waitUntil(cache.put(ck, cached)); else await cache.put(ck, cached);
       return new Response(body, { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });
