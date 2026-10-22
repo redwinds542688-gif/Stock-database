@@ -151,6 +151,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-22 15:50 漲跌圖:(1) Ka 要高(低)過 Kb 至少 0.05% 才算穿越(使用者:台塑化 11:03 只穿 0.008 元);(2) 假點:和同一天前一個同方向點比 OBV 均線 24,
     空點比較高 / 多點比較低 = 假點,畫灰色、不算翻轉、不連線(使用者:「11.35空 比照前一個空點的obv24 如果11.35比較高 則是假空點」→「改 再畫」)。
     全部股票 13 天(見點就翻轉):每筆 −0.41% → 假點完全不算 −0.39%;假點不進場 + 只做空 −0.24%(價差 +0.19%)。只是畫面,判別式、通知、燈號都沒動。
+  · 2026-10-22 19:00 指標二拿掉 Od 線(使用者:「先把od 線取消 只留下上面od 就好」):粉紅 Od(OBV 均 16)線不畫,上方「Od:數字↑↓」照舊顯示。只是畫面。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1729,7 +1730,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610221555">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610221900">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5005,7 +5006,7 @@ function initChart(){
                                       priceLineVisible:false, lastValueVisible:false,
                                       priceFormat: lotsFmt});
   // 2026-10-21 23:10 使用者:「增加 Od = obv16」:OBV 的 16 根平均(粉紅),只畫線、顯示數值,燈號 / 判別式不用它
-  obvMa16Line = chartM.addLineSeries({priceScaleId:'left', color:'#FF6FB5', lineWidth:1, priceLineVisible:false, lastValueVisible:false, priceFormat: lotsFmt});
+  obvMa16Line = chartM.addLineSeries({priceScaleId:'left', color:'#FF6FB5', lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, visible:false, priceFormat: lotsFmt});   // 2026-10-22 19:00 使用者:「先把od 線取消 只留下上面od 就好」→ 線不畫,指標二上方 Od 數字照舊
 
   // 下圖:均線乖離率(2026-10-20 使用者看元大的三段版面:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」):
   //   柱狀 = 乖離率 10 = (收盤 − 均價 10)÷ 均價 10 ×100(正紅、負青,和元大一樣);橘線 = 乖離率 30(對均價 30);黃線 = 乖離率 10 的 132 根平均(跨日算,開盤就有)。
