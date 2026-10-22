@@ -205,7 +205,7 @@ const sortKeys = keys => keys.sort((a, b) => a.slice(-5) < b.slice(-5) ? -1 : a.
 // 標籤要往前移一分鐘才和 Yahoo / 手機自拼的 K(都以成交那一分鐘的開頭當標籤)一致;09:00 的第一個快照(開盤撮合)仍標 09:00
 // 2026-10-21 23:30 有資料時間 t 的快照改照 t 歸分鐘(見 buildSnap);沒有 t 的舊快照照舊
 const barLbl = (hm, rec, useT) => { const t = useT && rec && rec[3]; if (t && t.length >= 5) { const m = t.slice(0, 5); return m < "09:00" ? "09:00" : m > "13:30" ? "13:30" : m; } return hm <= "09:00" ? "09:00" : addM(hm, -1); };
-const barsState = () => ({ upto: "", n: 0, sub: [], prev: {}, bars: {} });
+const barsState = () => ({ upto: "", kv: "", n: 0, sub: [], prev: {}, bars: {} });
 /** 照時分順序吃快照(keys 已排好、vals 對應),st = {n, sub(有子快照的分鐘), prev, bars};want = 只拼哪些檔(null = 全部) */
 function feedBars(st, keys, vals, since, want) {
   // 開頭快照只有在前一分鐘有子快照時才照 t 歸分鐘;前一分鐘沒有(舊資料、子快照失敗)= 這筆其實是上一分鐘的收盤,照舊規則標前一分鐘
@@ -268,6 +268,8 @@ async function dayBarsFull(env, ctx, origin, d, codes) {
   const sk = new Request(`${origin}/__barsst?d=${d}&v=1`), cache = caches.default;
   let st = null;
   try { const h = await cache.match(sk); if (h) st = await h.json(); } catch (e) { st = null; }
+  // 2026-10-22 19:33 使用者「改」(每天第一次進 K 圖還要 6 秒):邊緣快取沒有(每天第一次、換機房)→ 讀 KV 存的那份(每 10 分鐘存一次),只補之後的幾分鐘
+  if (!st || !st.prev) { try { const v = await env.LOGS.get(`bst:${d}`); st = v ? JSON.parse(v) : null; } catch (e) { st = null; } }
   if (!st || !st.prev) st = barsState();
   const all = sortKeys([...minuteKeys(d, "bar", st.upto ? addM(st.upto, 1) : "09:00"), ...minuteKeys(d, "bas", st.upto ? addM(st.upto, 1) : "09:00")]);
   const done = all.filter(k => k.slice(-5) <= safe), tail = all.filter(k => k.slice(-5) > safe);
@@ -275,9 +277,13 @@ async function dayBarsFull(env, ctx, origin, d, codes) {
   if (done.length) {
     feedBars(st, done, vals.slice(0, done.length), "", null);
     st.upto = safe;
+    // KV 一份:跨過 10 分鐘整點(或那天收完)才寫,一天約 28 次(KV 免費方案一天寫 1,000 次)
+    const toKv = Math.floor(hm2m(safe) / 10) > Math.floor(hm2m(st.kv || "00:00") / 10) || (safe === "13:35" && st.kv !== "13:35");
+    if (toKv) st.kv = safe;
     const body = JSON.stringify(st);
     const put = cache.put(sk, new Response(body, { headers: { "Content-Type": "application/json", "Cache-Control": `public, max-age=${today ? 86400 : 7 * 86400}` } }));
-    if (ctx && ctx.waitUntil) ctx.waitUntil(put); else await put;
+    const kvp = toKv ? env.LOGS.put(`bst:${d}`, body, { expirationTtl: 3 * 86400 }) : null;
+    if (ctx && ctx.waitUntil) { ctx.waitUntil(put); if (kvp) ctx.waitUntil(kvp); } else { await put; if (kvp) await kvp; }
   }
   if (tail.length) feedBars(st, tail, vals.slice(done.length), "", null);   // 還沒收完的幾分鐘只拿來回這一次,不存
   return barsOut(d, st.bars, st.n, "", want);
