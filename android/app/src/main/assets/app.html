@@ -169,6 +169,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     先用手上的 K 畫,價回來再重畫一次(保留縮放)。盤中本來就不問。圖和數字最後一樣。
   · 2026-10-22 20:05 換股票十字線上下分離(使用者 TPK 截圖:「按上面 切換股票 十字虛線就上下分離了」):重畫完兩格畫面後以上圖為準把三張圖的時間範圍再對齊一次、十字線重放;
     換股票時十字線原本會被推到左邊緣(上一檔的位置),改成照原本的設計回到最新一根。
+  · 2026-10-22 20:10 十字線點了不動(使用者錄影:點 20 次只動 2 次):放十字線時三張圖各自放、一張出錯不擋其他張,「正在放」的旗標一定放回
+    (原本中途出錯會一直卡住,之後點圖都不理);點一下另外接圖庫自己的點擊事件當第二條路。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1747,7 +1749,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610222005">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610222010">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5116,10 +5118,11 @@ function initChart(){
     try{ localStorage.setItem('rfMode', RF_MODE ? '1' : '0'); }catch(e){} applyRfMode(); }); }
   const applyX = (time, info = true) => {
     const i = idxOf(time); if (i < 0) return;
+    // 2026-10-22 20:10 使用者錄影(「十字虛線無法移動」):三張圖各自放,一張出錯不擋其他張,xApplying 一定放回(原本中途出錯會一直卡在 true,之後點圖都不理)
     xApplying = true;
-    chart.setCrosshairPosition(BARS[i].close, time, (RF_MODE && rfLine) ? rfLine : candle);
-    chartM.setCrosshairPosition(obvAt(i), time, obvSeries);
-    if (chartB) chartB.setCrosshairPosition(biasAt(i), time, orgLine);
+    try{ chart.setCrosshairPosition(BARS[i].close, time, (RF_MODE && rfLine) ? rfLine : candle); }catch(e){}
+    try{ chartM.setCrosshairPosition(obvAt(i), time, obvSeries); }catch(e){}
+    try{ if (chartB) chartB.setCrosshairPosition(biasAt(i), time, orgLine); }catch(e){}
     xApplying = false;
     if (info) showBarInfo(time); else placeXVol(time);   // 拖動 / 縮放時那根的量跟著虛線走
   };
@@ -5173,16 +5176,18 @@ function initChart(){
     if (p.time){
       const i = idxOf(p.time);
       xApplying = true;
-      if (src !== chart) chart.setCrosshairPosition(i >= 0 ? BARS[i].close : 0, p.time, (RF_MODE && rfLine) ? rfLine : candle);
-      if (src !== chartM) chartM.setCrosshairPosition(i >= 0 ? obvAt(i) : 0, p.time, obvSeries);
-      if (chartB && src !== chartB) chartB.setCrosshairPosition(i >= 0 ? biasAt(i) : 0, p.time, orgLine);
+      try{ if (src !== chart) chart.setCrosshairPosition(i >= 0 ? BARS[i].close : 0, p.time, (RF_MODE && rfLine) ? rfLine : candle); }catch(e){}
+      try{ if (src !== chartM) chartM.setCrosshairPosition(i >= 0 ? obvAt(i) : 0, p.time, obvSeries); }catch(e){}
+      try{ if (chartB && src !== chartB) chartB.setCrosshairPosition(i >= 0 ? biasAt(i) : 0, p.time, orgLine); }catch(e){}
       xApplying = false;
       showBarInfo(p.time);
     }else{
-      xApplying = true; chart.clearCrosshairPosition(); chartM.clearCrosshairPosition(); if (chartB) chartB.clearCrosshairPosition(); xApplying = false;
+      xApplying = true; try{ chart.clearCrosshairPosition(); chartM.clearCrosshairPosition(); if (chartB) chartB.clearCrosshairPosition(); }catch(e){} xApplying = false;
       showBarInfo(null);
     }
   };
+  // 2026-10-22 20:10 點一下的第二條路:圖庫自己的點擊事件(手機點一下也會發),和下面自己判斷的點一下都會放十字線,哪條先到都一樣
+  [chart, chartM, chartB].filter(Boolean).forEach(c => c.subscribeClick(p => { if (p && p.time && idxOf(p.time) >= 0) setTimeout(() => setX(p.time), 0); }));
   chart.subscribeCrosshairMove(p => onMove(chart, p));
   chartM.subscribeCrosshairMove(p => onMove(chartM, p));
   if (chartB) chartB.subscribeCrosshairMove(p => onMove(chartB, p));
