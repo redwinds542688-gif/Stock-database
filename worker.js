@@ -268,7 +268,7 @@ async function dayBarsFull(env, ctx, origin, d, codes) {
   const sk = new Request(`${origin}/__barsst?d=${d}&v=1`), cache = caches.default;
   let st = null;
   try { const h = await cache.match(sk); if (h) st = await h.json(); } catch (e) { st = null; }
-  // 2026-10-22 19:33 使用者「改」(每天第一次進 K 圖還要 6 秒):邊緣快取沒有(每天第一次、換機房)→ 讀 KV 存的那份(每 10 分鐘存一次),只補之後的幾分鐘
+  // 2026-10-22 19:33 使用者「改」(每天第一次進 K 圖還要 6 秒):邊緣快取沒有(每天第一次、換機房)→ 讀 KV 存的那份(每 5 分鐘存一次),只補之後的幾分鐘
   if (!st || !st.prev) { try { const v = await env.LOGS.get(`bst:${d}`); st = v ? JSON.parse(v) : null; } catch (e) { st = null; } }
   if (!st || !st.prev) st = barsState();
   const all = sortKeys([...minuteKeys(d, "bar", st.upto ? addM(st.upto, 1) : "09:00"), ...minuteKeys(d, "bas", st.upto ? addM(st.upto, 1) : "09:00")]);
@@ -277,8 +277,8 @@ async function dayBarsFull(env, ctx, origin, d, codes) {
   if (done.length) {
     feedBars(st, done, vals.slice(0, done.length), "", null);
     st.upto = safe;
-    // KV 一份:跨過 10 分鐘整點(或那天收完)才寫,一天約 28 次(KV 免費方案一天寫 1,000 次)
-    const toKv = Math.floor(hm2m(safe) / 10) > Math.floor(hm2m(st.kv || "00:00") / 10) || (safe === "13:35" && st.kv !== "13:35");
+    // KV 一份:跨過 5 分鐘整點(或那天收完)才寫,一天約 56 次(KV 免費方案一天寫 1,000 次;19:37 使用者「5分」,原 10 分鐘)
+    const toKv = Math.floor(hm2m(safe) / 5) > Math.floor(hm2m(st.kv || "00:00") / 5) || (safe === "13:35" && st.kv !== "13:35");
     if (toKv) st.kv = safe;
     const body = JSON.stringify(st);
     const put = cache.put(sk, new Response(body, { headers: { "Content-Type": "application/json", "Cache-Control": `public, max-age=${today ? 86400 : 7 * 86400}` } }));

@@ -160,6 +160,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     Worker 改成把「收完的分鐘」拼好的結果存 Cloudflare 邊緣快取(不算 KV 次數),下次只讀之後的幾分鐘接著拼。模擬一整天 283 次比對和舊拼法完全相同。
   · 2026-10-22 19:35 每天第一次進 K 圖(上一版還要約 6 秒)也加快(使用者:「改」;Worker 改,手機不用動):拼好的整天 K 每 10 分鐘另存一份到 KV(一天約 28 次寫入),
     邊緣快取沒有時讀這份、只補最近 10 分鐘。模擬比對(含每次都沒有邊緣快取)和整天重讀完全相同。
+  · 2026-10-22 19:40 上一項改成每 5 分鐘存一份(使用者:「5分」;一天約 56 次寫入,元大接上後全部約 880 次,仍在 1,000 次內)。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1738,7 +1739,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610221935">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610221940">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
