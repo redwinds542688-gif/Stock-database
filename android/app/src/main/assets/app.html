@@ -132,6 +132,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     (3) 拼 K 時資料時間比上一筆舊的快照不算(原本只擋累計量變少的)。第 3 項用今天資料重拼:缺根不變、零量 K 1 → 0;第 1、2 項要上線後看實際改善多少。
     11:30 上線 33 分鐘:12 檔缺根 29% → 23.7%、子快照不再跑到下一分鐘,但每分鐘都只存到 1 筆子快照 → 11:35 再改:用完就取消沒用到的慢請求、同時連線壓在 6 條內(免費方案上限),每筆快照記抓取秒數(?barsraw 看)。
     11:40 秒數紀錄查到真正原因:Cloudflare 排程每分鐘都晚約 47 秒才醒,:30 永遠跳過、只剩 :48 / :56 兩筆擠在一起 → 改成醒來後 +20 秒、+40 秒各抓一次(約每 20 秒一筆,K 照證交所資料時間歸分鐘)。
+  · 2026-10-22 12:07 雲端 K / 大盤寬度掛掉修正(12:05 起 error 1101):Cloudflare KV 免費方案一天只能 list 1,000 次,兩支手機每 55 秒問雲端 K(list 2 次)+ 寬度(list 1 次 + 整天重讀約 200 個鍵),中午用完,
+    所有讀 KV 的功能掛到隔天 08:00。Worker 改成不 list:快照鍵名每分鐘固定,直接產生鍵名去讀;寬度加 since 增量,手機改成只問最後幾分鐘再併進去(這版手機要更新)。
+    用今天快照比對:整天 K、整天寬度、增量寬度和舊算法完全相同;增量 K 1 處量不同,新的才和整天 K 一致。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1710,7 +1713,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610221055">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610221207">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3447,12 +3450,17 @@ window.CLOUD_BARS = CLOUD_BARS;
 // 2026-10-21 判二「大盤偏多只做黑盤空」:大盤寬度(每分鐘上漲比例)。跟雲端 K 一起每 55 秒抓一次;沒抓到 = 不擋
 const BREADTH = { d: '', base: 0, arr: [], err: '' };
 async function loadBreadth(d){
+  // 2026-10-22 12:10 增量(Worker KV 一天讀取有上限):已經有今天的寬度 → 只問最後一筆前 2 分鐘起的,併進去;換日或第一次才抓整天
   try{
-    const r = await fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?breadth=${d}&_=${Date.now()}`, {cache: 'no-store'});
+    const inc = BREADTH.d === d && BREADTH.arr.length;
+    const lastHm = inc ? new Date((BREADTH.arr[BREADTH.arr.length - 1][0] - 120 + 8 * 3600) * 1000).toISOString().slice(11, 16) : '';
+    const r = await fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?breadth=${d}${inc ? '&since=' + lastHm : ''}&_=${Date.now()}`, {cache: 'no-store'});
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const j = await r.json(); if (!j || !j.br) throw new Error(j && j.error || '沒有資料');
     const base = Date.parse(d + 'T00:00:00+08:00') / 1000;
-    BREADTH.arr = Object.keys(j.br).sort().map(k => [base + (+k.slice(0, 2)) * 3600 + (+k.slice(3, 5)) * 60, j.br[k]]);
+    const add = Object.keys(j.br).sort().map(k => [base + (+k.slice(0, 2)) * 3600 + (+k.slice(3, 5)) * 60, j.br[k]]);
+    if (inc && add.length){ const t0 = add[0][0]; BREADTH.arr = BREADTH.arr.filter(x => x[0] < t0).concat(add); }
+    else if (!inc) BREADTH.arr = add;
     BREADTH.d = d; BREADTH.base = base; BREADTH.err = '';
   }catch(e){ BREADTH.err = e.message; }
 }

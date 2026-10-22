@@ -181,35 +181,39 @@ async function snapshotBars(env, subs, at) {
   if (out.length) await env.LOGS.put(`bas:${d}:${key}`, JSON.stringify(out), { expirationTtl: 14 * 86400, metadata: sm });
   return `bar ${d} ${key} ${r0.n} 檔 + 子快照 ${out.length}`;
 }
+/* 2026-10-22 12:05 error 1101:KV 免費方案一天只能 list 1,000 次,兩支手機每 55 秒問 ?bars(list 2 次)+ ?breadth(list 1 次)中午就用完,
+   所有讀 KV 的路線都掛到隔天 08:00。快照鍵名是固定的(每分鐘一個 bar: / bas:),不再 list,直接照時分產生鍵名去 get(get 一天 100,000 次) */
+const hm2m = hm => +hm.slice(0, 2) * 60 + +hm.slice(3, 5);
+const m2hm = m => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+function minuteKeys(d, pre, from) {
+  const now = twNow(), end = d === ymdOf(now) ? Math.min(hm2m(hhmmOf(now)), 13 * 60 + 35) : 13 * 60 + 35;
+  const out = [];
+  for (let m = Math.max(hm2m(from || "09:00"), 9 * 60); m <= end; m++) out.push(`${pre}:${d}:${m2hm(m)}`);
+  return out;
+}
+async function kvGetMany(env, keys) {
+  const vals = [];
+  for (let i = 0; i < keys.length; i += 25) vals.push(...await Promise.all(keys.slice(i, i + 25).map(k => env.LOGS.get(k))));
+  return vals;
+}
 /** 把一天的快照拼成每檔的 1 分K */
 async function dayBars(env, d, codes, since) {
-  const keys = [];
-  for (const pre of ["bar", "bas"]) {
-    let cursor;
-    do {
-      const r = await env.LOGS.list({ prefix: `${pre}:${d}:`, cursor, limit: 1000 });
-      for (const k of r.keys) keys.push(k.name);
-      cursor = r.list_complete ? null : r.cursor;
-    } while (cursor);
-  }
+  const addM0 = (hm, k) => m2hm(hm2m(hm) + k);
+  const from = since ? addM0(since, -2) : "09:00";             // 增量:多拿前 2 分鐘當基準(和判斷前一分鐘有沒有子快照)
+  const keys = [...minuteKeys(d, "bar", from), ...minuteKeys(d, "bas", from)];
   // 依時分排,同一分鐘 bar(開頭快照)在 bas(:30、:56 子快照)前面
   keys.sort((a, b) => a.slice(-5) < b.slice(-5) ? -1 : a.slice(-5) > b.slice(-5) ? 1 : (a < b ? -1 : 1));
   const addM = (hm, k) => { const m = +hm.slice(0, 2) * 60 + +hm.slice(3, 5) + k; return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
-  let use = keys;
-  // 增量:從 since 前一分鐘的快照開始(當基準,不出那根),回傳 since 起的 K(since 那根可能還沒拼完,整根重給)
-  if (since) { const sk = addM(since, -1); use = keys.filter(k => k.slice(-5) >= sk); }
+  // 增量:從 since 前 2 分鐘的快照開始(當基準,不出那根),回傳 since 起的 K(since 那根可能還沒拼完,整根重給)
+  const use = keys, vals = await kvGetMany(env, use);
   const obs = [];   // [快照時分, {code: rec}, 照 t 歸分鐘?]
-  // 開頭快照(:0x)只有在前一分鐘有 :30 / :56 子快照時才照 t 歸分鐘;前一分鐘沒有(舊資料、子快照失敗)= 這筆其實是上一分鐘的收盤,照舊規則標前一分鐘
-  const hasSub = new Set(keys.filter(k => k.startsWith("bas:")).map(k => k.slice(-5)));
-  for (let i = 0; i < use.length; i += 25) {
-    const part = use.slice(i, i + 25);
-    const vals = await Promise.all(part.map(k => env.LOGS.get(k)));
-    part.forEach((k, j) => {
-      if (!vals[j]) return; let v; try { v = JSON.parse(vals[j]); } catch (e) { return; }
-      if (k.startsWith("bas:")) { for (const sub of (Array.isArray(v) ? v : [])) obs.push([k.slice(-5), sub, true]); } else obs.push([k.slice(-5), v, hasSub.has(addM(k.slice(-5), -1))]);
-    });
-  }
-  const nSnap = use.filter(k => k.startsWith("bar:")).length;
+  // 開頭快照只有在前一分鐘有子快照時才照 t 歸分鐘;前一分鐘沒有(舊資料、子快照失敗)= 這筆其實是上一分鐘的收盤,照舊規則標前一分鐘
+  const hasSub = new Set(use.filter((k, j) => k.startsWith("bas:") && vals[j]).map(k => k.slice(-5)));
+  use.forEach((k, j) => {
+    if (!vals[j]) return; let v; try { v = JSON.parse(vals[j]); } catch (e) { return; }
+    if (k.startsWith("bas:")) { for (const sub of (Array.isArray(v) ? v : [])) obs.push([k.slice(-5), sub, true]); } else obs.push([k.slice(-5), v, hasSub.has(addM(k.slice(-5), -1))]);
+  });
+  const nSnap = use.filter((k, j) => k.startsWith("bar:") && vals[j]).length;
   const want = codes && codes.length ? new Set(codes) : null;
   const bars = {}, prev = {};
   // 2026-10-19 收盤後對照 Yahoo 整天 K 發現:HH:MM 的快照拿到的是「上一分鐘」的成交(12:01:0x 的快照 = 12:00 那一分鐘),
@@ -250,14 +254,9 @@ async function dayBars(env, d, codes, since) {
 /* 2026-10-21 使用者「改 判二 大盤偏多只做黑盤空」:大盤寬度 = 名單上每檔最新價 > 昨收的比例(上漲 /(上漲 + 下跌),平盤不算),每分鐘一個值。
    標籤規則和 dayBars 一樣(快照 HH:MM = 上一分鐘的成交);昨收用快照裡的 y,舊快照沒有 y 的用 pool.json(當天的 prev,收盤後換成明天名單時用 close)。
    模擬器 BREADTH 檔(tools/backtest/results/breadth_*.json)是同一個算法 */
-async function dayBreadth(env, d) {
-  const keys = []; let cursor;
-  do {
-    const r = await env.LOGS.list({ prefix: `bar:${d}:`, cursor, limit: 1000 });
-    for (const k of r.keys) keys.push(k.name);
-    cursor = r.list_complete ? null : r.cursor;
-  } while (cursor);
-  keys.sort();
+async function dayBreadth(env, d, since) {
+  // 2026-10-22 12:05 不再 list(見 minuteKeys);since = 增量,只回 since 起的寬度(多讀前 3 分鐘當基準),手機每 55 秒只讀幾個鍵,不用整天重讀 270 個
+  const keys = minuteKeys(d, "bar", since ? m2hm(hm2m(since) - 3) : "09:00");
   let pp = {};
   try {
     const r = await fetch(`${RAW}/pool.json`, { cf: { cacheTtl: 1800, cacheEverything: true } });
@@ -266,9 +265,8 @@ async function dayBreadth(env, d) {
   } catch (e) {}
   const lbl = hm => { if (hm <= "09:00") return "09:00"; const m = +hm.slice(0, 2) * 60 + +hm.slice(3, 5) - 1; return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
   const last = {}, br = {};
-  for (let i = 0; i < keys.length; i += 25) {
-    const part = keys.slice(i, i + 25);
-    const vals = await Promise.all(part.map(k => env.LOGS.get(k)));
+  {
+    const part = keys, vals = await kvGetMany(env, keys);
     part.forEach((k, j) => {
       if (!vals[j]) return; let s; try { s = JSON.parse(vals[j]); } catch (e) { return; }
       for (const c in s) {
@@ -281,6 +279,7 @@ async function dayBreadth(env, d) {
       if (u + dn) br[lbl(k.slice(-5))] = Math.round(u / (u + dn) * 1000) / 1000;
     });
   }
+  if (since) for (const k of Object.keys(br)) if (k < since) delete br[k];
   return { d, n: Object.keys(last).length, br };
 }
 
@@ -416,10 +415,12 @@ export default {
       if (!env || !env.LOGS) return J({ error: "Worker 還沒綁定 KV(LOGS)" }, 503);
       const d = bq === "today" ? ymdOf(twNow()) : bq;
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return J({ error: "breadth 要是 YYYY-MM-DD 或 today" }, 400);
-      const ck = new Request(`${url.origin}/__breadth?d=${d}`), cache = caches.default;
+      const since = url.searchParams.get("since") || "";
+      if (since && !/^\d{2}:\d{2}$/.test(since)) return J({ error: "since 要是 HH:MM" }, 400);
+      const ck = new Request(`${url.origin}/__breadth?d=${d}&since=${since}`), cache = caches.default;
       const hit = await cache.match(ck);
       if (hit) { const h = new Headers(hit.headers); for (const [k, v] of Object.entries(CORS)) h.set(k, v); return new Response(hit.body, { status: 200, headers: h }); }
-      const body = JSON.stringify(await dayBreadth(env, d));
+      const body = JSON.stringify(await dayBreadth(env, d, since));
       const cached = new Response(body, { status: 200, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=50" } });
       if (ctx && ctx.waitUntil) ctx.waitUntil(cache.put(ck, cached)); else await cache.put(ck, cached);
       return new Response(body, { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });
