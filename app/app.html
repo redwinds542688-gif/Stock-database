@@ -143,6 +143,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     (1) 拿掉白色價格線(線改透明,只用來掛點);(2) 三訊號成立的那一段裡,K 棒要穿過均線才標點(空:最高碰到較低均線、收盤跌破兩線;多鏡像),一段只標第一根;
     (3) 只有實心(壓線)點算翻轉、標時間,空心淡色不標字;(4) 黃色虛線連點:每天第一個實心出現前先連空心,之後只連實心,不跨日。
     友達 10/21 驗:36 點 → 18 點,實心翻轉 多 10:41 / 空 10:56 / 多 12:29 / 空 13:11 / 多 13:24,和研究圖相同。只是畫面,判別式、通知、燈號都沒動。
+  · 2026-10-22 14:25 漲跌圖加藍色點線(使用者:「改 把空心+實心也連線 與只連線實心 對比一下」):藍 = 空心 + 實心全部連,黃虛線 = 只連實心(實心出現前先連空心),兩條對比。只是畫面。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1721,7 +1722,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610221415">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610221425">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3671,7 +3672,7 @@ function liveStart(){
 
 /* ── 圖表 ── */
 let chart, candle, maLine, ma24Line, vwapLine;
-let rfLine = null, rfChain = null, RF_MODE = false;   // 2026-10-22 漲跌圖:價格線(收盤)+ 三訊號多空點;RF_MODE true = 顯示漲跌圖、藏 K 棒
+let rfLine = null, rfChain = null, rfAll = null, RF_MODE = false;   // 2026-10-22 漲跌圖:價格線(收盤)+ 三訊號多空點;RF_MODE true = 顯示漲跌圖、藏 K 棒
 try{ RF_MODE = localStorage.getItem('rfMode') === '1'; }catch(e){}   // ma24Line:2026-10-21 均價 24(K24,藍)           // 上圖:1 分K + MA + VWAP
 let chartM, obvSeries, obvMaLine, obvMa30Line, obvMa16Line;  // 中圖:OBV + OBV 均線 + OBV 均 30(紫,2026-10-19)
 let chartB, vwapDev = null, orgLine, kxLine, padB;   // 2026-10-20 23:30 下圖只留起漲起跌連線(高點 / 低點連線拿掉)。   // 2026-10-20 23:10 zzLine = 高點連線(紅)、loLine = 低點連線(綠)   // 2026-10-20 22:10 下圖改成「高低點連線(白)+ 起漲起跌連線(橘)」。原:   // 下圖:均線乖離率(2026-10-20 使用者:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」;原 VWAP 乖離柱狀圖作廢)
@@ -4972,6 +4973,7 @@ function initChart(){
   // 2026-10-22 漲跌圖:rfLine 只用來掛多空點(線本身透明;14:10 使用者「取消白線」),rfChain = 黃色虛線連多空點
   rfLine = chart.addLineSeries({priceScaleId:'left', color:'rgba(0,0,0,0)', lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, visible: RF_MODE});
   rfChain = chart.addLineSeries({priceScaleId:'left', color:'#FFD23F', lineWidth:1.5, lineStyle:2, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, visible: RF_MODE});
+  rfAll = chart.addLineSeries({priceScaleId:'left', color:'#4FC3F7', lineWidth:1.5, lineStyle:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, visible: RF_MODE});   // 2026-10-22 14:18 藍色點線 = 空心 + 實心全部連
   if (RF_MODE) candle.applyOptions({visible: false});
   vwapLine = chart.addLineSeries({priceScaleId:'left', color:CHART_THEME.vwap, lineWidth:2,
                                   priceLineVisible:false, lastValueVisible:false,
@@ -5368,12 +5370,13 @@ function rfMarkers(pts){
   return out;
 }
 // 2026-10-22 黃色虛線:每天第一個實心點出現前先連空心點(14:05 使用者:「如果盤中還沒有實心出現就先連接空心」),之後只連實心;每天各自連,不跨日
-function rfChainData(bars, pts){
+// all = true:空心 + 實心全部連(2026-10-22 14:18 使用者:「改 把空心+實心也連線 與只連線實心 對比一下」,藍色點線)
+function rfChainData(bars, pts, all){
   const at = new Map(); bars.forEach((b, i) => at.set(b.time, i));
   const out = bars.map(b => ({time: b.time}));
   const byDay = new Map(); for (const p of pts){ const d = dayKey(p.time); if (!byDay.has(d)) byDay.set(d, []); byDay.get(d).push(p); }
   for (const arr of byDay.values()){
-    const f = arr.findIndex(p => p.press);
+    const f = all ? -1 : arr.findIndex(p => p.press);
     const chain = (f < 0 ? arr : arr.slice(0, f).concat(arr.slice(f).filter(p => p.press))).map(p => ({i: at.get(p.time), v: p.price})).filter(p => p.i != null);
     for (let k = 0; k < chain.length; k++){
       const a = chain[k], z = chain[k + 1];
@@ -5389,6 +5392,7 @@ function applyRfMode(){
   if (candle) candle.applyOptions({visible: !RF_MODE});
   if (rfLine) rfLine.applyOptions({visible: RF_MODE});
   if (rfChain) rfChain.applyOptions({visible: RF_MODE});
+  if (rfAll) rfAll.applyOptions({visible: RF_MODE});
   try{ updateHiLo(); }catch(e){}
 }
 function drawBars(bars, code, srcLabel, keepView){
@@ -5580,7 +5584,8 @@ function drawBars(bars, code, srcLabel, keepView){
     const rp2 = rfPoints(sBars, sMa, sMa24, sOb, sObma);
     rfLine.setMarkers(rfMarkers(rp2));
     if (rfChain) rfChain.setData(rfChainData(bars, rp2));
-  }catch(e){ try{ rfLine.setMarkers([]); if (rfChain) rfChain.setData([]); }catch(_){} } }
+    if (rfAll) rfAll.setData(rfChainData(bars, rp2, true));
+  }catch(e){ try{ rfLine.setMarkers([]); if (rfChain) rfChain.setData([]); if (rfAll) rfAll.setData([]); }catch(_){} } }
   const cyc = YH.exitRule ? rpSig.state : null;    // 訊號循環(不受 3.5% 限制),只用來寫小字
   const trade = YH.exitRule ? rp.state : null;     // 真正的交易循環
   const lastMa = maMap.get(last.time);
