@@ -18,6 +18,8 @@
 - 下一步(使用者回報後):Windows 電腦裝 .NET 8 → 匯入測試憑證 → 用 `YuantaAPI_TestAP.exe` 公開測試帳號登入
   → 租 Linux 主機跑 `install.sh` → `test 2330` → `order-test` → 正式環境只收 K 線比對一天 → 手機切元大 → 最後才開自動交易(一次一單)。
 - 機密(帳號、密碼、憑證)只放主機 `bridge.env`;SDK 元件放主機 `/opt/yuanta_bridge/sdk`,都不進對話、不進 GitHub。
+- **上線前一定要改**:`trader.py` 每 3 秒問 Worker `?log=get`,Worker 每次都要 KV list;KV 免費方案一天只能 list 1,000 次(2026-10-22 中午兩支手機就用完、Worker 掛到隔天 08:00)。
+  要改成不靠 list 的方式(例如手機發通知時另存一個「今天通知清單」鍵,或中繼程式直接收手機的推播),再開自動交易。
 
 ## 檔案
 
