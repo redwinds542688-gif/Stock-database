@@ -180,6 +180,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     + 壓線 + OBV 均 24 方向 + Oc 方向;換方向的點亮色大箭頭標時間、黃虛線相連,同方向再出現的淡色小箭頭。漲跌圖照舊(Ka 比 3 根前)。
     友達 10/22:只有 09:41 空一個轉折,11:26 等空點淡色標出;TPK 10/22:09:30 多 / 10:00 空 / 12:31 多 / 12:50 空。只是畫面,判別式、通知、燈號都沒動。
   · 2026-10-22 22:58 轉折圖壓線 0.2% → 0.1%(使用者:TPK 12:31「沒有壓線」→「設0.1」;YH.turnPressPct,漲跌圖照舊 0.2%)。只是畫面。
+  · 2026-10-22 23:00 轉折圖壓線 0.1% → 0.15%(使用者「設,0.15」):TPK 10/22 09:30 起漲(離 Ka 0.14%)留下、12:31 假多(0.16%)擋掉。只是畫面。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1758,7 +1759,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610222258">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610222300">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3728,7 +3729,7 @@ const YH = {
   lampHold: 3,          // 2026-10-21 燈號新狀態要連幾根才換;03:10 使用者「改 3 根」(原 2)
   rfPressPct: 0.2,
   rfKaBars: 3,
-  turnPressPct: 0.1,    // 2026-10-22 22:55 使用者「設0.1」(TPK 12:31 多點「沒有壓線」:最低 74.40 離 Ka 0.16%):轉折圖的壓線 0.2% → 0.1%;漲跌圖照舊 rfPressPct 0.2
+  turnPressPct: 0.15,   // 2026-10-22 22:58 使用者「設,0.15」(TPK 09:30 離 Ka 0.14% 算、12:31 離 0.16% 不算);22:55「設0.1」(TPK 12:31 多點「沒有壓線」:最低 74.40 離 Ka 0.16%):轉折圖的壓線 0.2% → 0.1%;漲跌圖照舊 rfPressPct 0.2
   turnKaBars: 2,        // 2026-10-22 22:42 使用者「改二根」:轉折圖的 Ka 方向和 2 根前比(台塑化 10/21 10:25 假多 0.00 擋掉、TPK 10/22 09:30 起漲 +0.04 抓到);漲跌圖照舊 3 根
   rfMinCross: 0.05,     // 2026-10-22 漲跌圖:Ka 要高(低)過 Kb 至少 0.05% 才算穿越          // 2026-10-22 漲跌圖多空點的「Ka 往上 / 往下」和 3 根前比(一檔跳動大的股票,Ka 一根就會小跳一下)      // 2026-10-22 漲跌圖多空點的「壓線」:Ka、Kb 差距和那根 K 離均線都在 0.2% 內 → 實心
   lampLeave: 1,         // 2026-10-21 11:40 使用者(台郡 10:13 天秤已到中間還亮做多):已亮做多 / 做空時,連 lampHold 根不是這個燈就換成最新那根的狀態(不必同一種);0 = 舊規則
@@ -5477,7 +5478,7 @@ function rfDraw(){
    換方向的點 = 轉折:亮色大箭頭 + 時間,黃虛線依序相連;同方向再出現的點:淡色小箭頭(友達 11:26「是真正的空點」)。每天各自算。
    回測 357 檔 13 天(60 根先走 1%):準確率 53%;見轉折就翻轉每筆扣成本 −0.44%、只空 −0.31%、10 點前進場 −0.29%(漲跌圖 −0.37%) */
 function turnPoints(bars, ma, ma24, ob){
-  const KN = YH.turnKaBars || 2, P = YH.turnPressPct || 0.1;
+  const KN = YH.turnKaBars || 2, P = YH.turnPressPct || 0.15;
   const mk = toTimeMap(ma), mb = toTimeMap(ma24), mOc = toTimeMap(sma(ob, YH.ocPeriod || 28, 'value'));
   const n = bars.length, obc = new Array(n).fill(0);
   for (let i = 1; i < n; i++){ const a = bars[i], b = bars[i - 1]; obc[i] = obc[i - 1] + (a.close > b.close ? a.volume / 1000 : a.close < b.close ? -a.volume / 1000 : 0); }
