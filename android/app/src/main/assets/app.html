@@ -187,7 +187,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-23 00:20 Kb 改 28 根(使用者:「Kb改28」;YH.kbPeriod,原 24):指標一藍線、漲跌圖、轉折圖、燈號的 Ka/Kb 位置都跟著。判一 ~ 判三不用 Kb,不受影響。
     Kb 16~40 回測(357 檔 13 天):轉折圖 準確率 53.8~54.0%、只空每筆 −0.26~−0.23%;漲跌圖 只空 24 根 −0.20%、28 根 −0.19%、30 根 −0.16%;差距都在雜訊內。
   · 2026-10-23 00:30 燈號跟著目前那張圖(使用者:「切換 漲跌圖 就隨漲跌圖 切換轉折圖 就隨轉折圖」):K 線圖 = 原本的燈號;漲跌圖 = 最近一個實心非假的翻轉點(多 → 做多、空 → 做空);
-    轉折圖 = 最近一個轉折;同一天還沒有點 = 監控。十字線移到哪一根就顯示那一根當時的。天秤、通知、判別式都不動。
+    轉折圖 = 最近一個轉折;同一天還沒有點 = 監控。十字線移到哪一根就顯示那一根當時的。通知、判別式都不動。
+  · 2026-10-23 00:35 天秤也跟著目前那張圖(使用者:「改 一樣隨當下的圖」):漲跌圖 / 轉折圖時 做多 = 指針全左、做空 = 全右、監控 = 中間;K 線圖照舊四件事平均。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1766,7 +1767,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610230030">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610230035">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3817,13 +3818,13 @@ function showBarInfo(t){
   // 最後一根或沒有十字線 → 回到最新狀態。沒開平倉規則(stateAt 為空)時燈號不動,只動多空天秤。
   if (CUR.lampLast){
     const devPct = isFinite(d.ma) && d.ma > 0 ? (d.bar.close - d.ma) / d.ma * 100 : null;
-    if (isLast){ lampsFromInd3(lampStateAt(d.bar.time)); updateMeter(CUR.biasLast); }   // 2026-10-23 燈號跟著目前那張圖(lampStateAt)   // 2026-10-21 燈號看指標三(連 2 根才換)   // 2026-10-21 燈號看指標三
+    if (isLast){ lampsFromInd3(lampStateAt(d.bar.time)); updateMeter(meterBiasAt(d.bar.time, CUR.biasLast)); }   // 2026-10-23 燈號 / 天秤跟著目前那張圖(lampStateAt / meterBiasAt)   // 2026-10-21 燈號看指標三(連 2 根才換)   // 2026-10-21 燈號看指標三
     else if (CUR.bars && CUR.maMap && d.i != null){
       let nDay = 0; for (let i = d.i; i >= 0 && dayKey(CUR.bars[i].time) === dayKey(d.bar.time); i--) nDay++;   // 十字線那根是當天第幾根
       const waiting = nDay < SIG.skipMin;
       const st = CUR.i3 && CUR.i3.get(d.bar.time);   // 2026-10-21 燈號 / 天秤看指標三(十字線那根)
       const b = waiting ? 0 : ind3Bias(st);
-      lampsFromInd3(lampStateAt(d.bar.time)); updateMeter(b);
+      lampsFromInd3(lampStateAt(d.bar.time)); updateMeter(meterBiasAt(d.bar.time, b));
     }
   }
 }                 // 圖上的 ±entryMaxChg% 進場區間線
@@ -5475,6 +5476,8 @@ function rfLampMap(bars, flips){   // flips = [{time, side}] 只放翻轉 / 轉�
   return m;
 }
 function lampStateAt(time){ return (RF_MODE && RF_LAMPS && RF_LAMPS.view === RF_VIEW && RF_LAMPS.map.has(time)) ? RF_LAMPS.map.get(time) : (CUR && CUR.lamps ? CUR.lamps.get(time) : null); }
+// 2026-10-23 00:31 使用者「改 一樣隨當下的圖」:天秤也跟著圖走。漲跌圖 / 轉折圖:做多 = 指針全左、做空 = 全右、監控 = 中間;K 線圖 = 原本的四件事平均
+function meterBiasAt(time, kBias){ if (RF_MODE && RF_LAMPS && RF_LAMPS.view === RF_VIEW && RF_LAMPS.map.has(time)){ const st = RF_LAMPS.map.get(time); return st === '做多' ? 1 : st === '做空' ? -1 : 0; } return kBias; }
 function rfDraw(){
   if (!rfLine || !RF_ARGS || RF_ARGS.done === RF_VIEW) return;
   const {bars, sBars, sMa, sOb, sObma, ma24} = RF_ARGS; RF_ARGS.done = RF_VIEW;
@@ -5728,7 +5731,7 @@ function drawBars(bars, code, srcLabel, keepView){
   const strongLast = strongLampDir(bars, bars.length - 1, maMap, obMap, obmaMap, obSMap);
   const I3 = ind3Series(bars, ma, ma24, ob, obma, obma30), i3Last = I3.get(last.time);   // 2026-10-21 燈號 / 天秤改看指標三
   const bias = todayBars.length < SIG.skipMin ? 0 : ind3Bias(i3Last);   // 不到 15 根 K 天秤歸零(2026-10-19);原:biasScore(價 / 均價 / OBV 斜率)
-  updateMeter(bias);
+  updateMeter(meterBiasAt(last.time, bias));   // 2026-10-23 天秤跟著目前那張圖
   // 今天的進場 / 平倉點位標在 K 線圖上;燈號 = 循環狀態(進場後持續亮到平倉訊號)
   const rp = replaySignals(sBars, sMa, sOb, sObma, prevClose, src ? !!src.dtShort : undefined);
   // 2026-10-20 使用者(台玻圖:「K 線 空平 空逆…那些都拿掉不要」):圖上只留真正的進場箭頭(亮色)和平倉 / 反彈 / 注意的小圓點,
