@@ -184,6 +184,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-22 23:30 轉折圖加「Ka 要在 Kb 對的那一邊」(使用者:TPK 12:46 多點「Ka又沒有超越Kb 怎能贖回」→「寫進轉折圖」):做多要 Ka > Kb、做空要 Ka < Kb。
     TPK 10/22:12:46 假多擋掉,10:00 空抱到 13:20(+5.11%),當天扣成本 +0.59% → +2.19%;友達 10/22:空點 09:41 → 09:46,+4.15%。
     357 檔 13 天:點 11.2 → 9.1 / 檔天,準確率 52.9% → 53.9%,見轉折就翻轉扣成本每筆 −0.42% → −0.38%、只空 −0.29% → −0.25%。只是畫面。
+  · 2026-10-23 00:20 Kb 改 28 根(使用者:「Kb改28」;YH.kbPeriod,原 24):指標一藍線、漲跌圖、轉折圖、燈號的 Ka/Kb 位置都跟著。判一 ~ 判三不用 Kb,不受影響。
+    Kb 16~40 回測(357 檔 13 天):轉折圖 準確率 53.8~54.0%、只空每筆 −0.26~−0.23%;漲跌圖 只空 24 根 −0.20%、28 根 −0.19%、30 根 −0.16%;差距都在雜訊內。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1762,7 +1764,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610222330">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610230020">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3739,6 +3741,7 @@ const YH = {
   lampObOc: true,       // 2026-10-21 20:40 使用者「先改 D」:亮「做多」還要 Ob(OBV 均 10)在 Oc(OBV 均 30)之上,否則降成漸多;做空鏡像(Oc 還沒值 = 不亮做多 / 做空)。七天 1,405 股票日:勝率 54.1% → 55.3%
   lampOaOb: true,       // 2026-10-21 22:30 使用者「改 Y3+W6」:燈號分數裡「橘線雙升 / 雙降」換成「Oa 現在在 Ob 之上 / 之下」(反應快;時碩 11:06 兩線都轉下)
   lampBreadth: 0.65,    // 2026-10-21 22:30 同上 W6:大盤寬度 ≥ 65% 不亮做空(降成漸空)、≤ 35% 不亮做多(降成漸多);0 = 關;沒有寬度資料不擋
+  kbPeriod: 28,         // 2026-10-23 00:19 使用者「Kb改28」:Kb(指標一藍線)均價 28 根(原 24,和元大一樣);K 線圖、漲跌圖、轉折圖、燈號的 Ka/Kb 位置都用它。判別式不用 Kb
   ocPeriod: 28,         // 2026-10-21 22:55 使用者「改 28」:指標二 Oc(OBV 均線)30 → 28 根(燈號 / D 規則 / 紫線都用它);判別式自己的 OBV 30 均線不動
   odPeriod: 16,         // 2026-10-21 23:10 使用者:「增加 Od = obv16」:指標二第四條線 Od = OBV 的 16 根平均(粉紅),只畫線
   ind3SlopeBars: 5,     // 2026-10-21 燈號的指標二方向:Ob / Oc 和幾根前比
@@ -5465,7 +5468,7 @@ function rfDraw(){
   const {bars, sBars, sMa, sOb, sObma, ma24} = RF_ARGS; RF_ARGS.done = RF_VIEW;
   if (RF_VIEW === 2) return turnDraw(bars, sBars, sMa, ma24, sOb);
   try{
-    const sMa24 = sBars === bars ? ma24 : sma(sBars, 24, 'close', false);
+    const sMa24 = sBars === bars ? ma24 : sma(sBars, YH.kbPeriod || 24, 'close', false);
     const rp2 = rfPoints(sBars, sMa, sMa24, sOb, sObma, sma(sOb, 24, 'value'));
     const pAt = new Map(rp2.map(p => [p.time, p.price]));   // 點畫在那根的高 / 低價上(透明線在點的那根取點價,其他取收盤)
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
@@ -5514,7 +5517,7 @@ function turnPoints(bars, ma, ma24, ob){
 }
 function turnDraw(bars, sBars, sMa, ma24, sOb){
   try{
-    const sMa24 = sBars === bars ? ma24 : sma(sBars, 24, 'close', false);
+    const sMa24 = sBars === bars ? ma24 : sma(sBars, YH.kbPeriod || 24, 'close', false);
     const pts = turnPoints(sBars, sMa, sMa24, sOb);
     const pAt = new Map(pts.map(p => [p.time, p.price]));
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
@@ -5550,7 +5553,7 @@ function drawBars(bars, code, srcLabel, keepView){
     for (let i = 0; i + 1 < out.length; i++) if (dayKey(out[i].time) !== dayKey(out[i + 1].time) && out[i + 1].color) out[i] = {...out[i], color: out[i + 1].color};
     return out; };
   maLine.setData(kaGap(ma));
-  const ma24 = sma(bars, 24, 'close', false);   // 2026-10-21 K24
+  const ma24 = sma(bars, YH.kbPeriod || 24, 'close', false);   // 2026-10-21 K24;2026-10-23 使用者「Kb改28」→ YH.kbPeriod
   ma24Line.setData(ma24);
   const vw = vwap(bars);
   vwapLine.setData(vw);
