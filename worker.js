@@ -86,10 +86,19 @@ async function poolCodes() {
    每分鐘整點的快照抓到舊資料 → 那分鐘「沒成交」不出 K,下一分鐘兩分鐘併成一根(富喬 09:00~09:23 少了 5 根)。
    改成每次同時發 FRESH_N 個請求,每檔取累計量 v 最大(= 最新)的那筆;sysTime 也取最新。快照與手機即時價都用這條。 */
 const FRESH_N = 4;
+/* 2026-10-22 使用者(「改 Worker 三項都改」):09:00~10:50 原始快照查出有的快照拖到 30 多秒才拿到資料——原本 Promise.all 要等 4 個請求裡最慢那個。
+   改成最多等 MIS_WAIT 毫秒,用已經回來的;那時一個都還沒回來,就等第一個回來的(不會整筆沒資料) */
+const MIS_WAIT = 4000;
 async function misFresh(ex_ch, n = FRESH_N) {
   const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${ex_ch}&json=1&delay=0&_=`;
-  const rs = await Promise.all(Array.from({ length: n }, (_, i) =>
-    fetch(url + (Date.now() + i), { headers: MIS_HDR, cf: { cacheTtl: 0 } }).then(r => r.ok ? r.json() : null).catch(() => null)));
+  const rs = [];
+  await new Promise(done => {
+    let left = n, late = false;
+    const timer = setTimeout(() => { if (rs.length) done(); else late = true; }, MIS_WAIT);
+    for (let i = 0; i < n; i++)
+      fetch(url + (Date.now() + i), { headers: MIS_HDR, cf: { cacheTtl: 0 } }).then(r => r.ok ? r.json() : null).catch(() => null)
+        .then(j => { if (j && Array.isArray(j.msgArray)) rs.push(j); left--; if (left === 0 || (late && rs.length)) { clearTimeout(timer); done(); } });
+  });
   let best = null; const by = new Map();
   for (const j of rs) {
     if (!j || !Array.isArray(j.msgArray)) continue;
@@ -106,14 +115,11 @@ async function misFresh(ex_ch, n = FRESH_N) {
   return { ...best, msgArray: [...by.values()] };
 }
 async function misFetch(list, n) {
-  const out = [];
-  for (let i = 0; i < list.length; i += 50) {
-    const ex_ch = list.slice(i, i + 50).map(s => `${s.mkt}_${s.code}.tw`).join("|");
-    try {
-      const j = await misFresh(ex_ch, n);
-      for (const m of ((j && j.msgArray) || [])) out.push(m);
-    } catch (e) { console.log("mis " + e); }
-  }
+  const out = [], parts = [];
+  for (let i = 0; i < list.length; i += 50) parts.push(list.slice(i, i + 50).map(s => `${s.mkt}_${s.code}.tw`).join("|"));
+  // 2026-10-22 各批(每批 50 檔)同時抓,不再一批等完才抓下一批
+  const js = await Promise.all(parts.map(ex_ch => misFresh(ex_ch, n).catch(e => { console.log("mis " + e); return null; })));
+  for (const j of js) for (const m of ((j && j.msgArray) || [])) out.push(m);
   return out;
 }
 /** Cron 每分鐘:盤中把全部候選股的 [最新價, 累計量(張)] 存成一個鍵 */
@@ -139,9 +145,12 @@ function buildSnap(msgs, ymd) {
   }
   return { s, n, dOk };
 }
-async function snapshotBars(env, subs) {
+async function snapshotBars(env, subs, at) {
   if (!env || !env.LOGS) return "no KV";
-  const t = twNow(); const hm = t.getUTCHours() * 60 + t.getUTCMinutes();
+  // 2026-10-22 使用者(「改 Worker 三項都改」):分鐘以 Cron 排定的時間為準(at = event.scheduledTime);:30、:56 照這一分鐘算,
+  //   過了就跳過。原本開頭那筆抓超過整分鐘時會去等「下一分鐘」的 :30、:56(09:00~10:50 友達 78 筆子快照有 27 筆跑到下一分鐘,和下一分鐘的抓取撞在一起)
+  const m0 = Math.floor((at || Date.now()) / 60000) * 60000;
+  const t = new Date(m0 + 8 * 3600e3); const hm = t.getUTCHours() * 60 + t.getUTCMinutes();
   if (hm < 9 * 60 || hm > 13 * 60 + 35) return "off-hours";
   const list = await poolCodes();
   const d = ymdOf(t), ymd = d.replace(/-/g, ""), key = hhmmOf(t);
@@ -152,8 +161,8 @@ async function snapshotBars(env, subs) {
   // 同一分鐘的 :30、:56 再各抓一次(:30 只問 2 次省子請求;:56 問 4 次取最新,當這分鐘的收盤)
   const out = [];
   for (const [sec, n] of [[30, 2], [56, FRESH_N]]) {
-    const wait = sec * 1000 - (Date.now() % 60000);
-    if (wait < 1000) continue;                               // 已經過了(Cron 晚醒)就跳過
+    const wait = m0 + sec * 1000 - Date.now();
+    if (wait < 1000) continue;                               // 這一分鐘的 :30 / :56 已經過了(Cron 晚醒、開頭那筆抓太久)就跳過,不跑到下一分鐘
     await new Promise(r => setTimeout(r, wait));
     try { const r = buildSnap(await misFetch(list, n), ymd); if (r.n) out.push(r.s); } catch (e) { console.log("子快照失敗 " + e); }
   }
@@ -202,7 +211,10 @@ async function dayBars(env, d, codes, since) {
       // 2026-10-21 使用者(台郡「量不對」):證交所偶爾回舊快照(時間倒退、累計量變少),原本 prev 被拉回舊的量,下一分鐘又把同一段量算一次
       //   (09:54 時 130 檔有 45 檔雲端 K 總量比證交所多 1% 以上,台郡多 1,573 張)。累計量比上一個快照少 → 這個快照整個不算
       if (p && v < p[1]) continue;
-      prev[c] = [z, v];
+      // 2026-10-22 使用者(「改 Worker 三項都改」):累計量一樣、但資料時間比上一筆還舊 = 舊伺服器回的舊快照,也不算(之前會用舊價夾買賣價拼出零量的 K)
+      const tt = rec[3] || "";
+      if (p && tt && p[2] && tt < p[2]) continue;
+      prev[c] = [z, v, tt];
       if (!p) { if (!since) bars[c] = [[hm, z, z, z, z, hm0 <= "09:02" ? Math.round(v * 1000) : 0]]; continue; }   // 當天第一個快照:09:00 開始存的話量 = 開盤撮合的累計;盤中才開始存(例如 2026-10-19 11:57 上線)就給 0,
                                                                                                                        // 不然整個上午的累計量會灌進那一根,OBV 一次跳好幾千張(使用者截圖:燿華 12:05 跳 3,700 張)。那段的量由手機用 Yahoo 補
       const dv = Math.max(0, v - p[1]) * 1000;
@@ -278,7 +290,7 @@ export default {
     const SLOTS = { "8:20": "recheck", "8:45": "recheck", "9:05": "recheck", "14:30": "daily", "16:30": "daily", "20:30": "daily" };
     const what = SLOTS[key];
     if (what) { const r = await dispatch(env, what); console.log(`cron ${event.cron} 台灣 ${key} → ${what}: ${r.msg}`); }
-    try { const r = await snapshotBars(env, true); if (r !== "off-hours") console.log(`cron 台灣 ${key} 分K:${r}`); } catch (e) { console.log("分K 快照失敗 " + e); }
+    try { const r = await snapshotBars(env, true, event.scheduledTime); if (r !== "off-hours") console.log(`cron 台灣 ${key} 分K:${r}`); } catch (e) { console.log("分K 快照失敗 " + e); }
   },
 
   async fetch(request, env, ctx) {
