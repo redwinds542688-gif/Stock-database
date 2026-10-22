@@ -299,6 +299,24 @@ export default {
         return J({ ok: true, msg: r });
       } catch (e) { return J({ ok: false, error: String(e && e.stack || e) }, 500); }
     }
+    // 2026-10-22 09:10 檢查(友達 / 時碩缺 09:02、09:07 兩根):?barsraw=today&code=2409 → 每個快照 / 子快照裡這檔的原始 [z, v, y, t],只讀、查問題用
+    const br = url.searchParams.get("barsraw");
+    if (br) {
+      if (!env || !env.LOGS) return J({ error: "Worker 還沒綁定 KV(LOGS)" }, 503);
+      const d = br === "today" ? ymdOf(twNow()) : br, code = url.searchParams.get("code") || "";
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !code) return J({ error: "要 barsraw=YYYY-MM-DD|today&code=代碼" }, 400);
+      const from = url.searchParams.get("from") || "00:00", to = url.searchParams.get("to") || "99:99";
+      const keys = [];
+      for (const pre of ["bar", "bas"]) { const r = await env.LOGS.list({ prefix: `${pre}:${d}:`, limit: 1000 }); for (const k of r.keys) if (k.name.slice(-5) >= from && k.name.slice(-5) <= to) keys.push(k.name); }
+      keys.sort((a, b) => a.slice(-5) < b.slice(-5) ? -1 : a.slice(-5) > b.slice(-5) ? 1 : (a < b ? -1 : 1));
+      const out = [];
+      for (const k of keys.slice(0, 120)) {
+        let v; try { v = JSON.parse(await env.LOGS.get(k) || "null"); } catch (e) { v = null; }
+        if (k.startsWith("bas:")) (Array.isArray(v) ? v : []).forEach((s, i) => out.push([k + "#" + i, s && s[code] || null]));
+        else out.push([k, v && v[code] || null]);
+      }
+      return J({ d, code, rows: out });
+    }
     if (bd) {
       if (!env || !env.LOGS) return J({ error: "Worker 還沒綁定 KV(LOGS)" }, 503);
       const d = bd === "today" ? ymdOf(twNow()) : bd;
