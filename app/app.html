@@ -139,6 +139,10 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     指標一那列最右邊的按鍵,按一下 K 棒換成收盤價線(白),標上三訊號多空點(▲多 ▼空;壓線 = Ka、Kb 差 ≤0.2% 且那根 K 從均線旁出發 → 實心亮色,沒壓線淡色;
     每次換方向的第一個點標時間),再按一下回 K 線圖,記住上次選擇。三訊號 = Ka 轉向且在 Kb 同側 + OBV 在 Ob 同側 + OBV、Ob 同向(10/22 研究)。
     只是畫面:判別式、通知、燈號、replaySignals 都沒動。用 TPK 10/22 雲端 K 驗:多 09:30 / 空 09:50 / 多 12:18 / 空 12:41,和研究圖相同。
+  · 2026-10-22 14:15 漲跌圖改版(使用者:「取消白線」「多空點一定要壓下或超越才算數」「實心才算數 但空心也要紀錄…只連續實心」「如果盤中還沒有實心出現就先連接空心」):
+    (1) 拿掉白色價格線(線改透明,只用來掛點);(2) 三訊號成立的那一段裡,K 棒要穿過均線才標點(空:最高碰到較低均線、收盤跌破兩線;多鏡像),一段只標第一根;
+    (3) 只有實心(壓線)點算翻轉、標時間,空心淡色不標字;(4) 黃色虛線連點:每天第一個實心出現前先連空心,之後只連實心,不跨日。
+    友達 10/21 驗:36 點 → 18 點,實心翻轉 多 10:41 / 空 10:56 / 多 12:29 / 空 13:11 / 多 13:24,和研究圖相同。只是畫面,判別式、通知、燈號都沒動。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1717,7 +1721,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610221350">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610221415">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3667,7 +3671,7 @@ function liveStart(){
 
 /* ── 圖表 ── */
 let chart, candle, maLine, ma24Line, vwapLine;
-let rfLine = null, RF_MODE = false;   // 2026-10-22 漲跌圖:價格線(收盤)+ 三訊號多空點;RF_MODE true = 顯示漲跌圖、藏 K 棒
+let rfLine = null, rfChain = null, RF_MODE = false;   // 2026-10-22 漲跌圖:價格線(收盤)+ 三訊號多空點;RF_MODE true = 顯示漲跌圖、藏 K 棒
 try{ RF_MODE = localStorage.getItem('rfMode') === '1'; }catch(e){}   // ma24Line:2026-10-21 均價 24(K24,藍)           // 上圖:1 分K + MA + VWAP
 let chartM, obvSeries, obvMaLine, obvMa30Line, obvMa16Line;  // 中圖:OBV + OBV 均線 + OBV 均 30(紫,2026-10-19)
 let chartB, vwapDev = null, orgLine, kxLine, padB;   // 2026-10-20 23:30 下圖只留起漲起跌連線(高點 / 低點連線拿掉)。   // 2026-10-20 23:10 zzLine = 高點連線(紅)、loLine = 低點連線(綠)   // 2026-10-20 22:10 下圖改成「高低點連線(白)+ 起漲起跌連線(橘)」。原:   // 下圖:均線乖離率(2026-10-20 使用者:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」;原 VWAP 乖離柱狀圖作廢)
@@ -4965,7 +4969,9 @@ function initChart(){
                                 priceLineVisible:false, lastValueVisible:false});
   // 2026-10-21 使用者:「加一條 k24」:均價 24(收盤 24 根平均,藍色、最細),跨日連續算(和元大的均價 24 一樣,開盤就有值;均價 10 照舊每天重算)
   ma24Line = chart.addLineSeries({priceScaleId:'left', color:'#19D3F5', lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false});
-  rfLine = chart.addLineSeries({priceScaleId:'left', color:'#F2F2F2', lineWidth:2, priceLineVisible:false, lastValueVisible:false, visible: RF_MODE});   // 2026-10-22 漲跌圖的價格線
+  // 2026-10-22 漲跌圖:rfLine 只用來掛多空點(線本身透明;14:10 使用者「取消白線」),rfChain = 黃色虛線連多空點
+  rfLine = chart.addLineSeries({priceScaleId:'left', color:'rgba(0,0,0,0)', lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, visible: RF_MODE});
+  rfChain = chart.addLineSeries({priceScaleId:'left', color:'#FFD23F', lineWidth:1.5, lineStyle:2, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, visible: RF_MODE});
   if (RF_MODE) candle.applyOptions({visible: false});
   vwapLine = chart.addLineSeries({priceScaleId:'left', color:CHART_THEME.vwap, lineWidth:2,
                                   priceLineVisible:false, lastValueVisible:false,
@@ -5337,19 +5343,43 @@ function rfPoints(bars, ma, ma24, ob, obma){
     if (d > 0){ const x = Math.max(ka, kb); return (b.low - x) / x * 100 <= P && (b.open - x) / x * 100 <= P; }
     const x = Math.min(ka, kb); return (x - b.high) / x * 100 <= P && (x - b.open) / x * 100 <= P;
   };
-  const out = [];
-  for (let i = 1; i < bars.length; i++) for (const d of [1, -1])
-    if (st(i, d) && !st(i - 1, d)) out.push({time: bars[i].time, side: d, price: bars[i].close, press: press(i, d)});
+  // 2026-10-22 13:51 使用者:「多空點一定要壓下或超越才算數」:三訊號成立的這一段裡,K 棒要穿過均線那根才標(空:最高碰到較低那條均線、收盤跌破兩線;
+  //   多:最低碰到較高那條均線、收盤站上兩線);一段只標第一根,整段都沒穿過就不標
+  const brk = (i, d) => { const b = bars[i], ka = mk.get(b.time), kb = mb.get(b.time);
+    return d > 0 ? (b.low <= Math.max(ka, kb) && b.close > Math.max(ka, kb)) : (b.high >= Math.min(ka, kb) && b.close < Math.min(ka, kb)); };
+  const out = [], done = {'1': false, '-1': false};
+  for (let i = 1; i < bars.length; i++) for (const d of [1, -1]){
+    if (!st(i, d)){ done[d] = false; continue; }
+    if (done[d] || !brk(i, d)) continue;
+    out.push({time: bars[i].time, side: d, price: bars[i].close, press: press(i, d)}); done[d] = true;
+  }
   return out;
 }
+// 2026-10-22 13:56 使用者:「實心才算數 但空心也要紀錄 看價格是往下還是往上 但只連續實心」:只有實心點算翻轉、標時間;空心淡色、不標字
 function rfMarkers(pts){
   const out = []; let prev = 0, prevDay = null;
   for (const p of pts){
     const day = dayKey(p.time); if (day !== prevDay){ prev = 0; prevDay = day; }
-    const up = p.side > 0, flip = p.side !== prev; prev = p.side;
+    const up = p.side > 0, flip = p.press && p.side !== prev; if (p.press) prev = p.side;
     out.push({time: p.time, position: up ? 'belowBar' : 'aboveBar', shape: up ? 'arrowUp' : 'arrowDown', size: p.press ? 1 : 0.7,
               color: up ? (p.press ? '#FF5C6C' : 'rgba(255,92,108,.45)') : (p.press ? '#3EE6A0' : 'rgba(62,230,160,.45)'),
               text: flip ? (up ? '多 ' : '空 ') + hmKey(p.time) : ''});
+  }
+  return out;
+}
+// 2026-10-22 黃色虛線:每天第一個實心點出現前先連空心點(14:05 使用者:「如果盤中還沒有實心出現就先連接空心」),之後只連實心;每天各自連,不跨日
+function rfChainData(bars, pts){
+  const at = new Map(); bars.forEach((b, i) => at.set(b.time, i));
+  const out = bars.map(b => ({time: b.time}));
+  const byDay = new Map(); for (const p of pts){ const d = dayKey(p.time); if (!byDay.has(d)) byDay.set(d, []); byDay.get(d).push(p); }
+  for (const arr of byDay.values()){
+    const f = arr.findIndex(p => p.press);
+    const chain = (f < 0 ? arr : arr.slice(0, f).concat(arr.slice(f).filter(p => p.press))).map(p => ({i: at.get(p.time), v: p.price})).filter(p => p.i != null);
+    for (let k = 0; k < chain.length; k++){
+      const a = chain[k], z = chain[k + 1];
+      if (!z){ out[a.i] = {time: bars[a.i].time, value: a.v}; break; }
+      for (let j = a.i; j <= z.i; j++) out[j] = {time: bars[j].time, value: +(a.v + (z.v - a.v) * (j - a.i) / Math.max(1, z.i - a.i)).toFixed(3)};
+    }
   }
   return out;
 }
@@ -5358,6 +5388,7 @@ function applyRfMode(){
   if (b){ b.textContent = RF_MODE ? 'K線圖' : '漲跌圖'; b.classList.toggle('on', RF_MODE); }
   if (candle) candle.applyOptions({visible: !RF_MODE});
   if (rfLine) rfLine.applyOptions({visible: RF_MODE});
+  if (rfChain) rfChain.applyOptions({visible: RF_MODE});
   try{ updateHiLo(); }catch(e){}
 }
 function drawBars(bars, code, srcLabel, keepView){
@@ -5546,8 +5577,10 @@ function drawBars(bars, code, srcLabel, keepView){
   if (rfLine){ try{
     rfLine.setData(bars.map(b => ({time: b.time, value: b.close})));
     const sMa24 = sBars === bars ? ma24 : sma(sBars, 24, 'close', false);
-    rfLine.setMarkers(rfMarkers(rfPoints(sBars, sMa, sMa24, sOb, sObma)));
-  }catch(e){ try{ rfLine.setMarkers([]); }catch(_){} } }
+    const rp2 = rfPoints(sBars, sMa, sMa24, sOb, sObma);
+    rfLine.setMarkers(rfMarkers(rp2));
+    if (rfChain) rfChain.setData(rfChainData(bars, rp2));
+  }catch(e){ try{ rfLine.setMarkers([]); if (rfChain) rfChain.setData([]); }catch(_){} } }
   const cyc = YH.exitRule ? rpSig.state : null;    // 訊號循環(不受 3.5% 限制),只用來寫小字
   const trade = YH.exitRule ? rp.state : null;     // 真正的交易循環
   const lastMa = maMap.get(last.time);
