@@ -186,6 +186,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     357 檔 13 天:點 11.2 → 9.1 / 檔天,準確率 52.9% → 53.9%,見轉折就翻轉扣成本每筆 −0.42% → −0.38%、只空 −0.29% → −0.25%。只是畫面。
   · 2026-10-23 00:20 Kb 改 28 根(使用者:「Kb改28」;YH.kbPeriod,原 24):指標一藍線、漲跌圖、轉折圖、燈號的 Ka/Kb 位置都跟著。判一 ~ 判三不用 Kb,不受影響。
     Kb 16~40 回測(357 檔 13 天):轉折圖 準確率 53.8~54.0%、只空每筆 −0.26~−0.23%;漲跌圖 只空 24 根 −0.20%、28 根 −0.19%、30 根 −0.16%;差距都在雜訊內。
+  · 2026-10-23 00:30 燈號跟著目前那張圖(使用者:「切換 漲跌圖 就隨漲跌圖 切換轉折圖 就隨轉折圖」):K 線圖 = 原本的燈號;漲跌圖 = 最近一個實心非假的翻轉點(多 → 做多、空 → 做空);
+    轉折圖 = 最近一個轉折;同一天還沒有點 = 監控。十字線移到哪一根就顯示那一根當時的。天秤、通知、判別式都不動。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1764,7 +1766,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610230020">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610230030">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3815,13 +3817,13 @@ function showBarInfo(t){
   // 最後一根或沒有十字線 → 回到最新狀態。沒開平倉規則(stateAt 為空)時燈號不動,只動多空天秤。
   if (CUR.lampLast){
     const devPct = isFinite(d.ma) && d.ma > 0 ? (d.bar.close - d.ma) / d.ma * 100 : null;
-    if (isLast){ lampsFromInd3(CUR.lamps && CUR.lamps.get(d.bar.time)); updateMeter(CUR.biasLast); }   // 2026-10-21 燈號看指標三(連 2 根才換)   // 2026-10-21 燈號看指標三
+    if (isLast){ lampsFromInd3(lampStateAt(d.bar.time)); updateMeter(CUR.biasLast); }   // 2026-10-23 燈號跟著目前那張圖(lampStateAt)   // 2026-10-21 燈號看指標三(連 2 根才換)   // 2026-10-21 燈號看指標三
     else if (CUR.bars && CUR.maMap && d.i != null){
       let nDay = 0; for (let i = d.i; i >= 0 && dayKey(CUR.bars[i].time) === dayKey(d.bar.time); i--) nDay++;   // 十字線那根是當天第幾根
       const waiting = nDay < SIG.skipMin;
       const st = CUR.i3 && CUR.i3.get(d.bar.time);   // 2026-10-21 燈號 / 天秤看指標三(十字線那根)
       const b = waiting ? 0 : ind3Bias(st);
-      lampsFromInd3(CUR.lamps && CUR.lamps.get(d.bar.time)); updateMeter(b);
+      lampsFromInd3(lampStateAt(d.bar.time)); updateMeter(b);
     }
   }
 }                 // 圖上的 ±entryMaxChg% 進場區間線
@@ -5462,7 +5464,17 @@ function rfChainData(bars, pts, all){
   }
   return out;
 }
-let RF_ARGS = null;
+let RF_ARGS = null, RF_LAMPS = null;   // RF_LAMPS = {view, map: time → 做多 / 做空 / 監控}:漲跌圖 / 轉折圖的燈號(2026-10-23 00:25 使用者:「切換 漲跌圖 就隨漲跌圖 切換轉折圖 就隨轉折圖」)
+// 2026-10-23 00:25 燈號跟著目前那張圖走:K 線圖 = 原本的燈號(指標三四件事);漲跌圖 = 最近一個實心非假的翻轉點;轉折圖 = 最近一個轉折。
+//   同一天還沒有點 = 監控;換日重算。天秤、通知、判別式都不動
+function rfLampMap(bars, flips){   // flips = [{time, side}] 只放翻轉 / 轉折點
+  const m = new Map(); let k = 0, day = null, st = '監控';
+  for (const b of bars){ const dk = dayKey(b.time); if (dk !== day){ day = dk; st = '監控'; }
+    while (k < flips.length && flips[k].time <= b.time){ const f = flips[k++]; if (dayKey(f.time) === dk) st = f.side > 0 ? '做多' : '做空'; }
+    m.set(b.time, st); }
+  return m;
+}
+function lampStateAt(time){ return (RF_MODE && RF_LAMPS && RF_LAMPS.view === RF_VIEW && RF_LAMPS.map.has(time)) ? RF_LAMPS.map.get(time) : (CUR && CUR.lamps ? CUR.lamps.get(time) : null); }
 function rfDraw(){
   if (!rfLine || !RF_ARGS || RF_ARGS.done === RF_VIEW) return;
   const {bars, sBars, sMa, sOb, sObma, ma24} = RF_ARGS; RF_ARGS.done = RF_VIEW;
@@ -5473,6 +5485,9 @@ function rfDraw(){
     const pAt = new Map(rp2.map(p => [p.time, p.price]));   // 點畫在那根的高 / 低價上(透明線在點的那根取點價,其他取收盤)
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
     rfLine.setMarkers(rfMarkers(rp2));
+    { const fl = []; let prev = 0, pd = null;   // 翻轉點 = 實心非假、和前一個實心方向不同(同 rfMarkers)
+      for (const p of rp2){ const dk = dayKey(p.time); if (dk !== pd){ prev = 0; pd = dk; } if (p.fake || !p.press) continue; if (p.side !== prev) fl.push({time: p.time, side: p.side}); prev = p.side; }
+      RF_LAMPS = {view: 1, map: rfLampMap(bars, fl)}; }
     if (rfChain) rfChain.setData(rfChainData(bars, rp2));
     if (rfAll) rfAll.setData(rfChainData(bars, rp2, true));
   }catch(e){ try{ rfLine.setMarkers([]); if (rfChain) rfChain.setData([]); if (rfAll) rfAll.setData([]); }catch(_){} }
@@ -5519,6 +5534,7 @@ function turnDraw(bars, sBars, sMa, ma24, sOb){
   try{
     const sMa24 = sBars === bars ? ma24 : sma(sBars, YH.kbPeriod || 24, 'close', false);
     const pts = turnPoints(sBars, sMa, sMa24, sOb);
+    RF_LAMPS = {view: 2, map: rfLampMap(bars, pts.filter(p => p.flip))};
     const pAt = new Map(pts.map(p => [p.time, p.price]));
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
     rfLine.setMarkers(pts.map(p => { const up = p.side > 0;
@@ -5537,6 +5553,7 @@ function applyRfMode(){
   if (rfLine) rfLine.applyOptions({visible: RF_MODE});
   if (rfChain) rfChain.applyOptions({visible: RF_MODE});
   if (rfAll) rfAll.applyOptions({visible: RF_VIEW === 1});
+  try{ if (CUR && CUR.lamps){ const x = window.getXLock && getXLock(); showBarInfo(x && !x.follow ? x.time : null); } }catch(e){}   // 2026-10-23 燈號跟著目前那張圖,切換就重顯
   try{ updateHiLo(); }catch(e){}
 }
 function drawBars(bars, code, srcLabel, keepView){
@@ -5747,7 +5764,8 @@ function drawBars(bars, code, srcLabel, keepView){
     for (let k = bi; k > bi - nb; k--) if (!out(k)) return true;
     return false; };   // 2026-10-21 03:45 使用者「改」:收盤已經跌破 / 漲破震盪區間(那些起漲起跌點的最低 / 最高價)= 突破,不算震盪
   const LAMPS = ind3Lamps(bars, I3, lampIsChop, prevClose);   // 2026-10-21 連 YH.lampHold 根才換燈
-  lampsFromInd3(LAMPS.get(last.time));   // 2026-10-21 燈號改看指標三。原:lampsFromBias(bias, last.time, 離均價 %, strongLast, waiting)
+  if (CUR) CUR.lamps = LAMPS;
+  lampsFromInd3(lampStateAt(last.time));   // 2026-10-23 燈號跟著目前那張圖;2026-10-21 燈號改看指標三。原:lampsFromBias(bias, last.time, 離均價 %, strongLast, waiting)
     // 燈號跟隨多空天秤(2026-10-18);13:25 後只顯示監控;離均價超過 1% 不亮
   if (cyc && !cyc.gated){
     if (trade && trade.side === cyc.side){
