@@ -155,6 +155,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-22 19:05 指標三改版(使用者:「指標三 怎麼那麼多點點」→「改」,選 3):橘線(OBV 穿 Ob,一天 30 多點)不畫;紫線拆成兩條:
     紫上穿的點連線(紅)、紫下穿的點連線(綠),兩條同往上 = 漲、同往下 = 跌、一上一下 = 震盪。上方「指標三:」改顯示二線同上 / 二線同下 / 震盪 / 線未成形(當天各要 2 個點)。
     燈號、天秤、判別式、通知都沒動(燈號用的 Oa / Ob 位置照舊)。只是畫面。
+  · 2026-10-22 19:10 進 K 圖加速(使用者:「現在進入k圖 非常慢」):漲跌圖的點和連線改成切到漲跌圖時才算;指標三的文字改成一次掃完(原本每根 K 從頭掃)。畫面、結果都不變。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1733,7 +1734,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610221905">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610221910">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5410,7 +5411,22 @@ function rfChainData(bars, pts, all){
   }
   return out;
 }
+let RF_ARGS = null;
+function rfDraw(){
+  if (!rfLine || !RF_ARGS || RF_ARGS.done) return;
+  const {bars, sBars, sMa, sOb, sObma, ma24} = RF_ARGS; RF_ARGS.done = true;
+  try{
+    const sMa24 = sBars === bars ? ma24 : sma(sBars, 24, 'close', false);
+    const rp2 = rfPoints(sBars, sMa, sMa24, sOb, sObma, sma(sOb, 24, 'value'));
+    const pAt = new Map(rp2.map(p => [p.time, p.price]));   // 點畫在那根的高 / 低價上(透明線在點的那根取點價,其他取收盤)
+    rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
+    rfLine.setMarkers(rfMarkers(rp2));
+    if (rfChain) rfChain.setData(rfChainData(bars, rp2));
+    if (rfAll) rfAll.setData(rfChainData(bars, rp2, true));
+  }catch(e){ try{ rfLine.setMarkers([]); if (rfChain) rfChain.setData([]); if (rfAll) rfAll.setData([]); }catch(_){} }
+}
 function applyRfMode(){
+  if (RF_MODE) rfDraw();
   const b = el('rfToggle');
   if (b){ b.textContent = RF_MODE ? 'K線圖' : '漲跌圖'; b.classList.toggle('on', RF_MODE); }
   if (candle) candle.applyOptions({visible: !RF_MODE});
@@ -5458,6 +5474,14 @@ function drawBars(bars, code, srcLabel, keepView){
   //   Ka(均價 10)和 Kb(均價 24)每次交叉的那根記一個點(值 = 那根的 Ka),紫線依序相連;往上穿紅點、往下穿綠點,K 線圖的 Ka 線上也標同樣的小點。兩條線的點都不標價格。
   const kxPts = maCrossPoints(ma, ma24);
   KX_PTS = kxPts;
+  const I3TXT = new Map();   // 2026-10-22 19:10 每根 K 的「二線同上 / 二線同下 / 震盪 / 線未成形」,一次掃完(原本每根從頭掃)
+  { let k = 0, day = null, u = [], w = [];
+    for (const b of bars){ const dk = dayKey(b.time); if (dk !== day){ day = dk; u = []; w = []; }
+      while (k < kxPts.length && kxPts[k].time <= b.time){ const p = kxPts[k++]; if (dayKey(p.time) === dk) (p.side > 0 ? u : w).push(p.price); }
+      let st = '線未成形';
+      if (u.length >= 2 && w.length >= 2){ const su = Math.sign(u[u.length - 1] - u[u.length - 2]), sd = Math.sign(w[w.length - 1] - w[w.length - 2]);
+        st = su > 0 && sd > 0 ? '二線同上' : su < 0 && sd < 0 ? '二線同下' : '震盪'; }
+      I3TXT.set(b.time, st); } }
   const kx = lineThrough(bars, kxPts.map(p => ({time: p.time, value: p.price})));
   // 2026-10-21 使用者:「K 圖要乾淨」:K 線圖 Ka 線上的 Ka×Kb 穿越小點拿掉(指標三的紫線照樣標),只留 K 棒、Ka、Kb、最高 / 最低價
   try{ maLine.setMarkers([]); }catch(e){}
@@ -5555,10 +5579,7 @@ function drawBars(bars, code, srcLabel, keepView){
         obma: k2 != null ? obma[k2].value : NaN, obmaPrev: k2 != null && k2 > 0 ? obma[k2 - 1].value : null,
         obma30: k3 != null ? obma30[k3].value : NaN, obma30Prev: k3 != null && k3 > 0 ? obma30[k3 - 1].value : null,
         obma16: (k6 => k6 != null ? obma16[k6].value : NaN)(iObma16.get(b.time)), obma16Prev: (k6 => k6 != null && k6 > 0 ? obma16[k6 - 1].value : null)(iObma16.get(b.time)),
-        org: (() => { const u = [], w = []; for (const p of kxPts){ if (p.time > b.time) break; if (dayKey(p.time) !== dayKey(b.time)) continue; (p.side > 0 ? u : w).push(p.price); }   // 2026-10-22 19:05 指標三文字:兩條紫線的方向
-          if (u.length < 2 || w.length < 2) return '線未成形';
-          const su = Math.sign(u[u.length - 1] - u[u.length - 2]), sd = Math.sign(w[w.length - 1] - w[w.length - 2]);
-          return su > 0 && sd > 0 ? '二線同上' : su < 0 && sd < 0 ? '二線同下' : '震盪'; })(),
+        org: I3TXT.get(b.time) || '',   // 2026-10-22 19:05 指標三文字:兩條紫線的方向(19:10 改成一次掃完,I3TXT)
         kx: (() => { let q = null; for (const p of kxPts){ if (p.time > b.time) break; q = p; } return q ? (q.side > 0 ? '上穿 ' : '下穿 ') + hmKey(q.time) : ''; })(),
       });
     });
@@ -5608,15 +5629,9 @@ function drawBars(bars, code, srcLabel, keepView){
   MARKS = marks; marksHidden = false; candle.setMarkers(marks);
   // 2026-10-22 漲跌圖(使用者:「畫好價格線 然後把多空點標示出來」→「加一個按鍵 切換K線圖跟這個漲跌圖」):
   //   收盤價線 + 三訊號多空點,只是畫面,判別式 / 通知 / 燈號都不用。多空點用和訊號同一份 K(sBars,只用雲端 K)
-  if (rfLine){ try{
-    const sMa24 = sBars === bars ? ma24 : sma(sBars, 24, 'close', false);
-    const rp2 = rfPoints(sBars, sMa, sMa24, sOb, sObma, sma(sOb, 24, 'value'));
-    const pAt = new Map(rp2.map(p => [p.time, p.price]));   // 點畫在那根的高 / 低價上(透明線在點的那根取點價,其他取收盤)
-    rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
-    rfLine.setMarkers(rfMarkers(rp2));
-    if (rfChain) rfChain.setData(rfChainData(bars, rp2));
-    if (rfAll) rfAll.setData(rfChainData(bars, rp2, true));
-  }catch(e){ try{ rfLine.setMarkers([]); if (rfChain) rfChain.setData([]); if (rfAll) rfAll.setData([]); }catch(_){} } }
+  // 2026-10-22 19:10 使用者:「現在進入k圖 非常慢」:漲跌圖的點和連線只在切到漲跌圖時才算(看 K 線圖時不算)
+  RF_ARGS = {bars, sBars, sMa, sOb, sObma, ma24, done: false};
+  if (RF_MODE) rfDraw();
   const cyc = YH.exitRule ? rpSig.state : null;    // 訊號循環(不受 3.5% 限制),只用來寫小字
   const trade = YH.exitRule ? rp.state : null;     // 真正的交易循環
   const lastMa = maMap.get(last.time);
