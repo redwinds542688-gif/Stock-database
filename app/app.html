@@ -145,6 +145,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     友達 10/21 驗:36 點 → 18 點,實心翻轉 多 10:41 / 空 10:56 / 多 12:29 / 空 13:11 / 多 13:24,和研究圖相同。只是畫面,判別式、通知、燈號都沒動。
   · 2026-10-22 14:25 漲跌圖加藍色點線(使用者:「改 把空心+實心也連線 與只連線實心 對比一下」):藍 = 空心 + 實心全部連,黃虛線 = 只連實心(實心出現前先連空心),兩條對比。只是畫面。
   · 2026-10-22 14:30 漲跌圖多空點改畫在價格點上(使用者:「藍虛線 這上漲空心沒有連線」):原本畫在價格下方 / 上方,看起來線沒連到三角形;改 inBar,黃線、藍線都穿過三角形。只是畫面。
+  · 2026-10-22 14:35 漲跌圖:空點取那根最高價、多點取最低價(使用者:「下跌的連高價 上漲的連低價」),點和黃線、藍線都用這個價。只是畫面。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1723,7 +1724,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610221430">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610221435">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5354,7 +5355,7 @@ function rfPoints(bars, ma, ma24, ob, obma){
   for (let i = 1; i < bars.length; i++) for (const d of [1, -1]){
     if (!st(i, d)){ done[d] = false; continue; }
     if (done[d] || !brk(i, d)) continue;
-    out.push({time: bars[i].time, side: d, price: bars[i].close, press: press(i, d)}); done[d] = true;
+    out.push({time: bars[i].time, side: d, price: d > 0 ? bars[i].low : bars[i].high, press: press(i, d)}); done[d] = true;   // 14:35 使用者:「下跌的連高價 上漲的連低價」
   }
   return out;
 }
@@ -5580,9 +5581,10 @@ function drawBars(bars, code, srcLabel, keepView){
   // 2026-10-22 漲跌圖(使用者:「畫好價格線 然後把多空點標示出來」→「加一個按鍵 切換K線圖跟這個漲跌圖」):
   //   收盤價線 + 三訊號多空點,只是畫面,判別式 / 通知 / 燈號都不用。多空點用和訊號同一份 K(sBars,只用雲端 K)
   if (rfLine){ try{
-    rfLine.setData(bars.map(b => ({time: b.time, value: b.close})));
     const sMa24 = sBars === bars ? ma24 : sma(sBars, 24, 'close', false);
     const rp2 = rfPoints(sBars, sMa, sMa24, sOb, sObma);
+    const pAt = new Map(rp2.map(p => [p.time, p.price]));   // 點畫在那根的高 / 低價上(透明線在點的那根取點價,其他取收盤)
+    rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
     rfLine.setMarkers(rfMarkers(rp2));
     if (rfChain) rfChain.setData(rfChainData(bars, rp2));
     if (rfAll) rfAll.setData(rfChainData(bars, rp2, true));
