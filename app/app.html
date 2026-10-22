@@ -156,6 +156,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     紫上穿的點連線(紅)、紫下穿的點連線(綠),兩條同往上 = 漲、同往下 = 跌、一上一下 = 震盪。上方「指標三:」改顯示二線同上 / 二線同下 / 震盪 / 線未成形(當天各要 2 個點)。
     燈號、天秤、判別式、通知都沒動(燈號用的 Oa / Ob 位置照舊)。只是畫面。
   · 2026-10-22 19:10 進 K 圖加速(使用者:「現在進入k圖 非常慢」):漲跌圖的點和連線改成切到漲跌圖時才算;指標三的文字改成一次掃完(原本每根 K 從頭掃)。畫面、結果都不變。
+  · 2026-10-22 19:30 進 K 圖第一次要 8 秒修正(使用者:「今天開始慢」→「改」;Worker 改,手機不用動):12:07 不再 list 之後,整天的雲端 K 要一分鐘一分鐘讀約 540 個鍵。
+    Worker 改成把「收完的分鐘」拼好的結果存 Cloudflare 邊緣快取(不算 KV 次數),下次只讀之後的幾分鐘接著拼。模擬一整天 283 次比對和舊拼法完全相同。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1734,7 +1736,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610221910">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610221930">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">

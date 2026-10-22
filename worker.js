@@ -196,59 +196,91 @@ async function kvGetMany(env, keys) {
   for (let i = 0; i < keys.length; i += 25) vals.push(...await Promise.all(keys.slice(i, i + 25).map(k => env.LOGS.get(k))));
   return vals;
 }
-/** 把一天的快照拼成每檔的 1 分K */
-async function dayBars(env, d, codes, since) {
-  const addM0 = (hm, k) => m2hm(hm2m(hm) + k);
-  const from = since ? addM0(since, -2) : "09:00";             // 增量:多拿前 2 分鐘當基準(和判斷前一分鐘有沒有子快照)
-  const keys = [...minuteKeys(d, "bar", from), ...minuteKeys(d, "bas", from)];
-  // 依時分排,同一分鐘 bar(開頭快照)在 bas(:30、:56 子快照)前面
-  keys.sort((a, b) => a.slice(-5) < b.slice(-5) ? -1 : a.slice(-5) > b.slice(-5) ? 1 : (a < b ? -1 : 1));
-  const addM = (hm, k) => { const m = +hm.slice(0, 2) * 60 + +hm.slice(3, 5) + k; return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
-  // 增量:從 since 前 2 分鐘的快照開始(當基準,不出那根),回傳 since 起的 K(since 那根可能還沒拼完,整根重給)
-  const use = keys, vals = await kvGetMany(env, use);
-  const obs = [];   // [快照時分, {code: rec}, 照 t 歸分鐘?]
+/** 把一天的快照拼成每檔的 1 分K
+ * 2026-10-22 19:26 使用者「改」(進 K 圖第一次要 8 秒):拼 K 的步驟拆成 feedBars(照順序吃快照、狀態留在 st),
+ *   整天的查詢改走 dayBarsFull:已收完的分鐘拼好的狀態存 Cloudflare 邊緣快取(不算 KV 次數),下次只讀新的幾分鐘再接著拼。結果和整天重讀一樣 */
+const addM = (hm, k) => m2hm(hm2m(hm) + k);
+const sortKeys = keys => keys.sort((a, b) => a.slice(-5) < b.slice(-5) ? -1 : a.slice(-5) > b.slice(-5) ? 1 : (a < b ? -1 : 1));   // 同一分鐘 bar(開頭快照)在 bas(:30、:56 子快照)前面
+// 2026-10-19 收盤後對照 Yahoo 整天 K 發現:HH:MM 的快照拿到的是「上一分鐘」的成交(12:01:0x 的快照 = 12:00 那一分鐘),
+// 標籤要往前移一分鐘才和 Yahoo / 手機自拼的 K(都以成交那一分鐘的開頭當標籤)一致;09:00 的第一個快照(開盤撮合)仍標 09:00
+// 2026-10-21 23:30 有資料時間 t 的快照改照 t 歸分鐘(見 buildSnap);沒有 t 的舊快照照舊
+const barLbl = (hm, rec, useT) => { const t = useT && rec && rec[3]; if (t && t.length >= 5) { const m = t.slice(0, 5); return m < "09:00" ? "09:00" : m > "13:30" ? "13:30" : m; } return hm <= "09:00" ? "09:00" : addM(hm, -1); };
+const barsState = () => ({ upto: "", n: 0, sub: [], prev: {}, bars: {} });
+/** 照時分順序吃快照(keys 已排好、vals 對應),st = {n, sub(有子快照的分鐘), prev, bars};want = 只拼哪些檔(null = 全部) */
+function feedBars(st, keys, vals, since, want) {
   // 開頭快照只有在前一分鐘有子快照時才照 t 歸分鐘;前一分鐘沒有(舊資料、子快照失敗)= 這筆其實是上一分鐘的收盤,照舊規則標前一分鐘
-  const hasSub = new Set(use.filter((k, j) => k.startsWith("bas:") && vals[j]).map(k => k.slice(-5)));
-  use.forEach((k, j) => {
+  // (bas:前一分鐘 排在 bar:這一分鐘 前面,所以邊吃邊記就好)
+  const hasSub = new Set(st.sub), bars = st.bars, prev = st.prev;
+  keys.forEach((k, j) => {
     if (!vals[j]) return; let v; try { v = JSON.parse(vals[j]); } catch (e) { return; }
-    if (k.startsWith("bas:")) { for (const sub of (Array.isArray(v) ? v : [])) obs.push([k.slice(-5), sub, true]); } else obs.push([k.slice(-5), v, hasSub.has(addM(k.slice(-5), -1))]);
-  });
-  const nSnap = use.filter((k, j) => k.startsWith("bar:") && vals[j]).length;
-  const want = codes && codes.length ? new Set(codes) : null;
-  const bars = {}, prev = {};
-  // 2026-10-19 收盤後對照 Yahoo 整天 K 發現:HH:MM 的快照拿到的是「上一分鐘」的成交(12:01:0x 的快照 = 12:00 那一分鐘),
-  // 標籤要往前移一分鐘才和 Yahoo / 手機自拼的 K(都以成交那一分鐘的開頭當標籤)一致;09:00 的第一個快照(開盤撮合)仍標 09:00
-  // 2026-10-21 23:30 有資料時間 t 的快照改照 t 歸分鐘(見 buildSnap);沒有 t 的舊快照照舊
-  const lbl = (hm, rec, useT) => { const t = useT && rec && rec[3]; if (t && t.length >= 5) { const m = t.slice(0, 5); return m < "09:00" ? "09:00" : m > "13:30" ? "13:30" : m; } return hm <= "09:00" ? "09:00" : addM(hm, -1); };
-  for (const [hm0, s, useT] of obs) {
-    for (const c in s) {
-      if (want && !want.has(c)) continue;
-      const rec = s[c], z = rec[0], v = rec[1], p = prev[c], hm = lbl(hm0, rec, useT);
-      // 2026-10-21 使用者(台郡「量不對」):證交所偶爾回舊快照(時間倒退、累計量變少),原本 prev 被拉回舊的量,下一分鐘又把同一段量算一次
-      //   (09:54 時 130 檔有 45 檔雲端 K 總量比證交所多 1% 以上,台郡多 1,573 張)。累計量比上一個快照少 → 這個快照整個不算
-      if (p && v < p[1]) continue;
-      // 2026-10-22 使用者(「改 Worker 三項都改」):累計量一樣、但資料時間比上一筆還舊 = 舊伺服器回的舊快照,也不算(之前會用舊價夾買賣價拼出零量的 K)
-      const tt = rec[3] || "";
-      if (p && tt && p[2] && tt < p[2]) continue;
-      prev[c] = [z, v, tt];
-      if (!p) { if (!since) bars[c] = [[hm, z, z, z, z, hm0 <= "09:02" ? Math.round(v * 1000) : 0]]; continue; }   // 當天第一個快照:09:00 開始存的話量 = 開盤撮合的累計;盤中才開始存(例如 2026-10-19 11:57 上線)就給 0,
-                                                                                                                       // 不然整個上午的累計量會灌進那一根,OBV 一次跳好幾千張(使用者截圖:燿華 12:05 跳 3,700 張)。那段的量由手機用 Yahoo 補
-      const dv = Math.max(0, v - p[1]) * 1000;
-      if (dv <= 0 && z === p[0]) continue;                   // 這段沒成交
-      const arr = (bars[c] = bars[c] || []), lb = arr[arr.length - 1];
-      if (lb && lb[0] >= hm) { lb[2] = Math.max(lb[2], z); lb[3] = Math.min(lb[3], z); lb[4] = z; lb[5] += Math.round(dv); continue; }   // 同一分鐘(或資料時間比上一根還早)併進上一根
-      arr.push([hm, p[0], Math.max(p[0], z), Math.min(p[0], z), z, Math.round(dv)]);
+    const hm0 = k.slice(-5), obs = [];
+    if (k.startsWith("bas:")) { hasSub.add(hm0); for (const sub of (Array.isArray(v) ? v : [])) obs.push([sub, true]); }
+    else { st.n++; obs.push([v, hasSub.has(addM(hm0, -1))]); }
+    for (const [s, useT] of obs) {
+      for (const c in s) {
+        if (want && !want.has(c)) continue;
+        const rec = s[c], z = rec[0], v = rec[1], p = prev[c], hm = barLbl(hm0, rec, useT);
+        // 2026-10-21 使用者(台郡「量不對」):證交所偶爾回舊快照(時間倒退、累計量變少),原本 prev 被拉回舊的量,下一分鐘又把同一段量算一次
+        //   (09:54 時 130 檔有 45 檔雲端 K 總量比證交所多 1% 以上,台郡多 1,573 張)。累計量比上一個快照少 → 這個快照整個不算
+        if (p && v < p[1]) continue;
+        // 2026-10-22 使用者(「改 Worker 三項都改」):累計量一樣、但資料時間比上一筆還舊 = 舊伺服器回的舊快照,也不算(之前會用舊價夾買賣價拼出零量的 K)
+        const tt = rec[3] || "";
+        if (p && tt && p[2] && tt < p[2]) continue;
+        prev[c] = [z, v, tt];
+        if (!p) { if (!since) bars[c] = [[hm, z, z, z, z, hm0 <= "09:02" ? Math.round(v * 1000) : 0]]; continue; }   // 當天第一個快照:09:00 開始存的話量 = 開盤撮合的累計;盤中才開始存(例如 2026-10-19 11:57 上線)就給 0,
+                                                                                                                         // 不然整個上午的累計量會灌進那一根,OBV 一次跳好幾千張(使用者截圖:燿華 12:05 跳 3,700 張)。那段的量由手機用 Yahoo 補
+        const dv = Math.max(0, v - p[1]) * 1000;
+        if (dv <= 0 && z === p[0]) continue;                   // 這段沒成交
+        const arr = (bars[c] = bars[c] || []), lb = arr[arr.length - 1];
+        if (lb && lb[0] >= hm) { lb[2] = Math.max(lb[2], z); lb[3] = Math.min(lb[3], z); lb[4] = z; lb[5] += Math.round(dv); continue; }   // 同一分鐘(或資料時間比上一根還早)併進上一根
+        arr.push([hm, p[0], Math.max(p[0], z), Math.min(p[0], z), z, Math.round(dv)]);
+      }
     }
-  }
-  // 今天還沒走完的這一分鐘不給(訊號只看收完的 K,和以前一樣);增量查詢只回 since 起的
-  const cut = d === ymdOf(twNow()) ? hhmmOf(twNow()) : "99:99";
+  });
+  st.sub = [...hasSub].filter(m => m >= "09:00").slice(-3);   // 只會查前一分鐘,留最後幾個就好
+}
+/** 今天還沒走完的這一分鐘不給(訊號只看收完的 K,和以前一樣);增量查詢只回 since 起的 */
+function barsOut(d, bars, n, since, want) {
+  const cut = d === ymdOf(twNow()) ? hhmmOf(twNow()) : "99:99", out = {};
   let last = "";
   for (const c in bars) {
-    bars[c] = bars[c].filter(b => b[0] < cut && (!since || b[0] >= since));
-    if (!bars[c].length) { delete bars[c]; continue; }
-    const lb = bars[c][bars[c].length - 1][0]; if (lb > last) last = lb;
+    if (want && !want.has(c)) continue;
+    const a = bars[c].filter(b => b[0] < cut && (!since || b[0] >= since));
+    if (!a.length) continue;
+    out[c] = a; const lb = a[a.length - 1][0]; if (lb > last) last = lb;
   }
-  return { d, last: last || since || "", n: nSnap, bars };   // last = 最後一根的標籤(手機下次用 since 傳回來)
+  return { d, last: last || since || "", n, bars: out };   // last = 最後一根的標籤(手機下次用 since 傳回來)
+}
+async function dayBars(env, d, codes, since) {
+  const from = since ? addM(since, -2) : "09:00";             // 增量:多拿前 2 分鐘當基準(和判斷前一分鐘有沒有子快照)
+  const keys = sortKeys([...minuteKeys(d, "bar", from), ...minuteKeys(d, "bas", from)]);
+  // 增量:從 since 前 2 分鐘的快照開始(當基準,不出那根),回傳 since 起的 K(since 那根可能還沒拼完,整根重給)
+  const vals = await kvGetMany(env, keys);
+  const want = codes && codes.length ? new Set(codes) : null, st = barsState();
+  feedBars(st, keys, vals, since, want);
+  return barsOut(d, st.bars, st.n, since, want);
+}
+/** 整天的查詢:收完的分鐘(現在往前 2 分鐘以前,子快照 :56 也寫好了)拼好的狀態存邊緣快取,下次只讀之後的鍵 */
+async function dayBarsFull(env, ctx, origin, d, codes) {
+  const want = codes && codes.length ? new Set(codes) : null;
+  const today = d === ymdOf(twNow());
+  const safe = today ? m2hm(Math.min(hm2m(hhmmOf(twNow())) - 2, 13 * 60 + 35)) : "13:35";
+  const sk = new Request(`${origin}/__barsst?d=${d}&v=1`), cache = caches.default;
+  let st = null;
+  try { const h = await cache.match(sk); if (h) st = await h.json(); } catch (e) { st = null; }
+  if (!st || !st.prev) st = barsState();
+  const all = sortKeys([...minuteKeys(d, "bar", st.upto ? addM(st.upto, 1) : "09:00"), ...minuteKeys(d, "bas", st.upto ? addM(st.upto, 1) : "09:00")]);
+  const done = all.filter(k => k.slice(-5) <= safe), tail = all.filter(k => k.slice(-5) > safe);
+  const vals = await kvGetMany(env, all);
+  if (done.length) {
+    feedBars(st, done, vals.slice(0, done.length), "", null);
+    st.upto = safe;
+    const body = JSON.stringify(st);
+    const put = cache.put(sk, new Response(body, { headers: { "Content-Type": "application/json", "Cache-Control": `public, max-age=${today ? 86400 : 7 * 86400}` } }));
+    if (ctx && ctx.waitUntil) ctx.waitUntil(put); else await put;
+  }
+  if (tail.length) feedBars(st, tail, vals.slice(done.length), "", null);   // 還沒收完的幾分鐘只拿來回這一次,不存
+  return barsOut(d, st.bars, st.n, "", want);
 }
 
 /* 2026-10-21 使用者「改 判二 大盤偏多只做黑盤空」:大盤寬度 = 名單上每檔最新價 > 昨收的比例(上漲 /(上漲 + 下跌),平盤不算),每分鐘一個值。
@@ -353,7 +385,7 @@ export default {
       const cache = caches.default;
       const hit = await cache.match(ck);
       if (hit) { const h = new Headers(hit.headers); for (const [k, v] of Object.entries(CORS)) h.set(k, v); return new Response(hit.body, { status: 200, headers: h }); }
-      const out = await dayBars(env, d, codes, since);
+      const out = since ? await dayBars(env, d, codes, since) : await dayBarsFull(env, ctx, url.origin, d, codes);
       const body = JSON.stringify(out);
       const resp = new Response(body, { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });
       const ttl = since ? 20 : 50;    // 全天的查詢要讀幾百個鍵,邊緣快取 50 秒;增量的 20 秒
