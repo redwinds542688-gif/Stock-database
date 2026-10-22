@@ -173,6 +173,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     (原本中途出錯會一直卡住,之後點圖都不理);點一下另外接圖庫自己的點擊事件當第二條路。
   · 2026-10-22 21:10 指標三改回原來(使用者:「改回原來 沒有綠紅線的版本」):19:05 的改版撤回 → 橘線(OBV 穿 Ob 的點連線,上穿藍點、下穿橘點)+ 紫線(Ka 穿 Kb 的點連線,上穿紅點、下穿綠點);
     上方「指標三:」回到「往上穿 / 往下穿 時間」。19:10 的加速(文字一次掃完)照留。燈號、判別式、通知都沒動。
+  · 2026-10-22 21:35 指標三橘線的點改取收盤價(使用者:友達 11:03→11:06「橘線為何下降」→「改」):上穿、下穿都取那根 K 的收盤(成交價);原本上穿取最低、下穿取最高。
+    友達 10/22:10:50 36.75→36.80、11:03 36.95→36.90、11:06 36.90→37.00(和元大成交價一樣)。只有指標三橘線的畫面,燈號(看 Oa / Ob 位置)、判別式、通知都沒動。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1751,7 +1753,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610222110">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610222135">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4733,8 +4735,10 @@ function obvCrossPoints(bars, ob, obma){
     if (o == null || m == null){ prev = null; continue; }
     const d = o - m;
     if (prev != null){
-      if (d > 0 && prev <= 0) out.push({time: b.time, side: 1, price: b.low});
-      else if (d < 0 && prev >= 0) out.push({time: b.time, side: -1, price: b.high});
+      // 2026-10-22 21:31 使用者(友達 11:03→11:06「橘線為何下降」→「改」):上穿、下穿都取那根的收盤價(成交價,和元大一樣);原本上穿取最低、下穿取最高,
+      //   11:03 下穿 36.95(最高)→ 11:06 上穿 36.90(最低)看起來在跌,實際成交 36.90 → 37.00 是漲
+      if (d > 0 && prev <= 0) out.push({time: b.time, side: 1, price: b.close});
+      else if (d < 0 && prev >= 0) out.push({time: b.time, side: -1, price: b.close});
     }
     prev = d;
   }
