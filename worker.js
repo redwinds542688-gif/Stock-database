@@ -330,12 +330,13 @@ export default {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !code) return J({ error: "要 barsraw=YYYY-MM-DD|today&code=代碼" }, 400);
       const from = url.searchParams.get("from") || "00:00", to = url.searchParams.get("to") || "99:99";
       const keys = [];
-      const meta = {};
-      for (const pre of ["bar", "bas"]) { const r = await env.LOGS.list({ prefix: `${pre}:${d}:`, limit: 1000 }); for (const k of r.keys) if (k.name.slice(-5) >= from && k.name.slice(-5) <= to) { keys.push(k.name); if (k.metadata) meta[k.name] = k.metadata; } }
+      const meta = {};   // 2026-10-22 12:10 不 list(KV 一天 list 上限),照鍵名直接讀,metadata 用 getWithMetadata
+      for (const k of [...minuteKeys(d, "bar", from), ...minuteKeys(d, "bas", from)]) if (k.slice(-5) <= to) keys.push(k);
       keys.sort((a, b) => a.slice(-5) < b.slice(-5) ? -1 : a.slice(-5) > b.slice(-5) ? 1 : (a < b ? -1 : 1));
       const out = [];
       for (const k of keys.slice(0, 120)) {
-        let v; try { v = JSON.parse(await env.LOGS.get(k) || "null"); } catch (e) { v = null; }
+        let v; try { const r = await env.LOGS.getWithMetadata(k); if (r.metadata) meta[k] = r.metadata; v = JSON.parse(r.value || "null"); } catch (e) { v = null; }
+        if (v == null) continue;
         if (k.startsWith("bas:")) (Array.isArray(v) ? v : []).forEach((s, i) => out.push([k + "#" + i, s && s[code] || null]));
         else out.push([k, v && v[code] || null]);
       }
