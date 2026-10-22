@@ -89,16 +89,20 @@ const FRESH_N = 4;
 /* 2026-10-22 使用者(「改 Worker 三項都改」):09:00~10:50 原始快照查出有的快照拖到 30 多秒才拿到資料——原本 Promise.all 要等 4 個請求裡最慢那個。
    改成最多等 MIS_WAIT 毫秒,用已經回來的;那時一個都還沒回來,就等第一個回來的(不會整筆沒資料) */
 const MIS_WAIT = 4000;
+/* 2026-10-22 11:30 修正後 33 分鐘:每分鐘都只存到 1 筆子快照(第二筆從沒成功)。免費方案一次執行最多同時開 6 條連線,
+   沒用到的慢請求一直佔著連線,下一輪的請求要排隊 → 用完就取消(abort)剩下的;同時連線數也壓在 6 條內(見 misFetch) */
+const MIS_CONN = 6;
 async function misFresh(ex_ch, n = FRESH_N) {
   const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${ex_ch}&json=1&delay=0&_=`;
-  const rs = [];
+  const rs = [], ac = new AbortController();
   await new Promise(done => {
     let left = n, late = false;
     const timer = setTimeout(() => { if (rs.length) done(); else late = true; }, MIS_WAIT);
     for (let i = 0; i < n; i++)
-      fetch(url + (Date.now() + i), { headers: MIS_HDR, cf: { cacheTtl: 0 } }).then(r => r.ok ? r.json() : null).catch(() => null)
+      fetch(url + (Date.now() + i), { headers: MIS_HDR, cf: { cacheTtl: 0 }, signal: ac.signal }).then(r => r.ok ? r.json() : null).catch(() => null)
         .then(j => { if (j && Array.isArray(j.msgArray)) rs.push(j); left--; if (left === 0 || (late && rs.length)) { clearTimeout(timer); done(); } });
   });
+  try { ac.abort(); } catch (e) {}
   let best = null; const by = new Map();
   for (const j of rs) {
     if (!j || !Array.isArray(j.msgArray)) continue;
@@ -118,7 +122,8 @@ async function misFetch(list, n) {
   const out = [], parts = [];
   for (let i = 0; i < list.length; i += 50) parts.push(list.slice(i, i + 50).map(s => `${s.mkt}_${s.code}.tw`).join("|"));
   // 2026-10-22 各批(每批 50 檔)同時抓,不再一批等完才抓下一批
-  const js = await Promise.all(parts.map(ex_ch => misFresh(ex_ch, n).catch(e => { console.log("mis " + e); return null; })));
+  const per = Math.max(1, Math.min(n || FRESH_N, Math.floor(MIS_CONN / Math.max(1, parts.length))));   // 同時連線 ≤ MIS_CONN
+  const js = await Promise.all(parts.map(ex_ch => misFresh(ex_ch, per).catch(e => { console.log("mis " + e); return null; })));
   for (const j of js) for (const m of ((j && j.msgArray) || [])) out.push(m);
   return out;
 }
@@ -154,19 +159,24 @@ async function snapshotBars(env, subs, at) {
   if (hm < 9 * 60 || hm > 13 * 60 + 35) return "off-hours";
   const list = await poolCodes();
   const d = ymdOf(t), ymd = d.replace(/-/g, ""), key = hhmmOf(t);
+  const sec = () => Math.round((Date.now() - m0) / 100) / 10;   // 這一分鐘開始後幾秒(查問題用,存在 KV metadata,?barsraw 看得到)
+  const tm = { s: sec() };
   const r0 = buildSnap(await misFetch(list), ymd);
   if (!r0.dOk) return "holiday";
-  await env.LOGS.put(`bar:${d}:${key}`, JSON.stringify(r0.s), { expirationTtl: 14 * 86400 });
+  tm.e = sec();
+  await env.LOGS.put(`bar:${d}:${key}`, JSON.stringify(r0.s), { expirationTtl: 14 * 86400, metadata: tm });
   if (!subs || hm > 13 * 60 + 30) return `bar ${d} ${key} ${r0.n} 檔`;
   // 同一分鐘的 :30、:56 再各抓一次(:30 只問 2 次省子請求;:56 問 4 次取最新,當這分鐘的收盤)
   const out = [];
-  for (const [sec, n] of [[30, 2], [56, FRESH_N]]) {
-    const wait = m0 + sec * 1000 - Date.now();
-    if (wait < 1000) continue;                               // 這一分鐘的 :30 / :56 已經過了(Cron 晚醒、開頭那筆抓太久)就跳過,不跑到下一分鐘
+  const sm = {};
+  for (const [at2, n] of [[30, 2], [56, FRESH_N]]) {
+    const wait = m0 + at2 * 1000 - Date.now();
+    if (wait < 1000) { sm["s" + at2] = "skip@" + sec(); continue; }   // 這一分鐘的 :30 / :56 已經過了(Cron 晚醒、開頭那筆抓太久)就跳過,不跑到下一分鐘
     await new Promise(r => setTimeout(r, wait));
-    try { const r = buildSnap(await misFetch(list, n), ymd); if (r.n) out.push(r.s); } catch (e) { console.log("子快照失敗 " + e); }
+    const b = sec();
+    try { const r = buildSnap(await misFetch(list, n), ymd); if (r.n) out.push(r.s); sm["s" + at2] = b + "-" + sec() + (r.n ? "" : " 0檔"); } catch (e) { sm["s" + at2] = "err " + e; console.log("子快照失敗 " + e); }
   }
-  if (out.length) await env.LOGS.put(`bas:${d}:${key}`, JSON.stringify(out), { expirationTtl: 14 * 86400 });
+  if (out.length) await env.LOGS.put(`bas:${d}:${key}`, JSON.stringify(out), { expirationTtl: 14 * 86400, metadata: sm });
   return `bar ${d} ${key} ${r0.n} 檔 + 子快照 ${out.length}`;
 }
 /** 把一天的快照拼成每檔的 1 分K */
@@ -319,7 +329,8 @@ export default {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !code) return J({ error: "要 barsraw=YYYY-MM-DD|today&code=代碼" }, 400);
       const from = url.searchParams.get("from") || "00:00", to = url.searchParams.get("to") || "99:99";
       const keys = [];
-      for (const pre of ["bar", "bas"]) { const r = await env.LOGS.list({ prefix: `${pre}:${d}:`, limit: 1000 }); for (const k of r.keys) if (k.name.slice(-5) >= from && k.name.slice(-5) <= to) keys.push(k.name); }
+      const meta = {};
+      for (const pre of ["bar", "bas"]) { const r = await env.LOGS.list({ prefix: `${pre}:${d}:`, limit: 1000 }); for (const k of r.keys) if (k.name.slice(-5) >= from && k.name.slice(-5) <= to) { keys.push(k.name); if (k.metadata) meta[k.name] = k.metadata; } }
       keys.sort((a, b) => a.slice(-5) < b.slice(-5) ? -1 : a.slice(-5) > b.slice(-5) ? 1 : (a < b ? -1 : 1));
       const out = [];
       for (const k of keys.slice(0, 120)) {
@@ -327,7 +338,7 @@ export default {
         if (k.startsWith("bas:")) (Array.isArray(v) ? v : []).forEach((s, i) => out.push([k + "#" + i, s && s[code] || null]));
         else out.push([k, v && v[code] || null]);
       }
-      return J({ d, code, rows: out });
+      return J({ d, code, rows: out, meta });
     }
     if (bd) {
       if (!env || !env.LOGS) return J({ error: "Worker 還沒綁定 KV(LOGS)" }, 503);
