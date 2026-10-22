@@ -144,6 +144,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     (3) 只有實心(壓線)點算翻轉、標時間,空心淡色不標字;(4) 黃色虛線連點:每天第一個實心出現前先連空心,之後只連實心,不跨日。
     友達 10/21 驗:36 點 → 18 點,實心翻轉 多 10:41 / 空 10:56 / 多 12:29 / 空 13:11 / 多 13:24,和研究圖相同。只是畫面,判別式、通知、燈號都沒動。
   · 2026-10-22 14:25 漲跌圖加藍色點線(使用者:「改 把空心+實心也連線 與只連線實心 對比一下」):藍 = 空心 + 實心全部連,黃虛線 = 只連實心(實心出現前先連空心),兩條對比。只是畫面。
+  · 2026-10-22 14:30 漲跌圖多空點改畫在價格點上(使用者:「藍虛線 這上漲空心沒有連線」):原本畫在價格下方 / 上方,看起來線沒連到三角形;改 inBar,黃線、藍線都穿過三角形。只是畫面。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1722,7 +1723,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610221425">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610221430">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5363,7 +5364,7 @@ function rfMarkers(pts){
   for (const p of pts){
     const day = dayKey(p.time); if (day !== prevDay){ prev = 0; prevDay = day; }
     const up = p.side > 0, flip = p.press && p.side !== prev; if (p.press) prev = p.side;
-    out.push({time: p.time, position: up ? 'belowBar' : 'aboveBar', shape: up ? 'arrowUp' : 'arrowDown', size: p.press ? 1 : 0.7,
+    out.push({time: p.time, position: 'inBar', shape: up ? 'arrowUp' : 'arrowDown', size: p.press ? 1 : 0.7,   // 14:30 使用者:「藍虛線 這上漲空心沒有連線」→ 點畫在價格上(inBar),連線才會穿過三角形
               color: up ? (p.press ? '#FF5C6C' : 'rgba(255,92,108,.45)') : (p.press ? '#3EE6A0' : 'rgba(62,230,160,.45)'),
               text: flip ? (up ? '多 ' : '空 ') + hmKey(p.time) : ''});
   }
