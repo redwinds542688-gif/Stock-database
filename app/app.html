@@ -146,6 +146,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-22 14:25 漲跌圖加藍色點線(使用者:「改 把空心+實心也連線 與只連線實心 對比一下」):藍 = 空心 + 實心全部連,黃虛線 = 只連實心(實心出現前先連空心),兩條對比。只是畫面。
   · 2026-10-22 14:30 漲跌圖多空點改畫在價格點上(使用者:「藍虛線 這上漲空心沒有連線」):原本畫在價格下方 / 上方,看起來線沒連到三角形;改 inBar,黃線、藍線都穿過三角形。只是畫面。
   · 2026-10-22 14:35 漲跌圖:空點取那根最高價、多點取最低價(使用者:「下跌的連高價 上漲的連低價」),點和黃線、藍線都用這個價。只是畫面。
+  · 2026-10-22 15:40 漲跌圖:三訊號的「Ka 往上 / 往下」改成和 3 根前比(使用者:台塑化 10/21 10:25「紫色線已經向下 才做多不是怪怪的嗎」→「改」;原本只比前一根,一檔 0.5 元的股票 Ka 一根就小跳)。
+    台塑化 10/21 23 點 → 20 點,10:25 多點不見;全部股票回測(見點就翻轉)13 天:每筆 −0.43% 不變。只是畫面,判別式、通知、燈號都沒動。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1724,7 +1726,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610221435">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610221540">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3690,7 +3692,8 @@ const YH = {
   lampExtPct: 0.3, lampExtFrom: '09:45',   // 2026-10-21 05:30 貼高低不追從 09:45 才開始套用     // 2026-10-21 04:20 使用者「改 0.3%」:價貼今天最高(做多)/ 最低(做空)0.3% 以內不亮順勢燈(不追在轉折點)
   lampChopWin: 45, lampChopN: 3, lampChopRange: 1.5, lampBrkPct: 0.5, lampBrkBars: 2,   // 2026-10-21 04:00 突破要超出震盪區間 0.5% 且連 2 根(富喬 / 友達試 0.3 / 0.5 × 1 / 2 根,0.5% 連 2 根最好)   // 2026-10-21 燈號的震盪判斷(同判二)
   lampHold: 3,          // 2026-10-21 燈號新狀態要連幾根才換;03:10 使用者「改 3 根」(原 2)
-  rfPressPct: 0.2,      // 2026-10-22 漲跌圖多空點的「壓線」:Ka、Kb 差距和那根 K 離均線都在 0.2% 內 → 實心
+  rfPressPct: 0.2,
+  rfKaBars: 3,          // 2026-10-22 漲跌圖多空點的「Ka 往上 / 往下」和 3 根前比(一檔跳動大的股票,Ka 一根就會小跳一下)      // 2026-10-22 漲跌圖多空點的「壓線」:Ka、Kb 差距和那根 K 離均線都在 0.2% 內 → 實心
   lampLeave: 1,         // 2026-10-21 11:40 使用者(台郡 10:13 天秤已到中間還亮做多):已亮做多 / 做空時,連 lampHold 根不是這個燈就換成最新那根的狀態(不必同一種);0 = 舊規則
   lampObOc: true,       // 2026-10-21 20:40 使用者「先改 D」:亮「做多」還要 Ob(OBV 均 10)在 Oc(OBV 均 30)之上,否則降成漸多;做空鏡像(Oc 還沒值 = 不亮做多 / 做空)。七天 1,405 股票日:勝率 54.1% → 55.3%
   lampOaOb: true,       // 2026-10-21 22:30 使用者「改 Y3+W6」:燈號分數裡「橘線雙升 / 雙降」換成「Oa 現在在 Ob 之上 / 之下」(反應快;時碩 11:06 兩線都轉下)
@@ -5335,9 +5338,10 @@ async function openChart(code, name){
 function rfPoints(bars, ma, ma24, ob, obma){
   const mk = toTimeMap(ma), mb = toTimeMap(ma24), mo = toTimeMap(ob), mm = toTimeMap(obma), P = YH.rfPressPct;
   const st = (i, d) => {
-    if (i < 1 || dayKey(bars[i].time) !== dayKey(bars[i - 1].time)) return false;
+    const KN = YH.rfKaBars || 1;   // 2026-10-22 15:40 使用者(台塑化 10:25:「紫色線已經向下 才做多不是怪怪的嗎」→「改」):Ka 方向和 KN 根前比(原本只比前一根)
+    if (i < KN || dayKey(bars[i].time) !== dayKey(bars[i - KN].time)) return false;
     const t = bars[i].time, t1 = bars[i - 1].time;
-    const ka = mk.get(t), ka1 = mk.get(t1), kb = mb.get(t), o = mo.get(t), o1 = mo.get(t1), m = mm.get(t), m1 = mm.get(t1);
+    const ka = mk.get(t), ka1 = mk.get(bars[i - KN].time), kb = mb.get(t), o = mo.get(t), o1 = mo.get(t1), m = mm.get(t), m1 = mm.get(t1);
     if ([ka, ka1, kb, o, o1, m, m1].some(x => x == null)) return false;
     return d > 0 ? (ka > kb && ka > ka1 && o > m && o > o1 && m > m1) : (ka < kb && ka < ka1 && o < m && o < o1 && m < m1);
   };
