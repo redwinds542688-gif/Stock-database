@@ -160,18 +160,20 @@ async function snapshotBars(env, subs, at) {
   const list = await poolCodes();
   const d = ymdOf(t), ymd = d.replace(/-/g, ""), key = hhmmOf(t);
   const sec = () => Math.round((Date.now() - m0) / 100) / 10;   // 這一分鐘開始後幾秒(查問題用,存在 KV metadata,?barsraw 看得到)
-  const tm = { s: sec() };
+  const tm = { s: sec() }, st = Date.now();
   const r0 = buildSnap(await misFetch(list), ymd);
   if (!r0.dOk) return "holiday";
   tm.e = sec();
   await env.LOGS.put(`bar:${d}:${key}`, JSON.stringify(r0.s), { expirationTtl: 14 * 86400, metadata: tm });
   if (!subs || hm > 13 * 60 + 30) return `bar ${d} ${key} ${r0.n} 檔`;
-  // 同一分鐘的 :30、:56 再各抓一次(:30 只問 2 次省子請求;:56 問 4 次取最新,當這分鐘的收盤)
   const out = [];
   const sm = {};
-  for (const [at2, n] of [[30, 2], [56, FRESH_N]]) {
-    const wait = m0 + at2 * 1000 - Date.now();
-    if (wait < 1000) { sm["s" + at2] = "skip@" + sec(); continue; }   // 這一分鐘的 :30 / :56 已經過了(Cron 晚醒、開頭那筆抓太久)就跳過,不跑到下一分鐘
+  /* 2026-10-22 11:40 抓取秒數紀錄:Cron 每分鐘都晚約 47 秒才醒(開頭那筆在 :47~:51 抓),:30 永遠跳過,只剩 :48、:56 兩筆擠在一起、後面空 50 秒。
+     K 是照證交所資料時間 t 歸分鐘,快照屬於哪個鍵不影響,所以改成從「這次醒來」起平均間隔:醒來 +20 秒、+40 秒各抓一次
+     (下一次 Cron 約 60 秒後才醒,不會撞在一起)。key 仍是排定的那一分鐘,拼 K 時照時分排序,時間順序不變 */
+  for (const [at2, n] of [[20, FRESH_N], [40, FRESH_N]]) {
+    const wait = st + at2 * 1000 - Date.now();
+    if (wait < 1000) { sm["s" + at2] = "skip@" + sec(); continue; }
     await new Promise(r => setTimeout(r, wait));
     const b = sec();
     try { const r = buildSnap(await misFetch(list, n), ymd); if (r.n) out.push(r.s); sm["s" + at2] = b + "-" + sec() + (r.n ? "" : " 0檔"); } catch (e) { sm["s" + at2] = "err " + e; console.log("子快照失敗 " + e); }
