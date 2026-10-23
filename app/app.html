@@ -223,6 +223,10 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 16:40 漲跌圖改規則(使用者:TPK 10/22 09:14「這應該做多 怎麼顯示」→「你看圖 修正」):09:13 一根跳上去,Ka 穿過 Kb 時價格已離均線 0.5%、
+    之後一路沒回來碰線,10/22 定的「K 棒要碰到均線再站上」永遠不成立,整段漲勢沒有點。改成:不要那條;三條件成立的第一根 → 壓線就實心、沒壓線先淡色;
+    第二根還成立 → 實心(淡色連 2 根算實心;YH.rfNoBrk / rfRunSolid)。燈號照舊只看實心,TPK 09:15 亮做多。
+    357 檔 13 天實心點 6,363 → 27,304,60 根 ±1% 52.0% → 52.9%(壓線的 54.6%、連 2 根的 51.9%)。轉折圖、判一 ~ 判三不動。
   · 2026-10-23 16:35 十字線上每條線都有圓點(使用者:「指標二 三條線 三個的在十字虛線上 指標一跟三 也與指標二一致」):指標一 Ka、Kb 各一顆,指標三橘線、紫線各一顆
     (三張圖都一樣,K 線圖的 Ka / Kb 也有)。指標二本來就是三顆。只是畫面。
   · 2026-10-23 16:30 指標二 Ob / Oc / Od 也一樣補(使用者:「其他 有這問題嗎」):每天前 9 / 27 / 15 根沒有值,原本線從昨天 13:30 直接拉到今天第 n 根,
@@ -1848,7 +1852,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231635">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231640">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3851,6 +3855,7 @@ const YH = {
   rfPressPct: 0.2,
   rfKaBars: 3,
   turnPressPct: 0.15,   // 2026-10-22 22:58 使用者「設,0.15」(TPK 09:30 離 Ka 0.14% 算、12:31 離 0.16% 不算);22:55「設0.1」(TPK 12:31 多點「沒有壓線」:最低 74.40 離 Ka 0.16%):轉折圖的壓線 0.2% → 0.1%;漲跌圖照舊 rfPressPct 0.2
+  rfNoBrk: true, rfRunSolid: 2,   // 2026-10-23 16:35 漲跌圖:不要「K 棒要碰到均線」;三條件連 2 根成立就算實心(TPK 10/22 09:14 跳上去沒回來碰線 →「你看圖 修正」)
   turnKbBars: 1,        // 2026-10-23 12:55 使用者「轉折還是搭kb傾斜 比較穩定多空方向」→「改」:轉折點 做多要 Kb 比 1 根前高、做空要比 1 根前低(0 = 不看);台郡 10/22 12:20 貼線假多點擋掉
   turnKaBars: 2,        // 2026-10-22 22:42 使用者「改二根」:轉折圖的 Ka 方向和 2 根前比(台塑化 10/21 10:25 假多 0.00 擋掉、TPK 10/22 09:30 起漲 +0.04 抓到);漲跌圖照舊 3 根
   rfMinCross: 0.05,     // 2026-10-22 漲跌圖:Ka 要高(低)過 Kb 至少 0.05% 才算穿越          // 2026-10-22 漲跌圖多空點的「Ka 往上 / 往下」和 3 根前比(一檔跳動大的股票,Ka 一根就會小跳一下)      // 2026-10-22 漲跌圖多空點的「壓線」:Ka、Kb 差距和那根 K 離均線都在 0.2% 內 → 實心
@@ -5557,12 +5562,20 @@ function rfPoints(bars, ma, ma24, ob, obma, ob24){
   //   多:最低碰到較高那條均線、收盤站上兩線);一段只標第一根,整段都沒穿過就不標
   const brk = (i, d) => { const b = bars[i], ka = mk.get(b.time), kb = mb.get(b.time);
     return d > 0 ? (b.low <= Math.max(ka, kb) && b.close > Math.max(ka, kb)) : (b.high >= Math.min(ka, kb) && b.close < Math.min(ka, kb)); };
-  const out = [], done = {'1': false, '-1': false};
-  for (let i = 1; i < bars.length; i++) for (const d of [1, -1]){
-    if (!st(i, d)){ done[d] = false; continue; }
-    if (done[d] || !brk(i, d)) continue;
-    out.push({time: bars[i].time, side: d, price: d > 0 ? bars[i].low : bars[i].high, press: press(i, d)}); done[d] = true;   // 14:35 使用者:「下跌的連高價 上漲的連低價」
-  }
+  // 2026-10-23 16:35 使用者(TPK 10/22 09:14 漲跌圖沒標多點:「這應該做多 怎麼顯示」→「你看圖 修正」):TPK 09:13 一根跳上去,Ka 穿過 Kb 時價格已離均線 0.5%、
+  //   之後一路沒回來碰線,「K 棒要碰到均線再站上」(brk)永遠不成立,整段漲勢沒有點。改成:不要 brk;三條件成立的第一根 → 壓線成立就實心,
+  //   沒壓線先標淡色;第二根還成立 → 實心(淡色連 2 根算實心)。357 檔 13 天實心點 6,363 → 27,304、60 根 ±1% 52.0% → 52.9%(壓線的 54.6%、連 2 根的 51.9%)
+  const out = [], done = {'1': false, '-1': false}, run = {'1': 0, '-1': 0}; let rday = null;
+  for (let i = 1; i < bars.length; i++){ const dk = dayKey(bars[i].time); if (dk !== rday){ rday = dk; run['1'] = run['-1'] = 0; done['1'] = done['-1'] = false; }
+   for (const d of [1, -1]){
+    if (!st(i, d)){ done[d] = false; run[d] = 0; continue; }
+    run[d]++;
+    if (done[d]) continue;
+    const pr = YH.rfNoBrk === false ? (brk(i, d) && press(i, d)) : press(i, d);
+    if (YH.rfNoBrk === false && !brk(i, d)) continue;
+    if (pr || run[d] >= (YH.rfRunSolid || 2)){ out.push({time: bars[i].time, side: d, price: d > 0 ? bars[i].low : bars[i].high, press: true, via: pr ? 'press' : 'run'}); done[d] = true; }
+    else if (run[d] === 1) out.push({time: bars[i].time, side: d, price: d > 0 ? bars[i].low : bars[i].high, press: false});   // 14:35 使用者:「下跌的連高價 上漲的連低價」
+   } }
   // 2026-10-22 15:50 假點(使用者:「11.35空 比照前一個空點的obv24 如果11.35比較高 則是假空點」→「改」):
   //   和同一天前一個同方向的點比 OBV 均線 24:空點比較高 / 多點比較低 = 假點(灰色,不算翻轉、不連線)
   if (ob24){ const m24 = toTimeMap(ob24), last = {}; let day = null;
