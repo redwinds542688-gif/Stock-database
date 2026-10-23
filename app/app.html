@@ -223,6 +223,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 13:05 指標三橘線、紫線畫到最新一根 K(使用者:「橘線會跟k棒更新 而畫到最新一個位置嗎」→「紫線 橘線 都把最新一根k都當成是成立的點畫線 當然這點未必是真的點 但我需要這樣判斷漲跌」):
+    最後一根 K 當暫時的點(橘線用收盤價、紫線用那根的 Ka)接在最後一個穿越點後面,每根 K 更新都跟著動;不標圓點、上方「往上穿 / 往下穿」文字不變。真的穿越點出現後,暫時點就被取代。只是畫面。
   · 2026-10-23 12:55 轉折點加 Kb 傾斜條件(使用者:台郡 10/22 12:20 多點 Ka 只比 Kb 高 0.004 貼線翻多、兩根後就垮 →「轉折還是搭kb傾斜 比較穩定多空方向」→「改」):
     做多要 Kb 比前 1 根高、做空要 Kb 比前 1 根低(YH.turnKbBars = 1,0 = 關掉);轉折圖的點、燈號、天秤、轉折通知都走同一個 turnPoints,一起生效。漲跌圖、判一 ~ 判三不動。
     回測 357 檔 13 天:點 30,505 → 28,784(−6%),60 根 ±1% 勝率 54.0% 不變、翻轉交易扣成本 −0.38 → −0.37%/筆、10/22 前 49 名訊息 140 → 133 則;台郡 12:20(Kb 80.304 → 80.296 向下)會被擋掉。
@@ -1804,7 +1806,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231255">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231305">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5703,7 +5705,10 @@ function drawBars(bars, code, srcLabel, keepView){
   // 2026-10-20 23:45 使用者:「這樣的點不對 改紀錄 obv 黃線穿越藍線的點 所有的點連線」:下圖改成 OBV(黃)穿越 OBV 均線(藍)的每一個點連線。
   //   黃線往上穿藍線 = 標那根 K 的最低價(藍點,標在線下方);往下穿 = 標那根 K 的最高價(橘點,標在線上方)。K 線圖上的起漲 / 起跌標示和停損用的起漲 / 起跌點不變。
   const orgPts = obvCrossPoints(bars, ob, obma);
-  const org = lineThrough(bars, orgPts.map(p => ({time: p.time, value: p.price})));
+  // 2026-10-23 13:05 使用者:「紫線 橘線 都把最新一根k都當成是成立的點畫線 當然這點未必是真的點 但我需要這樣判斷漲跌」:
+  //   最後一根 K 當暫時的點(橘線 = 收盤價、紫線 = 那根的 Ka),線一路畫到最新一根;不標點、不進 I3TXT,只是畫面。真的穿越點出現後就被取代。
+  const tipPt = (pts, val) => { const z = bars[bars.length - 1]; if (!z || (pts.length && pts[pts.length - 1].time === z.time) || val == null) return pts; return pts.concat([{time: z.time, value: val}]); };
+  const org = lineThrough(bars, tipPt(orgPts.map(p => ({time: p.time, value: p.price})), bars.length ? bars[bars.length - 1].close : null));
   // 2026-10-21 使用者:「Ka 穿越 Kb 的點標出來 記錄起來 在指標三那邊顯示出來 一樣連線 不用顯示價格 原來指標三那條線也不用顯示價格」:
   //   Ka(均價 10)和 Kb(均價 24)每次交叉的那根記一個點(值 = 那根的 Ka),紫線依序相連;往上穿紅點、往下穿綠點,K 線圖的 Ka 線上也標同樣的小點。兩條線的點都不標價格。
   const kxPts = maCrossPoints(ma, ma24);
@@ -5713,7 +5718,7 @@ function drawBars(bars, code, srcLabel, keepView){
   { let k = 0, q = null;
     for (const b of bars){ while (k < orgPts.length && orgPts[k].time <= b.time) q = orgPts[k++];
       I3TXT.set(b.time, q ? (q.side < 0 ? '往下穿 ' : '往上穿 ') + hmKey(q.time) : ''); } }
-  const kx = lineThrough(bars, kxPts.map(p => ({time: p.time, value: p.price})));
+  const kx = lineThrough(bars, tipPt(kxPts.map(p => ({time: p.time, value: p.price})), (() => { try{ const z = bars[bars.length - 1], v = ma.length && ma[ma.length - 1].time === z.time ? ma[ma.length - 1].value : null; return v; }catch(e){ return null; } })()));
   // 2026-10-21 使用者:「K 圖要乾淨」:K 線圖 Ka 線上的 Ka×Kb 穿越小點拿掉(指標三的紫線照樣標),只留 K 棒、Ka、Kb、最高 / 最低價
   try{ maLine.setMarkers([]); }catch(e){}
   // 2026-10-21 使用者:「那個按鍵按下去也沒有跑到最新的啊」:指標三的兩條線只畫到最後一個交叉點,套件把「最後一個有值的點」當最右邊,
