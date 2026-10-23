@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 19:55 指標三文字改「看多↑ / 看空↓ 時間」(使用者:「改成 看空 箭頭向下 反之依然 紫色也是一樣這個邏輯」):橘線的「往上穿 / 往下穿」、紫線的「上穿 / 下穿」都改。只是文字。
   · 2026-10-23 19:50 指標三標題(使用者:「指標三 三個字 跟指標二一樣」):「指標三」三個字改白色、和指標二同字級;後面橘線的「往上穿 / 往下穿 時間」前面加「橘線:」。只是畫面。
   · 2026-10-23 19:35 漲跌圖箭頭減量(使用者:時碩 10/22「漲跌圖 怎麼那麼多下降箭頭」;16:40 拿掉碰線後每段都標、一段兩個箭頭):
     (1) 一段只留一個:第 2 根變實心時把第 1 根的淡色拿掉;(2) 同方向再出現的實心點改小的淡色(和轉折圖一樣),只有翻轉那一個大實心 + 時間;沒壓線的更小更淡。
@@ -1860,7 +1861,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231950">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231955">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5840,7 +5841,7 @@ function drawBars(bars, code, srcLabel, keepView){
   const I3TXT = new Map();
   { let k = 0, q = null;
     for (const b of bars){ while (k < orgPts.length && orgPts[k].time <= b.time) q = orgPts[k++];
-      I3TXT.set(b.time, q ? (q.side < 0 ? '往下穿 ' : '往上穿 ') + hmKey(q.time) : ''); } }
+      I3TXT.set(b.time, q ? (q.side < 0 ? '看空↓ ' : '看多↑ ') + hmKey(q.time) : ''); } }   // 2026-10-23 19:55 使用者:「改成 看空 箭頭向下 反之依然」(原「往下穿 / 往上穿」)
   const kx = lineThrough(bars, tipPt(kxPts.map(p => ({time: p.time, value: p.price})), (() => { try{ const z = bars[bars.length - 1], v = ma.length && ma[ma.length - 1].time === z.time ? ma[ma.length - 1].value : null; return v; }catch(e){ return null; } })()));
   // 2026-10-21 使用者:「K 圖要乾淨」:K 線圖 Ka 線上的 Ka×Kb 穿越小點拿掉(指標三的紫線照樣標),只留 K 棒、Ka、Kb、最高 / 最低價
   try{ maLine.setMarkers([]); }catch(e){}
@@ -5953,7 +5954,7 @@ function drawBars(bars, code, srcLabel, keepView){
         obma30: k3 != null ? obma30[k3].value : NaN, obma30Prev: k3 != null && k3 > 0 ? obma30[k3 - 1].value : null,
         obma16: (k6 => k6 != null ? obma16[k6].value : NaN)(iObma16.get(b.time)), obma16Prev: (k6 => k6 != null && k6 > 0 ? obma16[k6 - 1].value : null)(iObma16.get(b.time)),
         org: I3TXT.get(b.time) || '',   // 指標三文字:橘線最近一次穿越(2026-10-22 21:07 回到原來;一次掃完 I3TXT)
-        kx: (() => { let q = null; for (const p of kxPts){ if (p.time > b.time) break; q = p; } return q ? (q.side > 0 ? '上穿 ' : '下穿 ') + hmKey(q.time) : ''; })(),
+        kx: (() => { let q = null; for (const p of kxPts){ if (p.time > b.time) break; q = p; } return q ? (q.side > 0 ? '看多↑ ' : '看空↓ ') + hmKey(q.time) : ''; })(),   // 2026-10-23 19:55 使用者:「紫色也是一樣這個邏輯」(原「上穿 / 下穿」)
       });
     });
     CUR = {byTime, last: byTime.get(last.time), prevClose};
