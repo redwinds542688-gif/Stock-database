@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 15:50 指標三的圓點拿掉(使用者:「指標三 小圈點紅藍綠橘 取消不用」):橘線上的藍 / 橘點、紫線上的紅 / 綠點都不畫,只留兩條線;上方「往上穿 / 往下穿 時間」「Ka×Kb」文字不變。只是畫面。
   · 2026-10-23 15:45 分鐘一開始的快照改由 Worker 自己做(使用者:「這一個要如何改最穩當」→「好」):Cron :47 醒來抓一次後,子快照改成對準下一分鐘 :02 和 :30
     (原本是醒來 +20 / +40 秒 = :07 / :27)。上一根 K :00 收完、:02 就有完整快照,通知一樣快;KV 寫入(2 次/分)、證交所抓取(3 次/分)都和 10/22 以前一樣,
     不靠手機、不靠「發現已有就併進去」的判斷。手機的 cloudSnapEarly 關掉(程式留著當備援)。
@@ -1834,7 +1835,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231545">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231550">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5788,9 +5789,9 @@ function drawBars(bars, code, srcLabel, keepView){
   //   三張圖同步捲動時被指標三卡在那裡,最新幾根 K 一直在畫面外(「回到最新」箭頭也到不了)。補一條看不見、每根 K 都有值的線把指標三的時間軸撐到最新一根
   if (padB) padB.setData(bars.map(b => ({time: b.time, value: b.close})));
   if (orgLine){ orgLine.setData(org);   // 2026-10-22 21:07 回到原來:橘線 + 點、紫線 + 紅綠點
-    orgLine.setMarkers(orgPts.map(p => ({time: p.time, position: 'inBar', color: p.side < 0 ? '#FF9F43' : '#4FC3F7', shape: 'circle', size: 0.6})));
+    orgLine.setMarkers([]);   // 2026-10-23 15:50 使用者:「指標三 小圈點紅藍綠橘 取消不用」:橘線的藍 / 橘圓點不畫,只留線
     kxLine.setData(kx);
-    kxLine.setMarkers(kxPts.map(p => ({time: p.time, position: 'inBar', color: p.side > 0 ? CHART_THEME.up : CHART_THEME.down, shape: 'circle', size: 0.6}))); }
+    kxLine.setMarkers([]); }   // 2026-10-23 15:50 紫線的紅 / 綠圓點也不畫
   if (window.alignScales) requestAnimationFrame(() => alignScales());   // 左刻度寬度對齊,十字線才會上下同一條
   if (!keepView){
     // 元大風格:開圖只顯示最近 YH.defaultBars 根(K 棒才夠粗),往左滑可看更早的;其他兩張圖會同步
