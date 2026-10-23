@@ -223,6 +223,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 03:50 燈號 / 天秤開盤不再等待(使用者:時碩 09:11 轉折多點燈沒亮「這裡不是做多嗎? 燈號沒亮 天秤也是」→「Ka既然跨日 燈號當然也是」;YH.lampNoWait):
+    10/19 定的「開盤前 15 根 K 燈號等待、天秤歸零」是因為當時 Ka / Oc 要等 10 / 28 根才有值;現在 Ka、OBV 都跨日,開盤就有值 → 三張圖的燈號、天秤開盤就照常算。
+    判一 ~ 判三「前 15 分鐘不進場」(SIG.skipMin)是交易規則,不動。
   · 2026-10-24 03:40 判二的 OBV 改回每天歸零(使用者:「要把判二的 OBV 改回每天歸零 然後判一、判三維持跨日」;判二 sig.obvDaily = true):
     OBV 跨日回測判二兩邊都變差(雲端三天 +27,296 → +21,199、Yahoo 九天 +109,475 → +93,034);判一一好一壞(雲端 +20,724 → +28,155、九天 +53,869 → +49,247)、判三不變 → 判一 / 判三維持跨日。
     判二 Ka 照樣跨日(回測沒差)。模擬器判二旗標只加 KACROSS=1(不加 OBVCROSS)。
@@ -1925,7 +1928,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610240340">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610240350">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3942,6 +3945,7 @@ const YH = {
   cloudSnapEarly: false, // 2026-10-23 15:45 關掉(改由 Worker Cron 自己對準下一分鐘 :02 抓,手機不用叫;程式留著當備援)   // 2026-10-23 15:15 使用者「都改」:每分鐘 :01 叫 Worker 立刻存快照(不等 Cron :47),抓完馬上重拿 K
   cloudPollMs: 10000,   // 2026-10-23 15:15 20 秒 → 10 秒(使用者「有辦法再快一點嗎」→「都改」)   // 2026-10-23 15:10 使用者「能夠盡量加快訊息發放的速度嗎」:雲端 1 分K 每 20 秒補一次(原 55 秒;一次抓全部代號,一天約 800 次請求)
   turnAlertPct: 1.5, turnAlertBars: 3,   // 2026-10-23 14:25 使用者「加第三招」:推過的轉折之後,3 根 K 內反向走 ≥ 1.5% 就推「急拉 / 急殺 多單 / 空單注意」(每則轉折一次;0 = 關)
+  lampNoWait: true,     // 2026-10-24 03:50 使用者「Ka既然跨日 燈號當然也是」:燈號 / 天秤開盤不再「等待」15 根(三張圖);判一~判三前 15 分鐘不進場照舊
   kaCrossAll: true,     // 2026-10-24 03:10 使用者「還有哪裡用到ka 都一起改」「Obv也是跨日 一起改」:燈號 / 天秤 / 漲跌圖 / 轉折圖 / 轉折通知的 Ka、OBV(Ob / Oc)都跨日
   kaCrossJudge: true,   // 2026-10-24 03:20 使用者「判一二三 解凍」:判一 ~ 判三的 Ka、OBV(含所有 OBV 均線)跨日;模擬器 KACROSS=1 OBVCROSS=1
   kaDisplayCross: true, // 2026-10-24 03:00 畫面 Ka 跨日 10 根(09:01 借昨天 9 根);判一 ~ 判三 / 燈號 / 轉折點不動
@@ -4035,7 +4039,7 @@ function showBarInfo(t){
     if (isLast){ lampsFromInd3(lampStateAt(d.bar.time)); updateMeter(meterBiasAt(d.bar.time, CUR.biasLast)); }   // 2026-10-23 燈號 / 天秤跟著目前那張圖(lampStateAt / meterBiasAt)   // 2026-10-21 燈號看指標三(連 2 根才換)   // 2026-10-21 燈號看指標三
     else if (CUR.bars && CUR.maMap && d.i != null){
       let nDay = 0; for (let i = d.i; i >= 0 && dayKey(CUR.bars[i].time) === dayKey(d.bar.time); i--) nDay++;   // 十字線那根是當天第幾根
-      const waiting = nDay < SIG.skipMin;
+      const waiting = !YH.lampNoWait && nDay < SIG.skipMin;
       const st = CUR.i3 && CUR.i3.get(d.bar.time);   // 2026-10-21 燈號 / 天秤看指標三(十字線那根)
       const b = waiting ? 0 : ind3Bias(st);
       lampsFromInd3(lampStateAt(d.bar.time)); updateMeter(meterBiasAt(d.bar.time, b));
@@ -4890,7 +4894,7 @@ function ind3Lamps(bars, I3, isChop, prevClose){
   for (let i = 0; i < bars.length; i++){
     const b = bars[i];
     const d = dayKey(b.time); if (d !== day){ day = d; n = 0; cur = null; cand = null; cnt = 0; } n++;
-    let raw = ind3Raw(I3.get(b.time), b.time, n < SIG.skipMin);
+    let raw = ind3Raw(I3.get(b.time), b.time, !YH.lampNoWait && n < SIG.skipMin);   // 2026-10-24 03:50 lampNoWait:Ka / OBV 跨日後開盤就有值,不再等 15 根
     if (n === 1){ dHi = b.high; dLo = b.low; } else { dHi = Math.max(dHi, b.high); dLo = Math.min(dLo, b.low); }
     // 2026-10-21 04:20 開(YH.lampExtPct 0.3;0 = 關):價已經貼著今天最高(做多)/ 最低(做空)lampExtPct% 以內 → 不亮順勢燈,當監控(不追在轉折點)
     const ex = YH.lampExtPct || 0;
@@ -5765,7 +5769,7 @@ function rfLampMap(bars, pts, bias, kaSide, trend){
       if (ks != null && ks * d < 0){ st = '監控'; bad = 0; }   // Ka 穿到另一邊 → 監控
       else if (YH.lampTrendGate && trN >= 2 && tr * d < 0){ st = '監控'; bad = 0; }   // 明明在漲還做空 / 明明在跌還做多 → 監控
       else if (bias){ const v = bias.get(b.time); if (v != null && v * d <= -0.5) bad++; else bad = 0; if (bad >= HOLD){ st = '監控'; bad = 0; } } }
-    m.set(b.time, n < SIG.skipMin ? '等待' : hmKey(b.time) >= '13:20' ? '監控' : st); }
+    m.set(b.time, (!YH.lampNoWait && n < SIG.skipMin) ? '等待' : hmKey(b.time) >= '13:20' ? '監控' : st); }
   return m;
 }
 function lampStateAt(time){ return (RF_MODE && RF_LAMPS && RF_LAMPS.view === RF_VIEW && RF_LAMPS.map.has(time)) ? RF_LAMPS.map.get(time) : (CUR && CUR.lamps ? CUR.lamps.get(time) : null); }
@@ -6119,7 +6123,7 @@ function drawBars(bars, code, srcLabel, keepView){
   const obSMap = (SIG.strong && SIG.strongSlowMa > 0) ? toTimeMap(sma(ob, SIG.strongSlowMa, 'value')) : null;   // 強訊號用的 OBV 均 30(判別式二)
   const strongLast = strongLampDir(bars, bars.length - 1, maMap, obMap, obmaMap, obSMap);
   const I3 = ind3Series(bars, maL, ma24, obL, obmaL, obma30L), i3Last = I3.get(last.time);   // 2026-10-21 燈號 / 天秤改看指標三
-  const bias = todayBars.length < SIG.skipMin ? 0 : ind3Bias(i3Last);   // 不到 15 根 K 天秤歸零(2026-10-19);原:biasScore(價 / 均價 / OBV 斜率)
+  const bias = (!YH.lampNoWait && todayBars.length < SIG.skipMin) ? 0 : ind3Bias(i3Last);   // 不到 15 根 K 天秤歸零(2026-10-19);原:biasScore(價 / 均價 / OBV 斜率)
   updateMeter(meterBiasAt(last.time, bias));   // 2026-10-23 天秤跟著目前那張圖
   // 今天的進場 / 平倉點位標在 K 線圖上;燈號 = 循環狀態(進場後持續亮到平倉訊號)
   const rp = replaySignals(sBars, sMa, sOb, sObma, prevClose, src ? !!src.dtShort : undefined);
@@ -6143,7 +6147,7 @@ function drawBars(bars, code, srcLabel, keepView){
   const cyc = YH.exitRule ? rpSig.state : null;    // 訊號循環(不受 3.5% 限制),只用來寫小字
   const trade = YH.exitRule ? rp.state : null;     // 真正的交易循環
   const lastMa = maMap.get(last.time);
-  const waiting = todayBars.length < SIG.skipMin;   // 今天還不到 skipMin(15)根 K:燈號等待、天秤歸零(2026-10-19)
+  const waiting = !YH.lampNoWait && todayBars.length < SIG.skipMin;   // 今天還不到 skipMin(15)根 K:燈號等待、天秤歸零(2026-10-19)
   // 2026-10-21 03:30 燈號遇震盪盤只顯示監控(今天的 K;和判二的震盪判斷同一套)
   const lampChopPts = (() => { try{ const ix = arr => { const m = new Map(); arr.forEach((x, k) => m.set(x.time, k)); return m; };
     return chopPoints(bars, ma, ob, obma, ix(ma), ix(ob), ix(obma), dayKey(last.time)); }catch(e){ return []; } })();
