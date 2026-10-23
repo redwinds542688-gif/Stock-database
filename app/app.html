@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 20:15 指標三箭頭換成圖上多空點那種粗箭頭(使用者貼圖「換這種的」):SVG 粗箭頭,往上紅、往下綠。
   · 2026-10-23 20:10 指標三的「看多 / 看空」換大箭頭(使用者:「看空/看多 換大箭頭 往上一律紅色 往下一律綠色」):橘線、紫線都是「▲ 價」(紅)/「▼ 價」(綠),字比旁邊大一點。只是畫面。
   · 2026-10-23 20:00 指標三文字時間改價格(使用者:「時間地方 都改成 價格」):橘線「看多↑ 55.60」= 那個穿越點的收盤價;紫線「看空↓ 84.94」= 那個穿越點的 Ka。只是文字。
   · 2026-10-23 19:55 指標三文字改「看多↑ / 看空↓ 時間」(使用者:「改成 看空 箭頭向下 反之依然 紫色也是一樣這個邏輯」):橘線的「往上穿 / 往下穿」、紫線的「上穿 / 下穿」都改。只是文字。
@@ -1863,7 +1864,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610232010">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610232015">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3951,7 +3952,9 @@ function showBarInfo(t){
   { const e = el('lblObvMa30V'); if (e) e.innerHTML = isFinite(d.obma30) ? Math.round(d.obma30).toLocaleString() + trend(d.obma30, d.obma30Prev) : '—'; }
   { const e = el('lblObvMa16V'); if (e) e.innerHTML = isFinite(d.obma16) ? Math.round(d.obma16).toLocaleString() + trend(d.obma16, d.obma16Prev) : '—'; }   // 2026-10-21 Od = OBV 均 16   // 2026-10-19 OBV 均 30
   // 2026-10-23 20:10 使用者:「看空/看多 換大箭頭 往上一律紅色 往下一律綠色」:文字是「↑ 價」/「↓ 價」,這裡換成大箭頭並上色(紅上綠下)
-  const i3html = t => !t ? '—' : t.replace(/^看多↑ /, '<b style="color:#FF3B3B;font-size:1.25em">▲</b> ').replace(/^看空↓ /, '<b style="color:#3EE6A0;font-size:1.25em">▼</b> ');
+  // 2026-10-23 20:15 使用者貼了圖上那種粗箭頭「換這種的」:改用和圖上多空點一樣的粗箭頭(SVG),紅上綠下
+  const i3arrow = (up, col) => `<svg viewBox="0 0 16 18" width="13" height="15" style="vertical-align:-2px"><path d="${up ? 'M8 1 L15 9 L11 9 L11 17 L5 17 L5 9 L1 9 Z' : 'M8 17 L15 9 L11 9 L11 1 L5 1 L5 9 L1 9 Z'}" fill="${col}"/></svg>`;
+  const i3html = t => !t ? '—' : t.replace(/^看多↑ /, i3arrow(true, '#FF3B3B') + ' ').replace(/^看空↓ /, i3arrow(false, '#3EE6A0') + ' ');
   { const e = el('lblOrgV'); if (e) e.innerHTML = i3html(d.org); }
   { const e = el('lblKxV'); if (e) e.innerHTML = i3html(d.kx); }   // 2026-10-21 最近一次 Ka × Kb 穿越                                                  // 最近一個起漲 / 起跌點
   // 燈號 + 多空天秤跟著十字線走(2026-10-17):十字線在某根 K 上 → 顯示那根處理完當下的循環狀態(做多 / 做空 / 監控)與偏向;
