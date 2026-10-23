@@ -223,6 +223,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 16:30 指標二 Ob / Oc / Od 也一樣補(使用者:「其他 有這問題嗎」):每天前 9 / 27 / 15 根沒有值,原本線從昨天 13:30 直接拉到今天第 n 根,
+    畫圖時用「有幾根算幾根」的平均補上。只是畫面,計算不動。Kb、Oa 本來就每根都有;指標三兩條線是點連線,沒這問題。
   · 2026-10-23 16:25 Ka 線換日不再斷(使用者:「再找不到 就直接前後連線」):前 9 根補上後 09:00 已有值,昨天 13:30 直接連到今天 09:00。
   · 2026-10-23 16:20 Ka 線前 9 根補上(使用者:「紅線斷了」→ 選 1):每天 09:00~09:09 用「有幾根算幾根」的平均畫(09:00 = 收盤 … 09:09 = 10 根),線從開盤就有、接上當天自己的線,
     昨天和今天之間仍斷開。只是畫圖:判別式 / 燈號 / 轉折算的 Ka、上方「Ka: –」都不動。K 線圖的 Ka(紅綠)一樣補。
@@ -1844,7 +1846,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231625">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231630">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5773,13 +5775,19 @@ function drawBars(bars, code, srcLabel, keepView){
   const ob = obv(bars);
   obvSeries.setData(ob);
   const obma = sma(ob, BASE.obvMaPeriod, 'value');
-  obvMaLine.setData(obma);
+  // 2026-10-23 16:30 使用者(「其他 有這問題嗎」):Ob / Oc / Od 每天前 n−1 根沒有值,線會從昨天 13:30 直接拉到今天第 n 根;畫圖時用「有幾根算幾根」的平均補上(同 Ka),
+  //   只是畫面,判別式 / 燈號 / 轉折算的 Ob / Oc / Od 不動(上方文字前幾根仍是「–」)
+  const headFill = (arr, n) => { const m = new Map(arr.map(x => [x.time, x])); const out = []; let dk = null, sum = 0, cnt = 0;
+    for (const o of ob){ const d = dayKey(o.time); if (d !== dk){ dk = d; sum = 0; cnt = 0; } sum += o.value; cnt++;
+      const x = m.get(o.time); if (x) out.push(x); else if (cnt < n) out.push({time: o.time, value: +(sum / cnt).toFixed(3)}); }
+    return out; };
+  obvMaLine.setData(headFill(obma, BASE.obvMaPeriod));
   // 2026-10-21 22:55 使用者(「oc 多少可以增加燈號準確率」→「改 28」):Oc 30 → YH.ocPeriod(28)。七天 1,405 股票日(Y3+W6 燈號):
   //   30 根 對 1,609 錯 1,163 58.0% → 28 根 對 1,696 錯 1,201 58.5%(16 根淨對最多 528 但 57.7%;35 以上變差)。判別式的 OBV 30 均線在 replaySignals 裡自己算,不受影響
   const obma30 = sma(ob, YH.ocPeriod || 30, 'value');
-  obvMa30Line.setData(obma30);
+  obvMa30Line.setData(headFill(obma30, YH.ocPeriod || 30));
   const obma16 = sma(ob, YH.odPeriod || 16, 'value');   // 2026-10-21 Od
-  if (obvMa16Line) obvMa16Line.setData(obma16);
+  if (obvMa16Line) obvMa16Line.setData(headFill(obma16, YH.odPeriod || 16));
   // 2026-10-21 使用者:「Ob 穿越 Oc 標示」:Ob(OBV 均 10,藍)和 Oc(OBV 均 30,紫)每次交叉,在 Ob 線上標小點:往上穿紅、往下穿綠(不標數字)
   try{ obvMaLine.setMarkers([]); }catch(e){}   // 2026-10-23 15:55 使用者:「指標二的點也取消」:Ob×Oc 穿越的紅 / 綠圓點不畫(上方 Oc 文字箭頭照舊)
   // 2026-10-20 23:30 使用者:「把高低連線拿掉 留起漲起跌連線 價格要註記上去」(swingPoints 函式留著,沒畫)
