@@ -217,6 +217,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     背景(bgTick)每一檔算轉折圖的轉折點(換方向的多 / 空點,和圖上大箭頭同一套),每一個都推手機「○○ 代碼 轉折 做多 / 做空 價」,不限次數;同方向再出現的小箭頭不推。
     不進判別式、不記部位、沒有停利停損(YH.turnNotify)。前 49 名 13 天平均一天約 130 則。鐵律 17(一檔只發進場 / 平倉)是判別式的規矩,轉折通知是另一類,使用者決定不限。
     11:47 格式比照進場通知:「○○ 代碼 做多 / 做空 價」,內容「時間 多 / 空點 · 現價 · 轉折」(判一 / 判二的位置寫轉折)。
+    12:05 今日監控紀錄的卡片:轉折通知自己一類(內容結尾「· 轉折」),一張卡 名稱 | 價 | 做多 / 做空 | 時間 | 轉折,不算張數、不配對平倉、不藏(原本不認得這類會直接不顯示或當成進場卡)。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1795,7 +1796,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231155">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231205">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6488,6 +6489,8 @@ window.bgTick = bgTick; window.BG = BG;
       const m = (x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?(\S+) (\d{4,6}[A-Z]*)\s*(.*)$/); if (!m) return null;
       const b = x.body || '', rest = m[3];
       const o = {x, name: m[1], code: m[2], t: x.t || '', kind: x.kind || '', prev: +x.prev || 0, rs: ((b.match(/· (判[一二三])\s*$/) || [])[1]) || ''};   // rs:發通知的判別式(判一 / 判二 / 判三),舊紀錄沒有就空白
+      // 2026-10-23 12:00 轉折通知(內容結尾「· 轉折」):自己一類,一張卡只有 名稱 | 價 | 做多 / 做空 | 時間 | 轉折,不算部位、不配對平倉、不藏
+      if (/· 轉折\s*$/.test(b)){ o.type = 'turn'; o.rs = '轉折'; o.side = /做空/.test(rest) ? 'short' : 'long'; o.price = +((rest.match(/([\d.]+)\s*$/) || [])[1]) || 0; o.entP = o.price; return o; }
       if (o.kind === 'long' || o.kind === 'short'){ o.type = 'entry'; o.side = o.kind; o.price = +((rest.match(/([\d.]+)\s*$/) || [])[1]) || 0; o.entT = o.t; o.entP = o.price;
         o.tp = ((b.match(/停利 ([\d.]+)/) || [])[1]) || ''; o.sl = ((b.match(/停損 ([\d.]+)/) || [])[1]) || ''; }
       else if (o.kind === 'loss' || o.kind === 'profit' || o.kind === 'exit' || o.kind === 'warn'){
@@ -6548,10 +6551,10 @@ window.bgTick = bgTick; window.BG = BG;
       // 2026-10-18 使用者定案:一張卡兩列,欄位上下對齊 ──
       //   第 1 列:名稱 | 進場價 | 做多 / 做空 | 張數 | ▲ / ⚠ | 注意
       //   第 2 列:代碼 | 平倉價(進場那則空白)| 判一 / 判二 / 判三 | (空)
-      const sideTxt = o.type !== 'entry' ? '' : o.side === 'long' ? '做多' : o.side === 'short' ? '做空' : '';   // 2026-10-19 使用者定案:只有進場卡顯示做多 / 做空(第一則已決定方向),之後的平倉 / 反彈 / 注意卡這格留白、只在最右邊顯示警示;沒字就不畫框(之前空框看起來像一條綠線)
-      const lots = lotsOf(o);
+      const sideTxt = (o.type !== 'entry' && o.type !== 'turn') ? '' : o.side === 'long' ? '做多' : o.side === 'short' ? '做空' : '';   // 2026-10-23 轉折卡也顯示做多 / 做空   // 2026-10-19 使用者定案:只有進場卡顯示做多 / 做空(第一則已決定方向),之後的平倉 / 反彈 / 注意卡這格留白、只在最右邊顯示警示;沒字就不畫框(之前空框看起來像一條綠線)
+      const lots = o.type === 'turn' ? 0 : lotsOf(o);   // 2026-10-23 轉折卡不算張數(只是提醒)
       const entP = o.type === 'entry' ? o.price : (o.entP || o.price);
-      const pxTop = entP ? (+entP).toFixed(2) : '', pxBot = (o.type !== 'entry' && o.price) ? (+o.price).toFixed(2) : '';
+      const pxTop = entP ? (+entP).toFixed(2) : '', pxBot = (o.type !== 'entry' && o.type !== 'turn' && o.price) ? (+o.price).toFixed(2) : '';
       // 2026-10-18 使用者:名稱、價格顏色和下面清單一致 → 名稱白字;價格比昨收高紅、低綠、平白。昨收:雲端紀錄自帶 prev;今天的用即時報價的昨收,沒有就用清單的昨收
       const prevC = o.prev || (d === today ? (((LIVE.get(o.code) || {}).y) || (() => { const sn = SNAPSHOT.find(q => q.code === o.code); return sn && sn.date < today ? +sn.close : 0; })()) : 0);
       const ud = v => !prevC || !v ? '' : v > prevC ? ' up' : v < prevC ? ' down' : ' flat';
@@ -6560,7 +6563,7 @@ window.bgTick = bgTick; window.BG = BG;
       // 平倉 / 注意 / 反彈 那則自己也顯示;今天、而且出現不到 10 分鐘的會閃爍。每列都有同樣的欄位,成交價 / 做多做空 / 張數才會上下對齊
       const AL = {exit: '平倉', warn: '注意', rebound: '反彈'};
       // 2026-10-21 使用者(時碩:「第一個通知就後面顯示平倉」→「改」):進場卡右邊留白,「平倉 / 輸贏」只顯示在平倉那張(原本進場卡顯示這筆交易後來的最新狀態)
-      const al = o.type === 'entry' ? '' : o._alert, alT = o._alertT || '';
+      const al = (o.type === 'entry' || o.type === 'turn') ? '' : o._alert, alT = o._alertT || '';
       const fresh = d === today && alT && (() => { const [h, mi] = alT.split(':').map(Number); const n = new Date(Date.now() + 8 * 3600000); return (n.getUTCHours() * 60 + n.getUTCMinutes()) - (h * 60 + mi) < 10; })();
       const rs = al ? `<span class="rs al al-${al}">${AL[al]}</span>` : '<span class="rs"></span>';   // 2026-10-19 使用者:「反彈 / 平倉 / 注意一直閃太干擾,不要閃了」→ 拿掉 blink,只用顏色,不再閃爍(fresh 保留給之後可能用)
       return `<div class="ln"><span class="nmblk"><span class="nm">${esc(o.name)}</span></span><span class="px${ud(+entP)}">${pxTop}</span><span class="sd${sideTxt ? (o.side === 'long' ? ' win' : ' lose') : ''}">${sideTxt}</span><span class="qt">${lots ? lots + '張' : ''}</span><span class="exm">${ex}</span>${rs}</div>`
