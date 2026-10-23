@@ -223,6 +223,10 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 14:25 轉折急拉 / 急殺警報(使用者:榮科 10/07 09:53 空 67.5 → 10:13 起 4 分鐘拉到 71.2、抱到 11:09 翻多 −10.4%「這種股票很危險 有什麼可以應對嗎」→「加第三招」):
+    推過的轉折之後,最近 3 根 K 收盤反向走 ≥ 1.5%(YH.turnAlertPct / turnAlertBars)→ 推「榮科 4989 空單注意 71.20 | 10:16 急拉 +5.9%(3分鐘) · 09:53 空點 67.50 · 轉折」,每則轉折只警報一次。
+    不是交易訊號、不記部位,只是叫你看盤;今日監控紀錄裡和轉折同一種卡(無網底)。判一 ~ 判三不用(它們有 1.5% 停損、6% 強制出、13:20 平倉)。
+    回測(量 ≥ 6,000 張 2,755 筆順勢翻轉交易):硬停損不會讓總損益變好(0.7% ~ 3% 都 −0.32 ~ −0.35%/筆),只把最大單筆從 −10.4% 壓到 −2 ~ −3%;所以用提醒不用自動停損,決定權在使用者。
   · 2026-10-23 14:05 轉折通知加「順勢而為」濾網(使用者:「平(假設向下)要擋掉做多的訊號」→「加上去 這算是順勢而為」;YH.turnNotifyTip):
     看指標三橘線、紫線最後一段(當天上一個穿越點 → 現在這根;橘用收盤、紫用 Ka;還沒有點或同價 = 平)。做多要兩條都向上才推;做空兩條都不向上(向下或平)就推。
     只管通知,轉折圖的點、燈號照舊。357 檔 13 天:點 28,784 → 24,283、60 根 ±1% 勝率 54.0 → 55.2%、翻轉交易扣成本 −0.37 → −0.31%/筆、10/22 前 49 名 133 → 98 則(做多 54 → 33、做空幾乎不動)。
@@ -1810,7 +1814,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231405">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231425">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3790,6 +3794,7 @@ const YH = {
   rfMinCross: 0.05,     // 2026-10-22 漲跌圖:Ka 要高(低)過 Kb 至少 0.05% 才算穿越          // 2026-10-22 漲跌圖多空點的「Ka 往上 / 往下」和 3 根前比(一檔跳動大的股票,Ka 一根就會小跳一下)      // 2026-10-22 漲跌圖多空點的「壓線」:Ka、Kb 差距和那根 K 離均線都在 0.2% 內 → 實心
   lampLeave: 1,         // 2026-10-21 11:40 使用者(台郡 10:13 天秤已到中間還亮做多):已亮做多 / 做空時,連 lampHold 根不是這個燈就換成最新那根的狀態(不必同一種);0 = 舊規則
   lampObOc: true,       // 2026-10-21 20:40 使用者「先改 D」:亮「做多」還要 Ob(OBV 均 10)在 Oc(OBV 均 30)之上,否則降成漸多;做空鏡像(Oc 還沒值 = 不亮做多 / 做空)。七天 1,405 股票日:勝率 54.1% → 55.3%
+  turnAlertPct: 1.5, turnAlertBars: 3,   // 2026-10-23 14:25 使用者「加第三招」:推過的轉折之後,3 根 K 內反向走 ≥ 1.5% 就推「急拉 / 急殺 多單 / 空單注意」(每則轉折一次;0 = 關)
   turnNotifyTip: true,  // 2026-10-23 14:05 使用者「平(假設向下)要擋掉做多的訊號」→「加上去 這算是順勢而為」:轉折通知看指標三橘線 / 紫線最後一段:做多兩條都要向上、做空兩條都不向上(平算偏空)
   turnNotify: true, turnNotifyOrg: false,   // 2026-10-23 12:21 使用者:「搭用橘線不可行 因為橘線有點像是未來線」→ 關掉(12:15 曾開:做多要橘線向上、做空向下才發)     // 2026-10-23 11:43 使用者:轉折圖的轉折點(多 / 空)每一個都推手機,不限次數,只是提醒(不進判別式、不記部位)
   lampTrendGate: true,  // 2026-10-23 11:09 使用者:「不要明明上升 燈號卻漸空那種情況 反之亦然」:Ka 2 根往上且收盤在 Ka 上 → 不亮漸空 / 做空;鏡像
@@ -6459,6 +6464,28 @@ async function bgTick(force, replay){
               bgLog('[轉折通知] ' + title + ' | ' + body);
               try{ if (window.Android && Android.notify) Android.notify(title, body, p.side > 0 ? 'long' : 'short'); }catch(e){}
               cloudLogAdd(title, body, 'turn');
+              (BG.turnLast = BG.turnLast || new Map()).set(code, {side: p.side, price: +p.price, time: p.time, alerted: false});   // 2026-10-23 14:25 急拉警報用:記最後一則推出去的轉折
+            }
+            // 2026-10-23 14:25 急拉 / 急殺警報(使用者:榮科 10/07 09:53 空 → 10:13 起 4 分鐘拉 6%「這種股票很危險 有什麼可以應對嗎」→「加第三招」):
+            //   最後一則推出去的轉折之後,最近 YH.turnAlertBars 根 K 收盤反向走 ≥ YH.turnAlertPct%,推一則「急拉 / 急殺 空單 / 多單注意」;每則轉折只警報一次。
+            //   不是交易訊號、不記部位,只是叫你看盤。判一 ~ 判三不用這個(它們本來就有 1.5% 停損 + 6% 強制出)。
+            if (YH.turnAlertPct > 0){
+              const L = BG.turnLast && BG.turnLast.get(code), N = YH.turnAlertBars || 3, n = bars.length;
+              if (L && !L.alerted && n > N && dayKey(L.time) === lastDay){
+                const z = bars[n - 1], a = bars[n - 1 - N];
+                if (z.time > L.time && dayKey(a.time) === lastDay){
+                  const mv = (z.close - a.close) / a.close * 100;
+                  if (mv * L.side <= -YH.turnAlertPct){
+                    L.alerted = true;
+                    const nm = names.get(code) || code, up = mv > 0, nowPx = liveRec.z || z.close;
+                    const title = `${nm} ${code} ${L.side > 0 ? '多單注意' : '空單注意'} ${(+nowPx).toFixed(2)}`;
+                    const body = `${hmKey(z.time)} ${up ? '急拉' : '急殺'} ${up ? '+' : ''}${mv.toFixed(1)}%(${N}分鐘) · ${hmKey(L.time)} ${L.side > 0 ? '多' : '空'}點 ${L.price.toFixed(2)} · 轉折`;
+                    bgLog('[急拉警報] ' + title + ' | ' + body);
+                    try{ if (window.Android && Android.notify) Android.notify(title, body, up ? 'long' : 'short'); }catch(e){}
+                    cloudLogAdd(title, body, 'turn');
+                  }
+                }
+              }
             }
           }catch(e){ bgLog(code + ' 轉折通知 ' + e.message); }
         }
@@ -6539,7 +6566,7 @@ window.bgTick = bgTick; window.BG = BG;
       const b = x.body || '', rest = m[3];
       const o = {x, name: m[1], code: m[2], t: x.t || '', kind: x.kind || '', prev: +x.prev || 0, rs: ((b.match(/· (判[一二三])\s*$/) || [])[1]) || ''};   // rs:發通知的判別式(判一 / 判二 / 判三),舊紀錄沒有就空白
       // 2026-10-23 12:00 轉折通知(內容結尾「· 轉折」):自己一類,一張卡只有 名稱 | 價 | 做多 / 做空 | 時間 | 轉折,不算部位、不配對平倉、不藏
-      if (/· 轉折\s*$/.test(b)){ o.type = 'turn'; o.rs = '轉折'; o.side = /做空/.test(rest) ? 'short' : 'long'; o.price = +((rest.match(/([\d.]+)\s*$/) || [])[1]) || 0; o.entP = o.price; return o; }
+      if (/· 轉折\s*$/.test(b)){ o.type = 'turn'; o.rs = '轉折'; o.side = /做空|空單注意/.test(rest) ? 'short' : 'long'; o.price = +((rest.match(/([\d.]+)\s*$/) || [])[1]) || 0; o.entP = o.price; return o; }
       if (o.kind === 'long' || o.kind === 'short'){ o.type = 'entry'; o.side = o.kind; o.price = +((rest.match(/([\d.]+)\s*$/) || [])[1]) || 0; o.entT = o.t; o.entP = o.price;
         o.tp = ((b.match(/停利 ([\d.]+)/) || [])[1]) || ''; o.sl = ((b.match(/停損 ([\d.]+)/) || [])[1]) || ''; }
       else if (o.kind === 'loss' || o.kind === 'profit' || o.kind === 'exit' || o.kind === 'warn'){
