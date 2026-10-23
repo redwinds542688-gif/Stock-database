@@ -201,6 +201,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     指標一上方「Ap:數值」文字先藏起來(#lblVwapBox display:none;Ap 線本來就沒畫,VWAP 照算、判別式照用)。只是畫面。
   · 2026-10-23 10:32 指標一右邊的切換鍵改寫「切換」,前面顯示現在是哪一張(K線圖 / 漲跌圖 / 轉折圖)(使用者:「漲跌圖切換按鍵 改成切換 在切換前面 顯示 當下的圖 名稱」)。只是畫面。
   · 2026-10-23 10:35 切換鍵三張圖都橘色(使用者:「切換按鍵 一致 橘色」;原本 K 線圖時是灰的)。只是畫面。
+  · 2026-10-23 10:50 漲跌圖 / 轉折圖盤中不重算(使用者:「十字虛線不太順暢」):盤中每 5 秒重畫一次,原本每次都把點、連線、燈號重算重畫(電腦約 100ms,手機更久,拖十字線時會卡一下);
+    改成同一根 K 還在跳動時不重算,換新的一根才算(訊號本來就只看收完的 K)。畫面、點位都不變。
+    另外手指按在圖上(拖十字線、拖圖、縮放)期間盤中重畫先略過,放手 0.15 秒後補畫一次(原本每 5 秒的重畫約 60~90ms,正好落在拖的時候就卡一下)。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1779,7 +1782,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231035">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231050">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3660,8 +3663,11 @@ async function liveFetch(arr){
 }
 
 /* 圖表開著 → 重畫(保留目前縮放) */
+let REDRAW_PENDING = false;   // 2026-10-23 10:50 使用者「十字虛線不太順暢」:手指按在圖上(拖十字線 / 拖圖 / 縮放)時不重畫,放手再補畫一次
 function redrawLive(){
   if (BARS_CODE && el('sheet').classList.contains('open') && HIST_BARS.has(BARS_CODE)){
+    if (window.isChartTouching && isChartTouching()){ REDRAW_PENDING = true; return; }
+    REDRAW_PENDING = false;
     drawBars(mergeLive(BARS_CODE, HIST_BARS.get(BARS_CODE)), BARS_CODE, '', true);
   }
 }
@@ -5126,7 +5132,7 @@ function initChart(){
     const dh = v === YH.chartDpr ? 0 : -1;
     for (const [e, c] of [[top, chart], [mid, chartM], [bot, chartB]]){ if (!c || !e || !e.clientHeight) continue; c.applyOptions({width: e.clientWidth, height: e.clientHeight + dh}); }
   };
-  window.setChartDpr = setChartDpr;
+  window.setChartDpr = setChartDpr; window.isChartTouching = () => touching;   // 2026-10-23 手指按著圖時 redrawLive 先不重畫
   const tStart = () => { touching = true; hideHiLo(); clearTimeout(touchGuard); touchGuard = setTimeout(tEnd, 1500); gestureStart(); setChartDpr(1); };
   // 放手後慣性捲動約 1.5 秒:每格檢查兩張圖的範圍是否一樣,不一樣就以剛才拖的那張為準(慣性動畫只在被拖的那張跑)
   let settle = 0, settleSrc = null;
@@ -5137,7 +5143,7 @@ function initChart(){
     if (r){ syncing = true; for (const b of charts) if (b !== src && !sameRange(r, b.timeScale().getVisibleLogicalRange())) b.timeScale().setVisibleLogicalRange(r); syncing = false; }
     if (settle > 0) requestAnimationFrame(settleLoop); else { settleSrc = null; scheduleHiLo(); showMarks(); }
   };
-  const tEnd = () => { if (!touching) return; touching = false; clearTimeout(touchGuard); gestureEnd(); setChartDpr(YH.chartDpr); scheduleHiLo(); if (typeof XLOCK !== 'undefined' && XLOCK) setTimeout(() => { if (XLOCK) applyX(XLOCK.time); }, 0); if (settle <= 0){ settle = 90; requestAnimationFrame(settleLoop); } else settle = 90; };
+  const tEnd = () => { if (!touching) return; touching = false; clearTimeout(touchGuard); gestureEnd(); setChartDpr(YH.chartDpr); scheduleHiLo(); if (REDRAW_PENDING) setTimeout(() => { if (!touching) redrawLive(); }, 150); /* 2026-10-23 放手後補畫剛才略過的那次 */ if (typeof XLOCK !== 'undefined' && XLOCK) setTimeout(() => { if (XLOCK) applyX(XLOCK.time); }, 0); if (settle <= 0){ settle = 90; requestAnimationFrame(settleLoop); } else settle = 90; };
   ['chartTop', 'chartMid', 'chartBot'].forEach(id => { const e = el(id); if (!e) return;
     e.addEventListener('touchstart', () => { settleSrc = id === 'chartMid' ? chartM : id === 'chartBot' ? (chartB || chartM) : chart; tStart(); }, {passive:true});
     e.addEventListener('touchend', tEnd, {passive:true}); e.addEventListener('touchcancel', tEnd, {passive:true}); });
@@ -5525,9 +5531,13 @@ function rfBias(bars, ma, ma24, ob, obma){
   }
   return out;
 }
+let RF_KEY = '';   // 2026-10-23 10:45 使用者「十字虛線不太順暢」:盤中每 5 秒重畫一次,漲跌圖 / 轉折圖的點、連線、燈號每次都重算重畫(約 100ms)→ 同一根 K 還沒收完就不重算,換新的一根才算
 function rfDraw(){
   if (!rfLine || !RF_ARGS || RF_ARGS.done === RF_VIEW) return;
   const {bars, sBars, sMa, sOb, sObma, ma24} = RF_ARGS; RF_ARGS.done = RF_VIEW;
+  const key = RF_VIEW + ':' + bars.length + ':' + (bars.length ? bars[bars.length - 1].time : 0) + ':' + sBars.length + ':' + (YH.kbPeriod || 24) + ':' + (YH.ocPeriod || 28);
+  if (key === RF_KEY) return;   // 和上次一樣的 K(只有最後一根還在跳動)→ 點不會變,不重算
+  RF_KEY = key;
   if (RF_VIEW === 2) return turnDraw(bars, sBars, sMa, ma24, sOb);
   try{
     const sMa24 = sBars === bars ? ma24 : sma(sBars, YH.kbPeriod || 24, 'close', false);
