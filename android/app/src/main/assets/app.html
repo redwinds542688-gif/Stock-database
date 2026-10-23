@@ -223,6 +223,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 16:35 十字線上每條線都有圓點(使用者:「指標二 三條線 三個的在十字虛線上 指標一跟三 也與指標二一致」):指標一 Ka、Kb 各一顆,指標三橘線、紫線各一顆
+    (三張圖都一樣,K 線圖的 Ka / Kb 也有)。指標二本來就是三顆。只是畫面。
   · 2026-10-23 16:30 指標二 Ob / Oc / Od 也一樣補(使用者:「其他 有這問題嗎」):每天前 9 / 27 / 15 根沒有值,原本線從昨天 13:30 直接拉到今天第 n 根,
     畫圖時用「有幾根算幾根」的平均補上。只是畫面,計算不動。Kb、Oa 本來就每根都有;指標三兩條線是點連線,沒這問題。
   · 2026-10-23 16:25 Ka 線換日不再斷(使用者:「再找不到 就直接前後連線」):前 9 根補上後 09:00 已有值,昨天 13:30 直接連到今天 09:00。
@@ -1846,7 +1848,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231630">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231635">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5153,7 +5155,7 @@ function initChart(){
   maLine = chart.addLineSeries({priceScaleId:'left', color:CHART_THEME.ma, lineWidth:1,   // 2026-10-20 線用最細的;顏色逐根依「收盤對昨收」上色(drawBars)
                                 priceLineVisible:false, lastValueVisible:false});
   // 2026-10-21 使用者:「加一條 k24」:均價 24(收盤 24 根平均,藍色、最細),跨日連續算(和元大的均價 24 一樣,開盤就有值;均價 10 照舊每天重算)
-  ma24Line = chart.addLineSeries({priceScaleId:'left', color:'#19D3F5', lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false});   // 2026-10-23 10:24 使用者:「三圖Kb改藍色」(10:05 曾改粉紅)
+  ma24Line = chart.addLineSeries({priceScaleId:'left', color:'#19D3F5', lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:true});   // 2026-10-23 16:30 使用者:「指標一跟三 也與指標二一致」:十字線上 Kb 也有圓點   // 2026-10-23 10:24 使用者:「三圖Kb改藍色」(10:05 曾改粉紅)
   // 2026-10-22 漲跌圖:rfLine 只用來掛多空點(線本身透明;14:10 使用者「取消白線」),rfChain = 黃色虛線連多空點
   rfLine = chart.addLineSeries({priceScaleId:'left', color:'rgba(0,0,0,0)', lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, visible: RF_MODE});
   rfChain = chart.addLineSeries({priceScaleId:'left', color:'#FFD23F', lineWidth:1.5, lineStyle:2, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, visible: RF_MODE});
@@ -5195,9 +5197,9 @@ function initChart(){
   const pxFmt = {type:'price', precision:2, minMove:0.01};
   // 2026-10-22 19:05 使用者:「指標三 怎麼那麼多點點」→「改」(選 3):橘線(OBV 穿 Ob,一天 30 多點)不畫;線改透明、資料照留,十字線和刻度跟著它走
   // 2026-10-22 21:07 使用者:「改回原來 沒有綠紅線的版本」:19:05 的改版(橘線不畫、紫線拆紅綠兩條)撤回,回到橘線 + 一條紫線
-  orgLine = chartB.addLineSeries({priceScaleId:'left', color:'#FF9F43', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:false});
+  orgLine = chartB.addLineSeries({priceScaleId:'left', color:'#FF9F43', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:true});   // 2026-10-23 16:30 十字線上有圓點(同指標二)
   padB = chartB.addLineSeries({priceScaleId:'left', lineVisible:false, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, autoscaleInfoProvider: () => null});   // 撐時間軸用,看不見、不影響刻度
-  kxLine = chartB.addLineSeries({priceScaleId:'left', color:'#D63AF9', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:false});   // 2026-10-21 Ka 穿越 Kb 的點連線(紫)
+  kxLine = chartB.addLineSeries({priceScaleId:'left', color:'#D63AF9', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:true});   // 2026-10-21 Ka 穿越 Kb 的點連線(紫)
   kxDnLine = null;   // 2026-10-22 21:07 紅綠兩條撤回
   // 時間軸放在最下面那張圖(元大的時間標籤在 OBV 下方)
   (chartB || chartM).applyOptions({timeScale:{...CHART_OPTS.timeScale, visible:true}});
