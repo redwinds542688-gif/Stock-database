@@ -223,6 +223,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 04:30 轉折「回到 Kb 加碼」通知(使用者:「你就以30根內碰到kb為依據…」看完 10/22、10/21 前 49 名 →「那就照原來的 如果股價再回檔碰上kb 則增加一則訊號 加碼」;YH.turnKbAddBars = 30):
+    轉折通知照原來推;之後 30 根內價格回到 Kb(多:最低 ≤ Kb;空:最高 ≥ Kb)再推一則「台虹 8039 加碼做空 293.50 | 09:48 回到 Kb 293.50 · 09:46 空點 293.00 · 現價 … · 轉折」,每則轉折一次。
+    回測(每檔第一個轉折點):10/22 碰 Kb 21 檔,在 Kb 進場 +39.0% 對直接進 +20.5%;10/21 碰 Kb 26 檔 −3.2% 對 −18.1%;每一檔 Kb 進場都比直接進好。只是提醒,不記部位。
   · 2026-10-24 03:50 燈號 / 天秤開盤不再等待(使用者:時碩 09:11 轉折多點燈沒亮「這裡不是做多嗎? 燈號沒亮 天秤也是」→「Ka既然跨日 燈號當然也是」;YH.lampNoWait):
     10/19 定的「開盤前 15 根 K 燈號等待、天秤歸零」是因為當時 Ka / Oc 要等 10 / 28 根才有值;現在 Ka、OBV 都跨日,開盤就有值 → 三張圖的燈號、天秤開盤就照常算。
     判一 ~ 判三「前 15 分鐘不進場」(SIG.skipMin)是交易規則,不動。
@@ -1928,7 +1931,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610240350">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610240430">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3949,6 +3952,7 @@ const YH = {
   kaCrossAll: true,     // 2026-10-24 03:10 使用者「還有哪裡用到ka 都一起改」「Obv也是跨日 一起改」:燈號 / 天秤 / 漲跌圖 / 轉折圖 / 轉折通知的 Ka、OBV(Ob / Oc)都跨日
   kaCrossJudge: true,   // 2026-10-24 03:20 使用者「判一二三 解凍」:判一 ~ 判三的 Ka、OBV(含所有 OBV 均線)跨日;模擬器 KACROSS=1 OBVCROSS=1
   kaDisplayCross: true, // 2026-10-24 03:00 畫面 Ka 跨日 10 根(09:01 借昨天 9 根);判一 ~ 判三 / 燈號 / 轉折點不動
+  turnKbAddBars: 30,    // 2026-10-24 04:30 使用者「如果股價再回檔碰上kb 則增加一則訊號 加碼」:轉折點後 30 根內回到 Kb 推「加碼」(0 = 關)
   turnGapBlock: 1,      // 2026-10-24 00:35 轉折通知:今開對昨收跳空 ≥1% 時擋掉順跳空方向的點(0 = 關)
   turnNotifyTip: true,  // 2026-10-23 14:05 使用者「平(假設向下)要擋掉做多的訊號」→「加上去 這算是順勢而為」:轉折通知看指標三橘線 / 紫線最後一段:做多兩條都要向上、做空兩條都不向上(平算偏空)
   turnNotify: true, turnNotifyOrg: false,   // 2026-10-23 12:21 使用者:「搭用橘線不可行 因為橘線有點像是未來線」→ 關掉(12:15 曾開:做多要橘線向上、做空向下才發)     // 2026-10-23 11:43 使用者:轉折圖的轉折點(多 / 空)每一個都推手機,不限次數,只是提醒(不進判別式、不記部位)
@@ -6744,6 +6748,32 @@ async function bgTick(force, replay){
               try{ if (window.Android && Android.notify) Android.notify(title, body, p.side > 0 ? 'long' : 'short'); }catch(e){}
               cloudLogAdd(title, body, 'turn');
               (BG.turnLast = BG.turnLast || new Map()).set(code, {side: p.side, price: +p.price, time: p.time, alerted: false});   // 2026-10-23 14:25 急拉警報用:記最後一則推出去的轉折
+            }
+            // 2026-10-24 04:30 回到 Kb 加碼(使用者:「如果股價再回檔碰上kb 則增加一則訊號 加碼」;YH.turnKbAddBars = 30):
+            //   推過的轉折點之後 30 根內,價格回到 Kb(做多:最低 ≤ Kb;做空:最高 ≥ Kb)→ 推一則「加碼做多 / 加碼做空 Kb 價」,每則轉折一次。
+            //   10/22 前 49 名:碰 Kb 的 21 檔在 Kb 進場合計 +39.0%(直接進 +20.5%);10/21:26 檔 −3.2%(直接進 −18.1%)。只是提醒,不記部位。
+            if (YH.turnKbAddBars > 0){
+              const L = BG.turnLast && BG.turnLast.get(code);
+              if (L && !L.added && dayKey(L.time) === lastDay){
+                const mK = toTimeMap(ma24); let i0 = -1;
+                for (let q = bars.length - 1; q >= 0; q--){ if (bars[q].time === L.time){ i0 = q; break; } if (bars[q].time < L.time) break; }
+                if (i0 >= 0){
+                  for (let q = i0 + 1; q < bars.length && q <= i0 + YH.turnKbAddBars; q++){
+                    const b = bars[q], kb = mK.get(b.time); if (kb == null || dayKey(b.time) !== lastDay) continue;
+                    if ((L.side > 0 && b.low <= kb) || (L.side < 0 && b.high >= kb)){
+                      L.added = true;
+                      if (b.time < Math.floor(Date.now() / 1000) - 600){ bgLog(code + ' 回到 Kb 太久以前,不通知 ' + hmKey(b.time)); break; }
+                      const nm = names.get(code) || code, nowPx = liveRec.z || bars[bars.length - 1].close;
+                      const title = `${nm} ${code} ${L.side > 0 ? '加碼做多' : '加碼做空'} ${(+kb).toFixed(2)}`;
+                      const body = `${hmKey(b.time)} 回到 Kb ${(+kb).toFixed(2)} · ${hmKey(L.time)} ${L.side > 0 ? '多' : '空'}點 ${L.price.toFixed(2)} · 現價 ${(+nowPx).toFixed(2)} · 轉折`;
+                      bgLog('[Kb 加碼] ' + title + ' | ' + body);
+                      try{ if (window.Android && Android.notify) Android.notify(title, body, L.side > 0 ? 'long' : 'short'); }catch(e){}
+                      cloudLogAdd(title, body, 'turn');
+                      break;
+                    }
+                  }
+                }
+              }
             }
             // 2026-10-23 14:25 急拉 / 急殺警報(使用者:榮科 10/07 09:53 空 → 10:13 起 4 分鐘拉 6%「這種股票很危險 有什麼可以應對嗎」→「加第三招」):
             //   最後一則推出去的轉折之後,最近 YH.turnAlertBars 根 K 收盤反向走 ≥ YH.turnAlertPct%,推一則「急拉 / 急殺 空單 / 多單注意」;每則轉折只警報一次。
