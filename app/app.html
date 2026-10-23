@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 05:20 加碼通知改樣式(使用者:「只顯示 加碼 不用顯示 做空加碼」「應該是293.00或是293.50才對」):標題「台虹 8039 加碼 293.00」,價格改用現價(不用 Kb 值);監控紀錄卡片那格顯示「加碼」(顏色照多/空)。
   · 2026-10-24 05:00 加碼加「價差太遠」條件(使用者:「除了30根 可能還要增加一個 就是價差太遠」→「好 改1」;YH.turnKbAddMaxPct = 2):訊號那根收盤離 Kb 超過 2% 就不推加碼。
     13 天回到 Kb 的 2,035 則:離 Kb >2% 的 47 則每筆 −0.92%,擋掉後合計 −808% → −765%;另一種「先往對的方向跑 >1% 又回到 Kb」擋了反而擋到賺的(+0.65%/筆),不做。
   · 2026-10-24 04:30 轉折「回到 Kb 加碼」通知(使用者:「你就以30根內碰到kb為依據…」看完 10/22、10/21 前 49 名 →「那就照原來的 如果股價再回檔碰上kb 則增加一則訊號 加碼」;YH.turnKbAddBars = 30):
@@ -1934,7 +1935,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610240500">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610240520">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6771,7 +6772,7 @@ async function bgTick(force, replay){
                       L.added = true;
                       if (b.time < Math.floor(Date.now() / 1000) - 600){ bgLog(code + ' 回到 Kb 太久以前,不通知 ' + hmKey(b.time)); break; }
                       const nm = names.get(code) || code, nowPx = liveRec.z || bars[bars.length - 1].close;
-                      const title = `${nm} ${code} ${L.side > 0 ? '加碼做多' : '加碼做空'} ${(+kb).toFixed(2)}`;
+                      const title = `${nm} ${code} 加碼 ${(+nowPx).toFixed(2)}`;   // 2026-10-24 05:20 使用者:「只顯示 加碼」、價格用現價(實際買得到的價),不用 Kb 值
                       const body = `${hmKey(b.time)} 回到 Kb ${(+kb).toFixed(2)} · ${hmKey(L.time)} ${L.side > 0 ? '多' : '空'}點 ${L.price.toFixed(2)} · 現價 ${(+nowPx).toFixed(2)} · 轉折`;
                       bgLog('[Kb 加碼] ' + title + ' | ' + body);
                       try{ if (window.Android && Android.notify) Android.notify(title, body, L.side > 0 ? 'long' : 'short'); }catch(e){}
@@ -6882,7 +6883,7 @@ window.bgTick = bgTick; window.BG = BG;
       const b = x.body || '', rest = m[3];
       const o = {x, name: m[1], code: m[2], t: x.t || '', kind: x.kind || '', prev: +x.prev || 0, rs: ((b.match(/· (判[一二三])\s*$/) || [])[1]) || ''};   // rs:發通知的判別式(判一 / 判二 / 判三),舊紀錄沒有就空白
       // 2026-10-23 12:00 轉折通知(內容結尾「· 轉折」):自己一類,一張卡只有 名稱 | 價 | 做多 / 做空 | 時間 | 轉折,不算部位、不配對平倉、不藏
-      if (/· 轉折\s*$/.test(b)){ o.type = 'turn'; o.rs = '轉折'; o.side = /做空|空單注意/.test(rest) ? 'short' : 'long'; o.price = +((rest.match(/([\d.]+)\s*$/) || [])[1]) || 0; o.entP = o.price; return o; }
+      if (/· 轉折\s*$/.test(b)){ o.type = 'turn'; o.rs = '轉折'; o.add = /^加碼\b|加碼/.test(rest); o.side = (/做空|空單注意/.test(rest) || (o.add && /空點/.test(b))) ? 'short' : 'long'; o.price = +((rest.match(/([\d.]+)\s*$/) || [])[1]) || 0; o.entP = o.price; return o; }
       if (o.kind === 'long' || o.kind === 'short'){ o.type = 'entry'; o.side = o.kind; o.price = +((rest.match(/([\d.]+)\s*$/) || [])[1]) || 0; o.entT = o.t; o.entP = o.price;
         o.tp = ((b.match(/停利 ([\d.]+)/) || [])[1]) || ''; o.sl = ((b.match(/停損 ([\d.]+)/) || [])[1]) || ''; }
       else if (o.kind === 'loss' || o.kind === 'profit' || o.kind === 'exit' || o.kind === 'warn'){
@@ -6943,7 +6944,7 @@ window.bgTick = bgTick; window.BG = BG;
       // 2026-10-18 使用者定案:一張卡兩列,欄位上下對齊 ──
       //   第 1 列:名稱 | 進場價 | 做多 / 做空 | 張數 | ▲ / ⚠ | 注意
       //   第 2 列:代碼 | 平倉價(進場那則空白)| 判一 / 判二 / 判三 | (空)
-      const sideTxt = (o.type !== 'entry' && o.type !== 'turn') ? '' : o.side === 'long' ? '做多' : o.side === 'short' ? '做空' : '';   // 2026-10-23 轉折卡也顯示做多 / 做空   // 2026-10-19 使用者定案:只有進場卡顯示做多 / 做空(第一則已決定方向),之後的平倉 / 反彈 / 注意卡這格留白、只在最右邊顯示警示;沒字就不畫框(之前空框看起來像一條綠線)
+      const sideTxt = (o.type !== 'entry' && o.type !== 'turn') ? '' : o.add ? '加碼' : o.side === 'long' ? '做多' : o.side === 'short' ? '做空' : '';   // 2026-10-23 轉折卡也顯示做多 / 做空   // 2026-10-19 使用者定案:只有進場卡顯示做多 / 做空(第一則已決定方向),之後的平倉 / 反彈 / 注意卡這格留白、只在最右邊顯示警示;沒字就不畫框(之前空框看起來像一條綠線)
       const lots = o.type === 'turn' ? 0 : lotsOf(o);   // 2026-10-23 轉折卡不算張數(只是提醒)
       const entP = o.type === 'entry' ? o.price : (o.entP || o.price);
       const pxTop = entP ? (+entP).toFixed(2) : '', pxBot = (o.type !== 'entry' && o.type !== 'turn' && o.price) ? (+o.price).toFixed(2) : '';
