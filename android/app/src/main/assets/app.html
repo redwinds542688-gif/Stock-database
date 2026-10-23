@@ -200,6 +200,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-23 10:25 線色再改(使用者:「漲跌/轉折 Ka改紅色 三圖Kb改藍色 Ap 暫時三圖都不顯示」):漲跌圖 / 轉折圖的 Ka 固定紅 #FF3B3B(K 線圖照舊紅綠上色);Kb 三張圖都回藍 #19D3F5(線和文字);
     指標一上方「Ap:數值」文字先藏起來(#lblVwapBox display:none;Ap 線本來就沒畫,VWAP 照算、判別式照用)。只是畫面。
   · 2026-10-23 10:32 指標一右邊的切換鍵改寫「切換」,前面顯示現在是哪一張(K線圖 / 漲跌圖 / 轉折圖)(使用者:「漲跌圖切換按鍵 改成切換 在切換前面 顯示 當下的圖 名稱」)。只是畫面。
+  · 2026-10-23 10:35 切換鍵三張圖都橘色(使用者:「切換按鍵 一致 橘色」;原本 K 線圖時是灰的)。只是畫面。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1778,7 +1779,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231032">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231035">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5596,7 +5597,8 @@ function turnDraw(bars, sBars, sMa, ma24, sOb){
 function applyRfMode(){
   if (RF_MODE) rfDraw();
   const b = el('rfToggle');
-  if (b){ b.textContent = '切換'; b.classList.toggle('on', RF_MODE); const nm = el('rfName'); if (nm) nm.textContent = ['K線圖', '漲跌圖', '轉折圖'][RF_VIEW] || 'K線圖'; }   // 2026-10-23 10:30 按鍵固定寫「切換」,前面顯示現在是哪一張
+  if (b){ b.textContent = '切換'; b.classList.add('on');   // 2026-10-23 10:32 使用者:「切換按鍵 一致 橘色」:三張圖按鍵都橘色(原本只有漲跌 / 轉折圖才橘)
+ const nm = el('rfName'); if (nm) nm.textContent = ['K線圖', '漲跌圖', '轉折圖'][RF_VIEW] || 'K線圖'; }   // 2026-10-23 10:30 按鍵固定寫「切換」,前面顯示現在是哪一張
   if (candle) candle.applyOptions({visible: !RF_MODE});
   try{ if (maLine && KA_COLORED && KA_PLAIN) maLine.setData(RF_MODE ? KA_PLAIN : KA_COLORED); }catch(e){}   // 2026-10-23 Ka:K 線圖紅綠、漲跌 / 轉折圖紫
   if (rfLine) rfLine.applyOptions({visible: RF_MODE});
