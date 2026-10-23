@@ -223,6 +223,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 19:00 指標二換日改回接起來(使用者:「指標二 怎麼斷了」→ 選 A):四條線昨天 13:30 → 今天 09:00 直接連線,換日那段是昨天累計值掉到 0 的假跌 / 假漲,
+    使用者知道、接受。YH.obvDayCut = true 可切回斷開。
   · 2026-10-23 18:15 指標二換日斷開(使用者:廣宇 10/21 09:00「股價上衝 為何圖二下跌」):OBV 每天開盤歸零(元大一樣),昨天收 4,800、今天從 0 起算,
     Oa / Ob / Oc / Od 從昨天 13:30 連到今天 09:00 看起來像暴跌。四條線每天最後一段設透明,換日處斷開;數值、判別式、燈號都不動。
   · 2026-10-23 16:40 漲跌圖改規則(使用者:TPK 10/22 09:14「這應該做多 怎麼顯示」→「你看圖 修正」):09:13 一根跳上去,Ka 穿過 Kb 時價格已離均線 0.5%、
@@ -1854,7 +1856,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231815">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231900">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3857,6 +3859,7 @@ const YH = {
   rfPressPct: 0.2,
   rfKaBars: 3,
   turnPressPct: 0.15,   // 2026-10-22 22:58 使用者「設,0.15」(TPK 09:30 離 Ka 0.14% 算、12:31 離 0.16% 不算);22:55「設0.1」(TPK 12:31 多點「沒有壓線」:最低 74.40 離 Ka 0.16%):轉折圖的壓線 0.2% → 0.1%;漲跌圖照舊 rfPressPct 0.2
+  obvDayCut: false,     // 2026-10-23 19:00 指標二換日:false = 直接連線(使用者選 A)、true = 斷開
   rfNoBrk: true, rfRunSolid: 2,   // 2026-10-23 16:35 漲跌圖:不要「K 棒要碰到均線」;三條件連 2 根成立就算實心(TPK 10/22 09:14 跳上去沒回來碰線 →「你看圖 修正」)
   turnKbBars: 1,        // 2026-10-23 12:55 使用者「轉折還是搭kb傾斜 比較穩定多空方向」→「改」:轉折點 做多要 Kb 比 1 根前高、做空要比 1 根前低(0 = 不看);台郡 10/22 12:20 貼線假多點擋掉
   turnKaBars: 2,        // 2026-10-22 22:42 使用者「改二根」:轉折圖的 Ka 方向和 2 根前比(台塑化 10/21 10:25 假多 0.00 擋掉、TPK 10/22 09:30 起漲 +0.04 抓到);漲跌圖照舊 3 根
@@ -5792,7 +5795,8 @@ function drawBars(bars, code, srcLabel, keepView){
   const ob = obv(bars);
   // 2026-10-23 18:15 使用者(廣宇 10/21 09:00「股價上衝 為何圖二下跌」):OBV 每天開盤歸零(和元大一樣),昨天收在 4,800、今天從 0 起算,
   //   線從昨天 13:30 連到今天 09:00 看起來像暴跌。四條線每天最後一段設透明,換日處斷開(數值不變)
-  const dayCut = arr => arr.map((x, i) => (i + 1 < arr.length && x.value != null && dayKey(arr[i + 1].time) !== dayKey(x.time)) ? {...x, color: 'rgba(0,0,0,0)'} : x);
+  // 2026-10-23 19:00 使用者(「指標二 怎麼斷了」→ 選 A 接起來):換日不斷開,直接前後連線(昨天的累計值 → 今天的 0 那一段照畫);dayCut 留著不用
+  const dayCut = YH.obvDayCut ? (arr => arr.map((x, i) => (i + 1 < arr.length && x.value != null && dayKey(arr[i + 1].time) !== dayKey(x.time)) ? {...x, color: 'rgba(0,0,0,0)'} : x)) : (arr => arr);
   obvSeries.setData(dayCut(ob));
   const obma = sma(ob, BASE.obvMaPeriod, 'value');
   // 2026-10-23 16:30 使用者(「其他 有這問題嗎」):Ob / Oc / Od 每天前 n−1 根沒有值,線會從昨天 13:30 直接拉到今天第 n 根;畫圖時用「有幾根算幾根」的平均補上(同 Ka),
