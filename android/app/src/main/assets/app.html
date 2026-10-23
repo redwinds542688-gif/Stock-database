@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 22:45 點「切換」不再動到十字線(使用者:「點選 切換 有時候都會觸發讓十字虛線移動到切換鍵附近位置」):點在按鍵 / 標題列上的那一下不當作點圖。
   · 2026-10-23 22:25 切換圖時價格刻度完全不動(使用者影片:「切換還是價格線會上縮 可以完全不動嗎 這樣才不會那麼不一致」):漲跌 / 轉折圖把 K 棒藏起來後,
     刻度只看線、範圍變窄,切換就上下縮。改成三張圖的刻度一律用可見範圍內 K 棒的最高 / 最低(上圖每一條線、K 棒都用同一個 autoscaleInfoProvider kRange),
     模擬切換三圖刻度 84.612 ~ 81.682 完全一樣。
@@ -1894,7 +1895,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610232225">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610232245">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5420,7 +5421,9 @@ function initChart(){
     }
   };
   // 2026-10-22 20:10 點一下的第二條路:圖庫自己的點擊事件(手機點一下也會發),和下面自己判斷的點一下都會放十字線,哪條先到都一樣
-  [chart, chartM, chartB].filter(Boolean).forEach(c => c.subscribeClick(p => { if (p && p.time && idxOf(p.time) >= 0) setTimeout(() => setX(p.time), 0); }));
+  [chart, chartM, chartB].filter(Boolean).forEach(c => c.subscribeClick(p => { if (Date.now() - (window.__btnTapAt || 0) < 600) return; if (p && p.time && idxOf(p.time) >= 0) setTimeout(() => setX(p.time), 0); }));
+  // 2026-10-23 22:45 按鍵 / 標題列被點時記下時間,0.6 秒內圖庫的 click 不放十字線
+  document.addEventListener('pointerdown', ev => { if (ev.target && ev.target.closest && ev.target.closest('button, .yh-lbl, .xgo')) window.__btnTapAt = Date.now(); }, true);
   chart.subscribeCrosshairMove(p => onMove(chart, p));
   chartM.subscribeCrosshairMove(p => onMove(chartM, p));
   if (chartB) chartB.subscribeCrosshairMove(p => onMove(chartB, p));
@@ -5483,6 +5486,8 @@ function initChart(){
     e.addEventListener('touchcancel', () => { clearTimeout(lpTimer); longPress = false; t0 = 0; vz = null; }, {passive:true});
     e.addEventListener('touchend', ev => {
       clearTimeout(lpTimer); const wasLP = longPress; longPress = false; const wasVz = !!vz; vz = null;
+      // 2026-10-23 22:45 使用者:「點選 切換 有時候都會觸發讓十字虛線移動到切換鍵附近位置」:點在按鍵 / 標題列上不算點圖
+      if (ev.target && ev.target.closest && ev.target.closest('button, .yh-lbl, .xgo')){ t0 = 0; return; }
       if (multi || !t0 || wasVz) return; const t = ev.changedTouches[0]; if (!t) return;
       const dt = Date.now() - t0; t0 = 0;
       if (wasLP || dt > 350 || Math.hypot(t.clientX - x0, t.clientY - y0) > 10) return;
