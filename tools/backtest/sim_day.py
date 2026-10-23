@@ -56,9 +56,28 @@ for i in range(1, len(c)):
     if c[i] > c[i-1]: acc += v[i]
     elif c[i] < c[i-1]: acc -= v[i]
     ob[i] = round(acc)
-obma = pd.Series(ob).rolling(OB).mean().values
-OB2 = int(os.environ.get('OB2','20')); obma2 = pd.Series(ob).rolling(OB2).mean().values   # 第二條 OBV 均線(平倉用)
-OBF = int(os.environ.get('OBF','3')); obmaF = pd.Series(ob).rolling(OBF).mean().values   # 快速 OBV 均線(瞬間反彈警示用)
+# 2026-10-24 03:20 使用者(「Obv也是跨日」「判一二三 解凍」):OBVCROSS=1 → OBV 跨日累計,所有 OBV 均線(_obroll)也接昨天的算(App obv() / sma 跨日,YH.kaCrossJudge)
+_OBFULL, _OBP0 = ob, 0
+if os.environ.get('OBVCROSS','0') == '1':
+    try:
+        _pd = df[(df.date < DAY) & (df.time >= '09:00') & (df.time <= '13:30')].drop_duplicates(['date','time']).sort_values(['date','time'])
+        _pd = _pd[_pd.date.isin(sorted(set(_pd.date))[-2:])]   # 前 2 天就夠(均線最長 30 根)
+        _pv = []
+        for _d in sorted(set(_pd.date)):
+            _x = _pd[_pd.date == _d]; _vv = _x.volume.values.astype(float)
+            _pv.extend(list(_blk(_vv, list(_x.time)) if BLK else _vv))
+        _pcl = np.round(_pd.close.values.astype(float), 2); _pv = np.array(_pv) / 1000
+        _cc = np.concatenate([_pcl, c]); _vv = np.concatenate([_pv, v]); _OBFULL = np.zeros(len(_cc)); _a = 0
+        for _i in range(1, len(_cc)):
+            if _cc[_i] > _cc[_i-1]: _a += _vv[_i]
+            elif _cc[_i] < _cc[_i-1]: _a -= _vv[_i]
+            _OBFULL[_i] = round(_a)
+        _OBP0 = len(_pcl); ob = _OBFULL[_OBP0:].copy()
+    except Exception as _e: _OBFULL, _OBP0 = ob, 0
+def _obroll(n, mp=None): return pd.Series(_OBFULL).rolling(n, min_periods=mp).mean().values[_OBP0:]
+obma = _obroll(OB)
+OB2 = int(os.environ.get('OB2','20')); obma2 = _obroll(OB2)   # 第二條 OBV 均線(平倉用)
+OBF = int(os.environ.get('OBF','3')); obmaF = _obroll(OBF)   # 快速 OBV 均線(瞬間反彈警示用)
 hi = np.maximum.accumulate(h); lo = np.minimum.accumulate(l)
 # 2026-10-21 使用者(和益 09:53 手機停損、模擬器沒停 →「改 模擬器停損用 Yahoo 高低」):雲端 K 每分鐘只有一個快照價,高低點只是前後兩個快照,
 #   盤中衝高拉回看不到(和益 09:53 / 09:55 雲端高 57.0 / 57.1,Yahoo 真實高 57.5 / 57.7;手機每 5 秒看即時價 57.2 就停損)。
@@ -303,7 +322,7 @@ for i in range(1, len(c)):
         XNEWHI = int(os.environ.get('XNEWHI','0'))        # 確認點前紅線要創幾次「穿越後新高(多)/ 新低(空)」,0 = 不看
         XOB2 = int(os.environ.get('XOB2','0')); XOB2DIR = os.environ.get('XOB2DIR','slope')   # 第二條慢 OBV 均線(例 20):slope=要同向、side=紅線要在它的順向側、both=兩個都要
         if 'cand' not in globals(): globals()['cand'] = {1: None, -1: None}
-        if XOB2 and 'obmaS' not in globals(): globals()['obmaS'] = pd.Series(ob).rolling(XOB2).mean().values
+        if XOB2 and 'obmaS' not in globals(): globals()['obmaS'] = _obroll(XOB2)
         _rng = (np.nanmax(ob[:i+1]) - np.nanmin(ob[:i+1])) or 1
         if os.environ.get('XMODE','cross') == 'gap':   # gap 模式:不看「剛穿越那一根」,看紅藍距離第一次拉開到 XSTR%(前一根還不到)— 友達 10/16 10:30 這種「早就在下面、這根才真的拉開」也算
             _g1 = (ob[i]-obma[i])/_rng*100; _g0 = (ob[i-1]-obma[i-1])/((np.nanmax(ob[:i]) - np.nanmin(ob[:i])) or 1)*100
@@ -533,7 +552,7 @@ for i in range(1, len(c)):
     if conf and DUAL and not far:
         _mp = int(os.environ.get('DUALMIN','0'))   # DUALMIN>0:不足 30 根時用「目前有的根數」算平均(最少 DUALMIN 根)
         _dm = int(os.environ.get('DUALMA', OB2))   # DUALMA:雙重驗證用的 OBV 均線根數(預設 OB2)
-        _m2 = pd.Series(ob).rolling(_dm, min_periods=_mp or None).mean().values
+        _m2 = _obroll(_dm, _mp or None)
         if np.isnan(_m2[i]) or np.isnan(_m2[i-1]):
             if os.environ.get('DUALNAN','pass') == 'block': far = True; tag += f' [OBV{_dm} 還沒算出來,只記錄]'
         else:
@@ -617,7 +636,7 @@ for i in range(1, len(c)):
         if _om < OPENMOVE: far = True; tag += f' [離今開 {_om:+.2f}% 不足 {OPENMOVE}%,只記錄]'
     OBVDIR = int(os.environ.get('OBVDIR','0')); OBVDIRK = int(os.environ.get('OBVDIRK','1'))   # 2026-10-19 使用者:「OBV30 藍線向上不做空只做多,反之亦然」→ 確認點 OBV 均 OBVDIR 最近 OBVDIRK 根要和方向同向(持平也不進)
     if conf and OBVDIR > 0 and not far:
-        if 'obmaDir' not in globals() or globals().get('obmaDirN') != OBVDIR: globals()['obmaDir'] = pd.Series(ob).rolling(OBVDIR).mean().values; globals()['obmaDirN'] = OBVDIR
+        if 'obmaDir' not in globals() or globals().get('obmaDirN') != OBVDIR: globals()['obmaDir'] = _obroll(OBVDIR); globals()['obmaDirN'] = OBVDIR
         _md = globals()['obmaDir']
         _nan = i - OBVDIRK < 0 or np.isnan(_md[i]) or np.isnan(_md[i-OBVDIRK])
         _mode = os.environ.get('OBVDIRNAN','expand')   # 開盤 30 根內算不出 OBV30:expand(預設,2026-10-19 使用者「以當時時間為依據,09:15 就是 OBV15」)= 用今天到目前全部 K 的平均;skip = 不看;block = 擋

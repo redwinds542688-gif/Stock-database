@@ -223,6 +223,10 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 03:20 判一 ~ 判三解凍,Ka / OBV 跨日(使用者:「判一到判三 一起改」「Obv也是跨日 一起改」「判一二三 解凍」;YH.kaCrossJudge = true):
+    MA_RESET_DAILY 跟著關 → 所有沒指定的均線(Ka、OBV 均線)跨日;obv() 跨日累計。模擬器 KACROSS=1 OBVCROSS=1(OBV 均線全部改走 _obroll 接昨天算)。
+    App 對模擬器:判一 215 檔日 0 差異(判二 / 判三對照、OBV 跨日的回測背景跑中)。Ka 單獨跨日回測:判一 ~ 判三雲端三天、Yahoo 九天結果完全一樣
+    (前 15 分鐘本來不進場,09:10 後兩種 Ka 同值);OBV 跨日會影響開盤後 30 分鐘內的 OBV 均線,結果待回報。README 鐵律 15 記錄解凍。
   · 2026-10-24 03:15 OBV 也跨日(使用者:「Obv也是跨日 一起改」):燈號 / 天秤 / 漲跌圖 / 轉折圖 / 轉折通知用的 OBV、Ob、Oc 都改跨日累計(和指標二畫面同一份);判一 ~ 判三照舊每日歸零,等回測。
   · 2026-10-24 03:10 其他用到 Ka 的也跨日(使用者:「還有哪裡用到ka 都一起改」;YH.kaCrossAll):K 線圖燈號 / 天秤(指標三)、漲跌圖、轉折圖的點 / 燈號 / 天秤、轉折通知。
     判一 ~ 判三另一個開關 YH.kaCrossJudge(先關,回測跑完使用者點頭才開)。
@@ -1916,7 +1920,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610240315">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610240320">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3934,7 +3938,7 @@ const YH = {
   cloudPollMs: 10000,   // 2026-10-23 15:15 20 秒 → 10 秒(使用者「有辦法再快一點嗎」→「都改」)   // 2026-10-23 15:10 使用者「能夠盡量加快訊息發放的速度嗎」:雲端 1 分K 每 20 秒補一次(原 55 秒;一次抓全部代號,一天約 800 次請求)
   turnAlertPct: 1.5, turnAlertBars: 3,   // 2026-10-23 14:25 使用者「加第三招」:推過的轉折之後,3 根 K 內反向走 ≥ 1.5% 就推「急拉 / 急殺 多單 / 空單注意」(每則轉折一次;0 = 關)
   kaCrossAll: true,     // 2026-10-24 03:10 使用者「還有哪裡用到ka 都一起改」「Obv也是跨日 一起改」:燈號 / 天秤 / 漲跌圖 / 轉折圖 / 轉折通知的 Ka、OBV(Ob / Oc)都跨日
-  kaCrossJudge: false,  // 2026-10-24 03:10 判一 ~ 判三的 Ka(之後加 OBV)跨日:回測完使用者點頭才開(模擬器 KACROSS=1)
+  kaCrossJudge: true,   // 2026-10-24 03:20 使用者「判一二三 解凍」:判一 ~ 判三的 Ka、OBV(含所有 OBV 均線)跨日;模擬器 KACROSS=1 OBVCROSS=1
   kaDisplayCross: true, // 2026-10-24 03:00 畫面 Ka 跨日 10 根(09:01 借昨天 9 根);判一 ~ 判三 / 燈號 / 轉折點不動
   turnGapBlock: 1,      // 2026-10-24 00:35 轉折通知:今開對昨收跳空 ≥1% 時擋掉順跳空方向的點(0 = 關)
   turnNotifyTip: true,  // 2026-10-23 14:05 使用者「平(假設向下)要擋掉做多的訊號」→「加上去 這算是順勢而為」:轉折通知看指標三橘線 / 紫線最後一段:做多兩條都要向上、做空兩條都不向上(平算偏空)
@@ -4042,7 +4046,7 @@ function showBarInfo(t){
    dayKey:同一天同一個整數;hmKey:'HH:MM'(和原本 toLocaleTimeString 的格式一樣,可以直接比大小)。 */
 function dayKey(t){ return Math.floor((t + 28800) / 86400); }
 function hmKey(t){ const m = Math.floor(((t + 28800) % 86400) / 60), h = Math.floor(m / 60), mm = m % 60; return (h < 10 ? '0' : '') + h + ':' + (mm < 10 ? '0' : '') + mm; }
-const MA_RESET_DAILY = true;
+const MA_RESET_DAILY = !YH.kaCrossJudge;   // 2026-10-24 03:20 使用者「判一二三 解凍」+「Ka / Obv 跨日」:YH.kaCrossJudge 開 → 所有沒指定的均線(Ka、OBV 均線)都跨日
 function sma(bars, n, key = 'close', daily = MA_RESET_DAILY){
   const out = [];
   let sum = 0, cnt = 0, prevDay = null;
@@ -4064,7 +4068,7 @@ function obv(bars){
   let acc = 0, prevClose = null, prevDay = null;
   for (const b of bars){
     const day = dayKey(b.time);
-    if (OBV_RESET_DAILY && day !== prevDay){ acc = 0; prevClose = null; prevDay = day; }
+    if (OBV_RESET_DAILY && !YH.kaCrossJudge && day !== prevDay){ acc = 0; prevClose = null; prevDay = day; }   // 2026-10-24 03:20 YH.kaCrossJudge 開 → OBV 跨日累計
     const lots = b.volume / 1000;
     if (prevClose != null){
       if (b.close > prevClose) acc += lots;
