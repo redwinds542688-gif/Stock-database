@@ -223,6 +223,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 03:00 畫面 Ka 改跨日 10 根(使用者:時碩 09:06「為什麼Ka沒有數值」→「不是說借用昨天的 今天9.01 就借昨天的9根」;10-23 18:17 提過,當時測轉折沒差就沒改):
+    紅線、上方 Ka 數字、十字線紅點、指標三紫線的點、轉折通知順勢而為的紫線,都改用跨日 10 根(09:00 = 昨天最後 9 根 + 今天第 1 根,和元大一樣),開盤就有數字。
+    判一 ~ 判三(凍結)、燈號、漲跌 / 轉折點本身照舊用每天重算的 Ka。YH.kaDisplayCross = false 切回。
   · 2026-10-24 01:15 判一只做跳空 ≥1%(使用者看完實際算法回測 →「只開判一」):SIG1.gapMinPct = 1,判二 / 三 / 四各自設 0(維持原樣)。
     判一:Yahoo 九天 31 筆 67% +61,404 → 17 筆 82% +53,869;雲端 K 三天 7 筆 85% +27,256 → 5 筆 80% +20,724。模擬器判一旗標加 GAPMIN=1。
     (判二若開:九天 45 筆 68% +109,475 → 25 筆 80% +78,984、雲端 13 筆 +27,296 → 9 筆 +9,586 → 不開)
@@ -1910,7 +1913,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610240115">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610240300">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3927,6 +3930,7 @@ const YH = {
   cloudSnapEarly: false, // 2026-10-23 15:45 關掉(改由 Worker Cron 自己對準下一分鐘 :02 抓,手機不用叫;程式留著當備援)   // 2026-10-23 15:15 使用者「都改」:每分鐘 :01 叫 Worker 立刻存快照(不等 Cron :47),抓完馬上重拿 K
   cloudPollMs: 10000,   // 2026-10-23 15:15 20 秒 → 10 秒(使用者「有辦法再快一點嗎」→「都改」)   // 2026-10-23 15:10 使用者「能夠盡量加快訊息發放的速度嗎」:雲端 1 分K 每 20 秒補一次(原 55 秒;一次抓全部代號,一天約 800 次請求)
   turnAlertPct: 1.5, turnAlertBars: 3,   // 2026-10-23 14:25 使用者「加第三招」:推過的轉折之後,3 根 K 內反向走 ≥ 1.5% 就推「急拉 / 急殺 多單 / 空單注意」(每則轉折一次;0 = 關)
+  kaDisplayCross: true, // 2026-10-24 03:00 畫面 Ka 跨日 10 根(09:01 借昨天 9 根);判一 ~ 判三 / 燈號 / 轉折點不動
   turnGapBlock: 1,      // 2026-10-24 00:35 轉折通知:今開對昨收跳空 ≥1% 時擋掉順跳空方向的點(0 = 關)
   turnNotifyTip: true,  // 2026-10-23 14:05 使用者「平(假設向下)要擋掉做多的訊號」→「加上去 這算是順勢而為」:轉折通知看指標三橘線 / 紫線最後一段:做多兩條都要向上、做空兩條都不向上(平算偏空)
   turnNotify: true, turnNotifyOrg: false,   // 2026-10-23 12:21 使用者:「搭用橘線不可行 因為橘線有點像是未來線」→ 關掉(12:15 曾開:做多要橘線向上、做空向下才發)     // 2026-10-23 11:43 使用者:轉折圖的轉折點(多 / 空)每一個都推手機,不限次數,只是提醒(不進判別式、不記部位)
@@ -4983,14 +4987,14 @@ function obvCrossPoints(bars, ob, obma){
 window.obvCrossPoints = obvCrossPoints;
 /* Ka × Kb 穿越點(2026-10-21):Ka(均價 10)和 Kb(均價 24)每次交叉的那根。Ka 往上穿 Kb → side 1;往下穿 → side -1;price = 那根的 Ka 值(兩線交會的位置) */
 let KX_PTS = [];
-function maCrossPoints(ka, kb){
+function maCrossPoints(ka, kb, crossDay){   // crossDay = true:Ka 跨日連續(2026-10-24 03:00),換日不重置,09:00 的交叉也算
   const mb = new Map(); kb.forEach(x => mb.set(x.time, x.value));
   const out = []; let prev = null, pday = null;
   for (const a of ka){
     const b = mb.get(a.time);
     // 2026-10-21 19:20 使用者(時碩 09:09「畫面上並沒有穿越」):Ka 每天重算,開盤第 10 根才有值,原本拿昨天最後的 Ka 和今天第一個 Ka 比,
     //   開盤跳空就在 09:09 標一個假的「上穿」。換日不比,當天有值以後真的交叉才標(指標二 Ob×Oc 也一樣)
-    const dk = dayKey(a.time); if (dk !== pday){ prev = null; pday = dk; }
+    const dk = dayKey(a.time); if (dk !== pday){ if (!crossDay) prev = null; pday = dk; }
     if (b == null || a.value == null){ prev = null; continue; }
     const d = a.value - b;
     if (prev != null){
@@ -5884,13 +5888,16 @@ function drawBars(bars, code, srcLabel, keepView){
   initChart();
   candle.setData(bars);
   const ma = sma(bars, BASE.maPeriod);
+  // 2026-10-24 03:00 使用者(「為什麼Ka沒有數值」→「不是說借用昨天的 今天9.01 就借昨天的9根」):畫面上的 Ka(紅線、上方數字、指標三紫線的點、十字線)改用跨日 10 根(和元大一樣);
+  //   判一 ~ 判三、燈號、漲跌 / 轉折點照舊用每天重算的 ma(凍結 / 10-23 測過跨日對轉折點沒差)。YH.kaDisplayCross = false 切回
+  const maX = YH.kaDisplayCross === false ? ma : sma(bars, BASE.maPeriod, 'close', false);
   // 2026-10-21 19:40 使用者(時碩:「白色斜線 不符合股價平盤邏輯」):Ka 每天重算、開盤第 10 根才有值,原本昨天最後一點直接連到今天 09:09,
   //   畫出一條白色斜線(線段顏色跟著起點 = 昨天最後一點,它的收盤 = 今天的昨收 → 平盤白)。
   //   19:50 使用者:「剛剛那個白線 應該是紅線 需要畫」→ 連線照畫,顏色改跟今天第一個 Ka(那根收盤對昨收:上紅、下綠、平白)
   const kaGap = (arr) => { const out = arr.slice();
     for (let i = 0; i + 1 < out.length; i++) if (dayKey(out[i].time) !== dayKey(out[i + 1].time) && out[i + 1].color) out[i] = {...out[i], color: out[i + 1].color};
     return out; };
-  maLine.setData(kaGap(ma));
+  maLine.setData(kaGap(maX));
   const ma24 = sma(bars, YH.kbPeriod || 24, 'close', false);   // 2026-10-21 K24;2026-10-23 使用者「Kb改28」→ YH.kbPeriod
   ma24Line.setData(ma24);
   const vw = vwap(bars);
@@ -5935,7 +5942,7 @@ function drawBars(bars, code, srcLabel, keepView){
   const org = lineThrough(bars, tipPt(orgPts.map(p => ({time: p.time, value: p.price})), bars.length ? bars[bars.length - 1].close : null));
   // 2026-10-21 使用者:「Ka 穿越 Kb 的點標出來 記錄起來 在指標三那邊顯示出來 一樣連線 不用顯示價格 原來指標三那條線也不用顯示價格」:
   //   Ka(均價 10)和 Kb(均價 24)每次交叉的那根記一個點(值 = 那根的 Ka),紫線依序相連;往上穿紅點、往下穿綠點,K 線圖的 Ka 線上也標同樣的小點。兩條線的點都不標價格。
-  const kxPts = maCrossPoints(ma, ma24);
+  const kxPts = maCrossPoints(maX, ma24, maX !== ma);   // 2026-10-24 03:00 紫線的點 = 畫面上紅線(跨日 Ka)穿 Kb
   KX_PTS = kxPts;
   // 2026-10-22 21:07 指標三文字回到原來的「往上穿 / 往下穿 時間」(橘線最近一次穿越);一次掃完(19:10 加速照留)
   const I3TXT = new Map();
@@ -5982,9 +5989,9 @@ function drawBars(bars, code, srcLabel, keepView){
     { const cl = new Map(), pcOf = new Map(); let lastDay = null, lastClose = null;
       bars.forEach(b => { cl.set(b.time, b.close); const dk = dayKey(b.time); if (dk !== lastDay){ if (lastDay !== null) pcOf.set(dk, lastClose); lastDay = dk; } lastClose = b.close; });
       if (bars.length) pcOf.set(dayKey(bars[bars.length - 1].time), prevClose);
-      KA_COLORED = kaGap(ma.map(x => { const c = cl.get(x.time), pc = pcOf.get(dayKey(x.time)); return {time: x.time, value: x.value, color: !(pc > 0) ? CHART_THEME.ma : c > pc ? CHART_THEME.up : c < pc ? CHART_THEME.down : '#E6E6E6'}; }));
+      KA_COLORED = kaGap(maX.map(x => { const c = cl.get(x.time), pc = pcOf.get(dayKey(x.time)); return {time: x.time, value: x.value, color: !(pc > 0) ? CHART_THEME.ma : c > pc ? CHART_THEME.up : c < pc ? CHART_THEME.down : '#E6E6E6'}; }));
       // 2026-10-23 09:54 使用者(「轉折圖的兩條線顏色太相近了」):漲跌圖 / 轉折圖沒有 K 棒,Ka 改成固定紫色(和元大均價 10 一樣,使用者一直叫它「紫線」),Kb 藍不變;K 線圖的 Ka 照舊紅綠上色
-      KA_PLAIN = ma.map(x => ({time: x.time, value: x.value, color: KA_RF_COLOR}));
+      KA_PLAIN = maX.map(x => ({time: x.time, value: x.value, color: KA_RF_COLOR}));
       // 2026-10-23 16:15 使用者(時碩 10/22 09:00 漲跌圖「十字虛線的橫線位置也不對」):Ka 每天前 9 根沒有值,線會從昨天 13:30 直接拉到今天 09:10,
       //   看起來 09:00 的 Ka 在 85 其實沒有。沒有 Ka 的那幾根補成空白點(只有 time),線在換日處斷開
       //   (套件會直接畫過沒有值的地方,所以和黃虛線一樣:每天最後一點的線段顏色設透明,換日那段就看不見)
@@ -6036,7 +6043,7 @@ function drawBars(bars, code, srcLabel, keepView){
   {
     const byTime = new Map();
     const idx = (arr) => { const m = new Map(); arr.forEach((x, i) => m.set(x.time, i)); return m; };
-    const iMa = idx(ma), iVw = idx(vw), iOb = idx(obD), iObma = idx(obmaD), iObma30 = idx(obma30D), iObma16 = idx(obma16D), iMa24 = idx(ma24);   // 2026-10-23 21:30 上方數字用畫面那份(跨日累計)
+    const iMa = idx(maX), iVw = idx(vw), iOb = idx(obD), iObma = idx(obmaD), iObma30 = idx(obma30D), iObma16 = idx(obma16D), iMa24 = idx(ma24);   // 2026-10-23 21:30 上方數字用畫面那份(跨日累計)
     let cumVol = 0, cumDay = null;                     // 當天累積成交量(股),跨日歸零
     bars.forEach((b, i) => {
       const k = iMa.get(b.time), k2 = iObma.get(b.time), kv = iVw.get(b.time), ko = iOb.get(b.time), k3 = iObma30.get(b.time);
@@ -6045,7 +6052,7 @@ function drawBars(bars, code, srcLabel, keepView){
       cumVol += b.volume;
       byTime.set(b.time, {
         i, bar: b, prevBar: bars[i - 1] || null, cumVol,
-        ma: k != null ? ma[k].value : NaN, maPrev: k != null && k > 0 ? ma[k - 1].value : null,
+        ma: k != null ? maX[k].value : NaN, maPrev: k != null && k > 0 ? maX[k - 1].value : null,
         maColor: prevClose ? (b.close > prevClose ? CHART_THEME.up : b.close < prevClose ? CHART_THEME.down : '#E6E6E6') : CHART_THEME.ma,   // 2026-10-21 Ka 文字跟著 Ka 線那根的顏色
         ma24: (k24 => k24 != null ? ma24[k24].value : NaN)(iMa24.get(b.time)), ma24Prev: (k24 => k24 != null && k24 > 0 ? ma24[k24 - 1].value : null)(iMa24.get(b.time)),
         vw: kv != null ? vw[kv].value : NaN, vwPrev: (() => { if (kv == null) return null; for (let q = kv - 1; q >= 0 && q >= kv - 30; q--){ if (vw[q].value !== vw[kv].value) return vw[q].value; } return kv > 0 ? vw[kv - 1].value : null; })(),   // 2026-10-23 21:05 Ap 箭頭用(沒變就往前找)
@@ -6671,7 +6678,7 @@ async function bgTick(force, replay){
             if (YH.turnNotifyTip && flips.length){
               const idx = new Map(bars.map((b, i) => [b.time, i]));
               const obXd = obvX(bars), org = obvCrossPoints(bars, obXd, sma(obXd, BASE.obvMaPeriod, 'value', false)).filter(q => dayKey(q.time) === lastDay);   // 2026-10-23 21:40 跨日累計(和指標三橘線同一份)
-              const kx = maCrossPoints(ma, ma24).filter(q => dayKey(q.time) === lastDay);
+              const kx = maCrossPoints(YH.kaDisplayCross === false ? ma : sma(bars, BASE.maPeriod, 'close', false), ma24, YH.kaDisplayCross !== false).filter(q => dayKey(q.time) === lastDay);   // 2026-10-24 03:00 和指標三紫線同一份(跨日 Ka)
               const mk = toTimeMap(ma);
               const lastBefore = (pts, t) => { let q = null; for (const x of pts){ if (x.time < t) q = x; else break; } return q; };
               const dirAt = p => {
