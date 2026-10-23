@@ -223,7 +223,10 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
-  · 2026-10-24 00:50 [待確認、目前關閉] 判一 ~ 判三只做跳空 ≥1% 的股票(使用者:「我說的是 有跳空開盤的股票判一二三 才進場」→ 看完回測 →「只做跳空 ≥1%」;SIG1.gapMinPct = 1,二 / 三一起):
+  · 2026-10-24 01:15 判一只做跳空 ≥1%(使用者看完實際算法回測 →「只開判一」):SIG1.gapMinPct = 1,判二 / 三 / 四各自設 0(維持原樣)。
+    判一:Yahoo 九天 31 筆 67% +61,404 → 17 筆 82% +53,869;雲端 K 三天 7 筆 85% +27,256 → 5 筆 80% +20,724。模擬器判一旗標加 GAPMIN=1。
+    (判二若開:九天 45 筆 68% +109,475 → 25 筆 80% +78,984、雲端 13 筆 +27,296 → 9 筆 +9,586 → 不開)
+  · 2026-10-24 00:50 [01:15 只開判一] 判一 ~ 判三只做跳空 ≥1% 的股票(使用者:「我說的是 有跳空開盤的股票判一二三 才進場」→ 看完回測 →「只做跳空 ≥1%」;SIG1.gapMinPct = 1,二 / 三一起):
     今開對昨收 |跳空| < 1% 的股票,當天訊號只記錄、不進場(標「缺」);原本的「跳空 >2% 不追跳空方向」照舊。模擬器 GAPMIN=1。
     回測(逐筆依當天跳空分組,跳空是整天整檔的條件,拿掉就是準確結果):Yahoo 九天 判一 31 筆 68% +61,404 → 17 筆 82% +50,419;
     判二 46 筆 70% +112,655 → 23 筆 78% +72,193;判三 4 筆不變 +18,831。雲端 K 三天 判一 7 筆 +27,256 → 5 筆 +20,724;判二 13 筆 +27,296 → 10 筆 +17,216;
@@ -1907,7 +1910,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610240050">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610240115">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4123,7 +4126,7 @@ let RISK_LINES = [];                  // 圖上的停損 / 停利示意線
    目前使用的完整進出場邏輯快照。回測 10/13~16(hi350 候選池、資金上限 35 萬):17 筆、賺 15 賠 2、勝率 88%、淨 +61,077。
    以後若要試新的邏輯,另外開「判別式二」,這份不要動;白話版規則在 repo 根目錄《判別式一.md》。 */
 const RULESET1 = { name: '判別式一', date: '2026-10-19', backtest: '10/13~16 + 10/19 五天 20 筆,賺 18 賠 2,勝率 90%,淨 +78,662(14:33 更新後的資料;量比 0.9、OBV 均 6 第二判別、紅線在退不進、停利後第 1 點重數、OBV30 方向、離當日高低點 2% 內)' };
-const SIG1 = { gapMinPct: 0,   // 2026-10-24 01:00 先關(0):實際算法(名單昨收 + 雲端開盤)判二雲端三天 +27,296 → +9,586,比給使用者看的差,等九天回測給使用者看完再開 1   // 2026-10-24 00:50 使用者「只做跳空 ≥1%」:判一 ~ 判三只在今開對昨收跳空 ≥ 1% 的股票進場(0 = 關);二 / 三 從 SIG1 複製,一起生效
+const SIG1 = { gapMinPct: 1,   // 2026-10-24 01:15 使用者「只開判一」:判一 = 1(只做跳空 ≥1%);判二 / 判三 / 判四在自己的 sig 裡設 0   // 2026-10-24 01:00 先關(0):實際算法(名單昨收 + 雲端開盤)判二雲端三天 +27,296 → +9,586,比給使用者看的差,等九天回測給使用者看完再開 1   // 2026-10-24 00:50 使用者「只做跳空 ≥1%」:判一 ~ 判三只在今開對昨收跳空 ≥ 1% 的股票進場(0 = 關);二 / 三 從 SIG1 複製,一起生效
               skipMin: 15, slopeBars: 10, maxDev: 2.0, noEntryAfter: '13:00', trendOnlyPct: 3.0,
               scaleBars: 5, scaleMaFull: 0.5, scaleObFull: 20, scaleW: {ma: 0, obma: 0.75, ob: 0.25}, lampBars: 3, lampWarnBars: 1,   // 多空天秤(2026-10-18):OBV 均線(藍)75% + OBV(紅)25%,均價線 0;5 根斜率,藍 / 紅 ÷ 當日 OBV 範圍 ±20% 滿格
               takePct: 2.5, stopPct: 1.5, maxMovePct: 6.0, confirmMaxGapPct: 2.0, confirmMaxExtGapPct: 2.5, obmaSlopeBars: 5, obmaSlopeMin: 4.0, obmaSlope2Ma: 6, obvExitMa: 30, obvExitMinGain: 1.0, obvWarnMa: 20, maxEntryDevPct: 1.0, vwapFilter: true, vwapSlopeBars: 10, vwapSlopeMin: 0, gapChasePct: 2.0, minDayVol: 6000, rvolMin: 0.9, rvolFilter: true,
@@ -4163,7 +4166,7 @@ const RULESETS = {
   //   四天 25 筆 76% +79,819 → 23 筆、賺 19 賠 4、83%、+87,959(眾達多單 −3,464 擋掉;毅嘉 09:27 空單抱到 11:23 停利 +7,080;建榮 −2,509 → −1,609;友達 10/15 +4,614;毅嘉 11:25 +1,750)。
   //   保護逐一拿掉的測試:沒有一條在壓勝率;壓總額的是量 6,000 張 / 跳空不追 / 量比 0.9,拿掉多賺但勝率掉到 70~73%,不動。
   '二': { key: '二', btn: '判二', name: '判別式二', date: '2026-10-19', backtest: '10/13~16 + 10/19 五天 21 筆,賺 19 賠 2,勝率 90%,淨 +93,044(紅線穿藍線起手 + 強訊號;OBV20 / OBV30 同向;OBV30 方向;距離 ≥ 4%;離當日高低點 2% 內;12:00 後不進;逆勢單看時間順序;不鎖方向)',
-          sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'cross', crossStrPct: 2, crossWinBars: 10, crossNewHi: 1, crossSlowMa: 20, crossKMaDir: false, noLock: true, obmaSlopeMin: 0,
+          sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { gapMinPct: 0, entryMode: 'cross', crossStrPct: 2, crossWinBars: 10, crossNewHi: 1, crossSlowMa: 20, crossKMaDir: false, noLock: true, obmaSlopeMin: 0,
                                                                   strong: true, strongSlowMa: 30, strongDxBars: 5, strongSlowBars: 2, strongExtBars: 10, strongWin: 5, strongMaxChg: 4, strongNoAfter: '11:30',
                                                                   confirmMinGapPct: 4, noEntryAfter: '12:00',
                                                                   crossSlowMa2: 30, weakByOrder: true,
@@ -4177,7 +4180,7 @@ const RULESETS = {
   //   再加不追空 26 筆 61% +39,753;再排開平 23 筆 69% +51,455(樣本小,觀察用)。保護同判別式三(±3.5%、+3% 不做空、紅線在退、12:00 後不進、不鎖方向;其餘全關)。出場同判別式一。
   //   模擬器:判別式三的保護旗標 + MODE=press(PRESSTOUCH=0.15 PRESSCHASE=2 PRESSRVOL=1.2 PRESSLO=0.5 PRESSGAP=1 PRESSNL=30)。
   '三': { key: '三', btn: '判三', name: '判別式三', date: '2026-10-20', backtest: '10/06~10/19 九天只做空 4 筆,全賺,淨 +18,831;10/20 雲端 K 2 筆全賺 +14,662(壓線 + 三線向下 + 量先價行 + 不追空 + 開平不做 + 量 6,000 張 + 震盪 30 根;原判四,2026-10-20 改名判三)',
-          sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'press', pressTouchPct: 0.15, pressChasePct: 2, pressRvolMax: 1.2, pressLoPct: 0.5, pressGapPct: 1, pressLookback: 30,
+          sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { gapMinPct: 0, entryMode: 'press', pressTouchPct: 0.15, pressChasePct: 2, pressRvolMax: 1.2, pressLoPct: 0.5, pressGapPct: 1, pressLookback: 30,
                                                                   noLock: true, obmaSlopeMin: 0, noWeakEntry: false, confirmMinGapPct: 0, noEntryAfter: '12:00',
                                                                   vwapFilter: false, minDayVol: 6000, rvolFilter: false, maxEntryDevPct: 99, nearHiLoPct: 0, obvDirMa: 0, gapChasePct: 99, stopMode: 'pct', chopWin: 30 }) },   // 2026-10-20 21:20 量 6,000 張(使用者「一樣6000張」)   // 停損照舊 1.5%(2026-10-20 起漲 / 起跌點停損只改判一、判二)   // 2026-10-20 20:50 震盪 30 根(使用者「改 判一60 判四30」)
   // 判別式四(2026-10-20 21:50 原判三「燿華型起漲點」改名判四、按鍵隱藏、背景監控不跑,程式保留;下面是它當判三時的紀錄)
@@ -4192,7 +4195,7 @@ const RULESETS = {
   //   模擬器:FPGAP=2.5 TAKE=2.5 VWAPF=0 FP=1 MAXDEV=99 MIRROR=1 PENDVOL=1 VOLMIN=0 RVOLMIN=0 CAP=350000 REVOK=1 ENTRYMAX=3.5 OBVX=2 OBVXMIN=1 OBVX2=1 OB2=30 SLOPEMIN=-99 GAPMODE=dir GAPTH=99 OB3MA=6 REDSLOPE=-2 EXITRESET=tp OBVDIR=0 NEARHL=0 NOLOCK=1 NOENTRYAFTER=12:00 MODE=brk BRKBELOW=1 BRKVBASE=pre OBMASLOPE=0 BRKGAP=0
   //   2026-10-20 01:30 加「開高不做」(使用者:「改 開高不做」):今開 > 昨收的那天不進(brkMaxGapPct:0);九天 45 筆 42% +18,779 → 26 筆 57% +54,181。
   '四': { key: '四', btn: '判四', name: '判別式四(隱藏)', date: '2026-10-20', backtest: '10/06~10/19 九天只做多 26 筆,賺 15 賠 11,勝率 57%,淨 +54,181(燿華型:盤整後大量破高、藍上穿紫、價在今開下、開高不做;觀察中)',
-          sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { entryMode: 'brk', brkFlatPct: 1.0, brkTightPct: 3, brkXWin: 2, brkVolWin: 3, brkVolX: 2, brkBelowOpen: true, brkMaxGapPct: 0,
+          sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { gapMinPct: 0, entryMode: 'brk', brkFlatPct: 1.0, brkTightPct: 3, brkXWin: 2, brkVolWin: 3, brkVolX: 2, brkBelowOpen: true, brkMaxGapPct: 0,
                                                                   noLock: true, obmaSlopeMin: 0, noWeakEntry: false, confirmMinGapPct: 0, noEntryAfter: '12:00',
                                                                   vwapFilter: false, minDayVol: 6000, rvolFilter: false, maxEntryDevPct: 99, nearHiLoPct: 0, obvDirMa: 0, gapChasePct: 99, stopMode: 'pct', chopWin: 0 }) },   // 2026-10-20 21:30 量 6,000 張(使用者「改 判三6000張」:「當沖沒量很危險」)   // 2026-10-20 判三不加震盪過濾:九天 27 筆 59% +54,235 → 13 筆 38% +4,185(盤整後突破本來就在震盪之後)   // 停損照舊 1.5%(2026-10-20 起漲 / 起跌點停損只改判一、判二)
 };
