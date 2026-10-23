@@ -223,6 +223,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 15:20 開 K 圖不等今天的 K 重抓(使用者:「讀取一分k的時間又變好久 大概10秒」):盯盤每 10 秒都在補今天的 K,開圖時手上已有就直接畫,
+    這次抓的回來再 redrawLive 重畫(保留縮放);手上沒有(第一次開這檔)才等。歷史週檔照舊。
   · 2026-10-23 15:15 再快一點(使用者:「有辦法再快一點嗎」→「都改」):(1) 手機每分鐘 :01~:12 叫 Worker `?bars=snap` 立刻存快照(上一根 K 剛收完就抓,不等 Cloudflare Cron 固定晚 47 秒醒來;
     Worker 那一分鐘已有快照就不重存),抓完把補 K 計時歸零馬上重拿;(2) 補 K 間隔 20 秒 → 10 秒(YH.cloudPollMs)。推出約在訊號 K 後 1 分 05 秒 ~ 1 分 15 秒。
     Worker 每分鐘多抓證交所一次(約 270 次/天)、手機請求約 1,600 次/天,都在免費額度內。YH.cloudSnapEarly = false 可關。
@@ -1820,7 +1822,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231515">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231520">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5451,7 +5453,10 @@ async function openChart(code, name){
   let hist = null, histErr = null;
   try{ hist = await loadMinuteBars(code, t => { msg.textContent = t; }); }
   catch(e){ histErr = e; }
-  const today = await todayP;
+  // 2026-10-23 15:20 使用者(「讀取一分k的時間又變好久 大概10秒」):手上已有這檔今天的 K(盯盤每 10 秒都在補)就直接拿來畫,不等這次的網路;新的回來再重畫一次(保留縮放)
+  const cachedToday = TODAY_BARS.get(code);
+  const today = (cachedToday && cachedToday.bars && cachedToday.bars.length) ? cachedToday : await todayP;
+  if (today === cachedToday) todayP.then(t2 => { if (t2 && t2 !== cachedToday && BARS_CODE === code && el('sheet').classList.contains('open')) redrawLive(); }).catch(() => {});
   // 2026-10-22 19:53 使用者(「改 就是要快」):收盤後問證交所最新價要 0.6~2.2 秒,原本等它回來才畫 → 先畫,價回來再重畫一次(保留縮放);
   //   手上完全沒有資料時才等它
   let haveAny = (hist && hist.length) || today.bars.length || (LIVE_BARS.get(code) || []).length;
