@@ -212,6 +212,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-23 11:15 K 線圖燈號:明明在漲不亮漸空 / 做空,明明在跌不亮漸多 / 做多(使用者:「不要明明上升 燈號卻漸空那種情況 反之亦然」):
     連 2 根 Ka 比 2 根前高且收盤在 Ka 上面 = 在漲 → 漸空 / 做空換成監控(要再亮得重新連 3 根);鏡像(YH.lampTrendGate)。
     友達 13 天:原本這種根 154 + 113 根(7.7%)→ 0;一天換燈 19.8 → 28 次(多出來的是退監控),燈段中位 6 根。天秤、通知、判別式都沒動。
+  · 2026-10-23 11:25 漲跌圖 / 轉折圖燈號也加同一條(使用者:「轉折圖 也跑一次」):連 2 根明明在漲 → 做空退監控、明明在跌 → 做多退監控。友達 13 天轉折圖:這種根 164 + 94 → 0。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1790,7 +1791,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231115">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231125">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5513,13 +5514,20 @@ let RF_ARGS = null, RF_LAMPS = null, KA_COLORED = null, KA_PLAIN = null; const K
 //   同方向再出現的點也會重新點亮。pts = 那張圖的點(含同方向再出現的),bias = 那張圖每根的條件平均
 // 2026-10-23 10:57 使用者(友達 10/21 10:40「都到這 為啥還做空」:Ka 10:37 已經穿到 Kb 上面,燈還亮做空):做空燈要 Ka 在 Kb 下面、做多燈要 Ka 在 Kb 上面,
 //   Ka 一穿到另一邊就退回監控(和點的條件一致:做多要 Ka > Kb、做空要 Ka < Kb);kaSide = 每根 Ka 在 Kb 哪邊(+1 / −1)
-function rfLampMap(bars, pts, bias, kaSide){
-  const m = new Map(), HOLD = YH.lampHold || 3; let k = 0, day = null, st = '監控', n = 0, bad = 0;
-  for (const b of bars){ const dk = dayKey(b.time); if (dk !== day){ day = dk; st = '監控'; n = 0; bad = 0; } n++;
+// 2026-10-23 11:25 使用者(「轉折圖 也跑一次」):和 K 線圖一樣,連 2 根「Ka 比 2 根前高且收盤在 Ka 上」(明明在漲)做空燈退監控;鏡像。trend = 每根 +1 / −1 / 0
+function trendMap(bars, ma){ const mk = toTimeMap(ma), m = new Map();
+  for (let i = 2; i < bars.length; i++){ const b = bars[i], ka = mk.get(b.time), ka2 = dayKey(bars[i - 2].time) === dayKey(b.time) ? mk.get(bars[i - 2].time) : null;
+    m.set(b.time, (ka == null || ka2 == null) ? 0 : (ka > ka2 && b.close > ka) ? 1 : (ka < ka2 && b.close < ka) ? -1 : 0); }
+  return m; }
+function rfLampMap(bars, pts, bias, kaSide, trend){
+  const m = new Map(), HOLD = YH.lampHold || 3; let k = 0, day = null, st = '監控', n = 0, bad = 0, tr = 0, trN = 0;
+  for (const b of bars){ const dk = dayKey(b.time); if (dk !== day){ day = dk; st = '監控'; n = 0; bad = 0; tr = 0; trN = 0; } n++;
+    const t = trend ? (trend.get(b.time) || 0) : 0; if (t !== 0 && t === tr) trN++; else { tr = t; trN = t !== 0 ? 1 : 0; }
     let hit = null; while (k < pts.length && pts[k].time <= b.time){ const p = pts[k++]; if (dayKey(p.time) === dk) hit = p; }
     if (hit){ st = hit.side > 0 ? '做多' : '做空'; bad = 0; }
     else if (st !== '監控'){ const d = st === '做多' ? 1 : -1, ks = kaSide ? kaSide.get(b.time) : null;
       if (ks != null && ks * d < 0){ st = '監控'; bad = 0; }   // Ka 穿到另一邊 → 監控
+      else if (YH.lampTrendGate && trN >= 2 && tr * d < 0){ st = '監控'; bad = 0; }   // 明明在漲還做空 / 明明在跌還做多 → 監控
       else if (bias){ const v = bias.get(b.time); if (v != null && v * d <= -0.5) bad++; else bad = 0; if (bad >= HOLD){ st = '監控'; bad = 0; } } }
     m.set(b.time, n < SIG.skipMin ? '等待' : hmKey(b.time) >= '13:20' ? '監控' : st); }
   return m;
@@ -5572,7 +5580,7 @@ function rfDraw(){
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
     rfLine.setMarkers(rfMarkers(rp2));
     { const bias = rfBias(sBars, sMa, sMa24, sOb, sObma), ks = kaSideMap(sMa, sMa24);   // 燈號看實心非假的點(含同方向再出現的)
-      RF_LAMPS = {view: 1, map: rfLampMap(bars, rp2.filter(p => !p.fake && p.press), bias, ks), bias}; }
+      RF_LAMPS = {view: 1, map: rfLampMap(bars, rp2.filter(p => !p.fake && p.press), bias, ks, trendMap(sBars, sMa)), bias}; }
     if (rfChain) rfChain.setData(rfChainData(bars, rp2));
     if (rfAll) rfAll.setData(rfChainData(bars, rp2, true));
   }catch(e){ try{ rfLine.setMarkers([]); if (rfChain) rfChain.setData([]); if (rfAll) rfAll.setData([]); }catch(_){} }
@@ -5619,7 +5627,7 @@ function turnDraw(bars, sBars, sMa, ma24, sOb){
   try{
     const sMa24 = sBars === bars ? ma24 : sma(sBars, YH.kbPeriod || 24, 'close', false);
     const pts = turnPoints(sBars, sMa, sMa24, sOb);
-    { const bias = turnBias(sBars, sMa, sMa24, sOb); RF_LAMPS = {view: 2, map: rfLampMap(bars, pts, bias, kaSideMap(sMa, sMa24)), bias}; }
+    { const bias = turnBias(sBars, sMa, sMa24, sOb); RF_LAMPS = {view: 2, map: rfLampMap(bars, pts, bias, kaSideMap(sMa, sMa24), trendMap(sBars, sMa)), bias}; }
     const pAt = new Map(pts.map(p => [p.time, p.price]));
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
     rfLine.setMarkers(pts.map(p => { const up = p.side > 0;
