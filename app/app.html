@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 21:05 Ap 文字顯示回來、線不畫(使用者:「指標一 本來不是有一個Ap嗎」→「只顯示 不畫線」):指標一多「Ap 84.50▲」(橘字、價格白、箭頭 = Ap 方向);10/23 10:24 藏起來的 Ap 線照舊不畫。
   · 2026-10-23 21:00 Oa 箭頭(使用者:「Oa 也要有箭頭」):那一分鐘沒成交 OBV 沒變時原本沒箭頭,改成往前找最近一個不一樣的值定方向(最多 30 根)。
   · 2026-10-23 20:55 指標二改「Oa -289 Ob -282▼ …」(使用者:「指標二 也是一樣」):Oa ~ Od 字跟線的顏色,數字白色。
   · 2026-10-23 20:50 指標一改「Ka 84.48▼ Kb 84.31▼」(使用者:「Ka/Kb 隨線的顏色 後面的價格 白色(小數點後二位)」):Ka / Kb 兩個字跟線的顏色(Ka 在 K 線圖紅綠、漲跌 / 轉折圖紅;Kb 藍),價格白色、兩位小數。
@@ -1871,7 +1872,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610232100">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610232105">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2330,10 +2331,10 @@ except Exception:
   </div>
   <div class="sheetbody">
     <div id="chart">
-      <div class="yh-lbl"><span style="color:#FFFFFF">指標一</span>   <!-- 2026-10-21 使用者:「K 線的地方叫做指標一」;均價 10 改寫成 K10(和使用者的叫法一樣,也省位置) -->
+      <div class="yh-lbl" style="gap:6px;font-size:11px;letter-spacing:-0.3px"><span style="color:#FFFFFF">指標一</span>   <!-- 2026-10-23 21:05 加了 Ap 之後塞不下,字級 / 間距改成和指標二一樣 -->   <!-- 2026-10-21 使用者:「K 線的地方叫做指標一」;均價 10 改寫成 K10(和使用者的叫法一樣,也省位置) -->
         <span id="lblMaBox" style="color:#D63AF9">Ka<span id="lblMaN" hidden>10</span> <span id="lblMaV" style="color:#FFFFFF">—</span></span>   <!-- 2026-10-23 20:50 使用者:「Ka/Kb 隨線的顏色 後面的價格 白色(小數點後二位)」 -->   <!-- 2026-10-23 20:45 使用者:「指標二,一 也是這樣」:拿掉 Ka: / Kb: / Oa: ~ Od: 字樣,只留數字(顏色 = 線) -->   <!-- 2026-10-21 使用者:「K10 改成 Ka」(Ka = 均價 10) -->
         <span id="lblMa24Box" style="color:#19D3F5">Kb <span id="lblMa24V" style="color:#FFFFFF">—</span></span>   <!-- 2026-10-23 10:24 使用者:「三圖Kb改藍色」(10:05 曾改粉紅 #FF6FB5) -->   <!-- 2026-10-21 使用者:「k24 改成 Kb」(Kb = 均價 24) -->   <!-- 2026-10-21 使用者:「加一條 k24」 -->
-        <span id="lblVwapBox" style="color:#FF9F43;display:none">Ap:<span id="lblVwapV">—</span></span><span id="rfName" style="color:#D8DEE9;margin-left:auto">K線圖</span><button id="rfToggle" class="rfbtn" style="margin-left:4px" aria-label="切換 K 線圖 / 漲跌圖 / 轉折圖">切換</button></div>   <!-- 2026-10-23 10:30 使用者:「漲跌圖切換按鍵 改成切換 在切換前面 顯示 當下的圖 名稱」 -->   <!-- 2026-10-21 使用者:「vwap 改顯示 Ap 後面的價上用箭頭顯示」 -->
+        <span id="lblVwapBox" style="color:#FF9F43">Ap <span id="lblVwapV" style="color:#FFFFFF">—</span></span>   <!-- 2026-10-23 21:05 使用者:「只顯示 不畫線」:Ap 文字顯示回來(橘字、價格白),線照舊不畫 --><span id="rfName" style="color:#D8DEE9;margin-left:auto">K線圖</span><button id="rfToggle" class="rfbtn" style="margin-left:4px" aria-label="切換 K 線圖 / 漲跌圖 / 轉折圖">切換</button></div>   <!-- 2026-10-23 10:30 使用者:「漲跌圖切換按鍵 改成切換 在切換前面 顯示 當下的圖 名稱」 -->   <!-- 2026-10-21 使用者:「vwap 改顯示 Ap 後面的價上用箭頭顯示」 -->
       <div id="chartTop"><span class="hilo up hidden" id="hiLbl"></span><span class="hilo down hidden" id="loLbl"></span><span class="xvol hidden" id="xVolLbl"></span></div>
       <div class="yh-lbl sep" style="gap:6px;font-size:11px;letter-spacing:-0.3px"><span style="color:#FFFFFF">指標二</span>   <!-- 2026-10-21 使用者:「OBV 指標二」 -->
         <span style="color:#FFE14D">Oa <span id="lblObvV" style="color:#FFFFFF">—</span></span>   <!-- 2026-10-23 20:55 使用者:「指標二 也是一樣」:Oa ~ Od 字跟線的顏色、數字白色 -->   <!-- 2026-10-21 使用者:「OBV 改 Oa Ob Oc」:Oa = OBV(黃)、Ob = OBV 均 10(藍)、Oc = OBV 均 30(紫) -->
@@ -3954,7 +3955,7 @@ function showBarInfo(t){
   { const e = el('lblMa24V'); if (e) e.innerHTML = isFinite(d.ma24) ? d.ma24.toFixed(2) + trend(d.ma24, d.ma24Prev) : '—'; }   // 2026-10-21 K24
   { const e = el('lblMaBox'); if (e && d.maColor) e.style.color = (RF_MODE && typeof KA_RF_COLOR !== 'undefined') ? KA_RF_COLOR : d.maColor; }   // 2026-10-23 20:50 漲跌 / 轉折圖的 Ka 線是紅的,字也跟著紅   // 2026-10-21 使用者:「Ka、Kb 顏色跟著線走」:Ka 文字 = 十字線那根 Ka 線的顏色(紅 / 綠 / 白);Kb 線固定藍,文字也藍
   // 2026-10-21 Ap(= VWAP):收盤在 Ap 之上紅 ↑、之下綠 ↓(原本寫「價上 / 價下」)
-  el('lblVwapV').innerHTML = isFinite(d.vw) ? d.vw.toFixed(2) + (d.bar.close >= d.vw ? '<span class="up">↑</span>' : '<span class="down">↓</span>') : '—';
+  el('lblVwapV').innerHTML = isFinite(d.vw) ? d.vw.toFixed(2) + trend(d.vw, d.vwPrev) : '—';   // 2026-10-23 21:05 箭頭 = Ap 自己的方向(粗箭頭,和 Ka / Kb 一樣;原本是收盤在 Ap 上 / 下)
   el('lblObvMaN').textContent = BASE.obvMaPeriod;
   el('lblObvV').innerHTML = isFinite(d.ob) ? Math.round(d.ob).toLocaleString() + trend(d.ob, d.obPrev) : '—';
   el('lblObvMaV').innerHTML = isFinite(d.obma) ? Math.round(d.obma).toLocaleString() + trend(d.obma, d.obmaPrev) : '—';
@@ -5964,7 +5965,7 @@ function drawBars(bars, code, srcLabel, keepView){
         ma: k != null ? ma[k].value : NaN, maPrev: k != null && k > 0 ? ma[k - 1].value : null,
         maColor: prevClose ? (b.close > prevClose ? CHART_THEME.up : b.close < prevClose ? CHART_THEME.down : '#E6E6E6') : CHART_THEME.ma,   // 2026-10-21 Ka 文字跟著 Ka 線那根的顏色
         ma24: (k24 => k24 != null ? ma24[k24].value : NaN)(iMa24.get(b.time)), ma24Prev: (k24 => k24 != null && k24 > 0 ? ma24[k24 - 1].value : null)(iMa24.get(b.time)),
-        vw: kv != null ? vw[kv].value : NaN,
+        vw: kv != null ? vw[kv].value : NaN, vwPrev: (() => { if (kv == null) return null; for (let q = kv - 1; q >= 0 && q >= kv - 30; q--){ if (vw[q].value !== vw[kv].value) return vw[q].value; } return kv > 0 ? vw[kv - 1].value : null; })(),   // 2026-10-23 21:05 Ap 箭頭用(沒變就往前找)
         ob: ko != null ? ob[ko].value : NaN, obPrev: (() => { if (ko == null) return null; for (let q = ko - 1; q >= 0 && q >= ko - 30; q--){ if (ob[q].value !== ob[ko].value) return ob[q].value; } return ko > 0 ? ob[ko - 1].value : null; })(),   // 2026-10-23 21:00 使用者:「Oa 也要有箭頭」:這根 OBV 沒變(沒成交)時,往前找到最近一個不一樣的值來定方向
         obma: k2 != null ? obma[k2].value : NaN, obmaPrev: k2 != null && k2 > 0 ? obma[k2 - 1].value : null,
         obma30: k3 != null ? obma30[k3].value : NaN, obma30Prev: k3 != null && k3 > 0 ? obma30[k3 - 1].value : null,
