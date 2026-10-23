@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 21:25 「切換」改白字、紅框(使用者:「切換 改白字 框一樣紅色」)。
   · 2026-10-23 21:20 十字線拖到最後一根(使用者:「滑動十字虛線 無法畫到13.30」):手指拖到最後一根右邊的留白(rightOffset 3 格)時套件給不出時間,十字線停在前一根;
     改成手指在最後一根右邊就當最後一根(13:30)。
   · 2026-10-23 21:15 「切換」按鍵改紅色(使用者:「切換 改成紅色」;原橘色)。
@@ -1876,7 +1877,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610232120">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610232125">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2186,7 +2187,7 @@ except Exception:
           display:flex;gap:14px;white-space:nowrap;overflow:hidden}
   .yh-lbl.sep{border-top:1px solid #6B7280;padding-top:4px}
   .rfbtn{margin-left:auto;align-self:center;background:#1B2233;border:1px solid #4A5570;color:#D8DEE9;font-size:11px;line-height:15px;padding:0 7px;border-radius:4px;touch-action:manipulation}   /* 2026-10-22 使用者:「加一個按鍵 切換K線圖跟這個漲跌圖」 */
-  .rfbtn.on{background:#3A1414;border-color:#FF3B3B;color:#FF5C6C}   /* 2026-10-23 21:15 使用者:「切換 改成紅色」(原橘色) */   /* 2026-10-20 使用者:「指標間要有隔線」:K 線 / OBV / 乖離率 三格之間一條灰線(在文字列上緣) */
+  .rfbtn.on{background:#3A1414;border-color:#FF3B3B;color:#FFFFFF}   /* 2026-10-23 21:25 使用者:「切換 改白字 框一樣紅色」 */   /* 2026-10-23 21:15 使用者:「切換 改成紅色」(原橘色) */   /* 2026-10-20 使用者:「指標間要有隔線」:K 線 / OBV / 乖離率 三格之間一條灰線(在文字列上緣) */
   .yh-foot{padding:4px 10px calc(env(safe-area-inset-bottom) + 6px);font-family:var(--mono);
            font-size:10px;color:#8A93A3;line-height:1.5;border-top:1px solid #333;background:#000}
   .sheethead.yh .sh-btn{padding:6px 10px;border-color:#555;color:#fff;font-size:14px;white-space:nowrap}   /* 「返回」鍵:白字、看得清楚 */
