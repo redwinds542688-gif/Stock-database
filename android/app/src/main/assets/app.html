@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 22:00 黃虛線(翻轉點連線)不畫(使用者:「K圖 黃虛線 是什麼」→「感覺沒啥作用」):漲跌圖、轉折圖都不畫;程式和資料留著,YH.rfChainShow = true 開回來。
   · 2026-10-23 21:55 指標三橘線改虛線(使用者:「那就把橘線改成橘虛線」;紫線實線留著當中期波動)。
   · 2026-10-23 21:50 Kb 改藍色虛線(使用者:「Kb改成藍色虛線」;三張圖都是)。
   · 2026-10-23 21:45 漲跌圖 / 轉折圖的黃虛線跨日接起來(使用者:「現在跨日 還有沒有其他的銜接問題」→「改」):昨天最後一個點連到今天第一個點(10/23 10:55 原本不跨日)。
@@ -1886,7 +1887,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610232155">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610232200">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3890,6 +3891,7 @@ const YH = {
   rfPressPct: 0.2,
   rfKaBars: 3,
   turnPressPct: 0.15,   // 2026-10-22 22:58 使用者「設,0.15」(TPK 09:30 離 Ka 0.14% 算、12:31 離 0.16% 不算);22:55「設0.1」(TPK 12:31 多點「沒有壓線」:最低 74.40 離 Ka 0.16%):轉折圖的壓線 0.2% → 0.1%;漲跌圖照舊 rfPressPct 0.2
+  rfChainShow: false,   // 2026-10-23 22:00 使用者「感覺沒啥作用」:漲跌圖 / 轉折圖的黃虛線(翻轉點連線)不畫;程式留著
   obvDisplayCross: true,   // 2026-10-23 21:30 使用者「要銜接」:指標二畫面 + 上方數字用跨日累計 OBV(Ob/Oc/Od 跟著跨日算);判一~判三、燈號、轉折不動
   obvDayCut: false,     // 2026-10-23 19:00 指標二換日:false = 直接連線(使用者選 A)、true = 斷開
   rfNoBrk: true, rfRunSolid: 2,   // 2026-10-23 16:35 漲跌圖:不要「K 棒要碰到均線」;三條件連 2 根成立就算實心(TPK 10/22 09:14 跳上去沒回來碰線 →「你看圖 修正」)
@@ -5830,7 +5832,7 @@ function applyRfMode(){
   if (candle) candle.applyOptions({visible: !RF_MODE});
   try{ if (maLine && KA_COLORED && KA_PLAIN) maLine.setData(RF_MODE ? KA_PLAIN : KA_COLORED); }catch(e){}   // 2026-10-23 Ka:K 線圖紅綠、漲跌 / 轉折圖紫
   if (rfLine) rfLine.applyOptions({visible: RF_MODE});
-  if (rfChain) rfChain.applyOptions({visible: RF_MODE});
+  if (rfChain) rfChain.applyOptions({visible: RF_MODE && !!YH.rfChainShow});   // 2026-10-23 22:00 使用者:「感覺沒啥作用」:黃虛線不畫(YH.rfChainShow = true 可開回來)
   if (rfAll) rfAll.applyOptions({visible: RF_VIEW === 1});
   try{ if (CUR && CUR.lamps){ const x = window.getXLock && getXLock(); showBarInfo(x && !x.follow ? x.time : null); } }catch(e){}   // 2026-10-23 燈號跟著目前那張圖,切換就重顯
   try{ updateHiLo(); }catch(e){}
