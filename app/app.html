@@ -223,6 +223,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 21:40 指標三橘線的點、轉折通知的順勢而為濾網改用跨日累計的 OBV(使用者:「指標三 也有這問題嗎」→「好」):和指標二畫的同一份,圖和通知對得上。
+    判一 ~ 判三、燈號、轉折點本身不動。
   · 2026-10-23 21:30 指標二改畫跨日累計的 OBV(使用者:時碩 10/20 2,964 → 10/21 0「這裡的落差 是因為張數掉下來嗎?」→「要銜接」):Oa 跨日累計(從載入的第一根起算),
     Ob / Oc / Od 用跨日累計的 OBV 算、跨日連續,線接得起來、不再有換日瀑布;上方四個數字也是這份。只是畫面:判一 ~ 判三、燈號、轉折算法用的每日歸零 OBV 不動
     (YH.obvDisplayCross = false 切回)。注意:畫面上的數字從此和判別式內部用的 OBV 不一樣(差一個昨天的累計值)。
@@ -1880,7 +1882,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610232130">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610232140">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4034,6 +4036,13 @@ function obv(bars){
   return out;
 }
 
+/* 2026-10-23 21:40 跨日累計的 OBV(畫面用;使用者「要銜接」):從載入的第一根起算,不每日歸零。判一 ~ 判三、燈號用的還是上面的 obv() */
+function obvX(bars){
+  let acc = 0, pc = null; const out = [];
+  for (const b of bars){ if (pc != null){ if (b.close > pc) acc += b.volume / 1000; else if (b.close < pc) acc -= b.volume / 1000; } pc = b.close; out.push({time: b.time, value: Math.round(acc)}); }
+  return out;
+}
+window.obvX = obvX;
 /* VWAP:當日累積(價×量)÷ 累積量,每天開盤重算;價用 (高+低+收)/3 */
 function vwap(bars){
   const out = [];
@@ -5845,7 +5854,7 @@ function drawBars(bars, code, srcLabel, keepView){
   //   Ob / Oc / Od 也用跨日累計的 OBV 算、跨日連續,線就接得起來。只是畫面和上方數字;判一 ~ 判三、燈號、轉折算法用的 OBV 不動(YH.obvDisplayCross = false 可切回每日歸零)
   let obD = ob, obmaD = obma, obma30D = null, obma16D = null;
   if (YH.obvDisplayCross){
-    let acc = 0, pc = null; obD = bars.map(b => { if (pc != null){ if (b.close > pc) acc += b.volume / 1000; else if (b.close < pc) acc -= b.volume / 1000; } pc = b.close; return {time: b.time, value: Math.round(acc)}; });
+    obD = obvX(bars);
     obmaD = sma(obD, BASE.obvMaPeriod, 'value', false); obma30D = sma(obD, YH.ocPeriod || 30, 'value', false); obma16D = sma(obD, YH.odPeriod || 16, 'value', false);
   }
   obvSeries.setData(dayCut(obD));
@@ -5868,7 +5877,7 @@ function drawBars(bars, code, srcLabel, keepView){
   // 2026-10-20 23:30 使用者:「把高低連線拿掉 留起漲起跌連線 價格要註記上去」(swingPoints 函式留著,沒畫)
   // 2026-10-20 23:45 使用者:「這樣的點不對 改紀錄 obv 黃線穿越藍線的點 所有的點連線」:下圖改成 OBV(黃)穿越 OBV 均線(藍)的每一個點連線。
   //   黃線往上穿藍線 = 標那根 K 的最低價(藍點,標在線下方);往下穿 = 標那根 K 的最高價(橘點,標在線上方)。K 線圖上的起漲 / 起跌標示和停損用的起漲 / 起跌點不變。
-  const orgPts = obvCrossPoints(bars, ob, obma);
+  const orgPts = obvCrossPoints(bars, obD, obmaD);   // 2026-10-23 21:40 使用者「好」:橘線的點改用跨日累計的 OBV / Ob 算(和指標二畫的同一份);轉折通知的順勢而為濾網一起換
   // 2026-10-23 13:05 使用者:「紫線 橘線 都把最新一根k都當成是成立的點畫線 當然這點未必是真的點 但我需要這樣判斷漲跌」:
   //   最後一根 K 當暫時的點(橘線 = 收盤價、紫線 = 那根的 Ka),線一路畫到最新一根;不標點、不進 I3TXT,只是畫面。真的穿越點出現後就被取代。
   const tipPt = (pts, val) => { const z = bars[bars.length - 1]; if (!z || (pts.length && pts[pts.length - 1].time === z.time) || val == null) return pts; return pts.concat([{time: z.time, value: val}]); };
@@ -6610,7 +6619,7 @@ async function bgTick(force, replay){
             //   357 檔 13 天:點 28,784 → 24,283、60 根 ±1% 勝率 54.0 → 55.2%、翻轉交易扣成本 −0.37 → −0.31%/筆、10/22 前 49 名 133 → 98 則(多 54 → 33)
             if (YH.turnNotifyTip && flips.length){
               const idx = new Map(bars.map((b, i) => [b.time, i]));
-              const org = obvCrossPoints(bars, ob, obma).filter(q => dayKey(q.time) === lastDay);
+              const obXd = obvX(bars), org = obvCrossPoints(bars, obXd, sma(obXd, BASE.obvMaPeriod, 'value', false)).filter(q => dayKey(q.time) === lastDay);   // 2026-10-23 21:40 跨日累計(和指標三橘線同一份)
               const kx = maCrossPoints(ma, ma24).filter(q => dayKey(q.time) === lastDay);
               const mk = toTimeMap(ma);
               const lastBefore = (pts, t) => { let q = null; for (const x of pts){ if (x.time < t) q = x; else break; } return q; };
