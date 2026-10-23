@@ -216,6 +216,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-23 11:50 轉折通知(使用者:「我需要的是轉折圖裡做空或做多的訊息 交不交易決定權在我 我只是要當下知道有這個訊息」「不用限制同一支股票只有一則訊息」):
     背景(bgTick)每一檔算轉折圖的轉折點(換方向的多 / 空點,和圖上大箭頭同一套),每一個都推手機「○○ 代碼 轉折 做多 / 做空 價」,不限次數;同方向再出現的小箭頭不推。
     不進判別式、不記部位、沒有停利停損(YH.turnNotify)。前 49 名 13 天平均一天約 130 則。鐵律 17(一檔只發進場 / 平倉)是判別式的規矩,轉折通知是另一類,使用者決定不限。
+    11:47 格式比照進場通知:「○○ 代碼 做多 / 做空 價」,內容「時間 多 / 空點 · 現價 · 轉折」(判一 / 判二的位置寫轉折)。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1794,7 +1795,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231150">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231155">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6403,7 +6404,8 @@ async function bgTick(force, replay){
               if (seenT.has(p.time)) continue; seenT.add(p.time);
               if (p.time < Math.floor(Date.now() / 1000) - 600){ bgLog(code + ' 舊轉折不通知 ' + hmKey(p.time)); continue; }
               const nm = names.get(code) || code, side = p.side > 0 ? '做多' : '做空', nowPx = liveRec.z || bars[bars.length - 1].close;
-              const title = `${nm} ${code} 轉折 ${side} ${(+p.price).toFixed(2)}`, body = `${hmKey(p.time)} 轉折圖${side}點 · 現價 ${(+nowPx).toFixed(2)} · 只是提醒,不進判別式`;
+              // 2026-10-23 11:47 使用者:「還是要提醒做空做多價格 時間 原訊息裡顯示判一判二的位置 改顯示轉折」:格式比照進場通知,最後面判一 / 判二的位置寫「轉折」
+              const title = `${nm} ${code} ${side} ${(+p.price).toFixed(2)}`, body = `${hmKey(p.time)} ${p.side > 0 ? '多' : '空'}點 · 現價 ${(+nowPx).toFixed(2)} · 轉折`;
               bgLog('[轉折通知] ' + title + ' | ' + body);
               try{ if (window.Android && Android.notify) Android.notify(title, body, p.side > 0 ? 'long' : 'short'); }catch(e){}
               cloudLogAdd(title, body, 'turn');
