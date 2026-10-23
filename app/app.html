@@ -223,6 +223,10 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 14:05 轉折通知加「順勢而為」濾網(使用者:「平(假設向下)要擋掉做多的訊號」→「加上去 這算是順勢而為」;YH.turnNotifyTip):
+    看指標三橘線、紫線最後一段(當天上一個穿越點 → 現在這根;橘用收盤、紫用 Ka;還沒有點或同價 = 平)。做多要兩條都向上才推;做空兩條都不向上(向下或平)就推。
+    只管通知,轉折圖的點、燈號照舊。357 檔 13 天:點 28,784 → 24,283、60 根 ±1% 勝率 54.0 → 55.2%、翻轉交易扣成本 −0.37 → −0.31%/筆、10/22 前 49 名 133 → 98 則(做多 54 → 33、做空幾乎不動)。
+    提醒:這 13 天偏空,「平當偏空」有一部分是吃到盤勢;多頭盤時做多會少抓到一些。被擋的會寫進盯盤紀錄「橘↑/↓/平 紫↑/↓/平,不通知」。
   · 2026-10-23 13:05 指標三橘線、紫線畫到最新一根 K(使用者:「橘線會跟k棒更新 而畫到最新一個位置嗎」→「紫線 橘線 都把最新一根k都當成是成立的點畫線 當然這點未必是真的點 但我需要這樣判斷漲跌」):
     最後一根 K 當暫時的點(橘線用收盤價、紫線用那根的 Ka)接在最後一個穿越點後面,每根 K 更新都跟著動;不標圓點、上方「往上穿 / 往下穿」文字不變。真的穿越點出現後,暫時點就被取代。只是畫面。
   · 2026-10-23 12:55 轉折點加 Kb 傾斜條件(使用者:台郡 10/22 12:20 多點 Ka 只比 Kb 高 0.004 貼線翻多、兩根後就垮 →「轉折還是搭kb傾斜 比較穩定多空方向」→「改」):
@@ -1806,7 +1810,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231305">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231405">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3786,6 +3790,7 @@ const YH = {
   rfMinCross: 0.05,     // 2026-10-22 漲跌圖:Ka 要高(低)過 Kb 至少 0.05% 才算穿越          // 2026-10-22 漲跌圖多空點的「Ka 往上 / 往下」和 3 根前比(一檔跳動大的股票,Ka 一根就會小跳一下)      // 2026-10-22 漲跌圖多空點的「壓線」:Ka、Kb 差距和那根 K 離均線都在 0.2% 內 → 實心
   lampLeave: 1,         // 2026-10-21 11:40 使用者(台郡 10:13 天秤已到中間還亮做多):已亮做多 / 做空時,連 lampHold 根不是這個燈就換成最新那根的狀態(不必同一種);0 = 舊規則
   lampObOc: true,       // 2026-10-21 20:40 使用者「先改 D」:亮「做多」還要 Ob(OBV 均 10)在 Oc(OBV 均 30)之上,否則降成漸多;做空鏡像(Oc 還沒值 = 不亮做多 / 做空)。七天 1,405 股票日:勝率 54.1% → 55.3%
+  turnNotifyTip: true,  // 2026-10-23 14:05 使用者「平(假設向下)要擋掉做多的訊號」→「加上去 這算是順勢而為」:轉折通知看指標三橘線 / 紫線最後一段:做多兩條都要向上、做空兩條都不向上(平算偏空)
   turnNotify: true, turnNotifyOrg: false,   // 2026-10-23 12:21 使用者:「搭用橘線不可行 因為橘線有點像是未來線」→ 關掉(12:15 曾開:做多要橘線向上、做空向下才發)     // 2026-10-23 11:43 使用者:轉折圖的轉折點(多 / 空)每一個都推手機,不限次數,只是提醒(不進判別式、不記部位)
   lampTrendGate: true,  // 2026-10-23 11:09 使用者:「不要明明上升 燈號卻漸空那種情況 反之亦然」:Ka 2 根往上且收盤在 Ka 上 → 不亮漸空 / 做空;鏡像
   lampOaOb: true,       // 2026-10-21 22:30 使用者「改 Y3+W6」:燈號分數裡「橘線雙升 / 雙降」換成「Oa 現在在 Ob 之上 / 之下」(反應快;時碩 11:06 兩線都轉下)
@@ -6421,6 +6426,26 @@ async function bgTick(force, replay){
               const org = obvCrossPoints(bars, ob, obma).filter(q => dayKey(q.time) === lastDay);
               const slopeAt = t => { const ps = org.filter(q => q.time <= t); return ps.length >= 2 ? Math.sign(ps[ps.length - 1].price - ps[ps.length - 2].price) : 0; };
               flips = flips.filter(p => { const sl = slopeAt(p.time); if (sl * p.side > 0) return true; bgLog(code + ' 轉折 ' + hmKey(p.time) + (p.side > 0 ? ' 多' : ' 空') + ' 橘線' + (sl === 0 ? '未成形' : sl > 0 ? '向上' : '向下') + ',不通知'); return false; });
+            }
+            // 2026-10-23 14:05 使用者:「平(假設向下)要擋掉做多的訊號」→「加上去 這算是順勢而為」:指標三橘線、紫線「最後一段」的方向
+            //   (橘 = 當天上一個 OBV×Ob 穿越點的收盤 → 這根收盤;紫 = 當天上一個 Ka×Kb 穿越點的 Ka → 這根 Ka;還沒有點或同價 = 平)
+            //   做多:兩條都要真的向上才推;做空:兩條都不向上就推(向下或平都可以)。只管通知,圖上的點照畫。
+            //   357 檔 13 天:點 28,784 → 24,283、60 根 ±1% 勝率 54.0 → 55.2%、翻轉交易扣成本 −0.37 → −0.31%/筆、10/22 前 49 名 133 → 98 則(多 54 → 33)
+            if (YH.turnNotifyTip && flips.length){
+              const idx = new Map(bars.map((b, i) => [b.time, i]));
+              const org = obvCrossPoints(bars, ob, obma).filter(q => dayKey(q.time) === lastDay);
+              const kx = maCrossPoints(ma, ma24).filter(q => dayKey(q.time) === lastDay);
+              const mk = toTimeMap(ma);
+              const lastBefore = (pts, t) => { let q = null; for (const x of pts){ if (x.time < t) q = x; else break; } return q; };
+              const dirAt = p => {
+                const oq = lastBefore(org, p.time), kq = lastBefore(kx, p.time), b = bars[idx.get(p.time)], ka = mk.get(p.time);
+                const so = oq && b ? Math.sign(b.close - oq.price) : 0, sp = kq && ka != null ? Math.sign(ka - kq.price) : 0;
+                return {so, sp};
+              };
+              flips = flips.filter(p => { const {so, sp} = dirAt(p);
+                const ok = p.side > 0 ? (so > 0 && sp > 0) : (so <= 0 && sp <= 0);
+                if (!ok) bgLog(code + ' 轉折 ' + hmKey(p.time) + (p.side > 0 ? ' 多' : ' 空') + ' 橘' + (so > 0 ? '↑' : so < 0 ? '↓' : '平') + ' 紫' + (sp > 0 ? '↑' : sp < 0 ? '↓' : '平') + ',不通知');
+                return ok; });
             }
             BG.turnSeen = BG.turnSeen || new Map();
             if (!BG.turnSeen.has(code)){ const cut = Math.floor(Date.now() / 1000) - 180; BG.turnSeen.set(code, new Set(flips.filter(p => p.time < cut).map(p => p.time))); }   // 第一次看到這檔:只推最近 3 分鐘內的
