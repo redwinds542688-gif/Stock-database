@@ -218,6 +218,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     不進判別式、不記部位、沒有停利停損(YH.turnNotify)。前 49 名 13 天平均一天約 130 則。鐵律 17(一檔只發進場 / 平倉)是判別式的規矩,轉折通知是另一類,使用者決定不限。
     11:47 格式比照進場通知:「○○ 代碼 做多 / 做空 價」,內容「時間 多 / 空點 · 現價 · 轉折」(判一 / 判二的位置寫轉折)。
     12:05 今日監控紀錄的卡片:轉折通知自己一類(內容結尾「· 轉折」),一張卡 名稱 | 價 | 做多 / 做空 | 時間 | 轉折,不算張數、不配對平倉、不藏(原本不認得這類會直接不顯示或當成進場卡)。
+    12:10 轉折卡不加網狀底色(使用者:「轉折提示 則不加網狀底色」;.card.c-turn 透明)。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1796,7 +1797,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231205">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231210">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1881,6 +1882,7 @@ except Exception:
   /* 2026-10-18 使用者:做多淺紫色網狀底、做空淺藍色網狀底(原本做多淺紅、做空淺綠) */
   #notifLog .card.c-long{background-color:rgba(170,120,255,.16);background-image:repeating-linear-gradient(0deg,rgba(190,150,255,.30) 0 1px,transparent 1px 6px),repeating-linear-gradient(90deg,rgba(190,150,255,.30) 0 1px,transparent 1px 6px)}   /* 做多:直橫方格網(做空是斜紋交叉網),2026-10-18 使用者:「做多的網狀改別種形式」 */
   #notifLog .card.c-short{background-color:rgba(90,170,255,.08);background-image:repeating-linear-gradient(45deg,rgba(120,190,255,.14) 0 1px,transparent 1px 7px),repeating-linear-gradient(-45deg,rgba(120,190,255,.14) 0 1px,transparent 1px 7px)}   /* 2026-10-19 使用者:「藍色網格太藍了,改更淺一點」→ 底色與斜紋濃度各減半(.16→.08、.28→.14) */
+  #notifLog .card.c-turn{background-color:transparent;background-image:none}   /* 2026-10-23 12:02 使用者:「轉折提示 則不加網狀底色」 */
   /* 2026-10-19 .card.mine(黃框)/ .card.done(藍框)取消,卡片一律無框 */
   #notifLog .card .ln{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:18px;font-weight:700;line-height:1.25;min-height:1.3em;overflow:hidden}   /* 2026-10-17 其餘欄位字體最大化、垂直置中;寬度不夠時由程式自動縮字 */
   #notifLog .card .ln .nmblk{flex:0 0 5.2em;min-width:0;overflow:hidden;display:flex;align-items:center;font-size:.9em;line-height:1.15}   /* 2026-10-18 一張卡兩列:第 1 列放名稱、第 2 列放代碼,其餘欄位上下對齊 */
@@ -6571,7 +6573,7 @@ window.bgTick = bgTick; window.BG = BG;
     };
     const info = o => '';   // 2026-10-17 使用者:每一則下面的灰字明細都不顯示,只留代碼
     const shown = cards.filter(o => !o._hide); n = shown.length; const hd2 = hd.replace(/<span>\d+ 則<\/span>/, `<span>${n} 則</span>`);
-    box.innerHTML = hd2 + (shown.length ? shown.map((o, k) => `<div class="card ${o.side === 'long' ? 'c-long' : o.side === 'short' ? 'c-short' : ''}${posStatus(o.code) === 'open' ? ' mine' : posStatus(o.code) === 'closed' ? ' done' : ''}" data-i="${k}">${line(o)}</div>`).join('')
+    box.innerHTML = hd2 + (shown.length ? shown.map((o, k) => `<div class="card ${o.type === 'turn' ? 'c-turn' : o.side === 'long' ? 'c-long' : o.side === 'short' ? 'c-short' : ''}${posStatus(o.code) === 'open' ? ' mine' : posStatus(o.code) === 'closed' ? ' done' : ''}" data-i="${k}">${line(o)}</div>`).join('')
       : `<div class="empty">${d === today ? '今日還沒有通知<br>(進場 / 停利 / 停損 / 出場會列在這裡)' : '這天沒有紀錄'}</div>`);
     // 2026-10-17 自動縮字:真機系統字體放大時整列會超出卡片,量一下塞不下就縮,直到塞下為止(最小 11px)
     // 2026-10-17 字體自適:每一列先用 18px 畫,量出實際需要的寬度,再按「可用寬 ÷ 需要寬」一次算出剛好塞滿的字級(10~21px)。
