@@ -213,6 +213,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     連 2 根 Ka 比 2 根前高且收盤在 Ka 上面 = 在漲 → 漸空 / 做空換成監控(要再亮得重新連 3 根);鏡像(YH.lampTrendGate)。
     友達 13 天:原本這種根 154 + 113 根(7.7%)→ 0;一天換燈 19.8 → 28 次(多出來的是退監控),燈段中位 6 根。天秤、通知、判別式都沒動。
   · 2026-10-23 11:25 漲跌圖 / 轉折圖燈號也加同一條(使用者:「轉折圖 也跑一次」):連 2 根明明在漲 → 做空退監控、明明在跌 → 做多退監控。友達 13 天轉折圖:這種根 164 + 94 → 0。
+  · 2026-10-23 11:50 轉折通知(使用者:「我需要的是轉折圖裡做空或做多的訊息 交不交易決定權在我 我只是要當下知道有這個訊息」「不用限制同一支股票只有一則訊息」):
+    背景(bgTick)每一檔算轉折圖的轉折點(換方向的多 / 空點,和圖上大箭頭同一套),每一個都推手機「○○ 代碼 轉折 做多 / 做空 價」,不限次數;同方向再出現的小箭頭不推。
+    不進判別式、不記部位、沒有停利停損(YH.turnNotify)。前 49 名 13 天平均一天約 130 則。鐵律 17(一檔只發進場 / 平倉)是判別式的規矩,轉折通知是另一類,使用者決定不限。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1791,7 +1794,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231125">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231150">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3769,6 +3772,7 @@ const YH = {
   rfMinCross: 0.05,     // 2026-10-22 漲跌圖:Ka 要高(低)過 Kb 至少 0.05% 才算穿越          // 2026-10-22 漲跌圖多空點的「Ka 往上 / 往下」和 3 根前比(一檔跳動大的股票,Ka 一根就會小跳一下)      // 2026-10-22 漲跌圖多空點的「壓線」:Ka、Kb 差距和那根 K 離均線都在 0.2% 內 → 實心
   lampLeave: 1,         // 2026-10-21 11:40 使用者(台郡 10:13 天秤已到中間還亮做多):已亮做多 / 做空時,連 lampHold 根不是這個燈就換成最新那根的狀態(不必同一種);0 = 舊規則
   lampObOc: true,       // 2026-10-21 20:40 使用者「先改 D」:亮「做多」還要 Ob(OBV 均 10)在 Oc(OBV 均 30)之上,否則降成漸多;做空鏡像(Oc 還沒值 = 不亮做多 / 做空)。七天 1,405 股票日:勝率 54.1% → 55.3%
+  turnNotify: true,     // 2026-10-23 11:43 使用者:轉折圖的轉折點(多 / 空)每一個都推手機,不限次數,只是提醒(不進判別式、不記部位)
   lampTrendGate: true,  // 2026-10-23 11:09 使用者:「不要明明上升 燈號卻漸空那種情況 反之亦然」:Ka 2 根往上且收盤在 Ka 上 → 不亮漸空 / 做空;鏡像
   lampOaOb: true,       // 2026-10-21 22:30 使用者「改 Y3+W6」:燈號分數裡「橘線雙升 / 雙降」換成「Oa 現在在 Ob 之上 / 之下」(反應快;時碩 11:06 兩線都轉下)
   lampBreadth: 0.65,    // 2026-10-21 22:30 同上 W6:大盤寬度 ≥ 65% 不亮做空(降成漸空)、≤ 35% 不亮做多(降成漸多);0 = 關;沒有寬度資料不擋
@@ -6296,7 +6300,7 @@ async function bgTick(force, replay){
       const ds = codes.map(c => (LIVE.get(c) || {}).d).filter(Boolean);
       if (ds.length && !ds.some(d => d === ymd)){ BG.holiday = ymd; return 'holiday ' + ds[0]; } }
     const day = new Date().toDateString();
-    if (BG.histDay !== day){ BG.hist.clear(); BG.todayAt.clear(); BG.last.clear(); BG.recent.clear(); if (BG.exited) BG.exited.clear(); BG.pos.clear(); BG.histDay = day; bgRestore(day); }   // 2026-10-20 帳本從 localStorage 還原(同一天才還原)
+    if (BG.histDay !== day){ BG.hist.clear(); BG.todayAt.clear(); BG.last.clear(); BG.recent.clear(); if (BG.exited) BG.exited.clear(); if (BG.turnSeen) BG.turnSeen.clear(); BG.pos.clear(); BG.histDay = day; bgRestore(day); }   // 2026-10-20 帳本從 localStorage 還原(同一天才還原)
     const names = new Map((SRC || []).map(s => [s.code, s.name || s.code]));
     let n = 0;
     for (const code of codes){
@@ -6385,6 +6389,27 @@ async function bgTick(force, replay){
         // 2026-10-20 盯盤:帳本上還有部位 → 用記住的進場價看停利 / 停損 / 13:25,不管重算後訊號還在不在
         if (!replay){ const pos = BG.pos.get(pk); if (pos) bgManagePos(pk, pos, liveRec.z || bars[bars.length - 1].close, names.get(code) || code, code); }
         }   // for rs
+        // 2026-10-23 11:43 使用者:「我需要的是轉折圖裡做空或做多的訊息 交不交易決定權在我 我只是要當下知道有這個訊息」「不用限制同一支股票只有一則訊息」:
+        //   轉折圖的轉折點(換方向的多 / 空點,和圖上大箭頭同一套 turnPoints)每一個都推手機,不限次數;同方向再出現的小箭頭不推。
+        //   不進判別式、不記部位、不管停利停損(YH.turnNotify;前 49 名 13 天平均一天約 130 則)
+        if (YH.turnNotify && !replay){
+          try{
+            const ma24 = sma(bars, YH.kbPeriod || 24, 'close', false);
+            const flips = turnPoints(bars, ma, ma24, ob).filter(p => p.flip && dayKey(p.time) === lastDay);
+            BG.turnSeen = BG.turnSeen || new Map();
+            if (!BG.turnSeen.has(code)){ const cut = Math.floor(Date.now() / 1000) - 180; BG.turnSeen.set(code, new Set(flips.filter(p => p.time < cut).map(p => p.time))); }   // 第一次看到這檔:只推最近 3 分鐘內的
+            const seenT = BG.turnSeen.get(code);
+            for (const p of flips){
+              if (seenT.has(p.time)) continue; seenT.add(p.time);
+              if (p.time < Math.floor(Date.now() / 1000) - 600){ bgLog(code + ' 舊轉折不通知 ' + hmKey(p.time)); continue; }
+              const nm = names.get(code) || code, side = p.side > 0 ? '做多' : '做空', nowPx = liveRec.z || bars[bars.length - 1].close;
+              const title = `${nm} ${code} 轉折 ${side} ${(+p.price).toFixed(2)}`, body = `${hmKey(p.time)} 轉折圖${side}點 · 現價 ${(+nowPx).toFixed(2)} · 只是提醒,不進判別式`;
+              bgLog('[轉折通知] ' + title + ' | ' + body);
+              try{ if (window.Android && Android.notify) Android.notify(title, body, p.side > 0 ? 'long' : 'short'); }catch(e){}
+              cloudLogAdd(title, body, 'turn');
+            }
+          }catch(e){ bgLog(code + ' 轉折通知 ' + e.message); }
+        }
         n++;
       }catch(e){ bgLog(code + ' ' + e.message); }
       finally{ RULESET = RULESETS[ACTIVE_RS]; SIG = RULESET.sig; }
