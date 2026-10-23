@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 19:50 指標三標題(使用者:「指標三 三個字 跟指標二一樣」):「指標三」三個字改白色、和指標二同字級;後面橘線的「往上穿 / 往下穿 時間」前面加「橘線:」。只是畫面。
   · 2026-10-23 19:35 漲跌圖箭頭減量(使用者:時碩 10/22「漲跌圖 怎麼那麼多下降箭頭」;16:40 拿掉碰線後每段都標、一段兩個箭頭):
     (1) 一段只留一個:第 2 根變實心時把第 1 根的淡色拿掉;(2) 同方向再出現的實心點改小的淡色(和轉折圖一樣),只有翻轉那一個大實心 + 時間;沒壓線的更小更淡。
     點的定義、燈號、黃虛線都不變,只是畫法。
@@ -1859,7 +1860,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231935">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231950">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2329,7 +2330,8 @@ except Exception:
         <span style="color:#B47CFF">Oc:<span id="lblObvMa30V">—</span></span>
         <span style="color:#FF6FB5">Od:<span id="lblObvMa16V">—</span></span><button id="xhairClose" class="xgo hidden" aria-label="十字線回到最新一根"><svg viewBox="0 0 30 18" width="28" height="17" aria-hidden="true"><path d="M1.5 5.5 H16 V1.5 L28.5 9 L16 16.5 V12.5 H1.5 Z" fill="#E53935" stroke="#FFFFFF" stroke-width="1.6" stroke-linejoin="round"/></svg></button></div>
       <div id="chartMid"></div>
-      <div class="yh-lbl sep"><span style="color:#FF9F43">指標三:<span id="lblOrgV">—</span></span>   <!-- 2026-10-22 21:07 回到原來(橘線最近一次穿越);19:05 的二線版撤回 -->
+      <div class="yh-lbl sep" style="gap:6px;font-size:11px;letter-spacing:-0.3px"><span style="color:#FFFFFF">指標三</span>   <!-- 2026-10-23 19:50 使用者:「指標三 三個字 跟指標二一樣」:白色、同字級 -->
+        <span style="color:#FF9F43">橘線:<span id="lblOrgV">—</span></span>   <!-- 2026-10-22 21:07 回到原來(橘線最近一次穿越);19:05 的二線版撤回 -->
         <span style="color:#D63AF9">Ka×Kb:<span id="lblKxV">—</span></span>   <!-- 2026-10-21 使用者:「Ka 穿越 Kb 的點標出來 記錄起來 在指標三那邊顯示出來 一樣連線 不用顯示價格」 -->   <!-- 2026-10-20 23:55 使用者:「這看 obv 黃線穿越藍線的指標 命名為指標三」 --></div>   <!-- 2026-10-20 23:45 使用者:「這樣的點不對 改紀錄 obv 黃線穿越藍線的點 所有的點連線」 -->   <!-- 2026-10-20 23:30 使用者:「把高低連線拿掉 留起漲起跌連線 價格要註記上去」 -->   <!-- 2026-10-20 23:10 使用者:「乾脆改高點連高點 低點連低點」 -->   <!-- 2026-10-20 22:10 使用者:「把均線乖離率 改成 股票高低點連線 加上起漲點 起跌點 也連線」(原 20:00 的均線乖離率 10/30/132) -->
       <div id="chartBot"></div>
     </div>
