@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 21:55 指標三橘線改虛線(使用者:「那就把橘線改成橘虛線」;紫線實線留著當中期波動)。
   · 2026-10-23 21:50 Kb 改藍色虛線(使用者:「Kb改成藍色虛線」;三張圖都是)。
   · 2026-10-23 21:45 漲跌圖 / 轉折圖的黃虛線跨日接起來(使用者:「現在跨日 還有沒有其他的銜接問題」→「改」):昨天最後一個點連到今天第一個點(10/23 10:55 原本不跨日)。
     注意:這條黃虛線是指標一(K 圖那格)上連多空點的線,不是指標二的 Oa(Oa 也是黃虛線,但在指標二那格)。
@@ -1885,7 +1886,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610232150">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610232155">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5252,7 +5253,7 @@ function initChart(){
   const pxFmt = {type:'price', precision:2, minMove:0.01};
   // 2026-10-22 19:05 使用者:「指標三 怎麼那麼多點點」→「改」(選 3):橘線(OBV 穿 Ob,一天 30 多點)不畫;線改透明、資料照留,十字線和刻度跟著它走
   // 2026-10-22 21:07 使用者:「改回原來 沒有綠紅線的版本」:19:05 的改版(橘線不畫、紫線拆紅綠兩條)撤回,回到橘線 + 一條紫線
-  orgLine = chartB.addLineSeries({priceScaleId:'left', color:'#FF9F43', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:true});   // 2026-10-23 16:30 十字線上有圓點(同指標二)
+  orgLine = chartB.addLineSeries({priceScaleId:'left', color:'#FF9F43', lineWidth:1.5, lineStyle:2, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:true});   // 2026-10-23 21:55 使用者:「把橘線改成橘虛線」(紫線實線 = 中期波動,橘虛線 = 短期籌碼)   // 2026-10-23 16:30 十字線上有圓點(同指標二)
   padB = chartB.addLineSeries({priceScaleId:'left', lineVisible:false, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, autoscaleInfoProvider: () => null});   // 撐時間軸用,看不見、不影響刻度
   kxLine = chartB.addLineSeries({priceScaleId:'left', color:'#D63AF9', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:true});   // 2026-10-21 Ka 穿越 Kb 的點連線(紫)
   kxDnLine = null;   // 2026-10-22 21:07 紅綠兩條撤回
