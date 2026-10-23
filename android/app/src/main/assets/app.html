@@ -223,6 +223,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 15:25 今天的雲端 K 存本機(使用者:「可以把他記錄起來下一次不用再重抓」):每 60 秒把今天全部代號的 1 分K 存到 localStorage(mysh.today),
+    重開 App 同一天先用存的、只向 Worker 要 since 之後的新 K,不再讀整天(最慢的一條路)。換日失效;存不下(手機空間)就跳過。歷史週檔本來就有本機快取(mysh.k.*)。
   · 2026-10-23 15:20 開 K 圖不等今天的 K 重抓(使用者:「讀取一分k的時間又變好久 大概10秒」):盯盤每 10 秒都在補今天的 K,開圖時手上已有就直接畫,
     這次抓的回來再 redrawLive 重畫(保留縮放);手上沒有(第一次開這檔)才等。歷史週檔照舊。
   · 2026-10-23 15:15 再快一點(使用者:「有辦法再快一點嗎」→「都改」):(1) 手機每分鐘 :01~:12 叫 Worker `?bars=snap` 立刻存快照(上一根 K 剛收完就抓,不等 Cloudflare Cron 固定晚 47 秒醒來;
@@ -1822,7 +1824,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231520">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231525">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3525,10 +3527,32 @@ const TODAY_BARS = new Map();   // code → {at, bars, err}
    全部代號一次抓(第一次全天,之後只抓 since 之後的新 K),55 秒內不重抓;雲端沒有那檔(不在候選池)才退回 Yahoo */
 const CLOUD_BARS = { d: '', at: 0, last: '', busy: false, ok: false, err: '', n: 0 };
 const taipeiYmd = () => new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+/* 2026-10-23 15:25 使用者(「可以把他記錄起來下一次不用再重抓」):今天的雲端 1 分K 存在本機(localStorage mysh.today,最多每 60 秒存一次),
+   重開 App 時同一天就先用存的,之後只向 Worker 要 since 之後的新 K,不用再讀整天(整天那筆是 Worker 最慢的一條路)。換日自動失效;存不下就算了(try/catch)。 */
+const TODAY_CACHE_KEY = 'mysh.today';
+function todayCacheSave(d){
+  try{
+    if (Date.now() - (CLOUD_BARS.savedAt || 0) < 60000) return;
+    const bars = {};
+    for (const [code, v] of TODAY_BARS){ if (v && v.cloud && v.bars && v.bars.length) bars[code] = v.bars.map(b => [b.time, b.open, b.high, b.low, b.close, b.volume]); }
+    localStorage.setItem(TODAY_CACHE_KEY, JSON.stringify({d, last: CLOUD_BARS.last, bars}));
+    CLOUD_BARS.savedAt = Date.now();
+  }catch(e){ try{ localStorage.removeItem(TODAY_CACHE_KEY); }catch(_){} }
+}
+function todayCacheRestore(d){
+  try{
+    const j = JSON.parse(localStorage.getItem(TODAY_CACHE_KEY) || 'null');
+    if (!j || j.d !== d || !j.last || !j.bars) return;
+    let n = 0;
+    for (const code in j.bars){ const a = j.bars[code]; if (!a.length) continue;
+      TODAY_BARS.set(code, {at: 0, bars: a.map(b => ({time: b[0], open: b[1], high: b[2], low: b[3], close: b[4], volume: b[5]})), err: '', cloud: true, yahooAt: 0, pre: 0}); n++; }
+    if (n){ CLOUD_BARS.last = j.last; CLOUD_BARS.ok = true; CLOUD_BARS.n = n; }
+  }catch(e){}
+}
 async function loadCloudBars(){
   if (!liveOn()) return false;
   const d = taipeiYmd();
-  if (CLOUD_BARS.d !== d){ CLOUD_BARS.d = d; CLOUD_BARS.last = ''; CLOUD_BARS.ok = false; CLOUD_BARS.n = 0; }
+  if (CLOUD_BARS.d !== d){ CLOUD_BARS.d = d; CLOUD_BARS.last = ''; CLOUD_BARS.ok = false; CLOUD_BARS.n = 0; todayCacheRestore(d); }   // 2026-10-23 15:25 重開 App 先拿本機存的今天 K,之後只抓新的
   // 2026-10-23 15:15 使用者「有辦法再快一點嗎」→「都改」:每分鐘一開始(:01~:12)就叫 Worker 立刻存快照(上一根 K 剛收完),不等 Cron :47 醒來;抓完馬上重拿 K
   if (YH.cloudSnapEarly && inSession()){ const n = new Date(Date.now() + 8 * 3600000), sec = n.getUTCSeconds(), mk = n.toISOString().slice(0, 16);
     if (sec >= 1 && sec < 12 && CLOUD_BARS.snapMin !== mk){ CLOUD_BARS.snapMin = mk;
@@ -3550,6 +3574,7 @@ async function loadCloudBars(){
       TODAY_BARS.set(code, {at: Date.now(), bars: old.concat(add), err: '', cloud: true, yahooAt: cur && cur.yahooAt || 0, pre: cur && cur.pre || 0});
     }
     if (j.last) CLOUD_BARS.last = j.last;
+    todayCacheSave(d);
     await loadBreadth(d);
     if (j.n > 0) { CLOUD_BARS.ok = true; CLOUD_BARS.n = j.n; }
     CLOUD_BARS.err = '';
