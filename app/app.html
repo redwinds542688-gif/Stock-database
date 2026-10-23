@@ -209,6 +209,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     和點的條件一致;原本只有「條件過半翻到對面連 3 根」才退。通知、判別式都沒動。
   · 2026-10-23 11:05 友達 13 天轉折圖燈號掃過(使用者:「用轉折圖 跑一次友達 13天 看一下燈號有沒有像這樣不合理的」):72 段燈號,沒有和 Ka/Kb 位置相反的;
     只修一處:Ka 穿到另一邊要差 ≥ 0.05%(YH.rfMinCross)才熄燈,兩線貼著不算(10/13 12:16 Ka 只高 0.001 就熄一根又亮)。
+  · 2026-10-23 11:15 K 線圖燈號:明明在漲不亮漸空 / 做空,明明在跌不亮漸多 / 做多(使用者:「不要明明上升 燈號卻漸空那種情況 反之亦然」):
+    連 2 根 Ka 比 2 根前高且收盤在 Ka 上面 = 在漲 → 漸空 / 做空換成監控(要再亮得重新連 3 根);鏡像(YH.lampTrendGate)。
+    友達 13 天:原本這種根 154 + 113 根(7.7%)→ 0;一天換燈 19.8 → 28 次(多出來的是退監控),燈段中位 6 根。天秤、通知、判別式都沒動。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1787,7 +1790,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231105">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231115">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3765,6 +3768,7 @@ const YH = {
   rfMinCross: 0.05,     // 2026-10-22 漲跌圖:Ka 要高(低)過 Kb 至少 0.05% 才算穿越          // 2026-10-22 漲跌圖多空點的「Ka 往上 / 往下」和 3 根前比(一檔跳動大的股票,Ka 一根就會小跳一下)      // 2026-10-22 漲跌圖多空點的「壓線」:Ka、Kb 差距和那根 K 離均線都在 0.2% 內 → 實心
   lampLeave: 1,         // 2026-10-21 11:40 使用者(台郡 10:13 天秤已到中間還亮做多):已亮做多 / 做空時,連 lampHold 根不是這個燈就換成最新那根的狀態(不必同一種);0 = 舊規則
   lampObOc: true,       // 2026-10-21 20:40 使用者「先改 D」:亮「做多」還要 Ob(OBV 均 10)在 Oc(OBV 均 30)之上,否則降成漸多;做空鏡像(Oc 還沒值 = 不亮做多 / 做空)。七天 1,405 股票日:勝率 54.1% → 55.3%
+  lampTrendGate: true,  // 2026-10-23 11:09 使用者:「不要明明上升 燈號卻漸空那種情況 反之亦然」:Ka 2 根往上且收盤在 Ka 上 → 不亮漸空 / 做空;鏡像
   lampOaOb: true,       // 2026-10-21 22:30 使用者「改 Y3+W6」:燈號分數裡「橘線雙升 / 雙降」換成「Oa 現在在 Ob 之上 / 之下」(反應快;時碩 11:06 兩線都轉下)
   lampBreadth: 0.65,    // 2026-10-21 22:30 同上 W6:大盤寬度 ≥ 65% 不亮做空(降成漸空)、≤ 35% 不亮做多(降成漸多);0 = 關;沒有寬度資料不擋
   kbPeriod: 28,         // 2026-10-23 00:19 使用者「Kb改28」:Kb(指標一藍線)均價 28 根(原 24,和元大一樣);K 線圖、漲跌圖、轉折圖、燈號的 Ka/Kb 位置都用它。判別式不用 Kb
@@ -4640,7 +4644,7 @@ function ind3Series(bars, ma, ma24, ob, obma, obma30){
     const ks = (ka != null && ka2 != null) ? Math.sign(ka - ka2) : 0;
     const c30 = m30.get(b.time), cOc = (m != null && c30 != null) ? Math.sign(m - c30) : 0;   // 2026-10-21 Ob 在 Oc 之上 +1 / 之下 −1(lampObOc)
     const oa = (o != null && m != null) ? Math.sign(o - m) : 0;   // 2026-10-21 Oa 在 Ob 之上 +1 / 之下 −1(lampOaOb)
-    out.set(b.time, {k: (ka != null && kb != null) ? Math.sign(ka - kb) : 0, o2, ks, c: cOc, oa,
+    out.set(b.time, {k: (ka != null && kb != null) ? Math.sign(ka - kb) : 0, o2, ks, c: cOc, oa, px: ka != null ? Math.sign(b.close - ka) : 0,   // 2026-10-23 px = 收盤在 Ka 上 +1 / 下 −1(lampTrendGate)
                      lo: up.length >= 2 ? Math.sign(up[up.length - 1] - up[up.length - 2]) : 0,
                      hi: dn.length >= 2 ? Math.sign(dn[dn.length - 1] - dn[dn.length - 2]) : 0});
   }
@@ -4667,6 +4671,12 @@ function ind3Raw(st, time, waiting){
     const br = breadthAt(time);
     if (br != null && r === '做空' && br >= YH.lampBreadth) return '漸空';
     if (br != null && r === '做多' && br <= 1 - YH.lampBreadth) return '漸多';
+  }
+  // 2026-10-23 11:09 使用者:「不要明明上升 燈號卻漸空那種情況 反之亦然」:Ka 比 2 根前高且收盤在 Ka 上面(明明在漲)→ 不亮漸空 / 做空,改監控;鏡像。
+  //   友達 13 天 K 線圖:上升中卻漸空 / 做空 154 根、下跌中卻漸多 / 做多 113 根(佔 7.7%),這些全部改成監控(YH.lampTrendGate)
+  if (YH.lampTrendGate){
+    if ((r === '漸空' || r === '做空') && st.ks > 0 && st.px > 0) return '監控';
+    if ((r === '漸多' || r === '做多') && st.ks < 0 && st.px < 0) return '監控';
   }
   return r;
 }
@@ -4706,7 +4716,13 @@ function ind3Lamps(bars, I3, isChop, prevClose){
     else if (YH.lampLeave && (YH.lampLeave === 2 || cur === '做多' || cur === '做空')){ cnt++; cand = raw; if (cnt >= N){ cur = raw; cand = null; cnt = 0; } }   // 2026-10-21 使用者:「我只想改善這個燈號」(台郡分數 做多→漸多→監控→漸空 一格一格掉,每換一種就重算,做多撐到 10:17):亮著做多 / 做空時連 N 根不是它就換成最新那根
     else { if (raw === cand) cnt++; else { cand = raw; cnt = 1; } if (cnt >= N){ cur = raw; cand = null; cnt = 0; } }
     }
-    out.set(b.time, cur);
+    // 2026-10-23 11:15 使用者:「不要明明上升 燈號卻漸空那種情況 反之亦然」:平滑完再擋一次(ind3Raw 裡那層只擋「剛要亮」的,已亮的燈要連 3 根才換,還是會掛著):
+    //   連 2 根 Ka 比 2 根前高且收盤在 Ka 上 → 漸空 / 做空換成監控;鏡像。友達 13 天:一天換燈 19.8 次 → 23 次
+    let show = cur;
+    if (YH.lampTrendGate){ const st = I3.get(b.time), st1 = i > 0 && dayKey(bars[i - 1].time) === d ? I3.get(bars[i - 1].time) : null;   // 連 2 根都在漲(跌)才擋,1 根的小跳動不算(不然燈會閃)
+      const upT = st && st.ks > 0 && st.px > 0 && (!st1 || (st1.ks > 0 && st1.px > 0)), dnT = st && st.ks < 0 && st.px < 0 && (!st1 || (st1.ks < 0 && st1.px < 0));
+      if (((cur === '漸空' || cur === '做空') && upT) || ((cur === '漸多' || cur === '做多') && dnT)){ cur = '監控'; cand = null; cnt = 0; show = cur; } }   // 直接把燈換成監控,要再亮得重新連 3 根(只改顯示那根會一直閃)
+    out.set(b.time, show);
   }
   return out;
 }
