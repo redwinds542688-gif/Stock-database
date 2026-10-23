@@ -207,6 +207,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-23 10:55 漲跌圖 / 轉折圖的黃虛線、藍點線不跨日相連(使用者:群創 10/20 11:00 → 10/21 09:56「轉折 黃虛線 是什麼」):圖表套件遇到空白點照樣連線,改成每天最後一點之後那段畫透明。只是畫面。
   · 2026-10-23 11:00 漲跌圖 / 轉折圖燈號:Ka 穿到另一邊就退回監控(使用者:友達 10/21 10:40「都到這 為啥還做空」,Ka 10:37 已在 Kb 上面燈還亮做空):做多燈要 Ka > Kb、做空燈要 Ka < Kb,
     和點的條件一致;原本只有「條件過半翻到對面連 3 根」才退。通知、判別式都沒動。
+  · 2026-10-23 11:05 友達 13 天轉折圖燈號掃過(使用者:「用轉折圖 跑一次友達 13天 看一下燈號有沒有像這樣不合理的」):72 段燈號,沒有和 Ka/Kb 位置相反的;
+    只修一處:Ka 穿到另一邊要差 ≥ 0.05%(YH.rfMinCross)才熄燈,兩線貼著不算(10/13 12:16 Ka 只高 0.001 就熄一根又亮)。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1785,7 +1787,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231100">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231105">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5511,7 +5513,7 @@ function lampStateAt(time){ return (RF_MODE && RF_LAMPS && RF_LAMPS.view === RF_
 // 2026-10-23 09:22 使用者(「這樣感覺沒啥用」→「改」):天秤改顯示那張圖的點的條件湊齊幾項(偏多 +1 / 偏空 −1 / 平 0,平均),點還沒出來就看得到往哪邊靠
 function meterBiasAt(time, kBias){ if (RF_MODE && RF_LAMPS && RF_LAMPS.view === RF_VIEW && RF_LAMPS.bias && RF_LAMPS.bias.has(time)) return RF_LAMPS.map.get(time) === '等待' ? 0 : RF_LAMPS.bias.get(time); return kBias; }   // 等待時天秤歸零(同 K 線圖)
 const sgn = (a, b) => a == null || b == null ? 0 : a > b ? 1 : a < b ? -1 : 0;
-function kaSideMap(ma, ma24){ const mb = toTimeMap(ma24), m = new Map(); for (const x of ma){ const kb = mb.get(x.time); if (kb != null) m.set(x.time, sgn(x.value, kb)); } return m; }   // 每根 Ka 在 Kb 哪邊
+function kaSideMap(ma, ma24){ const mb = toTimeMap(ma24), m = new Map(), X = YH.rfMinCross || 0; for (const x of ma){ const kb = mb.get(x.time); if (kb != null) m.set(x.time, (x.value - kb) / kb * 100 >= X ? 1 : (kb - x.value) / kb * 100 >= X ? -1 : 0); } return m; }   // 每根 Ka 在 Kb 哪邊(差距要 ≥ 0.05%,兩線貼著算 0;2026-10-23 11:05 友達 10/13 12:16 Ka 只高 0.001 就熄燈又亮)
 /** 轉折圖的七項(Ka 在 Kb 哪邊、Ka 比 KN 根前、OBV 在 Ob 哪邊、OBV 方向、Ob 方向、OBV24 方向、Oc 方向)平均;OBV 跨日累計,和 turnPoints 同一套 */
 function turnBias(bars, ma, ma24, ob){
   const KN = YH.turnKaBars || 2, mk = toTimeMap(ma), mb = toTimeMap(ma24), mOc = toTimeMap(sma(ob, YH.ocPeriod || 28, 'value'));
