@@ -175,9 +175,15 @@ async function snapshotBars(env, subs, at) {
   /* 2026-10-22 11:40 抓取秒數紀錄:Cron 每分鐘都晚約 47 秒才醒(開頭那筆在 :47~:51 抓),:30 永遠跳過,只剩 :48、:56 兩筆擠在一起、後面空 50 秒。
      K 是照證交所資料時間 t 歸分鐘,快照屬於哪個鍵不影響,所以改成從「這次醒來」起平均間隔:醒來 +20 秒、+40 秒各抓一次
      (下一次 Cron 約 60 秒後才醒,不會撞在一起)。key 仍是排定的那一分鐘,拼 K 時照時分排序,時間順序不變 */
-  for (const [at2, n] of [[20, FRESH_N], [40, FRESH_N]]) {
-    const wait = st + at2 * 1000 - Date.now();
+  /* 2026-10-23 15:45 使用者(「這一個要如何改最穩當」→「好」):子快照改成對準「下一分鐘 :02 和 :30」(不再是醒來 +20 / +40 秒):
+     上一根 K 在 :00 收完,:02 那筆就是它完整的快照,手機 10 秒內拿到 → 通知比原本快約 40 秒;不用手機叫 Worker(15:15 那版,已關),
+     KV 寫入、證交所抓取次數都和以前一樣(一分鐘 bar + bas 2 次寫入、3 次抓取)。醒來太晚(離 :02 不到 1 秒)就照舊跳過。 */
+  const nextMin = Math.floor(st / 60000) * 60000 + 60000;
+  const plan = [[nextMin + 2000, "02"], [nextMin + 30000, "30"]];
+  for (const [tAbs, lab] of plan) {
+    const n = FRESH_N, at2 = lab, wait = tAbs - Date.now();
     if (wait < 1000) { sm["s" + at2] = "skip@" + sec(); continue; }
+    if (wait > 70000) { sm["s" + at2] = "too-far@" + sec(); continue; }
     await new Promise(r => setTimeout(r, wait));
     const b = sec();
     try { const r = buildSnap(await misFetch(list, n), ymd); if (r.n) out.push(r.s); sm["s" + at2] = b + "-" + sec() + (r.n ? "" : " 0檔"); } catch (e) { sm["s" + at2] = "err " + e; console.log("子快照失敗 " + e); }
