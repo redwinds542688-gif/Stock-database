@@ -223,6 +223,13 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 00:50 [待確認、目前關閉] 判一 ~ 判三只做跳空 ≥1% 的股票(使用者:「我說的是 有跳空開盤的股票判一二三 才進場」→ 看完回測 →「只做跳空 ≥1%」;SIG1.gapMinPct = 1,二 / 三一起):
+    今開對昨收 |跳空| < 1% 的股票,當天訊號只記錄、不進場(標「缺」);原本的「跳空 >2% 不追跳空方向」照舊。模擬器 GAPMIN=1。
+    回測(逐筆依當天跳空分組,跳空是整天整檔的條件,拿掉就是準確結果):Yahoo 九天 判一 31 筆 68% +61,404 → 17 筆 82% +50,419;
+    判二 46 筆 70% +112,655 → 23 筆 78% +72,193;判三 4 筆不變 +18,831。雲端 K 三天 判一 7 筆 +27,256 → 5 筆 +20,724;判二 13 筆 +27,296 → 10 筆 +17,216;
+    判三 3 筆 +14,662 → 2 筆 +7,736。勝率變高、總額變少(拿掉的不跳空日子勝率低但淨額為正),使用者選勝率。
+    ※ 01:00 程式寫好、App 對模擬器 一 / 二 / 三 各 215 檔日 0 差異,但用盤中實際算法(名單昨收 + 雲端第一根開盤)跑雲端 K 三天:判一 +20,724(同)、
+      判二 9 筆 66% +9,586(多擋和益 / TPK / 華邦電三筆賺的)、判三 +14,662(不變)→ 先關(SIG1.gapMinPct = 0),等九天實跑給使用者決定。
   · 2026-10-24 00:35 轉折通知加跳空濾網(使用者:「找一檔 跳空開的 測試」→「先跑2再跑3」→「就按你說的來」;YH.turnGapBlock = 1):
     今開對昨收跳空 ≥1% 時,擋掉順跳空方向的轉折點(跳高開的多點、跳低開的空點),只推逆跳空(回補方向)。只管通知,圖上的點照畫。
     357 檔 13 天(含 Kb 傾斜 + 順勢而為):點 24,395 → 17,723、60 根 ±1% 55.3% → 56.3%、翻轉交易 −0.31 → −0.27%/筆、10/22 前 49 名 98 → 66 則;
@@ -1900,7 +1907,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610240035">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610240050">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4116,7 +4123,8 @@ let RISK_LINES = [];                  // 圖上的停損 / 停利示意線
    目前使用的完整進出場邏輯快照。回測 10/13~16(hi350 候選池、資金上限 35 萬):17 筆、賺 15 賠 2、勝率 88%、淨 +61,077。
    以後若要試新的邏輯,另外開「判別式二」,這份不要動;白話版規則在 repo 根目錄《判別式一.md》。 */
 const RULESET1 = { name: '判別式一', date: '2026-10-19', backtest: '10/13~16 + 10/19 五天 20 筆,賺 18 賠 2,勝率 90%,淨 +78,662(14:33 更新後的資料;量比 0.9、OBV 均 6 第二判別、紅線在退不進、停利後第 1 點重數、OBV30 方向、離當日高低點 2% 內)' };
-const SIG1 = { skipMin: 15, slopeBars: 10, maxDev: 2.0, noEntryAfter: '13:00', trendOnlyPct: 3.0,
+const SIG1 = { gapMinPct: 0,   // 2026-10-24 01:00 先關(0):實際算法(名單昨收 + 雲端開盤)判二雲端三天 +27,296 → +9,586,比給使用者看的差,等九天回測給使用者看完再開 1   // 2026-10-24 00:50 使用者「只做跳空 ≥1%」:判一 ~ 判三只在今開對昨收跳空 ≥ 1% 的股票進場(0 = 關);二 / 三 從 SIG1 複製,一起生效
+              skipMin: 15, slopeBars: 10, maxDev: 2.0, noEntryAfter: '13:00', trendOnlyPct: 3.0,
               scaleBars: 5, scaleMaFull: 0.5, scaleObFull: 20, scaleW: {ma: 0, obma: 0.75, ob: 0.25}, lampBars: 3, lampWarnBars: 1,   // 多空天秤(2026-10-18):OBV 均線(藍)75% + OBV(紅)25%,均價線 0;5 根斜率,藍 / 紅 ÷ 當日 OBV 範圍 ±20% 滿格
               takePct: 2.5, stopPct: 1.5, maxMovePct: 6.0, confirmMaxGapPct: 2.0, confirmMaxExtGapPct: 2.5, obmaSlopeBars: 5, obmaSlopeMin: 4.0, obmaSlope2Ma: 6, obvExitMa: 30, obvExitMinGain: 1.0, obvWarnMa: 20, maxEntryDevPct: 1.0, vwapFilter: true, vwapSlopeBars: 10, vwapSlopeMin: 0, gapChasePct: 2.0, minDayVol: 6000, rvolMin: 0.9, rvolFilter: true,
               obvDirMa: 30, obvDirBars: 1,   // 2026-10-19 使用者:「OBV30 藍線向上不做空只做多,反之亦然,寫進判別式一跟二」(判別式一第四次修改;判二複製自 SIG1 所以一起有)
@@ -4585,6 +4593,8 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
       const gapPct = (dayOpen - prevClose) / prevClose * 100;
       if ((side === 'short' && gapPct < -SIG.gapChasePct) || (side === 'long' && gapPct > SIG.gapChasePct)){ gapChase = true; far = true; }
     }
+    // 2026-10-24 00:50 只做跳空 ≥ SIG.gapMinPct%(使用者「只做跳空 ≥1%」):今開對昨收沒跳空到 1% 的股票,當天訊號只記錄、不進場(標「缺」;模擬器 GAPMIN=1)
+    if (SIG.gapMinPct > 0 && prevClose && dayOpen !== null && Math.abs((dayOpen - prevClose) / prevClose * 100) < SIG.gapMinPct){ gapChase = true; far = true; }
     const vwapV = (iVw.has(b.time) ? vw[iVw.get(b.time)].value : null);
     let againstVwap = SIG.vwapFilter && vwapV !== null && ((side === 'long' && b.close < vwapV) || (side === 'short' && b.close > vwapV));   // 逆 VWAP:價在 VWAP 下只做空、上只做多(2026-10-15 23:30)
     if (SIG.vwapFilter && SIG.vwapSlopeMin > 0 && vwapV !== null && iVw.has(b.time)){   // VWAP 斜率:最近 vwapSlopeBars 分鐘要往進場方向走 ≥ vwapSlopeMin%(23:55);2026-10-18 設 0 = 不看斜率(使用者定案,見最上面紀錄)

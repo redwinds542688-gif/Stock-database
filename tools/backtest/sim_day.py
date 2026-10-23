@@ -455,6 +455,8 @@ for i in range(1, len(c)):
     if GAPMODE == 'dir' and conf:                                               # 2026-10-18 測試:跳空方向不追(跳低開不做空、跳高開不做多)
         _g = (o[0]-prev)/prev*100
         if (side==-1 and _g < -GAPTH) or (side==1 and _g > GAPTH): conf = False
+    # 2026-10-24 00:50 使用者「只做跳空 ≥1%」:GAPMIN = 今開對昨收 |跳空| 小於這個 % 的股票當天不進場(App SIG.gapMinPct)
+    if float(os.environ.get('GAPMIN','0')) > 0 and conf and abs((o[0]-prev)/prev*100) < float(os.environ.get('GAPMIN','0')): conf = False
     FPGAP = float(os.environ.get('FPGAP','0'))   # 第1點到確認點的「極值價差」上限:做空看第1點的高 → 確認點的低;做多看第1點的低 → 確認點的高
     if FPGAP > 0 and conf and prv is not None and len(prv) >= 5 and MODE != 'cross':
         _g = (prv[3]-l[i])/prv[3]*100 if side==-1 else (h[i]-prv[4])/prv[4]*100
