@@ -191,6 +191,10 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-23 00:35 天秤也跟著目前那張圖(使用者:「改 一樣隨當下的圖」):漲跌圖 / 轉折圖時 做多 = 指針全左、做空 = 全右、監控 = 中間;K 線圖照舊四件事平均。
   · 2026-10-23 09:25 天秤改顯示條件湊齊幾項(使用者:「這樣感覺沒啥用」→「改」):轉折圖 = 七項(Ka 在 Kb 哪邊、Ka 比 2 根前、OBV 在 Ob 哪邊、OBV 方向、Ob 方向、OBV24 方向、Oc 方向)
     偏多 +1 / 偏空 −1 平均;漲跌圖 = 五項(Ka 高低過 Kb 0.05%、Ka 比 3 根前、OBV 在 Ob 哪邊、OBV 方向、Ob 方向)平均。全偏空指針全右;點出來前就看得到往哪邊靠。K 線圖照舊。
+  · 2026-10-23 09:55 漲跌圖 / 轉折圖燈號三處修正(使用者:「你自己跑一下 k圖 轉折圖 漲跌圖 找出不合理 或是不符合邏輯的燈號 再加以修改」;10 檔 × 3 天 7,606 根掃過):
+    (1) 13:20 起只顯示監控(已強制平倉,K 線圖本來就這樣;原本還亮著 141 / 175 根);(2) 開盤不到 15 根顯示等待、天秤歸零(和 K 線圖一樣;原本顯示監控);
+    (3) 燈亮著做多(做空)時,那張圖的條件已過半翻成偏空(偏多)連 3 根 → 退回監控,等下一個點(原本漲跌圖 31%、轉折圖 16% 的做多根天秤已偏到對面,燈還掛著);
+    同方向再出現的點也重新點亮。K 線圖燈號沒動(掃到做多但 Ka<Kb 1 根、做空但 Ka>Kb 3 根,都是換燈要連 3 根的延遲,不算錯)。通知、判別式都沒動。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1769,7 +1773,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610230925">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610230955">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5470,17 +5474,23 @@ function rfChainData(bars, pts, all){
 let RF_ARGS = null, RF_LAMPS = null;   // RF_LAMPS = {view, map: time → 做多 / 做空 / 監控}:漲跌圖 / 轉折圖的燈號(2026-10-23 00:25 使用者:「切換 漲跌圖 就隨漲跌圖 切換轉折圖 就隨轉折圖」)
 // 2026-10-23 00:25 燈號跟著目前那張圖走:K 線圖 = 原本的燈號(指標三四件事);漲跌圖 = 最近一個實心非假的翻轉點;轉折圖 = 最近一個轉折。
 //   同一天還沒有點 = 監控;換日重算。天秤、通知、判別式都不動
-function rfLampMap(bars, flips){   // flips = [{time, side}] 只放翻轉 / 轉折點
-  const m = new Map(); let k = 0, day = null, st = '監控';
-  for (const b of bars){ const dk = dayKey(b.time); if (dk !== day){ day = dk; st = '監控'; }
-    while (k < flips.length && flips[k].time <= b.time){ const f = flips[k++]; if (dayKey(f.time) === dk) st = f.side > 0 ? '做多' : '做空'; }
-    m.set(b.time, st); }
+// 2026-10-23 09:50 使用者(「你自己跑一下 … 找出不合理的燈號 再加以修改」)。10 檔 × 3 天掃過三張圖,改三處:
+//   (1) 13:20 起只顯示監控(已強制平倉;K 線圖本來就這樣,漲跌 / 轉折圖還亮著做多 / 做空);(2) 開盤不到 15 根顯示等待(和 K 線圖一樣);
+//   (3) 燈號亮著做多(做空)時,那張圖的條件已經過半翻成偏空(偏多)、連 YH.lampHold 根 → 退回監控,等下一個點(漲跌圖 31% 的做多根、轉折圖 16% 都是這種:點很久沒出,燈還掛著舊方向)。
+//   同方向再出現的點也會重新點亮。pts = 那張圖的點(含同方向再出現的),bias = 那張圖每根的條件平均
+function rfLampMap(bars, pts, bias){
+  const m = new Map(), HOLD = YH.lampHold || 3; let k = 0, day = null, st = '監控', n = 0, bad = 0;
+  for (const b of bars){ const dk = dayKey(b.time); if (dk !== day){ day = dk; st = '監控'; n = 0; bad = 0; } n++;
+    let hit = null; while (k < pts.length && pts[k].time <= b.time){ const p = pts[k++]; if (dayKey(p.time) === dk) hit = p; }
+    if (hit){ st = hit.side > 0 ? '做多' : '做空'; bad = 0; }
+    else if (st !== '監控' && bias){ const v = bias.get(b.time), d = st === '做多' ? 1 : -1; if (v != null && v * d <= -0.5) bad++; else bad = 0; if (bad >= HOLD){ st = '監控'; bad = 0; } }
+    m.set(b.time, n < SIG.skipMin ? '等待' : hmKey(b.time) >= '13:20' ? '監控' : st); }
   return m;
 }
 function lampStateAt(time){ return (RF_MODE && RF_LAMPS && RF_LAMPS.view === RF_VIEW && RF_LAMPS.map.has(time)) ? RF_LAMPS.map.get(time) : (CUR && CUR.lamps ? CUR.lamps.get(time) : null); }
 // 2026-10-23 00:31 使用者「改 一樣隨當下的圖」:天秤也跟著圖走。漲跌圖 / 轉折圖:做多 = 指針全左、做空 = 全右、監控 = 中間;K 線圖 = 原本的四件事平均
 // 2026-10-23 09:22 使用者(「這樣感覺沒啥用」→「改」):天秤改顯示那張圖的點的條件湊齊幾項(偏多 +1 / 偏空 −1 / 平 0,平均),點還沒出來就看得到往哪邊靠
-function meterBiasAt(time, kBias){ if (RF_MODE && RF_LAMPS && RF_LAMPS.view === RF_VIEW && RF_LAMPS.bias && RF_LAMPS.bias.has(time)) return RF_LAMPS.bias.get(time); return kBias; }
+function meterBiasAt(time, kBias){ if (RF_MODE && RF_LAMPS && RF_LAMPS.view === RF_VIEW && RF_LAMPS.bias && RF_LAMPS.bias.has(time)) return RF_LAMPS.map.get(time) === '等待' ? 0 : RF_LAMPS.bias.get(time); return kBias; }   // 等待時天秤歸零(同 K 線圖)
 const sgn = (a, b) => a == null || b == null ? 0 : a > b ? 1 : a < b ? -1 : 0;
 /** 轉折圖的七項(Ka 在 Kb 哪邊、Ka 比 KN 根前、OBV 在 Ob 哪邊、OBV 方向、Ob 方向、OBV24 方向、Oc 方向)平均;OBV 跨日累計,和 turnPoints 同一套 */
 function turnBias(bars, ma, ma24, ob){
@@ -5519,9 +5529,8 @@ function rfDraw(){
     const pAt = new Map(rp2.map(p => [p.time, p.price]));   // 點畫在那根的高 / 低價上(透明線在點的那根取點價,其他取收盤)
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
     rfLine.setMarkers(rfMarkers(rp2));
-    { const fl = []; let prev = 0, pd = null;   // 翻轉點 = 實心非假、和前一個實心方向不同(同 rfMarkers)
-      for (const p of rp2){ const dk = dayKey(p.time); if (dk !== pd){ prev = 0; pd = dk; } if (p.fake || !p.press) continue; if (p.side !== prev) fl.push({time: p.time, side: p.side}); prev = p.side; }
-      RF_LAMPS = {view: 1, map: rfLampMap(bars, fl), bias: rfBias(sBars, sMa, sMa24, sOb, sObma)}; }
+    { const bias = rfBias(sBars, sMa, sMa24, sOb, sObma);   // 燈號看實心非假的點(含同方向再出現的)
+      RF_LAMPS = {view: 1, map: rfLampMap(bars, rp2.filter(p => !p.fake && p.press), bias), bias}; }
     if (rfChain) rfChain.setData(rfChainData(bars, rp2));
     if (rfAll) rfAll.setData(rfChainData(bars, rp2, true));
   }catch(e){ try{ rfLine.setMarkers([]); if (rfChain) rfChain.setData([]); if (rfAll) rfAll.setData([]); }catch(_){} }
@@ -5568,7 +5577,7 @@ function turnDraw(bars, sBars, sMa, ma24, sOb){
   try{
     const sMa24 = sBars === bars ? ma24 : sma(sBars, YH.kbPeriod || 24, 'close', false);
     const pts = turnPoints(sBars, sMa, sMa24, sOb);
-    RF_LAMPS = {view: 2, map: rfLampMap(bars, pts.filter(p => p.flip)), bias: turnBias(sBars, sMa, sMa24, sOb)};
+    { const bias = turnBias(sBars, sMa, sMa24, sOb); RF_LAMPS = {view: 2, map: rfLampMap(bars, pts, bias), bias}; }
     const pAt = new Map(pts.map(p => [p.time, p.price]));
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
     rfLine.setMarkers(pts.map(p => { const up = p.side > 0;
