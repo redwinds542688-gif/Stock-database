@@ -223,6 +223,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 21:45 漲跌圖 / 轉折圖的黃虛線跨日接起來(使用者:「現在跨日 還有沒有其他的銜接問題」→「改」):昨天最後一個點連到今天第一個點(10/23 10:55 原本不跨日)。
+    注意:這條黃虛線是指標一(K 圖那格)上連多空點的線,不是指標二的 Oa(Oa 也是黃虛線,但在指標二那格)。
   · 2026-10-23 21:40 指標三橘線的點、轉折通知的順勢而為濾網改用跨日累計的 OBV(使用者:「指標三 也有這問題嗎」→「好」):和指標二畫的同一份,圖和通知對得上。
     判一 ~ 判三、燈號、轉折點本身不動。
   · 2026-10-23 21:30 指標二改畫跨日累計的 OBV(使用者:時碩 10/20 2,964 → 10/21 0「這裡的落差 是因為張數掉下來嗎?」→「要銜接」):Oa 跨日累計(從載入的第一根起算),
@@ -1882,7 +1884,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610232140">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610232145">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5659,14 +5661,19 @@ function rfChainData(bars, pts, all){
   const at = new Map(); bars.forEach((b, i) => at.set(b.time, i));
   const out = bars.map(b => ({time: b.time}));
   const byDay = new Map(); for (const p of pts){ if (p.fake) continue; const d = dayKey(p.time); if (!byDay.has(d)) byDay.set(d, []); byDay.get(d).push(p); }
+  // 2026-10-23 21:45 使用者(「現在跨日 還有沒有其他的銜接問題」→「改」):黃虛線跨日也接起來(昨天最後一個點連到今天第一個點);每天各自決定要連哪些點(實心規則不變)
+  //   (10/23 10:55 原本每天最後一點設透明、不跨日)
+  const chainAll = [];
   for (const arr of byDay.values()){
     const f = all ? -1 : arr.findIndex(p => p.press);
     const chain = (f < 0 ? arr : arr.slice(0, f).concat(arr.slice(f).filter(p => p.press))).map(p => ({i: at.get(p.time), v: p.price})).filter(p => p.i != null);
-    for (let k = 0; k < chain.length; k++){
-      const a = chain[k], z = chain[k + 1];
-      if (!z){ out[a.i] = {time: bars[a.i].time, value: a.v, color: 'rgba(0,0,0,0)'}; break; }   // 2026-10-23 10:55 使用者(群創:「轉折 黃虛線 是什麼」,線從昨天最後一點直接連到今天第一點):每天最後一點之後的那段畫透明,不跨日相連
-      for (let j = a.i; j <= z.i; j++) out[j] = {time: bars[j].time, value: +(a.v + (z.v - a.v) * (j - a.i) / Math.max(1, z.i - a.i)).toFixed(3)};
-    }
+    chainAll.push(...chain);
+  }
+  chainAll.sort((a, b) => a.i - b.i);
+  for (let k = 0; k < chainAll.length; k++){
+    const a = chainAll[k], z = chainAll[k + 1];
+    if (!z){ out[a.i] = {time: bars[a.i].time, value: a.v}; break; }
+    for (let j = a.i; j <= z.i; j++) out[j] = {time: bars[j].time, value: +(a.v + (z.v - a.v) * (j - a.i) / Math.max(1, z.i - a.i)).toFixed(3)};
   }
   return out;
 }
