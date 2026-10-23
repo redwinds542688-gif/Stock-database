@@ -164,10 +164,14 @@ async function snapshotBars(env, subs, at) {
   const r0 = buildSnap(await misFetch(list), ymd);
   if (!r0.dOk) return "holiday";
   tm.e = sec();
-  await env.LOGS.put(`bar:${d}:${key}`, JSON.stringify(r0.s), { expirationTtl: 14 * 86400, metadata: tm });
+  /* 2026-10-23 15:40 手機每分鐘 :01 會先叫 ?bars=snap 存這一分鐘的 bar: 鍵(上一根 K 剛收完就抓,通知快 40 秒)。
+     KV 免費方案一天只能寫 1,000 次(Cron 一分鐘 bar + bas 2 次 = 540、狀態 56、通知、元大 ≈ 880),再加 270 次會爆。
+     所以 Cron 醒來發現這一分鐘已經有 bar:(手機寫的)就不再寫一次,開頭那筆併進 bas: 和 :07 / :27 的子快照一起寫(還是 1 次)。快照點不少、寫入次數不變。 */
+  const had = subs ? await env.LOGS.get(`bar:${d}:${key}`) : null;
+  if (!had) await env.LOGS.put(`bar:${d}:${key}`, JSON.stringify(r0.s), { expirationTtl: 14 * 86400, metadata: tm });
   if (!subs || hm > 13 * 60 + 30) return `bar ${d} ${key} ${r0.n} 檔`;
-  const out = [];
-  const sm = {};
+  const out = had ? [r0.s] : [];
+  const sm = had ? { merged: "bar已有(手機snap),開頭併進bas" } : {};
   /* 2026-10-22 11:40 抓取秒數紀錄:Cron 每分鐘都晚約 47 秒才醒(開頭那筆在 :47~:51 抓),:30 永遠跳過,只剩 :48、:56 兩筆擠在一起、後面空 50 秒。
      K 是照證交所資料時間 t 歸分鐘,快照屬於哪個鍵不影響,所以改成從「這次醒來」起平均間隔:醒來 +20 秒、+40 秒各抓一次
      (下一次 Cron 約 60 秒後才醒,不會撞在一起)。key 仍是排定的那一分鐘,拼 K 時照時分排序,時間順序不變 */
@@ -431,7 +435,7 @@ export default {
       const out = since ? await dayBars(env, d, codes, since) : await dayBarsFull(env, ctx, url.origin, d, codes);
       const body = JSON.stringify(out);
       const resp = new Response(body, { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });
-      const ttl = since ? 20 : 50;    // 全天的查詢要讀幾百個鍵,邊緣快取 50 秒;增量的 20 秒
+      const ttl = since ? 10 : 50;    // 全天的查詢要讀幾百個鍵,邊緣快取 50 秒;增量的 10 秒(2026-10-23 15:40 原 20 秒;手機每 10 秒問一次,快取 20 秒等於白問一半。KV get 一天約 2.5 萬次 / 支手機 < 10 萬)
       const cached = new Response(body, { status: 200, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": `public, max-age=${ttl}` } });
       if (ctx && ctx.waitUntil) ctx.waitUntil(cache.put(ck, cached)); else await cache.put(ck, cached);
       return resp;
