@@ -223,6 +223,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 19:35 漲跌圖箭頭減量(使用者:時碩 10/22「漲跌圖 怎麼那麼多下降箭頭」;16:40 拿掉碰線後每段都標、一段兩個箭頭):
+    (1) 一段只留一個:第 2 根變實心時把第 1 根的淡色拿掉;(2) 同方向再出現的實心點改小的淡色(和轉折圖一樣),只有翻轉那一個大實心 + 時間;沒壓線的更小更淡。
+    點的定義、燈號、黃虛線都不變,只是畫法。
   · 2026-10-23 19:00 指標二換日改回接起來(使用者:「指標二 怎麼斷了」→ 選 A):四條線昨天 13:30 → 今天 09:00 直接連線,換日那段是昨天累計值掉到 0 的假跌 / 假漲,
     使用者知道、接受。YH.obvDayCut = true 可切回斷開。
   · 2026-10-23 18:15 指標二換日斷開(使用者:廣宇 10/21 09:00「股價上衝 為何圖二下跌」):OBV 每天開盤歸零(元大一樣),昨天收 4,800、今天從 0 起算,
@@ -1856,7 +1859,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231900">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231935">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5581,6 +5584,9 @@ function rfPoints(bars, ma, ma24, ob, obma, ob24){
     if (pr || run[d] >= (YH.rfRunSolid || 2)){ out.push({time: bars[i].time, side: d, price: d > 0 ? bars[i].low : bars[i].high, press: true, via: pr ? 'press' : 'run'}); done[d] = true; }
     else if (run[d] === 1) out.push({time: bars[i].time, side: d, price: d > 0 ? bars[i].low : bars[i].high, press: false});   // 14:35 使用者:「下跌的連高價 上漲的連低價」
    } }
+  // 2026-10-23 19:35 使用者(時碩 10/22「漲跌圖 怎麼那麼多下降箭頭」):同一段的第 1 根淡色、第 2 根實心會畫兩個箭頭 → 第 2 根變實心時把第 1 根的淡色拿掉,一段只留一個
+  for (let k = out.length - 1; k > 0; k--){ const a = out[k - 1], b = out[k];
+    if (!a.press && b.press && b.via === 'run' && a.side === b.side && dayKey(a.time) === dayKey(b.time)) out.splice(k - 1, 1); }
   // 2026-10-22 15:50 假點(使用者:「11.35空 比照前一個空點的obv24 如果11.35比較高 則是假空點」→「改」):
   //   和同一天前一個同方向的點比 OBV 均線 24:空點比較高 / 多點比較低 = 假點(灰色,不算翻轉、不連線)
   if (ob24){ const m24 = toTimeMap(ob24), last = {}; let day = null;
@@ -5595,8 +5601,10 @@ function rfMarkers(pts){
   for (const p of pts){
     const day = dayKey(p.time); if (day !== prevDay){ prev = 0; prevDay = day; }
     const up = p.side > 0, flip = !p.fake && p.press && p.side !== prev; if (p.press && !p.fake) prev = p.side;
-    out.push({time: p.time, position: 'inBar', shape: up ? 'arrowUp' : 'arrowDown', size: p.press ? 1 : 0.7,   // 14:30 使用者:「藍虛線 這上漲空心沒有連線」→ 點畫在價格上(inBar),連線才會穿過三角形
-              color: p.fake ? 'rgba(150,155,165,.6)' : up ? (p.press ? '#FF5C6C' : 'rgba(255,92,108,.45)') : (p.press ? '#3EE6A0' : 'rgba(62,230,160,.45)'),
+    // 2026-10-23 19:35 使用者(「怎麼那麼多下降箭頭」):同方向再出現的實心點改成小的淡色(和轉折圖一樣),只有翻轉那一個是大的實心 + 時間;淡色(沒壓線)更小
+    const big = flip, mid = p.press && !p.fake && !flip;
+    out.push({time: p.time, position: 'inBar', shape: up ? 'arrowUp' : 'arrowDown', size: big ? 1.2 : mid ? 0.6 : 0.5,   // 14:30 使用者:「藍虛線 這上漲空心沒有連線」→ 點畫在價格上(inBar),連線才會穿過三角形
+              color: p.fake ? 'rgba(150,155,165,.6)' : up ? (big ? '#FF5C6C' : mid ? 'rgba(255,92,108,.5)' : 'rgba(255,92,108,.3)') : (big ? '#3EE6A0' : mid ? 'rgba(62,230,160,.5)' : 'rgba(62,230,160,.3)'),
               text: flip ? (up ? '多 ' : '空 ') + hmKey(p.time) : ''});
   }
   return out;
