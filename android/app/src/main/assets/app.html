@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 05:25 加碼價格改用第一則的多/空點價(使用者:「改293.50」):「台虹 8039 加碼 293.50」。
   · 2026-10-24 05:20 加碼通知改樣式(使用者:「只顯示 加碼 不用顯示 做空加碼」「應該是293.00或是293.50才對」):標題「台虹 8039 加碼 293.00」,價格改用現價(不用 Kb 值);監控紀錄卡片那格顯示「加碼」(顏色照多/空)。
   · 2026-10-24 05:00 加碼加「價差太遠」條件(使用者:「除了30根 可能還要增加一個 就是價差太遠」→「好 改1」;YH.turnKbAddMaxPct = 2):訊號那根收盤離 Kb 超過 2% 就不推加碼。
     13 天回到 Kb 的 2,035 則:離 Kb >2% 的 47 則每筆 −0.92%,擋掉後合計 −808% → −765%;另一種「先往對的方向跑 >1% 又回到 Kb」擋了反而擋到賺的(+0.65%/筆),不做。
@@ -1935,7 +1936,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610240520">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610240525">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6772,7 +6773,7 @@ async function bgTick(force, replay){
                       L.added = true;
                       if (b.time < Math.floor(Date.now() / 1000) - 600){ bgLog(code + ' 回到 Kb 太久以前,不通知 ' + hmKey(b.time)); break; }
                       const nm = names.get(code) || code, nowPx = liveRec.z || bars[bars.length - 1].close;
-                      const title = `${nm} ${code} 加碼 ${(+nowPx).toFixed(2)}`;   // 2026-10-24 05:20 使用者:「只顯示 加碼」、價格用現價(實際買得到的價),不用 Kb 值
+                      const title = `${nm} ${code} 加碼 ${L.price.toFixed(2)}`;   // 2026-10-24 05:20 使用者「只顯示 加碼」;05:25「改293.50」= 價格用第一則的多/空點價
                       const body = `${hmKey(b.time)} 回到 Kb ${(+kb).toFixed(2)} · ${hmKey(L.time)} ${L.side > 0 ? '多' : '空'}點 ${L.price.toFixed(2)} · 現價 ${(+nowPx).toFixed(2)} · 轉折`;
                       bgLog('[Kb 加碼] ' + title + ' | ' + body);
                       try{ if (window.Android && Android.notify) Android.notify(title, body, L.side > 0 ? 'long' : 'short'); }catch(e){}
