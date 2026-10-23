@@ -189,6 +189,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-23 00:30 燈號跟著目前那張圖(使用者:「切換 漲跌圖 就隨漲跌圖 切換轉折圖 就隨轉折圖」):K 線圖 = 原本的燈號;漲跌圖 = 最近一個實心非假的翻轉點(多 → 做多、空 → 做空);
     轉折圖 = 最近一個轉折;同一天還沒有點 = 監控。十字線移到哪一根就顯示那一根當時的。通知、判別式都不動。
   · 2026-10-23 00:35 天秤也跟著目前那張圖(使用者:「改 一樣隨當下的圖」):漲跌圖 / 轉折圖時 做多 = 指針全左、做空 = 全右、監控 = 中間;K 線圖照舊四件事平均。
+  · 2026-10-23 09:25 天秤改顯示條件湊齊幾項(使用者:「這樣感覺沒啥用」→「改」):轉折圖 = 七項(Ka 在 Kb 哪邊、Ka 比 2 根前、OBV 在 Ob 哪邊、OBV 方向、Ob 方向、OBV24 方向、Oc 方向)
+    偏多 +1 / 偏空 −1 平均;漲跌圖 = 五項(Ka 高低過 Kb 0.05%、Ka 比 3 根前、OBV 在 Ob 哪邊、OBV 方向、Ob 方向)平均。全偏空指針全右;點出來前就看得到往哪邊靠。K 線圖照舊。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1767,7 +1769,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610230035">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610230925">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5477,7 +5479,36 @@ function rfLampMap(bars, flips){   // flips = [{time, side}] 只放翻轉 / 轉�
 }
 function lampStateAt(time){ return (RF_MODE && RF_LAMPS && RF_LAMPS.view === RF_VIEW && RF_LAMPS.map.has(time)) ? RF_LAMPS.map.get(time) : (CUR && CUR.lamps ? CUR.lamps.get(time) : null); }
 // 2026-10-23 00:31 使用者「改 一樣隨當下的圖」:天秤也跟著圖走。漲跌圖 / 轉折圖:做多 = 指針全左、做空 = 全右、監控 = 中間;K 線圖 = 原本的四件事平均
-function meterBiasAt(time, kBias){ if (RF_MODE && RF_LAMPS && RF_LAMPS.view === RF_VIEW && RF_LAMPS.map.has(time)){ const st = RF_LAMPS.map.get(time); return st === '做多' ? 1 : st === '做空' ? -1 : 0; } return kBias; }
+// 2026-10-23 09:22 使用者(「這樣感覺沒啥用」→「改」):天秤改顯示那張圖的點的條件湊齊幾項(偏多 +1 / 偏空 −1 / 平 0,平均),點還沒出來就看得到往哪邊靠
+function meterBiasAt(time, kBias){ if (RF_MODE && RF_LAMPS && RF_LAMPS.view === RF_VIEW && RF_LAMPS.bias && RF_LAMPS.bias.has(time)) return RF_LAMPS.bias.get(time); return kBias; }
+const sgn = (a, b) => a == null || b == null ? 0 : a > b ? 1 : a < b ? -1 : 0;
+/** 轉折圖的七項(Ka 在 Kb 哪邊、Ka 比 KN 根前、OBV 在 Ob 哪邊、OBV 方向、Ob 方向、OBV24 方向、Oc 方向)平均;OBV 跨日累計,和 turnPoints 同一套 */
+function turnBias(bars, ma, ma24, ob){
+  const KN = YH.turnKaBars || 2, mk = toTimeMap(ma), mb = toTimeMap(ma24), mOc = toTimeMap(sma(ob, YH.ocPeriod || 28, 'value'));
+  const n = bars.length, obc = new Array(n).fill(0);
+  for (let i = 1; i < n; i++){ const a = bars[i], b = bars[i - 1]; obc[i] = obc[i - 1] + (a.close > b.close ? a.volume / 1000 : a.close < b.close ? -a.volume / 1000 : 0); }
+  const roll = k => { const o = new Array(n).fill(null); let s = 0; for (let i = 0; i < n; i++){ s += obc[i]; if (i >= k) s -= obc[i - k]; if (i >= k - 1) o[i] = s / k; } return o; };
+  const oa = roll(10), o24 = roll(24), out = new Map();
+  for (let i = 1; i < n; i++){
+    const b = bars[i], dk = dayKey(b.time), ka = mk.get(b.time), kb = mb.get(b.time), same = i >= KN && dayKey(bars[i - KN].time) === dk;
+    const ka0 = same ? mk.get(bars[i - KN].time) : null, oc = mOc.get(b.time), oc1 = mOc.get(bars[i - 1].time);
+    const v = [sgn(ka, kb), sgn(ka, ka0), sgn(obc[i], oa[i]), sgn(obc[i], obc[i - 1]), sgn(oa[i], oa[i - 1]), sgn(o24[i], o24[i - 1]), sgn(oc, oc1)];
+    out.set(b.time, +(v.reduce((a, x) => a + x, 0) / v.length).toFixed(3));
+  }
+  return out;
+}
+/** 漲跌圖的五項(Ka 高 / 低過 Kb 0.05%、Ka 比 3 根前、OBV 在 Ob 哪邊、OBV 方向、Ob 方向)平均;OBV 每天重算,和 rfPoints 同一套 */
+function rfBias(bars, ma, ma24, ob, obma){
+  const KN = YH.rfKaBars || 1, X = YH.rfMinCross || 0, mk = toTimeMap(ma), mb = toTimeMap(ma24), mo = toTimeMap(ob), mm = toTimeMap(obma), out = new Map();
+  for (let i = 1; i < bars.length; i++){
+    const b = bars[i], t1 = bars[i - 1].time, same = i >= KN && dayKey(bars[i - KN].time) === dayKey(b.time);
+    const ka = mk.get(b.time), kb = mb.get(b.time), ka0 = same ? mk.get(bars[i - KN].time) : null;
+    const kx = (ka == null || kb == null) ? 0 : (ka - kb) / kb * 100 >= X ? 1 : (kb - ka) / kb * 100 >= X ? -1 : 0;
+    const v = [kx, sgn(ka, ka0), sgn(mo.get(b.time), mm.get(b.time)), sgn(mo.get(b.time), mo.get(t1)), sgn(mm.get(b.time), mm.get(t1))];
+    out.set(b.time, +(v.reduce((a, x) => a + x, 0) / v.length).toFixed(3));
+  }
+  return out;
+}
 function rfDraw(){
   if (!rfLine || !RF_ARGS || RF_ARGS.done === RF_VIEW) return;
   const {bars, sBars, sMa, sOb, sObma, ma24} = RF_ARGS; RF_ARGS.done = RF_VIEW;
@@ -5490,7 +5521,7 @@ function rfDraw(){
     rfLine.setMarkers(rfMarkers(rp2));
     { const fl = []; let prev = 0, pd = null;   // 翻轉點 = 實心非假、和前一個實心方向不同(同 rfMarkers)
       for (const p of rp2){ const dk = dayKey(p.time); if (dk !== pd){ prev = 0; pd = dk; } if (p.fake || !p.press) continue; if (p.side !== prev) fl.push({time: p.time, side: p.side}); prev = p.side; }
-      RF_LAMPS = {view: 1, map: rfLampMap(bars, fl)}; }
+      RF_LAMPS = {view: 1, map: rfLampMap(bars, fl), bias: rfBias(sBars, sMa, sMa24, sOb, sObma)}; }
     if (rfChain) rfChain.setData(rfChainData(bars, rp2));
     if (rfAll) rfAll.setData(rfChainData(bars, rp2, true));
   }catch(e){ try{ rfLine.setMarkers([]); if (rfChain) rfChain.setData([]); if (rfAll) rfAll.setData([]); }catch(_){} }
@@ -5537,7 +5568,7 @@ function turnDraw(bars, sBars, sMa, ma24, sOb){
   try{
     const sMa24 = sBars === bars ? ma24 : sma(sBars, YH.kbPeriod || 24, 'close', false);
     const pts = turnPoints(sBars, sMa, sMa24, sOb);
-    RF_LAMPS = {view: 2, map: rfLampMap(bars, pts.filter(p => p.flip))};
+    RF_LAMPS = {view: 2, map: rfLampMap(bars, pts.filter(p => p.flip)), bias: turnBias(sBars, sMa, sMa24, sOb)};
     const pAt = new Map(pts.map(p => [p.time, p.price]));
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
     rfLine.setMarkers(pts.map(p => { const up = p.side > 0;
