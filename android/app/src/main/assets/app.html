@@ -223,6 +223,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 03:35 漲跌圖 / 轉折圖的多空箭頭畫在 Ka 紅線上(使用者:時碩 09:11「這個多 為啥沒有畫在線上」→「畫在線上」):原本畫在那根 K 的最低(多)/ 最高(空),
+    K 棒藏起來後箭頭浮在線外。只是畫面;轉折通知裡的價格照舊用那根的高 / 低。
   · 2026-10-24 03:20 判一 ~ 判三解凍,Ka / OBV 跨日(使用者:「判一到判三 一起改」「Obv也是跨日 一起改」「判一二三 解凍」;YH.kaCrossJudge = true):
     MA_RESET_DAILY 跟著關 → 所有沒指定的均線(Ka、OBV 均線)跨日;obv() 跨日累計。模擬器 KACROSS=1 OBVCROSS=1(OBV 均線全部改走 _obroll 接昨天算)。
     App 對模擬器:判一 215 檔日 0 差異(判二 / 判三對照、OBV 跨日的回測背景跑中)。Ka 單獨跨日回測:判一 ~ 判三雲端三天、Yahoo 九天結果完全一樣
@@ -1920,7 +1922,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610240320">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610240335">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5810,7 +5812,8 @@ function rfDraw(){
   try{
     const sMa24 = sBars === bars ? ma24 : sma(sBars, YH.kbPeriod || 24, 'close', false);
     const rp2 = rfPoints(sBars, sMa, sMa24, sOb, sObma, sma(sOb, 24, 'value'));
-    const pAt = new Map(rp2.map(p => [p.time, p.price]));   // 點畫在那根的高 / 低價上(透明線在點的那根取點價,其他取收盤)
+    const kaAt = toTimeMap(sMa);   // 2026-10-24 03:35 使用者(時碩 09:11「這個多 為啥沒有畫在線上」→「畫在線上」):箭頭畫在 Ka 紅線上(原本畫在那根 K 的高 / 低價)
+    const pAt = new Map(rp2.map(p => [p.time, kaAt.has(p.time) ? kaAt.get(p.time) : p.price]));
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
     rfLine.setMarkers(rfMarkers(rp2));
     { const bias = rfBias(sBars, sMa, sMa24, sOb, sObma), ks = kaSideMap(sMa, sMa24);   // 燈號看實心非假的點(含同方向再出現的)
@@ -5864,7 +5867,8 @@ function turnDraw(bars, sBars, sMa, ma24, sOb){
     const sMa24 = sBars === bars ? ma24 : sma(sBars, YH.kbPeriod || 24, 'close', false);
     const pts = turnPoints(sBars, sMa, sMa24, sOb);
     { const bias = turnBias(sBars, sMa, sMa24, sOb); RF_LAMPS = {view: 2, map: rfLampMap(bars, pts, bias, kaSideMap(sMa, sMa24), trendMap(sBars, sMa)), bias}; }
-    const pAt = new Map(pts.map(p => [p.time, p.price]));
+    const kaAt = toTimeMap(sMa);   // 2026-10-24 03:35 箭頭畫在 Ka 紅線上
+    const pAt = new Map(pts.map(p => [p.time, kaAt.has(p.time) ? kaAt.get(p.time) : p.price]));
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
     rfLine.setMarkers(pts.map(p => { const up = p.side > 0;
       return {time: p.time, position: 'inBar', shape: up ? 'arrowUp' : 'arrowDown', size: p.flip ? 1.2 : 0.6,
