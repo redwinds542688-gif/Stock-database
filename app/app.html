@@ -223,6 +223,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 21:20 十字線拖到最後一根(使用者:「滑動十字虛線 無法畫到13.30」):手指拖到最後一根右邊的留白(rightOffset 3 格)時套件給不出時間,十字線停在前一根;
+    改成手指在最後一根右邊就當最後一根(13:30)。
   · 2026-10-23 21:15 「切換」按鍵改紅色(使用者:「切換 改成紅色」;原橘色)。
   · 2026-10-23 21:10 指標三順序改「看空 84.50▼」(使用者:「指標三 改 看空 價格 箭頭」),箭頭放價格後面,和指標一、二一致。
   · 2026-10-23 21:05 Ap 文字顯示回來、線不畫(使用者:「指標一 本來不是有一個Ap嗎」→「只顯示 不畫線」):指標一多「Ap 84.50▲」(橘字、價格白、箭頭 = Ap 方向);10/23 10:24 藏起來的 Ap 線照舊不畫。
@@ -1874,7 +1876,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610232115">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610232120">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5356,6 +5358,11 @@ function initChart(){
   const reapplyX = () => { if (xPend) return; xPend = true; setTimeout(() => { xPend = false; if (XLOCK) applyX(XLOCK.time); }, 0); };
   const onMove = (src, p) => {
     if (xApplying) return;
+    // 2026-10-23 21:20 使用者:「滑動十字虛線 無法畫到13.30」:手指拖過最後一根、進到右邊留白那 3 格時套件給的 time 是空的,十字線就停在前一根;
+    //   手指在最後一根右邊 → 當成最後一根
+    if (p && !p.time && p.sourceEvent && p.point && BARS.length){
+      try{ const li = src.timeScale().coordinateToLogical(p.point.x); if (li != null && li >= BARS.length - 1.5) p = Object.assign({}, p, {time: BARS[BARS.length - 1].time}); }catch(e){}
+    }
     if (XLOCK){
       // 固定住的十字線(2026-10-18 整理):
       // · 事件帶 sourceEvent = 手指(長按後)在拖十字線 → 固定點跟著手指走,上下圖、資料列、燈號每一步都同步
