@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 15:55 指標二的圓點也拿掉(使用者:「指標二的點也取消」):Ob 線上 Ob×Oc 穿越的紅 / 綠點不畫,只留四條線。只是畫面。
   · 2026-10-23 15:50 指標三的圓點拿掉(使用者:「指標三 小圈點紅藍綠橘 取消不用」):橘線上的藍 / 橘點、紫線上的紅 / 綠點都不畫,只留兩條線;上方「往上穿 / 往下穿 時間」「Ka×Kb」文字不變。只是畫面。
   · 2026-10-23 15:45 分鐘一開始的快照改由 Worker 自己做(使用者:「這一個要如何改最穩當」→「好」):Cron :47 醒來抓一次後,子快照改成對準下一分鐘 :02 和 :30
     (原本是醒來 +20 / +40 秒 = :07 / :27)。上一根 K :00 收完、:02 就有完整快照,通知一樣快;KV 寫入(2 次/分)、證交所抓取(3 次/分)都和 10/22 以前一樣,
@@ -1835,7 +1836,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231550">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231555">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5764,7 +5765,7 @@ function drawBars(bars, code, srcLabel, keepView){
   const obma16 = sma(ob, YH.odPeriod || 16, 'value');   // 2026-10-21 Od
   if (obvMa16Line) obvMa16Line.setData(obma16);
   // 2026-10-21 使用者:「Ob 穿越 Oc 標示」:Ob(OBV 均 10,藍)和 Oc(OBV 均 30,紫)每次交叉,在 Ob 線上標小點:往上穿紅、往下穿綠(不標數字)
-  try{ obvMaLine.setMarkers(maCrossPoints(obma, obma30).map(p => ({time: p.time, position: 'inBar', color: p.side > 0 ? CHART_THEME.up : CHART_THEME.down, shape: 'circle', size: 0.5}))); }catch(e){}
+  try{ obvMaLine.setMarkers([]); }catch(e){}   // 2026-10-23 15:55 使用者:「指標二的點也取消」:Ob×Oc 穿越的紅 / 綠圓點不畫(上方 Oc 文字箭頭照舊)
   // 2026-10-20 23:30 使用者:「把高低連線拿掉 留起漲起跌連線 價格要註記上去」(swingPoints 函式留著,沒畫)
   // 2026-10-20 23:45 使用者:「這樣的點不對 改紀錄 obv 黃線穿越藍線的點 所有的點連線」:下圖改成 OBV(黃)穿越 OBV 均線(藍)的每一個點連線。
   //   黃線往上穿藍線 = 標那根 K 的最低價(藍點,標在線下方);往下穿 = 標那根 K 的最高價(橘點,標在線上方)。K 線圖上的起漲 / 起跌標示和停損用的起漲 / 起跌點不變。
