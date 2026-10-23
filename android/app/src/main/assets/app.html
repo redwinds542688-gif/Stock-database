@@ -223,6 +223,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 21:30 指標二改畫跨日累計的 OBV(使用者:時碩 10/20 2,964 → 10/21 0「這裡的落差 是因為張數掉下來嗎?」→「要銜接」):Oa 跨日累計(從載入的第一根起算),
+    Ob / Oc / Od 用跨日累計的 OBV 算、跨日連續,線接得起來、不再有換日瀑布;上方四個數字也是這份。只是畫面:判一 ~ 判三、燈號、轉折算法用的每日歸零 OBV 不動
+    (YH.obvDisplayCross = false 切回)。注意:畫面上的數字從此和判別式內部用的 OBV 不一樣(差一個昨天的累計值)。
   · 2026-10-23 21:25 「切換」改白字、紅框(使用者:「切換 改白字 框一樣紅色」)。
   · 2026-10-23 21:20 十字線拖到最後一根(使用者:「滑動十字虛線 無法畫到13.30」):手指拖到最後一根右邊的留白(rightOffset 3 格)時套件給不出時間,十字線停在前一根;
     改成手指在最後一根右邊就當最後一根(13:30)。
@@ -1877,7 +1880,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610232125">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610232130">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3881,6 +3884,7 @@ const YH = {
   rfPressPct: 0.2,
   rfKaBars: 3,
   turnPressPct: 0.15,   // 2026-10-22 22:58 使用者「設,0.15」(TPK 09:30 離 Ka 0.14% 算、12:31 離 0.16% 不算);22:55「設0.1」(TPK 12:31 多點「沒有壓線」:最低 74.40 離 Ka 0.16%):轉折圖的壓線 0.2% → 0.1%;漲跌圖照舊 rfPressPct 0.2
+  obvDisplayCross: true,   // 2026-10-23 21:30 使用者「要銜接」:指標二畫面 + 上方數字用跨日累計 OBV(Ob/Oc/Od 跟著跨日算);判一~判三、燈號、轉折不動
   obvDayCut: false,     // 2026-10-23 19:00 指標二換日:false = 直接連線(使用者選 A)、true = 斷開
   rfNoBrk: true, rfRunSolid: 2,   // 2026-10-23 16:35 漲跌圖:不要「K 棒要碰到均線」;三條件連 2 根成立就算實心(TPK 10/22 09:14 跳上去沒回來碰線 →「你看圖 修正」)
   turnKbBars: 1,        // 2026-10-23 12:55 使用者「轉折還是搭kb傾斜 比較穩定多空方向」→「改」:轉折點 做多要 Kb 比 1 根前高、做空要比 1 根前低(0 = 不看);台郡 10/22 12:20 貼線假多點擋掉
@@ -5832,25 +5836,33 @@ function drawBars(bars, code, srcLabel, keepView){
   const vw = vwap(bars);
   vwapLine.setData(vw);
   const ob = obv(bars);
+  const obma = sma(ob, BASE.obvMaPeriod, 'value');
   // 2026-10-23 18:15 使用者(廣宇 10/21 09:00「股價上衝 為何圖二下跌」):OBV 每天開盤歸零(和元大一樣),昨天收在 4,800、今天從 0 起算,
   //   線從昨天 13:30 連到今天 09:00 看起來像暴跌。四條線每天最後一段設透明,換日處斷開(數值不變)
   // 2026-10-23 19:00 使用者(「指標二 怎麼斷了」→ 選 A 接起來):換日不斷開,直接前後連線(昨天的累計值 → 今天的 0 那一段照畫);dayCut 留著不用
   const dayCut = YH.obvDayCut ? (arr => arr.map((x, i) => (i + 1 < arr.length && x.value != null && dayKey(arr[i + 1].time) !== dayKey(x.time)) ? {...x, color: 'rgba(0,0,0,0)'} : x)) : (arr => arr);
-  obvSeries.setData(dayCut(ob));
-  const obma = sma(ob, BASE.obvMaPeriod, 'value');
+  // 2026-10-23 21:30 使用者(時碩 10/20 → 10/21 換日 OBV 從 2,964 掉到 0「要銜接」):指標二畫面改用跨日累計的 OBV(元大那張圖就是跨日),
+  //   Ob / Oc / Od 也用跨日累計的 OBV 算、跨日連續,線就接得起來。只是畫面和上方數字;判一 ~ 判三、燈號、轉折算法用的 OBV 不動(YH.obvDisplayCross = false 可切回每日歸零)
+  let obD = ob, obmaD = obma, obma30D = null, obma16D = null;
+  if (YH.obvDisplayCross){
+    let acc = 0, pc = null; obD = bars.map(b => { if (pc != null){ if (b.close > pc) acc += b.volume / 1000; else if (b.close < pc) acc -= b.volume / 1000; } pc = b.close; return {time: b.time, value: Math.round(acc)}; });
+    obmaD = sma(obD, BASE.obvMaPeriod, 'value', false); obma30D = sma(obD, YH.ocPeriod || 30, 'value', false); obma16D = sma(obD, YH.odPeriod || 16, 'value', false);
+  }
+  obvSeries.setData(dayCut(obD));
   // 2026-10-23 16:30 使用者(「其他 有這問題嗎」):Ob / Oc / Od 每天前 n−1 根沒有值,線會從昨天 13:30 直接拉到今天第 n 根;畫圖時用「有幾根算幾根」的平均補上(同 Ka),
   //   只是畫面,判別式 / 燈號 / 轉折算的 Ob / Oc / Od 不動(上方文字前幾根仍是「–」)
   const headFill = (arr, n) => { const m = new Map(arr.map(x => [x.time, x])); const out = []; let dk = null, sum = 0, cnt = 0;
     for (const o of ob){ const d = dayKey(o.time); if (d !== dk){ dk = d; sum = 0; cnt = 0; } sum += o.value; cnt++;
       const x = m.get(o.time); if (x) out.push(x); else if (cnt < n) out.push({time: o.time, value: +(sum / cnt).toFixed(3)}); }
     return out; };
-  obvMaLine.setData(dayCut(headFill(obma, BASE.obvMaPeriod)));
+  obvMaLine.setData(dayCut(YH.obvDisplayCross ? obmaD : headFill(obma, BASE.obvMaPeriod)));
   // 2026-10-21 22:55 使用者(「oc 多少可以增加燈號準確率」→「改 28」):Oc 30 → YH.ocPeriod(28)。七天 1,405 股票日(Y3+W6 燈號):
   //   30 根 對 1,609 錯 1,163 58.0% → 28 根 對 1,696 錯 1,201 58.5%(16 根淨對最多 528 但 57.7%;35 以上變差)。判別式的 OBV 30 均線在 replaySignals 裡自己算,不受影響
   const obma30 = sma(ob, YH.ocPeriod || 30, 'value');
-  obvMa30Line.setData(dayCut(headFill(obma30, YH.ocPeriod || 30)));
+  obvMa30Line.setData(dayCut(YH.obvDisplayCross ? obma30D : headFill(obma30, YH.ocPeriod || 30)));
   const obma16 = sma(ob, YH.odPeriod || 16, 'value');   // 2026-10-21 Od
-  if (obvMa16Line) obvMa16Line.setData(dayCut(headFill(obma16, YH.odPeriod || 16)));
+  if (!obma16D) obma16D = obma16; if (!obma30D) obma30D = obma30;
+  if (obvMa16Line) obvMa16Line.setData(dayCut(YH.obvDisplayCross ? obma16D : headFill(obma16, YH.odPeriod || 16)));
   // 2026-10-21 使用者:「Ob 穿越 Oc 標示」:Ob(OBV 均 10,藍)和 Oc(OBV 均 30,紫)每次交叉,在 Ob 線上標小點:往上穿紅、往下穿綠(不標數字)
   try{ obvMaLine.setMarkers([]); }catch(e){}   // 2026-10-23 15:55 使用者:「指標二的點也取消」:Ob×Oc 穿越的紅 / 綠圓點不畫(上方 Oc 文字箭頭照舊)
   // 2026-10-20 23:30 使用者:「把高低連線拿掉 留起漲起跌連線 價格要註記上去」(swingPoints 函式留著,沒畫)
@@ -5964,7 +5976,7 @@ function drawBars(bars, code, srcLabel, keepView){
   {
     const byTime = new Map();
     const idx = (arr) => { const m = new Map(); arr.forEach((x, i) => m.set(x.time, i)); return m; };
-    const iMa = idx(ma), iVw = idx(vw), iOb = idx(ob), iObma = idx(obma), iObma30 = idx(obma30), iObma16 = idx(obma16), iMa24 = idx(ma24);
+    const iMa = idx(ma), iVw = idx(vw), iOb = idx(obD), iObma = idx(obmaD), iObma30 = idx(obma30D), iObma16 = idx(obma16D), iMa24 = idx(ma24);   // 2026-10-23 21:30 上方數字用畫面那份(跨日累計)
     let cumVol = 0, cumDay = null;                     // 當天累積成交量(股),跨日歸零
     bars.forEach((b, i) => {
       const k = iMa.get(b.time), k2 = iObma.get(b.time), kv = iVw.get(b.time), ko = iOb.get(b.time), k3 = iObma30.get(b.time);
@@ -5977,10 +5989,10 @@ function drawBars(bars, code, srcLabel, keepView){
         maColor: prevClose ? (b.close > prevClose ? CHART_THEME.up : b.close < prevClose ? CHART_THEME.down : '#E6E6E6') : CHART_THEME.ma,   // 2026-10-21 Ka 文字跟著 Ka 線那根的顏色
         ma24: (k24 => k24 != null ? ma24[k24].value : NaN)(iMa24.get(b.time)), ma24Prev: (k24 => k24 != null && k24 > 0 ? ma24[k24 - 1].value : null)(iMa24.get(b.time)),
         vw: kv != null ? vw[kv].value : NaN, vwPrev: (() => { if (kv == null) return null; for (let q = kv - 1; q >= 0 && q >= kv - 30; q--){ if (vw[q].value !== vw[kv].value) return vw[q].value; } return kv > 0 ? vw[kv - 1].value : null; })(),   // 2026-10-23 21:05 Ap 箭頭用(沒變就往前找)
-        ob: ko != null ? ob[ko].value : NaN, obPrev: (() => { if (ko == null) return null; for (let q = ko - 1; q >= 0 && q >= ko - 30; q--){ if (ob[q].value !== ob[ko].value) return ob[q].value; } return ko > 0 ? ob[ko - 1].value : null; })(),   // 2026-10-23 21:00 使用者:「Oa 也要有箭頭」:這根 OBV 沒變(沒成交)時,往前找到最近一個不一樣的值來定方向
-        obma: k2 != null ? obma[k2].value : NaN, obmaPrev: k2 != null && k2 > 0 ? obma[k2 - 1].value : null,
-        obma30: k3 != null ? obma30[k3].value : NaN, obma30Prev: k3 != null && k3 > 0 ? obma30[k3 - 1].value : null,
-        obma16: (k6 => k6 != null ? obma16[k6].value : NaN)(iObma16.get(b.time)), obma16Prev: (k6 => k6 != null && k6 > 0 ? obma16[k6 - 1].value : null)(iObma16.get(b.time)),
+        ob: ko != null ? obD[ko].value : NaN, obPrev: (() => { if (ko == null) return null; for (let q = ko - 1; q >= 0 && q >= ko - 30; q--){ if (obD[q].value !== obD[ko].value) return obD[q].value; } return ko > 0 ? obD[ko - 1].value : null; })(),   // 2026-10-23 21:00 使用者:「Oa 也要有箭頭」:這根 OBV 沒變(沒成交)時,往前找到最近一個不一樣的值來定方向
+        obma: k2 != null ? obmaD[k2].value : NaN, obmaPrev: k2 != null && k2 > 0 ? obmaD[k2 - 1].value : null,
+        obma30: k3 != null ? obma30D[k3].value : NaN, obma30Prev: k3 != null && k3 > 0 ? obma30D[k3 - 1].value : null,
+        obma16: (k6 => k6 != null ? obma16D[k6].value : NaN)(iObma16.get(b.time)), obma16Prev: (k6 => k6 != null && k6 > 0 ? obma16D[k6 - 1].value : null)(iObma16.get(b.time)),
         org: I3TXT.get(b.time) || '',   // 指標三文字:橘線最近一次穿越(2026-10-22 21:07 回到原來;一次掃完 I3TXT)
         kx: (() => { let q = null; for (const p of kxPts){ if (p.time > b.time) break; q = p; } return q ? (q.side > 0 ? '看多↑ ' : '看空↓ ') + (+q.price).toFixed(2) : ''; })(),   // 2026-10-23 20:00 時間改價格(紫線點的 Ka)   // 2026-10-23 19:55 使用者:「紫色也是一樣這個邏輯」(原「上穿 / 下穿」)
       });
