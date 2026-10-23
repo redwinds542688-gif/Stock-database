@@ -223,6 +223,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 16:20 Ka 線前 9 根補上(使用者:「紅線斷了」→ 選 1):每天 09:00~09:09 用「有幾根算幾根」的平均畫(09:00 = 收盤 … 09:09 = 10 根),線從開盤就有、接上當天自己的線,
+    昨天和今天之間仍斷開。只是畫圖:判別式 / 燈號 / 轉折算的 Ka、上方「Ka: –」都不動。K 線圖的 Ka(紅綠)一樣補。
   · 2026-10-23 16:15 漲跌 / 轉折圖的十字線和 Ka 線(使用者:時碩 10/22 09:00「k圖 紅點 圖一不見了」「十字虛線的橫線位置也不對」):
     (1) 那兩張圖的紅線是 Ka(均價 10),每天前 9 根沒有值,原本線從昨天 13:30 直接拉到今天 09:10,看起來 09:00 有值其實沒有 → 每天最後一點的線段設透明,線在換日處斷開(K 線圖的 Ka 一樣;套件會直接畫過空白點,所以用透明);
     (2) 十字線原本放在看不見的收盤線上(橫線在收盤價、紅點是 Ka 線的,Ka 沒有就沒點)→ 改放在 Ka 線上:橫線 = Ka、紅點在 Ka;Ka 還沒有的前 9 根橫線用收盤。K 線圖照舊在 K 棒上。
@@ -1841,7 +1843,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231615">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231620">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5842,8 +5844,16 @@ function drawBars(bars, code, srcLabel, keepView){
       // 2026-10-23 16:15 使用者(時碩 10/22 09:00 漲跌圖「十字虛線的橫線位置也不對」):Ka 每天前 9 根沒有值,線會從昨天 13:30 直接拉到今天 09:10,
       //   看起來 09:00 的 Ka 在 85 其實沒有。沒有 Ka 的那幾根補成空白點(只有 time),線在換日處斷開
       //   (套件會直接畫過沒有值的地方,所以和黃虛線一樣:每天最後一點的線段顏色設透明,換日那段就看不見)
+      // 2026-10-23 16:20 使用者(「紅線斷了」→ 選 1):每天前 9 根用「有幾根算幾根」的平均補上(09:00 = 收盤、09:01 = 2 根平均 … 09:09 = 10 根),
+      //   線從開盤就有、接上當天自己的線;只是畫圖,判別式 / 燈號 / 轉折算的 Ka 不動(上方 Ka 文字前 9 根仍是「–」)
       { const cut = arr => arr.map((x, i) => (i + 1 < arr.length && dayKey(arr[i + 1].time) !== dayKey(x.time)) ? {...x, color: 'rgba(0,0,0,0)'} : x);
-        KA_COLORED = cut(KA_COLORED); KA_PLAIN = cut(KA_PLAIN); }
+        const head = (arr, colorOf) => { const m = new Map(arr.map(x => [x.time, x])); const out = []; let dk = null, sum = 0, cnt = 0;
+          for (const b of bars){ const d = dayKey(b.time); if (d !== dk){ dk = d; sum = 0; cnt = 0; }
+            sum += b.close; cnt++; const x = m.get(b.time);
+            if (x) out.push(x); else if (cnt < (BASE.maPeriod || 10)) out.push({time: b.time, value: +(sum / cnt).toFixed(3), color: colorOf(b)}); }
+          return out; };
+        KA_COLORED = cut(head(KA_COLORED, b => { const pc = pcOf.get(dayKey(b.time)); return !(pc > 0) ? CHART_THEME.ma : b.close > pc ? CHART_THEME.up : b.close < pc ? CHART_THEME.down : '#E6E6E6'; }));
+        KA_PLAIN = cut(head(KA_PLAIN, () => KA_RF_COLOR)); }
       maLine.setData(RF_MODE ? KA_PLAIN : KA_COLORED); }
     const k = BASE.entryMaxChg / 100;
     if (YH.showEntryLines) [[prevClose * (1 + k), '+' + BASE.entryMaxChg + '%'], [prevClose * (1 - k), '-' + BASE.entryMaxChg + '%']]
