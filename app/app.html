@@ -195,6 +195,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     (1) 13:20 起只顯示監控(已強制平倉,K 線圖本來就這樣;原本還亮著 141 / 175 根);(2) 開盤不到 15 根顯示等待、天秤歸零(和 K 線圖一樣;原本顯示監控);
     (3) 燈亮著做多(做空)時,那張圖的條件已過半翻成偏空(偏多)連 3 根 → 退回監控,等下一個點(原本漲跌圖 31%、轉折圖 16% 的做多根天秤已偏到對面,燈還掛著);
     同方向再出現的點也重新點亮。K 線圖燈號沒動(掃到做多但 Ka<Kb 1 根、做空但 Ka>Kb 3 根,都是換燈要連 3 根的延遲,不算錯)。通知、判別式都沒動。
+  · 2026-10-23 10:00 漲跌圖 / 轉折圖的 Ka 改固定紫色(使用者:「轉折圖的兩條線顏色太相近了」;股票下跌時 Ka 綠色和 Kb 藍色分不清):和元大均價 10 一樣紫,Kb 藍不變;K 線圖的 Ka 照舊紅綠上色。只是畫面。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1773,7 +1774,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610230955">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231000">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5471,7 +5472,7 @@ function rfChainData(bars, pts, all){
   }
   return out;
 }
-let RF_ARGS = null, RF_LAMPS = null;   // RF_LAMPS = {view, map: time → 做多 / 做空 / 監控}:漲跌圖 / 轉折圖的燈號(2026-10-23 00:25 使用者:「切換 漲跌圖 就隨漲跌圖 切換轉折圖 就隨轉折圖」)
+let RF_ARGS = null, RF_LAMPS = null, KA_COLORED = null, KA_PLAIN = null; const KA_RF_COLOR = '#D63AF9';   // 2026-10-23 Ka 在漲跌圖 / 轉折圖用紫色   // RF_LAMPS = {view, map: time → 做多 / 做空 / 監控}:漲跌圖 / 轉折圖的燈號(2026-10-23 00:25 使用者:「切換 漲跌圖 就隨漲跌圖 切換轉折圖 就隨轉折圖」)
 // 2026-10-23 00:25 燈號跟著目前那張圖走:K 線圖 = 原本的燈號(指標三四件事);漲跌圖 = 最近一個實心非假的翻轉點;轉折圖 = 最近一個轉折。
 //   同一天還沒有點 = 監控;換日重算。天秤、通知、判別式都不動
 // 2026-10-23 09:50 使用者(「你自己跑一下 … 找出不合理的燈號 再加以修改」)。10 檔 × 3 天掃過三張圖,改三處:
@@ -5593,6 +5594,7 @@ function applyRfMode(){
   const b = el('rfToggle');
   if (b){ b.textContent = ['漲跌圖', '轉折圖', 'K線圖'][RF_VIEW] || '漲跌圖'; b.classList.toggle('on', RF_MODE); }   // 按鍵寫「按下去會變成哪一張」
   if (candle) candle.applyOptions({visible: !RF_MODE});
+  try{ if (maLine && KA_COLORED && KA_PLAIN) maLine.setData(RF_MODE ? KA_PLAIN : KA_COLORED); }catch(e){}   // 2026-10-23 Ka:K 線圖紅綠、漲跌 / 轉折圖紫
   if (rfLine) rfLine.applyOptions({visible: RF_MODE});
   if (rfChain) rfChain.applyOptions({visible: RF_MODE});
   if (rfAll) rfAll.applyOptions({visible: RF_VIEW === 1});
@@ -5683,7 +5685,10 @@ function drawBars(bars, code, srcLabel, keepView){
     { const cl = new Map(), pcOf = new Map(); let lastDay = null, lastClose = null;
       bars.forEach(b => { cl.set(b.time, b.close); const dk = dayKey(b.time); if (dk !== lastDay){ if (lastDay !== null) pcOf.set(dk, lastClose); lastDay = dk; } lastClose = b.close; });
       if (bars.length) pcOf.set(dayKey(bars[bars.length - 1].time), prevClose);
-      maLine.setData(kaGap(ma.map(x => { const c = cl.get(x.time), pc = pcOf.get(dayKey(x.time)); return {time: x.time, value: x.value, color: !(pc > 0) ? CHART_THEME.ma : c > pc ? CHART_THEME.up : c < pc ? CHART_THEME.down : '#E6E6E6'}; }))); }
+      KA_COLORED = kaGap(ma.map(x => { const c = cl.get(x.time), pc = pcOf.get(dayKey(x.time)); return {time: x.time, value: x.value, color: !(pc > 0) ? CHART_THEME.ma : c > pc ? CHART_THEME.up : c < pc ? CHART_THEME.down : '#E6E6E6'}; }));
+      // 2026-10-23 09:54 使用者(「轉折圖的兩條線顏色太相近了」):漲跌圖 / 轉折圖沒有 K 棒,Ka 改成固定紫色(和元大均價 10 一樣,使用者一直叫它「紫線」),Kb 藍不變;K 線圖的 Ka 照舊紅綠上色
+      KA_PLAIN = ma.map(x => ({time: x.time, value: x.value, color: KA_RF_COLOR}));
+      maLine.setData(RF_MODE ? KA_PLAIN : KA_COLORED); }
     const k = BASE.entryMaxChg / 100;
     if (YH.showEntryLines) [[prevClose * (1 + k), '+' + BASE.entryMaxChg + '%'], [prevClose * (1 - k), '-' + BASE.entryMaxChg + '%']]
       .forEach(([price, title]) => ENTRY_LINES.push(candle.createPriceLine({
