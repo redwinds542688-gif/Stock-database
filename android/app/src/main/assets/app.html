@@ -204,6 +204,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
   · 2026-10-23 10:50 漲跌圖 / 轉折圖盤中不重算(使用者:「十字虛線不太順暢」):盤中每 5 秒重畫一次,原本每次都把點、連線、燈號重算重畫(電腦約 100ms,手機更久,拖十字線時會卡一下);
     改成同一根 K 還在跳動時不重算,換新的一根才算(訊號本來就只看收完的 K)。畫面、點位都不變。
     另外手指按在圖上(拖十字線、拖圖、縮放)期間盤中重畫先略過,放手 0.15 秒後補畫一次(原本每 5 秒的重畫約 60~90ms,正好落在拖的時候就卡一下)。
+  · 2026-10-23 10:55 漲跌圖 / 轉折圖的黃虛線、藍點線不跨日相連(使用者:群創 10/20 11:00 → 10/21 09:56「轉折 黃虛線 是什麼」):圖表套件遇到空白點照樣連線,改成每天最後一點之後那段畫透明。只是畫面。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1782,7 +1783,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231050">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231055">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5477,7 +5478,7 @@ function rfChainData(bars, pts, all){
     const chain = (f < 0 ? arr : arr.slice(0, f).concat(arr.slice(f).filter(p => p.press))).map(p => ({i: at.get(p.time), v: p.price})).filter(p => p.i != null);
     for (let k = 0; k < chain.length; k++){
       const a = chain[k], z = chain[k + 1];
-      if (!z){ out[a.i] = {time: bars[a.i].time, value: a.v}; break; }
+      if (!z){ out[a.i] = {time: bars[a.i].time, value: a.v, color: 'rgba(0,0,0,0)'}; break; }   // 2026-10-23 10:55 使用者(群創:「轉折 黃虛線 是什麼」,線從昨天最後一點直接連到今天第一點):每天最後一點之後的那段畫透明,不跨日相連
       for (let j = a.i; j <= z.i; j++) out[j] = {time: bars[j].time, value: +(a.v + (z.v - a.v) * (j - a.i) / Math.max(1, z.i - a.i)).toFixed(3)};
     }
   }
