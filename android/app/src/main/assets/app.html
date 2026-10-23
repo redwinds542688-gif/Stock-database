@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 21:00 Oa 箭頭(使用者:「Oa 也要有箭頭」):那一分鐘沒成交 OBV 沒變時原本沒箭頭,改成往前找最近一個不一樣的值定方向(最多 30 根)。
   · 2026-10-23 20:55 指標二改「Oa -289 Ob -282▼ …」(使用者:「指標二 也是一樣」):Oa ~ Od 字跟線的顏色,數字白色。
   · 2026-10-23 20:50 指標一改「Ka 84.48▼ Kb 84.31▼」(使用者:「Ka/Kb 隨線的顏色 後面的價格 白色(小數點後二位)」):Ka / Kb 兩個字跟線的顏色(Ka 在 K 線圖紅綠、漲跌 / 轉折圖紅;Kb 藍),價格白色、兩位小數。
   · 2026-10-23 20:45 指標一、二也拿掉字樣(使用者:「指標二,一 也是這樣」):Ka: / Kb: / Oa: / Ob: / Oc: / Od: 都不顯示,只留數字 + 箭頭,顏色就是線的顏色。只是畫面。
@@ -1870,7 +1871,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610232055">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610232100">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5964,7 +5965,7 @@ function drawBars(bars, code, srcLabel, keepView){
         maColor: prevClose ? (b.close > prevClose ? CHART_THEME.up : b.close < prevClose ? CHART_THEME.down : '#E6E6E6') : CHART_THEME.ma,   // 2026-10-21 Ka 文字跟著 Ka 線那根的顏色
         ma24: (k24 => k24 != null ? ma24[k24].value : NaN)(iMa24.get(b.time)), ma24Prev: (k24 => k24 != null && k24 > 0 ? ma24[k24 - 1].value : null)(iMa24.get(b.time)),
         vw: kv != null ? vw[kv].value : NaN,
-        ob: ko != null ? ob[ko].value : NaN, obPrev: ko != null && ko > 0 ? ob[ko - 1].value : null,
+        ob: ko != null ? ob[ko].value : NaN, obPrev: (() => { if (ko == null) return null; for (let q = ko - 1; q >= 0 && q >= ko - 30; q--){ if (ob[q].value !== ob[ko].value) return ob[q].value; } return ko > 0 ? ob[ko - 1].value : null; })(),   // 2026-10-23 21:00 使用者:「Oa 也要有箭頭」:這根 OBV 沒變(沒成交)時,往前找到最近一個不一樣的值來定方向
         obma: k2 != null ? obma[k2].value : NaN, obmaPrev: k2 != null && k2 > 0 ? obma[k2 - 1].value : null,
         obma30: k3 != null ? obma30[k3].value : NaN, obma30Prev: k3 != null && k3 > 0 ? obma30[k3 - 1].value : null,
         obma16: (k6 => k6 != null ? obma16[k6].value : NaN)(iObma16.get(b.time)), obma16Prev: (k6 => k6 != null && k6 > 0 ? obma16[k6 - 1].value : null)(iObma16.get(b.time)),
