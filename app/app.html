@@ -219,6 +219,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     11:47 格式比照進場通知:「○○ 代碼 做多 / 做空 價」,內容「時間 多 / 空點 · 現價 · 轉折」(判一 / 判二的位置寫轉折)。
     12:05 今日監控紀錄的卡片:轉折通知自己一類(內容結尾「· 轉折」),一張卡 名稱 | 價 | 做多 / 做空 | 時間 | 轉折,不算張數、不配對平倉、不藏(原本不認得這類會直接不顯示或當成進場卡)。
     12:10 轉折卡不加網狀底色(使用者:「轉折提示 則不加網狀底色」;.card.c-turn 透明)。
+  · 2026-10-23 12:20 轉折通知加橘線條件(使用者:「轉折發訊息前 搭配橘線 做多要橘線也要向上傾斜才能發 反之亦然」):指標三橘線最後兩點向上才推做多、向下才推做空,
+    線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1797,7 +1799,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231210">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231220">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3776,7 +3778,7 @@ const YH = {
   rfMinCross: 0.05,     // 2026-10-22 漲跌圖:Ka 要高(低)過 Kb 至少 0.05% 才算穿越          // 2026-10-22 漲跌圖多空點的「Ka 往上 / 往下」和 3 根前比(一檔跳動大的股票,Ka 一根就會小跳一下)      // 2026-10-22 漲跌圖多空點的「壓線」:Ka、Kb 差距和那根 K 離均線都在 0.2% 內 → 實心
   lampLeave: 1,         // 2026-10-21 11:40 使用者(台郡 10:13 天秤已到中間還亮做多):已亮做多 / 做空時,連 lampHold 根不是這個燈就換成最新那根的狀態(不必同一種);0 = 舊規則
   lampObOc: true,       // 2026-10-21 20:40 使用者「先改 D」:亮「做多」還要 Ob(OBV 均 10)在 Oc(OBV 均 30)之上,否則降成漸多;做空鏡像(Oc 還沒值 = 不亮做多 / 做空)。七天 1,405 股票日:勝率 54.1% → 55.3%
-  turnNotify: true,     // 2026-10-23 11:43 使用者:轉折圖的轉折點(多 / 空)每一個都推手機,不限次數,只是提醒(不進判別式、不記部位)
+  turnNotify: true, turnNotifyOrg: true,   // 2026-10-23 12:15 使用者:轉折通知要橘線同方向(做多橘線向上、做空向下)才發     // 2026-10-23 11:43 使用者:轉折圖的轉折點(多 / 空)每一個都推手機,不限次數,只是提醒(不進判別式、不記部位)
   lampTrendGate: true,  // 2026-10-23 11:09 使用者:「不要明明上升 燈號卻漸空那種情況 反之亦然」:Ka 2 根往上且收盤在 Ka 上 → 不亮漸空 / 做空;鏡像
   lampOaOb: true,       // 2026-10-21 22:30 使用者「改 Y3+W6」:燈號分數裡「橘線雙升 / 雙降」換成「Oa 現在在 Ob 之上 / 之下」(反應快;時碩 11:06 兩線都轉下)
   lampBreadth: 0.65,    // 2026-10-21 22:30 同上 W6:大盤寬度 ≥ 65% 不亮做空(降成漸空)、≤ 35% 不亮做多(降成漸多);0 = 關;沒有寬度資料不擋
@@ -6399,7 +6401,14 @@ async function bgTick(force, replay){
         if (YH.turnNotify && !replay){
           try{
             const ma24 = sma(bars, YH.kbPeriod || 24, 'close', false);
-            const flips = turnPoints(bars, ma, ma24, ob).filter(p => p.flip && dayKey(p.time) === lastDay);
+            let flips = turnPoints(bars, ma, ma24, ob).filter(p => p.flip && dayKey(p.time) === lastDay);
+            // 2026-10-23 12:15 使用者:「轉折發訊息前 搭配橘線 做多要橘線也要向上傾斜才能發 反之亦然」:指標三橘線(Oa 穿 Ob 的點,取收盤)最後兩點的方向,
+            //   做多要向上、做空要向下才推;橘線還沒兩個點(線未成形)不推。只管通知,圖上的點照畫。357 檔 13 天:空點 88% 本來就橘線向下、多點 88% 向上,約擋掉 12%
+            if (YH.turnNotifyOrg){
+              const org = obvCrossPoints(bars, ob, obma).filter(q => dayKey(q.time) === lastDay);
+              const slopeAt = t => { const ps = org.filter(q => q.time <= t); return ps.length >= 2 ? Math.sign(ps[ps.length - 1].price - ps[ps.length - 2].price) : 0; };
+              flips = flips.filter(p => { const sl = slopeAt(p.time); if (sl * p.side > 0) return true; bgLog(code + ' 轉折 ' + hmKey(p.time) + (p.side > 0 ? ' 多' : ' 空') + ' 橘線' + (sl === 0 ? '未成形' : sl > 0 ? '向上' : '向下') + ',不通知'); return false; });
+            }
             BG.turnSeen = BG.turnSeen || new Map();
             if (!BG.turnSeen.has(code)){ const cut = Math.floor(Date.now() / 1000) - 180; BG.turnSeen.set(code, new Set(flips.filter(p => p.time < cut).map(p => p.time))); }   // 第一次看到這檔:只推最近 3 分鐘內的
             const seenT = BG.turnSeen.get(code);
