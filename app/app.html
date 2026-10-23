@@ -223,6 +223,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 16:15 漲跌 / 轉折圖的十字線和 Ka 線(使用者:時碩 10/22 09:00「k圖 紅點 圖一不見了」「十字虛線的橫線位置也不對」):
+    (1) 那兩張圖的紅線是 Ka(均價 10),每天前 9 根沒有值,原本線從昨天 13:30 直接拉到今天 09:10,看起來 09:00 有值其實沒有 → 每天最後一點的線段設透明,線在換日處斷開(K 線圖的 Ka 一樣;套件會直接畫過空白點,所以用透明);
+    (2) 十字線原本放在看不見的收盤線上(橫線在收盤價、紅點是 Ka 線的,Ka 沒有就沒點)→ 改放在 Ka 線上:橫線 = Ka、紅點在 Ka;Ka 還沒有的前 9 根橫線用收盤。K 線圖照舊在 K 棒上。
   · 2026-10-23 16:05 天秤不全滿(使用者:時碩 10/21 漲跌圖整天監控、天秤卻全滿 →「天秤則最多不可全滿 全滿就是做空做多的訊號」):
     燈號是做多 → 天秤全滿偏多、做空 → 全滿偏空;其他狀態(監控 / 漸多 / 漸空 / 等待)最多亮 9 格(YH.meterMaxNoSignal = 0.9)。K 線圖、漲跌圖、轉折圖都一樣。只是畫面。
   · 2026-10-23 15:55 指標二的圓點也拿掉(使用者:「指標二的點也取消」):Ob 線上 Ob×Oc 穿越的紅 / 綠點不畫,只留四條線。只是畫面。
@@ -1838,7 +1841,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231605">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231615">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5267,7 +5270,7 @@ function initChart(){
     const i = idxOf(time); if (i < 0) return;
     // 2026-10-22 20:10 使用者錄影(「十字虛線無法移動」):三張圖各自放,一張出錯不擋其他張,xApplying 一定放回(原本中途出錯會一直卡在 true,之後點圖都不理)
     xApplying = true;
-    try{ chart.setCrosshairPosition(BARS[i].close, time, (RF_MODE && rfLine) ? rfLine : candle); }catch(e){}
+    try{ chart.setCrosshairPosition(rfXPrice(i), time, (RF_MODE && maLine) ? maLine : candle); }catch(e){}   // 2026-10-23 16:15 漲跌 / 轉折圖十字線跟著 Ka(紅線):橫線在 Ka、紅點在 Ka 上;Ka 還沒有時用收盤
     try{ chartM.setCrosshairPosition(obvAt(i), time, obvSeries); }catch(e){}
     try{ if (chartB) chartB.setCrosshairPosition(biasAt(i), time, orgLine); }catch(e){}
     xApplying = false;
@@ -5323,7 +5326,7 @@ function initChart(){
     if (p.time){
       const i = idxOf(p.time);
       xApplying = true;
-      try{ if (src !== chart) chart.setCrosshairPosition(i >= 0 ? BARS[i].close : 0, p.time, (RF_MODE && rfLine) ? rfLine : candle); }catch(e){}
+      try{ if (src !== chart) chart.setCrosshairPosition(i >= 0 ? rfXPrice(i) : 0, p.time, (RF_MODE && maLine) ? maLine : candle); }catch(e){}
       try{ if (src !== chartM) chartM.setCrosshairPosition(i >= 0 ? obvAt(i) : 0, p.time, obvSeries); }catch(e){}
       try{ if (chartB && src !== chartB) chartB.setCrosshairPosition(i >= 0 ? biasAt(i) : 0, p.time, orgLine); }catch(e){}
       xApplying = false;
@@ -5590,6 +5593,7 @@ function rfChainData(bars, pts, all){
   }
   return out;
 }
+function rfXPrice(i){ try{ if (RF_MODE && maLine){ const d = maLine.dataByIndex(i); if (d && d.value != null) return d.value; } }catch(e){} return BARS[i].close; }   // 2026-10-23 16:15 漲跌 / 轉折圖十字線的價:Ka,沒有就收盤
 let RF_ARGS = null, RF_LAMPS = null, KA_COLORED = null, KA_PLAIN = null; const KA_RF_COLOR = '#FF3B3B';   // 2026-10-23 10:24 使用者:「漲跌/轉折 Ka改紅色」(10:00 曾用紫 #D63AF9)   // RF_LAMPS = {view, map: time → 做多 / 做空 / 監控}:漲跌圖 / 轉折圖的燈號(2026-10-23 00:25 使用者:「切換 漲跌圖 就隨漲跌圖 切換轉折圖 就隨轉折圖」)
 // 2026-10-23 00:25 燈號跟著目前那張圖走:K 線圖 = 原本的燈號(指標三四件事);漲跌圖 = 最近一個實心非假的翻轉點;轉折圖 = 最近一個轉折。
 //   同一天還沒有點 = 監控;換日重算。天秤、通知、判別式都不動
@@ -5835,6 +5839,11 @@ function drawBars(bars, code, srcLabel, keepView){
       KA_COLORED = kaGap(ma.map(x => { const c = cl.get(x.time), pc = pcOf.get(dayKey(x.time)); return {time: x.time, value: x.value, color: !(pc > 0) ? CHART_THEME.ma : c > pc ? CHART_THEME.up : c < pc ? CHART_THEME.down : '#E6E6E6'}; }));
       // 2026-10-23 09:54 使用者(「轉折圖的兩條線顏色太相近了」):漲跌圖 / 轉折圖沒有 K 棒,Ka 改成固定紫色(和元大均價 10 一樣,使用者一直叫它「紫線」),Kb 藍不變;K 線圖的 Ka 照舊紅綠上色
       KA_PLAIN = ma.map(x => ({time: x.time, value: x.value, color: KA_RF_COLOR}));
+      // 2026-10-23 16:15 使用者(時碩 10/22 09:00 漲跌圖「十字虛線的橫線位置也不對」):Ka 每天前 9 根沒有值,線會從昨天 13:30 直接拉到今天 09:10,
+      //   看起來 09:00 的 Ka 在 85 其實沒有。沒有 Ka 的那幾根補成空白點(只有 time),線在換日處斷開
+      //   (套件會直接畫過沒有值的地方,所以和黃虛線一樣:每天最後一點的線段顏色設透明,換日那段就看不見)
+      { const cut = arr => arr.map((x, i) => (i + 1 < arr.length && dayKey(arr[i + 1].time) !== dayKey(x.time)) ? {...x, color: 'rgba(0,0,0,0)'} : x);
+        KA_COLORED = cut(KA_COLORED); KA_PLAIN = cut(KA_PLAIN); }
       maLine.setData(RF_MODE ? KA_PLAIN : KA_COLORED); }
     const k = BASE.entryMaxChg / 100;
     if (YH.showEntryLines) [[prevClose * (1 + k), '+' + BASE.entryMaxChg + '%'], [prevClose * (1 - k), '-' + BASE.entryMaxChg + '%']]
