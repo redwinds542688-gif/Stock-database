@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 21:50 Kb 改藍色虛線(使用者:「Kb改成藍色虛線」;三張圖都是)。
   · 2026-10-23 21:45 漲跌圖 / 轉折圖的黃虛線跨日接起來(使用者:「現在跨日 還有沒有其他的銜接問題」→「改」):昨天最後一個點連到今天第一個點(10/23 10:55 原本不跨日)。
     注意:這條黃虛線是指標一(K 圖那格)上連多空點的線,不是指標二的 Oa(Oa 也是黃虛線,但在指標二那格)。
   · 2026-10-23 21:40 指標三橘線的點、轉折通知的順勢而為濾網改用跨日累計的 OBV(使用者:「指標三 也有這問題嗎」→「好」):和指標二畫的同一份,圖和通知對得上。
@@ -1884,7 +1885,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610232145">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610232150">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5209,7 +5210,7 @@ function initChart(){
   maLine = chart.addLineSeries({priceScaleId:'left', color:CHART_THEME.ma, lineWidth:1,   // 2026-10-20 線用最細的;顏色逐根依「收盤對昨收」上色(drawBars)
                                 priceLineVisible:false, lastValueVisible:false});
   // 2026-10-21 使用者:「加一條 k24」:均價 24(收盤 24 根平均,藍色、最細),跨日連續算(和元大的均價 24 一樣,開盤就有值;均價 10 照舊每天重算)
-  ma24Line = chart.addLineSeries({priceScaleId:'left', color:'#19D3F5', lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:true});   // 2026-10-23 16:30 使用者:「指標一跟三 也與指標二一致」:十字線上 Kb 也有圓點   // 2026-10-23 10:24 使用者:「三圖Kb改藍色」(10:05 曾改粉紅)
+  ma24Line = chart.addLineSeries({priceScaleId:'left', color:'#19D3F5', lineWidth:1, lineStyle:2, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:true});   // 2026-10-23 21:50 使用者:「Kb改成藍色虛線」(lineStyle 2 = 虛線)   // 2026-10-23 16:30 使用者:「指標一跟三 也與指標二一致」:十字線上 Kb 也有圓點   // 2026-10-23 10:24 使用者:「三圖Kb改藍色」(10:05 曾改粉紅)
   // 2026-10-22 漲跌圖:rfLine 只用來掛多空點(線本身透明;14:10 使用者「取消白線」),rfChain = 黃色虛線連多空點
   rfLine = chart.addLineSeries({priceScaleId:'left', color:'rgba(0,0,0,0)', lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, visible: RF_MODE});
   rfChain = chart.addLineSeries({priceScaleId:'left', color:'#FFD23F', lineWidth:1.5, lineStyle:2, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, visible: RF_MODE});
