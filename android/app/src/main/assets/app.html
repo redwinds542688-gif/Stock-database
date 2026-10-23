@@ -223,6 +223,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 15:10 雲端 K 補抓 55 秒 → 20 秒(使用者:「判別式發訊息的時間 往往延遲了四五分鐘」→ 查 10/22 Worker 通知紀錄:進場通知都在訊號 K 後 1~2 分推出(K 收完 +1 分、
+    Cron 晚 47 秒醒 +20 秒抓到、手機 55 秒補一次平均 +27 秒)→「能夠盡量加快訊息發放的速度嗎」):YH.cloudPollMs = 20000,盯盤、圖開著、?bars 三處同一個數。
+    平均可快約 30 秒(推出約在訊號 K 後 1 分 10 秒 ~ 1 分 30 秒)。一次請求抓全部代號,一天約 800 次,免費額度 10 萬夠。K 收完才能確認那 1 分鐘是規則本身,動不了。
   · 2026-10-23 14:25 轉折急拉 / 急殺警報(使用者:榮科 10/07 09:53 空 67.5 → 10:13 起 4 分鐘拉到 71.2、抱到 11:09 翻多 −10.4%「這種股票很危險 有什麼可以應對嗎」→「加第三招」):
     推過的轉折之後,最近 3 根 K 收盤反向走 ≥ 1.5%(YH.turnAlertPct / turnAlertBars)→ 推「榮科 4989 空單注意 71.20 | 10:16 急拉 +5.9%(3分鐘) · 09:53 空點 67.50 · 轉折」,每則轉折只警報一次。
     不是交易訊號、不記部位,只是叫你看盤;今日監控紀錄裡和轉折同一種卡(無網底)。判一 ~ 判三不用(它們有 1.5% 停損、6% 強制出、13:20 平倉)。
@@ -1814,7 +1817,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231425">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231510">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3521,7 +3524,7 @@ async function loadCloudBars(){
   if (!liveOn()) return false;
   const d = taipeiYmd();
   if (CLOUD_BARS.d !== d){ CLOUD_BARS.d = d; CLOUD_BARS.last = ''; CLOUD_BARS.ok = false; CLOUD_BARS.n = 0; }
-  if (CLOUD_BARS.busy || Date.now() - CLOUD_BARS.at < 55000) return CLOUD_BARS.ok;
+  if (CLOUD_BARS.busy || Date.now() - CLOUD_BARS.at < (YH.cloudPollMs || 20000)) return CLOUD_BARS.ok;   // 2026-10-23 15:10 55 秒 → 20 秒(使用者:「能夠盡量加快訊息發放的速度嗎」)
   CLOUD_BARS.busy = true;
   try{
     const u = `${BASE.liveUrl.replace(/\/$/, '')}/?bars=${d}${CLOUD_BARS.last ? '&since=' + CLOUD_BARS.last : ''}&_=${Date.now()}`;
@@ -3575,7 +3578,7 @@ function breadthAt(t){   // t 那分鐘(含)以前最近的寬度;不是今天�
 window.BREADTH = BREADTH;
 async function loadTodayBars(code, force){
   const cached = TODAY_BARS.get(code);
-  if (!force && cached && Date.now() - cached.at < 55000) return cached;   // 2026-10-20 09:40 2 分鐘 → 55 秒(使用者:富喬「差了快二分鐘」→「改」)
+  if (!force && cached && Date.now() - cached.at < (YH.cloudPollMs || 20000)) return cached;   // 2026-10-23 15:10 55 秒 → 20 秒   // 2026-10-20 09:40 2 分鐘 → 55 秒(使用者:富喬「差了快二分鐘」→「改」)
   if (liveOn()){
     await loadCloudBars();
     const c2 = TODAY_BARS.get(code);
@@ -3717,7 +3720,7 @@ async function livePoll(){
     // 圖表開著 → 最右邊的 K 即時更新;每 2 分鐘再向 Yahoo 補一次今天的 K(補斷線漏掉的分鐘)
     if (BARS_CODE && el('sheet').classList.contains('open')){
       const tb = TODAY_BARS.get(BARS_CODE);
-      if (!tb || Date.now() - tb.at > 55000){   // 2026-10-20 09:40 圖開著時每 55 秒補一次雲端 K(原 2 分鐘)
+      if (!tb || Date.now() - tb.at > (YH.cloudPollMs || 20000)){   // 2026-10-23 15:10 圖開著時每 20 秒補一次雲端 K(2026-10-20 原 55 秒)
         const c = BARS_CODE;
         loadTodayBars(c).then(() => { if (BARS_CODE === c) redrawLive(); });
       }
@@ -3794,6 +3797,7 @@ const YH = {
   rfMinCross: 0.05,     // 2026-10-22 漲跌圖:Ka 要高(低)過 Kb 至少 0.05% 才算穿越          // 2026-10-22 漲跌圖多空點的「Ka 往上 / 往下」和 3 根前比(一檔跳動大的股票,Ka 一根就會小跳一下)      // 2026-10-22 漲跌圖多空點的「壓線」:Ka、Kb 差距和那根 K 離均線都在 0.2% 內 → 實心
   lampLeave: 1,         // 2026-10-21 11:40 使用者(台郡 10:13 天秤已到中間還亮做多):已亮做多 / 做空時,連 lampHold 根不是這個燈就換成最新那根的狀態(不必同一種);0 = 舊規則
   lampObOc: true,       // 2026-10-21 20:40 使用者「先改 D」:亮「做多」還要 Ob(OBV 均 10)在 Oc(OBV 均 30)之上,否則降成漸多;做空鏡像(Oc 還沒值 = 不亮做多 / 做空)。七天 1,405 股票日:勝率 54.1% → 55.3%
+  cloudPollMs: 20000,   // 2026-10-23 15:10 使用者「能夠盡量加快訊息發放的速度嗎」:雲端 1 分K 每 20 秒補一次(原 55 秒;一次抓全部代號,一天約 800 次請求)
   turnAlertPct: 1.5, turnAlertBars: 3,   // 2026-10-23 14:25 使用者「加第三招」:推過的轉折之後,3 根 K 內反向走 ≥ 1.5% 就推「急拉 / 急殺 多單 / 空單注意」(每則轉折一次;0 = 關)
   turnNotifyTip: true,  // 2026-10-23 14:05 使用者「平(假設向下)要擋掉做多的訊號」→「加上去 這算是順勢而為」:轉折通知看指標三橘線 / 紫線最後一段:做多兩條都要向上、做空兩條都不向上(平算偏空)
   turnNotify: true, turnNotifyOrg: false,   // 2026-10-23 12:21 使用者:「搭用橘線不可行 因為橘線有點像是未來線」→ 關掉(12:15 曾開:做多要橘線向上、做空向下才發)     // 2026-10-23 11:43 使用者:轉折圖的轉折點(多 / 空)每一個都推手機,不限次數,只是提醒(不進判別式、不記部位)
@@ -6340,7 +6344,7 @@ async function bgTick(force, replay){
           BG.hist.set(code, h || []);
         }
         const ta = BG.todayAt.get(code) || 0;
-        if (Date.now() - ta > 55000){ await loadTodayBars(code, true); BG.todayAt.set(code, Date.now()); }   // 每 55 秒補一次今天的 K(2026-10-20 原 2 分鐘;雲端本身 55 秒內不重抓,請求數不變)
+        if (Date.now() - ta > (YH.cloudPollMs || 20000)){ await loadTodayBars(code, true); BG.todayAt.set(code, Date.now()); }   // 2026-10-23 15:10 每 20 秒補一次今天的 K(原 55 秒)(2026-10-20 原 2 分鐘;雲端本身 55 秒內不重抓,請求數不變)
         const bars = mergeLive(code, BG.hist.get(code), YH.signalsCloudOnly);   // 2026-10-20 訊號只用雲端 K(自拼 K 不進判別)
         if (!bars.length) continue;
         const ma = sma(bars, BASE.maPeriod), ob = obv(bars), obma = sma(ob, BASE.obvMaPeriod, 'value');
