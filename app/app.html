@@ -223,6 +223,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 16:05 天秤不全滿(使用者:時碩 10/21 漲跌圖整天監控、天秤卻全滿 →「天秤則最多不可全滿 全滿就是做空做多的訊號」):
+    燈號是做多 → 天秤全滿偏多、做空 → 全滿偏空;其他狀態(監控 / 漸多 / 漸空 / 等待)最多亮 9 格(YH.meterMaxNoSignal = 0.9)。K 線圖、漲跌圖、轉折圖都一樣。只是畫面。
   · 2026-10-23 15:55 指標二的圓點也拿掉(使用者:「指標二的點也取消」):Ob 線上 Ob×Oc 穿越的紅 / 綠點不畫,只留四條線。只是畫面。
   · 2026-10-23 15:50 指標三的圓點拿掉(使用者:「指標三 小圈點紅藍綠橘 取消不用」):橘線上的藍 / 橘點、紫線上的紅 / 綠點都不畫,只留兩條線;上方「往上穿 / 往下穿 時間」「Ka×Kb」文字不變。只是畫面。
   · 2026-10-23 15:45 分鐘一開始的快照改由 Worker 自己做(使用者:「這一個要如何改最穩當」→「好」):Cron :47 醒來抓一次後,子快照改成對準下一分鐘 :02 和 :30
@@ -1836,7 +1838,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231555">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231605">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5618,7 +5620,14 @@ function rfLampMap(bars, pts, bias, kaSide, trend){
 function lampStateAt(time){ return (RF_MODE && RF_LAMPS && RF_LAMPS.view === RF_VIEW && RF_LAMPS.map.has(time)) ? RF_LAMPS.map.get(time) : (CUR && CUR.lamps ? CUR.lamps.get(time) : null); }
 // 2026-10-23 00:31 使用者「改 一樣隨當下的圖」:天秤也跟著圖走。漲跌圖 / 轉折圖:做多 = 指針全左、做空 = 全右、監控 = 中間;K 線圖 = 原本的四件事平均
 // 2026-10-23 09:22 使用者(「這樣感覺沒啥用」→「改」):天秤改顯示那張圖的點的條件湊齊幾項(偏多 +1 / 偏空 −1 / 平 0,平均),點還沒出來就看得到往哪邊靠
-function meterBiasAt(time, kBias){ if (RF_MODE && RF_LAMPS && RF_LAMPS.view === RF_VIEW && RF_LAMPS.bias && RF_LAMPS.bias.has(time)) return RF_LAMPS.map.get(time) === '等待' ? 0 : RF_LAMPS.bias.get(time); return kBias; }   // 等待時天秤歸零(同 K 線圖)
+function meterBiasAt(time, kBias){ let b = kBias; if (RF_MODE && RF_LAMPS && RF_LAMPS.view === RF_VIEW && RF_LAMPS.bias && RF_LAMPS.bias.has(time)) b = RF_LAMPS.map.get(time) === '等待' ? 0 : RF_LAMPS.bias.get(time); return meterCap(b, lampStateAt(time)); }
+/* 2026-10-23 16:05 使用者(時碩 10/21 漲跌圖燈一直監控、天秤卻全滿:「天秤則最多不可全滿 全滿就是做空做多的訊號」):
+   燈是做多 → 天秤全滿偏多、做空 → 全滿偏空;其他狀態(監控 / 漸多 / 漸空 / 等待)最多 9 格,不會全滿。三張圖都一樣。 */
+function meterCap(b, st){
+  if (st === '做多') return 1; if (st === '做空') return -1;
+  const m = YH.meterMaxNoSignal == null ? 0.9 : YH.meterMaxNoSignal;
+  return Math.max(-m, Math.min(m, b || 0));
+}   // 等待時天秤歸零(同 K 線圖)
 const sgn = (a, b) => a == null || b == null ? 0 : a > b ? 1 : a < b ? -1 : 0;
 function kaSideMap(ma, ma24){ const mb = toTimeMap(ma24), m = new Map(), X = YH.rfMinCross || 0; for (const x of ma){ const kb = mb.get(x.time); if (kb != null) m.set(x.time, (x.value - kb) / kb * 100 >= X ? 1 : (kb - x.value) / kb * 100 >= X ? -1 : 0); } return m; }   // 每根 Ka 在 Kb 哪邊(差距要 ≥ 0.05%,兩線貼著算 0;2026-10-23 11:05 友達 10/13 12:16 Ka 只高 0.001 就熄燈又亮)
 /** 轉折圖的七項(Ka 在 Kb 哪邊、Ka 比 KN 根前、OBV 在 Ob 哪邊、OBV 方向、Ob 方向、OBV24 方向、Oc 方向)平均;OBV 跨日累計,和 turnPoints 同一套 */
