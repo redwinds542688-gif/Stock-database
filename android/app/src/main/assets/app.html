@@ -223,6 +223,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-23 22:15 切換圖時十字線的橫線跑掉修正(使用者影片:「按切換 價格橫線都會 上下異動」,同一根 09:52 三張圖標 87.71 / 88.38 / 88.04):切換後價格刻度重算,
+    橫線還停在舊像素位置 → 刻度套用完再把十字線放回那根(K 線圖 = 收盤、漲跌 / 轉折圖 = Ka)。
   · 2026-10-23 22:10 三張圖的垂直格線拿掉(使用者:「背景 二條豎線 是什麼」→「拿掉」);橫向價格格線照舊。
   · 2026-10-23 22:05 漲跌圖的藍點線(所有點依序連線)不畫(使用者:「漲跌圖 三條線 是什麼」→ Kb 改虛線後兩條藍虛線分不清 →「好」):只留 Ka、Kb、箭頭。YH.rfAllShow = true 開回來。
   · 2026-10-23 22:00 黃虛線(翻轉點連線)不畫(使用者:「K圖 黃虛線 是什麼」→「感覺沒啥作用」):漲跌圖、轉折圖都不畫;程式和資料留著,YH.rfChainShow = true 開回來。
@@ -1889,7 +1891,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610232210">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610232215">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5839,6 +5841,9 @@ function applyRfMode(){
   if (rfAll) rfAll.applyOptions({visible: RF_VIEW === 1 && !!YH.rfAllShow});   // 2026-10-23 22:05 使用者(「漲跌圖 三條線 是什麼」→ 拿掉點連線「好」):藍點線不畫,只留 Ka、Kb、箭頭
   try{ if (CUR && CUR.lamps){ const x = window.getXLock && getXLock(); showBarInfo(x && !x.follow ? x.time : null); } }catch(e){}   // 2026-10-23 燈號跟著目前那張圖,切換就重顯
   try{ updateHiLo(); }catch(e){}
+  // 2026-10-23 22:15 使用者(影片:「按切換 價格橫線都會 上下異動」):切換後 K 棒 / 線的顯示不同,價格刻度自動重算,十字線的橫線還停在舊的像素位置 → 標出來的價格就跑掉
+  //   (同一根 09:52 三張圖標 87.71 / 88.38 / 88.04)。刻度套用完(下一個畫面)再把十字線放回去:K 線圖放在收盤、漲跌 / 轉折圖放在 Ka
+  try{ requestAnimationFrame(() => requestAnimationFrame(() => { try{ if (window.syncX) syncX(); }catch(e){} })); }catch(e){}
 }
 function drawBars(bars, code, srcLabel, keepView){
   BARS = bars;
