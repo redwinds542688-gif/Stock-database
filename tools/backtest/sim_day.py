@@ -67,11 +67,14 @@ rvBase = None
 # 2026-10-21 指標三測試(使用者:「先測 判一,二,三 效果好再改」):KAKB = Ka(均價 10,當天)要在 Kb(均價 24,跨日)之上才做多(L)/ 之下才做空(S);
 #   ORG2 = 橘線(Oa 穿越 Ob 的點)要「雙升」才做多(L)/「雙降」才做空(S):最近兩個往上穿的低點、最近兩個往下穿的高點都墊高 / 都降低
 KAKB = os.environ.get('KAKB',''); ORG2 = os.environ.get('ORG2','')
-if KAKB:
+# 2026-10-23 GAPX = 乖離出場測試(使用者:「部位方向乖離超過 2% 時提醒「乖離過大」搭配判一二三 如何 試看看」):持倉中 (Ka−Kb)/Kb 順向超過 GAPX% 就出;KBP = Kb 期數(App 2026-10-23 起 28)
+GAPX = float(os.environ.get('GAPX','0')); KBP = int(os.environ.get('KBP','28'))
+if KAKB or GAPX > 0:
+    _kbn = 24 if KAKB else KBP
     try:
-        _pc = df[(df.date < DAY) & (df.time >= '09:00') & (df.time <= '13:30')].sort_values(['date','time']).close.values[-23:]
+        _pc = df[(df.date < DAY) & (df.time >= '09:00') & (df.time <= '13:30')].sort_values(['date','time']).close.values[-(_kbn-1):]
     except Exception: _pc = np.array([])
-    _cc = np.concatenate([np.round(_pc.astype(float),2), c]); KB = pd.Series(_cc).rolling(24, min_periods=1).mean().values[len(_pc):]
+    _cc = np.concatenate([np.round(_pc.astype(float),2), c]); KB = pd.Series(_cc).rolling(_kbn, min_periods=1).mean().values[len(_pc):]
 if ORG2:
     _up = []; _dn = []; ORGPAT = np.zeros(len(c))
     for _q in range(1, len(c)):
@@ -207,6 +210,7 @@ for i in range(1, len(c)):
             if _hit: why = _lb
         elif why is None and loss >= float(os.environ.get('STOP','1.5')): why = f'停損 {float(os.environ.get("STOP","1.5")):g}%'; _spx = ent*(1-float(os.environ.get('STOP','1.5'))/100*sd)
         elif (sd == -1 and move >= 6) or (sd == 1 and move <= -6): why = '超過 6%'
+        if why is None and GAPX > 0 and not np.isnan(ma[i]) and (ma[i]-KB[i])/KB[i]*100*sd >= GAPX: why = f'乖離 {GAPX:g}%'
         # 2026-10-22 測試(使用者:「回測進場那根 K 的量能 跟反向爆量出場」):REVSPIKE = 持倉中出現反向 K(做空遇紅 K、做多遇黑 K)且這根量 ≥ 前 REVN 根平均 × REVSPIKE 倍 → 下一根開盤出場
         #   REVPL=gain:只在帳面賺錢時才這樣出;預設 any
         REVX = float(os.environ.get('REVSPIKE','0'))
