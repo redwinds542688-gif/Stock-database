@@ -45,6 +45,12 @@ def _blk(vol, tms):
 if BLK: t = t.assign(volume=_blk(t.volume.values, list(t.time)))
 c = np.round(t.close.values,2); o = np.round(t.open.values,2); h = np.round(t.high.values,2); l = np.round(t.low.values,2); v = t.volume.values/1000
 ma = pd.Series(c).rolling(MA).mean().values
+# 2026-10-24 03:05 使用者(「判一到判三 一起改」:Ka 借昨天的 K,09:01 就借昨天 9 根,和元大一樣):KACROSS=1 → 均價 10 跨日,前面接昨天最後 MA−1 根收盤
+if os.environ.get('KACROSS','0') == '1':
+    try:
+        _pk2 = df[(df.date < DAY) & (df.time >= '09:00') & (df.time <= '13:30')].sort_values(['date','time']).close.values[-(MA-1):]
+    except Exception: _pk2 = np.array([])
+    _cc2 = np.concatenate([np.round(_pk2.astype(float),2), c]); ma = pd.Series(_cc2).rolling(MA).mean().values[len(_pk2):]
 ob = np.zeros(len(c)); acc = 0
 for i in range(1, len(c)):
     if c[i] > c[i-1]: acc += v[i]
