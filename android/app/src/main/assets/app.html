@@ -205,6 +205,8 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     改成同一根 K 還在跳動時不重算,換新的一根才算(訊號本來就只看收完的 K)。畫面、點位都不變。
     另外手指按在圖上(拖十字線、拖圖、縮放)期間盤中重畫先略過,放手 0.15 秒後補畫一次(原本每 5 秒的重畫約 60~90ms,正好落在拖的時候就卡一下)。
   · 2026-10-23 10:55 漲跌圖 / 轉折圖的黃虛線、藍點線不跨日相連(使用者:群創 10/20 11:00 → 10/21 09:56「轉折 黃虛線 是什麼」):圖表套件遇到空白點照樣連線,改成每天最後一點之後那段畫透明。只是畫面。
+  · 2026-10-23 11:00 漲跌圖 / 轉折圖燈號:Ka 穿到另一邊就退回監控(使用者:友達 10/21 10:40「都到這 為啥還做空」,Ka 10:37 已在 Kb 上面燈還亮做空):做多燈要 Ka > Kb、做空燈要 Ka < Kb,
+    和點的條件一致;原本只有「條件過半翻到對面連 3 根」才退。通知、判別式都沒動。
   · 2026-10-21 23:10 指標二加第四條線 Od(使用者:「o28 o16 才對」→「增加 Od = obv16」):Od = OBV 的 16 根平均(粉紅細線),上方多「Od:數值 ↑↓」。
     Ob 10、Oc 28 不變;只加畫面,燈號、判別式都不用 Od。
   · 2026-10-21 22:55 指標二 Oc 改 28 根(使用者:「oc 多少可以增加燈號準確率」→「改 28」):Oc = OBV 的 28 根平均(原 30),燈號、D 規則、指標二紫線都用它。
@@ -1783,7 +1785,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610231055">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610231100">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5491,12 +5493,16 @@ let RF_ARGS = null, RF_LAMPS = null, KA_COLORED = null, KA_PLAIN = null; const K
 //   (1) 13:20 起只顯示監控(已強制平倉;K 線圖本來就這樣,漲跌 / 轉折圖還亮著做多 / 做空);(2) 開盤不到 15 根顯示等待(和 K 線圖一樣);
 //   (3) 燈號亮著做多(做空)時,那張圖的條件已經過半翻成偏空(偏多)、連 YH.lampHold 根 → 退回監控,等下一個點(漲跌圖 31% 的做多根、轉折圖 16% 都是這種:點很久沒出,燈還掛著舊方向)。
 //   同方向再出現的點也會重新點亮。pts = 那張圖的點(含同方向再出現的),bias = 那張圖每根的條件平均
-function rfLampMap(bars, pts, bias){
+// 2026-10-23 10:57 使用者(友達 10/21 10:40「都到這 為啥還做空」:Ka 10:37 已經穿到 Kb 上面,燈還亮做空):做空燈要 Ka 在 Kb 下面、做多燈要 Ka 在 Kb 上面,
+//   Ka 一穿到另一邊就退回監控(和點的條件一致:做多要 Ka > Kb、做空要 Ka < Kb);kaSide = 每根 Ka 在 Kb 哪邊(+1 / −1)
+function rfLampMap(bars, pts, bias, kaSide){
   const m = new Map(), HOLD = YH.lampHold || 3; let k = 0, day = null, st = '監控', n = 0, bad = 0;
   for (const b of bars){ const dk = dayKey(b.time); if (dk !== day){ day = dk; st = '監控'; n = 0; bad = 0; } n++;
     let hit = null; while (k < pts.length && pts[k].time <= b.time){ const p = pts[k++]; if (dayKey(p.time) === dk) hit = p; }
     if (hit){ st = hit.side > 0 ? '做多' : '做空'; bad = 0; }
-    else if (st !== '監控' && bias){ const v = bias.get(b.time), d = st === '做多' ? 1 : -1; if (v != null && v * d <= -0.5) bad++; else bad = 0; if (bad >= HOLD){ st = '監控'; bad = 0; } }
+    else if (st !== '監控'){ const d = st === '做多' ? 1 : -1, ks = kaSide ? kaSide.get(b.time) : null;
+      if (ks != null && ks * d < 0){ st = '監控'; bad = 0; }   // Ka 穿到另一邊 → 監控
+      else if (bias){ const v = bias.get(b.time); if (v != null && v * d <= -0.5) bad++; else bad = 0; if (bad >= HOLD){ st = '監控'; bad = 0; } } }
     m.set(b.time, n < SIG.skipMin ? '等待' : hmKey(b.time) >= '13:20' ? '監控' : st); }
   return m;
 }
@@ -5505,6 +5511,7 @@ function lampStateAt(time){ return (RF_MODE && RF_LAMPS && RF_LAMPS.view === RF_
 // 2026-10-23 09:22 使用者(「這樣感覺沒啥用」→「改」):天秤改顯示那張圖的點的條件湊齊幾項(偏多 +1 / 偏空 −1 / 平 0,平均),點還沒出來就看得到往哪邊靠
 function meterBiasAt(time, kBias){ if (RF_MODE && RF_LAMPS && RF_LAMPS.view === RF_VIEW && RF_LAMPS.bias && RF_LAMPS.bias.has(time)) return RF_LAMPS.map.get(time) === '等待' ? 0 : RF_LAMPS.bias.get(time); return kBias; }   // 等待時天秤歸零(同 K 線圖)
 const sgn = (a, b) => a == null || b == null ? 0 : a > b ? 1 : a < b ? -1 : 0;
+function kaSideMap(ma, ma24){ const mb = toTimeMap(ma24), m = new Map(); for (const x of ma){ const kb = mb.get(x.time); if (kb != null) m.set(x.time, sgn(x.value, kb)); } return m; }   // 每根 Ka 在 Kb 哪邊
 /** 轉折圖的七項(Ka 在 Kb 哪邊、Ka 比 KN 根前、OBV 在 Ob 哪邊、OBV 方向、Ob 方向、OBV24 方向、Oc 方向)平均;OBV 跨日累計,和 turnPoints 同一套 */
 function turnBias(bars, ma, ma24, ob){
   const KN = YH.turnKaBars || 2, mk = toTimeMap(ma), mb = toTimeMap(ma24), mOc = toTimeMap(sma(ob, YH.ocPeriod || 28, 'value'));
@@ -5546,8 +5553,8 @@ function rfDraw(){
     const pAt = new Map(rp2.map(p => [p.time, p.price]));   // 點畫在那根的高 / 低價上(透明線在點的那根取點價,其他取收盤)
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
     rfLine.setMarkers(rfMarkers(rp2));
-    { const bias = rfBias(sBars, sMa, sMa24, sOb, sObma);   // 燈號看實心非假的點(含同方向再出現的)
-      RF_LAMPS = {view: 1, map: rfLampMap(bars, rp2.filter(p => !p.fake && p.press), bias), bias}; }
+    { const bias = rfBias(sBars, sMa, sMa24, sOb, sObma), ks = kaSideMap(sMa, sMa24);   // 燈號看實心非假的點(含同方向再出現的)
+      RF_LAMPS = {view: 1, map: rfLampMap(bars, rp2.filter(p => !p.fake && p.press), bias, ks), bias}; }
     if (rfChain) rfChain.setData(rfChainData(bars, rp2));
     if (rfAll) rfAll.setData(rfChainData(bars, rp2, true));
   }catch(e){ try{ rfLine.setMarkers([]); if (rfChain) rfChain.setData([]); if (rfAll) rfAll.setData([]); }catch(_){} }
@@ -5594,7 +5601,7 @@ function turnDraw(bars, sBars, sMa, ma24, sOb){
   try{
     const sMa24 = sBars === bars ? ma24 : sma(sBars, YH.kbPeriod || 24, 'close', false);
     const pts = turnPoints(sBars, sMa, sMa24, sOb);
-    { const bias = turnBias(sBars, sMa, sMa24, sOb); RF_LAMPS = {view: 2, map: rfLampMap(bars, pts, bias), bias}; }
+    { const bias = turnBias(sBars, sMa, sMa24, sOb); RF_LAMPS = {view: 2, map: rfLampMap(bars, pts, bias, kaSideMap(sMa, sMa24)), bias}; }
     const pAt = new Map(pts.map(p => [p.time, p.price]));
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
     rfLine.setMarkers(pts.map(p => { const up = p.side > 0;
