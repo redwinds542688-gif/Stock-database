@@ -223,6 +223,9 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 03:40 判二的 OBV 改回每天歸零(使用者:「要把判二的 OBV 改回每天歸零 然後判一、判三維持跨日」;判二 sig.obvDaily = true):
+    OBV 跨日回測判二兩邊都變差(雲端三天 +27,296 → +21,199、Yahoo 九天 +109,475 → +93,034);判一一好一壞(雲端 +20,724 → +28,155、九天 +53,869 → +49,247)、判三不變 → 判一 / 判三維持跨日。
+    判二 Ka 照樣跨日(回測沒差)。模擬器判二旗標只加 KACROSS=1(不加 OBVCROSS)。
   · 2026-10-24 03:35 漲跌圖 / 轉折圖的多空箭頭畫在 Ka 紅線上(使用者:時碩 09:11「這個多 為啥沒有畫在線上」→「畫在線上」):原本畫在那根 K 的最低(多)/ 最高(空),
     K 棒藏起來後箭頭浮在線外。只是畫面;轉折通知裡的價格照舊用那根的高 / 低。
   · 2026-10-24 03:20 判一 ~ 判三解凍,Ka / OBV 跨日(使用者:「判一到判三 一起改」「Obv也是跨日 一起改」「判一二三 解凍」;YH.kaCrossJudge = true):
@@ -1922,7 +1925,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610240335">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610240340">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4065,12 +4068,12 @@ function sma(bars, n, key = 'close', daily = MA_RESET_DAILY){
 }
 
 /* OBV:收盤比前一根高 → 加量;低 → 減量;平 → 不變。單位:張(與元大 App 一致) */
-function obv(bars){
+function obv(bars, forceDaily){   // forceDaily(2026-10-24 03:40):判二 OBV 照舊每天歸零
   const out = [];
   let acc = 0, prevClose = null, prevDay = null;
   for (const b of bars){
     const day = dayKey(b.time);
-    if (OBV_RESET_DAILY && !YH.kaCrossJudge && day !== prevDay){ acc = 0; prevClose = null; prevDay = day; }   // 2026-10-24 03:20 YH.kaCrossJudge 開 → OBV 跨日累計
+    if (OBV_RESET_DAILY && (!YH.kaCrossJudge || forceDaily) && day !== prevDay){ acc = 0; prevClose = null; prevDay = day; }   // 2026-10-24 03:20 YH.kaCrossJudge 開 → OBV 跨日累計
     const lots = b.volume / 1000;
     if (prevClose != null){
       if (b.close > prevClose) acc += lots;
@@ -4181,7 +4184,7 @@ const RULESETS = {
   //   四天 25 筆 76% +79,819 → 23 筆、賺 19 賠 4、83%、+87,959(眾達多單 −3,464 擋掉;毅嘉 09:27 空單抱到 11:23 停利 +7,080;建榮 −2,509 → −1,609;友達 10/15 +4,614;毅嘉 11:25 +1,750)。
   //   保護逐一拿掉的測試:沒有一條在壓勝率;壓總額的是量 6,000 張 / 跳空不追 / 量比 0.9,拿掉多賺但勝率掉到 70~73%,不動。
   '二': { key: '二', btn: '判二', name: '判別式二', date: '2026-10-19', backtest: '10/13~16 + 10/19 五天 21 筆,賺 19 賠 2,勝率 90%,淨 +93,044(紅線穿藍線起手 + 強訊號;OBV20 / OBV30 同向;OBV30 方向;距離 ≥ 4%;離當日高低點 2% 內;12:00 後不進;逆勢單看時間順序;不鎖方向)',
-          sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { gapMinPct: 0, entryMode: 'cross', crossStrPct: 2, crossWinBars: 10, crossNewHi: 1, crossSlowMa: 20, crossKMaDir: false, noLock: true, obmaSlopeMin: 0,
+          sig: Object.assign(JSON.parse(JSON.stringify(SIG1)), { gapMinPct: 0, obvDaily: true, entryMode: 'cross', crossStrPct: 2, crossWinBars: 10, crossNewHi: 1, crossSlowMa: 20, crossKMaDir: false, noLock: true, obmaSlopeMin: 0,
                                                                   strong: true, strongSlowMa: 30, strongDxBars: 5, strongSlowBars: 2, strongExtBars: 10, strongWin: 5, strongMaxChg: 4, strongNoAfter: '11:30',
                                                                   confirmMinGapPct: 4, noEntryAfter: '12:00',
                                                                   crossSlowMa2: 30, weakByOrder: true,
@@ -4297,6 +4300,10 @@ function exitSignal(side, b, m0, m1, obv, obma, obvPrev, obmaPrev){
   return b.close > m0 && m0 > m1 && obv > obvPrev && obma > obmaPrev && obv > obma;
 }
 function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
+  // 2026-10-24 03:40 使用者:「要把判二的 OBV 改回每天歸零 然後判一、判三維持跨日」:SIG.obvDaily(判二)→ OBV 與所有 OBV 均線每天歸零重算(Ka 照樣跨日)
+  const obvD = !!(SIG.obvDaily && YH.kaCrossJudge);
+  if (obvD){ ob = obv(bars, true); obma = sma(ob, BASE.obvMaPeriod, 'value', true); }
+  const smaO = (a, n) => sma(a, n, 'value', obvD ? true : MA_RESET_DAILY);
   // opts.ignoreGate(2026-10-18 使用者:「3.5% 是確定買賣的限制,不該是多空訊號的限制」「只針對多空天秤的顯示,其他不能動」):
   // 多空天秤的燈號用這個模式重跑一次:只看訊號本身(K 線 + OBV 的確認點),不理 ±3.5% / 順勢 / 單邊鎖 / 遠 / 平 / 逆 / 缺 / 量 / 比 / 13:00 後不進,
   // 訊號確認就亮燈;平倉那邊(停利 / 停損 / 6% / 13:25 / OBV / 反向確認點)照舊讓燈回監控。真正下單、通知、圖上標記仍用一般模式。
@@ -4305,14 +4312,14 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
   const idx = arr => { const m = new Map(); arr.forEach((x, i) => m.set(x.time, i)); return m; };
   const iMa = idx(ma), iOb = idx(ob), iObma = idx(obma);
   const vw = vwap(bars), iVw = idx(vw);                 // VWAP 方向過濾用(2026-10-15 23:30)
-  const obma2 = SIG.obvExitMa > 0 ? sma(ob, SIG.obvExitMa, 'value') : [], iObma2 = idx(obma2);   // 2026-10-17 第二條較慢的 OBV 均線,只給平倉警示用
-  const obma2s = SIG.obmaSlope2Ma > 0 ? sma(ob, SIG.obmaSlope2Ma, 'value') : [], iObma2s = idx(obma2s);   // 2026-10-18 藍線太平時的第二判別:OBV 均 5 的 5 根斜率(使用者定案「把 OBV5 加入判別式一」)
-  const obmaW = SIG.obvWarnMa > 0 ? sma(ob, SIG.obvWarnMa, 'value') : [], iObmaW = idx(obmaW);
+  const obma2 = SIG.obvExitMa > 0 ? smaO(ob, SIG.obvExitMa) : [], iObma2 = idx(obma2);   // 2026-10-17 第二條較慢的 OBV 均線,只給平倉警示用
+  const obma2s = SIG.obmaSlope2Ma > 0 ? smaO(ob, SIG.obmaSlope2Ma) : [], iObma2s = idx(obma2s);   // 2026-10-18 藍線太平時的第二判別:OBV 均 5 的 5 根斜率(使用者定案「把 OBV5 加入判別式一」)
+  const obmaW = SIG.obvWarnMa > 0 ? smaO(ob, SIG.obvWarnMa) : [], iObmaW = idx(obmaW);
   const crossMode = SIG.entryMode === 'cross';                                                   // 判別式二(2026-10-18):紅線穿藍線起手
-  const obmaSlow = crossMode && SIG.crossSlowMa > 0 ? sma(ob, SIG.crossSlowMa, 'value') : [], iObmaSlow = idx(obmaSlow);
-  const obmaSlow2 = crossMode && SIG.crossSlowMa2 > 0 ? ((SIG.crossSlowMa2 === SIG.obvExitMa && obma2.length) ? obma2 : sma(ob, SIG.crossSlowMa2, 'value')) : [], iObmaSlow2 = idx(obmaSlow2);   // 判別式二第五次修改:穿越確認的第三條慢線(OBV 均 30)
+  const obmaSlow = crossMode && SIG.crossSlowMa > 0 ? smaO(ob, SIG.crossSlowMa) : [], iObmaSlow = idx(obmaSlow);
+  const obmaSlow2 = crossMode && SIG.crossSlowMa2 > 0 ? ((SIG.crossSlowMa2 === SIG.obvExitMa && obma2.length) ? obma2 : smaO(ob, SIG.crossSlowMa2)) : [], iObmaSlow2 = idx(obmaSlow2);   // 判別式二第五次修改:穿越確認的第三條慢線(OBV 均 30)
   // 2026-10-19 使用者:「OBV30 藍線向上不做空只做多,反之亦然,寫進判別式一跟二」→ 確認點 OBV 均 obvDirMa 最近 obvDirBars 根要和方向同向(持平也不進),標「向」;模擬器 OBVDIR=30
-  const obmaDir = SIG.obvDirMa > 0 ? ((SIG.obvDirMa === SIG.obvExitMa && obma2.length) ? obma2 : sma(ob, SIG.obvDirMa, 'value')) : [], iObmaDir = idx(obmaDir);
+  const obmaDir = SIG.obvDirMa > 0 ? ((SIG.obvDirMa === SIG.obvExitMa && obma2.length) ? obma2 : smaO(ob, SIG.obvDirMa)) : [], iObmaDir = idx(obmaDir);
   const cand = {long: null, short: null};                                                         // 穿越候選 {exp: 到期的 bar index, i0: 穿越那根在 ob 的 index}
   // 判別式二 強訊號(2026-10-18 22:15):紅線在 OBV10 與 OBV strongSlowMa 之下 + OBV10 剛死叉 + 兩條都降 + 價在均價下 → 直接當確認點(strongHolds 判斷;燈號也用同一個函式)
   const strongOn = !!SIG.strong && SIG.strongSlowMa > 0;
@@ -4321,7 +4328,7 @@ function replaySignals(bars, ma, ob, obma, prevClose, canShort, opts = {}){
   const brkMode = SIG.entryMode === 'brk';                                                         // 判別式三(2026-10-20):「燿華型」盤整後大量破高起漲點,只做多
   const pressMode = SIG.entryMode === 'press';                                                     // 判別式四(2026-10-20):「壓線空點」反彈碰向下的均價被壓回 + 三線向下 + 量先價行 + 不追空,只做空
   const slowN = strongOn ? SIG.strongSlowMa : (gapMode ? SIG.gapSlowMa : (seqMode ? SIG.seqSlowMa : 0));
-  const obmaS = slowN > 0 ? ((slowN === SIG.obvExitMa && obma2.length) ? obma2 : sma(ob, slowN, 'value')) : [];
+  const obmaS = slowN > 0 ? ((slowN === SIG.obvExitMa && obma2.length) ? obma2 : smaO(ob, slowN)) : [];
   const SM = slowN > 0 ? {ma: toTimeMap(ma), ob: toTimeMap(ob), obma: toTimeMap(obma), obS: toTimeMap(obmaS)} : null;
   const gcand = {long: null, short: null};                                                        // 判別式三:差剛翻正 / 翻負的候選(bar index + gapWinBars)
   const scand = {long: null, short: null};                                                        // 強訊號候選:剛成立那根的 bar index + strongWin   // 2026-10-17 「正在反彈」警示用:OBV 反向穿越這條只通知、不平倉,每筆持倉只提醒一次
