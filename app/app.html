@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 15:15 舊格式平倉通知(沒寫進場價)改成往前找同一檔同一份的進場卡補進場價 / 方向,當日 / 30日輸贏才不會漏掉賺的單(10/20 判二瑞軒、榮科停利原本沒算進去)。
   · 2026-10-24 15:05 回測只補每份判別式「第一次有實際通知」之前的日子(使用者:「以後如果滿30日了 回測資料就不需要了」);上線後沒訊號的日子不補,滿 30 個開盤日後回測自動不用。
   · 2026-10-24 15:00 「30日」補回測(使用者:「目前不足30日 所以需要把回測的資料也算上去」):某天某份判別式沒有實際通知 → 用 app/bt_fill.json(現行規則重跑 10/06~10/22 的進出場)補;明細標「含回測」。
   · 2026-10-24 14:55 點標題列的「當日 / 30日」改列 30 個開盤日每天的淨輸贏與平倉筆數(再點一次回卡片),對帳用(使用者:「判二不是贏錢 怎麼是輸」)。
@@ -1957,7 +1958,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610241505">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610241515">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6981,6 +6982,12 @@ window.bgTick = bgTick; window.BG = BG;
       } else return null;
       return o;
     };
+    // 2026-10-24 15:10 舊格式平倉通知(內容只有「12:31 現價 69.2」,沒寫進場價 / 方向)→ 往更早的卡找同一檔、同一份判別式最近的進場卡補上,
+    //   不然算當日 / 30日輸贏時這筆會被漏掉(10/20 判二 瑞軒、榮科停利沒算進去,只算到賠的)。arr 新的在前
+    const fillEnt = arr => { arr.forEach((o, k) => { if (o.type !== 'exit' || (o.entP > 0 && o.side)) return;
+      for (let j = k + 1; j < arr.length; j++){ const q = arr[j]; if (q.code !== o.code || (q.rs || '') !== (o.rs || '')) continue;
+        if (q.type === 'exit') break; if (q.type === 'entry'){ if (!(o.entP > 0)) o.entP = q.price; if (!o.entT) o.entT = q.t; if (!o.side) o.side = q.side;
+          if (o.pl == null && o.entP > 0 && o.price > 0) { o.pl = Math.round((o.price - o.entP) / o.entP * 1000 * (o.side === 'long' ? 1 : -1)) / 10; o.win = o.pl >= 0; } break; } } }); return arr; };
     // 2026-10-17 18:50 使用者:進場、平倉是各自一則,不合併。進場只顯示當時要交易的價格,沒有平倉等級;平倉那則顯示平倉價、等級、輸/贏
     const cards = items.map(parse).filter(Boolean).filter(o => { const px = o.entP || o.price || 0; return !(px > 0 && px * 1000 > capFund()); });
     // 2026-10-19 使用者:「為什麼同一支股票會有這麼多的平倉訊息」:同一檔、同一份判別式,兩張平倉卡之間沒有新的進場 → 只留最早那張(items 新的在前,所以保留最後出現的)。
@@ -6991,6 +6998,7 @@ window.bgTick = bgTick; window.BG = BG;
         if (o.type === 'exit'){ if (seenExit.has(kk)) continue; seenExit.set(kk, true); }
         keep.push(o); }
       keep.reverse(); cards.length = 0; cards.push(...keep); }
+    fillEnt(cards);
     // 2026-10-20 使用者:「一支股票只需要有一進場跟一平倉兩個訊息而已」:同一檔、同一份判別式,一個部位只留「進場」「平倉」各一張 ——
     // 上一張進場還沒出現平倉前再來的進場卡(判二強訊號 10:52 之後 11:17 又一張做多進場)不顯示;注意 / 反彈卡不另外顯示,狀態仍寫在進場卡的警示欄。
     // 判一、判二各自算(各一進一出);雲端紀錄不刪,手機通知照發。
@@ -7072,7 +7080,7 @@ window.bgTick = bgTick; window.BG = BG;
         if (o.type === 'entry'){ seenExit.delete(kk); keep.push(o); continue; }
         if (o.type === 'exit'){ if (seenExit.has(kk)) continue; seenExit.set(kk, true); }
         keep.push(o); }
-      return keep; };
+      return fillEnt(keep.reverse()); };
     const RSL = window.LOG_RS ? [window.LOG_RS] : ['判一', '判二', '判三'];
     // 2026-10-24 14:50 使用者:「以後如果滿30日了 回測資料就不需要了」:回測只補「那份判別式第一次有實際通知那天之前」的日子;
     //   上線之後就算某天沒訊號也不補(那天本來就沒交易),滿 30 個開盤日後回測自然全部落在範圍外
