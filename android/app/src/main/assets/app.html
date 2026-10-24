@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 14:30 平倉卡 ▲ / ⚠ 最多 4 顆(使用者:「改最多顯示4顆」):每 1% 一顆(≤1% 一顆、≤2% 兩顆、≤3% 三顆、>3% 四顆),原本最多 2 顆。
   · 2026-10-24 14:25 當日金額和「30日」之間 18px → 22px(使用者:「18改22」)。
   · 2026-10-24 14:20 當日金額和「30日」之間 13px → 18px(使用者:「13px改18px」)。
   · 2026-10-24 14:15 「當日 ±金額」移到日期 ▶ 鍵後面 1px,再隔 13px 是「30日 ±金額」(使用者指定)。
@@ -1950,7 +1951,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610241425">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610241430">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7009,7 +7010,7 @@ window.bgTick = bgTick; window.BG = BG;
       if (sig2 !== (window.NL_STSIG || '')){ window.NL_STSIG = sig2; window.NL_STATUS = stmap; if (typeof resortList === 'function'){ clearTimeout(window.NL_ST_T); window.NL_ST_T = setTimeout(resortList, 50); } }
       else window.NL_STATUS = stmap; }
     const lotsOf = o => { const p = POSITIONS.get(o.code); if (p && p.qty) return p.qty; const ent = o.entP || o.price || 0; return ent ? Math.max(1, Math.floor(capFund() / (ent * 1000))) : 0; };   // 2026-10-19 使用者:「設上限 20 萬,台玻怎麼還顯示 5 張」→ 張數改用設定的多空上限(原本寫死 35 萬)
-    const marks = pl => Math.abs(pl || 0) <= 1 ? 1 : 2;   // 損益佔投入金額的 %:≤1 一個、更多兩個(2026-10-17 由三個改兩個)
+    const marks = pl => Math.min(4, Math.max(1, Math.ceil(Math.abs(pl || 0) - 1e-9)));   // 2026-10-24 14:12 使用者:「改最多顯示4顆」:每 1% 一顆,≤1% 一顆、≤2% 兩顆、≤3% 三顆、超過 3% 四顆   // 損益佔投入金額的 %:≤1 一個、更多兩個(2026-10-17 由三個改兩個)
     const line = o => {
       // 2026-10-18 使用者定案:一張卡兩列,欄位上下對齊 ──
       //   第 1 列:名稱 | 進場價 | 做多 / 做空 | 張數 | ▲ / ⚠ | 注意
