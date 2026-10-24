@@ -45,7 +45,7 @@ def main():
     b.connect()
     n_ok = n_empty = 0
     try:
-        for day in sorted(lst):
+        for day in sorted(lst, reverse=True):   # 新的先抓(元大一分線只給近 20 天)
             if only and day != only:
                 continue
             f = OUT / f"{day}.csv"
