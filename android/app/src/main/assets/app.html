@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 09:30 加碼卡片加黃色網紋底(使用者:「加碼的 黃色網紋底」;.card.c-turn.c-add),其他轉折卡維持透明。
   · 2026-10-24 05:25 加碼價格改用第一則的多/空點價(使用者:「改293.50」):「台虹 8039 加碼 293.50」。
   · 2026-10-24 05:20 加碼通知改樣式(使用者:「只顯示 加碼 不用顯示 做空加碼」「應該是293.00或是293.50才對」):標題「台虹 8039 加碼 293.00」,價格改用現價(不用 Kb 值);監控紀錄卡片那格顯示「加碼」(顏色照多/空)。
   · 2026-10-24 05:00 加碼加「價差太遠」條件(使用者:「除了30根 可能還要增加一個 就是價差太遠」→「好 改1」;YH.turnKbAddMaxPct = 2):訊號那根收盤離 Kb 超過 2% 就不推加碼。
@@ -1936,7 +1937,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610240525">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610240930">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2022,6 +2023,7 @@ except Exception:
   #notifLog .card.c-long{background-color:rgba(170,120,255,.16);background-image:repeating-linear-gradient(0deg,rgba(190,150,255,.30) 0 1px,transparent 1px 6px),repeating-linear-gradient(90deg,rgba(190,150,255,.30) 0 1px,transparent 1px 6px)}   /* 做多:直橫方格網(做空是斜紋交叉網),2026-10-18 使用者:「做多的網狀改別種形式」 */
   #notifLog .card.c-short{background-color:rgba(90,170,255,.08);background-image:repeating-linear-gradient(45deg,rgba(120,190,255,.14) 0 1px,transparent 1px 7px),repeating-linear-gradient(-45deg,rgba(120,190,255,.14) 0 1px,transparent 1px 7px)}   /* 2026-10-19 使用者:「藍色網格太藍了,改更淺一點」→ 底色與斜紋濃度各減半(.16→.08、.28→.14) */
   #notifLog .card.c-turn{background-color:transparent;background-image:none}   /* 2026-10-23 12:02 使用者:「轉折提示 則不加網狀底色」 */
+  #notifLog .card.c-turn.c-add{background-color:rgba(255,210,60,.10);background-image:repeating-linear-gradient(45deg,rgba(255,215,70,.24) 0 1px,transparent 1px 7px),repeating-linear-gradient(-45deg,rgba(255,215,70,.24) 0 1px,transparent 1px 7px)}   /* 2026-10-24 09:30 使用者:「加碼的 黃色網紋底」 */
   /* 2026-10-19 .card.mine(黃框)/ .card.done(藍框)取消,卡片一律無框 */
   #notifLog .card .ln{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:18px;font-weight:700;line-height:1.25;min-height:1.3em;overflow:hidden}   /* 2026-10-17 其餘欄位字體最大化、垂直置中;寬度不夠時由程式自動縮字 */
   #notifLog .card .ln .nmblk{flex:0 0 5.2em;min-width:0;overflow:hidden;display:flex;align-items:center;font-size:.9em;line-height:1.15}   /* 2026-10-18 一張卡兩列:第 1 列放名稱、第 2 列放代碼,其餘欄位上下對齊 */
@@ -6965,7 +6967,7 @@ window.bgTick = bgTick; window.BG = BG;
     };
     const info = o => '';   // 2026-10-17 使用者:每一則下面的灰字明細都不顯示,只留代碼
     const shown = cards.filter(o => !o._hide); n = shown.length; const hd2 = hd.replace(/<span>\d+ 則<\/span>/, `<span>${n} 則</span>`);
-    box.innerHTML = hd2 + (shown.length ? shown.map((o, k) => `<div class="card ${o.type === 'turn' ? 'c-turn' : o.side === 'long' ? 'c-long' : o.side === 'short' ? 'c-short' : ''}${posStatus(o.code) === 'open' ? ' mine' : posStatus(o.code) === 'closed' ? ' done' : ''}" data-i="${k}">${line(o)}</div>`).join('')
+    box.innerHTML = hd2 + (shown.length ? shown.map((o, k) => `<div class="card ${o.type === 'turn' ? 'c-turn' + (o.add ? ' c-add' : '') : o.side === 'long' ? 'c-long' : o.side === 'short' ? 'c-short' : ''}${posStatus(o.code) === 'open' ? ' mine' : posStatus(o.code) === 'closed' ? ' done' : ''}" data-i="${k}">${line(o)}</div>`).join('')
       : `<div class="empty">${d === today ? '今日還沒有通知<br>(進場 / 停利 / 停損 / 出場會列在這裡)' : '這天沒有紀錄'}</div>`);
     // 2026-10-17 自動縮字:真機系統字體放大時整列會超出卡片,量一下塞不下就縮,直到塞下為止(最小 11px)
     // 2026-10-17 字體自適:每一列先用 18px 畫,量出實際需要的寬度,再按「可用寬 ÷ 需要寬」一次算出剛好塞滿的字級(10~21px)。
