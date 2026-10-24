@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 12:55 手續折扣滾輪上鎖(使用者:「平常 暗灰色 不能滾動 長按才能啟動 啟動狀態下 再長按 才能進入下一層 離開則退回最開始 暗灰色狀態」):暗灰鎖住 → 長按啟動 → 再長按開券商 / 證交所 / 證交稅 → 再長按(或長按設定、關設定面板)離開回暗灰。
   · 2026-10-24 12:45 監控高價滾輪每格 5 元(使用者:「監控高價 滾輪每次加5或者是減5」):50~500,每 5 元一格;存檔的舊值對齊到 5 的倍數。
   · 2026-10-24 10:15 通知列新排版(使用者:「照這樣的排版 改 判一二三 的訊息 跟 轉折第一則訊息」「安卓系統的通知 也一樣」):12 種通知(轉折第一則 / 加碼 / 急拉注意、判進場 / 強進場、停利 / OBV / 收盤 / 反向 / 停損 / 超6%)由 notifLay() 排成上下兩列三欄,交給 APK 1.5.46 的 Android.notify2 畫成大字圖(「·」上下對齊、加碼黃網紋、做空藍網、做多紫網、停利淡藍、停損淡紅);舊 APK 照舊文字通知。監控紀錄存的文字不變,點通知照樣開那檔 K 圖。
   · 2026-10-24 09:30 加碼卡片加黃色網紋底(使用者:「加碼的 黃色網紋底」;.card.c-turn.c-add),其他轉折卡維持透明。
@@ -1939,7 +1940,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610241245">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610241255">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2110,6 +2111,7 @@ except Exception:
   .panel.open .wheels{visibility:visible}
   .panel.open #notifLog{visibility:hidden}   /* 設定滾輪打開時,監控紀錄先藏起來,不然兩個疊在一起 */
   .wheel{flex:0 0 calc((100% - 16px) / 3);position:relative;min-width:0}
+  #feeWheel.locked{filter:grayscale(1) brightness(.5)} #feeWheel.locked .scroller{pointer-events:none;touch-action:none}   /* 2026-10-24 12:50 手續折扣平常暗灰、不能滾,長按才啟動 */
 
   /* 長按「手續費折扣」:三個費率滾輪覆蓋在第一排上方,
      絕對定位 → 面板與灰框尺寸完全不變 */
@@ -2361,7 +2363,7 @@ except Exception:
     <div class="scroller" id="wCnt"></div>
     <div class="hl"></div>
   </div>
-  <div class="wheel" id="feeWheel">
+  <div class="wheel locked" id="feeWheel">
     <div class="lbl">手續折扣</div>   <!-- 2026-10-18 使用者:手續費折扣 → 手續折扣 -->
     <div class="scroller" id="wFee"></div>
     <div class="hl"></div>
@@ -3040,6 +3042,7 @@ function render(list){
 
   const toggle = () => {
     panel.classList.toggle('open');
+    if (!panel.classList.contains('open') && window.feeLock) feeLock();   // 2026-10-24 關掉設定面板 = 離開,手續折扣回暗灰
     if (panel.classList.contains('open')){ WHEELS.forEach(w => w.init()); if (window.hideInfo) hideInfo(); }
     if (window.refreshToolbar) refreshToolbar();
   };
@@ -3056,7 +3059,7 @@ function render(list){
     const sub = document.getElementById('subFee');
     if (sub && sub.classList.contains('show')){
       // 費率覆蓋層開著 → 長按齒輪等同長按「手續費折扣」,直接退出
-      sub.classList.remove('show');       // 數值撥動當下已存檔
+      window.feeLock();       // 數值撥動當下已存檔;2026-10-24 離開也回暗灰
     }else{
       // 2026-10-19 使用者:「右下角的 ≡ 取消,改在長按設定後出現那個選單」→ App 裡長按設定 = 開 App 選單(Android.openMenu,1.5.41);電腦瀏覽器沒有 Android 物件才匯出設定檔
       let opened = false;
@@ -3417,6 +3420,7 @@ attachCycle('capWheel', wCap, ['5萬','10萬','15萬','20萬','25萬',
                                '30萬','35萬','40萬','45萬','50萬']);
 
 /* 長按「手續費折扣」展開 / 收合券商與證交所費率 */
+window.feeLock = () => { const w = document.getElementById('feeWheel'), sub = document.getElementById('subFee'); if (sub) sub.classList.remove('show'); if (w) w.classList.add('locked'); };
 (() => {
   const w   = document.getElementById('feeWheel');
   const sub = document.getElementById('subFee');
@@ -3427,10 +3431,11 @@ attachCycle('capWheel', wCap, ['5萬','10萬','15萬','20萬','25萬',
     clearTimeout(timer);
     timer = setTimeout(() => {
       fired = true;
-      sub.classList.toggle('show');
-      if (sub.classList.contains('show')){
-        [wBroker, wExch, wTax].forEach(x => x.init());   // 顯示後重新量測定位
-      }
+      // 2026-10-24 12:50 使用者:「手續折扣 改 平常 暗灰色 不能滾動 長按才能啟動 啟動狀態下 再長按 才能進入下一層 離開則退回最開始 暗灰色狀態」
+      //   暗灰(鎖住)→ 長按 → 啟動(可滾)→ 再長按 → 進下一層(券商 / 證交所 / 證交稅)→ 再長按離開 → 回到暗灰;關掉設定面板也回暗灰
+      if (w.classList.contains('locked')) w.classList.remove('locked');
+      else if (!sub.classList.contains('show')){ sub.classList.add('show'); [wBroker, wExch, wTax].forEach(x => x.init()); }   // 顯示後重新量測定位
+      else window.feeLock();
       w.style.opacity = '.45';                        // 觸發回饋
       setTimeout(() => { w.style.opacity = ''; }, 140);
     }, 450);
