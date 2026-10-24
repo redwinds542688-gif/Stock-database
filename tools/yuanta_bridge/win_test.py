@@ -64,9 +64,9 @@ def main():
         acct, pwd = "S98875005091", "1234"                 # 元大公開的測試帳號(測試環境要先登記固定 IP)
         print("測試環境:用元大公開測試帳號 S98875005091(要先匯入測試憑證、營業員要先登記固定 IP)")
     else:
-        acct = input("證券帳號(S + 11 碼,例如 S98875005091)> ").strip().upper()
-        if not acct.startswith("S"):
-            acct = "S" + acct
+        acct = input("證券帳號(分公司 4 碼 + 帳號 7 碼,例如 981R0123456)> ").strip().replace("-", "")
+        # 分公司代號可能有英文字母(例如竹山 981R;元大範例寫成小寫 981r),照使用者打的大小寫送,不轉大寫
+        acct = "S" + (acct[1:] if acct[:1] in ("S", "s") and len(acct) == 12 else acct)
         pwd = getpass.getpass("電子密碼(輸入時不會顯示)> ")
 
     api = YuantaSparkAPITrader()
