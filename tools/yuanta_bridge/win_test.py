@@ -41,8 +41,8 @@ def on_response(intMark, dwIndex, strIndex, objHandle, objValue):
             rows = [(str(lst[i].TimeStamp), lst[i].OpenPrice, lst[i].HighPrice, lst[i].LowPrice, lst[i].ClosePrice, lst[i].DealVol) for i in range(lst.Count)]
             kl.append((str(objValue.StockCode), rows))
             ev["GetKLine"].set()
-        elif intMark == 1:
-            print(f"[查詢回應] {strIndex}")
+        else:                                              # 其他回應全部印出來(查登入沒回應的原因)
+            print(f"[回應] intMark={intMark} dwIndex={dwIndex} strIndex={strIndex} 值={objValue}")
     except Exception as e:
         print(f"[回應處理錯誤] {strIndex}: {e}")
 
@@ -78,8 +78,9 @@ def main():
     print("登入中…")
     api.Login(acct, pwd)
     pwd = None
-    if not ev["Login"].wait(20):
-        print("!! 20 秒沒有收到登入回應。請看上面 [系統] 訊息;常見原因:API 還沒開通、憑證沒匯入、測試環境沒登記固定 IP")
+    if not ev["Login"].wait(60):
+        print("!! 60 秒沒有收到登入回應。請看上面 [系統] / [回應] 訊息;常見原因:API 還沒開通(風險預告書、測試軟體上傳、營業員開通)、週末主機不受理、測試環境沒登記固定 IP")
+        print(r"   元大元件的紀錄檔在 C:\Yuanta\YuantaSparkAPI\Log(最新那個檔案最後幾行有原因)")
         api.Close(); api.Dispose(); return
     code, msg, n = got["Login"]
     if not (code in ("0001", "00001") or n > 0):
