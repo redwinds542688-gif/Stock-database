@@ -18,11 +18,7 @@
 - 下一步(使用者回報後):Windows 電腦裝 .NET 8 → 匯入測試憑證 → 用 `YuantaAPI_TestAP.exe` 公開測試帳號登入
   → 租 Linux 主機跑 `install.sh` → `test 2330` → `order-test` → 正式環境只收 K 線比對一天 → 手機切元大 → 最後才開自動交易(一次一單)。
 - 機密(帳號、密碼、憑證)只放主機 `bridge.env`;SDK 元件放主機 `/opt/yuanta_bridge/sdk`,都不進對話、不進 GitHub。
-- **上線前一定要改**:`trader.py` 每 3 秒問 Worker `?log=get`,Worker 每次都要 KV list;KV 免費方案一天只能 list 1,000 次(2026-10-22 中午兩支手機就用完、Worker 掛到隔天 08:00)。
-  要改成不靠 list 的方式(例如手機發通知時另存一個「今天通知清單」鍵,或中繼程式直接收手機的推播),再開自動交易。
-
-## 2026-10-24 Windows 實測(使用者家裡的 x64 桌機,正式環境,只讀)
-
+- ~~上線前一定要改:trader 每 3 秒 `?log=get`~~ → **2026-10-24 已解決**:10/25 起的通知紀錄、元大 1 分 K 改存 Cloudflare Durable Object「Hub」(不用 KV list / 寫入額度,讀到的一定是最新的),trader 不用改。
 - 環境:.NET SDK 8.0.426、Python 3.12.10、pythonnet 3.2.1、元大 `YuantaSparkAPI_win-x64_Python.zip`,跑 `win_test.py`。
 - **登入成功**(0001 執行成功)。帳號格式 `S` + 分公司 4 碼(竹山是 `981R`,有英文字母)+ 帳號 7 碼;Windows 登入用電腦裡的元大憑證(TaiCA Secure CA)。
 - **要等「交易主機 Is Connected」再 Login**:原本 Open 後 2 秒就登入,主機還沒連上,登入請求被丟掉、元大完全不回應(已改 win_test.py、yuanta_bridge.py)。週六也能登入。
@@ -34,7 +30,7 @@
 
 - 安裝:元大元件解壓到 `C:\Yuanta\YuantaSparkAPI_win-x64_Python` 後,`python win_install.py`(下載中繼程式到 `C:\Yuanta\bridge`、寫 bridge.env、建工作排程)。
 - 工作排程「YuantaBridge」:週一到週五 08:40、錯過就開機後馬上跑、「不論使用者是否登入均執行」(開機停在輸入密碼也會跑),程式自己 08:45~13:36 連元大。
-- 第一階段**只收行情、只存本機**:`PUSH_KEY` 空白 → 1 分 K 存 `C:\Yuanta\bridge\bars_yuanta\日期.csv`(不推 Worker:KV 一天只能寫 1,000 次,雲端 K 已用約 880);紀錄在 `C:\Yuanta\bridge\log`。
+- 第一階段**只收行情、只存本機**:`PUSH_KEY` 空白 → 1 分 K 存 `C:\Yuanta\bridge\bars_yuanta\日期.csv`;紀錄在 `C:\Yuanta\bridge\log`。`?ybars=push` 已改存 Durable Object(不吃 KV 額度),比對沒問題後設 Worker 密鑰 `YT_PUSH_KEY` + bridge.env `PUSH_KEY` 就會推上去。
 - 開機:主機板 BIOS 設每天 08:35 自動開機(使用者自己設)。
 - 程式跑著的時候不要再開 `win_test.py` 登入同一個帳號(可能互踢)。移除:`schtasks /Delete /TN YuantaBridge /F`。
 
