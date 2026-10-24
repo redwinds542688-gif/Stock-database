@@ -44,7 +44,15 @@ LOG_LOCK = threading.Lock()
 
 def log(*a):
     with LOG_LOCK:
-        print(now_tw().strftime("%m-%d %H:%M:%S"), *a, flush=True)
+        line = " ".join([now_tw().strftime("%m-%d %H:%M:%S")] + [str(x) for x in a])
+        try: print(line, flush=True)
+        except Exception: pass
+        # 2026-10-24 Windows 工作排程器在背景跑(沒有視窗):LOG_DIR 有設就每天一個紀錄檔
+        if CFG.get("LOG_DIR"):
+            try:
+                d = Path(CFG["LOG_DIR"]); d.mkdir(parents=True, exist_ok=True)
+                with open(d / f"bridge_{now_tw().strftime('%Y-%m-%d')}.log", "a", encoding="utf-8") as f: f.write(line + "\n")
+            except Exception: pass
 
 
 # ── 元大元件 ──
@@ -464,6 +472,8 @@ class Bridge:
     def push(self, day, minute, bars):
         if not bars:
             return True
+        if not CFG.get("PUSH_KEY"):
+            return self.save_local(day, minute, bars)
         body = json.dumps({"d": day, "m": minute, "bars": bars}).encode()
         req = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?ybars=push", data=body, method="POST",
                                      headers={"Content-Type": "application/json", "X-Push-Key": CFG["PUSH_KEY"]})
@@ -477,6 +487,23 @@ class Bridge:
             except Exception as e:
                 log(f"推送失敗 {minute} 第 {k + 1} 次", e); time.sleep(2)
         return False
+
+    def save_local(self, day, minute, bars):
+        """2026-10-24 第一階段:Cloudflare KV 一天只能寫 1,000 次(雲端 K 已用約 880),元大 1 分 K 先存在本機 CSV 比對,不推 Worker。
+        BARS_DIR/日期.csv:code,date,time,open,high,low,close,volume(量 = 股,和 kline/ 一樣);每次整檔重寫(晚到的成交會改到舊分鐘)"""
+        loc = getattr(self, "local", None)
+        if loc is None or loc.get("_d") != day:
+            loc = self.local = {"_d": day}
+        loc[minute] = bars
+        d = Path(CFG.get("BARS_DIR", HERE / "bars_yuanta")); d.mkdir(parents=True, exist_ok=True)
+        tmp = d / f"{day}.csv.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write("code,date,time,open,high,low,close,volume\n")
+            for m in sorted(k for k in loc if k != "_d"):
+                for c, (o, h, l, cl, v) in sorted(loc[m].items()):
+                    f.write(f"{c},{day},{m},{o},{h},{l},{cl},{int(v)}\n")
+        os.replace(tmp, d / f"{day}.csv")
+        return True
 
     def flush(self, day, final=False):
         """推送已經走完的分鐘(現在分鐘之前);收盤後 final=True 全推"""
@@ -557,9 +584,10 @@ def main():
         b.connect(); b.send_order(code, "TWSE", side, 1, price, "0", "0", "TEST1")
         time.sleep(20); b.close(); return
     # run:常駐
-    for k in ("WORKER_URL", "PUSH_KEY"):
-        if not CFG.get(k):
-            sys.exit(f"缺少設定 {k}")
+    if not CFG.get("WORKER_URL"):
+        sys.exit("缺少設定 WORKER_URL")
+    if not CFG.get("PUSH_KEY"):
+        log("沒有 PUSH_KEY:元大 1 分 K 只存本機", CFG.get("BARS_DIR", str(HERE / "bars_yuanta")), "(不推 Worker,不用 KV 額度)")
     if CFG.get("QUOTE_ENABLE", "0") == "1":        # 預設關閉:要使用者自己決定要不要讓手機即時價走元大(會透過 Cloudflare Tunnel 對外開一個唯讀、要金鑰的報價服務)
         b.serve_quotes()
     while True:
@@ -576,4 +604,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except BaseException:
+        import traceback; log("!! 程式中止", traceback.format_exc()); raise
