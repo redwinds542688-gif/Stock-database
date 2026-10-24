@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 10:15 通知列新排版(使用者:「照這樣的排版 改 判一二三 的訊息 跟 轉折第一則訊息」「安卓系統的通知 也一樣」):12 種通知(轉折第一則 / 加碼 / 急拉注意、判進場 / 強進場、停利 / OBV / 收盤 / 反向 / 停損 / 超6%)由 notifLay() 排成上下兩列三欄,交給 APK 1.5.46 的 Android.notify2 畫成大字圖(「·」上下對齊、加碼黃網紋、做空藍網、做多紫網、停利淡藍、停損淡紅);舊 APK 照舊文字通知。監控紀錄存的文字不變,點通知照樣開那檔 K 圖。
   · 2026-10-24 09:30 加碼卡片加黃色網紋底(使用者:「加碼的 黃色網紋底」;.card.c-turn.c-add),其他轉折卡維持透明。
   · 2026-10-24 05:25 加碼價格改用第一則的多/空點價(使用者:「改293.50」):「台虹 8039 加碼 293.50」。
   · 2026-10-24 05:20 加碼通知改樣式(使用者:「只顯示 加碼 不用顯示 做空加碼」「應該是293.00或是293.50才對」):標題「台虹 8039 加碼 293.00」,價格改用現價(不用 Kb 值);監控紀錄卡片那格顯示「加碼」(顏色照多/空)。
@@ -1937,7 +1938,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610240930">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610241015">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6521,7 +6522,44 @@ async function scan(){
    沒有 Android 物件(在電腦瀏覽器測試)時寫進 BG.log。 */
 const BG = { last: new Map(), hist: new Map(), histDay: '', todayAt: new Map(), busy: false, startedAt: 0, log: [], ticks: 0, pos: new Map(), holiday: '', recent: new Map() };   // recent:判別式|代碼|訊號種類 → 上次通知時間(10 分鐘內不重複)
 function bgLog(s){ const line = new Date().toLocaleTimeString('zh-TW', {hour12:false}) + ' ' + s; BG.log.push(line); if (BG.log.length > 300) BG.log.shift(); try{ if (window.Android && Android.log) Android.log(line); }catch(e){} }
-function bgNotify(title, body, kind, pos){ body = (body || '') + ' · ' + RULESET.btn; bgLog('[通知] ' + title + ' | ' + body); try{ if (window.Android && Android.notify && kind !== 'warn') Android.notify(title, body, kind || ''); }catch(e){} cloudLogAdd(title, body, kind || '', pos); }   // pos = 部位鍵(判別式|代碼|進場時間):平倉用,雲端同一個部位只留一則(2026-10-20)   // 2026-10-20 鐵律 17:注意 / 反彈不推到手機,只記雲端(進場卡的警示欄用)
+// 2026-10-24 10:10 使用者:「照這樣的排版 改 判一二三 的訊息 跟 轉折第一則訊息」(通知列兩列、三欄,「·」上下對齊、字放到最大):
+//   通知列的樣子由 notifLay() 從標題 / 內容算出 {t:[3 欄], b:[3 欄], c:上列顏色, bg:底色種類},交給 App 1.5.46 起的 Android.notify2 畫成圖;
+//   舊 App 沒有 notify2 就照舊 Android.notify。存進監控紀錄的標題 / 內容不變(卡片、點通知開 K 圖都靠它)。
+function notifLay(title, body, kind){
+  try{
+    const m = (title || '').match(/^(?:⚠⚠ |⚠ |✅ )?(\S+) (\d{4,6}[A-Z]*)\s*(.*)$/); if (!m) return null;
+    const nm = m[1], code = m[2], rest = m[3], b = body || '', cn = `${code}. ${nm}`;
+    const RED = '#ff5a5a', GRN = '#3ddc84', hm = (b.match(/^(\d\d:\d\d)/) || [])[1] || '';
+    const rs = ((b.match(/· (判[一二三]|轉折)\s*$/) || [])[1]) || '';
+    const num = re => ((rest.match(re) || [])[1]) || '';
+    if (rs === '轉折'){
+      if (/^加碼 /.test(rest)){ const sh = /空點/.test(b), px = num(/([\d.]+)\s*$/);
+        return {t: [cn, `加碼 ${px}`, sh ? '做空' : '做多'], b: [`${hm} 回到`, `現價 ${px}`, '轉折'], c: sh ? GRN : RED, bg: 'add'}; }
+      const al = rest.match(/^(多單|空單)注意 ([\d.]+)/);
+      if (al){ const mv = (b.match(/(急拉|急殺) ([+\-−]?[\d.]+%)\((\d+)分鐘\)/) || []);
+        return {t: [cn, `注意 ${al[2]}`, al[1]], b: [`${hm} ${mv[1] || ''}`, `${mv[2] || ''}(${mv[3] || ''}分)`, '轉折'], c: '#ffb04a', bg: 'alert'}; }
+      const sh = /做空/.test(rest), px = num(/([\d.]+)\s*$/), now = ((b.match(/現價 ([\d.]+)/) || [])[1]) || px;
+      return {t: [cn, `${sh ? '空' : '多'}點 ${px}`, sh ? '做空' : '做多'], b: [`${hm} ${sh ? '空' : '多'}點`, `現價 ${now}`, '轉折'], c: sh ? GRN : RED, bg: 'turn'};
+    }
+    if (kind === 'long' || kind === 'short'){
+      const sh = kind === 'short', px = num(/([\d.]+)\s*$/), tx = ((b.match(/^\d\d:\d\d (\S+)/) || [])[1]) || '';
+      const tp = ((b.match(/停利 ([\d.]+)/) || [])[1]) || '', sl = ((b.match(/停損 ([\d.]+)/) || [])[1]) || '';
+      return {t: [cn, `${/強/.test(rest) ? '強進場' : '進場'} ${px}`, sh ? '做空' : '做多'], b: [`${hm} ${tx}`, `利 ${tp} 損 ${sl}`, rs], c: sh ? GRN : RED, bg: sh ? 'short' : 'long'};
+    }
+    // 平倉:內容「13:12 做空 10:22 進 85.80 → 現價 83.60 · 判一」
+    const e = b.match(/^\d\d:\d\d (做多|做空) \S+ 進 ([\d.]+) → 現價 ([\d.]+)/); if (!e) return null;
+    const pl = num(/([+\-]\d+(?:\.\d+)?%)/), lose = kind === 'loss';
+    let why = /OBV/.test(rest) ? 'OBV' : /停利/.test(rest) && !lose ? '停利' : ((rest.match(/(停損|超6%|反向|停利)/) || [])[1]) || (/[::]出|出 /.test(rest + ' ') ? '收盤' : '出場');
+    if (why === '出場' && /出/.test(rest)) why = '收盤';
+    return {t: [cn, `${lose ? '⚠⚠ ' : '✅ '}${why} ${pl.replace('-', '−')}`, '平倉'], b: [`${hm} ${e[1]}`, `${e[2]}→${(+e[3]).toFixed(2)}`, rs], c: lose ? '#ff8a8a' : '#7cc8ff', bg: lose ? 'loss' : 'profit'};
+  }catch(err){ return null; }
+}
+function andNotify(title, body, kind){
+  if (!(window.Android && Android.notify)) return;
+  const lay = notifLay(title, body, kind);
+  if (lay && Android.notify2) Android.notify2(title, body, kind || '', JSON.stringify(lay)); else Android.notify(title, body, kind || '');
+}
+function bgNotify(title, body, kind, pos){ body = (body || '') + ' · ' + RULESET.btn; bgLog('[通知] ' + title + ' | ' + body); try{ if (kind !== 'warn') andNotify(title, body, kind || ''); }catch(e){} cloudLogAdd(title, body, kind || '', pos); }   // pos = 部位鍵(判別式|代碼|進場時間):平倉用,雲端同一個部位只留一則(2026-10-20)   // 2026-10-20 鐵律 17:注意 / 反彈不推到手機,只記雲端(進場卡的警示欄用)
 /* 2026-10-19 使用者:「通知欄的訊息需要紀錄在雲端,這樣不管那隻手機都可以看到相同的過往通知」
    每發一則通知就 POST 到 Worker(?log=add → Cloudflare KV,保留 90 天);送不出去的排隊,下一輪 bgTick 再送。
    鍵 = 日期|時間|代碼|標題去掉數字|判別式:兩支手機同一分鐘發的同一則 → 同一個鍵,雲端只留一份 */
@@ -6752,7 +6790,7 @@ async function bgTick(force, replay){
               // 2026-10-23 11:47 使用者:「還是要提醒做空做多價格 時間 原訊息裡顯示判一判二的位置 改顯示轉折」:格式比照進場通知,最後面判一 / 判二的位置寫「轉折」
               const title = `${nm} ${code} ${side} ${(+p.price).toFixed(2)}`, body = `${hmKey(p.time)} ${p.side > 0 ? '多' : '空'}點 · 現價 ${(+nowPx).toFixed(2)} · 轉折`;
               bgLog('[轉折通知] ' + title + ' | ' + body);
-              try{ if (window.Android && Android.notify) Android.notify(title, body, p.side > 0 ? 'long' : 'short'); }catch(e){}
+              try{ andNotify(title, body, p.side > 0 ? 'long' : 'short'); }catch(e){}
               cloudLogAdd(title, body, 'turn');
               (BG.turnLast = BG.turnLast || new Map()).set(code, {side: p.side, price: +p.price, time: p.time, alerted: false});   // 2026-10-23 14:25 急拉警報用:記最後一則推出去的轉折
             }
@@ -6778,7 +6816,7 @@ async function bgTick(force, replay){
                       const title = `${nm} ${code} 加碼 ${L.price.toFixed(2)}`;   // 2026-10-24 05:20 使用者「只顯示 加碼」;05:25「改293.50」= 價格用第一則的多/空點價
                       const body = `${hmKey(b.time)} 回到 Kb ${(+kb).toFixed(2)} · ${hmKey(L.time)} ${L.side > 0 ? '多' : '空'}點 ${L.price.toFixed(2)} · 現價 ${(+nowPx).toFixed(2)} · 轉折`;
                       bgLog('[Kb 加碼] ' + title + ' | ' + body);
-                      try{ if (window.Android && Android.notify) Android.notify(title, body, L.side > 0 ? 'long' : 'short'); }catch(e){}
+                      try{ andNotify(title, body, L.side > 0 ? 'long' : 'short'); }catch(e){}
                       cloudLogAdd(title, body, 'turn');
                       break;
                     }
@@ -6801,7 +6839,7 @@ async function bgTick(force, replay){
                     const title = `${nm} ${code} ${L.side > 0 ? '多單注意' : '空單注意'} ${(+nowPx).toFixed(2)}`;
                     const body = `${hmKey(z.time)} ${up ? '急拉' : '急殺'} ${up ? '+' : ''}${mv.toFixed(1)}%(${N}分鐘) · ${hmKey(L.time)} ${L.side > 0 ? '多' : '空'}點 ${L.price.toFixed(2)} · 轉折`;
                     bgLog('[急拉警報] ' + title + ' | ' + body);
-                    try{ if (window.Android && Android.notify) Android.notify(title, body, up ? 'long' : 'short'); }catch(e){}
+                    try{ andNotify(title, body, up ? 'long' : 'short'); }catch(e){}
                     cloudLogAdd(title, body, 'turn');
                   }
                 }

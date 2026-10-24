@@ -1,3 +1,4 @@
+// note: 通知列新排版(兩列三欄對齊、大字、底色網紋);點通知開那檔 K 圖
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -9,8 +10,8 @@ android {
         applicationId = "tw.mysh.monitor"
         minSdk = 26
         targetSdk = 34
-        versionCode = 51
-        versionName = "1.5.45"
+        versionCode = 52
+        versionName = "1.5.46"
     }
     signingConfigs {
         create("release") {

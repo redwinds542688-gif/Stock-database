@@ -51,7 +51,13 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
     }
 
     @JavascriptInterface
-    fun notify(title: String?, body: String?, kind: String?) {
+    fun notify(title: String?, body: String?, kind: String?) = notify2(title, body, kind, null)
+
+    /** 2026-10-24 使用者:「照這樣的排版 改 判一二三 的訊息 跟 轉折第一則訊息」「安卓系統的通知 也一樣」
+     *  lay = {t:[上列 3 欄], b:[下列 3 欄], c:上列顏色, bg:turn/add/alert/long/short/profit/loss}:畫成一張圖放進通知(兩列、三欄「·」上下對齊、字放到最大、底色網紋)。
+     *  lay 是 null 或畫圖失敗就照舊的文字通知。點通知一樣開那檔的 K 圖。 */
+    @JavascriptInterface
+    fun notify2(title: String?, body: String?, kind: String?, lay: String?) {
         try {
             ensureChannels(ctx)
             val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -69,6 +75,7 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
                 .setSmallIcon(R.drawable.ic_stat)
                 .setContentTitle(title ?: "訊號").setContentText(body ?: "")
                 .setStyle(Notification.BigTextStyle().bigText(body ?: ""))
+                .also { nb -> NotifCard.apply(ctx, nb, lay) }
                 .setColor(color).setColorized(danger)
                 .setCategory(Notification.CATEGORY_ALARM).setPriority(Notification.PRIORITY_HIGH)
                 .setGroup(if (danger) "danger" else "signals")
