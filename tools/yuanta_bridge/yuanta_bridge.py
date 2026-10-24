@@ -92,6 +92,7 @@ class Bridge:
         self.trader = None       # 一次一單自動交易(trader.py;TRADE_ENABLE=1 才會下單)
         self.quotes = QuoteBook(vol_mult=int(CFG.get("VOL_MULT", "1000")))   # 手機即時價(quotes.py)
         self.resume_buf = None   # 啟動時接回部位的查詢結果
+        self.trade_up = threading.Event()   # 交易主機已連上(登入要等它)
 
     # 回應事件(元大的執行緒呼叫,不能在這裡做耗時的事)
     def on_response(self, intMark, dwIndex, strIndex, objHandle, objValue):
@@ -101,6 +102,9 @@ class Bridge:
                 log(f"系統 [{dwIndex} {SYS_MSG.get(int(dwIndex), '')}] {msg}")
                 if dwIndex in (2, 3, 5):        # 2 斷線、3 網路異常、5 尚未連線
                     self.disconnected.set(); self.logged_in.clear()
+                    if "交易主機" in msg: self.trade_up.clear()
+                if dwIndex == 1 and "交易主機" in msg:
+                    self.trade_up.set()
                 if dwIndex == 4:
                     log("!! 元大要求下載新版 API 元件,請更新 sdk/ 後重啟")
                 return
@@ -214,9 +218,12 @@ class Bridge:
         if CFG.get("YT_PMM_CHECK", "1") == "0":
             self.api.SetPMMServerCheck(False)    # 元大文件「API 相關設定」:是否檢查 PMMServer(預設檢查);連不上時可試著關掉
         self.api.OnResponse += self.on_response
-        self.disconnected.clear(); self.logged_in.clear()
+        self.disconnected.clear(); self.logged_in.clear(); self.trade_up.clear()
         self.api.Open(mode)
-        time.sleep(2)
+        # 2026-10-24 Windows 第一次實測:Open 後 2 秒就登入,交易主機還沒連上,登入請求被丟掉、元大完全不回應 → 等「交易主機 Is Connected」再登入
+        if not self.trade_up.wait(30):
+            raise RuntimeError("30 秒還沒連上元大交易主機(網路?)")
+        time.sleep(1)
         acc, pw = CFG["YT_ACCOUNT"], CFG["YT_PASS"]
         self.login_fail = None
         if sys.platform == "win32":

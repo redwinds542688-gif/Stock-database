@@ -23,7 +23,7 @@ clr.AddReference("YuantaSparkAPI")
 from YuantaOneAPI import YuantaSparkAPITrader, enumEnvironmentMode, OnResponseEventHandler, enumLogType, enumMarketType, KLineType
 
 got = {}                      # strIndex -> 回應
-ev = {k: threading.Event() for k in ("Login", "GetKLine")}
+ev = {k: threading.Event() for k in ("Login", "GetKLine", "Trade")}
 kl = []
 
 
@@ -31,6 +31,8 @@ def on_response(intMark, dwIndex, strIndex, objHandle, objValue):
     try:
         if intMark == 0:                                   # 系統訊息(連線 / 斷線 / 錯誤)
             print(f"[系統] {dwIndex} {objValue}")
+            if "交易主機" in str(objValue) and "Connected!!" in str(objValue):
+                ev["Trade"].set()
         elif intMark == 1 and strIndex == "Login":
             st = objValue.LoginStatus
             got["Login"] = (str(st.MsgCode), str(st.MsgContent), int(st.Count))
@@ -74,7 +76,11 @@ def main():
     api.SetLogType(enumLogType.COMMON)
     print("連線中…")
     api.Open(mode)
-    time.sleep(2)
+    # 2026-10-24 第一次實測:Open 後 2 秒就送登入,交易主機那時還沒連上,登入請求被丟掉、元大不回應 → 等「交易主機 Is Connected」再登入
+    if not ev["Trade"].wait(30):
+        print("!! 30 秒還沒連上交易主機,請檢查網路")
+        api.Close(); api.Dispose(); return
+    time.sleep(1)
     print("登入中…")
     api.Login(acct, pwd)
     pwd = None
