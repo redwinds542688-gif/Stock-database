@@ -101,7 +101,12 @@ def main():
     wk = (d0 - datetime.timedelta(days=4)).strftime("%Y/%m/%d")
     mon = (d0 - datetime.timedelta(days=20)).strftime("%Y/%m/%d")
     # 2026-10-24 第一次實測 1 分 K(0)查同一天回 0 根 → 一次試幾種查法,看哪種有資料
-    tries = [("1分K 同一天", 0, day, day), ("1分K 隔天當結束", 0, day, nxt), ("5分K 一週", 1, wk, day), ("日K 20天", 11, mon, day)]
+    # 第二次實測:元大歷史 K 只到 10/22(週六查,10/23 還沒進來);5 分 K 標結束時間(第一根 09:05);量的單位是張;1 分 K 一次只能查 1 天
+    prev = d0 - datetime.timedelta(days=1)
+    while prev.weekday() >= 5:
+        prev -= datetime.timedelta(days=1)
+    pday = prev.strftime("%Y/%m/%d")
+    tries = [("1分K " + day, 0, day, day), ("1分K " + pday, 0, pday, pday)]
     out = HERE / f"yuanta_kline_{day.replace('/', '')}.csv"
     with open(out, "w", encoding="utf-8-sig") as f:
         f.write("try,code,time,open,high,low,close,vol\n")
@@ -113,7 +118,7 @@ def main():
                     print(f"  {c} {name}({sd}~{ed}):15 秒沒有回應(呼叫回傳 {ok})"); continue
                 _, rows = kl[0]
                 print(f"  {c} {name}({sd}~{ed}):{len(rows)} 根")
-                for r in rows[:2] + rows[-2:] if len(rows) > 4 else rows:
+                for r in rows[:3] + rows[-3:] if len(rows) > 6 else rows:
                     print("     ", *r)
                 for r in rows:
                     f.write(",".join([name, c] + [str(x) for x in r]) + "\n")
