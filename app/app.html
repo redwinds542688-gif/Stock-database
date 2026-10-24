@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 13:50 判一 / 判二 / 判三 開關(使用者:「初始便是開啟狀態 長按 關閉 再長按 重新開啟 平常 監控 都不用再亮燈 單擊雙擊時 就顯示該判別式發出的通知訊息」):預設全開;長按關閉(暗灰,背景不跑、不通知),再長按開回;監控中不再亮綠燈(監控沒在跑的紅點保留);單擊照 13:40 篩選通知。開關存 Android.setPref(rsOff)。
   · 2026-10-24 13:40 判一 / 判二 / 判三 按鍵改成篩選通知(使用者:「當按 判一時 不再顯示判一邏輯 而是顯示所有判一發起的通知訊息 判二,三 也是如此」):單擊 = 監控紀錄只列那份發的通知(標題「監控紀錄 · 判一」),再按一次或按「訊息」回到全部;規則頁不再從按鍵打開。長按照舊。
   · 2026-10-24 13:05 費率層(證商費 / 證手費 / 證交稅)打開時,底下第一排(監控低價 / 高價 / 振幅)整排藏起來,不再從邊緣透出殘字(使用者:「顯示視窗背後好像有字殘留」)。
   · 2026-10-24 12:55 手續折扣滾輪上鎖(使用者:「平常 暗灰色 不能滾動 長按才能啟動 啟動狀態下 再長按 才能進入下一層 離開則退回最開始 暗灰色狀態」):暗灰鎖住 → 長按啟動 → 再長按開券商 / 證交所 / 證交稅 → 再長按(或長按設定、關設定面板)離開回暗灰。
@@ -1942,7 +1943,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610241340">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610241350">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2091,6 +2092,7 @@ except Exception:
   .tool.rs .mdot{display:none;position:absolute;top:-5px;right:-5px;width:12px;height:12px;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,.7)}
   .tool.rs.live .mdot{display:block;background:#1DD75B}   /* 2026-10-19 使用者:「判一判二也不用閃」→ 綠點常亮不閃;紅點 = 監控沒在跑 */
   .tool.rs.dead .mdot{display:block;background:#FF3B3B}
+  .tool.rs.off{filter:grayscale(1) brightness(.45)}   /* 2026-10-24 關掉的判別式:暗灰 */
   .tool.txt.on{color:#1DD75B;text-shadow:0 0 8px rgba(29,215,91,.6),0 1px 0 rgba(0,0,0,.6)}   /* 亮燈:綠 */
   .tool.txt.lit{color:var(--brass)}
   #infoView{position:absolute;inset:0;overflow-y:auto;padding:8px 12px;font-size:13px;line-height:1.6;color:var(--text,#D8DEE9);-webkit-overflow-scrolling:touch;touch-action:pan-y;white-space:pre-wrap}
@@ -2999,6 +3001,8 @@ function render(list){
       window.LOG_RS = (showing && window.LOG_RS === lb) ? '' : lb; if (pnl) pnl.classList.remove('open'); hideInfo(); if (window.nlRender) nlRender(); refreshToolbar(); };
     const st = () => { rsLong = false; rsMoved = false; clearTimeout(rsHold); rsHold = setTimeout(() => {
       rsLong = true; try{ navigator.vibrate && navigator.vibrate(30); }catch(e){}
+      // 2026-10-24 13:50 長按 = 關閉 / 重新開啟這份判別式(背景監控、通知);不再用長按切換圖上判別式或重啟監控
+      { const on = !rsOn(k); rsSet(k, on); const lb = b.textContent.trim(); setStatus(lb + (on ? ' 已開啟(監控、通知)' : ' 已關閉(不監控、不通知)')); refreshToolbar(); return; }
       if (k === ACTIVE_RS){   // 2026-10-19 使用者:「判一亮燈,再次長按判一便可以強制監控重新啟動」→ 長按正在用的那顆 = 背景監控先停再起(App 1.5.32 的 Android.restartMonitor),再打開狀態頁看它回來;舊版 App 只開狀態頁
         let r = '';
         try{ if (window.Android && Android.restartMonitor) r = String(Android.restartMonitor() || ''); }catch(e){}
@@ -3025,7 +3029,7 @@ function render(list){
     const g = document.getElementById('gear'); if (g) g.classList.toggle('on', panelOpen);
     let mon = false; try{ mon = !!(window.Android && Android.monitorRunning && Android.monitorRunning()); }catch(e){}
     // 2026-10-18 使用者:「判一 通知欄顯示內容(規則頁)時燈號要亮著」→ 正在用的那顆:背景監控執行中 或 規則頁 / 狀態頁顯示中 就亮
-    document.querySelectorAll('.tool.rs').forEach(b => { const k = b.dataset.rs; b.classList.toggle('on', ((BG_RS.includes(k) && mon) || (k === ACTIVE_RS && infoShown && infoKind === 'state')) || (infoShown && infoKind === 'rules' && infoRs === k) || (!infoShown && !panelOpen && !!window.LOG_RS && window.LOG_RS === b.textContent.trim())); });   // 2026-10-19 背景監控執行中 → 判一、判二都亮
+    document.querySelectorAll('.tool.rs').forEach(b => { const k = b.dataset.rs; b.classList.toggle('on', !infoShown && !panelOpen && !!window.LOG_RS && window.LOG_RS === b.textContent.trim()); b.classList.toggle('off', !rsOn(k)); });   // 2026-10-24 13:50 使用者:「平常 監控 都不用再亮燈」:只有正在篩選那顆亮;關掉的暗灰   // 2026-10-19 背景監控執行中 → 判一、判二都亮
   };
   window.refreshToolbar = refreshToolbar;
   setInterval(refreshToolbar, 3000); setTimeout(refreshToolbar, 500);
@@ -4263,6 +4267,10 @@ let ACTIVE_RS = readRuleset() || '一';
 try{ if (window.Android && Android.setRuleset && !String(Android.getRuleset() || '')) Android.setRuleset(ACTIVE_RS); }catch(e){}   // 舊版只存 localStorage 的,第一次開啟就補存到 App
 let RULESET = RULESETS[ACTIVE_RS];
 let SIG = RULESET.sig;   // 2026-10-19 改成 let:背景監控一輪裡輪流切成判一、判二(bgTick),跑完切回 ACTIVE_RS
+// 2026-10-24 13:50 使用者:「判一二三 初始便是開啟狀態 長按 關閉 再長按 重新開啟」:各判別式的開關存在 App(Android.setPref 'rsOff',背景監控那頁也讀得到),沒有 App 用 localStorage
+window.rsOn = k => { try{ const v = (window.Android && Android.getPref) ? Android.getPref('rsOff') : localStorage.getItem('mysh.rsOff'); return !String(v || '').split(',').includes(k); }catch(e){ return true; } };
+window.rsSet = (k, on) => { try{ const cur = String(((window.Android && Android.getPref) ? Android.getPref('rsOff') : localStorage.getItem('mysh.rsOff')) || '').split(',').filter(x => x && x !== k); if (!on) cur.push(k); const v = cur.join(',');
+  if (window.Android && Android.setPref) Android.setPref('rsOff', v); localStorage.setItem('mysh.rsOff', v); }catch(e){} };
 const BG_RS = ['一', '二', '三'];   // 2026-10-20 21:50 使用者「判四改判三後 直接定名為判三 原判三改判四 隱藏起來」→ 一、二、三(壓線空點)同時跑;判四(原判三,燿華型)不跑。21:40 起是 一二四。2026-10-19 使用者:「二版同時啟動,各自抓各自的,通知訊息可以知道是判一或判二的訊息」
 window.BG_RS = BG_RS;
 function signalLight(bars, ma, ob, obma, prevClose, canShort, dayHi, dayLo){
@@ -6679,7 +6687,7 @@ async function bgTick(force, replay){
         const prevBar = [...bars].reverse().find(b => dayKey(b.time) !== lastDay);
         const src = (SRC || []).find(x => x.code === code) || {};
         const prevClose = liveRec.y || (prevBar ? prevBar.close : null) || src.prev || null;
-        for (const rs of BG_RS){   // 2026-10-19 每一份判別式各跑一次:同一組 K,換 SIG / RULESET 重算訊號,進出場、已通知的記錄各自一份(鍵 = 判別式|代碼)
+        for (const rs of BG_RS){ if (!rsOn(rs)) continue;   // 2026-10-24 關掉的判別式不跑、不通知   // 2026-10-19 每一份判別式各跑一次:同一組 K,換 SIG / RULESET 重算訊號,進出場、已通知的記錄各自一份(鍵 = 判別式|代碼)
         RULESET = RULESETS[rs]; SIG = RULESET.sig;
         const pk = rs + '|' + code;
         const rp = replaySignals(bars, ma, ob, obma, prevClose, src.dtShort === undefined ? undefined : !!src.dtShort);
@@ -7072,7 +7080,7 @@ window.bgTick = bgTick; window.BG = BG;
         if (!(wd === 0 || wd === 6 || hm < 8 * 60 + 45 || hm > 13 * 60 + 35)) st = Android.monitorRunning() ? 'live' : 'dead';   // 非交易時段服務休眠,不亮
       }
     }catch(e){ st = ''; }
-    document.querySelectorAll('.tool.rs').forEach(b => { const run = BG_RS.includes(b.dataset.rs); b.classList.toggle('live', st === 'live' && run); b.classList.toggle('dead', st === 'dead' && run); });   // 2026-10-19 判一、判二同時跑 → 兩顆都亮監控燈
+    document.querySelectorAll('.tool.rs').forEach(b => { const run = BG_RS.includes(b.dataset.rs); b.classList.toggle('live', false);   /* 2026-10-24 監控中不亮綠點 */ b.classList.toggle('dead', st === 'dead' && run && rsOn(b.dataset.rs)); });   // 2026-10-19 判一、判二同時跑 → 兩顆都亮監控燈
     const d = el('bgDot'); if (d) d.className = '';
   }
   upd(); setInterval(upd, 3000);
