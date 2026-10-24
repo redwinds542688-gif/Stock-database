@@ -1,3 +1,4 @@
+import { DurableObject } from "cloudflare:workers";
 /* ══════════════════════════════════════════════════════
    名揚四海 — 盤中即時行情轉接站(Cloudflare Worker)
    ------------------------------------------------------
@@ -375,6 +376,55 @@ const CORS = {
   "Cache-Control": "no-store",
 };
 
+/* 2026-10-22 使用者「先把額度問題改好」:KV 免費方案一天只能寫 1,000 次、list 1,000 次(雲端 K 已寫約 880 次)。
+   兩件高頻的事搬到 Durable Object「Hub」(SQLite;免費方案一天 10 萬次請求、10 萬列寫入,而且讀到的一定是最新的):
+   (1) 今天的通知紀錄 ?log=add / get / del:手機每分鐘、自動交易每 3 秒讀一次,原本每次都 KV list
+   (2) 元大 1 分 K ?ybars=push / 讀:一分鐘一筆
+   DO_SINCE 起的日子只存 Hub;之前的日子照舊讀 KV(手機看舊紀錄用)。雲端 K 快照、寬度、其他都不變。 */
+const DO_SINCE = "2026-10-25";
+export class Hub extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.sql = ctx.storage.sql;
+    this.sql.exec("CREATE TABLE IF NOT EXISTS logs (d TEXT, k TEXT, t TEXT, item TEXT, PRIMARY KEY (d, k))");
+    this.sql.exec("CREATE TABLE IF NOT EXISTS exited (d TEXT, pos TEXT, PRIMARY KEY (d, pos))");
+    this.sql.exec("CREATE TABLE IF NOT EXISTS ybars (d TEXT, m TEXT, bars TEXT, PRIMARY KEY (d, m))");
+  }
+  logAdd(d, k, item, pos) {
+    if (pos) {                                                   // 同一個部位的平倉只留第一則(原本 KV 的 exited: 鍵)
+      if (this.sql.exec("SELECT 1 FROM exited WHERE d = ? AND pos = ?", d, pos).toArray().length) return { ok: true, dup: true };
+      this.sql.exec("INSERT INTO exited (d, pos) VALUES (?, ?)", d, pos);
+    }
+    this.sql.exec("INSERT OR REPLACE INTO logs (d, k, t, item) VALUES (?, ?, ?, ?)", d, k, item.t, JSON.stringify(item));
+    return { ok: true, key: k };
+  }
+  logGet(d) {
+    return this.sql.exec("SELECT k, item FROM logs WHERE d = ? ORDER BY t DESC", d).toArray().map(r => ({ ...JSON.parse(r.item), _k: r.k.slice(15) }));
+  }
+  logDel(d, prefix) {
+    const n = this.sql.exec("SELECT COUNT(*) AS n FROM logs WHERE d = ? AND substr(k, 1, ?) = ?", d, prefix.length, prefix).one().n;
+    this.sql.exec("DELETE FROM logs WHERE d = ? AND substr(k, 1, ?) = ?", d, prefix.length, prefix);
+    return n;
+  }
+  logDays() {
+    return this.sql.exec("SELECT DISTINCT d FROM logs").toArray().map(r => r.d);
+  }
+  ybarPut(d, m, bars) {
+    this.sql.exec("INSERT OR REPLACE INTO ybars (d, m, bars) VALUES (?, ?, ?)", d, m, JSON.stringify(bars));
+    if (m === "09:00") {                                         // 一天清一次:K 留 14 天、通知留 90 天(和原本 KV 一樣)
+      const old = (n) => new Date(Date.parse(d + "T00:00:00Z") - n * 86400e3).toISOString().slice(0, 10);
+      this.sql.exec("DELETE FROM ybars WHERE d < ?", old(14));
+      this.sql.exec("DELETE FROM logs WHERE d < ?", old(90));
+      this.sql.exec("DELETE FROM exited WHERE d < ?", old(3));
+    }
+    return { ok: true };
+  }
+  ybarGet(d, since) {
+    return this.sql.exec("SELECT m, bars FROM ybars WHERE d = ? AND m >= ? ORDER BY m", d, since || "").toArray();
+  }
+}
+const hubOf = env => env.HUB.get(env.HUB.idFromName("main"));
+
 export default {
   // ── Cloudflare Cron Trigger 到點 → 叫 GitHub 跑對應的 workflow ──
   // Workers 免費方案整個帳號只能有 5 條 Cron(樂透的 Worker 已經用掉),所以這裡只用 1 條:
@@ -451,29 +501,23 @@ export default {
     // 2026-10-22 使用者(元大 SPARK API「先寫好 等營業員回覆」):先只收、只讀給比對用,手機還是讀 ?bars;驗證準了再切換
     const yb = url.searchParams.get("ybars");
     if (yb) {
-      if (!env || !env.LOGS) return J({ error: "Worker 還沒綁定 KV(LOGS)" }, 503);
+      if (!env || !env.HUB) return J({ error: "Worker 還沒綁定 Durable Object(HUB)" }, 503);
       if (yb === "push") {
         if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
         if (!env.YT_PUSH_KEY) return J({ error: "Worker 沒有設定 YT_PUSH_KEY 密鑰" }, 503);
         if (request.headers.get("X-Push-Key") !== env.YT_PUSH_KEY) return J({ error: "金鑰不對" }, 403);
         let b; try { b = await request.json(); } catch (e) { return J({ error: "JSON 格式錯誤" }, 400); }
         if (!b || !/^\d{4}-\d{2}-\d{2}$/.test(b.d || "") || !/^\d{2}:\d{2}$/.test(b.m || "") || typeof b.bars !== "object") return J({ error: "要有 d(YYYY-MM-DD)、m(HH:MM)、bars" }, 400);
-        await env.LOGS.put(`ybar:${b.d}:${b.m}`, JSON.stringify(b.bars), { expirationTtl: 14 * 86400 });   // 一分鐘一個鍵(晚到的成交整分鐘重送覆蓋)
+        await hubOf(env).ybarPut(b.d, b.m, b.bars);   // 一分鐘一列(晚到的成交整分鐘重送覆蓋);2026-10-24 起存 Hub,不用 KV 寫入額度
         return J({ ok: true, n: Object.keys(b.bars).length });
       }
       const d = yb === "today" ? ymdOf(twNow()) : yb;
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return J({ error: "ybars 要是 push、today 或 YYYY-MM-DD" }, 400);
       const want = (url.searchParams.get("codes") || "").split(",").map(x => x.trim()).filter(Boolean), since = url.searchParams.get("since") || "";
-      const keys = []; let cursor;
-      do { const r = await env.LOGS.list({ prefix: `ybar:${d}:`, cursor, limit: 1000 }); for (const k of r.keys) keys.push(k.name); cursor = r.list_complete ? null : r.cursor; } while (cursor);
-      keys.sort();
-      const use = keys.filter(k => !since || k.slice(-5) >= since), bars = {};
-      for (let i = 0; i < use.length; i += 25) {
-        const part = use.slice(i, i + 25), vals = await Promise.all(part.map(k => env.LOGS.get(k)));
-        part.forEach((k, j) => { let o; try { o = JSON.parse(vals[j] || "{}"); } catch (e) { return; }
-          for (const c in o) if (!want.length || want.includes(c)) (bars[c] = bars[c] || []).push([k.slice(-5), ...o[c]]); });
-      }
-      return J({ d, src: "yuanta", last: use.length ? use[use.length - 1].slice(-5) : since, n: use.length, bars });
+      const rows = await hubOf(env).ybarGet(d, since), bars = {};
+      for (const r of rows) { let o; try { o = JSON.parse(r.bars || "{}"); } catch (e) { continue; }
+        for (const c in o) if (!want.length || want.includes(c)) (bars[c] = bars[c] || []).push([r.m, ...o[c]]); }
+      return J({ d, src: "yuanta", last: rows.length ? rows[rows.length - 1].m : since, n: rows.length, bars });
     }
 
     // ── 元大即時價通道:POST ?yquote=register(中繼程式登記 cloudflared 通道網址);GET ?yquote=status ──
@@ -545,6 +589,8 @@ export default {
         const item = { t: it.t, title: String(it.title).slice(0, 200), body: String(it.body || "").slice(0, 500), kind: String(it.kind || "").slice(0, 10) };
         if (it.prev != null && isFinite(+it.prev)) item.prev = +it.prev;
         const key = `log:${it.d}:${it.t}:${String(it.key || item.title).replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 120)}`;
+        if (it.d >= DO_SINCE && env.HUB)                          // 2026-10-24 起存 Hub(不用 KV 寫入 / list 額度)
+          return J(await hubOf(env).logAdd(it.d, key, item, it.pos ? String(it.pos).replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 80) : ""));
         // 2026-10-20 部位鍵去重(使用者:同一筆平倉發三次 → 「改」):手機帶 pos = 判別式|代碼|進場時間,同一個部位的平倉雲端只留第一則(兩支手機、服務重啟都不重複)
         if (it.pos) {
           const mk = `exited:${it.d}:${String(it.pos).replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 80)}`;
@@ -560,6 +606,7 @@ export default {
       if (lg === "get") {
         const d = url.searchParams.get("d");
         if (!okDate(d)) return J({ error: "d 要是 YYYY-MM-DD" }, 400);
+        if (d >= DO_SINCE && env.HUB) return J(await hubOf(env).logGet(d));   // 手機每分鐘、自動交易每 3 秒:讀 Hub,不 list
         const out = []; let cursor;
         do {
           const r = await env.LOGS.list({ prefix: `log:${d}:`, cursor, limit: 1000 });
@@ -577,18 +624,25 @@ export default {
       if (lg === "del") {
         const d = url.searchParams.get("d"), t = url.searchParams.get("t") || "", code = url.searchParams.get("code") || "";
         if (!okDate(d) || !/^\d{2}:\d{2}$/.test(t) || !/^\d{4,6}[A-Z]*$/.test(code)) return J({ error: "要 d=YYYY-MM-DD、t=HH:MM、code=代號" }, 400);
+        if (d >= DO_SINCE && env.HUB) return J({ ok: true, deleted: await hubOf(env).logDel(d, `log:${d}:${t}:${code}|`) });
         const r = await env.LOGS.list({ prefix: `log:${d}:${t}:${code}|`, limit: 1000 });
         for (const k of r.keys) await env.LOGS.delete(k.name);
         return J({ ok: true, deleted: r.keys.length });
       }
       if (lg === "days") {
-        const days = new Set(); let cursor;
-        do {
-          const r = await env.LOGS.list({ prefix: "log:", cursor, limit: 1000 });
-          for (const k of r.keys) days.add(k.name.slice(4, 14));
-          cursor = r.list_complete ? null : r.cursor;
-        } while (cursor);
-        return J([...days].sort());
+        // DO_SINCE 以前的日子在 KV(不會再變,同一個 Worker 執行個體只 list 一次);之後的在 Hub
+        if (!globalThis.__kvDays) {
+          const days = new Set(); let cursor;
+          do {
+            const r = await env.LOGS.list({ prefix: "log:", cursor, limit: 1000 });
+            for (const k of r.keys) if (k.name.slice(4, 14) < DO_SINCE) days.add(k.name.slice(4, 14));
+            cursor = r.list_complete ? null : r.cursor;
+          } while (cursor);
+          globalThis.__kvDays = [...days];
+        }
+        const all = new Set(globalThis.__kvDays);
+        if (env.HUB) for (const x of await hubOf(env).logDays()) all.add(x);
+        return J([...all].sort());
       }
       return J({ error: "log 要是 add / get / days" }, 400);
     }
