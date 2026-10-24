@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 13:05 費率層(證商費 / 證手費 / 證交稅)打開時,底下第一排(監控低價 / 高價 / 振幅)整排藏起來,不再從邊緣透出殘字(使用者:「顯示視窗背後好像有字殘留」)。
   · 2026-10-24 12:55 手續折扣滾輪上鎖(使用者:「平常 暗灰色 不能滾動 長按才能啟動 啟動狀態下 再長按 才能進入下一層 離開則退回最開始 暗灰色狀態」):暗灰鎖住 → 長按啟動 → 再長按開券商 / 證交所 / 證交稅 → 再長按(或長按設定、關設定面板)離開回暗灰。
   · 2026-10-24 12:45 監控高價滾輪每格 5 元(使用者:「監控高價 滾輪每次加5或者是減5」):50~500,每 5 元一格;存檔的舊值對齊到 5 的倍數。
   · 2026-10-24 10:15 通知列新排版(使用者:「照這樣的排版 改 判一二三 的訊息 跟 轉折第一則訊息」「安卓系統的通知 也一樣」):12 種通知(轉折第一則 / 加碼 / 急拉注意、判進場 / 強進場、停利 / OBV / 收盤 / 反向 / 停損 / 超6%)由 notifLay() 排成上下兩列三欄,交給 APK 1.5.46 的 Android.notify2 畫成大字圖(「·」上下對齊、加碼黃網紋、做空藍網、做多紫網、停利淡藍、停損淡紅);舊 APK 照舊文字通知。監控紀錄存的文字不變,點通知照樣開那檔 K 圖。
@@ -1940,7 +1941,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610241255">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610241305">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2119,6 +2120,7 @@ except Exception:
              top:10px;left:6px;right:6px;
              display:none;gap:8px;background:var(--panel)}
   .subwheels.show{display:flex}
+  .wheels.subOn #loWheel,.wheels.subOn #hiWheel,.wheels.subOn #ampWheel{visibility:hidden}   /* 2026-10-24 13:05 使用者:「再進入的設定 顯示視窗背後好像有字殘留」:費率層打開時,底下第一排整排藏起來 */
   .subwheels .wheel{flex:0 0 calc((100% - 16px) / 3)}
   /* 費率數字位數多,字體縮小 30% 才放得下 */
   .subwheels .opt{font-size:11.2px}
@@ -3420,7 +3422,7 @@ attachCycle('capWheel', wCap, ['5萬','10萬','15萬','20萬','25萬',
                                '30萬','35萬','40萬','45萬','50萬']);
 
 /* 長按「手續費折扣」展開 / 收合券商與證交所費率 */
-window.feeLock = () => { const w = document.getElementById('feeWheel'), sub = document.getElementById('subFee'); if (sub) sub.classList.remove('show'); if (w) w.classList.add('locked'); };
+window.feeLock = () => { const w = document.getElementById('feeWheel'), sub = document.getElementById('subFee'); if (sub) sub.classList.remove('show'); if (sub && sub.parentElement) sub.parentElement.classList.remove('subOn'); if (w) w.classList.add('locked'); };
 (() => {
   const w   = document.getElementById('feeWheel');
   const sub = document.getElementById('subFee');
@@ -3434,7 +3436,7 @@ window.feeLock = () => { const w = document.getElementById('feeWheel'), sub = do
       // 2026-10-24 12:50 使用者:「手續折扣 改 平常 暗灰色 不能滾動 長按才能啟動 啟動狀態下 再長按 才能進入下一層 離開則退回最開始 暗灰色狀態」
       //   暗灰(鎖住)→ 長按 → 啟動(可滾)→ 再長按 → 進下一層(券商 / 證交所 / 證交稅)→ 再長按離開 → 回到暗灰;關掉設定面板也回暗灰
       if (w.classList.contains('locked')) w.classList.remove('locked');
-      else if (!sub.classList.contains('show')){ sub.classList.add('show'); [wBroker, wExch, wTax].forEach(x => x.init()); }   // 顯示後重新量測定位
+      else if (!sub.classList.contains('show')){ sub.classList.add('show'); sub.parentElement.classList.add('subOn'); [wBroker, wExch, wTax].forEach(x => x.init()); }   // 顯示後重新量測定位
       else window.feeLock();
       w.style.opacity = '.45';                        // 觸發回饋
       setTimeout(() => { w.style.opacity = ''; }, 140);
