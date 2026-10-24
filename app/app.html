@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 14:05 標題列當日輸贏後面加「N月 ±月輸贏」(使用者:「再後面 顯示該判別式 一個月的總輸贏」):同月 1 號 ~ 正在看的那天,已平倉淨輸贏加總;按判鍵時只算那份。過去的日子用雲端紀錄(每天每小時最多抓 1 次)。
   · 2026-10-24 14:00 監控紀錄標題列(使用者:「只需要顯示 調整 日期 部分 這邊判一二三不用顯示 同列後面 顯示 當日的輸贏金額」):拿掉「· 判一」,右邊「N 則」改成這天已平倉的淨輸贏(扣手續費、證交稅;賺紅賠綠;按判鍵時只算那份)。
   · 2026-10-24 13:55 判鍵單擊、雙擊都只顯示那份的通知、那顆亮、其他熄(使用者:「單擊雙擊時 就有亮燈了 其他按鍵 熄燈」);回全部按「訊息」。
   · 2026-10-24 13:50 判一 / 判二 / 判三 開關(使用者:「初始便是開啟狀態 長按 關閉 再長按 重新開啟 平常 監控 都不用再亮燈 單擊雙擊時 就顯示該判別式發出的通知訊息」):預設全開;長按關閉(暗灰,背景不跑、不通知),再長按開回;監控中不再亮綠燈(監控沒在跑的紅點保留);單擊照 13:40 篩選通知。開關存 Android.setPref(rsOff)。
@@ -1945,7 +1946,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610241400">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610241405">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2094,7 +2095,7 @@ except Exception:
   .tool.rs .mdot{display:none;position:absolute;top:-5px;right:-5px;width:12px;height:12px;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,.7)}
   .tool.rs.live .mdot{display:block;background:#1DD75B}   /* 2026-10-19 使用者:「判一判二也不用閃」→ 綠點常亮不閃;紅點 = 監控沒在跑 */
   .tool.rs.dead .mdot{display:block;background:#FF3B3B}
-  #notifLog .hd .dnet{font-weight:700;font-variant-numeric:tabular-nums;margin-right:8px} #notifLog .hd .dnet.up{color:#FF3B3B} #notifLog .hd .dnet.dn{color:#1DD75B}   /* 2026-10-24 當日輸贏:賺紅、賠綠 */
+  #notifLog .hd .dnet{font-weight:700;font-variant-numeric:tabular-nums} #notifLog .hd .pnl{margin-right:8px;white-space:nowrap} #notifLog .hd .mlb{margin:0 4px 0 12px;opacity:.7} #notifLog .hd .dnet.up{color:#FF3B3B} #notifLog .hd .dnet.dn{color:#1DD75B}   /* 2026-10-24 當日輸贏:賺紅、賠綠 */
   .tool.rs.off{filter:grayscale(1) brightness(.45)}   /* 2026-10-24 關掉的判別式:暗灰 */
   .tool.txt.on{color:#1DD75B;text-shadow:0 0 8px rgba(29,215,91,.6),0 1px 0 rgba(0,0,0,.6)}   /* 亮燈:綠 */
   .tool.txt.lit{color:var(--brass)}
@@ -7032,12 +7033,27 @@ window.bgTick = bgTick; window.BG = BG;
     const shown = cards.filter(o => !o._hide && (!window.LOG_RS || o.rs === window.LOG_RS)); n = shown.length;
     // 2026-10-24 14:00 使用者:「監控紀錄那邊 只需要顯示 調整 日期 部分 這邊判一二三不用顯示 同列後面 顯示 當日的輸贏金額」:
     //   標題列右邊改成這天(目前篩選範圍)已平倉的淨輸贏 = Σ(價差 × 張數 × 1000 − 手續費 − 證交稅),費率用設定滾輪
-    let dayNet = 0, nExit = 0;
-    try{ const C = cost(); for (const o of shown){ if (o.type !== 'exit' || !(o.entP > 0) || !(o.price > 0) || !o.side) continue;
+    // 平倉卡的淨輸贏(扣手續費、證交稅)
+    const netOf = arr => { let v = 0, k = 0; try{ const C = cost(); for (const o of arr){ if (o.type !== 'exit' || !(o.entP > 0) || !(o.price > 0) || !o.side) continue;
       const dr = o.side === 'long' ? 1 : -1, lt = lotsOf(o), g = (o.price - o.entP) * dr * lt * 1000;
-      dayNet += g - (o.entP + o.price) * lt * 1000 * C.fee - (dr > 0 ? o.price : o.entP) * lt * 1000 * C.tax; nExit++; } }catch(e){}
-    dayNet = Math.round(dayNet);
-    const pnlTxt = nExit ? `<span class="dnet ${dayNet >= 0 ? 'up' : 'dn'}">${dayNet >= 0 ? '+' : '−'}${Math.abs(dayNet).toLocaleString()}</span>` : `<span class="dnet">0</span>`;
+      v += g - (o.entP + o.price) * lt * 1000 * C.fee - (dr > 0 ? o.price : o.entP) * lt * 1000 * C.tax; k++; } }catch(e){} return [Math.round(v), k]; };
+    const [dayNet, nExit] = netOf(shown);
+    // 2026-10-24 14:05 使用者:「再後面 顯示該判別式 一個月的總輸贏」:同一個月 1 號 ~ 正在看的這天,每天同樣去重後的平倉卡加總(按判鍵時只算那份)
+    //   過去的日子用雲端紀錄(ensureCloud 每天每小時最多抓 1 次)
+    let monNet = 0;
+    try{ for (const dd of ds){ if (dd.slice(0, 7) !== d.slice(0, 7) || dd > d) continue;
+      let arr;
+      if (dd === d) arr = cards; else { ensureCloud(dd);
+        arr = itemsFor(dd).filter(x => x.kind !== 'sys').map(parse).filter(Boolean).filter(o => { const px = o.entP || o.price || 0; return !(px > 0 && px * 1000 > capFund()); });
+        const keep = []; const seenExit = new Map();
+        for (let k = arr.length - 1; k >= 0; k--){ const o = arr[k]; const kk = o.code + '|' + (o.rs || '');
+          if (o.type === 'entry'){ seenExit.delete(kk); keep.push(o); continue; }
+          if (o.type === 'exit'){ if (seenExit.has(kk)) continue; seenExit.set(kk, true); }
+          keep.push(o); }
+        arr = keep; }
+      monNet += netOf(arr.filter(o => !window.LOG_RS || o.rs === window.LOG_RS))[0]; } }catch(e){}
+    const money = v => `<span class="dnet ${v > 0 ? 'up' : v < 0 ? 'dn' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toLocaleString()}</span>`;
+    const pnlTxt = `<span class="pnl">${money(nExit ? dayNet : 0)}<span class="mlb">${+d.slice(5, 7)}月</span>${money(monNet)}</span>`;
     const hd2 = hd.replace(/<span>\d+ 則<\/span>/, pnlTxt);
     box.innerHTML = hd2 + (shown.length ? shown.map((o, k) => `<div class="card ${o.type === 'turn' ? 'c-turn' + (o.add ? ' c-add' : '') : o.side === 'long' ? 'c-long' : o.side === 'short' ? 'c-short' : ''}${posStatus(o.code) === 'open' ? ' mine' : posStatus(o.code) === 'closed' ? ' done' : ''}" data-i="${k}">${line(o)}</div>`).join('')
       : `<div class="empty">${window.LOG_RS ? '這天沒有' + window.LOG_RS + '的通知' : d === today ? '今日還沒有通知<br>(進場 / 停利 / 停損 / 出場會列在這裡)' : '這天沒有紀錄'}</div>`);
