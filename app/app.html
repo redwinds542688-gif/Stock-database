@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 14:55 點標題列的「當日 / 30日」改列 30 個開盤日每天的淨輸贏與平倉筆數(再點一次回卡片),對帳用(使用者:「判二不是贏錢 怎麼是輸」)。
   · 2026-10-24 14:50 「30日」改成 30 個開盤日(使用者:「30天有開盤的日子(不管是否有訊息跟交易)」):正在看的那天往前數 30 個週一~五、扣掉證交所休市日(TW_HOLIDAYS,115 年)。
   · 2026-10-24 14:45 「30日」= 正在看的那天(含)+ 往前 29 天(使用者:「翻到了22日 就是算到包含22日+前29天」);14:40 固定算到今天的版本取消。
   · 2026-10-24 14:35 「30日」左邊對齊下面卡片 ▲ 欄放滿 4 顆時的第一顆(使用者:「30日 與下面四個三角形的第一顆對齊」);沒有卡片時維持 22px。
@@ -1954,7 +1955,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610241450">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610241455">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2104,6 +2105,7 @@ except Exception:
   .tool.rs.live .mdot{display:block;background:#1DD75B}   /* 2026-10-19 使用者:「判一判二也不用閃」→ 綠點常亮不閃;紅點 = 監控沒在跑 */
   .tool.rs.dead .mdot{display:block;background:#FF3B3B}
   #notifLog .hd .dnet{font-weight:700;font-variant-numeric:tabular-nums} #notifLog .hd .pnl{margin-left:-5px;white-space:nowrap} #notifLog .hd .mlb{margin:0 4px 0 0;opacity:.7} #notifLog .hd .mlb.m30{margin-left:22px}   /* 2026-10-24 14:05 使用者:「移動到日期調整 右鍵後空1px的位置 13px後顯示30日輸贏」(nav gap 6px − 5px = 1px) */ #notifLog .hd .dnet.up{color:#FF3B3B} #notifLog .hd .dnet.dn{color:#1DD75B}   /* 2026-10-24 當日輸贏:賺紅、賠綠 */
+  #notifLog .d30{padding:4px 6px} #notifLog .d30r{display:flex;justify-content:space-between;font-size:16px;font-weight:700;padding:5px 2px;border-bottom:1px solid rgba(255,255,255,.08);font-variant-numeric:tabular-nums} #notifLog .d30r span:nth-child(2){opacity:.6;font-weight:400} #notifLog .d30r .dnet.up{color:#FF3B3B} #notifLog .d30r .dnet.dn{color:#1DD75B}
   .tool.rs.off{filter:grayscale(1) brightness(.45)}   /* 2026-10-24 關掉的判別式:暗灰 */
   .tool.txt.on{color:#1DD75B;text-shadow:0 0 8px rgba(29,215,91,.6),0 1px 0 rgba(0,0,0,.6)}   /* 亮燈:綠 */
   .tool.txt.lit{color:var(--brass)}
@@ -7050,7 +7052,7 @@ window.bgTick = bgTick; window.BG = BG;
     const [dayNet, nExit] = netOf(shown);
     // 2026-10-24 14:05 使用者:「再後面 顯示該判別式 一個月的總輸贏」:同一個月 1 號 ~ 正在看的這天,每天同樣去重後的平倉卡加總(按判鍵時只算那份)
     //   過去的日子用雲端紀錄(ensureCloud 每天每小時最多抓 1 次)
-    let monNet = 0;
+    let monNet = 0; const per30 = [];   // 2026-10-24 14:45 每天明細(點「30日」看)
     // 2026-10-24 14:00 使用者改成「“30日”+30日的總輸贏」:正在看的那天往前 30 天(含當天)
     // 2026-10-24 14:21 使用者:「翻到了22日 就是算到包含22日+前29天」;14:24「30日 30天有開盤的日子(不管是否有訊息跟交易)」:
     //   正在看的那天(含)往前數 30 個開盤日(週一~五扣掉證交所休市日,TW_HOLIDAYS),從第 30 個開盤日算到那天
@@ -7068,10 +7070,15 @@ window.bgTick = bgTick; window.BG = BG;
           if (o.type === 'exit'){ if (seenExit.has(kk)) continue; seenExit.set(kk, true); }
           keep.push(o); }
         arr = keep; }
-      monNet += netOf(arr.filter(o => !window.LOG_RS || o.rs === window.LOG_RS))[0]; } }catch(e){}
+      const r_ = netOf(arr.filter(o => !window.LOG_RS || o.rs === window.LOG_RS)); monNet += r_[0]; per30.push([dd, r_[0], r_[1]]); } }catch(e){}
     const money = v => `<span class="dnet ${v > 0 ? 'up' : v < 0 ? 'dn' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toLocaleString()}</span>`;
     const pnlTxt = `<span class="pnl"><span class="mlb">當日</span>${money(nExit ? dayNet : 0)}<span class="mlb m30">30日</span>${money(monNet)}</span>`;
     const hd2 = hd.replace(/<\/span><span>\d+ 則<\/span>/, pnlTxt + '</span>');   // 2026-10-24 14:05 當日 / 30日 移到日期 ▶ 鍵後面(同一個 nav 裡)
+    // 2026-10-24 14:45 點標題列的「當日 / 30日」→ 改列這 30 個開盤日每天的淨輸贏(再點一次回卡片),方便對帳
+    if (window.NL_SHOW30){
+      const rows = per30.filter(r => r[2] > 0).sort((a, b) => b[0].localeCompare(a[0]));
+      box.innerHTML = hd2 + (rows.length ? `<div class="d30">` + rows.map(r => `<div class="d30r"><span>${r[0].slice(5).replace('-', '/')}</span><span>${r[2]} 筆平倉</span>${money(r[1])}</div>`).join('') + `</div>` : `<div class="empty">這 30 個開盤日沒有平倉紀錄</div>`);
+    } else
     box.innerHTML = hd2 + (shown.length ? shown.map((o, k) => `<div class="card ${o.type === 'turn' ? 'c-turn' + (o.add ? ' c-add' : '') : o.side === 'long' ? 'c-long' : o.side === 'short' ? 'c-short' : ''}${posStatus(o.code) === 'open' ? ' mine' : posStatus(o.code) === 'closed' ? ' done' : ''}" data-i="${k}">${line(o)}</div>`).join('')
       : `<div class="empty">${window.LOG_RS ? '這天沒有' + window.LOG_RS + '的通知' : d === today ? '今日還沒有通知<br>(進場 / 停利 / 停損 / 出場會列在這裡)' : '這天沒有紀錄'}</div>`);
     // 2026-10-17 自動縮字:真機系統字體放大時整列會超出卡片,量一下塞不下就縮,直到塞下為止(最小 11px)
@@ -7117,6 +7124,7 @@ window.bgTick = bgTick; window.BG = BG;
     const fitAll = () => { fit(); alignM30(); };
     fitAll(); try{ if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll); }catch(e){} setTimeout(fitAll, 300);
     const prev = el('nlPrev'), next = el('nlNext');
+    { const pn = box.querySelector('.hd .pnl'); if (pn) pn.onclick = () => { window.NL_SHOW30 = !window.NL_SHOW30; render(true); }; }
     if (prev) prev.onclick = () => { cur = ds[i - 1]; render(true); };
     if (next) next.onclick = () => { cur = ds[i + 1] || today; render(true); };   // 翻到今天就記住「今天」,不然 5 秒後自動又跳回前一個工作日(2026-10-19)
     box.querySelectorAll('.card').forEach(r => {
