@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 12:45 監控高價滾輪每格 5 元(使用者:「監控高價 滾輪每次加5或者是減5」):50~500,每 5 元一格;存檔的舊值對齊到 5 的倍數。
   · 2026-10-24 10:15 通知列新排版(使用者:「照這樣的排版 改 判一二三 的訊息 跟 轉折第一則訊息」「安卓系統的通知 也一樣」):12 種通知(轉折第一則 / 加碼 / 急拉注意、判進場 / 強進場、停利 / OBV / 收盤 / 反向 / 停損 / 超6%)由 notifLay() 排成上下兩列三欄,交給 APK 1.5.46 的 Android.notify2 畫成大字圖(「·」上下對齊、加碼黃網紋、做空藍網、做多紫網、停利淡藍、停損淡紅);舊 APK 照舊文字通知。監控紀錄存的文字不變,點通知照樣開那檔 K 圖。
   · 2026-10-24 09:30 加碼卡片加黃色網紋底(使用者:「加碼的 黃色網紋底」;.card.c-turn.c-add),其他轉折卡維持透明。
   · 2026-10-24 05:25 加碼價格改用第一則的多/空點價(使用者:「改293.50」):「台虹 8039 加碼 293.50」。
@@ -1938,7 +1939,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610241015">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610241245">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2464,7 +2465,7 @@ window.MONITOR_SETTINGS = {
   hi: {                       // 監控高價
     label: '監控高價',
     init : 350,                 // 2026-10-17 300→350:配合多空上限 35 萬(一張最多 350 元);300 會把 303 元的台表科這種擋掉
-    range: [{ from: 51, to: 500, step: 1 }],   // 每 1 元;長按才跳 50
+    range: [{ from: 50, to: 500, step: 5 }],   // 2026-10-24 12:45 使用者:「監控高價 滾輪每次加5或者是減5」(原每 1 元、最低 51)
   },
 
   lo: {                       // 監控低價
@@ -3340,9 +3341,9 @@ function startVal(key, fallback){
 //   撥多空上限 → 監控高價超過「上限 ÷ 1000」就自動降到那個價;撥監控高價 → 上限不夠買一張就自動升到「高價 × 1000」(萬為單位無條件進位)。
 //   篩選時本來就取兩者較小的(scan 的 capMax),這裡只是讓滾輪顯示一致。高價滾輪最低 51,所以上限 5 萬時高價停在 51。
 const onHiChange = () => { try{ const need = Math.ceil(+wHi.value / 10); if (parseFloat(wCap.value) < need) wCap.setValue(Math.min(50, need) + '萬'); }catch(e){} onFeeChange(); };
-const onCapChange = () => { try{ const capMax = parseFloat(wCap.value) * 10; if (+wHi.value > capMax) wHi.setValue(Math.max(51, capMax)); }catch(e){} onFeeChange(); };
+const onCapChange = () => { try{ const capMax = parseFloat(wCap.value) * 10; if (+wHi.value > capMax) wHi.setValue(Math.max(50, capMax)); }catch(e){} onFeeChange(); };
 const wHi  = makeWheel('wHi',  buildVals(CFG.hi   && CFG.hi.range),
-                       startVal('hi', 350), onHiChange);
+                       String(Math.min(500, Math.max(50, Math.round(+startVal('hi', 350) / 5) * 5))), onHiChange);   // 2026-10-24 存檔的舊值(例如 331)對齊到 5 的倍數
 const wLo  = makeWheel('wLo',  buildVals(CFG.lo   && CFG.lo.range),
                        startVal('lo', 10), onFeeChange);
 const wAmp = makeWheel('wAmp', buildVals(CFG.amp  && CFG.amp.range),
@@ -3352,7 +3353,7 @@ const wCnt = makeWheel('wCnt', buildVals(CFG.cnt  && CFG.cnt.range),
 function capFund(){ const v = parseFloat((wCap && wCap.value) || '') * 10000; return v > 0 ? v : 350000; }   // 2026-10-19 多空上限(元):設定滾輪「35萬」→ 350000;讀不到才用 35 萬
 const wCap = makeWheel('wCap', buildVals(CFG.cap  && CFG.cap.range),
                        startVal('cap', '35萬'), onCapChange);
-setTimeout(() => { try{ const capMax = parseFloat(wCap.value) * 10; if (+wHi.value > capMax) wHi.setValue(Math.max(51, capMax)); }catch(e){} }, 800);   // 開啟時舊存檔不一致(高價 350、上限 20 萬)也先對齊一次
+setTimeout(() => { try{ const capMax = parseFloat(wCap.value) * 10; if (+wHi.value > capMax) wHi.setValue(Math.max(50, capMax)); }catch(e){} }, 800);   // 開啟時舊存檔不一致(高價 350、上限 20 萬)也先對齊一次
 
 const wFee = makeWheel('wFee', buildVals(CFG.disc && CFG.disc.range),
                        startVal('disc', '30%'), onFeeChange);
@@ -3409,7 +3410,7 @@ function attachCycle(wheelId, wheel, cycle, tie = 'low'){
 
 attachCycle('cntWheel', wCnt, ['99', '89', '79', '69', '59', '49', '39', '29', '19']);
 attachCycle('loWheel',  wLo,  ['50', '40', '30', '20', '15']);
-attachCycle('hiWheel',  wHi,  ['51','100','150','200','250','300',
+attachCycle('hiWheel',  wHi,  ['50','100','150','200','250','300',
                                '350','400','450','500']);
 attachCycle('ampWheel', wAmp, ['3.0%', '4.0%', '5.0%', '8.0%'], 'high');
 attachCycle('capWheel', wCap, ['5萬','10萬','15萬','20萬','25萬',
