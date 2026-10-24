@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 15:00 「30日」補回測(使用者:「目前不足30日 所以需要把回測的資料也算上去」):某天某份判別式沒有實際通知 → 用 app/bt_fill.json(現行規則重跑 10/06~10/22 的進出場)補;明細標「含回測」。
   · 2026-10-24 14:55 點標題列的「當日 / 30日」改列 30 個開盤日每天的淨輸贏與平倉筆數(再點一次回卡片),對帳用(使用者:「判二不是贏錢 怎麼是輸」)。
   · 2026-10-24 14:50 「30日」改成 30 個開盤日(使用者:「30天有開盤的日子(不管是否有訊息跟交易)」):正在看的那天往前數 30 個週一~五、扣掉證交所休市日(TW_HOLIDAYS,115 年)。
   · 2026-10-24 14:45 「30日」= 正在看的那天(含)+ 往前 29 天(使用者:「翻到了22日 就是算到包含22日+前29天」);14:40 固定算到今天的版本取消。
@@ -1955,7 +1956,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610241455">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610241500">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6932,6 +6933,9 @@ window.bgTick = bgTick; window.BG = BG;
   }
   // 2026-10-24 證交所休市日(週一~五),算「30日」的開盤日用;來源:證交所 115 年市場開休市日期(經濟日報 2024-11 報導)。每年要補下一年
   const TW_HOLIDAYS = new Set(['2026-01-01','2026-02-12','2026-02-13','2026-02-16','2026-02-17','2026-02-18','2026-02-19','2026-02-20','2026-02-27','2026-04-03','2026-04-06','2026-05-01','2026-06-19','2026-09-25','2026-09-28','2026-10-09','2026-10-26','2026-12-25']);
+  // 2026-10-24 14:46 回測補資料(現行判一二三規則重跑的進出場,tools 產生):沒實際通知的日子 / 判別式用它算「30日」
+  let BTF = {}; try{ BTF = JSON.parse(localStorage.getItem('mysh.btfill') || '{}'); }catch(e){}
+  (async () => { try{ const r = await fetch(`${REPO_RAW}/app/bt_fill.json?v=${Math.floor(Date.now() / 3600000)}`); if (r.ok){ BTF = await r.json(); try{ localStorage.setItem('mysh.btfill', JSON.stringify(BTF)); }catch(e){} render(true); } }catch(e){} })();
   window.nlRender = () => render(true);
   function render(force){
     const box = el('notifLog'); if (!box) return;
@@ -7060,24 +7064,34 @@ window.bgTick = bgTick; window.BG = BG;
       for (let k = 0; k < 120 && n < 30; k++){ const ds_ = t.toISOString().slice(0, 10), wd = t.getUTCDay();
         if (wd !== 0 && wd !== 6 && !TW_HOLIDAYS.has(ds_)){ n++; out = ds_; } t.setUTCDate(t.getUTCDate() - 1); }
       return out; })();
-    try{ for (const dd of ds){ if (dd < d30 || dd > d) continue;
+    // 2026-10-24 14:46 使用者:「目前不足30日 所以需要把回測的資料也算上去」:某天某份判別式沒有實際通知(還沒上線 / 沒開)→ 用 app/bt_fill.json 的回測(現行規則重跑)補
+    const prep = list => { const a = list.filter(x => x.kind !== 'sys').map(parse).filter(Boolean).filter(o => { const px = o.entP || o.price || 0; return !(px > 0 && px * 1000 > capFund()); });
+      const keep = []; const seenExit = new Map();
+      for (let k = a.length - 1; k >= 0; k--){ const o = a[k]; const kk = o.code + '|' + (o.rs || '');
+        if (o.type === 'entry'){ seenExit.delete(kk); keep.push(o); continue; }
+        if (o.type === 'exit'){ if (seenExit.has(kk)) continue; seenExit.set(kk, true); }
+        keep.push(o); }
+      return keep; };
+    const RSL = window.LOG_RS ? [window.LOG_RS] : ['判一', '判二', '判三'];
+    try{ for (const dd of [...new Set([...ds, ...Object.keys(BTF || {})])].sort()){ if (dd < d30 || dd > d) continue;
       let arr;
-      if (dd === d) arr = cards; else { ensureCloud(dd);
-        arr = itemsFor(dd).filter(x => x.kind !== 'sys').map(parse).filter(Boolean).filter(o => { const px = o.entP || o.price || 0; return !(px > 0 && px * 1000 > capFund()); });
-        const keep = []; const seenExit = new Map();
-        for (let k = arr.length - 1; k >= 0; k--){ const o = arr[k]; const kk = o.code + '|' + (o.rs || '');
-          if (o.type === 'entry'){ seenExit.delete(kk); keep.push(o); continue; }
-          if (o.type === 'exit'){ if (seenExit.has(kk)) continue; seenExit.set(kk, true); }
-          keep.push(o); }
-        arr = keep; }
-      const r_ = netOf(arr.filter(o => !window.LOG_RS || o.rs === window.LOG_RS)); monNet += r_[0]; per30.push([dd, r_[0], r_[1]]); } }catch(e){}
+      if (dd === d) arr = cards; else { ensureCloud(dd); arr = prep(itemsFor(dd)); }
+      let v = 0, k = 0, bt = false;
+      for (const rs of RSL){
+        const live = arr.filter(o => o.rs === rs && (o.type === 'entry' || o.type === 'exit'));
+        if (live.length){ const r_ = netOf(live); v += r_[0]; k += r_[1]; continue; }
+        const b = (BTF && BTF[dd]) ? prep(BTF[dd]).filter(o => o.rs === rs) : [];
+        if (b.length){ const r_ = netOf(b); v += r_[0]; k += r_[1]; bt = true; }
+      }
+      if (!window.LOG_RS){ const r_ = netOf(arr.filter(o => !o.rs)); v += r_[0]; k += r_[1]; }   // 舊紀錄沒標判別式的
+      monNet += v; per30.push([dd, v, k, bt]); } }catch(e){}
     const money = v => `<span class="dnet ${v > 0 ? 'up' : v < 0 ? 'dn' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toLocaleString()}</span>`;
     const pnlTxt = `<span class="pnl"><span class="mlb">當日</span>${money(nExit ? dayNet : 0)}<span class="mlb m30">30日</span>${money(monNet)}</span>`;
     const hd2 = hd.replace(/<\/span><span>\d+ 則<\/span>/, pnlTxt + '</span>');   // 2026-10-24 14:05 當日 / 30日 移到日期 ▶ 鍵後面(同一個 nav 裡)
     // 2026-10-24 14:45 點標題列的「當日 / 30日」→ 改列這 30 個開盤日每天的淨輸贏(再點一次回卡片),方便對帳
     if (window.NL_SHOW30){
       const rows = per30.filter(r => r[2] > 0).sort((a, b) => b[0].localeCompare(a[0]));
-      box.innerHTML = hd2 + (rows.length ? `<div class="d30">` + rows.map(r => `<div class="d30r"><span>${r[0].slice(5).replace('-', '/')}</span><span>${r[2]} 筆平倉</span>${money(r[1])}</div>`).join('') + `</div>` : `<div class="empty">這 30 個開盤日沒有平倉紀錄</div>`);
+      box.innerHTML = hd2 + (rows.length ? `<div class="d30">` + rows.map(r => `<div class="d30r"><span>${r[0].slice(5).replace('-', '/')}</span><span>${r[2]} 筆平倉${r[3] ? '(含回測)' : ''}</span>${money(r[1])}</div>`).join('') + `</div>` : `<div class="empty">這 30 個開盤日沒有平倉紀錄</div>`);
     } else
     box.innerHTML = hd2 + (shown.length ? shown.map((o, k) => `<div class="card ${o.type === 'turn' ? 'c-turn' + (o.add ? ' c-add' : '') : o.side === 'long' ? 'c-long' : o.side === 'short' ? 'c-short' : ''}${posStatus(o.code) === 'open' ? ' mine' : posStatus(o.code) === 'closed' ? ' done' : ''}" data-i="${k}">${line(o)}</div>`).join('')
       : `<div class="empty">${window.LOG_RS ? '這天沒有' + window.LOG_RS + '的通知' : d === today ? '今日還沒有通知<br>(進場 / 停利 / 停損 / 出場會列在這裡)' : '這天沒有紀錄'}</div>`);
