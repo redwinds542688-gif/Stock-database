@@ -30,6 +30,14 @@
 - 1 分 K 標**開始時間**(09:00 含開盤撮合 … 13:24,再加 13:30 收盤),一天 266 根不缺;5 分 K 標結束時間(第一根 09:05);日 K 時間是 00:00。量的單位是**張**。
 - 10/22 友達 1 分 K 和 Yahoo 幾乎相同(量差 < 1%,是零股);雲端 K 同時段缺 09:02、13:23,量擠到別根。
 
+## Windows 桌機當連線主機(2026-10-24 起)
+
+- 安裝:元大元件解壓到 `C:\Yuanta\YuantaSparkAPI_win-x64_Python` 後,`python win_install.py`(下載中繼程式到 `C:\Yuanta\bridge`、寫 bridge.env、建工作排程)。
+- 工作排程「YuantaBridge」:週一到週五 08:40、錯過就開機後馬上跑、「不論使用者是否登入均執行」(開機停在輸入密碼也會跑),程式自己 08:45~13:36 連元大。
+- 第一階段**只收行情、只存本機**:`PUSH_KEY` 空白 → 1 分 K 存 `C:\Yuanta\bridge\bars_yuanta\日期.csv`(不推 Worker:KV 一天只能寫 1,000 次,雲端 K 已用約 880);紀錄在 `C:\Yuanta\bridge\log`。
+- 開機:主機板 BIOS 設每天 08:35 自動開機(使用者自己設)。
+- 程式跑著的時候不要再開 `win_test.py` 登入同一個帳號(可能互踢)。移除:`schtasks /Delete /TN YuantaBridge /F`。
+
 ## 檔案
 
 | 檔案 | 用途 |
