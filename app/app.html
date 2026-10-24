@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 16:40 每天、每份判別式的輸贏算好就存起來(記憶體 + localStorage mysh.pnlc,留 80 天),切換日期 / 判鍵不用重算(使用者:「要記錄起來 個股輸贏 當日金額 30日金額 這樣切換日期 不用重算」);那天紀錄、回測、多空上限、費率有變才重算,今天不存。
   · 2026-10-24 16:35 按判鍵篩選時,平倉卡的三角形位置改顯示這筆淨輸贏金額(扣手續費、證交稅;賺紅賠綠)(使用者:「單擊雙擊判二 三角形位置 如果已經平倉 就顯示輸贏金額」);按「訊息」看全部時照舊顯示三角形。
   · 2026-10-24 15:15 舊格式平倉通知(沒寫進場價)改成往前找同一檔同一份的進場卡補進場價 / 方向,當日 / 30日輸贏才不會漏掉賺的單(10/20 判二瑞軒、榮科停利原本沒算進去)。
   · 2026-10-24 15:05 回測只補每份判別式「第一次有實際通知」之前的日子(使用者:「以後如果滿30日了 回測資料就不需要了」);上線後沒訊號的日子不補,滿 30 個開盤日後回測自動不用。
@@ -1959,7 +1960,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610241635">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610241640">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6939,6 +6940,8 @@ window.bgTick = bgTick; window.BG = BG;
   // 2026-10-24 14:46 回測補資料(現行判一二三規則重跑的進出場,tools 產生):沒實際通知的日子 / 判別式用它算「30日」
   let BTF = {}; try{ BTF = JSON.parse(localStorage.getItem('mysh.btfill') || '{}'); }catch(e){}
   (async () => { try{ const r = await fetch(`${REPO_RAW}/app/bt_fill.json?v=${Math.floor(Date.now() / 3600000)}`); if (r.ok){ BTF = await r.json(); try{ localStorage.setItem('mysh.btfill', JSON.stringify(BTF)); }catch(e){} render(true); } }catch(e){} })();
+  let PNLC = {}; try{ PNLC = JSON.parse(localStorage.getItem('mysh.pnlc') || '{}'); }catch(e){}   // 2026-10-24 16:36 每天輸贏的紀錄(切換日期不用重算)
+  let pnlcT = 0; const pnlcSave = () => { clearTimeout(pnlcT); pnlcT = setTimeout(() => { try{ const ks = Object.keys(PNLC).sort(); while (ks.length > 80) delete PNLC[ks.shift()]; localStorage.setItem('mysh.pnlc', JSON.stringify(PNLC)); }catch(e){} }, 500); };
   window.nlRender = () => render(true);
   function render(force){
     const box = el('notifLog'); if (!box) return;
@@ -7088,21 +7091,37 @@ window.bgTick = bgTick; window.BG = BG;
     const RSL = window.LOG_RS ? [window.LOG_RS] : ['判一', '判二', '判三'];
     // 2026-10-24 14:50 使用者:「以後如果滿30日了 回測資料就不需要了」:回測只補「那份判別式第一次有實際通知那天之前」的日子;
     //   上線之後就算某天沒訊號也不補(那天本來就沒交易),滿 30 個開盤日後回測自然全部落在範圍外
+    // 2026-10-24 16:36 使用者:「要記錄起來 個股輸贏 當日金額 30日金額 這樣切換日期 不用重算」:
+    //   每一天、每一份判別式算好的(實際 / 回測 / 有沒有實際通知)存進 PNLC(記憶體 + localStorage mysh.pnlc);
+    //   鍵含那天的紀錄筆數、回測筆數、多空上限、費率,資料或設定變了才重算;今天(盤中一直在變)不存
     const DAYS_ = [...new Set([...ds, ...Object.keys(BTF || {})])].sort(), ARR = {};
     const arrOf = dd => ARR[dd] || (ARR[dd] = dd === d ? cards : (ensureCloud(dd), prep(itemsFor(dd))));
+    let C_ = null; try{ C_ = cost(); }catch(e){}
+    const feeSig = C_ ? (C_.fee.toFixed(7) + '/' + C_.tax.toFixed(5)) : '';
+    const unitOf = dd => {
+      const nIt = dd === d ? cards.length : itemsFor(dd).length, nBt = (BTF && BTF[dd]) ? BTF[dd].length : 0;
+      const key = dd + '|' + nIt + '|' + nBt + '|' + capFund() + '|' + feeSig;
+      if (dd !== today && PNLC[dd] && PNLC[dd].k === key) return PNLC[dd];
+      const arr = arrOf(dd), u = {k: key, live: {}, bt: {}, un: netOf(arr.filter(o => !o.rs))};
+      for (const rs of ['判一', '判二', '判三']){
+        const live = arr.filter(o => o.rs === rs && (o.type === 'entry' || o.type === 'exit'));
+        u.live[rs] = live.length ? netOf(live).concat([1]) : [0, 0, 0];
+        const b = nBt ? prep(BTF[dd]).filter(o => o.rs === rs) : [];
+        u.bt[rs] = b.length ? netOf(b) : [0, 0];
+      }
+      if (dd !== today){ PNLC[dd] = u; pnlcSave(); }
+      return u; };
     const firstLive = {}; for (const rs of RSL){ for (const dd of DAYS_){ if (dd > d) break; if (dd < d30 && !(BTF && BTF[dd])) continue;
-      if (arrOf(dd).some(o => o.rs === rs && (o.type === 'entry' || o.type === 'exit'))){ firstLive[rs] = dd; break; } } }
+      if (unitOf(dd).live[rs][2]){ firstLive[rs] = dd; break; } } }
     try{ for (const dd of DAYS_){ if (dd < d30 || dd > d) continue;
-      const arr = arrOf(dd);
+      const u = unitOf(dd);
       let v = 0, k = 0, bt = false;
       for (const rs of RSL){
-        const live = arr.filter(o => o.rs === rs && (o.type === 'entry' || o.type === 'exit'));
-        if (live.length){ const r_ = netOf(live); v += r_[0]; k += r_[1]; continue; }
+        if (u.live[rs][2]){ v += u.live[rs][0]; k += u.live[rs][1]; continue; }
         if (firstLive[rs] && dd >= firstLive[rs]) continue;   // 已經上線的日子不補回測
-        const b = (BTF && BTF[dd]) ? prep(BTF[dd]).filter(o => o.rs === rs) : [];
-        if (b.length){ const r_ = netOf(b); v += r_[0]; k += r_[1]; bt = true; }
+        if (u.bt[rs][1]){ v += u.bt[rs][0]; k += u.bt[rs][1]; bt = true; }
       }
-      if (!window.LOG_RS){ const r_ = netOf(arr.filter(o => !o.rs)); v += r_[0]; k += r_[1]; }   // 舊紀錄沒標判別式的
+      if (!window.LOG_RS){ v += u.un[0]; k += u.un[1]; }   // 舊紀錄沒標判別式的
       monNet += v; per30.push([dd, v, k, bt]); } }catch(e){}
     const money = v => `<span class="dnet ${v > 0 ? 'up' : v < 0 ? 'dn' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toLocaleString()}</span>`;
     const pnlTxt = `<span class="pnl"><span class="mlb">當日</span>${money(nExit ? dayNet : 0)}<span class="mlb m30">30日</span>${money(monNet)}</span>`;
