@@ -58,9 +58,12 @@ def main():
                 w = csv.writer(fh)
                 if new:
                     w.writerow(["code", "date", "time", "open", "high", "low", "close", "volume"])
+                miss = 0
                 for code, mk in lst[day]:
                     if code in done:
                         continue
+                    if miss >= 2:   # 元大一分線只給近 20 天:這天前 2 檔都沒資料 → 整天跳過(500017「僅提供近20天查詢」)
+                        yb.log(f"{day} 超過元大一分線查詢範圍,跳過"); break
                     done.add(code)
                     mkt = b.Y.enumMarketType.TWOTC if mk == "otc" else b.Y.enumMarketType.TWSE
                     b.kline_out = []
@@ -83,9 +86,9 @@ def main():
                         d, hm = ts_of(k[0])
                         w.writerow([code, d, hm, k[1], k[2], k[3], k[4], int(round(float(k[5]) * mult))])
                     if rows:
-                        n_ok += 1
+                        n_ok += 1; miss = -99
                     else:
-                        n_empty += 1
+                        n_empty += 1; miss += 1
                     yb.log(f"{day} {code} {len(rows)} 根")
                     fh.flush()
                     time.sleep(0.5)
