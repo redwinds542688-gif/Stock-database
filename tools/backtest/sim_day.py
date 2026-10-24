@@ -7,7 +7,14 @@ code, name, MA, OB = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]
 P = json.load(open(os.environ.get('POOL', f'{ROOT}/pool.json'), encoding='utf-8'))
 P2 = json.load(open(f'{ROOT}/pool.json', encoding='utf-8')); P['pool'] = P['pool'] + [x for x in P2['pool'] if x['code'] not in {y['code'] for y in P['pool']}]
 try:
-    df = pd.concat([pd.read_csv(f, dtype={'date':str,'time':str}) for f in sorted(__import__('glob').glob(f'{ROOT}/kline/{code}/2026-W4*.csv'))], ignore_index=True)
+    df = pd.concat([pd.read_csv(f, dtype={'date':str,'time':str}) for f in sorted(__import__('glob').glob(f'{ROOT}/kline/{code}/2026-W*.csv'))], ignore_index=True)
+    # 2026-10-24 使用者:「對 就是要以元大為準」:KSRC 預設 yuanta —— kline_yuanta/ 有的日子(元大 1 分 K,券商直接給、一天 266 根不缺)整天換成元大的,沒有的日子才用 Yahoo(kline/)
+    #   KSRC=yahoo 回到只用 Yahoo;KSRC=cloud 當天用雲端 K(盤中手機看的)
+    if os.environ.get('KSRC', 'yuanta') == 'yuanta':
+        _yf = sorted(__import__('glob').glob(f'{ROOT}/kline_yuanta/{code}/2026-W*.csv'))
+        if _yf:
+            _yt = pd.concat([pd.read_csv(f, dtype={'date':str,'time':str}) for f in _yf], ignore_index=True)
+            df = pd.concat([df[~df.date.isin(set(_yt.date))], _yt], ignore_index=True).sort_values(['date','time']).reset_index(drop=True)
     t = df[(df.date == DAY) & (df.time >= '09:00') & (df.time <= '13:30')].reset_index(drop=True)
     if os.environ.get('KSRC','yahoo') == 'cloud':   # 2026-10-20 使用者:「好 那只能針對用雲 K」:當天改讀 kline_cloud/(盤中判別式看的雲端快照 K),沒成交的分鐘照 App fillFlat 補平 K
         _cf = sorted(__import__('glob').glob(f'{ROOT}/kline_cloud/{code}/2026-W*.csv'))
