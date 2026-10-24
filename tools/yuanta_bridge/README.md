@@ -32,6 +32,7 @@
 - 工作排程「YuantaBridge」:週一到週五 08:40、錯過就開機後馬上跑、「不論使用者是否登入均執行」(開機停在輸入密碼也會跑),程式自己 08:45~13:36 連元大。
 - 第一階段**只收行情、只存本機**:`PUSH_KEY` 空白 → 1 分 K 存 `C:\Yuanta\bridge\bars_yuanta\日期.csv`;紀錄在 `C:\Yuanta\bridge\log`。`?ybars=push` 已改存 Durable Object(不吃 KV 額度),比對沒問題後設 Worker 密鑰 `YT_PUSH_KEY` + bridge.env `PUSH_KEY` 就會推上去。
 - 開機:主機板 BIOS 設每天 08:35 自動開機(使用者自己設)。
+- **下單功能測試** `win_order_test.py [代碼]`(盤中 09:05~13:15):跌停價買 1 張(預設 2883)→ 取消 → 查今天委託,印出元大回傳的每個欄位;會先暫停工作排程、測完再啟動。取消的 OrderQty 文件沒寫,先填 0、被拒改 1。
 - 程式跑著的時候不要再開 `win_test.py` 登入同一個帳號(可能互踢)。移除:`schtasks /Delete /TN YuantaBridge /F`。
 
 ## 檔案
