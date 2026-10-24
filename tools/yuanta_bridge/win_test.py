@@ -95,23 +95,29 @@ def main():
     print("登入成功")
     time.sleep(2)
 
-    day = last_trade_day().strftime("%Y/%m/%d")
+    d0 = last_trade_day()
+    day = d0.strftime("%Y/%m/%d")
+    nxt = (d0 + datetime.timedelta(days=1)).strftime("%Y/%m/%d")
+    wk = (d0 - datetime.timedelta(days=4)).strftime("%Y/%m/%d")
+    mon = (d0 - datetime.timedelta(days=20)).strftime("%Y/%m/%d")
+    # 2026-10-24 第一次實測 1 分 K(0)查同一天回 0 根 → 一次試幾種查法,看哪種有資料
+    tries = [("1分K 同一天", 0, day, day), ("1分K 隔天當結束", 0, day, nxt), ("5分K 一週", 1, wk, day), ("日K 20天", 11, mon, day)]
     out = HERE / f"yuanta_kline_{day.replace('/', '')}.csv"
     with open(out, "w", encoding="utf-8-sig") as f:
-        f.write("code,time,open,high,low,close,vol\n")
+        f.write("try,code,time,open,high,low,close,vol\n")
         for c in ("2330", "2409"):
-            ev["GetKLine"].clear(); kl.clear()
-            print(f"查 {c} {day} 1 分 K…")
-            api.GetKLine(acct, KLineType(0), enumMarketType.TWSE, c, day, day)
-            if not ev["GetKLine"].wait(15):
-                print(f"!! {c} 15 秒沒有回應"); continue
-            _, rows = kl[0]
-            print(f"  {c}:{len(rows)} 根")
-            for r in rows[:3] + ([("…",)] if len(rows) > 6 else []) + rows[-3:]:
-                print("   ", *r)
-            for r in rows:
-                f.write(",".join([c] + [str(x) for x in r]) + "\n")
-            time.sleep(1)
+            for name, kt, sd, ed in tries:
+                ev["GetKLine"].clear(); kl.clear()
+                ok = api.GetKLine(acct, KLineType(kt), enumMarketType.TWSE, c, sd, ed)
+                if not ev["GetKLine"].wait(15):
+                    print(f"  {c} {name}({sd}~{ed}):15 秒沒有回應(呼叫回傳 {ok})"); continue
+                _, rows = kl[0]
+                print(f"  {c} {name}({sd}~{ed}):{len(rows)} 根")
+                for r in rows[:2] + rows[-2:] if len(rows) > 4 else rows:
+                    print("     ", *r)
+                for r in rows:
+                    f.write(",".join([name, c] + [str(x) for x in r]) + "\n")
+                time.sleep(1.2)                            # 查詢類一秒最多 3 次
     print(f"已存檔:{out}")
     try:
         api.LogOut(); api.Close(); api.Dispose()
