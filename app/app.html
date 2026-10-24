@@ -223,6 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
+  · 2026-10-24 16:35 按判鍵篩選時,平倉卡的三角形位置改顯示這筆淨輸贏金額(扣手續費、證交稅;賺紅賠綠)(使用者:「單擊雙擊判二 三角形位置 如果已經平倉 就顯示輸贏金額」);按「訊息」看全部時照舊顯示三角形。
   · 2026-10-24 15:15 舊格式平倉通知(沒寫進場價)改成往前找同一檔同一份的進場卡補進場價 / 方向,當日 / 30日輸贏才不會漏掉賺的單(10/20 判二瑞軒、榮科停利原本沒算進去)。
   · 2026-10-24 15:05 回測只補每份判別式「第一次有實際通知」之前的日子(使用者:「以後如果滿30日了 回測資料就不需要了」);上線後沒訊號的日子不補,滿 30 個開盤日後回測自動不用。
   · 2026-10-24 15:00 「30日」補回測(使用者:「目前不足30日 所以需要把回測的資料也算上去」):某天某份判別式沒有實際通知 → 用 app/bt_fill.json(現行規則重跑 10/06~10/22 的進出場)補;明細標「含回測」。
@@ -1958,7 +1959,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610241515">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610241635">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2060,7 +2061,7 @@ except Exception:
   #notifLog .card .ln .sd{flex:0 0 2.2em;text-align:center;margin-left:.25ch} #notifLog .card .ln .sd.win{color:#FF3B3B} #notifLog .card .ln .sd.lose{color:#1DD75B}
   #notifLog .card .ln:not(.sub) .sd.win,#notifLog .card .ln:not(.sub) .sd.lose{display:inline-block;border:2px solid currentColor;border-radius:4px;padding:0 2px;line-height:1.1;font-size:.9em}   /* 2026-10-18 使用者:做多 / 做空 加框 */
   #notifLog .card .ln .qt{flex:0 0 2.2em;text-align:right;color:#D8DEE9;margin-left:.25ch}
-  #notifLog .card .ln .exm{flex:1 0 2.2em;text-align:right;margin-left:.25ch;letter-spacing:-1px} #notifLog .card .ln .mk.lose{color:#1DD75B} #notifLog .card .ln .mk.win{color:#FF3B3B}   /* 2026-10-18 使用者:贏的三角形紅、輸的驚嘆號綠(原本相反) */   /* 賠紅 ⚠、賺綠 ▲(2026-10-17 使用者) */
+  #notifLog .card .ln .exm{flex:1 0 2.2em;text-align:right;margin-left:.25ch;letter-spacing:-1px} #notifLog .card .ln .mk.lose{color:#1DD75B} #notifLog .card .ln .mk.amt{letter-spacing:0;font-variant-numeric:tabular-nums} #notifLog .card .ln .mk.win{color:#FF3B3B}   /* 2026-10-18 使用者:贏的三角形紅、輸的驚嘆號綠(原本相反) */   /* 賠紅 ⚠、賺綠 ▲(2026-10-17 使用者) */
   #notifLog .card .ln .rs{flex:0 0 2.6em;text-align:right;margin-left:.25ch;font-weight:700}   /* 2026-10-19 文字最大化:各欄固定寬與間距縮小,字級才能放大 */
   #notifLog .card .ln .rs.al{display:inline-block;border:2px solid currentColor;border-radius:4px;padding:0 2px;line-height:1.1;text-align:center;font-size:.9em}   /* 2026-10-18 警示欄位 */
   #notifLog .card .ln .rs.al-warn,#notifLog .card .ln .rs.al-rebound{color:#FF3B3B}   /* 2026-10-18 使用者:警示一律紅色 */
@@ -7042,7 +7043,10 @@ window.bgTick = bgTick; window.BG = BG;
       // 2026-10-18 使用者:名稱、價格顏色和下面清單一致 → 名稱白字;價格比昨收高紅、低綠、平白。昨收:雲端紀錄自帶 prev;今天的用即時報價的昨收,沒有就用清單的昨收
       const prevC = o.prev || (d === today ? (((LIVE.get(o.code) || {}).y) || (() => { const sn = SNAPSHOT.find(q => q.code === o.code); return sn && sn.date < today ? +sn.close : 0; })()) : 0);
       const ud = v => !prevC || !v ? '' : v > prevC ? ' up' : v < prevC ? ' down' : ' flat';
-      const ex = o.type === 'exit' ? `<span class="${o.win ? 'mk win' : 'mk lose'}">${(o.win ? '▲' : '⚠').repeat(marks(o.pl))}</span>` : '';
+      // 2026-10-24 16:33 使用者:「單擊雙擊判二 三角形位置 如果已經平倉也只有平倉 就顯示輸贏金額」:按判鍵篩選時,平倉卡的三角形改成這筆的淨輸贏(扣手續費、證交稅)
+      const nv = (window.LOG_RS && o.type === 'exit') ? netOf([o]) : null;
+      const ex = o.type === 'exit' ? (nv && nv[1] ? `<span class="mk amt ${nv[0] >= 0 ? 'win' : 'lose'}">${nv[0] >= 0 ? '+' : '−'}${Math.abs(nv[0]).toLocaleString()}</span>`
+        : `<span class="${o.win ? 'mk win' : 'mk lose'}">${(o.win ? '▲' : '⚠').repeat(marks(o.pl))}</span>`) : '';
       // 2026-10-18 使用者定案:最右邊是「警示欄位」,顯示 平倉 / 注意 / 反彈。進場卡片顯示這筆交易之後最新的狀態(平倉 > 反彈 / 注意),
       // 平倉 / 注意 / 反彈 那則自己也顯示;今天、而且出現不到 10 分鐘的會閃爍。每列都有同樣的欄位,成交價 / 做多做空 / 張數才會上下對齊
       const AL = {exit: '平倉', warn: '注意', rebound: '反彈'};
