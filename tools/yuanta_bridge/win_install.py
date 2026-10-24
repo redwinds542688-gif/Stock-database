@@ -70,14 +70,16 @@ def main():
         subprocess.run(["icacls", str(env), "/inheritance:r", "/grant:r", f"{user}:F"], capture_output=True)   # 只有自己讀得到
         print(f"  已寫入 {env}")
 
-    step(3, "建立工作排程(會跳出視窗要你輸入 Windows 登入密碼)")
+    step(3, "建立工作排程(要輸入 Windows 登入密碼)")
     print("  說明:這是登入 Windows 用的密碼(不是元大密碼,也不是 PIN 碼);用微軟帳號登入的話就是微軟帳號密碼。")
     print("  Windows 會加密保存,只給工作排程用。")
     ps = f"""
 $ErrorActionPreference = 'Stop'
 $u = "$env:USERDOMAIN\\$env:USERNAME"
-$c = Get-Credential -UserName $u -Message '輸入 Windows 登入密碼(不是 PIN),讓元大程式在沒登入時也能背景執行'
-if (-not $c) {{ Write-Host '取消了'; exit 2 }}
+# 2026-10-24 Get-Credential 的視窗會被黑色視窗擋住找不到 → 改在黑色視窗裡直接輸入(不顯示)
+Write-Host "  Windows 帳號:$u"
+$sp = Read-Host -AsSecureString '  輸入 Windows 登入密碼(不是 PIN,打的時候不會顯示,打完按 Enter)'
+$c = New-Object System.Management.Automation.PSCredential($u, $sp)
 $act = New-ScheduledTaskAction -Execute '{sys.executable}' -Argument 'yuanta_bridge.py run' -WorkingDirectory '{APP}'
 $trg = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At 08:40
 $set = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 5)
