@@ -227,6 +227,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     今天的通知紀錄(?log=add / get / del,手機每分鐘讀、以後自動交易每 3 秒讀,原本每次 KV list)和元大 1 分 K(?ybars,一分鐘一筆)改存 Cloudflare Durable Object「Hub」
     (免費方案一天 10 萬次請求 / 10 萬列寫入,讀到的一定是最新的)。10/25 以後的通知只存 Hub,之前的照舊讀 KV;同一部位平倉去重照舊。網址和格式都沒變。
     額度:KV 每天少 list 約 600 次(兩支手機)+ 寫入約 50 次;Hub 每天約 1,000 次請求(手機)+ 6,500 次(自動交易開了以後)+ 270 列(元大 K),都遠低於免費上限。
+  · 2026-10-24 23:40 元大資料第一首選(使用者:「現在 開始 把元大資料作為使用第一首選」):手機跟雲端 K 一起問 Worker ?ybars(元大 1 分 K,Durable Object),某檔今天有元大 K 且沒落後雲端超過 1 分鐘 → 整天改用元大;沒有就自動退回雲端 K。今天沒有元大 K 時每 60 秒才問一次。回測(tools/backtest)KSRC 預設也改元大。
   · 2026-10-24 16:50 10/23 颱風停止交易,加進休市日(TW_HOLIDAYS),「30日」數開盤日時跳過(使用者確認)。
   · 2026-10-24 16:45 監控燈移回右上角(使用者:「開盤時 判一二三不用亮起來 只要右上角綠點亮起即可」):判鍵上不再有綠 / 紅點;開盤監控中右上角綠點(不閃),監控沒在跑紅點,非交易時段不亮。
   · 2026-10-24 16:40 每天、每份判別式的輸贏算好就存起來(記憶體 + localStorage mysh.pnlc,留 80 天),切換日期 / 判鍵不用重算(使用者:「要記錄起來 個股輸贏 當日金額 30日金額 這樣切換日期 不用重算」);那天紀錄、回測、多空上限、費率有變才重算,今天不存。
@@ -1966,7 +1967,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610242022">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610242340">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3732,6 +3733,7 @@ async function loadCloudBars(){
       TODAY_BARS.set(code, {at: Date.now(), bars: old.concat(add), err: '', cloud: true, yahooAt: cur && cur.yahooAt || 0, pre: cur && cur.pre || 0});
     }
     if (j.last) CLOUD_BARS.last = j.last;
+    await loadYuantaBars(d, base);   // 2026-10-24 23:34 使用者:「現在 開始 把元大資料作為使用第一首選」:元大 1 分 K 有、而且跟得上 → 那幾檔整天改用元大
     todayCacheSave(d);
     await loadBreadth(d);
     if (j.n > 0) { CLOUD_BARS.ok = true; CLOUD_BARS.n = j.n; }
@@ -3746,6 +3748,35 @@ async function loadCloudBars(){
   return CLOUD_BARS.ok;
 }
 window.CLOUD_BARS = CLOUD_BARS;
+/* 2026-10-24 23:34 使用者:「現在 開始 把元大資料作為使用第一首選」:桌機中繼程式把元大 1 分 K 推到 Worker(?ybars,存在 Durable Object,不用 KV),
+   手機跟雲端 K 一起問(只問 since 之後的);某檔今天有元大 K、而且元大最後一分鐘沒有落後雲端 K 超過 1 分鐘 → 那檔整天用元大的 K(券商直接給、不缺根、09:00 含開盤撮合量);
+   桌機沒開 / 還沒推 / 落後 → 自動退回雲端 K。今天沒有任何元大 K 時改成每 60 秒才問一次,省 Worker 請求。 */
+const YBARS = { d: '', last: '', n: 0, at: 0, err: '', bars: new Map(), used: 0 };
+async function loadYuantaBars(d, base){
+  try{
+    if (YBARS.d !== d){ YBARS.d = d; YBARS.last = ''; YBARS.n = 0; YBARS.bars = new Map(); YBARS.at = 0; }
+    if (!YBARS.n && Date.now() - YBARS.at < 60000) return;
+    YBARS.at = Date.now();
+    const r = await fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?ybars=${d}${YBARS.last ? '&since=' + YBARS.last : ''}&_=${Date.now()}`, {cache: 'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json(); if (!j || !j.bars) throw new Error(j && j.error || '沒有資料');
+    for (const code in j.bars){
+      const add = j.bars[code].map(b => ({time: base + (+b[0].slice(0, 2)) * 3600 + (+b[0].slice(3, 5)) * 60, open: +b[1], high: +b[2], low: +b[3], close: +b[4], volume: +b[5]}));
+      if (!add.length) continue;
+      const old = (YBARS.bars.get(code) || []).filter(x => x.time < add[0].time);
+      YBARS.bars.set(code, old.concat(add));
+    }
+    if (j.last) YBARS.last = j.last;
+    YBARS.n += j.n || 0; YBARS.err = '';
+    const hm = x => x ? (+x.slice(0, 2)) * 60 + (+x.slice(3, 5)) : -1;
+    if (!YBARS.n || hm(YBARS.last) < hm(CLOUD_BARS.last) - 1) { YBARS.used = 0; return; }   // 元大落後雲端 → 這輪照用雲端
+    let used = 0;
+    for (const [code, bars] of YBARS.bars){ if (!bars.length) continue; const cur = TODAY_BARS.get(code);
+      TODAY_BARS.set(code, {at: Date.now(), bars: bars.slice(), err: '', cloud: true, src: 'yuanta', yahooAt: cur && cur.yahooAt || 0, pre: cur && cur.pre || 0}); used++; }
+    YBARS.used = used;
+  }catch(e){ YBARS.err = e.message; }
+}
+window.YBARS = YBARS;
 // 2026-10-21 判二「大盤偏多只做黑盤空」:大盤寬度(每分鐘上漲比例)。跟雲端 K 一起每 55 秒抓一次;沒抓到 = 不擋
 const BREADTH = { d: '', base: 0, arr: [], err: '' };
 async function loadBreadth(d){

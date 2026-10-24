@@ -38,8 +38,40 @@ def prev_close_from_kline(code, d):
                     best = ((r["date"], r["time"]), float(r["close"]))
     return best[1] if best else None
 
+def save_yuanta(d):
+    """2026-10-24 使用者「把元大資料作為使用第一首選」:桌機中繼程式推到 Worker 的元大 1 分 K(?ybars=日期)也存一份到 kline_yuanta/<代號>/<週>.csv,
+    回測(sim_day.py KSRC 預設 yuanta)就有每天的元大 K。Worker 沒有元大 K(桌機沒開 / 還沒設推送金鑰)就不寫。一天只多 1 次 Worker 請求"""
+    try:
+        req = urllib.request.Request(f"{WORKER}/?ybars={d}&_={int(datetime.datetime.now().timestamp())}", headers={"User-Agent": "mysh-save-cloud"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            j = json.load(r)
+    except Exception as e:
+        print(f"{d} 讀元大 1 分K 失敗:{e}"); return
+    bars = j.get("bars") or {}
+    if not bars:
+        print(f"{d} Worker 沒有元大 1 分K,不寫"); return
+    out = os.path.join(ROOT, "kline_yuanta"); n = 0
+    for code, rows in sorted(bars.items()):
+        rows = [r for r in rows if "09:00" <= r[0] <= "13:30"]
+        if not rows:
+            continue
+        folder = os.path.join(out, code); os.makedirs(folder, exist_ok=True)
+        f = os.path.join(folder, f"{week_key(d)}.csv"); keep = []
+        if os.path.exists(f):
+            with open(f, encoding="utf-8") as fh:
+                keep = [r for r in csv.DictReader(fh) if r["date"] != d]
+        with open(f, "w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh); w.writerow(["date", "time", "open", "high", "low", "close", "volume"])
+            for r in keep:
+                w.writerow([r["date"], r["time"], r["open"], r["high"], r["low"], r["close"], r["volume"]])
+            for t, o, h, l, c, v in rows:
+                w.writerow([d, t, o, h, l, c, int(v)])
+        n += 1
+    print(f"{d} 元大 1 分K 存了 {n} 檔")
+
 def main():
     d = sys.argv[1] if len(sys.argv) > 1 else tw_today()
+    save_yuanta(d)
     url = f"{WORKER}/?bars={d}&_={int(datetime.datetime.now().timestamp())}"
     req = urllib.request.Request(url, headers={"User-Agent": "mysh-save-cloud"})
     with urllib.request.urlopen(req, timeout=60) as r:
