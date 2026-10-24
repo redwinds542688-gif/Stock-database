@@ -223,7 +223,7 @@ Claude App 的預覽視窗連不到網路,不能拿來測資料。回覆用繁�
     線未成形不推(YH.turnNotifyOrg)。只管通知,轉折圖上的點照畫。357 檔 13 天:空點 88% 橘線本來就向下、多點 88% 向上,約少 12% 的通知;勝率沒差(空 34% / 35%、多 22% / 21%)。
   · 2026-10-23 12:25 橘線條件關掉(使用者:群創 11:37 空被擋「為什麼擋了」→「搭用橘線不可行 因為橘線有點像是未來線」):橘線最後一段要等下一個穿越點才畫得出來,當下看到的是上一段,慢半拍。
     轉折通知回到只看轉折點(YH.turnNotifyOrg = false,程式留著)。
-  · 2026-10-24 14:40 「30日」固定算今天往前 30 天(含今天),翻到前幾天看也不變(使用者:「要包含 當日」)。
+  · 2026-10-24 14:45 「30日」= 正在看的那天(含)+ 往前 29 天(使用者:「翻到了22日 就是算到包含22日+前29天」);14:40 固定算到今天的版本取消。
   · 2026-10-24 14:35 「30日」左邊對齊下面卡片 ▲ 欄放滿 4 顆時的第一顆(使用者:「30日 與下面四個三角形的第一顆對齊」);沒有卡片時維持 22px。
   · 2026-10-24 14:30 平倉卡 ▲ / ⚠ 最多 4 顆(使用者:「改最多顯示4顆」):每 1% 一顆(≤1% 一顆、≤2% 兩顆、≤3% 三顆、>3% 四顆),原本最多 2 顆。
   · 2026-10-24 14:25 當日金額和「30日」之間 18px → 22px(使用者:「18改22」)。
@@ -1953,7 +1953,7 @@ except Exception:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-  <meta name="app-build" content="202610241440">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610241445">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7049,9 +7049,9 @@ window.bgTick = bgTick; window.BG = BG;
     //   過去的日子用雲端紀錄(ensureCloud 每天每小時最多抓 1 次)
     let monNet = 0;
     // 2026-10-24 14:00 使用者改成「“30日”+30日的總輸贏」:正在看的那天往前 30 天(含當天)
-    // 2026-10-24 14:18 使用者:「要包含 當日」:30 日固定算到今天(含今天),翻到前幾天看也一樣
-    const d30 = (() => { const t = new Date(today + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() - 29); return t.toISOString().slice(0, 10); })();
-    try{ for (const dd of ds){ if (dd < d30 || dd > today) continue;
+    // 2026-10-24 14:21 使用者:「翻到了22日 就是算到包含22日+前29天 21日 就是21日當天+21日前29天」:正在看的那天(含)+ 往前 29 天
+    const d30 = (() => { const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() - 29); return t.toISOString().slice(0, 10); })();
+    try{ for (const dd of ds){ if (dd < d30 || dd > d) continue;
       let arr;
       if (dd === d) arr = cards; else { ensureCloud(dd);
         arr = itemsFor(dd).filter(x => x.kind !== 'sys').map(parse).filter(Boolean).filter(o => { const px = o.entP || o.price || 0; return !(px > 0 && px * 1000 > capFund()); });
