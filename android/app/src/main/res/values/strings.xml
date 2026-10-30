@@ -1,0 +1,3 @@
+<resources>
+    <!-- app_name 由 build.gradle.kts 的 productFlavors(main / viewer)用 resValue 提供(2026-10-29) -->
+</resources>

@@ -1,0 +1,18 @@
+# systemd 服務:開機自動啟動、當掉自動重啟
+# 安裝:sudo cp yuanta-bridge.service /etc/systemd/system/ && sudo systemctl enable --now yuanta-bridge
+[Unit]
+Description=Yuanta SPARK API bridge (1-min bars -> Cloudflare Worker)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=yuanta
+WorkingDirectory=/opt/yuanta_bridge
+Environment=BRIDGE_ENV=/opt/yuanta_bridge/bridge.env
+Environment=TZ=Asia/Taipei
+ExecStart=/opt/yuanta_bridge/venv/bin/python /opt/yuanta_bridge/yuanta_bridge.py run
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

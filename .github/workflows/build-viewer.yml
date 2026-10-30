@@ -1,0 +1,32 @@
+# 2026-10-29 看盤版(使用者:「如果 程式給別人用 但我要控制判123在手上」→「先做1.2.3」第 1 項):
+# app/app.html 推上 main 就自動用 tools/make_viewer.py 產生 app/viewer.html(拿掉判一二三程式碼 + 全部註解),
+# 也放一份到 android/app/src/viewer/assets/app.html(看盤版 APK 內建)。公開 repo 的 Actions 不計費,一次約 1 分鐘,不碰 Cloudflare / KV。
+name: build-viewer
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'app/app.html'
+      - 'tools/make_viewer.py'
+permissions:
+  contents: write
+concurrency: { group: build-viewer, cancel-in-progress: true }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: 產生看盤版
+        run: |
+          npm install --no-audit --no-fund --silent terser@5.31.6
+          TERSER=node_modules/.bin/terser python3 tools/make_viewer.py --android
+      - name: 推送
+        run: |
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/viewer.html android/app/src/viewer/assets/app.html
+          git commit -m "看盤版 viewer.html 自動產生" || exit 0
+          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done

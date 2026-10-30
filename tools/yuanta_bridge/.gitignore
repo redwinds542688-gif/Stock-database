@@ -1,0 +1,7 @@
+bridge.env
+sdk/
+cert/
+log/
+venv/
+__pycache__/
+trade_state.json

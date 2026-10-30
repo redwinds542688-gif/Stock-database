@@ -1,0 +1,80 @@
+name: 部署 twse-proxy 到 Cloudflare
+
+# worker.js 或 wrangler.toml 合併到 main 就自動部署;也可以在 Actions 頁手動按 Run workflow。
+# 需要兩個 repo secret(Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN  (Cloudflare 建立的 API Token,範本 "Edit Cloudflare Workers")
+#   CLOUDFLARE_ACCOUNT_ID (Cloudflare Workers 總覽頁右側的 Account ID)
+# Worker 上原本設定的 GH_TOKEN 密鑰不會被覆蓋。
+# 選用 secret:YT_PUSH_KEY(元大中繼程式推 1 分 K 的金鑰;有設就每次部署時帶給 Worker,沒設就略過)
+# 2026-10-28 18:01 換 YT_PUSH_KEY(舊金鑰外流過),推這行觸發重新部署
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - worker.js
+      - wrangler.toml
+      - .github/workflows/deploy-worker.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 取出 repo
+        uses: actions/checkout@v4
+
+      - name: 檢查 Account ID 格式(32 個 0-9a-f;不對就略過,讓 wrangler 自己從 Token 查帳號)
+        env:
+          AID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          AID="$(printf '%s' "$AID" | tr -d '[:space:]')"
+          if printf '%s' "$AID" | grep -Eq '^[0-9a-f]{32}$'; then
+            echo "CLOUDFLARE_ACCOUNT_ID=$AID" >> "$GITHUB_ENV"
+            echo "Account ID 格式正確"
+          else
+            echo "::warning::CLOUDFLARE_ACCOUNT_ID 不是 32 位 0-9a-f(長度 ${#AID}),略過,改由 Token 自動查帳號"
+          fi
+
+      # 2026-10-19 通知紀錄存雲端:Worker 要一個 KV 命名空間(綁定名 LOGS)。沒有就建,有就沿用;把 id 接到 wrangler.toml 後再部署。
+      # 建不起來(Token 沒有 Workers KV 權限)只警告不失敗,Worker 照常部署,只是 ?log= 會回 503。
+      - name: 建立 / 綁定 KV 命名空間 LOGS(通知紀錄)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          npm install -g wrangler >/dev/null 2>&1 || npm install -g wrangler
+          LIST="$(wrangler kv namespace list 2>/dev/null || true)"
+          ID="$(printf '%s' "$LIST" | python3 -c 'import sys,json; s=sys.stdin.read(); i=s.find("["); j=s.rfind("]"); a=json.loads(s[i:j+1]) if i>=0 and j>i else []; print(next((x.get("id","") for x in a if str(x.get("title","")).endswith("LOGS")), ""))' 2>/dev/null || true)"
+          if [ -z "$ID" ]; then
+            OUT="$(wrangler kv namespace create LOGS 2>&1 || true)"; echo "$OUT"
+            ID="$(printf '%s' "$OUT" | grep -oE 'id"?[[:space:]]*[:=][[:space:]]*"[0-9a-f]{32}"' | grep -oE '[0-9a-f]{32}' | head -1)"
+          fi
+          if [ -z "$ID" ]; then echo "::warning::KV 命名空間建不起來,通知紀錄雲端功能先關閉(Worker ?log= 回 503);檢查 CLOUDFLARE_API_TOKEN 有沒有 Workers KV Storage:Edit 權限"; exit 0; fi
+          printf '\n[[kv_namespaces]]\nbinding = "LOGS"\nid = "%s"\n' "$ID" >> wrangler.toml
+          echo "KV LOGS id=$ID"; tail -4 wrangler.toml
+
+      - name: 部署到 Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: deploy
+
+      # 2026-10-25 使用者「做」:元大中繼程式推 K 線(?ybars=push)要 Worker 密鑰 YT_PUSH_KEY;金鑰只放 GitHub Secrets,這裡帶給 Worker
+      - name: 帶上 YT_PUSH_KEY 密鑰(GitHub Secrets 有設才做)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          K: ${{ secrets.YT_PUSH_KEY }}
+        run: |
+          if [ -z "$K" ]; then echo "沒有設 YT_PUSH_KEY,略過"; exit 0; fi
+          printf '%s' "$K" | wrangler secret put YT_PUSH_KEY
+          echo "YT_PUSH_KEY 已帶給 Worker"
+
+      - name: 確認上線
+        run: |
+          sleep 5
+          curl -sS "https://twse-proxy.redwinds542688.workers.dev/?gh=status"
+          echo; curl -sS "https://twse-proxy.redwinds542688.workers.dev/?log=days"

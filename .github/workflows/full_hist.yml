@@ -1,0 +1,36 @@
+name: 元大歷史抓滿名單(一次性)
+
+# 2026-10-25 使用者「符合條件一律收進來…預先抓好抓滿」:用證交所 / 櫃買盤後行情 + amp_history.json,
+# 把每個交易日「前一天收盤符合選股條件的全部股票」併進 tools/yuanta_bridge/hist_list.json(桌機 hist_kline.py 照這份抓)。
+# 只在這支腳本改動或手動按時跑,一次約 1~2 分鐘。
+on:
+  push:
+    branches: [main]
+    paths: [tools/yuanta_bridge/build_full_hist.py]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install requests
+      - run: python tools/yuanta_bridge/build_full_hist.py
+      - name: Commit 回 repo
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add tools/yuanta_bridge/hist_list.json
+          if git diff --cached --quiet; then echo "沒有變動"; else
+            git commit -m "元大歷史抓滿名單 $(TZ=Asia/Taipei date '+%Y-%m-%d %H:%M')"; git pull --rebase; git push; fi

@@ -1,0 +1,14 @@
+# Cloudflare 快速通道:把本機報價服務(127.0.0.1:8787)接到一個 https://xxx.trycloudflare.com 網址,不用開防火牆的埠
+# 只有 bridge.env 設 QUOTE_ENABLE=1 才需要裝:sudo cp cloudflared-quote.service /etc/systemd/system/ && sudo systemctl enable --now cloudflared-quote
+[Unit]
+Description=cloudflared quick tunnel for yuanta quotes
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/cloudflared tunnel --no-autoupdate --metrics 127.0.0.1:20241 --url http://127.0.0.1:8787
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
