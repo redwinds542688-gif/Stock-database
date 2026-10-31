@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-01 04:19(實際時間)整個試算視窗都能當圖操作(使用者「在這區域 所有的圖都一樣 也是可以 上滑放大 下滑縮小 有時可以移動畫面跟移動十字線」):上面「試算 這根」、價格那排、小長條也一樣:點 = 十字線到那根、放下馬上上下滑 = 縮放、左右滑 = 捲圖、按在十字直線上拖 = 拖十字線(原本只有乖離圖可以)。
   · 2026-11-01 03:21(實際時間)圖左邊價格刻度黃字改成藍字(使用者「把 黃色 換 藍色」,#4FC3F7);時間刻度照舊金黃。
   · 2026-11-01 03:11(實際時間)圖左邊的價格刻度一律黃字(使用者「都改成 黃字 不再隨價格改變顏色」):K 線圖 / 漲跌圖 / 轉折圖、指標二(顯示價格時)、乖離圖都改;原本高於昨收紅、平白、低綠。十字線那格價格標籤照舊。
   · 2026-11-01 03:00(實際時間)進 K 圖一律先是 K 線圖(使用者「其他進入 一律是k圖」):清單、當沖、明細、手機通知、訊息欄判一 / 判三 / 強三都是 K 線圖;只有訊息欄點判二 → 漲跌圖、判四 → 轉折圖。在圖裡 ◀ ▶ 換股票維持目前那張。
@@ -97,7 +98,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611010321">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611010419">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -496,6 +497,7 @@
   .yh-lbl.sep{border-top:1px solid #6B7280;padding-top:4px}
   #wiPanel{position:fixed;left:0;right:0;top:55%;bottom:0;overflow:hidden;z-index:300;background:#000;border:3px solid #000;border-radius:0;padding:0 8px;box-sizing:border-box;box-shadow:0 -1px 0 0 #000,0 -2px 0 0 #6B7280;display:none;font-variant-numeric:tabular-nums}   /* 2026-10-25 試算下一根 K;12:40 左右不留白、接在 K 圖下面、直角 */
   #wiPanel.on{display:block}
+  #wiPanel{touch-action:none}   /* 2026-11-01 整個試算視窗都當圖操作(上下滑縮放、左右滑捲圖),不讓瀏覽器自己捲 */
   #wiPanel .pb{color:#FFE14D;font-weight:600}   /* 2026-10-25 13:00 使用者「這是試算整個視窗都淺黃 再淺一點」:整個視窗淺黃(#FFFCE8),機率欄不另外上色 */
   #wiPanel table{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}
   #wiPanel td,#wiPanel th{white-space:nowrap;overflow:hidden;padding-top:0!important;padding-bottom:0!important}
@@ -3134,7 +3136,9 @@ function wiDevTap(wp){
       if (edgeScroll.on() || st.edge){ edgeScroll.stop(); st.edge = false; const lx = lineX(); if (lx != null){ st.off = lx - x; return true; } }
       if (x < L + Z && mv < 0 || x > Rr - Z && mv > 0){ const xl = getXLock(), ci = xl ? BARS.findIndex(b => b.time === xl.time) : -1; if (ci >= 0 && (mv < 0 ? fi > ci : fi < ci)) return true; }
     }catch(e){} return false; };
-  wp.addEventListener('pointerdown', ev => { if (!(ev.target && ev.target.id === 'dvCv')) return; st = {t0: Date.now(), x0: ev.clientX, y0: ev.clientY, mode: null};
+  // 2026-11-01 使用者(試算視窗上半部「試算 12:54 這根」、價格那排、小長條):「在這區域 所有的圖都一樣 也是可以 上滑放大 下滑縮小 有時可以移動畫面跟移動十字線」
+  //   → 整個試算視窗(滑軌、按鍵除外)都和乖離圖一樣:點 = 十字線到那根、放下馬上上下滑 = 縮放、左右滑 = 捲圖、按在十字直線上拖 = 拖十字線
+  wp.addEventListener('pointerdown', ev => { const tg = ev.target; if (!tg || !wp.contains(tg) || (tg.closest && tg.closest('.wslide,.wdrag,.wnav,button,input,a'))) return; st = {t0: Date.now(), x0: ev.clientX, y0: ev.clientY, mode: null};
     const lx = lineX(); if (lx != null && Math.abs(ev.clientX - lx) <= 28){ st.mode = 'x'; st.off = lx - ev.clientX; }   // 2026-10-28 00:50 記住手指和線的距離
     try{ ev.target.setPointerCapture(ev.pointerId); }catch(e){} });
   wp.addEventListener('pointermove', ev => { if (!st) return;
