@@ -413,4 +413,15 @@ ok(gs12.sent and gs12.sent[-1][1] == "S" and gs12.sent[-1][2] == 14 and s12.posi
 s12.on_report(51, "A0001", 0, 14000, 17.45); s12.on_tick("1714", 18.05); ok(s12.positions["1714"]["state"] == EXITING, s12.positions["1714"])
 # S13) 2026-10-31 同時持倉:預設 10;bridge.env 舊的 2 / 5 也當 10;其他數字照用
 ok(mk()[0].max_pos == 10 and mk(TRADE_MAX_POS="2")[0].max_pos == 10 and mk(TRADE_MAX_POS="5")[0].max_pos == 10 and mk(TRADE_MAX_POS="3")[0].max_pos == 3)
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1)")
+# S14) 2026-10-31 當天虧損保險(TRADE_KILL_LOSS):已平倉 + 持倉帳面虧到上限 → 全部平倉(漲停買回)、不再自動進場;重開還記得
+s14, g14 = mk(TRADE_CAP="250000", TRADE_KILL_LOSS="10000", TRADE_MAX_MOVE_PCT="99")
+ok(mk()[0].kill_loss == 50000)
+for c, px in (("2401", 50.0), ("2402", 50.0)):
+    s14.on_tick(c, px); s14.step([sig(f"k14{c}", "short", f"股{c} {c} 做空進場 {px}", f"10:00 空 · 停利 {px * 0.91:.2f} 停損 {px * 1.2:.2f} · 5張 · 判四")])
+    s14.on_report(51, "", 0, s14.positions[c]["order"]["want"], s14.positions[c]["order"]["price"], basket=g14.tags[-1])
+ok(all(s14.positions[c]["state"] == HOLDING for c in ("2401", "2402")) and not s14.killed)
+s14.on_tick("2401", 51.0); ok(not s14.killed)                      # 帳面 −5,000 左右:還沒到
+s14.on_tick("2402", 51.5); ok(s14.killed and all(s14.positions[c]["state"] == EXITING for c in ("2401", "2402")) and g14.sent[-1][-1] == "H", (s14.killed, g14.sent[-2:]))
+ok(s14.can_enter("2403", "判四").startswith("今天已虧到"))
+s14b, _ = mk(TRADE_STATE_FILE=str(s14.state_file)); ok(s14b.killed)
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1)")

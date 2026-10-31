@@ -93,7 +93,10 @@ class Trader:
         # 2026-10-31 03:55 使用者「改 10」(16 天回測:同時 2 檔 +72,395、5 檔 +212,220、10 檔 +338,404、不限 +371,487;超過 10 檔是一天 490 萬先用完):
         #   預設 10;bridge.env 還是以前設的 2 或 5(10/29 開自動交易時 2、10/28 的 5)也當 10,不用動桌機檔案;要別的數字就寫成 2、5 以外的值
         if self.max_pos in (2, 5): self.max_pos = 10
-        self.max_loss = float(cfg.get("TRADE_MAX_LOSS", "20000"))   # 2026-10-26 使用者「改。當天虧 20,000 就停止進場」(原 3000)
+        self.max_loss = float(cfg.get("TRADE_MAX_LOSS", "20000"))
+        # 2026-10-31 使用者「加一道虧到多少就全部平倉」→「改 5 萬」:當天 已平倉 + 持倉帳面 虧到 TRADE_KILL_LOSS 就全部平倉、今天不再自動進場(強制進場照收);0 = 關
+        #   16 天回測(判一二三四、同時 10 檔):5 萬一次都沒觸發;3 萬會在 10/20 09:31 帳面 −30,378 鎖死(收盤本來 +36,265),所以只當意外保險
+        self.kill_loss = float(cfg.get("TRADE_KILL_LOSS", "50000"))   # 2026-10-26 使用者「改。當天虧 20,000 就停止進場」(原 3000)
         # 2026-10-27 使用者:一天買 + 賣成交金額上限(元大額度 500 萬留緩衝 490 萬);自動進場前算這筆一進一出要用多少,不夠就少掛幾張、連 1 張都不夠就不進;
         #   進場委託被拒(額度 / 金額)→ 少 1 張再掛,一直退到 1 張還被拒才放棄。強制進場不看這個(使用者:元大自己會擋)
         self.max_amount = float(cfg.get("TRADE_MAX_AMOUNT", "5000000"))
@@ -158,6 +161,7 @@ class Trader:
         self.start_hm = self.hm()
         # 2026-10-29 稽核 #3:今天已進場過的訊號(代碼|判別式|K 棒時間),同一個訊號換了發送分鐘重送也不再進;存狀態檔(程式重開還在)
         self.entered_keys = set(self.load_state().get("entered") or [])
+        self.killed = bool(self.load_state().get("killed"))   # 2026-10-31 今天已經虧到 TRADE_KILL_LOSS 全部平倉過(程式重開還記得)
 
     # ── 小工具 ──
     @property
@@ -190,6 +194,7 @@ class Trader:
             for c, v in (old.get("forced") or {}).items():
                 js["forced"].setdefault(c, v)                       # 已平倉的也留著(同一天程式重開接回時還找得到)
             js["entered"] = sorted(set(old.get("entered") or []) | self.entered_keys)   # 2026-10-29 稽核 #3
+            js["killed"] = bool(getattr(self, "killed", False) or old.get("killed"))
             self.state_file.write_text(json.dumps(js, ensure_ascii=False), encoding="utf-8")
         except Exception as e:
             self.log(f"[交易] 存狀態檔失敗 {e}")
@@ -499,8 +504,31 @@ class Trader:
             return [(c, n) for c, n, _ in left]
 
     # ── 外部事件 ──
+    def check_kill(self):
+        """2026-10-31 當天虧損保險:已平倉損益 + 持倉帳面(現價、扣手續費 / 稅)≤ −TRADE_KILL_LOSS → 全部平倉(漲停買 / 跌停賣),今天不再自動進場"""
+        if self.kill_loss <= 0 or self.killed or self.hm() < "09:00":
+            return
+        with self.lock:
+            unreal = 0.0
+            for p in self.positions.values():
+                if p["state"] != HOLDING: continue
+                px = self.last_px.get(p["code"]) or p["entry"]; lots = p["qty"]
+                buy, sell = (p["entry"], px) if p["dir"] > 0 else (px, p["entry"])
+                unreal += (px - p["entry"]) * p["dir"] * lots * 1000 - self.cost_amt(buy, sell, lots)
+            total = self.pnl + unreal
+            if total > -self.kill_loss:
+                return
+            self.killed = True; self.save_state()
+            why = f"當天虧 {-total:,.0f}(上限 {self.kill_loss:,.0f})全部平倉"
+            self.log(f"[交易] !!!! {why}:已平倉 {self.pnl:+,.0f}、持倉帳面 {unreal:+,.0f};今天不再自動進場")
+            self.alert("⚠⚠ 當天虧損到上限,全部平倉", f"已平倉 {self.pnl:+,.0f}、持倉帳面 {unreal:+,.0f},合計 {total:+,.0f};今天不再自動進場")
+            for p in list(self.positions.values()):
+                if p["state"] == HOLDING: self.exit_pos(p, why, self.last_px.get(p["code"]) or p["entry"], force_limit=True)
+                elif p["state"] == ENTERING: p["exit_pending"] = why   # 進場單還沒成交:成交轉持倉後馬上平
+
     def on_tick(self, code, price):
         self.last_px[code] = price
+        self.check_kill()
         with self.lock:
             p = self.positions.get(code)
             if not p or p["state"] != HOLDING:
@@ -725,6 +753,7 @@ class Trader:
 
     # ── 每秒呼叫一次 ──
     def step(self, signals=None):
+        self.check_kill()
         with self.lock:
             hm = self.hm()
             fe = self.force_exit
@@ -988,6 +1017,8 @@ class Trader:
             return "今天強平過這檔,判一 / 二 / 三不再自動進場"
         if self.auto_count() >= self.max_pos:
             return f"已經有 {self.auto_count()} 檔部位(上限 {self.max_pos})"
+        if getattr(self, "killed", False):
+            return f"今天已虧到 {self.kill_loss:,.0f} 全部平倉過,不再自動進場"
         if self.pnl <= -self.max_loss:
             return f"今天已虧 {-self.pnl:,.0f}(上限 {self.max_loss:,.0f})"
         hm = self.hm()
