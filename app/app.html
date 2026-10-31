@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-01 05:41(實際時間)開 K 圖加快(使用者「讀K圖顯示要快」):實測最花時間的是讀 1 分 K 週檔(parseCSV)→ 同一天日期只算一次、兩位小數直接用,快約 40%(2,645 個週檔逐筆比對結果完全一樣);十字線時間改自己排版(不用 toLocaleTimeString)。
   · 2026-11-01 04:19(實際時間)整個試算視窗都能當圖操作(使用者「在這區域 所有的圖都一樣 也是可以 上滑放大 下滑縮小 有時可以移動畫面跟移動十字線」):上面「試算 這根」、價格那排、小長條也一樣:點 = 十字線到那根、放下馬上上下滑 = 縮放、左右滑 = 捲圖、按在十字直線上拖 = 拖十字線(原本只有乖離圖可以)。
   · 2026-11-01 03:21(實際時間)圖左邊價格刻度黃字改成藍字(使用者「把 黃色 換 藍色」,#4FC3F7);時間刻度照舊金黃。
   · 2026-11-01 03:11(實際時間)圖左邊的價格刻度一律黃字(使用者「都改成 黃字 不再隨價格改變顏色」):K 線圖 / 漲跌圖 / 轉折圖、指標二(顯示價格時)、乖離圖都改;原本高於昨收紅、平白、低綠。十字線那格價格標籤照舊。
@@ -98,7 +99,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611010419">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611010541">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3335,8 +3336,8 @@ function showBarInfo(t){
   // 時間只顯示 時:分:秒(不要月/日);最後一根用即時行情的成交時間(有秒),歷史 K 秒數為 00
   const isLast = d === CUR.last;
   const lr = LIVE.get(BARS_CODE);
-  let ts = new Date(d.bar.time * 1000).toLocaleTimeString('zh-TW',
-      {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
+  const dt_ = new Date(d.bar.time * 1000), p2_ = v => (v < 10 ? '0' : '') + v;   // 2026-11-01 「讀K圖顯示要快」:不用 toLocaleTimeString(手機上一次要幾十毫秒)
+  let ts = p2_(dt_.getHours()) + ':' + p2_(dt_.getMinutes()) + ':' + p2_(dt_.getSeconds());
   if (isLast && lr && /^\d\d:\d\d:\d\d$/.test(lr.t || '')) ts = lr.t;
   el('iTime').textContent = ts;
   setPx('iH', d.bar.high); setPx('iL', d.bar.low);
@@ -5359,28 +5360,32 @@ function drawBars0(bars, code, srcLabel, keepView){
 /* ── 解析雲端週檔 CSV ──
    格式:date,time,open,high,low,close,volume(與 kline/ 週檔相同) */
 function parseCSV(text){
+  // 2026-11-01 使用者「讀K圖顯示要快」:實測開 K 圖最花 CPU 的就是這裡(一週約 1,300 列,每列 new Date + 4 次 toFixed)→
+  //   同一天的日期只算一次(當天 0 點 + 時分)、已經是兩位小數的數字直接用(和 +parseFloat().toFixed(2) 結果完全一樣,只是不用再轉字串)
   const lines = text.replace(/^\ufeff/, '').trim().split(/\r?\n/);
   const head = lines[0].toLowerCase().split(',').map(x => x.trim());
   const ix = n => head.indexOf(n);
   const [iD, iT, iO, iH, iL, iC, iV] =
     ['date','time','open','high','low','close','volume'].map(ix);
   if (iD < 0 || iC < 0) throw new Error('缺少 date 或 close 欄位');
-
+  const P2 = /^\d+(\.\d{1,2})?$/, n2 = s => P2.test(s) ? +s : +parseFloat(s).toFixed(2);
+  const dayBase = new Map();
   const out = [];
   for (let i = 1; i < lines.length; i++){
     const c = lines[i].split(',');
     if (c.length < 3) continue;
-    const [y, m, d] = c[iD].split('-').map(Number);
-    const [hh, mm] = (iT >= 0 ? c[iT] : '09:00').split(':').map(Number);
-    const t = Math.floor(new Date(y, m - 1, d, hh, mm).getTime() / 1000);
+    const ds = c[iD]; let base = dayBase.get(ds);
+    if (base === undefined){ const [y, m, d] = ds.split('-').map(Number); base = Math.floor(new Date(y, m - 1, d).getTime() / 1000); dayBase.set(ds, base); }
+    const tp = (iT >= 0 ? c[iT] : '09:00').split(':'), hh = Number(tp[0]), mm = Number(tp[1]);
+    const t = base + hh * 3600 + mm * 60;
     const close = parseFloat(c[iC]);
     if (!isFinite(close)) continue;
     out.push({
       time: t,
-      open:  iO >= 0 ? +parseFloat(c[iO]).toFixed(2) : close,
-      high:  iH >= 0 ? +parseFloat(c[iH]).toFixed(2) : close,
-      low:   iL >= 0 ? +parseFloat(c[iL]).toFixed(2) : close,
-      close: +close.toFixed(2),
+      open:  iO >= 0 ? n2(c[iO]) : close,
+      high:  iH >= 0 ? n2(c[iH]) : close,
+      low:   iL >= 0 ? n2(c[iL]) : close,
+      close: n2(c[iC]),
       volume: iV >= 0 ? Math.round(parseFloat(c[iV]) || 0) : 0,
     });
   }
