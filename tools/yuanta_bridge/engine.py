@@ -418,7 +418,7 @@ def stock_ok(s, j, R):
     except Exception: return "沒有收盤價"
     if not (R["lo"] <= close <= R["hi"]): return "價格範圍"
     if s.get("amp") is None or float(s["amp"]) < R["amp"]: return "振幅"
-    if s.get("limit_hit") == 1: return "昨收跌停"
+    # 2026-10-31 使用者選 B:昨收跌停也放行(和手機 tradable 一樣拿掉)
     if (str(s["industry"]) in R["excl"]) if s.get("industry") else (c.startswith("28") or c in FIN_FALLBACK): return "金融保險"
     if s.get("amp5") is not None and float(s["amp5"]) < R["a5"]: return "5 日振幅"
     if s.get("amp_hits") is not None and R["hits"] is not None and float(s["amp_hits"]) < float(R["hits"]): return "5 日振幅天數"

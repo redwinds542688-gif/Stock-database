@@ -207,7 +207,7 @@ sudo -u yuanta /opt/yuanta_bridge/venv/bin/python /opt/yuanta_bridge/yuanta_brid
 - 中繼下單照舊讀雲端通知(fetch_signals),不用改。
 - 要先 `pip install pandas numpy`;`ENGINE_WORKERS`(同時幾個模擬器行程,預設 3)、`ENGINE_CAP`(通知裡的張數用的金額,預設 250,000 = 手機 10/29 設的多空上限;原本這裡寫 350,000 和程式不一致,以程式為準)。
 - **2026-10-29 稽核修正(上線前)**:
-  - 名單照手機 buildPool / scan / tradable 篩:處置 / 注意 / 昨收跌停 / 金融 / 5 日振幅 / 一檔跳動 / 不可當沖 / 不可先賣 排除,價格 `ENGINE_LO`~min(`ENGINE_HI`, `ENGINE_CAP`÷1000)、振幅 ≥ `ENGINE_AMP`,成交張數前 `rules.size`、最多 `ENGINE_MAX_CODES`(預設 49 = 手機「監控檔數」預設)。今天通知過的股票不受篩選照算(平倉);其中已不合格的只算平倉、不發新進場,不能先賣的帶 `CANSHORT=0`。
+  - 名單照手機 buildPool / scan / tradable 篩:處置 / 注意 / 金融 / 5 日振幅 / 一檔跳動 / 不可當沖 / 不可先賣 排除,價格 `ENGINE_LO`~min(`ENGINE_HI`, `ENGINE_CAP`÷1000)、振幅 ≥ `ENGINE_AMP`,成交張數前 `rules.size`、最多 `ENGINE_MAX_CODES`(預設 49 = 手機「監控檔數」預設)。今天通知過的股票不受篩選照算(平倉);其中已不合格的只算平倉、不發新進場,不能先賣的帶 `CANSHORT=0`。
   - 名單:開工先抓雲端最新 pool.json(資料日期要早於今天),每 5 分鐘看 generated / elig_checked_at 有沒有變,09:06 後一定重讀一次(資格複檢)。
   - 判二寬度每分鐘抓,一律帶 `BRMISSING=block`(今天沒有寬度 → 不進);寬度抓不到 / 超過 3 分鐘沒更新 / 落後 5 分鐘 → 判二新進場先不發。沒有 breadth.json 就寫 `{}`。
   - 對帳:每輪拿模擬器現在的交易清單比對已推的部位;推過的進場在重算裡不見了(且這檔 K 有到)→ 推平倉「訊號重算消失,平倉」;已推的部位出場不管多舊都推。一個 (判別式, 代碼) 同時只有一個部位。

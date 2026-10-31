@@ -17,12 +17,13 @@
 #    2. 只收 4 碼純數字、不以 0 開頭的代號 → 排除 ETF(0050 等 00xx)、ETN、權證、DR
 #    3. 必須在官方「可現股當沖」名單裡;查不到資格的一律不收
 #    4. 暫停先賣後買的股票會標記 可先賣後買=0(HTML 端會再排除)
+#    (昨日收跌停 / 漲停都放行,只記錄在 limit_hit / limit_up)
 #    5. 排除金融保險業(產業別 17:金控、銀行、保險、證券)
 #    6. 最近 5 個交易日平均振幅 ≥ AVG5_MIN_AMP(振幅歷史存在 amp_history.json,
 #       不足 5 天時向 Yahoo 補抓日K)
 # ══════════════════════════════════════════════════════
 
-import os, json, time, sys, re
+import os, json, time, sys, re, math
 import requests
 from datetime import datetime, timedelta, timezone, date
 
@@ -141,7 +142,7 @@ def limit_prices(prev):
     up = int(up / tick_of(up) + 1e-9) * tick_of(up)
     dn = prev * 0.90
     t = tick_of(dn)
-    dn = -int(-dn / t + 1e-9) * t          # ceil 到檔位
+    dn = math.ceil(dn / t - 1e-9) * t      # ceil 到檔位(2026-10-31 修正:原本 -int(-x+ε) 其實是取 floor,跌停價都算低一檔、收跌停從來沒被標到)
     return round(up, 2), round(dn, 2)
 
 
@@ -186,7 +187,7 @@ def normalize(rows, market):
             "prev": round(prev, 2),                       # 昨收(進場 ±3% 的基準)
             "chg_pct": round(chg / prev * 100, 2),
             "tick_pct": round(tick_pct, 3),               # 一檔 ÷ 股價 %
-            "limit_hit": 1 if close <= dn else 0,   # 收在跌停(2026-10-19 使用者選「1」:漲停放行、跌停照擋;原本漲停也算)
+            "limit_hit": 1 if close <= dn + 1e-9 else 0,   # 收在跌停(只記錄,不剔除:2026-10-31 使用者選 B「跌停也放行」;漲停 2026-10-19 起放行)
             "limit_up": 1 if close >= up else 0,    # 收在漲停(只記錄,不再剔除:隔天常開低洗盤,台虹 10/19 就是空單機會)
         })
     return out
@@ -358,7 +359,7 @@ def why_out(r):
     if r["lots"] < MIN_LOTS:          return "量不足"
     if r["amp"] < MIN_AMP:            return "振幅"
     if r["tick_pct"] > TICK_MAX_PCT:  return "tick成本"
-    if r["limit_hit"]:                return "跌停"      # 2026-10-19 起只擋跌停,漲停放行(使用者選「1」)
+    # 2026-10-31 使用者選 B:昨收跌停也放行(原本「跌停照擋」因跌停價算錯一直沒生效;16 天回測這種股票做到 2 筆都賺 +6,090)
     return ""
 
 reasons = {}
