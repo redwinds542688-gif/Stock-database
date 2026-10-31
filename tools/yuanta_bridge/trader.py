@@ -165,6 +165,9 @@ class Trader:
         # 2026-10-29 稽核 #3:今天已進場過的訊號(代碼|判別式|K 棒時間),同一個訊號換了發送分鐘重送也不再進;存狀態檔(程式重開還在)
         self.entered_keys = set(self.load_state().get("entered") or [])
         self.killed = bool(self.load_state().get("killed"))   # 2026-10-31 今天已經虧到 TRADE_KILL_LOSS 全部平倉過(程式重開還記得)
+        # 2026-10-31 使用者「增加一個開盤後檢查股票是否真能當沖的機制」:元大以「資格」類原因(不可當沖 / 暫停先賣後買 / 處置 / 全額交割…)拒絕進場單的股票,
+        #   今天不再自動進場(元大才是最後的真相;官方名單、雲端 / 電腦複檢都漏掉時,第一次被拒就記住,不會整天一直送一直被拒);存狀態檔(程式重開還在)
+        self.brk_block = dict(self.load_state().get("brk_block") or {})
 
     # ── 小工具 ──
     @property
@@ -198,6 +201,7 @@ class Trader:
                 js["forced"].setdefault(c, v)                       # 已平倉的也留著(同一天程式重開接回時還找得到)
             js["entered"] = sorted(set(old.get("entered") or []) | self.entered_keys)   # 2026-10-29 稽核 #3
             js["killed"] = bool(getattr(self, "killed", False) or old.get("killed"))
+            js["brk_block"] = {**(old.get("brk_block") or {}), **getattr(self, "brk_block", {})}   # 2026-10-31 元大拒絕(資格)的股票
             self.state_file.write_text(json.dumps(js, ensure_ascii=False), encoding="utf-8")
         except Exception as e:
             self.log(f"[交易] 存狀態檔失敗 {e}")
@@ -756,6 +760,12 @@ class Trader:
                 self.send(p, "進場", o["side"], lots - 1, o["price"], o["typ"], o.get("flag", " "), o.get("tif", "3"))
                 return
             o["dead"] = True; self.log(f"[交易] {c} 委託被拒:{msg}" + ("" if amt or o["purpose"] != "進場" else "(不是額度 / 金額問題,不退張數重掛,這個訊號放棄)"))
+            if o["purpose"] == "進場" and not amt and elig_reject(msg) and c not in self.brk_block:
+                # 2026-10-31 開盤後真正的資格檢查:元大說這檔今天不能做 → 今天不再自動進場,推手機
+                self.brk_block[c] = str(msg)[:80]; self.save_state()
+                self.log(f"[交易] {c} 元大以資格原因拒絕進場 → 今天不再自動進場")
+                if not p.get("forced"):
+                    self.alert(f"⚠ {c} 元大拒絕進場,今天不再自動做這檔", f"{msg} · 名單 / 複檢沒擋到,元大說今天不能做")
             if p.get("forced") and o["purpose"] == "進場":
                 self.alert(f"⚠ 強制進場 {c} 被元大拒絕", str(msg))
             if o["purpose"] == "平倉":
@@ -1027,6 +1037,8 @@ class Trader:
             return f"這檔已經有部位({self.positions[code]['judge']} {self.positions[code]['state']})"
         if code in self.locked:
             return "今天強平過這檔,判一 / 二 / 三不再自動進場"
+        if code in getattr(self, "brk_block", {}):
+            return f"元大今天拒絕過這檔({self.brk_block[code]})"
         if self.auto_count() >= self.max_pos:
             return f"已經有 {self.auto_count()} 檔部位(上限 {self.max_pos})"
         if getattr(self, "killed", False):
@@ -1181,6 +1193,13 @@ class Trader:
 
 AMT_YES = ("額度", "金額", "上限", "限額", "超過", "不足")
 AMT_NO = ("券", "庫存", "資格", "暫停", "停止", "處置", "全額", "注意股", "漲停", "跌停", "價格", "未開放", "權限")
+ELIG_NO = ("當沖", "先賣", "處置", "資格", "暫停", "停止", "全額", "注意股", "未開放", "權限", "券", "分盤", "預收")
+def elig_reject(msg):
+    """2026-10-31 元大拒絕原因是不是「這檔今天不能做」(資格類);價格 / 額度 / 金額這類不算(換個價、少張數還可能成交)"""
+    m = str(msg or "")
+    return any(k in m for k in ELIG_NO)
+
+
 def amount_reject(msg):
     """2026-10-27 元大回的拒絕原因是不是跟金額 / 額度有關(是 → 退 1 張再掛);券源不足、沒資格、處置股、價格不對這些不算"""
     m = str(msg or "")

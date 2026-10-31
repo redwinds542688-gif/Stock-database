@@ -115,13 +115,13 @@ def refresh(cfg=None, log=print, pool=None):
     codes = {str(s.get("code")): str(s.get("market") or "") for s in rows if is_code(s.get("code"))}
     pool_date = (pool.get("date") if isinstance(pool, dict) else None) or ""
     # 可當沖 / 先賣後買
-    dt_ok, ok_mk = {}, set()
+    dt_ok, ok_mk, lds = {}, set(), {}
     for mk, url in (("twse", TWSE_DT), ("tpex", TPEX_DT)):
         try:
             m, ld = parse_dt(get_json(url))
             if not m: raise RuntimeError("名單是空的")
             if ld and (today - dt.date.fromisoformat(ld)).days > 4: raise RuntimeError(f"名單日期 {ld} 太舊")
-            dt_ok.update(m); ok_mk.add(mk); src.append(f"{'上市' if mk == 'twse' else '上櫃'}可當沖 {len(m)} 檔({ld})")
+            dt_ok.update(m); ok_mk.add(mk); lds[mk] = ld or ""; src.append(f"{'上市' if mk == 'twse' else '上櫃'}可當沖 {len(m)} 檔({ld})")
         except Exception as e: errs.append(f"{mk} 可當沖名單:{e}")
     pause = set()
     try:
@@ -143,10 +143,19 @@ def refresh(cfg=None, log=print, pool=None):
     noshort = sorted(c for c, mk in codes.items() if mk in ok_mk and c in dt_ok and (dt_ok.get(c) == 0 or c in pause))
     out = {"d": d, "hm": now_tw().strftime("%H:%M"), "at": int(time.time() * 1000), "pool_date": pool_date, "n_pool": len(codes),
            "disposed": sorted(disposed & set(codes)), "attention": sorted(attention & set(codes)), "nodt": nodt, "noshort": noshort,
-           "all_disposed": sorted(disposed), "src": src, "err": errs}
+           "all_disposed": sorted(disposed), "src": src, "err": errs,
+           "dt_date": min(lds.values()) if lds else "",          # 2026-10-31 可當沖名單的日期(兩市場取舊的);不是今天 = 證交所 / 櫃買還沒換,盤中會再抓
+           "stale": (not lds) or any(v != d for v in lds.values())}
+    # 2026-10-31 使用者「增加一個開盤後檢查股票是否真能當沖的機制」:和今天上一次複檢比,新多出來不能做的股票(盤中複檢用來推手機)
+    prev = load_today() if (HERE / "engine_data" / f"elig_{d}.json").exists() else None
+    if prev:
+        old = {(c, k) for k in ("disposed", "attention", "nodt", "noshort") for c in prev.get(k, [])}
+        out["new"] = [[c, k] for k in ("disposed", "attention", "nodt", "noshort") for c in out[k] if (c, k) not in old]
+    else:
+        out["new"] = []
     names = {str(s.get("code")): s.get("name", "") for s in rows}
     bad = [(c, names.get(c, ""), w) for k, w in (("disposed", "處置"), ("attention", "注意"), ("nodt", "不可當沖"), ("noshort", "不可先賣")) for c in out[k]]
-    log(f"[複檢] {d} {out['hm']} 名單 {len(codes)} 檔(名單日 {pool_date}):今天不能做 {len(bad)} 檔 " + " ".join(f"{c}{n}({w})" for c, n, w in bad) + (f" | 失敗:{'; '.join(errs)}" if errs else ""))
+    log(f"[複檢] {d} {out['hm']} 名單 {len(codes)} 檔(名單日 {pool_date},可當沖名單日 {out['dt_date'] or '抓不到'}{' ⚠還不是今天' if out['stale'] else ''}):今天不能做 {len(bad)} 檔 " + " ".join(f"{c}{n}({w})" for c, n, w in bad) + (f" | 失敗:{'; '.join(errs)}" if errs else ""))
     try:
         dd = HERE / "engine_data"; dd.mkdir(parents=True, exist_ok=True)
         (dd / f"elig_{d}.json").write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
