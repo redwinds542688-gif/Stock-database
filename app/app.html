@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-01 03:00(實際時間)進 K 圖一律先是 K 線圖(使用者「其他進入 一律是k圖」):清單、當沖、明細、手機通知、訊息欄判一 / 判三 / 強三都是 K 線圖;只有訊息欄點判二 → 漲跌圖、判四 → 轉折圖。在圖裡 ◀ ▶ 換股票維持目前那張。
   · 2026-11-01 03:00(實際時間)訊息欄點判二的訊息 → 進 K 圖直接是漲跌圖;點判四的訊息 → 直接是轉折圖(使用者要求;和按「切換」一樣會記住)。判一、判三、強三的訊息照上次看的那張圖。
   · 2026-11-01 02:55(實際時間)漲跌圖改標判二(使用者「把原來漲跌圖自己的標記拿掉 換成判二邏輯的下去標記」→「改」):漲跌圖自己的多空點不畫了,改標判二今天的進場(多 ▲ / 空 ▼ + 價)和出場(停利黃 / 停損紅 / 其他白圓點 + 價);判二沒進場就只有價格線。燈號、天秤、K 線圖、轉折圖都沒動。
   · 2026-11-01 02:15(實際時間)緊急停止多一個「停止進場 + 全部平倉」(使用者「改」):長按標題 → 「只停止進場」或「停止進場 + 全部平倉」(所有未平倉部位馬上漲停買回 / 跌停賣出);緊急停止中長按 → 「解除」或「全部平倉」;全部平倉要按兩次才送出(中繼 VERSION 2026103117)。
@@ -4631,7 +4632,10 @@ function ivFit(){ try{ const t = document.querySelector('#shInfo>div.t'), iv = t
   while (lo < hi){ const m = Math.ceil((lo + hi) / 2); iv.style.fontSize = m + 'px'; if (iv.scrollWidth <= W && iv.offsetHeight <= H + 2) lo = m; else hi = m - 1; }
   iv.style.fontSize = Math.max(8, lo - 1) + 'px'; iv.style.flex = ''; vb.textContent = v0; }catch(e){} }   /* 留 1px,中文字形不被切 */
 try{ addEventListener('resize', () => setTimeout(ivFit, 50)); }catch(e){}
-async function openChart(code, name){
+async function openChart(code, name, view = 0){
+  // 2026-11-01 使用者「其他進入 一律是k圖」:從外面進 K 圖(清單、訊息、當沖、明細…)一律先是 K 線圖;只有訊息欄點判二 → 漲跌圖、判四 → 轉折圖(view);
+  //   已經在圖裡換股票(◀ ▶)就維持現在這張
+  try{ if (!el('sheet').classList.contains('open')) rfSetView(view === 1 || view === 2 ? view : 0); }catch(e){}
   setTimeout(ivFit, 0);
   try{ const r = el('result'); if (r && !el('sheet').classList.contains('open')) window.__listY = r.scrollTop; }catch(e){}   // 2026-10-27 18:30 記下進圖前清單捲到哪
   try{ if (window.getXLock && getXLock()) { getXLock().follow = true; getXLock().fresh = true; } }catch(e){}   // 換股票:十字線回到新股票的最新一根(drawBars 的 syncX 會放)
@@ -6368,8 +6372,8 @@ window.bgTick = bgTick; window.BG = BG;
     box.querySelectorAll('.card').forEach(r => {
       const c = (window.NL_ALL || shown)[+r.dataset.i]; if (!c) return; const code = c.code, name = c.name;   // 2026-10-20 data-i 是「顯示出來的卡」的序號;2026-10-27 含前幾天的(NL_ALL)
       // 2026-10-19 使用者:「長按該股票沒有動作」→ 卡片長按不再記「我有做」(原本長按 600ms 記多 / 空、再長按取消);點一下照舊開那檔的圖
-      // 2026-11-01 使用者「在訊息欄點選判二訊息 則進去k圖時 直接切換成漲跌圖 … 點選判四訊息 則進入k圖時直接切換成轉折圖」:判二 → 漲跌圖、判四 → 轉折圖(和按「切換」一樣記住);其他照上次的圖
-      r.addEventListener('click', () => { const v = c.rs === '判二' ? 1 : c.rs === '判四' ? 2 : -1; if (v >= 0) rfSetView(v); openChart(code, name); });
+      // 2026-11-01 使用者「在訊息欄點選判二訊息 則進去k圖時 直接切換成漲跌圖 … 點選判四訊息 則進入k圖時直接切換成轉折圖」→「其他進入 一律是k圖」:判二 → 漲跌圖、判四 → 轉折圖,其他 K 線圖
+      r.addEventListener('click', () => openChart(code, name, c.rs === '判二' ? 1 : c.rs === '判四' ? 2 : 0));
       if (r.dataset.day === today) fmLongPress(r, () => ({code, name}));   // 2026-10-28 今天的通知長按 = 強制模式(前幾天的沒反應)
     });
   }
