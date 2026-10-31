@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-10-31 18:47(實際時間)程式註解裡的判別式規則說明(146 段)搬到私人庫,公開的網頁只留「判別式相關說明已移到私人庫」;程式本身沒改(使用者「清註解」)。
   · 2026-10-31 14:57(實際時間)一天交易額度 490 萬 → 500 萬(使用者:「490萬 改成500萬」):右上角資金、自動交易的一天買 + 賣金額上限、電腦算的元大剩餘額度都改 500 萬;桌機 bridge.env 舊寫的 4900000 也當 500 萬(中繼 VERSION 2026103106,下次啟動自動更新)。
   · 2026-10-31 14:53(實際時間)進 K 變快(使用者:「進入k又慢了」「不是後台已經會把K圖乖離圖先存檔嗎」→「改」「一般就是監控中 通知欄 裡面的股票最有可能會先點先看」):背景下載的 1 分 K 週檔改存進手機(IndexedDB,不佔原本 5 MB),當天抓過一次 App 重開也不用再下載;背景先抓通知欄 / 監控中的股票,再照清單往下。
   · 2026-10-31 12:00(實際時間)轉折圖改標判四:每檔今天那一筆只標三個點 —「轉」(轉折點)、「空 價」(進場)、「出 價 / 停損 價」(平倉);其他轉折點不標(使用者「轉折圖上 用現在的判四 去搭配 標記盡量簡潔明瞭」)。
@@ -86,7 +87,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202610311457">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610311847">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -176,7 +177,7 @@
   #notifLog .card.c-long{background-color:rgba(170,120,255,.16);background-image:repeating-linear-gradient(0deg,rgba(190,150,255,.30) 0 1px,transparent 1px 6px),repeating-linear-gradient(90deg,rgba(190,150,255,.30) 0 1px,transparent 1px 6px)}   /* 做多:直橫方格網(做空是斜紋交叉網),2026-10-18 使用者:「做多的網狀改別種形式」 */
   #notifLog .card.c-short{background-color:rgba(90,170,255,.08);background-image:repeating-linear-gradient(45deg,rgba(120,190,255,.14) 0 1px,transparent 1px 7px),repeating-linear-gradient(-45deg,rgba(120,190,255,.14) 0 1px,transparent 1px 7px)}   /* 2026-10-19 使用者:「藍色網格太藍了,改更淺一點」→ 底色與斜紋濃度各減半(.16→.08、.28→.14) */
   #notifLog .card.c-turn{background-color:transparent;background-image:none}   /* 2026-10-23 12:02 使用者:「轉折提示 則不加網狀底色」 */
-  #notifLog .card.c-turn.c-add{background-color:rgba(255,210,60,.10);background-image:repeating-linear-gradient(45deg,rgba(255,215,70,.24) 0 1px,transparent 1px 7px),repeating-linear-gradient(-45deg,rgba(255,215,70,.24) 0 1px,transparent 1px 7px)}   /* 2026-10-24 09:30 使用者:「加碼的 黃色網紋底」 */
+  #notifLog .card.c-turn.c-add{background-color:rgba(255,210,60,.10);background-image:repeating-linear-gradient(45deg,rgba(255,215,70,.24) 0 1px,transparent 1px 7px),repeating-linear-gradient(-45deg,rgba(255,215,70,.24) 0 1px,transparent 1px 7px)}   /* (判別式相關說明已移到私人庫) */
   /* 2026-10-19 .card.mine(黃框)/ .card.done(藍框)取消,卡片一律無框 */
   #notifLog .card .ln{display:flex;align-items:center;gap:1px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:18px;font-weight:700;line-height:1.25;min-height:1.3em;overflow:hidden}   /* 2026-10-17 其餘欄位字體最大化、垂直置中;寬度不夠時由程式自動縮字 */
   #notifLog .card .ln .nmblk{flex:0 0 5.2em;min-width:0;overflow:hidden;display:flex;align-items:center;font-size:.9em;line-height:1.15}   /* 2026-10-18 一張卡兩列:第 1 列放名稱、第 2 列放代碼,其餘欄位上下對齊 */
@@ -198,7 +199,7 @@
   #notifLog .card .ln .rs.al-warn,#notifLog .card .ln .rs.al-rebound{color:#FF3B3B}   /* 2026-10-18 使用者:警示一律紅色 */
   #notifLog .card .ln .rs.al-exit{color:#4FC3F7}
   #notifLog .fz{color:#FF3B3B;font-weight:inherit}
-  #notifLog .card .ln .qt .tsd{font-weight:700;display:inline-block;border:2px solid currentColor;border-radius:4px;padding:0 2px;line-height:1.1;font-size:.9em} #notifLog .card .ln .qt .tsd.win{color:#FF4D5E} #notifLog .card .ln .qt .tsd.lose{color:#2EE59D}   /* 2026-10-28 加碼 / 注意卡的做多(紅)/ 做空(綠) */   /* 2026-10-28 強三 / 強平 的「強」紅色 */
+  #notifLog .card .ln .qt .tsd{font-weight:700;display:inline-block;border:2px solid currentColor;border-radius:4px;padding:0 2px;line-height:1.1;font-size:.9em} #notifLog .card .ln .qt .tsd.win{color:#FF4D5E} #notifLog .card .ln .qt .tsd.lose{color:#2EE59D}   /* (判別式相關說明已移到私人庫) */   /* 2026-10-28 強三 / 強平 的「強」紅色 */
   /* 2026-10-28 強制模式視窗 */
   #fmToast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);max-width:86vw;background:#1B2233;color:#E6EAF2;border:1px solid #4A5570;border-radius:10px;padding:8px 14px;font-size:15px;z-index:1200;opacity:0;pointer-events:none;transition:opacity .2s;text-align:center}
   #fmToast.on{opacity:1}
@@ -248,7 +249,7 @@
   #notifLog .empty{color:var(--dim);text-align:center;margin-top:60px;font-size:16px}   /* 2026-10-27 04:20 鐵律 19 巡檢:12 → 16px */
   /* 顯示區固定存在,開啟設定也不消失、不縮放 */
 
-  /* 2026-10-20 21:40 使用者「面板改回 訊息 判一 判二 判三 設定」:五顆(21:50 判三 = 壓線空點,判四 = 原判三燿華型,隱藏)。原:顯示區下方的六顆按鍵(訊息 / 判一 / 判二 / 判三 / 判四 / 設定),平均分配螢幕寬度,同一列(2026-10-20 使用者:「同一列加上判四 縮減間隔 須在同一列上」) */
+  /* (判別式相關說明已移到私人庫) */
   .toolbar{position:absolute;bottom:4px;left:0;right:0;z-index:6;
            display:grid;grid-template-columns:repeat(5,1fr);column-gap:3px;padding:0 3px;   /* 2026-10-27 01:05 使用者:「按鍵寬度加大 按鍵與按鍵間隔3px」:每顆撐滿自己那格,間隔 3px */
            align-items:center;justify-items:stretch}
@@ -421,8 +422,8 @@
   .row .posline .pos.code{background:none;color:#1DD75B;font-weight:600;padding:0}   /* 2026-10-27 10:15 使用者:「未 改成 股票代碼」:沒訊號、沒進場 → 綠色代碼(與通知欄的代碼同色) */
   .row .posline .pos.watch{background:#4A3F12;color:#FFD54F;font-weight:400}  /* 今天有買賣訊號(監控中) */
   .row .posline .pos.done{background:#12303F;color:#4FC3F7;font-weight:400}   /* 長按結束交易(已平倉)藍 */
-  .row .posline .pos.rebound{background:#4A1A1A;color:#FF6B6B;font-weight:700}   /* 2026-10-20 反彈中(紅線反向穿過 OBV 均30,帳面不到 1%) */
-  .row .posline .pos.attn{background:#4A2A12;color:#F5A623;font-weight:700}      /* 2026-10-20 請注意(紅線反向穿過 OBV 均20) */
+  .row .posline .pos.rebound{background:#4A1A1A;color:#FF6B6B;font-weight:700}   /* (判別式相關說明已移到私人庫) */
+  .row .posline .pos.attn{background:#4A2A12;color:#F5A623;font-weight:700}      /* (判別式相關說明已移到私人庫) */
   .row.holding{background:rgba(201,162,39,.06)}
   /* 未平倉:名次依部位方向上色 */
   .row.holding .rank{font-weight:700}
@@ -540,7 +541,7 @@
   .lamp.watch.on{color:#000;background:#F5D000;border-color:#F5D000}
   .lamp.long.pre{color:#fff;background:#7A2A2A;border-color:#7A2A2A}     /* 天秤 1~2 格:注意(暗色、不閃) */
   .lamp.short.pre{color:#fff;background:#1F5C42;border-color:#1F5C42}
-  .lamp.long.on.strong{background:#FF1E2D;border-color:#fff;box-shadow:0 0 6px #FF1E2D;animation:lampBlink .45s step-start infinite}    /* 強訊號(判別式二):更亮、白框、閃更快 */
+  .lamp.long.on.strong{background:#FF1E2D;border-color:#fff;box-shadow:0 0 6px #FF1E2D;animation:lampBlink .45s step-start infinite}    /* (判別式相關說明已移到私人庫) */
   .lamp.short.on.strong{background:#00D084;border-color:#fff;box-shadow:0 0 6px #00D084;animation:lampBlink .45s step-start infinite}
   @keyframes lampBlink{50%{opacity:.25}}
   .yh-info>div.t{display:flex;align-items:baseline;justify-content:space-between}   /* 時間靠左、量靠右 */
@@ -595,7 +596,7 @@
     <button class="tool txt" id="btnReload" aria-label="公式" title="單擊 / 雙擊 → 下面跳出判一 / 判二 / 判三,各自右邊燈號:綠 = 開盤監控中、紅 = 開盤中沒啟動、灰 = 收盤;點一份 = 通知欄只列那份的通知。右上角點:開盤時 綠 = 三份都開著、黃 = 有沒開的、紅 = 完全沒在跑">公式<i class="mdot"></i></button>   <!-- 2026-10-27 00:40 使用者:「把判一二三都放在第二顆按鍵 判一那邊 這按鍵改名為“公式”」;2026-10-18 原本第二顆是判一 -->   <!-- 2026-10-18 使用者:第二顆設「判一」;同日加判二(判三加了又刪);mdot = 背景監控燈(亮在正在用的那顆右上角) -->
     <button class="tool txt" id="btnState" aria-label="當沖" title="目前已進場的股票:名稱 / 現價 / 最低攤平點位 / 張數 / 目前輸贏">當沖</button>   <!-- 2026-10-27 00:40 使用者:「原判二 改名為“當沖”」 -->
     <button class="tool txt" id="btnRules" aria-label="明細" title="今天已平倉的股票、每筆輸贏與總輸贏">明細</button>   <!-- 2026-10-27 00:40 使用者:「原判三 改名為“明細”」 -->
-    <button class="tool txt rs" id="btnRs4" data-rs="四" hidden style="display:none" aria-label="判別式四" title="判別式四(燿華型起漲點,原判三;隱藏、背景監控沒跑它)">判四<i class="mdot"></i></button>
+    <button class="tool txt rs" id="btnRs4" data-rs="四" hidden style="display:none" aria-label="判別式四" title="判別式四">判四<i class="mdot"></i></button>
     <button class="tool gear txt" id="gear" aria-label="設定" title="單擊開 / 關監控設定">設定</button>
   </div>
   <!-- 2026-10-27 00:40 「公式」的下拉視窗:判一 / 判二 / 判三 由上往下,右邊燈號(綠 = 開盤監控中、紅 = 開盤中這份沒啟動、灰 = 收盤);點一份 = 通知欄只列那份;長按 0.6 秒 = 開 / 關那份 -->
@@ -603,7 +604,7 @@
     <div class="rsm" data-rs="一">判一<i class="lamp"></i></div>
     <div class="rsm" data-rs="二">判二<i class="lamp"></i></div>
     <div class="rsm" data-rs="三">判三<i class="lamp"></i></div>
-    <div class="rsm" data-rs="四">判四<i class="lamp"></i></div>   <!-- 2026-10-31 判四 = 新轉折做空(燈號、長按開關和判一二三一樣) -->
+    <div class="rsm" data-rs="四">判四<i class="lamp"></i></div>   <!-- (判別式相關說明已移到私人庫) -->
     <div class="rsm key" data-rs="key">鑰匙<i class="lamp"></i></div>   <!-- 2026-10-29 14:45(實際時間)鑰匙:綠燈 = 這支手機已有鑰匙;點 = 輸入 / 清除 -->
     <div class="rsm help" data-rs="help">說明<i class="lamp" style="visibility:hidden"></i></div>   <!-- 2026-10-30 03:25(實際時間)使用者:「增加一鍵 “說明” 然後把本程式選擇當沖股票的邏輯說明 最下面顯示版本號」 -->
   </div>
@@ -683,20 +684,20 @@
   </div>
   <div class="sheetbody">
     <div id="chart">
-      <div class="yh-lbl" style="gap:6px;font-size:11px;letter-spacing:-0.3px"><span style="color:#FFFFFF">指標一</span>   <!-- 2026-10-23 21:05 加了 Ap 之後塞不下,字級 / 間距改成和指標二一樣 -->   <!-- 2026-10-21 使用者:「K 線的地方叫做指標一」;均價 10 改寫成 K10(和使用者的叫法一樣,也省位置) -->
-        <span id="lblMaBox" style="color:#D63AF9">Ka<span id="lblMaN" hidden>10</span> <span id="lblMaV" style="color:#FFFFFF">—</span></span>   <!-- 2026-10-23 20:50 使用者:「Ka/Kb 隨線的顏色 後面的價格 白色(小數點後二位)」 -->   <!-- 2026-10-23 20:45 使用者:「指標二,一 也是這樣」:拿掉 Ka: / Kb: / Oa: ~ Od: 字樣,只留數字(顏色 = 線) -->   <!-- 2026-10-21 使用者:「K10 改成 Ka」(Ka = 均價 10) -->
+      <div class="yh-lbl" style="gap:6px;font-size:11px;letter-spacing:-0.3px"><span style="color:#FFFFFF">指標一</span>   <!-- 2026-10-23 21:05 加了 Ap 之後塞不下,字級 / 間距改成和指標二一樣 -->   <!-- (判別式相關說明已移到私人庫) -->
+        <span id="lblMaBox" style="color:#D63AF9">Ka<span id="lblMaN" hidden>10</span> <span id="lblMaV" style="color:#FFFFFF">—</span></span>   <!-- 2026-10-23 20:50 使用者:「Ka/Kb 隨線的顏色 後面的價格 白色(小數點後二位)」 -->   <!-- 2026-10-23 20:45 使用者:「指標二,一 也是這樣」:拿掉 Ka: / Kb: / Oa: ~ Od: 字樣,只留數字(顏色 = 線) -->   <!-- (判別式相關說明已移到私人庫) -->
         <span id="lblMa24Box" style="color:#FFE14D">Kb <span id="lblMa24V" style="color:#FFFFFF">—</span></span>   <!-- 2026-10-23 10:24 使用者:「三圖Kb改藍色」(10:05 曾改粉紅 #FF6FB5) -->   <!-- 2026-10-21 使用者:「k24 改成 Kb」(Kb = 均價 24) -->   <!-- 2026-10-21 使用者:「加一條 k24」 -->
         <span id="lblVwapBox" style="color:#FF9F43">Ap <span id="lblVwapV" style="color:#FFFFFF">—</span></span>   <!-- 2026-10-23 21:05 使用者:「只顯示 不畫線」:Ap 文字顯示回來(橘字、價格白),線照舊不畫 --><span id="rfDate" style="color:#D8DEE9;margin-left:auto;margin-right:6px;display:inline-block;width:3em;text-align:right;font-variant-numeric:tabular-nums"></span><span id="rfSrc" style="display:none;font-weight:700;margin-left:3px"></span><span id="rfName" style="color:#D8DEE9;display:inline-block;width:3em;text-align:center">K線圖</span><button id="rfToggle" class="rfbtn" style="margin-left:4px" aria-label="切換 K 線圖 / 漲跌圖 / 轉折圖">切換</button></div>   <!-- 2026-10-23 10:30 使用者:「漲跌圖切換按鍵 改成切換 在切換前面 顯示 當下的圖 名稱」 -->   <!-- 2026-10-21 使用者:「vwap 改顯示 Ap 後面的價上用箭頭顯示」 -->
       <div id="chartTop"><span class="hilo up hidden" id="hiLbl"></span><span class="hilo down hidden" id="loLbl"></span><span class="xvol hidden" id="xVolLbl"></span></div>
       <div class="yh-lbl sep" style="gap:6px;font-size:11px;letter-spacing:-0.3px"><span style="color:#FFFFFF">指標二</span>   <!-- 2026-10-21 使用者:「OBV 指標二」 -->
-        <span style="color:#FFE14D">Oa <span id="lblObvV" style="color:#FFFFFF">—</span></span>   <!-- 2026-10-23 20:55 使用者:「指標二 也是一樣」:Oa ~ Od 字跟線的顏色、數字白色 -->   <!-- 2026-10-21 使用者:「OBV 改 Oa Ob Oc」:Oa = OBV(黃)、Ob = OBV 均 10(藍)、Oc = OBV 均 30(紫) -->
+        <span style="color:#FFE14D">Oa <span id="lblObvV" style="color:#FFFFFF">—</span></span>   <!-- 2026-10-23 20:55 使用者:「指標二 也是一樣」:Oa ~ Od 字跟線的顏色、數字白色 -->   <!-- (判別式相關說明已移到私人庫) -->
         <span style="color:#19D3F5">Ob<span id="lblObvMaN" hidden>10</span> <span id="lblObvMaV" style="color:#FFFFFF">—</span></span>
         <span style="color:#B47CFF">Oc <span id="lblObvMa30V" style="color:#FFFFFF">—</span></span>
         <span style="color:#FF6FB5">Od <span id="lblObvMa16V" style="color:#FFFFFF">—</span></span><button id="xhairClose" class="xgo hidden" aria-label="十字線回到最新一根"><svg viewBox="0 0 30 18" width="28" height="17" aria-hidden="true"><path d="M1.5 5.5 H16 V1.5 L28.5 9 L16 16.5 V12.5 H1.5 Z" fill="#E53935" stroke="#FFFFFF" stroke-width="1.6" stroke-linejoin="round"/></svg></button></div>
       <div id="chartMid"></div>
       <div class="yh-lbl sep" style="gap:6px;font-size:11px;letter-spacing:-0.3px"><span style="color:#FFFFFF">指標三</span>   <!-- 2026-10-23 19:50 使用者:「指標三 三個字 跟指標二一樣」:白色、同字級 -->
         <span style="color:#FF9F43"><span id="lblOrgV">—</span></span>   <!-- 2026-10-23 20:40 使用者:「不用顯示 橘線: 跟 KaxKb」:只留 看多 / 看空 + 箭頭 + 價格(橘字 = 橘線、紫字 = 紫線) -->   <!-- 2026-10-22 21:07 回到原來(橘線最近一次穿越);19:05 的二線版撤回 -->
-        <span style="color:#D63AF9"><span id="lblKxV">—</span></span>   <!-- 2026-10-21 使用者:「Ka 穿越 Kb 的點標出來 記錄起來 在指標三那邊顯示出來 一樣連線 不用顯示價格」 -->   <!-- 2026-10-20 23:55 使用者:「這看 obv 黃線穿越藍線的指標 命名為指標三」 --></div>   <!-- 2026-10-20 23:45 使用者:「這樣的點不對 改紀錄 obv 黃線穿越藍線的點 所有的點連線」 -->   <!-- 2026-10-20 23:30 使用者:「把高低連線拿掉 留起漲起跌連線 價格要註記上去」 -->   <!-- 2026-10-20 23:10 使用者:「乾脆改高點連高點 低點連低點」 -->   <!-- 2026-10-20 22:10 使用者:「把均線乖離率 改成 股票高低點連線 加上起漲點 起跌點 也連線」(原 20:00 的均線乖離率 10/30/132) -->
+        <span style="color:#D63AF9"><span id="lblKxV">—</span></span>   <!-- 2026-10-21 使用者:「Ka 穿越 Kb 的點標出來 記錄起來 在指標三那邊顯示出來 一樣連線 不用顯示價格」 -->   <!-- (判別式相關說明已移到私人庫) --></div>   <!-- (判別式相關說明已移到私人庫) -->   <!-- 2026-10-20 23:30 使用者:「把高低連線拿掉 留起漲起跌連線 價格要註記上去」 -->   <!-- 2026-10-20 23:10 使用者:「乾脆改高點連高點 低點連低點」 -->   <!-- (判別式相關說明已移到私人庫) -->
       <div id="chartBot"></div>
     </div>
     <div class="sh-msg" id="shMsg">讀取 1 分K …</div>
@@ -749,7 +750,7 @@ window.MONITOR_SETTINGS = {
 
   hi: {                       // 監控高價
     label: '監控高價',
-    init : 350,                 // 2026-10-17 300→350:配合多空上限 35 萬(一張最多 350 元);300 會把 303 元的台表科這種擋掉
+    init : 350,                 // (判別式相關說明已移到私人庫)
     range: [{ from: 50, to: 500, step: 5 }],   // 2026-10-24 12:45 使用者:「監控高價 滾輪每次加5或者是減5」(原每 1 元、最低 51)
   },
 
@@ -771,7 +772,7 @@ window.MONITOR_SETTINGS = {
     range: [{ from: 10, to: 100, step: 5, suffix: '%' }],
   },
 
-  cap: {                      // 多空上限(單一部位最大金額)
+  cap: {                      // (判別式相關說明已移到私人庫)
     label: '多空上限',
     init : '35萬',                // 2026-10-15 使用者改 35 萬
     range: [{ from: 5, to: 50, step: 1, suffix: '萬' }],   // 長按跳 5/10/…/50
@@ -780,7 +781,7 @@ window.MONITOR_SETTINGS = {
   cnt: {                      // 監控檔數
     label: '監控檔數',
     init : 49,                  // 2026-10-21 使用者:「監控股票改為 49」(原 99);2026-10-18 使用者:最多 99 股(之前 100);2026-10-17 由 33 改 100
-    range: ['19', '29', '39', '49', '59', '69', '79', '89', '99'],   // 2026-10-28 使用者「監控檔數 捲動顛倒了」:改成小到大(和監控低價 / 高價 / 振幅同方向)
+    range: ['19', '29', '39', '49', '59', '69', '79', '89', '99'],   // (判別式相關說明已移到私人庫)
   },
 
   /* ── 進階設定(長按「手續費折扣」才出現) ── */
@@ -831,7 +832,7 @@ window.MONITOR_BASE = {
   avg5MinAmp : 3.0,    // 2026-10-21 4.0 → 3.0; 最近 5 個交易日平均振幅下限(%):擋掉只有昨天偶然動一次的股票
   avg5MinHits: 0,      // 2026-10-21 3 → 0(只看 5 日平均 ≥ 3%);原: 最近 5 個交易日裡至少幾天振幅 ≥ amp 門檻(擋掉像緯創這種平常不動、只靠一根大跌撐平均的)
   tickMaxPct : 0.5,    // 一檔跳動 ÷ 股價 上限(%);雲端 pool.json 的 rules.tick_max_pct 會覆蓋。2026-10-19 0.35 → 0.5
-  entryMaxChg: 3.5,    // 進場時漲跌幅上限(%):|現價 − 昨收| ÷ 昨收 超過就不進場(風控;2026-10-15 由 3 改 5,2026-10-16 回測後改 3.5)
+  entryMaxChg: 3.5,    // (判別式相關說明已移到私人庫)
 
   /* ── 風險尺(策略層用,先在圖上顯示讓你感受合不合理)── */
   /* ── 圖表均線(改這裡就好)── */
@@ -1105,7 +1106,7 @@ function signalRank(){
     const m = (x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?\S+ (\d{4,6})(?:\s|$)/);
     if (!m) continue;
     { const nm = ((x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?(\S+) \d{4,6}(?:\s|$)/) || [])[1]; if (nm && nm !== m[1]) SIG_NAMES.set(m[1], nm); }   // 2026-10-20 通知標題裡的名稱(名單換掉後補名字用)
-    { const px = +(((x.body || '').match(/進 ([\d.]+)/) || [])[1]) || +(((x.title || '').match(/([\d.]+)\s*$/) || [])[1]) || 0; /* 2026-10-27 12:05 使用者「所有即便是盤中 也不用套用交易金額上限來限制顯示」:不再因多空上限略過(通知當下已經擋過) */ }   // (舊)一張超過多空上限的不算(通知欄也不顯示它)
+    { const px = +(((x.body || '').match(/進 ([\d.]+)/) || [])[1]) || +(((x.title || '').match(/([\d.]+)\s*$/) || [])[1]) || 0; /* (判別式相關說明已移到私人庫) */ }   // (判別式相關說明已移到私人庫)
     if (!rank.has(m[1])) rank.set(m[1], rank.size);   // 2026-10-19 已平倉的也照排(原本平倉超過 1 分鐘就回到一般排序)
   }
   return rank;
@@ -1113,13 +1114,7 @@ function signalRank(){
 function resortList(){ if (LAST_LIST && !el('bands').classList.contains('hidden')) { render(LAST_LIST); applyLiveToList(); } }
 window.resortList = resortList;
 
-/* 2026-10-28 06:27 使用者「改 判一二三暫時解除鎖定」:強制模式(規格定案)。
-   在「監控股票區」的股票列、或「訊息」通知欄今天的那則 長按 0.6 秒 → 先問電腦(元大中繼)這檔有沒有部位:
-     · 沒有部位 → 強制進場視窗:選做多 / 做空,張數 = 設定「上限」÷(股價 × 1000)捨去,不到 1 張給 1 張標(超額);
-       滑到底送出(限額內黃色、超額紅色);電腦端做多掛漲停買、做空掛跌停賣,進場後交給判三(停利 / 停損 % 用判三的)管,訊息欄標「強三」
-     · 有部位(判一 / 二 / 三 / 強三)→ 強制平倉視窗:一律全部平倉,做多跌停賣、做空漲停買;之後今天這檔判一 / 二 / 三不再自動進場
-     · 資金(訊息欄上面那個數字)買不到 1 張 → 長按沒反應
-   指令走 Worker(?trade=pos / ?trade=cmd)→ 電腦;交易密碼(電腦 bridge.env 的 TRADE_CMD_PIN)第一次用要在視窗裡輸入,只存在這支手機 */
+/* (判別式相關說明已移到私人庫) */
 const FM = { busy: false };
 const fmEsc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const fmApi = () => liveOn() ? BASE.liveUrl.replace(/\/$/, '') + '/?trade=' : '';
@@ -1214,7 +1209,7 @@ async function forceOpen(code, name, closeOnly){
   if (pos && pos.state === '進場中'){ fmToast(code + ' 進場單還在送,稍後再試', 3000); return; }
   const {z, y} = fmPx(code);
   if (pos) return fmShow({act: 'close', code, name, z, y, pos, enabled: j.enabled});
-  if (closeOnly){ fmToast('電腦那邊沒有 ' + (name || code) + ' 的部位,不用平倉', 3000); return; }   // 當沖列表只做強制平倉,不開進場視窗
+  if (closeOnly){ fmToast('電腦那邊沒有 ' + (name || code) + ' 的部位,不用平倉', 3000); return; }   // (判別式相關說明已移到私人庫)
   if (!(z > 0)){ fmToast('拿不到 ' + code + ' 的股價', 3000); return; }
   const cap = capFund(), one = z * 1000, left = (window.__fundLeft != null ? window.__fundLeft : 5000000);   /* 2026-10-31 14:57 使用者「490萬 改成500萬」 */
   if (left < one) return;                                   // 使用者:「強制當下如果資金已經不足 直接沒有作用就好 不用再出現這視窗」
@@ -1429,7 +1424,7 @@ window.fitBands = fitBands;
   const hideInfo = () => { infoKind = ''; infoRs = ''; clearInterval(infoTimer); info.classList.add('hidden'); nl.classList.remove('hidden'); if (window.refreshToolbar) refreshToolbar(); };
   window.hideInfo = hideInfo;
   // 「判一 / 判二」(2026-10-18 使用者定案;判三同日刪除):
-  //   單擊(連點也算一次)→ 顯示 / 收起那一份判別式的規則頁(不切換監控);正在用的那顆亮燈 = 背景監控執行中;規則頁顯示中那顆也亮
+  // (判別式相關說明已移到私人庫)
   //   長按 0.6 秒沒在用的那顆 → 切換背景監控用那一份(存 localStorage 後重載,背景那份網頁下一輪自己跟上);長按正在用的那顆 → 監控狀態頁
   // 2026-10-18 使用者:「按鍵卡卡」→ 放開手指(touchend)就動作,不等瀏覽器 300ms 後的 click;click 只給滑鼠用(同一次觸控的 click 會被擋掉)
   // 2026-10-27 00:40 使用者:「把判一二三都放在第二顆按鍵 判一那邊 這按鍵改名為“公式” 單擊雙擊點選 公式 亮燈 下面跑出視窗 出現 判一 判二 判三 由上往下排列 右邊有各自的燈號
@@ -1750,7 +1745,7 @@ if (!['99','89','79','69','59','49','39','29','19'].includes(String(saved.cnt)))
 if (!saved.hi350 && String(saved.hi) === '300') saved.hi = '350';
 /* 2026-10-21 最低振幅預設 4.0% → 3.0%(使用者:「挑選股票 振幅改 3% 設定調整最低也一樣」):舊存檔還是 4.0% 的只搬一次 */
 if (!saved.amp3 && String(saved.amp) === '4.0%') saved.amp = '3.0%';
-/* 2026-10-21 使用者:「維持 6000 張 監控股票改為 49」:監控檔數改 49(只搬一次,之後自己撥的會保留) */
+/* (判別式相關說明已移到私人庫) */
 if (!saved.cnt49) saved.cnt = '49';
 /* 2026-10-28 18:29 使用者「改」(對元大明細 −3,371):手續折扣 3 折 → 2.5 折、證手費 → 0(券商沒另外收),舊存檔只搬一次 */
 if (!saved.fee25){ if (String(saved.disc) === '30%') saved.disc = '25%'; if (saved.exch != null) saved.exch = '0.00000%'; }
@@ -1850,11 +1845,11 @@ function startVal(key, fallback){
   return String(v);
 }
 
-// 2026-10-31 03:04(實際時間)使用者「股價上限 與 交易上限 不再連動」:下面 10/19 的聯動已全部拿掉(02:58 先拿掉,這裡確認):監控高價只管監控哪些股票、多空上限只管每筆下單金額;超額的照監控、照通知(標「超額」不自動交易)
-// (已廢止)2026-10-19 使用者:「多空上限需與監控高價聯動,設 20 萬是無法買超過 200 元的股票」→ 兩個滾輪互相帶動:
-//   撥多空上限 → 監控高價超過「上限 ÷ 1000」就自動降到那個價;撥監控高價 → 上限不夠買一張就自動升到「高價 × 1000」(萬為單位無條件進位)。
+// (判別式相關說明已移到私人庫)
+// (判別式相關說明已移到私人庫)
+// (判別式相關說明已移到私人庫)
 //   篩選時本來就取兩者較小的(scan 的 capMax),這裡只是讓滾輪顯示一致。高價滾輪最低 51,所以上限 5 萬時高價停在 51。
-// 2026-10-31 02:58(實際時間)使用者「所有 15到500的股票 只要符合資格 都要放進來 … 超過什麼限額的股票 … 也會通知 只是 因為限額而無法交易而已」:監控高價和多空上限不再互相帶動(各調各的)
+// (判別式相關說明已移到私人庫)
 const onHiChange = () => onFeeChange();
 const onCapChange = () => onFeeChange();
 const wHi  = makeWheel('wHi',  buildVals(CFG.hi   && CFG.hi.range),
@@ -1865,7 +1860,7 @@ const wAmp = makeWheel('wAmp', buildVals(CFG.amp  && CFG.amp.range),
                        startVal('amp', '3.0%'), onFeeChange);
 const wCnt = makeWheel('wCnt', buildVals(CFG.cnt  && CFG.cnt.range),
                        startVal('cnt', 49), onFeeChange, {loop: true});   // 2026-10-18 使用者:最多 99,99/89/…/19 循環
-function capFund(){ const v = parseFloat((wCap && wCap.value) || '') * 10000; return v > 0 ? v : 350000; }   // 2026-10-19 多空上限(元):設定滾輪「35萬」→ 350000;讀不到才用 35 萬
+function capFund(){ const v = parseFloat((wCap && wCap.value) || '') * 10000; return v > 0 ? v : 350000; }   // (判別式相關說明已移到私人庫)
 const wCap = makeWheel('wCap', buildVals(CFG.cap  && CFG.cap.range),
                        startVal('cap', '35萬'), onCapChange);
 setTimeout(() => { try{ if (!localStorage.getItem('mysh.hi500')){ localStorage.setItem('mysh.hi500', '1'); if (+wHi.value < 500) wHi.setValue('500'); } }catch(e){} }, 800);   // 2026-10-31 02:58 原本開啟時把高價對齊到「上限 ÷ 1000」(上限 25 萬 → 高價 250);改成一次性把高價放回 500(之後使用者自己調的照存)   // 開啟時舊存檔不一致(高價 350、上限 20 萬)也先對齊一次
@@ -1976,7 +1971,7 @@ const wTax = makeWheel('wTax', buildVals(CFG.tax && CFG.tax.range),
 
 const WHEELS = [wHi, wLo, wAmp, wFee, wCnt, wCap, wBroker, wExch, wTax];
 
-/* 交易成本(供策略與回測使用) */
+/* (判別式相關說明已移到私人庫) */
 const cost = () => {
   const broker = parseFloat(wBroker.value) / 100;             // 券商手續費率
   const exch   = parseFloat(wExch.value) / 100;               // 證交所經手費
@@ -1995,11 +1990,7 @@ function queueScan(){
 }
 
 
-/* ══════════════════════════════════════════
-   選股基準 = 前一個營業日的收盤資料。
-   交易時段(週一~五 09:00–13:30)清單一經產生即鎖定,
-   期間撥動滾輪不會換股,避免持倉中的標的被踢出監控。
-   ══════════════════════════════════════════ */
+/* (判別式相關說明已移到私人庫) */
 function inSession(d = new Date()){
   const tw = new Date(d.getTime() + 8 * 3600000);   // 2026-10-29 漏洞修正:一律用台灣時間(手機時區不是台灣時以前會整個錯開)
   const wd = tw.getUTCDay();
@@ -2008,8 +1999,8 @@ function inSession(d = new Date()){
   return t >= 9 * 60 && t <= 13 * 60 + 30;
 }
 
-let LOCKED = null;          // 當日鎖定的監控清單
-let LOCK_DAY = null;        // 鎖定日期,跨日自動解鎖
+let LOCKED = null;          // (判別式相關說明已移到私人庫)
+let LOCK_DAY = null;        // (判別式相關說明已移到私人庫)
 
 
 /* ══════════════════════════════════════════════════════
@@ -2124,9 +2115,7 @@ async function loadMinuteBars(code, onProgress, opts){   // opts.noStore:背景�
   BARS_MEM.set(code, {ver, bars});
   return bars;
 }
-/* 2026-10-26 使用者「改」(手機歷史 K 也以元大為準,和模擬器 KSRC=yuanta 同一套):
-   有元大 K 的那一天整天用元大,沒有的那一天用 Yahoo;鉅額交易修正(dropBlockTrades)只做在 Yahoo 的日子(元大的 1 分 K 沒有那根)。
-   回測對照(chk/rs3_cmp2.py)也是呼叫這個函式合併,手機和模擬器看到的 K 一樣 */
+/* (判別式相關說明已移到私人庫) */
 function mergeHistBars(yahoo, yuanta){
   const ydays = new Set((yuanta || []).map(b => dayKey(b.time)));
   const seen = new Set(), dedupe = arr => arr.filter(b => !seen.has(b.time) && seen.add(b.time)).sort((a, b) => a.time - b.time);
@@ -2136,11 +2125,7 @@ function mergeHistBars(yahoo, yuanta){
   return ya.concat(yt).sort((a, b) => a.time - b.time);
 }
 
-/* 2026-10-21 使用者(光鼎 10/20「覺得 obv 跟元大的不太一樣」「元大是下滑的」):
-   Yahoo 1 分 K 會把鉅額交易(一筆幾千張、一字價)灌進某一分鐘,OBV 一口氣斷崖;元大的 1 分 K 和 Yahoo 同一份,只是沒有這根
-   (光鼎 11:20 7,291 張;10/20 約一半的股票都有,當天 Yahoo 總量比證交所多出的量剛好就是這根)。
-   某根量 ≥ 同一天前後 10 根中位數的 80 倍且 ≥ 300 張 → 量改成那個中位數(09:00、13:30 集合競價不動)。
-   10/20 對證交所日量:抓到 49 檔、漏 3 檔、誤抓 3 檔(都是幾百張的小根) */
+/* (判別式相關說明已移到私人庫) */
 function dropBlockTrades(bars){
   const vol = bars.map(b => b.volume);
   for (let i = 0; i < bars.length; i++){
@@ -2222,8 +2207,7 @@ function keyShow(msg){
   w.querySelector('.clr').addEventListener('click', () => { appKey.set(''); close(); fmToast('鑰匙已清除', 2500); try{ rsLampUpd(); }catch(e){} });
 }
 window.keyShow = keyShow;
-/* 2026-10-30 03:25(實際時間)使用者:「增加一鍵 “說明” 然後把本程式選擇當沖股票的邏輯說明 最下面顯示版本號」:公式 → 說明。
-   只講「怎麼挑股票」(名單來源、硬性條件、數字門檻、排序、盤中標籤),判一二三的進出場規則不在這裡。數字和 make_pool.py / MONITOR_BASE 一致,改門檻時這段也要改 */
+/* (判別式相關說明已移到私人庫) */
 function helpShow(){
   try{ const old = document.getElementById('fmWin'); if (old) old.remove(); }catch(e){}
   const B = window.MONITOR_BASE || {}; let cnt = '', lo = '', hi = '';
@@ -2574,8 +2558,7 @@ async function yahooTodayBars(code){
   return out;
 }
 
-/* 三段合併:雲端歷史(到昨天,或 14:30 後含今天)→ 今天的 K(2026-10-19 起優先雲端 1 分K,沒有才 Yahoo)→ 即時自組的 K。
-   重疊的分鐘:雲端 > 今天的 K > 即時;只有今天 K 的最後一根(可能還沒走完)讓即時覆蓋。 */
+/* (判別式相關說明已移到私人庫) */
 /* 2026-10-27 21:00 使用者:「指標算過就記住,切回同一檔幾乎馬上出來」:
    mergeLive 輸入沒變 → 回傳同一個陣列;sma / obv / obvX / vwap 對同一個陣列、同樣參數算過就直接拿(WeakMap,陣列不用了自動丟掉) */
 const __rid = new WeakMap(); let __ridN = 0; const refId = a => { if (!a || typeof a !== 'object') return '0'; let k = __rid.get(a); if (!k){ k = ++__ridN; __rid.set(a, k); } return k; };
@@ -2787,10 +2770,10 @@ function liveStart(){
 let chart, candle, maLine, ma24Line, vwapLine;
 let rfLine = null, rfChain = null, rfAll = null, RF_MODE = false, RF_VIEW = 0;   // 2026-10-22 22:42 RF_VIEW:0 = K 線圖、1 = 漲跌圖、2 = 轉折圖(RF_MODE = RF_VIEW > 0)
    // 2026-10-22 漲跌圖:價格線(收盤)+ 三訊號多空點;RF_MODE true = 顯示漲跌圖、藏 K 棒
-try{ RF_VIEW = +(localStorage.getItem('rfMode') || 0) || 0; if (!(RF_VIEW >= 0 && RF_VIEW <= 2)) RF_VIEW = 0; }catch(e){} RF_MODE = RF_VIEW > 0;   // ma24Line:2026-10-21 均價 24(K24,藍)           // 上圖:1 分K + MA + VWAP
-let chartM, obvSeries, obvMaLine, obvMa30Line, obvMa16Line;  // 中圖:OBV + OBV 均線 + OBV 均 30(紫,2026-10-19)
+try{ RF_VIEW = +(localStorage.getItem('rfMode') || 0) || 0; if (!(RF_VIEW >= 0 && RF_VIEW <= 2)) RF_VIEW = 0; }catch(e){} RF_MODE = RF_VIEW > 0;   // (判別式相關說明已移到私人庫)
+let chartM, obvSeries, obvMaLine, obvMa30Line, obvMa16Line;  // (判別式相關說明已移到私人庫)
 let chartB, vwapDev = null, orgLine, kxLine, kxDnLine, padB;   // 2026-10-22 19:05 kxLine = 紫上穿連線(紅)、kxDnLine = 紫下穿連線(綠)
-   // 2026-10-20 23:30 下圖只留起漲起跌連線(高點 / 低點連線拿掉)。   // 2026-10-20 23:10 zzLine = 高點連線(紅)、loLine = 低點連線(綠)   // 2026-10-20 22:10 下圖改成「高低點連線(白)+ 起漲起跌連線(橘)」。原:   // 下圖:均線乖離率(2026-10-20 使用者:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」;原 VWAP 乖離柱狀圖作廢)
+   // (判別式相關說明已移到私人庫)
 const OBV_RESET_DAILY = true;          // true = 每個交易日開盤歸零(2026-10-15 用力積電實測:元大 -47,362、開盤歸零算 -44,257、跨日累計 -20,310 ~ -133,694,元大是每日歸零);false = 跨日累加
 let BARS = [], BARS_CODE = '';
 /* 2026-10-27 12:15 使用者:「都說了改用元大」「尤其是盤中緊張時刻 更要用元大」:K 圖標題列日期旁邊標示今天這檔的 K 來源——
@@ -2803,18 +2786,18 @@ function rfSrcUpd(){ try{
   e.textContent = yt ? '元大' : '證交所'; e.style.color = !sess ? '#8A93A3' : yt ? '#1DD75B' : '#FF3B3B'; e.style.display = '';
 }catch(x){} }
 let ENTRY_LINES = [];
-const SHOW_VWAP_PANE = false   /* 乖離圖已停用(2026-10-16 使用者要求拿掉;不影響訊號與選股) */;          // 元大版面沒有 VWAP 乖離柱狀圖,預設不顯示
+const SHOW_VWAP_PANE = false   /* 乖離圖已停用(2026-10-16 使用者要求拿掉;不影響訊號與選股) */;          // (判別式相關說明已移到私人庫)
 /* ── 比照元大 App 的圖表版面(2026-10-15)。想回到舊的樣子改這裡 ── */
 const YH = {
   zzPct: 0.5,           // 2026-10-20 22:10 高低點連線:回落 / 反彈幾 % 才算確立一個高 / 低點(22:40 起不用)
   lampFlatBars: 30, lampFlatTicks: 2,   // 2026-10-21 05:00 最近 30 根高低差 ≤ 2 檔 = 價格沒在動,燈號只顯示監控
   lampNoShortUpPct: 0,     // 2026-10-21 06:00 使用者「撤掉」(05:50 當天漲 ≥ 2.5% 不亮做空:聯嘉投控多 2 錯、光鼎晚 1 根,整體 52% → 53% 效果小);0 = 關
-  lampExtPct: 0.3, lampExtFrom: '09:45',   // 2026-10-21 05:30 貼高低不追從 09:45 才開始套用     // 2026-10-21 04:20 使用者「改 0.3%」:價貼今天最高(做多)/ 最低(做空)0.3% 以內不亮順勢燈(不追在轉折點)
-  lampChopWin: 45, lampChopN: 3, lampChopRange: 1.5, lampBrkPct: 0.5, lampBrkBars: 2,   // 2026-10-21 04:00 突破要超出震盪區間 0.5% 且連 2 根(富喬 / 友達試 0.3 / 0.5 × 1 / 2 根,0.5% 連 2 根最好)   // 2026-10-21 燈號的震盪判斷(同判二)
+  lampExtPct: 0.3, lampExtFrom: '09:45',   // (判別式相關說明已移到私人庫)
+  lampChopWin: 45, lampChopN: 3, lampChopRange: 1.5, lampBrkPct: 0.5, lampBrkBars: 2,   // (判別式相關說明已移到私人庫)
   lampHold: 3,          // 2026-10-21 燈號新狀態要連幾根才換;03:10 使用者「改 3 根」(原 2)
   rfPressPct: 0.2,
   rfKaBars: 3,
-  turnPressPct: 0.15,   // 2026-10-22 22:58 使用者「設,0.15」(TPK 09:30 離 Ka 0.14% 算、12:31 離 0.16% 不算);22:55「設0.1」(TPK 12:31 多點「沒有壓線」:最低 74.40 離 Ka 0.16%):轉折圖的壓線 0.2% → 0.1%;漲跌圖照舊 rfPressPct 0.2
+  turnPressPct: 0.15,   // (判別式相關說明已移到私人庫)
   rfAllShow: false,     // 2026-10-23 22:05 漲跌圖的藍點線(所有點依序連線)不畫;程式留著
   rfChainShow: false,   // 2026-10-23 22:00 使用者「感覺沒啥作用」:漲跌圖 / 轉折圖的黃虛線(翻轉點連線)不畫;程式留著
   obvSkipClose: true,   // 2026-10-26 21:10 指標二上下範圍不算 13:30 收盤撮合那根(Oa 直衝把其他線壓扁);false = 回原本
@@ -2824,27 +2807,27 @@ const YH = {
   rfNoBrk: true, rfRunSolid: 2,   // 2026-10-23 16:35 漲跌圖:不要「K 棒要碰到均線」;三條件連 2 根成立就算實心(TPK 10/22 09:14 跳上去沒回來碰線 →「你看圖 修正」)
   turnKbBars: 1,        // 2026-10-23 12:55 使用者「轉折還是搭kb傾斜 比較穩定多空方向」→「改」:轉折點 做多要 Kb 比 1 根前高、做空要比 1 根前低(0 = 不看);台郡 10/22 12:20 貼線假多點擋掉
   turnKaBars: 2,        // 2026-10-22 22:42 使用者「改二根」:轉折圖的 Ka 方向和 2 根前比(台塑化 10/21 10:25 假多 0.00 擋掉、TPK 10/22 09:30 起漲 +0.04 抓到);漲跌圖照舊 3 根
-  rfMinCross: 0.05,     // 2026-10-22 漲跌圖:Ka 要高(低)過 Kb 至少 0.05% 才算穿越          // 2026-10-22 漲跌圖多空點的「Ka 往上 / 往下」和 3 根前比(一檔跳動大的股票,Ka 一根就會小跳一下)      // 2026-10-22 漲跌圖多空點的「壓線」:Ka、Kb 差距和那根 K 離均線都在 0.2% 內 → 實心
+  rfMinCross: 0.05,     // (判別式相關說明已移到私人庫)
   lampLeave: 1,         // 2026-10-21 11:40 使用者(台郡 10:13 天秤已到中間還亮做多):已亮做多 / 做空時,連 lampHold 根不是這個燈就換成最新那根的狀態(不必同一種);0 = 舊規則
-  lampObOc: true,       // 2026-10-21 20:40 使用者「先改 D」:亮「做多」還要 Ob(OBV 均 10)在 Oc(OBV 均 30)之上,否則降成漸多;做空鏡像(Oc 還沒值 = 不亮做多 / 做空)。七天 1,405 股票日:勝率 54.1% → 55.3%
+  lampObOc: true,       // (判別式相關說明已移到私人庫)
   cloudSnapEarly: false, // 2026-10-23 15:45 關掉(改由 Worker Cron 自己對準下一分鐘 :02 抓,手機不用叫;程式留著當備援)   // 2026-10-23 15:15 使用者「都改」:每分鐘 :01 叫 Worker 立刻存快照(不等 Cron :47),抓完馬上重拿 K
   cloudPollMs: 10000,   // 2026-10-23 15:15 20 秒 → 10 秒(使用者「有辦法再快一點嗎」→「都改」)   // 2026-10-23 15:10 使用者「能夠盡量加快訊息發放的速度嗎」:雲端 1 分K 每 20 秒補一次(原 55 秒;一次抓全部代號,一天約 800 次請求)
   turnAlertPct: 1.5, turnAlertBars: 3,   // 2026-10-23 14:25 使用者「加第三招」:推過的轉折之後,3 根 K 內反向走 ≥ 1.5% 就推「急拉 / 急殺 多單 / 空單注意」(每則轉折一次;0 = 關)
   lampNoWait: true,     // 2026-10-24 03:50 使用者「Ka既然跨日 燈號當然也是」:燈號 / 天秤開盤不再「等待」15 根(三張圖);判一~判三前 15 分鐘不進場照舊
   kaCrossAll: true,     // 2026-10-24 03:10 使用者「還有哪裡用到ka 都一起改」「Obv也是跨日 一起改」:燈號 / 天秤 / 漲跌圖 / 轉折圖 / 轉折通知的 Ka、OBV(Ob / Oc)都跨日
-  kaCrossJudge: true,   // 2026-10-24 03:20 使用者「判一二三 解凍」:判一 ~ 判三的 Ka、OBV(含所有 OBV 均線)跨日;模擬器 KACROSS=1 OBVCROSS=1
+  kaCrossJudge: true,   // (判別式相關說明已移到私人庫)
   kaDisplayCross: true, // 2026-10-24 03:00 畫面 Ka 跨日 10 根(09:01 借昨天 9 根);判一 ~ 判三 / 燈號 / 轉折點不動
-  turnKbAddBars: 30, turnKbAddMaxPct: 2,   // 2026-10-24 05:00 訊號那根收盤離 Kb 超過 2% 不推加碼(0 = 不限)    // 2026-10-24 04:30 使用者「如果股價再回檔碰上kb 則增加一則訊號 加碼」:轉折點後 30 根內回到 Kb 推「加碼」(0 = 關)
+  turnKbAddBars: 30, turnKbAddMaxPct: 2,   // (判別式相關說明已移到私人庫)
   turnGapBlock: 1,      // 2026-10-24 00:35 轉折通知:今開對昨收跳空 ≥1% 時擋掉順跳空方向的點(0 = 關)
-  turnNotifyTip: true,  // 2026-10-23 14:05 使用者「平(假設向下)要擋掉做多的訊號」→「加上去 這算是順勢而為」:轉折通知看指標三橘線 / 紫線最後一段:做多兩條都要向上、做空兩條都不向上(平算偏空)
-  turnPushFirst: false,   // 2026-10-26 21:30 使用者「轉折通知太多 改成 只通知加碼 跟急拉急殺」:轉折那一則不推手機(訊息欄照記);true = 回原本
-  turnLogFirst: false,  // 2026-10-31 判四上線:新轉折改走判四的通知,轉折卡回到原本不顯示(01:02 曾改 true)。舊註:2026-10-28 11:42 使用者「把轉折的通知關掉 只留下加碼跟注意」:轉折本身不推、不寫訊息欄、訊息欄也不顯示(加碼 / 急拉急殺注意照舊);true = 回到原本
-  turnStopHm: '12:30',   // 2026-10-27 14:40 使用者:「12.30轉折關閉」:12:30(含)以後的轉折、加碼、急拉急殺都不通知、不記;圖上照畫
-  turnMinVol: 6000,   // 2026-10-27 12:45 使用者:「轉折通知 加一個 成交量超過6000才可以通知」:那檔今天累積成交量(張)要超過 6000 才發轉折通知(含之後的加碼 / 急拉急殺);0 = 關
+  turnNotifyTip: true,  // (判別式相關說明已移到私人庫)
+  turnPushFirst: false,   // (判別式相關說明已移到私人庫)
+  turnLogFirst: false,  // (判別式相關說明已移到私人庫)
+  turnStopHm: '12:30',   // (判別式相關說明已移到私人庫)
+  turnMinVol: 6000,   // (判別式相關說明已移到私人庫)
   turn4Marks: true,       // 2026-10-31 12:00 使用者「轉折圖上 用現在的判四 去搭配 標記盡量簡潔明瞭」:轉折圖標判四今天那一筆(轉 / 空 / 出或停損);false = 不標
-  turnChartMarks: false,   // 2026-10-31 11:55 使用者「所有的圖都不用標示來自判一二三四的邏輯」:轉折圖不畫轉折 / 加碼點和連線(K 線圖的判一二三標記 10/21 起本來就不畫,showSignalMarks)
+  turnChartMarks: false,   // (判別式相關說明已移到私人庫)
   turnTouchPct: 0.2,   // 2026-10-31 轉折圖的點、判四都用的碰線門檻(使用者「改0.2」;規則在私人庫)
-  turnNotify: false /* 2026-10-29 01:44 使用者「關閉 轉折的所有通知」「太多了」:轉折、加碼、急拉急殺都不推、不記;圖上轉折點照畫。true = 回原本 */, turnNotifyOrg: false,   // 2026-10-23 12:21 使用者:「搭用橘線不可行 因為橘線有點像是未來線」→ 關掉(12:15 曾開:做多要橘線向上、做空向下才發)     // 2026-10-23 11:43 使用者:轉折圖的轉折點(多 / 空)每一個都推手機,不限次數,只是提醒(不進判別式、不記部位)
+  turnNotify: false /* (判別式相關說明已移到私人庫) */, turnNotifyOrg: false,   // 2026-10-23 12:21 使用者:「搭用橘線不可行 因為橘線有點像是未來線」→ 關掉(12:15 曾開:做多要橘線向上、做空向下才發)     // 2026-10-23 11:43 使用者:轉折圖的轉折點(多 / 空)每一個都推手機,不限次數,只是提醒(不進判別式、不記部位)
   lampTrendGate: true,  // 2026-10-23 11:09 使用者:「不要明明上升 燈號卻漸空那種情況 反之亦然」:Ka 2 根往上且收盤在 Ka 上 → 不亮漸空 / 做空;鏡像
   lampOaOb: true,       // 2026-10-21 22:30 使用者「改 Y3+W6」:燈號分數裡「橘線雙升 / 雙降」換成「Oa 現在在 Ob 之上 / 之下」(反應快;時碩 11:06 兩線都轉下)
   lampBreadth: 0.65,    // 2026-10-21 22:30 同上 W6:大盤寬度 ≥ 65% 不亮做空(降成漸空)、≤ 35% 不亮做多(降成漸多);0 = 關;沒有寬度資料不擋
@@ -2855,14 +2838,14 @@ const YH = {
   swingPct: 0.8,        // 2026-10-20 22:40 股票高低價連線:相鄰高低差不到這個 % 的小波動拿掉
   swingMinBars: 2,      //   均價方向連幾根反過來才算換段
   defaultBars   : 40,     // 2026-10-29 09:19 使用者「改成元大一樣 40根」(10/27 12:25 由 45 改 60)     // 開圖只顯示最近幾根 K(元大約 40 根,K 棒才夠粗);往左滑可看更早的
-  showVwapLine  : false,  // 圖上不畫橘色 VWAP 線(2026-10-16 使用者要求;VWAP 過濾照算,只是不畫)。原:畫橘色 VWAP 線(= 元大分時頁的黃色均價線;2026-10-15 23:30 因 VWAP 過濾打開)
+  showVwapLine  : false,  // (判別式相關說明已移到私人庫)
   showRiskLines : false,  // 圖上畫 ATR 停損 / 停利線(元大沒有;數值仍在最下面小字)
   showEntryLines: false,  // 圖上畫 ±entryMaxChg% 進場區間虛線(元大沒有;距昨收 % 仍在最下面小字)
-  signalsCloudOnly: true,  // 2026-10-20 使用者「改」(友達 09:30 多單:手機自拼 K 算出的訊號,雲端 K 一來就消失):判別式只用雲端 1 分K + 歷史 K 算,手機自拼的即時 K 只畫圖、不進訊號;訊號晚 1~2 分鐘(九天回測延遲 3 分鐘影響很小)
-  showOriginMarks: false, // 2026-10-21 12:55 使用者(友達 12:46「K 棒怎麼有起跌」→「這取消」):K 線圖不再標起漲 / 起跌(判一 / 判二的停損照樣用起漲 / 起跌點)。原 2026-10-20 使用者:「照這邏輯找出起漲點跟起跌點,然後標示出來」:今天創新高後第一次「K 跌破均價 + OBV 跌破 OBV 均線」(兩個穿越相差 ≤ 2 根)= 起跌(橘▼,K 上方);創新低後第一次兩個都往上穿 = 起漲(青▲,K 下方)。只標示,不進訊號
+  signalsCloudOnly: true,  // (判別式相關說明已移到私人庫)
+  showOriginMarks: false, // (判別式相關說明已移到私人庫)
   showSignalMarks: false, // 2026-10-21 使用者:進場箭頭(多✓ / 空✓ / 強)、出場與提醒小圓點(停利 / OBV / 停損 / 出 / 彈 / 注)「這些都不要」→ 圖上不畫(燈號、通知、帳本照舊)。原:true = 圖上標出今天燈號亮起的位置
-  confirmByObv: true,     // 第 7 條(2026-10-15 友達 10:24→10:28 定案):同方向第 2 個以後的訊號,OBV(紅線)與 OBV 均線14(藍線)
-                          // 都要比前一個同向訊號更低(做空)/ 更高(做多)才是「確認點」,燈只在確認點亮;第 1 個點只標記不亮燈。
+  confirmByObv: true,     // (判別式相關說明已移到私人庫)
+                          // (判別式相關說明已移到私人庫)
   chartDpr: 2,            // 圖表畫布解析度上限(2026-10-17):手機 3 倍螢幕壓到 2 倍,拖動 / 縮放快一倍;0 = 不限制
   exitRule: true,         // 平倉規則是否啟用(2026-10-15 19:50 定案,見 replaySignals)。2026-10-15 使用者說平倉點還沒定,先只看進場點:false = 不標「出」、不做循環,
                           // 燈號逐根判斷(條件成立那根亮,不成立回監控)。平倉規則定案後改 true。
@@ -2931,7 +2914,7 @@ function wiCalc0(){
   for (let i = Math.max(1, bars.length - 1300); i < bars.length; i++){ const a = bars[i - 1], b = bars[i]; if (!(a.close > 0) || dayKey(a.time) !== dayKey(b.time)) continue;
     const k = Math.max(-4, Math.min(4, Math.round((b.close - a.close) / wiTick(Math.min(a.close, b.close))))); cnt[4 - k]++; }
   // 2026-10-25 13:55 使用者「你查看看 拍配什麼最好」→「改」:再乘上 4 個條件的修正倍數 ^ alpha(app/prob_model.json,tools/backtest/prob_model.py 每週五用元大 K 重學):
-  //   時段、離 Ka %、最近 30 根波動 ÷ 長期波動、上一根漲 / 平 / 跌。回測 log-loss 改善 6.2%、有動的根猜對方向 50.9% → 59.6%
+  // (判別式相關說明已移到私人庫)
   const nc = cnt.reduce((a, b) => a + b, 0); let probs = nc ? cnt.map(c => (c + 0.5) / (nc + 4.5)) : null;
   try{ const PM = window.PROB_MODEL;
     if (probs && PM && PM.time && PM.unit === 'tick' && bars.length >= 31){   /* 修正表也要是「檔」的版本 */
@@ -3301,13 +3284,13 @@ function showBarInfo(t){
   el('lblMaV').innerHTML = isFinite(d.ma) ? d.ma.toFixed(2) + trend(d.ma, d.maPrev) : '—';   // 2026-10-23 20:50 小數點後二位(原三位)
   { const e = el('lblMa24V'); if (e) e.innerHTML = isFinite(d.ma24) ? d.ma24.toFixed(2) + trend(d.ma24, d.ma24Prev) : '—'; }   // 2026-10-21 K24
   { const e = el('lblMaBox'); if (e && d.maColor) e.style.color = (RF_MODE && typeof KA_RF_COLOR !== 'undefined') ? KA_RF_COLOR : d.maColor; }   // 2026-10-23 20:50 漲跌 / 轉折圖的 Ka 線是紅的,字也跟著紅   // 2026-10-21 使用者:「Ka、Kb 顏色跟著線走」:Ka 文字 = 十字線那根 Ka 線的顏色(紅 / 綠 / 白);Kb 線固定藍,文字也藍
-  // 2026-10-21 Ap(= VWAP):收盤在 Ap 之上紅 ↑、之下綠 ↓(原本寫「價上 / 價下」)
+  // (判別式相關說明已移到私人庫)
   el('lblVwapV').innerHTML = isFinite(d.vw) ? d.vw.toFixed(2) + trend(d.vw, d.vwPrev) : '—';   // 2026-10-23 21:05 箭頭 = Ap 自己的方向(粗箭頭,和 Ka / Kb 一樣;原本是收盤在 Ap 上 / 下)
   el('lblObvMaN').textContent = BASE.obvMaPeriod;
   el('lblObvV').innerHTML = isFinite(d.ob) ? d.ob.toFixed(2) + trend(d.ob, d.obPrev) : '—';
   el('lblObvMaV').innerHTML = isFinite(d.obma) ? d.obma.toFixed(2) + trend(d.obma, d.obmaPrev) : '—';
   { const e = el('lblObvMa30V'); if (e) e.innerHTML = isFinite(d.obma30) ? d.obma30.toFixed(3) + trend(d.obma30, d.obma30Prev) : '—'; }
-  { const e = el('lblObvMa16V'); if (e) e.innerHTML = isFinite(d.obma16) ? d.obma16.toFixed(3) + trend(d.obma16, d.obma16Prev) : '—'; }   // 2026-10-21 Od = OBV 均 16   // 2026-10-19 OBV 均 30
+  { const e = el('lblObvMa16V'); if (e) e.innerHTML = isFinite(d.obma16) ? d.obma16.toFixed(3) + trend(d.obma16, d.obma16Prev) : '—'; }   // (判別式相關說明已移到私人庫)
   // 2026-10-25 18:25 數字照元大格式變長(43708.00 / 43862.429),一行放不下時字縮小(最小 8px),不截掉 Od
   { const row = el('lblObvV').closest('.yh-lbl'); if (row){ const L = row.textContent.replace(/\s+/g, '').length; if (row.__fitL !== L){ row.__fitL = L; let fs = 11; row.style.fontSize = fs + 'px';
       while (fs > 8 && row.scrollWidth > row.clientWidth + 1){ fs -= 0.5; row.style.fontSize = fs + 'px'; } } } }
@@ -3317,7 +3300,7 @@ function showBarInfo(t){
   // 2026-10-23 21:10 使用者:「指標三 改 看空 價格 箭頭」:順序改成 看空 84.50▼(和指標一、二一樣,箭頭在價格後面)
   const i3html = t => !t ? '—' : t.replace(/^看多↑ (.+)$/, (m, px) => '看多 <span style="color:#FFFFFF">' + px + '</span>' + thickArrow(true, '#FF3B3B')).replace(/^看空↓ (.+)$/, (m, px) => '看空 <span style="color:#FFFFFF">' + px + '</span>' + thickArrow(false, '#3EE6A0'));
   { const e = el('lblOrgV'); if (e) e.innerHTML = i3html(d.org); }
-  { const e = el('lblKxV'); if (e) e.innerHTML = i3html(d.kx); }   // 2026-10-21 最近一次 Ka × Kb 穿越                                                  // 最近一個起漲 / 起跌點
+  { const e = el('lblKxV'); if (e) e.innerHTML = i3html(d.kx); }   // (判別式相關說明已移到私人庫)
   // 燈號 + 多空天秤跟著十字線走(2026-10-17):十字線在某根 K 上 → 顯示那根處理完當下的循環狀態(做多 / 做空 / 監控)與偏向;
   // 最後一根或沒有十字線 → 回到最新狀態。沒開平倉規則(stateAt 為空)時燈號不動,只動多空天秤。
   if (CUR.lampLast){
@@ -3341,7 +3324,7 @@ function showBarInfo(t){
    dayKey:同一天同一個整數;hmKey:'HH:MM'(和原本 toLocaleTimeString 的格式一樣,可以直接比大小)。 */
 function dayKey(t){ return Math.floor((t + 28800) / 86400); }
 function hmKey(t){ const m = Math.floor(((t + 28800) % 86400) / 60), h = Math.floor(m / 60), mm = m % 60; return (h < 10 ? '0' : '') + h + ':' + (mm < 10 ? '0' : '') + mm; }
-const MA_RESET_DAILY = !YH.kaCrossJudge;   // 2026-10-24 03:20 使用者「判一二三 解凍」+「Ka / Obv 跨日」:YH.kaCrossJudge 開 → 所有沒指定的均線(Ka、OBV 均線)都跨日
+const MA_RESET_DAILY = !YH.kaCrossJudge;   // (判別式相關說明已移到私人庫)
 const CALC_MEMO = new WeakMap();
 const calcMemo = (arr, k, f) => { if (!arr || typeof arr !== 'object') return f(); let m = CALC_MEMO.get(arr); if (!m){ m = new Map(); CALC_MEMO.set(arr, m); } if (m.has(k)) return m.get(k); const v = f(); m.set(k, v); return v; };
 function sma(bars, n, key = 'close', daily = MA_RESET_DAILY){ return calcMemo(bars, 'sma|' + n + '|' + key + '|' + daily, () => sma0(bars, n, key, daily)); }
@@ -3385,13 +3368,13 @@ function obvX0(bars){
   let acc = 0, pc = null; const out = [];
   for (const b of bars){ if (pc != null){ if (b.close > pc) acc += b.volume / 1000; else if (b.close < pc) acc -= b.volume / 1000; } pc = b.close; out.push({time: b.time, value: Math.round(acc)}); }
   // 2026-10-25 18:25 使用者「我輸贏在元大 所以你的圖必須跟它一模一樣」→「改 跟元大一模一樣」:元大 1 分 K 的 OBV 從最近 799 根的第一根起算、起始值 = 那根的量(張)
-  //   (友達 10/22 11:19 對過:OBV 43708.00、均線10 44055.40、均線28 43862.429 都一樣)。整條加同一個數,線的形狀、交叉、判別式都不變
+  // (判別式相關說明已移到私人庫)
   const s = Math.max(0, out.length - (YH.ytObvBars || 799));
   if (out.length){ const off = Math.round(bars[s].volume / 1000) - out[s].value; if (off) for (const o of out) o.value += off; }
   return out;
 }
 window.obvX = obvX;
-/* VWAP:當日累積(價×量)÷ 累積量,每天開盤重算;價用 (高+低+收)/3 */
+/* (判別式相關說明已移到私人庫) */
 function vwap(bars){ return calcMemo(bars, 'vwap', () => vwap0(bars)); }
 function vwap0(bars){
   const out = [];
@@ -3419,30 +3402,20 @@ function atr(bars, n){
   return win.reduce((a, b) => a + b, 0) / win.length;
 }
 
-/* 以風險定部位:每筆最多賠 riskPerTrade 元,停損距離 = stopAtr × ATR → 可買幾張(不超過多空上限) */
+/* (判別式相關說明已移到私人庫) */
 function positionSize(price, atrVal){
   const stopDist = BASE.stopAtr * atrVal;             // 每股停損距離(元)
   if (!(stopDist > 0)) return { lots: 0, stopDist: 0, lossPerLot: 0 };
   const lossPerLot = stopDist * 1000;                 // 一張的最大虧損
-  const capLots = Math.floor(parseFloat(wCap.value) * 10000 / (price * 1000));   // 多空上限能買幾張
+  const capLots = Math.floor(parseFloat(wCap.value) * 10000 / (price * 1000));   // (判別式相關說明已移到私人庫)
   const lots = Math.max(0, Math.min(Math.floor(BASE.riskPerTrade / lossPerLot), capLots));
   return { lots, stopDist, lossPerLot };
 }
 
 let RISK_LINES = [];                  // 圖上的停損 / 停利示意線
 
-/* ── 多空燈號(策略層第二版,2026-10-15 15:50 使用者定案)──
-   做多(紅燈)= 三個條件同時成立:
-     1. 分K 轉正:成交價在均價(MA maPeriod)之上,且均價向上(均價列箭頭 ↑)
-     2. OBV 兩個訊號轉正:OBV 向上、OBV 均線(obvMaPeriod)向上(OBV 列兩個箭頭都 ↑)
-     3. 成交價介於今天最高價與最低價之間(不在最高、不在最低)
-   做空(綠燈)= 全部反向:價在均價之下且均價向下、OBV 與 OBV 均線都向下、價在高低之間(且這檔今天可先賣後買)
-   監控(黃燈)= 其他;原因寫在最下面小字。
-   保護條件照舊:今天不到 SIG.skipMin 根 K 顯示「等待」;距昨收超過 ±entryMaxChg% 不進場。
-   VWAP 不再用在燈號,只用在多空天秤。 */
-/* ── 判別式一(2026-10-18 使用者定案命名)──
-   目前使用的完整進出場邏輯快照。回測 10/13~16(hi350 候選池、資金上限 35 萬):17 筆、賺 15 賠 2、勝率 88%、淨 +61,077。
-   以後若要試新的邏輯,另外開「判別式二」,這份不要動;白話版規則在 repo 根目錄《判別式一.md》。 */
+/* (判別式相關說明已移到私人庫) */
+/* (判別式相關說明已移到私人庫) */
 /*@@STRIP:RULES@@*/
 var RULESET1 = { name: '判別式一' };   // 真的參數在私人庫 Stock-logic/judge.js(owner 鑰匙經 Worker 載入後蓋掉這些 var)
 var SIG1 = { takePct: 2.5, stopPct: 1.5, skipMin: 15, lampBars: 3, lampWarnBars: 1, scaleBars: 5, scaleMaFull: 0.5, scaleObFull: 20, scaleW: {ma: 0, obma: 0.75, ob: 0.25}, strong: false, entryMode: '' };
@@ -3476,8 +3449,8 @@ let SIG = RULESET.sig;   // 2026-10-19 改成 let:背景監控一輪裡輪流切
 window.rsOn = k => { try{ const v = (window.Android && Android.getPref) ? Android.getPref('rsOff') : localStorage.getItem('mysh.rsOff'); return !String(v || '').split(',').includes(k); }catch(e){ return true; } };
 window.rsSet = (k, on) => { try{ const cur = String(((window.Android && Android.getPref) ? Android.getPref('rsOff') : localStorage.getItem('mysh.rsOff')) || '').split(',').filter(x => x && x !== k); if (!on) cur.push(k); const v = cur.join(',');
   if (window.Android && Android.setPref) Android.setPref('rsOff', v); localStorage.setItem('mysh.rsOff', v); }catch(e){} };
-const BG_RS = ['一', '二', '三', '四'];   // 2026-10-31 使用者「現在把新轉折 直接改名為 判四 加在公式 裡面 燈號啟動 真正的下單也啟動 自動平倉機制也啟動」:判四 = 新轉折做空,四份一起跑
-// 舊註:   // 2026-10-20 21:50 使用者「判四改判三後 直接定名為判三 原判三改判四 隱藏起來」→ 一、二、三(壓線空點)同時跑;判四(原判三,燿華型)不跑。21:40 起是 一二四。2026-10-19 使用者:「二版同時啟動,各自抓各自的,通知訊息可以知道是判一或判二的訊息」
+const BG_RS = ['一', '二', '三', '四'];   // (判別式相關說明已移到私人庫)
+// (判別式相關說明已移到私人庫)
 window.BG_RS = BG_RS;
 /*@@STRIP:SIGLIGHT@@*/
 function signalLight(){ return null; }
@@ -3525,11 +3498,11 @@ function lampsFromBias(b, time, devPct, strongDir, waiting){
     eL0.classList.remove('on', 'pre', 'strong'); eL0.textContent = '做多'; eS0.classList.remove('on', 'pre', 'strong'); eS0.textContent = '做空';
     eW0.classList.add('on'); eW0.textContent = '等待'; return;
   }
-  const closed = time != null && hmKey(time) >= '13:20';   // 13:20 起已強制平倉(2026-10-22 起,原 13:25)、13:30 是收盤集合競價:不再亮多空燈,只顯示監控(2026-10-18 使用者)
-  // 價離均價線超過 SIG.maxEntryDevPct(1%)就是追高 / 追低,那個方向的燈不亮(2026-10-18 使用者:「35.9 均線 35.5 大於 1%,不適合建議做多」)
+  const closed = time != null && hmKey(time) >= '13:20';   // (判別式相關說明已移到私人庫)
+  // (判別式相關說明已移到私人庫)
   const farUp = devPct != null && devPct > SIG.maxEntryDevPct, farDn = devPct != null && devPct < -SIG.maxEntryDevPct;
   const L = (closed || farUp) ? 0 : Math.round(Math.max(0, b) * 10), R = (closed || farDn) ? 0 : Math.round(Math.max(0, -b) * 10);
-  // 強訊號(判別式二,2026-10-18 22:15):那根 K 符合強空 / 強多條件 → 不等天秤 3 格,直接亮「強空 / 強多」(更亮、閃更快);13:25 後、離均價 1% 外照樣不亮
+  // (判別式相關說明已移到私人庫)
   const lStrong = strongDir === 1 && !closed && !farUp, sStrong = strongDir === -1 && !closed && !farDn;
   const l = lStrong || L >= SIG.lampBars, sh = sStrong || R >= SIG.lampBars;
   const lp = !l && L >= SIG.lampWarnBars, sp = !sh && R >= SIG.lampWarnBars;
@@ -3543,7 +3516,7 @@ function lampsFromBias(b, time, devPct, strongDir, waiting){
    做多 = Ka 在 Kb 上 + 橘線雙升(低點、高點都墊高);做空 = Ka 在 Kb 下 + 橘線雙降;只有一邊偏多、另一邊沒偏空 = 漸多(漸空同理);其他 = 監控。
    九天研究(studies/ind3_lines.py):Ka 上 + 橘雙升 做多 60 根內先漲 1% 55%;Ka 下 + 橘雙降 做空 52%(基準 50%)。今天不到 15 根 K = 等待,13:25 後 = 監控。
    多空天秤 = 0.5×k + 0.25×lo + 0.25×hi(−1~+1,做多 / 做空燈時滿格)。只換燈號和天秤,進出場訊號、通知、帳本不變 */
-// 2026-10-21 02:00 使用者(友達 13:17 燈亮做多:「好像不合理 再參考指標二 因為指标二的線都向下傾斜」):加第三件事 o2 = 指標二 Ob(OBV 均 10)、Oc(OBV 均 30)
+// (判別式相關說明已移到私人庫)
 //   最近 YH.ind3SlopeBars(5)根都往上 = +1、都往下 = −1、不一致 = 0(Oc 還沒值時只看 Ob)。做多要三件都偏多、做空要三件都偏空;有偏多也有偏空 = 監控。
 function ind3Series(bars, ma, ma24, ob, obma, obma30){
   const mk = toTimeMap(ma), mb = toTimeMap(ma24), mo = toTimeMap(ob), mm = toTimeMap(obma), m30 = obma30 ? toTimeMap(obma30) : new Map();
@@ -3558,7 +3531,7 @@ function ind3Series(bars, ma, ma24, ob, obma, obma30){
     const sOb = sl(mm), sOc = sl(m30);
     const o2 = sOb == null ? 0 : (sOc == null ? sOb : (sOb === sOc ? sOb : 0));
     // 2026-10-21 02:45 使用者:「Ka 瞬間高又低下來 燈號要配合」:第四件改成 Ka 自己 2 根的方向(比 2 根前高 +1、低 −1),Ka 一拉高燈就偏多、一掉下來就跟著退。
-    //   原(02:15):Ka、Kb 和 5 根前比都同方向(Kb 慢,要等很久)。九天:做多 51%、漸空 55%、做空 55%(原版做多 52%、做空 54%)
+    // (判別式相關說明已移到私人庫)
     const t2 = bi >= 2 ? bars[bi - 2].time : null, ka2 = t2 != null ? mk.get(t2) : null;
     const ks = (ka != null && ka2 != null) ? Math.sign(ka - ka2) : 0;
     const c30 = m30.get(b.time), cOc = (m != null && c30 != null) ? Math.sign(m - c30) : 0;   // 2026-10-21 Ob 在 Oc 之上 +1 / 之下 −1(lampObOc)
@@ -3570,18 +3543,18 @@ function ind3Series(bars, ma, ma24, ob, obma, obma30){
   return out;
 }
 // 2026-10-21 22:30 使用者「改 Y3+W6」(時碩 11:06「指標三 二線都轉下」燈號還是漸多):YH.lampOaOb 開時第二件「橘線雙升 / 雙降」(看過去兩個高低點,慢)換成 Oa 現在在 Ob 之上 / 之下。
-//   七天 1,405 股票日:勝率 55.3% 不變,對 2,138 → 2,520(淨 408 → 480);加 W6(lampBreadth)後 57.9%、淨 440
+// (判別式相關說明已移到私人庫)
 const ind3Bias = st => st ? (st.k + (YH.lampOaOb ? (st.oa || 0) : (st.lo > 0 && st.hi > 0 ? 1 : st.lo < 0 && st.hi < 0 ? -1 : 0)) + (st.o2 || 0) + (st.ks || 0)) / 4 : 0;   // 2026-10-21 四件事平均(Ka/Kb 位置、橘線雙升 +1 / 雙降 −1、指標二方向、Ka/Kb 方向)
 // 單根的燈號狀態(還沒平滑):'等待' / '做多' / '漸多' / '監控' / '漸空' / '做空'
 function ind3Raw(st, time, waiting){
   if (waiting || !st) return waiting ? '等待' : '監控';
   if (time != null && hmKey(time) >= '13:20') return '監控';
-  // 2026-10-21 02:30 使用者:「Ka 瞬間拉那麼高 訊號只顯示監控 也不合理」→ 不再要求四件全同方向,改看四件平均分數 b(−1~+1):
+  // (判別式相關說明已移到私人庫)
   //   b ≥ 0.75 做多、0.25~0.75 漸多、−0.25~0.25 監控、−0.75~−0.25 漸空、≤ −0.75 做空(例:友達 13:17 → 漸多)。
   //   九天(studies/lamp_ind3.py 分數版):做多 52%、漸多 50%、監控 47%、漸空 55%、做空 54%
   const b = ind3Bias(st);
   const r = b >= 0.75 ? '做多' : b >= 0.25 ? '漸多' : b > -0.25 ? '監控' : b > -0.75 ? '漸空' : '做空';
-  // 2026-10-21 20:40 使用者「先改 D」(指標三加 Ob×Oc 後回測):做多還要 Ob 在 Oc 之上、做空要在之下,不符合降一級(漸多 / 漸空)。
+  // (判別式相關說明已移到私人庫)
   //   七天 1,405 股票日(亮燈後 60 根內先走 1%):現行 對 2,621 錯 2,228 54.1% → 對 2,138 錯 1,730 55.3%
   if (YH.lampObOc && r === '做多' && !(st.c > 0)) return '漸多';
   if (YH.lampObOc && r === '做空' && !(st.c < 0)) return '漸空';
@@ -3601,8 +3574,8 @@ function ind3Raw(st, time, waiting){
 }
 /* 2026-10-21 03:00 使用者:「改」(燈號太敏感會閃 → 新狀態要連 YH.lampHold(2)根才換,只出現 1 根就維持原本的燈):
    今天每一根依序算,回傳 Map(time → 平滑後的狀態)。等待 / 13:25 後直接照用。友達 10/20 換燈 57 次 → 33 次 */
-// 2026-10-21 03:30 使用者「改」(富喬早盤 156~159 震盪,燈號做多做空亂換):震盪盤只顯示監控。isChop(i) = 第 i 根是不是震盪盤(和判二同一套:
-//   45 根內 ≥ 3 個輪流的起漲 / 起跌點,價格都在 1.5% 內;YH.lampChopWin / lampChopN / lampChopRange)
+// (判別式相關說明已移到私人庫)
+// (判別式相關說明已移到私人庫)
 function ind3Lamps(bars, I3, isChop, prevClose){
   const out = new Map(), N = YH.lampHold || 2; let day = null, n = 0, cur = null, cand = null, cnt = 0, dHi = 0, dLo = 0;
   for (let i = 0; i < bars.length; i++){
@@ -3610,9 +3583,9 @@ function ind3Lamps(bars, I3, isChop, prevClose){
     const d = dayKey(b.time); if (d !== day){ day = d; n = 0; cur = null; cand = null; cnt = 0; } n++;
     let raw = ind3Raw(I3.get(b.time), b.time, !YH.lampNoWait && n < SIG.skipMin);   // 2026-10-24 03:50 lampNoWait:Ka / OBV 跨日後開盤就有值,不再等 15 根
     if (n === 1){ dHi = b.high; dLo = b.low; } else { dHi = Math.max(dHi, b.high); dLo = Math.min(dLo, b.low); }
-    // 2026-10-21 04:20 開(YH.lampExtPct 0.3;0 = 關):價已經貼著今天最高(做多)/ 最低(做空)lampExtPct% 以內 → 不亮順勢燈,當監控(不追在轉折點)
+    // (判別式相關說明已移到私人庫)
     const ex = YH.lampExtPct || 0;
-    // 2026-10-21 04:40 使用者「改」(友達一路破底,做空被切成好幾段):只擋「剛要亮」的;燈已經是同方向(做空 / 漸空 → 做空;做多 / 漸多 → 做多)就不擋,讓趨勢連成一段
+    // (判別式相關說明已移到私人庫)
     const dirOf = x => (x === '做多' || x === '漸多') ? 1 : (x === '做空' || x === '漸空') ? -1 : 0;
     const lit = cur === '做多' ? 1 : cur === '做空' ? -1 : 0;   // 只有已經亮「做多 / 做空」才算已亮(漸多 / 漸空不算,富喬 13:01 漸空 → 做空在底部照擋)
     // 2026-10-21 05:30 開盤到 YH.lampExtFrom(09:45)不套用(今天的高低點才剛形成;第一個燈號改要連 3 根後,今國光開盤直衝漲停整段被當「貼當日高點」擋成監控)
@@ -3667,7 +3640,7 @@ function updateMeter(b){
   el('meterPin').style.left = (50 - b * 50) + '%';          // 偏多往左、偏空往右
 }
 
-/* 乖離率:(收盤 − VWAP) ÷ VWAP × 100,紅柱在上(多方)、綠柱在下(空方) */
+/* (判別式相關說明已移到私人庫) */
 /* 均線乖離率(2026-10-20):(收盤 − 均線)÷ 均線 ×100;柱狀顏色正紅負青(元大) */
 function biasOf(bars, maArr){
   // 每一根都要有一筆(沒均線的根給只有 time 的空白點):三張圖用「邏輯索引」同步,資料長度不一樣 x 就對不齊(2026-10-20 實測下圖十字線跑掉)
@@ -3825,10 +3798,8 @@ function biasAvgOf(arr, n){
   }
   return out;
 }
-/* 起漲點 / 起跌點(2026-10-20 使用者看中揚光 09:25:「K 剛穿過均線,OBV 也剛穿過 OBV 均線,把這個點記起來」→「照這邏輯找出起漲點跟起跌點,然後標示出來」)
-   每天各自算:今天創新高(盤中最高)之後,第一次「K 棒最高價跌破均價(整根在線下)」且「OBV 跌破 OBV 均線」(兩個穿越相差 ≤ 2 根)的那根 = 起跌點,回傳那根的高點(停損參考);
-   創新低之後第一次兩個都往上穿 = 起漲點,回傳低點。標過一次後,要再創新高(低)才會再標下一個,所以一段走勢只標一次。 */
-function originPoints(bars, ma, ob, obma, kMode){   // kMode 'close' = K 穿越用收盤價判斷(停損用,2026-10-20 回測較好);預設整根 K(圖上標示)
+/* (判別式相關說明已移到私人庫) */
+function originPoints(bars, ma, ob, obma, kMode){   // (判別式相關說明已移到私人庫)
   const M = a => { const m = new Map(); a.forEach(x => m.set(x.time, x.value)); return m; };
   const mm = M(ma), mo = M(ob), mom = M(obma), out = [];
   let day = null, hi = -Infinity, lo = Infinity, armD = false, armU = false, n = 0, prev = null, lk = {}, lo2 = {};
@@ -3842,7 +3813,7 @@ function originPoints(bars, ma, ob, obma, kMode){   // kMode 'close' = K 穿越�
     const cur = (m0 == null || o0 == null || om0 == null) ? null : {h: b.high, l: b.low, c: b.close, m: m0, o: o0, om: om0};
     if (prev && cur){
       for (const sd of [1, -1]){
-        const kIn = kMode === 'close' ? (x => (x.c - x.m) * sd > 0) : (x => sd > 0 ? x.l > x.m : x.h < x.m);   // 2026-10-20 使用者:「起跌點 K 棒取最高價、起漲點取最低價」→ 整根 K 都在均價另一側才算穿越(09:42 最低價還壓在均線上,不算起漲)
+        const kIn = kMode === 'close' ? (x => (x.c - x.m) * sd > 0) : (x => sd > 0 ? x.l > x.m : x.h < x.m);   // (判別式相關說明已移到私人庫)
         if (kIn(cur) && !kIn(prev)) lk[sd] = n;
         if ((cur.o - cur.om) * sd > 0 && (prev.o - prev.om) * sd <= 0) lo2[sd] = n;
       }
@@ -3854,16 +3825,12 @@ function originPoints(bars, ma, ob, obma, kMode){   // kMode 'close' = K 穿越�
   return out;
 }
 window.originPoints = originPoints;
-/* 震盪盤判斷用的起漲 / 起跌點(2026-10-20):今天(lastDay)每一根,「整根 K 穿過均價」+「OBV 穿過 OBV 均線」相差 ≤ 2 根 = 一個點,起漲、起跌輪流(同方向連續的不算)。
-   回傳 [{bi, side, px}],px = 起跌那根的最高價 / 起漲那根的最低價。和模擬器 _alt_points 同一套 */
+/* (判別式相關說明已移到私人庫) */
 /*@@STRIP:CHOP@@*/
 function chopPoints(){ return []; }
 window.chopPoints = chopPoints;
 /*@@END:CHOP@@*/
-/* 起漲 / 起跌點停損(2026-10-20 使用者:「找出起漲起跌點,做空就以最高為準,不管是起漲或起跌;做多就找起漲起跌最低點」→ 九天回測 → 「改」):
-   進場時取「今天到訊號那根為止」最近一個起漲點 + 最近一個起跌點(收盤價判斷穿越),做空停損 = 兩根 K 最高價中、高於進場價的較高者;做多 = 最低價中、低於進場價的較低者。
-   離進場不到 SIG.stopMinPct% → 用 stopMinPct%(判二 1.5%);超過 SIG.stopCapPct%(3%)→ 用 3%;找不到 → 照舊 stopPct%。
-   回傳 {px} = 價位停損(反彈 / 回檔「超過」才停)或 {pct} = 百分比停損。模擬器 STOPMODE=pts STOPSCOPE=last2 STOPKBAR=close STOPCAP=3(判二加 STOPMIN=1.5) */
+/* (判別式相關說明已移到私人庫) */
 /*@@STRIP:OSTOP@@*/
 function originStop(){ return null; }
 window.originStop = originStop;
@@ -3889,8 +3856,8 @@ const CHART_THEME = {
   bg: '#000000', text: '#D8DEE9', axisText: '#E8C547', grid: '#262626', axis: '#3A3A3A',   // axisText:價格與時間刻度(元大金黃色)
   up: '#FF3B3B', down: '#1DD75B', wick: '#E6E6E6',          // K 棒:漲紅、跌綠、影線白
   ma: '#D63AF9',                                            // 1 分K 的均線(元大「均價」紫色)
-  vwap: '#FF9F43',                                          // VWAP 橘色(元大沒有這條,保留)
-  obv: '#FFE14D', obvMa: '#19D3F5', obvMa30: '#B47CFF',    // OBV 黃線(2026-10-20 使用者:「OBV 紅線改黃線」;原紅 #FF3B3B)、OBV 均線青色、OBV 均 30 紫色(2026-10-19 使用者:「多一條 OBV30 紫色的線」)
+  vwap: '#FF9F43',                                          // (判別式相關說明已移到私人庫)
+  obv: '#FFE14D', obvMa: '#19D3F5', obvMa30: '#B47CFF',    // (判別式相關說明已移到私人庫)
   devUp: 'rgba(255,59,59,.75)', devDown: 'rgba(29,215,91,.75)',
 };
 
@@ -3987,7 +3954,7 @@ function initChart(){
 
   // 上圖:1 分K + MA
   chart = LightweightCharts.createChart(top, {...CHART_OPTS,
-    leftPriceScale:{visible:true, borderColor:CHART_THEME.axis, scaleMargins:{top:.21, bottom:.26}}});   /* 2026-10-29 22:50 拿掉最小範圍後照元大晚上兩張(友達 / 群創 13:30)重新對:元大 K 區 550px、K 棒高低只用約 71%(上留 11%、下留 17.5%);我們 K 區高 745px,多的 195px 上下平均分 → 上 .21、下 .26,同樣價差的 K 棒在螢幕上一樣長 */   // 2026-10-29 09:29 使用者(K 圖比元大高約 35% →「把這多出來的35% 能夠平均分給k圖的上跟下嗎」):K 棒區只用元大那麼高(圖高 × 0.74),多的平均留在上下(原 .08 / .06)
+    leftPriceScale:{visible:true, borderColor:CHART_THEME.axis, scaleMargins:{top:.21, bottom:.26}}});   /* (判別式相關說明已移到私人庫) */   // 2026-10-29 09:29 使用者(K 圖比元大高約 35% →「把這多出來的35% 能夠平均分給k圖的上跟下嗎」):K 棒區只用元大那麼高(圖高 × 0.74),多的平均留在上下(原 .08 / .06)
   // 2026-10-23 22:30 三張圖的價格刻度一律 = 可見範圍內 K 棒的最高 / 最低(上面每一條線、K 棒都用同一個 provider,切換時刻度完全不動)
   const kRange = orig => { try{ const r = chart.timeScale().getVisibleLogicalRange(); if (!r || !BARS || !BARS.length) return orig();
     let lo = Infinity, hi = -Infinity; for (let i = Math.max(0, Math.floor(r.from)); i <= Math.min(BARS.length - 1, Math.ceil(r.to)); i++){ const b = BARS[i]; if (b.low < lo) lo = b.low; if (b.high > hi) hi = b.high; }
@@ -4090,7 +4057,7 @@ function initChart(){
   obvMaLine = chartM.addLineSeries({priceScaleId:'left', color:CHART_THEME.obvMa, lineWidth:2,
                                     priceLineVisible:false, lastValueVisible:false,
                                     priceFormat: lotsFmt});
-  obvMa30Line = chartM.addLineSeries({priceScaleId:'left', color:CHART_THEME.obvMa30, lineWidth:2,   // 2026-10-19 使用者:OBV 均 30 紫線,看紅線 / OBV10 和它的關係
+  obvMa30Line = chartM.addLineSeries({priceScaleId:'left', color:CHART_THEME.obvMa30, lineWidth:2,   // (判別式相關說明已移到私人庫)
                                       priceLineVisible:false, lastValueVisible:false,
                                       priceFormat: lotsFmt});
   // 2026-10-21 23:10 使用者:「增加 Od = obv16」:OBV 的 16 根平均(粉紅),只畫線、顯示數值,燈號 / 判別式不用它
@@ -4099,14 +4066,14 @@ function initChart(){
 
   // 下圖:均線乖離率(2026-10-20 使用者看元大的三段版面:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」):
   //   柱狀 = 乖離率 10 = (收盤 − 均價 10)÷ 均價 10 ×100(正紅、負青,和元大一樣);橘線 = 乖離率 30(對均價 30);黃線 = 乖離率 10 的 132 根平均(跨日算,開盤就有)。
-  //   原本這一格是 VWAP 乖離柱狀圖(SHOW_VWAP_PANE),2026-10-16 停用,現在直接作廢。
+  // (判別式相關說明已移到私人庫)
   bot.classList.remove('hidden');
   chartB = LightweightCharts.createChart(bot, {...CHART_OPTS,
     leftPriceScale:{visible:true, borderColor:CHART_THEME.axis, scaleMargins:{top:.12, bottom:.08}},
     timeScale:{...CHART_OPTS.timeScale, visible:false}});
-  // 2026-10-20 22:10 使用者:「把均線乖離率 改成 股票高低點連線 加上起漲點 起跌點 也連線」:
+  // (判別式相關說明已移到私人庫)
   //   白線 = 股票高低價連線(22:40 改:波段高低點 swingPoints,見函式說明;22:20 是每天最高連最低、22:10 是 zigzag);
-  //   橘線 = 起漲起跌連線(K 線圖上標的起漲點取那根最低價、起跌點取最高價,依序相連;點上有小圓點,起漲藍、起跌橘)。
+  // (判別式相關說明已移到私人庫)
   const pxFmt = {type:'price', precision:2, minMove:0.01};
   // 2026-10-22 19:05 使用者:「指標三 怎麼那麼多點點」→「改」(選 3):橘線(OBV 穿 Ob,一天 30 多點)不畫;線改透明、資料照留,十字線和刻度跟著它走
   // 2026-10-22 21:07 使用者:「改回原來 沒有綠紅線的版本」:19:05 的改版(橘線不畫、紫線拆紅綠兩條)撤回,回到橘線 + 一條紫線
@@ -4688,9 +4655,7 @@ async function openChart(code, name){
 }
 
 /* 線上抓取與本機 CSV 共用同一套繪圖 */
-/* 2026-10-22 漲跌圖的多空點(使用者 10/22 研究定的「三訊號」+「壓線」;只畫在漲跌圖,不進判別式、不推通知):
-   多 = Ka 往上且在 Kb 上面 + OBV 在 Ob(OBV 均 10)上面 + OBV、Ob 都往上;空照鏡像。三件同時成立的第一根標一個點。
-   壓線 = Ka、Kb 差距 ≤ YH.rfPressPct%,且那根 K 從均線旁邊出發(做多看開盤 / 最低、做空看開盤 / 最高離較近那條均線 ≤ YH.rfPressPct%)→ 實心亮色;沒壓線 → 淡色。 */
+/* (判別式相關說明已移到私人庫) */
 function rfPoints(bars, ma, ma24, ob, obma, ob24){
   const mk = toTimeMap(ma), mb = toTimeMap(ma24), mo = toTimeMap(ob), mm = toTimeMap(obma), P = YH.rfPressPct;
   const st = (i, d) => {
@@ -4712,9 +4677,9 @@ function rfPoints(bars, ma, ma24, ob, obma, ob24){
   //   多:最低碰到較高那條均線、收盤站上兩線);一段只標第一根,整段都沒穿過就不標
   const brk = (i, d) => { const b = bars[i], ka = mk.get(b.time), kb = mb.get(b.time);
     return d > 0 ? (b.low <= Math.max(ka, kb) && b.close > Math.max(ka, kb)) : (b.high >= Math.min(ka, kb) && b.close < Math.min(ka, kb)); };
-  // 2026-10-23 16:35 使用者(TPK 10/22 09:14 漲跌圖沒標多點:「這應該做多 怎麼顯示」→「你看圖 修正」):TPK 09:13 一根跳上去,Ka 穿過 Kb 時價格已離均線 0.5%、
-  //   之後一路沒回來碰線,「K 棒要碰到均線再站上」(brk)永遠不成立,整段漲勢沒有點。改成:不要 brk;三條件成立的第一根 → 壓線成立就實心,
-  //   沒壓線先標淡色;第二根還成立 → 實心(淡色連 2 根算實心)。357 檔 13 天實心點 6,363 → 27,304、60 根 ±1% 52.0% → 52.9%(壓線的 54.6%、連 2 根的 51.9%)
+  // (判別式相關說明已移到私人庫)
+  // (判別式相關說明已移到私人庫)
+  // (判別式相關說明已移到私人庫)
   const out = [], done = {'1': false, '-1': false}, run = {'1': 0, '-1': 0}; let rday = null;
   for (let i = 1; i < bars.length; i++){ const dk = dayKey(bars[i].time); if (dk !== rday){ rday = dk; run['1'] = run['-1'] = 0; done['1'] = done['-1'] = false; }
    for (const d of [1, -1]){
@@ -4730,7 +4695,7 @@ function rfPoints(bars, ma, ma24, ob, obma, ob24){
   for (let k = out.length - 1; k > 0; k--){ const a = out[k - 1], b = out[k];
     if (!a.press && b.press && b.via === 'run' && a.side === b.side && dayKey(a.time) === dayKey(b.time)) out.splice(k - 1, 1); }
   // 2026-10-22 15:50 假點(使用者:「11.35空 比照前一個空點的obv24 如果11.35比較高 則是假空點」→「改」):
-  //   和同一天前一個同方向的點比 OBV 均線 24:空點比較高 / 多點比較低 = 假點(灰色,不算翻轉、不連線)
+  // (判別式相關說明已移到私人庫)
   if (ob24){ const m24 = toTimeMap(ob24), last = {}; let day = null;
     for (const p of out){ const dk = dayKey(p.time); if (dk !== day){ day = dk; last['1'] = last['-1'] = null; }
       const v = m24.get(p.time), pv = last[p.side];
@@ -4743,7 +4708,7 @@ function rfMarkers(pts){
   for (const p of pts){
     const day = dayKey(p.time); if (day !== prevDay){ prev = 0; prevDay = day; }
     const up = p.side > 0, flip = !p.fake && p.press && p.side !== prev; if (p.press && !p.fake) prev = p.side;
-    // 2026-10-23 19:35 使用者(「怎麼那麼多下降箭頭」):同方向再出現的實心點改成小的淡色(和轉折圖一樣),只有翻轉那一個是大的實心 + 時間;淡色(沒壓線)更小
+    // (判別式相關說明已移到私人庫)
     const big = flip, mid = p.press && !p.fake && !flip;
     out.push({time: p.time, position: 'inBar', shape: up ? 'arrowUp' : 'arrowDown', size: big ? 1.2 : mid ? 0.6 : 0.5,   // 14:30 使用者:「藍虛線 這上漲空心沒有連線」→ 點畫在價格上(inBar),連線才會穿過三角形
               color: p.fake ? 'rgba(150,155,165,.6)' : up ? (big ? '#FF5C6C' : mid ? 'rgba(255,92,108,.5)' : 'rgba(255,92,108,.3)') : (big ? '#3EE6A0' : mid ? 'rgba(62,230,160,.5)' : 'rgba(62,230,160,.3)'),
@@ -4778,9 +4743,9 @@ let RF_ARGS = null, RF_LAMPS = null, KA_COLORED = null, KA_PLAIN = null; const K
 // 2026-10-23 00:25 燈號跟著目前那張圖走:K 線圖 = 原本的燈號(指標三四件事);漲跌圖 = 最近一個實心非假的翻轉點;轉折圖 = 最近一個轉折。
 //   同一天還沒有點 = 監控;換日重算。天秤、通知、判別式都不動
 // 2026-10-23 09:50 使用者(「你自己跑一下 … 找出不合理的燈號 再加以修改」)。10 檔 × 3 天掃過三張圖,改三處:
-//   (1) 13:20 起只顯示監控(已強制平倉;K 線圖本來就這樣,漲跌 / 轉折圖還亮著做多 / 做空);(2) 開盤不到 15 根顯示等待(和 K 線圖一樣);
+// (判別式相關說明已移到私人庫)
 //   (3) 燈號亮著做多(做空)時,那張圖的條件已經過半翻成偏空(偏多)、連 YH.lampHold 根 → 退回監控,等下一個點(漲跌圖 31% 的做多根、轉折圖 16% 都是這種:點很久沒出,燈還掛著舊方向)。
-//   同方向再出現的點也會重新點亮。pts = 那張圖的點(含同方向再出現的),bias = 那張圖每根的條件平均
+// (判別式相關說明已移到私人庫)
 // 2026-10-23 10:57 使用者(友達 10/21 10:40「都到這 為啥還做空」:Ka 10:37 已經穿到 Kb 上面,燈還亮做空):做空燈要 Ka 在 Kb 下面、做多燈要 Ka 在 Kb 上面,
 //   Ka 一穿到另一邊就退回監控(和點的條件一致:做多要 Ka > Kb、做空要 Ka < Kb);kaSide = 每根 Ka 在 Kb 哪邊(+1 / −1)
 // 2026-10-23 11:25 使用者(「轉折圖 也跑一次」):和 K 線圖一樣,連 2 根「Ka 比 2 根前高且收盤在 Ka 上」(明明在漲)做空燈退監控;鏡像。trend = 每根 +1 / −1 / 0
@@ -4841,24 +4806,18 @@ function rfDraw(){
     const pAt = new Map(rp2.map(p => [p.time, kaAt.has(p.time) ? kaAt.get(p.time) : p.price]));
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
     rfLine.setMarkers(rfMarkers(rp2));
-    { const bias = rfBias(sBars, sMa, sMa24, sOb, sObma), ks = kaSideMap(sMa, sMa24);   // 燈號看實心非假的點(含同方向再出現的)
+    { const bias = rfBias(sBars, sMa, sMa24, sOb, sObma), ks = kaSideMap(sMa, sMa24);   // (判別式相關說明已移到私人庫)
       RF_LAMPS = {view: 1, map: rfLampMap(bars, rp2.filter(p => !p.fake && p.press), bias, ks, trendMap(sBars, sMa)), bias}; }
     if (rfChain) rfChain.setData(rfChainData(bars, rp2));
     if (rfAll) rfAll.setData(rfChainData(bars, rp2, true));
   }catch(e){ try{ rfLine.setMarkers([]); if (rfChain) rfChain.setData([]); if (rfAll) rfAll.setData([]); }catch(_){} }
 }
-/* 2026-10-22 22:42 轉折圖(使用者 20:38「現在修改都是轉折圖」… 22:42「改二根」):只是畫面,判別式 / 通知 / 燈號都不用。
-   點 = Ka 在 Kb 對的那一邊(23:29 加)+ Kb 方向(和 YH.turnKbBars 根前比,10/23 12:55 加)+ Ka 方向(和 YH.turnKaBars 根前比)+ OBV 在 Ob 同側 + OBV 方向 + Ob 方向(OBV 照元大跨日累計;一段只標第一根),
-   還要:壓線(那根從均線旁邊出發:空看開盤 / 最高離較低那條均線、多看開盤 / 最低離較高那條 ≤ YH.rfPressPct%)、
-   OBV 均 24(跨日)方向對(使用者:時碩 9:16「obv24 是上漲 所以不做空」)、Oc(OBV 均 YH.ocPeriod,和指標二同一條)方向對(友達 11:06「因為 obv28 向下」)。
-   換方向的點 = 轉折:亮色大箭頭 + 時間,黃虛線依序相連;同方向再出現的點:淡色小箭頭(友達 11:26「是真正的空點」)。每天各自算。
-   回測 357 檔 13 天(60 根先走 1%):準確率 53%;見轉折就翻轉每筆扣成本 −0.44%、只空 −0.31%、10 點前進場 −0.29%(漲跌圖 −0.37%) */
+/* (判別式相關說明已移到私人庫) */
 /*@@STRIP:TURN@@*/
 function turnPoints(){ return []; }
 function turnBias(){ return new Map(); }   // 2026-10-31 轉折圖天秤的四項搬到私人庫 judge.js(判四用同一套,不放公開庫)
 /*@@END:TURN@@*/
-/* 2026-10-31 12:00(實際時間)使用者「轉折圖上 用現在的判四 去搭配 標記盡量簡潔明瞭」:轉折圖只標判四今天那一筆(每檔每天最多一筆):
-   「轉」= 轉折點(淡綠小箭頭)、「空 價」= 加碼那根進場(亮綠大箭頭)、平倉 = 白圓點「出 價」/ 紅圓點「停損 價」;判四公式沒載入(看盤版 / 沒鑰匙)就不標 */
+/* (判別式相關說明已移到私人庫) */
 function turn4Marks(sBars){
   try{
     if (YH.turn4Marks === false || typeof replayTurn4 !== 'function' || !RULESETS['四'] || RULESETS['四'].sig.entryMode !== 'turn4') return [];
@@ -4879,12 +4838,12 @@ function turnDraw(bars, sBars, sMa, ma24, sOb){
     const pts = turnPoints(sBars);
     { const bias = turnBias(sBars); RF_LAMPS = {view: 2, map: rfLampMap(bars, pts, bias, kaSideMap(sMa, sMa24), trendMap(sBars, sMa)), bias}; }
     // 2026-10-31 11:55(實際時間)使用者「K線圖上 不用顯示任何來自於判1234的進場跟出場 K線圖本身就是乾淨清潔 所有的圖都不用標示來自判一二三四的邏輯」:
-    //   轉折圖的點(轉折 / 加碼箭頭)、連線都是判四的邏輯 → 不畫(YH.turnChartMarks = true 才畫回來);線只畫收盤價
+    // (判別式相關說明已移到私人庫)
     if (!YH.turnChartMarks){ rfLine.setData(bars.map(b => ({time: b.time, value: b.close}))); rfLine.setMarkers(turn4Marks(sBars)); if (rfChain) rfChain.setData([]); if (rfAll) rfAll.setData([]); return; }
     const kaAt = toTimeMap(sMa);   // 2026-10-24 03:35 箭頭畫在 Ka 紅線上
     const pAt = new Map(pts.map(p => [p.time, kaAt.has(p.time) ? kaAt.get(p.time) : p.price]));
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
-    rfLine.setMarkers(pts.map(p => { const up = p.side > 0;   // 2026-10-31 00:53 新轉折:轉折 = 大箭頭(有加碼的真正轉折亮色、沒有的淡色)、加碼 = 中箭頭標「加」、其他同方向點 = 小淡色
+    rfLine.setMarkers(pts.map(p => { const up = p.side > 0;   // (判別式相關說明已移到私人庫)
       const big = p.flip, real = p.flip && p.real;
       return {time: p.time, position: 'inBar', shape: up ? 'arrowUp' : 'arrowDown', size: big ? 1.2 : p.add ? 1.0 : 0.5,
               color: up ? (real || p.add ? '#FF5C6C' : big ? 'rgba(255,92,108,.65)' : 'rgba(255,92,108,.35)') : (real || p.add ? '#3EE6A0' : big ? 'rgba(62,230,160,.65)' : 'rgba(62,230,160,.35)'),
@@ -5003,12 +4962,12 @@ function drawBars0(bars, code, srcLabel, keepView){
   const obma16 = sma(ob, YH.odPeriod || 16, 'value');   // 2026-10-21 Od
   if (!obma16D) obma16D = obma16; if (!obma30D) obma30D = obma30;
   if (obvMa16Line) obvMa16Line.setData(dayCut(YH.obvDisplayCross ? obma16D : headFill(obma16, YH.odPeriod || 16)));
-  // 2026-10-21 使用者:「Ob 穿越 Oc 標示」:Ob(OBV 均 10,藍)和 Oc(OBV 均 30,紫)每次交叉,在 Ob 線上標小點:往上穿紅、往下穿綠(不標數字)
+  // (判別式相關說明已移到私人庫)
   try{ obvMaLine.setMarkers([]); }catch(e){}   // 2026-10-23 15:55 使用者:「指標二的點也取消」:Ob×Oc 穿越的紅 / 綠圓點不畫(上方 Oc 文字箭頭照舊)
   // 2026-10-20 23:30 使用者:「把高低連線拿掉 留起漲起跌連線 價格要註記上去」(swingPoints 函式留著,沒畫)
-  // 2026-10-20 23:45 使用者:「這樣的點不對 改紀錄 obv 黃線穿越藍線的點 所有的點連線」:下圖改成 OBV(黃)穿越 OBV 均線(藍)的每一個點連線。
-  //   黃線往上穿藍線 = 標那根 K 的最低價(藍點,標在線下方);往下穿 = 標那根 K 的最高價(橘點,標在線上方)。K 線圖上的起漲 / 起跌標示和停損用的起漲 / 起跌點不變。
-  const orgPts = obvCrossPoints(bars, obD, obmaD);   // 2026-10-23 21:40 使用者「好」:橘線的點改用跨日累計的 OBV / Ob 算(和指標二畫的同一份);轉折通知的順勢而為濾網一起換
+  // (判別式相關說明已移到私人庫)
+  // (判別式相關說明已移到私人庫)
+  const orgPts = obvCrossPoints(bars, obD, obmaD);   // (判別式相關說明已移到私人庫)
   // 2026-10-23 13:05 使用者:「紫線 橘線 都把最新一根k都當成是成立的點畫線 當然這點未必是真的點 但我需要這樣判斷漲跌」:
   //   最後一根 K 當暫時的點(橘線 = 收盤價、紫線 = 那根的 Ka),線一路畫到最新一根;不標點、不進 I3TXT,只是畫面。真的穿越點出現後就被取代。
   const tipPt = (pts, val) => { const z = bars[bars.length - 1]; if (!z || (pts.length && pts[pts.length - 1].time === z.time) || val == null) return pts; return pts.concat([{time: z.time, value: val}]); };
@@ -5112,7 +5071,7 @@ function drawBars0(bars, code, srcLabel, keepView){
               + ` · 每筆賠 ${BASE.riskPerTrade} 元可買 ${ps.lots} 張`;
   }
 
-  // 元大風格:十字線資料表(每分鐘的開高低收量、均價、VWAP、OBV),預設顯示最後一根
+  // (判別式相關說明已移到私人庫)
   {
     const byTime = new Map();
     const idx = (arr) => { const m = new Map(); arr.forEach((x, i) => m.set(x.time, i)); return m; };
@@ -5152,7 +5111,7 @@ function drawBars0(bars, code, srcLabel, keepView){
   let dayHi = Math.max(...todayBars.map(b => b.high)), dayLo = Math.min(...todayBars.map(b => b.low));
   if (liveRec && liveRec.h > 0 && liveRec.l > 0){ dayHi = Math.max(dayHi, liveRec.h); dayLo = Math.min(dayLo, liveRec.l); }
   // 2026-10-20 訊號只用雲端 K:圖上畫的 bars 含手機自拼的即時 K,但訊號 / 燈號 / 標記用不含自拼 K 的那份(和背景通知、收盤重算同一份)
-  // 2026-10-24 03:10 使用者(「判一到判三 一起改」「還有哪裡用到ka 都一起改」):Ka 跨日 — 判一 ~ 判三用 YH.kaCrossJudge(回測完使用者點頭才開)、其他(燈號 / 天秤 / 漲跌圖 / 轉折圖 / 轉折通知)用 YH.kaCrossAll
+  // (判別式相關說明已移到私人庫)
   const maJ = YH.kaCrossJudge ? sma(bars, BASE.maPeriod, 'close', false) : ma;
   let sBars = bars, sMa = maJ, sOb = ob, sObma = obma;
   if (YH.signalsCloudOnly && code && HIST_BARS.has(code) && (LIVE_BARS.get(code) || []).length){
@@ -5169,7 +5128,7 @@ function drawBars0(bars, code, srcLabel, keepView){
   el('lampShort').classList.toggle('on', sig.cls === 'short');   // 可做空 → 綠燈閃
   el('lampWatch').classList.toggle('on', sig.cls === 'wait');    // 觀望 / 等待 → 黃燈恆亮
   const maMap = toTimeMap(ma), obmaMap = toTimeMap(obma), obMap = toTimeMap(ob);
-  const obSMap = (SIG.strong && SIG.strongSlowMa > 0) ? toTimeMap(sma(ob, SIG.strongSlowMa, 'value')) : null;   // 強訊號用的 OBV 均 30(判別式二)
+  const obSMap = (SIG.strong && SIG.strongSlowMa > 0) ? toTimeMap(sma(ob, SIG.strongSlowMa, 'value')) : null;   // (判別式相關說明已移到私人庫)
   const strongLast = strongLampDir(bars, bars.length - 1, maMap, obMap, obmaMap, obSMap);
   const I3 = ind3Series(bars, maL, ma24, obL, obmaL, obma30L), i3Last = I3.get(last.time);   // 2026-10-21 燈號 / 天秤改看指標三
   const bias = (!YH.lampNoWait && todayBars.length < SIG.skipMin) ? 0 : ind3Bias(i3Last);   // 不到 15 根 K 天秤歸零(2026-10-19);原:biasScore(價 / 均價 / OBV 斜率)
@@ -5183,11 +5142,11 @@ function drawBars0(bars, code, srcLabel, keepView){
         { const lb = el('chartMid') && el('chartMid').previousElementSibling; if (lb) wp.style.top = Math.max(60, lb.getBoundingClientRect().top + 2) + 'px'; }
         clearTimeout(window.__wiT); cancelAnimationFrame(window.__wiR || 0); if (wp.querySelector('.wiCover') || !wp.querySelector('#dvCv')){ try{ wiRender(wp); }catch(e){} } else window.__wiR = requestAnimationFrame(() => { try{ wiRender(wp); }catch(e){} }); } } }catch(e){}   // 21:20 剛進圖(還蓋著)就在同一格畫好乖離圖,和 K 線圖一起出現,不再多等一格   // 2026-10-27 19:50 300 毫秒 → 下一格就畫
   // 2026-10-20 使用者(台玻圖:「K 線 空平 空逆…那些都拿掉不要」):圖上只留真正的進場箭頭(亮色)和平倉 / 反彈 / 注意的小圓點,
-  // 第 1 個訊號和被保護擋住的確認點(平 / 缺 / 逆 / 遠 / 距 / 離 / 向 / 勢 / 量 / 比 / ✕)全部不畫。背景通知、燈號仍用完整的 rp.marks。
+  // (判別式相關說明已移到私人庫)
   const marks = YH.showSignalMarks ? rp.marks.filter(m => m.shape === 'circle' || m.color === CHART_THEME.up || m.color === CHART_THEME.down) : [];
   // 多空天秤的燈號(2026-10-18):不受 ±3.5% 限制,訊號確認就亮;rp 仍是真正的交易狀態(圖上 ✕ 標記、通知、部位都照 rp)
   const rpSig = YH.exitRule ? replaySignals(sBars, sMa, sOb, sObma, prevClose, src ? !!src.dtShort : undefined, {ignoreGate: true}) : rp;
-  if (YH.showOriginMarks){   // 2026-10-20 起漲點 / 起跌點標示(只標示,不進訊號);用和訊號同一份 K(sBars)
+  if (YH.showOriginMarks){   // (判別式相關說明已移到私人庫)
     for (const p of originPoints(sBars, sMa, sOb, sObma))
       marks.push(p.side < 0 ? {time: p.time, position: 'aboveBar', color: '#FF9F43', shape: 'arrowDown', size: 0.8, text: '起跌 ' + p.price}
                             : {time: p.time, position: 'belowBar', color: '#4FC3F7', shape: 'arrowUp', size: 0.8, text: '起漲 ' + p.price});
@@ -5195,7 +5154,7 @@ function drawBars0(bars, code, srcLabel, keepView){
   }
   // 2026-10-25 14:00 撐 / 壓標記(使用者:「要注意一種情形 就是大量進場 價格卻不跌或者是不漲 就是有支撐」→「加」):
   //   前 10 根(同一天)跌 > 0.5%,這根量 ≥ 前 30 根平均 5 倍、收盤沒動(不到半檔)→ 下方標「撐 低點」;漲 > 0.5% 同樣條件 → 上方標「壓 高點」。只是標示,不進判別式。
-  //   元大 K 35 萬根回測:撐的那根低點 10 根內被跌破 48%(一般 69%)、壓的高點被突破 41%(一般 59%);10 根後漲跌方向沒有明顯改變
+  // (判別式相關說明已移到私人庫)
   if (YH.showAbsorbMarks !== false){
     for (let i = 30; i < bars.length; i++){
       const b = bars[i], p1 = bars[i - 1], p10 = bars[i - 10], dk = dayKey(b.time);
@@ -5218,17 +5177,17 @@ function drawBars0(bars, code, srcLabel, keepView){
   const trade = YH.exitRule ? rp.state : null;     // 真正的交易循環
   const lastMa = maMap.get(last.time);
   const waiting = !YH.lampNoWait && todayBars.length < SIG.skipMin;   // 今天還不到 skipMin(15)根 K:燈號等待、天秤歸零(2026-10-19)
-  // 2026-10-21 03:30 燈號遇震盪盤只顯示監控(今天的 K;和判二的震盪判斷同一套)
+  // (判別式相關說明已移到私人庫)
   const lampChopPts = (() => { try{ const ix = arr => { const m = new Map(); arr.forEach((x, k) => m.set(x.time, k)); return m; };
     return chopPoints(bars, ma, ob, obma, ix(ma), ix(ob), ix(obma), dayKey(last.time)); }catch(e){ return []; } })();
   const lampIsChop = bi => { const W = YH.lampChopWin || 45; const rec = lampChopPts.filter(p => p.bi >= bi - W && p.bi <= bi);
     if (rec.length < (YH.lampChopN || 3)) return false; const px = rec.map(p => p.px), mn = Math.min(...px), mx = Math.max(...px);
     if ((mx - mn) / mn * 100 > (YH.lampChopRange || 1.5)) return false;
-    // 2026-10-21 04:00 使用者「改」(富喬早盤剛跌破又拉回的假突破):收盤要超出區間 YH.lampBrkPct% 以上,而且連 YH.lampBrkBars 根都在外面才算突破
+    // (判別式相關說明已移到私人庫)
     const f = (YH.lampBrkPct || 0) / 100, nb = YH.lampBrkBars || 1;
     const out = k => k >= 0 && (bars[k].close < mn * (1 - f) || bars[k].close > mx * (1 + f));
     for (let k = bi; k > bi - nb; k--) if (!out(k)) return true;
-    return false; };   // 2026-10-21 03:45 使用者「改」:收盤已經跌破 / 漲破震盪區間(那些起漲起跌點的最低 / 最高價)= 突破,不算震盪
+    return false; };   // (判別式相關說明已移到私人庫)
   const LAMPS = ind3Lamps(bars, I3, lampIsChop, prevClose);   // 2026-10-21 連 YH.lampHold 根才換燈
   if (CUR) CUR.lamps = LAMPS;
   lampsFromInd3(lampStateAt(last.time));   // 2026-10-23 燈號跟著目前那張圖;2026-10-21 燈號改看指標三。原:lampsFromBias(bias, last.time, 離均價 %, strongLast, waiting)
@@ -5347,7 +5306,7 @@ function savePositions(){ try{ localStorage.setItem(POS_KEY, JSON.stringify({day
 function togglePosition(code, side, price){
   // 2026-10-17 使用者:長按一次 = 有交易(黃框,持倉中);再長按 = 結束交易(綠框,已平倉);再長按 = 清除
   const cur = POSITIONS.get(code);
-  if (!cur) POSITIONS.set(code, {side, qty: price ? Math.max(1, Math.floor(capFund() / (price * 1000))) : 0, manual: true, status: 'open'});   // 2026-10-19 張數用設定的多空上限算(原本寫死 35 萬)
+  if (!cur) POSITIONS.set(code, {side, qty: price ? Math.max(1, Math.floor(capFund() / (price * 1000))) : 0, manual: true, status: 'open'});   // (判別式相關說明已移到私人庫)
   else if (cur.status !== 'closed'){ POSITIONS.set(code, {...cur, status: 'closed', closedAt: Date.now()}); setTimeout(() => { try{ resortList(); }catch(e){} }, 61000); }   // 已平倉只顯示 1 分鐘,之後退出監控排序
   else POSITIONS.delete(code);
   savePositions(); try{ queueScan(); }catch(e){} try{ resortList(); }catch(e){}
@@ -5491,7 +5450,7 @@ async function scan(){
   const lo = wLo.value, cnt = wCnt.value;
   const minAmp = parseFloat(wAmp.value);      // '4.0%' → 4.0
   // 2026-10-31 02:58(實際時間)使用者「所有 15到500的股票 只要符合資格 都要放進來 因為強制交易或許會交易 所以超過什麼限額的股票 一旦條件成立 也會通知 只是 因為限額而無法交易而已」:
-  //   監控高價不再和多空上限連動(原本上限 25 萬 → 一張超過 250 元的不監控);超額的照監控、照通知(標「超額」,電腦不自動進場,可用強制進場)。電腦端 engine.py 10/30 已經這樣
+  // (判別式相關說明已移到私人庫)
   const hi = wHi.value;
   const me = ++run;
 
@@ -5558,7 +5517,7 @@ async function scan(){
     return;
   }
 
-  // 盤中若條件被改動,提醒實際交易仍以鎖定清單為準
+  // (判別式相關說明已移到私人庫)
   const changed = LOCKED && (LOCKED.length !== top.length
     || LOCKED.some((s, i) => s.code !== top[i].code));
   const capNote = hi < wHi.value ? ` · 高價受多空上限限制為 ${hi} 元` : '';
@@ -5709,11 +5668,7 @@ async function cloudNotifyNew(force){
   }catch(e){ return 'err ' + (e && e.message); }
 }
 window.cloudNotifyNew = cloudNotifyNew;
-/* 2026-10-20 使用者「改」(當天結算發現判二 5 筆、判一 1 筆有進場沒平倉;正文判一同一筆平倉發三次):
-   (1) 部位帳本:進場通知發出後,BG.pos 記住進場價 / 時間,之後這個部位的停利 / 停損 / 13:25 一律用記住的進場價盯盤(bgManagePos),
-       不管盤中 K 被改寫後重算的訊號還在不在;重算出來的平倉點(OBV 反轉、反向確認點)仍照舊,但只對帳本上有的部位通知。
-   (2) 帳本存 localStorage(mysh.bgstate),背景服務重啟不會忘記部位、也不會把已平倉的部位再平一次;雲端紀錄用部位鍵去重,兩支手機同一個部位只留一則平倉。
-   (3) 反方向的進場訊號來了而部位還在 → 先用現價平掉(反向),再進新的。 */
+/* (判別式相關說明已移到私人庫) */
 const BG_STATE_KEY = 'mysh.bgstate';
 function bgSave(){ const js = JSON.stringify({day: BG.histDay, pos: [...BG.pos], exited: [...(BG.exited || new Map())]});
   try{ localStorage.setItem(BG_STATE_KEY, js); }catch(e){}
@@ -5780,7 +5735,7 @@ window.bgTick = bgTick; window.BG = BG;
   // 2026-10-24 證交所休市日(週一~五),算「30日」的開盤日用;來源:證交所 115 年市場開休市日期(經濟日報 2024-11 報導)。每年要補下一年
   const TW_HOLIDAYS = new Set(['2026-01-01','2026-02-12','2026-02-13','2026-02-16','2026-02-17','2026-02-18','2026-02-19','2026-02-20','2026-02-27','2026-04-03','2026-04-06','2026-05-01','2026-06-19','2026-09-25','2026-09-28','2026-10-09','2026-10-23','2026-10-26','2026-12-25']);   // 10/23 颱風停止交易(使用者 2026-10-24 確認)
   window.TW_HOL = TW_HOLIDAYS;   // 2026-10-29 17:00 進圖判斷元大週檔有沒有缺開盤日要用(loadMinuteBars)
-  // 2026-10-24 14:46 回測補資料(現行判一二三規則重跑的進出場,tools 產生):沒實際通知的日子 / 判別式用它算「30日」
+  // (判別式相關說明已移到私人庫)
   let BTF = {}; try{ BTF = JSON.parse(localStorage.getItem('mysh.btfill') || '{}'); }catch(e){}
   try{ window.PROB_MODEL = JSON.parse(localStorage.getItem('mysh.probModel') || 'null'); }catch(e){}   // 2026-10-25 試算機率的修正表(先用上次存的,再抓新的)
   (async () => { try{ const r = await fetch(`${REPO_RAW}/app/prob_model.json?v=${Math.floor(Date.now() / 3600000)}`); if (r.ok){ window.PROB_MODEL = await r.json(); try{ localStorage.setItem('mysh.probModel', JSON.stringify(window.PROB_MODEL)); }catch(e){} } }catch(e){} })();
@@ -5814,7 +5769,7 @@ window.bgTick = bgTick; window.BG = BG;
     const parse = x => {
       const m = (x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?(\S+) (\d{4,6}[A-Z]*)\s*(.*)$/); if (!m) return null;
       const b = x.body || '', rest = m[3];
-      const o = {x, name: m[1], code: m[2], t: x.t || '', kind: x.kind || '', prev: +x.prev || 0, rs: ((b.match(/· (判[一二三四]|強三|元三)\s*$/) || [])[1]) || '', fc: /· 強平 ·/.test(b), over: /·\s*超額\s*·/.test(b)};   /* 2026-10-30 超額:一張就超過多空上限,只通知不交易(不算張數、不算輸贏) */   // 2026-10-28 強三 = 強制進場(判三管);強平 = 手動強制平倉   // rs:發通知的判別式(判一 / 判二 / 判三),舊紀錄沒有就空白
+      const o = {x, name: m[1], code: m[2], t: x.t || '', kind: x.kind || '', prev: +x.prev || 0, rs: ((b.match(/· (判[一二三四]|強三|元三)\s*$/) || [])[1]) || '', fc: /· 強平 ·/.test(b), over: /·\s*超額\s*·/.test(b)};   /* (判別式相關說明已移到私人庫) */   // (判別式相關說明已移到私人庫)
       // 2026-10-23 12:00 轉折通知(內容結尾「· 轉折」):自己一類,一張卡只有 名稱 | 價 | 做多 / 做空 | 時間 | 轉折,不算部位、不配對平倉、不藏
       if (/· 轉折\s*$/.test(b)){ o.type = 'turn'; o.rs = '轉折'; o.add = /^加碼\b|加碼/.test(rest); o.warnT = /(多單|空單)注意/.test(rest);   /* 2026-10-26 21:45 急拉 / 急殺注意卡原本顯示「做空」(像空點),改顯示「注意」 */ o.side = (/做空|空單注意/.test(rest) || (o.add && /空點/.test(b))) ? 'short' : 'long'; o.price = +((rest.match(/([\d.]+)\s*$/) || [])[1]) || 0; o.entP = o.price; return o; }
       if (o.kind === 'long' || o.kind === 'short'){ o.type = 'entry'; o.side = o.kind; o.price = +((rest.match(/([\d.]+)\s*$/) || [])[1]) || 0; o.entT = o.t; o.entP = o.price;
@@ -5843,8 +5798,8 @@ window.bgTick = bgTick; window.BG = BG;
     const _pc = items.map(parse).filter(Boolean);
     { const lm = new Map(); for (const o of _pc){ const q = +(((o.x.body || '').match(/· (\d+)張/) || [])[1]) || 0; if (q) o.lots = q; if (o.lots && o.type === 'entry') lm.set(o.code + '|' + (((o.x.body || '').match(/^(\d\d:\d\d)/) || [])[1] || o.t), o.lots); }   // 進場內容開頭的時間 = 平倉內容裡「做空 09:20 進」的時間
       for (const o of _pc) if (!o.lots && o.type === 'exit'){ const q = lm.get(o.code + '|' + o.entT); if (q) o.lots = q; } }
-    const cards = _pc.filter(o => !(o.type === 'turn' && !o.add && !o.warnT && YH.turnLogFirst === false))   // 2026-10-28 11:42 已經記下的轉折卡也不顯示(加碼 / 注意照顯示)   // 2026-10-27 12:05 使用者「所有即便是盤中 也不用套用交易金額上限來限制顯示」:顯示不再用多空上限藏卡片(超過上限的當下就不會發通知)
-      // 2026-10-27 11:00 使用者(競國 3,800 張:「也不用監控 所以竸國監控欄不能有 監控中」):今天的轉折 / 加碼 / 注意卡,那檔目前累積量還 ≤ 6,000 張 → 不列
+    const cards = _pc.filter(o => !(o.type === 'turn' && !o.add && !o.warnT && YH.turnLogFirst === false))   // (判別式相關說明已移到私人庫)
+      // (判別式相關說明已移到私人庫)
       //   (量只會增加,現在都不到,當時一定不到 = 照規則本來就不該發;舊版背景發的也一併藏起來),清單也就不會因為它標「監控中」
       .filter(o => { if (o.type !== 'turn' || d !== today || !(YH.turnMinVol > 0)) return true; const v = +((LIVE.get(o.code) || {}).v) || 0; return !(v > 0 && v <= YH.turnMinVol); });
     // 2026-10-19 使用者:「為什麼同一支股票會有這麼多的平倉訊息」:同一檔、同一份判別式,兩張平倉卡之間沒有新的進場 → 只留最早那張(items 新的在前,所以保留最後出現的)。
@@ -5857,7 +5812,7 @@ window.bgTick = bgTick; window.BG = BG;
       keep.reverse(); cards.length = 0; cards.push(...keep); }
     fillEnt(cards);
     // 2026-10-20 使用者:「一支股票只需要有一進場跟一平倉兩個訊息而已」:同一檔、同一份判別式,一個部位只留「進場」「平倉」各一張 ——
-    // 上一張進場還沒出現平倉前再來的進場卡(判二強訊號 10:52 之後 11:17 又一張做多進場)不顯示;注意 / 反彈卡不另外顯示,狀態仍寫在進場卡的警示欄。
+    // (判別式相關說明已移到私人庫)
     // 判一、判二各自算(各一進一出);雲端紀錄不刪,手機通知照發。
     // 2026-10-27 00:40 一進一出 + 警示欄位的整理抽成 finish(),前幾天的卡也用同一套
     const finish = cards => {
@@ -5867,7 +5822,7 @@ window.bgTick = bgTick; window.BG = BG;
         else if (o.type === 'exit'){ open.delete(kk); }
         else if (o.type === 'warn'){ o._hide = true; }
         keep.push(o); }
-      keep.reverse(); cards.length = 0; cards.push(...keep); }   // 2026-10-19 使用者:「價格超過限額,訊息就不用顯示」→ 一張就超過多空上限的不列(改了上限,舊訊息也跟著藏)
+      keep.reverse(); cards.length = 0; cards.push(...keep); }   // (判別式相關說明已移到私人庫)
     // 警示欄位:每張卡算「這筆交易之後最新的狀態」(items 新的在前):平倉 / 注意 / 反彈 那則自己 = 自己的狀態;進場那則往後(更新的)找同一檔,
     // 碰到下一次進場就停,碰到平倉就是「平倉」,否則取最後一個注意 / 反彈
     cards.forEach((o, k) => {
@@ -5898,7 +5853,7 @@ window.bgTick = bgTick; window.BG = BG;
       const sig2 = Object.entries(stmap).map(([c, v]) => c + v).sort().join(',');
       if (sig2 !== (window.NL_STSIG || '')){ window.NL_STSIG = sig2; window.NL_STATUS = stmap; if (typeof resortList === 'function'){ clearTimeout(window.NL_ST_T); window.NL_ST_T = setTimeout(resortList, 50); } }
       else window.NL_STATUS = stmap; }
-    const lotsOf = o => { if (o.over) return 0; if (o.lots) return o.lots; const p = POSITIONS.get(o.code); if (p && p.qty) return p.qty; const ent = o.entP || o.price || 0; return ent ? Math.max(1, Math.floor(capFund() / (ent * 1000))) : 0; };   // 2026-10-19 使用者:「設上限 20 萬,台玻怎麼還顯示 5 張」→ 張數改用設定的多空上限(原本寫死 35 萬)
+    const lotsOf = o => { if (o.over) return 0; if (o.lots) return o.lots; const p = POSITIONS.get(o.code); if (p && p.qty) return p.qty; const ent = o.entP || o.price || 0; return ent ? Math.max(1, Math.floor(capFund() / (ent * 1000))) : 0; };   // (判別式相關說明已移到私人庫)
     const marks = pl => Math.min(4, Math.max(1, Math.ceil(Math.abs(pl || 0) - 1e-9)));   // 2026-10-24 14:12 使用者:「改最多顯示4顆」:每 1% 一顆,≤1% 一顆、≤2% 兩顆、≤3% 三顆、超過 3% 四顆   // 損益佔投入金額的 %:≤1 一個、更多兩個(2026-10-17 由三個改兩個)
     const line = (o, dd = d) => {   // 2026-10-27 dd = 這張卡是哪一天的(前幾天的卡昨收不拿今天的)
       // 2026-10-18 使用者定案:一張卡兩列,欄位上下對齊 ──
@@ -5929,7 +5884,7 @@ window.bgTick = bgTick; window.BG = BG;
     // 2026-10-24 13:40 按判一 / 判二 / 判三 = 只列那份判別式發的通知
     const shown = cards.filter(o => !o._hide && (!window.LOG_RS || o.rs === window.LOG_RS)); n = shown.length;
     // 2026-10-24 14:00 使用者:「監控紀錄那邊 只需要顯示 調整 日期 部分 這邊判一二三不用顯示 同列後面 顯示 當日的輸贏金額」:
-    //   標題列右邊改成這天(目前篩選範圍)已平倉的淨輸贏 = Σ(價差 × 張數 × 1000 − 手續費 − 證交稅),費率用設定滾輪
+    // (判別式相關說明已移到私人庫)
     // 平倉卡的淨輸贏(扣手續費、證交稅)
     const netOf = arr => { let v = 0, k = 0; try{ const C = cost(); for (const o of arr){ if (o.type !== 'exit' || o.over || !(o.entP > 0) || !(o.price > 0) || !o.side) continue;
       const dr = o.side === 'long' ? 1 : -1, lt = lotsOf(o), g = (o.price - o.entP) * dr * lt * 1000;
@@ -5945,8 +5900,8 @@ window.bgTick = bgTick; window.BG = BG;
       for (let k = 0; k < 120 && n < 30; k++){ const ds_ = t.toISOString().slice(0, 10), wd = t.getUTCDay();
         if (wd !== 0 && wd !== 6 && !TW_HOLIDAYS.has(ds_)){ n++; out = ds_; } t.setUTCDate(t.getUTCDate() - 1); }
       return out; })();
-    // 2026-10-24 14:46 使用者:「目前不足30日 所以需要把回測的資料也算上去」:某天某份判別式沒有實際通知(還沒上線 / 沒開)→ 用 app/bt_fill.json 的回測(現行規則重跑)補
-    const prep = list => { const a = list.filter(x => x.kind !== 'sys').map(parse).filter(Boolean).filter(o => !(o.type === 'turn' && !o.add && !o.warnT && YH.turnLogFirst === false));   // 2026-10-27 12:05 前幾天的卡也不再用多空上限藏
+    // (判別式相關說明已移到私人庫)
+    const prep = list => { const a = list.filter(x => x.kind !== 'sys').map(parse).filter(Boolean).filter(o => !(o.type === 'turn' && !o.add && !o.warnT && YH.turnLogFirst === false));   // (判別式相關說明已移到私人庫)
       const keep = []; const seenExit = new Map();
       for (let k = a.length - 1; k >= 0; k--){ const o = a[k]; const kk = o.code + '|' + (o.rs || '');
         if (o.type === 'entry'){ seenExit.delete(kk); keep.push(o); continue; }
@@ -5954,11 +5909,11 @@ window.bgTick = bgTick; window.BG = BG;
         keep.push(o); }
       return fillEnt(keep.reverse()); };
     const RSL = window.LOG_RS ? [window.LOG_RS] : ['判一', '判二', '判三', '判四'];
-    // 2026-10-24 14:50 使用者:「以後如果滿30日了 回測資料就不需要了」:回測只補「那份判別式第一次有實際通知那天之前」的日子;
-    //   上線之後就算某天沒訊號也不補(那天本來就沒交易),滿 30 個開盤日後回測自然全部落在範圍外
+    // (判別式相關說明已移到私人庫)
+    // (判別式相關說明已移到私人庫)
     // 2026-10-24 16:36 使用者:「要記錄起來 個股輸贏 當日金額 30日金額 這樣切換日期 不用重算」:
-    //   每一天、每一份判別式算好的(實際 / 回測 / 有沒有實際通知)存進 PNLC(記憶體 + localStorage mysh.pnlc);
-    //   鍵含那天的紀錄筆數、回測筆數、多空上限、費率,資料或設定變了才重算;今天(盤中一直在變)不存
+    // (判別式相關說明已移到私人庫)
+    // (判別式相關說明已移到私人庫)
     const DAYS_ = [...new Set([...ds, ...Object.keys(BTF || {})])].sort(), ARR = {};
     const arrOf = dd => ARR[dd] || (ARR[dd] = dd === d ? cards : (ensureCloud(dd), prep(itemsFor(dd))));
     let C_ = null; try{ C_ = cost(); }catch(e){}
@@ -5984,7 +5939,7 @@ window.bgTick = bgTick; window.BG = BG;
       for (const rs of RSL){
         const L = u.live[rs] || [0, 0, 0], B = u.bt[rs] || [0, 0];   // 2026-10-31 舊存檔沒有判四的格子 → 當 0
         if (L[2]){ v += L[0]; k += L[1]; continue; }
-        if (firstLive[rs] && dd >= firstLive[rs]) continue;   // 已經上線的日子不補回測
+        if (firstLive[rs] && dd >= firstLive[rs]) continue;   // (判別式相關說明已移到私人庫)
         if (B[1]){ v += B[0]; k += B[1]; bt = true; }
       }
       if (!window.LOG_RS){ v += u.un[0]; k += u.un[1]; }   // 舊紀錄沒標判別式的
@@ -6054,7 +6009,7 @@ window.bgTick = bgTick; window.BG = BG;
           tot += v; cnt++;
           body += `<div class="r${late ? ' late' : ''}" data-code="${esc(o.code)}" data-name="${esc(o.name)}"><span class="nm"><span class="sd ${dr > 0 ? 'long' : 'short'}">${dr > 0 ? '多' : '空'}</span>${esc(o.name)}</span><span></span><span class="num ${cur_ > ent ? 'up' : cur_ < ent ? 'dn' : ''}">${cur_.toFixed(2)}</span><span></span><span class="num">${be.toFixed(2)}</span><span></span><span class="num">${lt}</span><span></span>${amt(v)}</div>`;
         }
-        // 2026-10-27 01:30 使用者:「收盤前 要確認 贖回 當沖裡面的股票」:13:20 強制平倉後還留在這裡的 = 沒收到平倉通知,整列標紅、下面提醒去投資先生確認(背景也會推一則通知)
+        // (判別式相關說明已移到私人庫)
         // 2026-10-27 10:30(實際時間)使用者:「當沖 通知欄 最下面的資訊 改在上面顯示 這邊不用」:「N 檔 未平倉 + 合計輸贏」改放標題列(取代 當日),最下面那列拿掉
         const hdPos = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(tot))}</span>`).replace('<span>當沖</span>', `<span>當沖${TP ? ' 元大' : ' 系統'}</span>`);   // 13:21 連得上電腦(元大真實部位)標「元大」,模擬標「系統」(看盤版標題本來就是「當沖 系統」)   // 2026-10-27 10:40(實際時間)使用者:「輸贏金額 顯示在最右邊」:合計放標題列最右邊(.cash);10:45「幾檔也不用顯示」:左邊只剩 當沖
         if (window.__nlV !== 'pos'){ box.scrollTop = 0; window.__nlV = 'pos'; }   // 2026-10-27 11:20 切到當沖也從最上面開始
@@ -6134,7 +6089,7 @@ window.bgTick = bgTick; window.BG = BG;
    // 2026-10-27 04:20 明細字級 = 2 欄寬(一列 38 欄)
       }
       box.querySelectorAll('.tb .r[data-code]').forEach(r => { r.addEventListener('click', () => openChart(r.dataset.code, r.dataset.name));
-        if (window.NL_VIEW === 'pos') fmLongPress(r, () => ({code: r.dataset.code, name: r.dataset.name, closeOnly: true})); });   // 12:19 使用者「在當沖的系統裡面 只有平倉 沒有做空多問題」   // 2026-10-28 12:16 使用者「強制平倉 當沖也可以」:當沖的股票長按 = 強制模式(有部位就是強制平倉)
+        if (window.NL_VIEW === 'pos') fmLongPress(r, () => ({code: r.dataset.code, name: r.dataset.name, closeOnly: true})); });   // (判別式相關說明已移到私人庫)
       // 2026-10-27 05:40 使用者:「當沖 通知欄 有文字最大化嗎?」:這裡原本直接 return,下面的 fitAll(標題列放大)沒跑到 → 不 return,往下走(卡片相關的量測沒有卡片會自己略過)
     } else {
     // 2026-10-27 00:40 今天在最上面,往下接前幾天(最多 10 天),每天之間一列日期(10/21)當分隔;點卡片一樣開圖
@@ -6378,7 +6333,7 @@ function bugPanel(){
   sc.addEventListener('scroll', () => { const y = sc.scrollTop; window.SCROLL_MAX = Math.max(window.SCROLL_MAX || 0, y); if (lastY > 150 && y < 20) window.SCROLL_RESET = {at: new Date().toTimeString().slice(0, 8), from: Math.round(lastY), recent: log.filter(([t]) => Date.now() - t < 1500).map(x => x[1]).join(' '), resizes}; lastY = y; }, {passive: true});
 })();
 scan().then(() => { liveStart(); try{ if (window.Android && Android.ready) Android.ready(LIST_CODES.length); }catch(e){} });
-// 2026-10-27 10:55 使用者(競國 3,800 張還收到轉折通知:「轉折不是要求 盤中交易量超過6000才通知」):10:15 加的 6,000 張門檻手機背景沒吃到。
+// (判別式相關說明已移到私人庫)
 //   原因:背景監控盤中有持倉時不換新版網頁(App 等 BG.pos 空了才重載),早上 08:55 載入的舊版一直在跑。
 //   改:背景那頁載入時記下自己的版本(svcBuild);前景打開 App(前景每次回來都會換最新版)發現背景是舊版 → 請 App 重開背景監控一次(每個版本最多一次)。
 //   部位、已平倉紀錄存在手機(bgSave / bgRestore),重開不會掉
