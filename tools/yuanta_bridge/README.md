@@ -217,7 +217,7 @@ sudo -u yuanta /opt/yuanta_bridge/venv/bin/python /opt/yuanta_bridge/yuanta_brid
   - 規則(Stock-logic 的 sim_day.py / rs_env.py)每 `ENGINE_RULES_MIN`(30)分鐘重抓,版本 = 兩檔內容 sha256 前 8 碼,寫在心跳 msg(「規則xxxxxxxx」)和 log;抓不到 → log「!!!!!!!!」、心跳 msg 開頭「⚠規則舊」(另帶 `stale=1`、`ver`,Worker 目前只存 msg)。不再退回公開庫 `tools/backtest/`。Worker 代讀 .py 有 30 分鐘快取,所以改規則最慢約 1 小時生效。
   - 時區一律 Asia/Taipei。
 - 測試:`python engine.py --replay 2026-10-29 3481,6770 --dry` 用那天的資料逐分鐘回放、印出會發的通知,和雲端紀錄對照。
-- 判一的停損價(起漲 / 起跌點)模擬器沒印,通知裡的「停損」寫 3% 上限(真正的停損由平倉通知來;中繼自己的停損只當外圍保險)。
+- 有些判別式的停損價模擬器沒印出來,通知裡的「停損」寫外圍上限(真正的停損由平倉通知來;中繼自己也照通知的停損價盯價)。
 - log:`log\engine_<日期>.log`;狀態 `engine_data\engine_state_<日期>.json`(重開不重發)。
 - **2026-10-29 回放對照**(`--replay 2026-10-29 3481,6770,2340,2409,2426 --dry` vs 手機當天雲端紀錄 10 則):10 則對 10 則,進場 / 平倉時間 9 則一樣;
   差的 1 則是友達:手機進場價用當下即時價 34.90(停利 34.03,11:13 觸到)、模擬器用下一根開盤 34.85(停利 33.98 差 2 分沒觸到,11:36 才 OBV 出)。
