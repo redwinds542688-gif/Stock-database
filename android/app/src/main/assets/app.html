@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-10-31 14:57(實際時間)一天交易額度 490 萬 → 500 萬(使用者:「490萬 改成500萬」):右上角資金、自動交易的一天買 + 賣金額上限、電腦算的元大剩餘額度都改 500 萬;桌機 bridge.env 舊寫的 4900000 也當 500 萬(中繼 VERSION 2026103106,下次啟動自動更新)。
   · 2026-10-31 14:53(實際時間)進 K 變快(使用者:「進入k又慢了」「不是後台已經會把K圖乖離圖先存檔嗎」→「改」「一般就是監控中 通知欄 裡面的股票最有可能會先點先看」):背景下載的 1 分 K 週檔改存進手機(IndexedDB,不佔原本 5 MB),當天抓過一次 App 重開也不用再下載;背景先抓通知欄 / 監控中的股票,再照清單往下。
   · 2026-10-31 12:00(實際時間)轉折圖改標判四:每檔今天那一筆只標三個點 —「轉」(轉折點)、「空 價」(進場)、「出 價 / 停損 價」(平倉);其他轉折點不標(使用者「轉折圖上 用現在的判四 去搭配 標記盡量簡潔明瞭」)。
   · 2026-10-31 11:55(實際時間)所有的圖都不標判一二三四的邏輯:轉折圖的轉折 / 加碼箭頭和黃虛線拿掉(K 線圖的進出場標記本來就不畫)(使用者「K線圖上 不用顯示任何來自於判1234的進場跟出場 … 所有的圖都不用標示來自判一二三四的邏輯」)。
@@ -85,7 +86,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202610311453">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610311457">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1215,7 +1216,7 @@ async function forceOpen(code, name, closeOnly){
   if (pos) return fmShow({act: 'close', code, name, z, y, pos, enabled: j.enabled});
   if (closeOnly){ fmToast('電腦那邊沒有 ' + (name || code) + ' 的部位,不用平倉', 3000); return; }   // 當沖列表只做強制平倉,不開進場視窗
   if (!(z > 0)){ fmToast('拿不到 ' + code + ' 的股價', 3000); return; }
-  const cap = capFund(), one = z * 1000, left = (window.__fundLeft != null ? window.__fundLeft : 4900000);
+  const cap = capFund(), one = z * 1000, left = (window.__fundLeft != null ? window.__fundLeft : 5000000);   /* 2026-10-31 14:57 使用者「490萬 改成500萬」 */
   if (left < one) return;                                   // 使用者:「強制當下如果資金已經不足 直接沒有作用就好 不用再出現這視窗」
   let lots = Math.floor(cap / one), over = false;
   if (lots < 1){ lots = 1; over = true; }
@@ -6170,7 +6171,7 @@ window.bgTick = bgTick; window.BG = BG;
     const usedOf = list => { let u = 0; try{ for (const o of list){ if (o._hide || !(o.side)) continue; const lt = lotsOf(o);
         if (o.type === 'entry' && o.entP > 0) u += o.entP * lt * 1000;
         else if (o.type === 'exit' && o.price > 0) u += o.price * lt * 1000; } }catch(e){} return Math.round(u); };
-    const used = usedOf(cards); const CAPD = 4900000;
+    const used = usedOf(cards); const CAPD = 5000000;   // 2026-10-31 14:57 使用者「490萬 改成500萬」
     // 2026-10-29 使用者:「我說的可用資金是訊息右上那個」→ 有桌機推上來的當沖額度(今天、10 分鐘內)就用它:總額度 − 成交 − 掛著的(含手動);沒有就照上面 App 自己算的
     let fundLeft = CAPD - used; try{ if (QUOTA.d === today && QUOTA.total > 0 && Date.now() - QUOTA.at < 10 * 60000) fundLeft = Math.round(QUOTA.total - QUOTA.fill - QUOTA.work); }catch(e){}
     // 2026-10-30 03:39(實際時間)使用者「右上角 資金4900000 一樣確定開盤當日開盤前15分 才顯示 在此之前 都是顯示剩餘資金」:

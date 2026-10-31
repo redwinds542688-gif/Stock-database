@@ -707,7 +707,8 @@ class Bridge:
         now = time.time()
         if now - getattr(self, "_quota_at", 0) < 25: return
         self._quota_at = now
-        total = float(CFG.get("QUOTA_TOTAL", CFG.get("TRADE_MAX_AMOUNT", "4900000")))
+        total = float(CFG.get("QUOTA_TOTAL", CFG.get("TRADE_MAX_AMOUNT", "5000000")))
+        if total == 4900000: total = 5000000   # 2026-10-31 14:57 使用者「490萬 改成500萬」(bridge.env 舊的 490 萬也當 500 萬)
         body = json.dumps({"d": now_tw().strftime("%Y-%m-%d"), "hm": now_tw().strftime("%H:%M:%S"), "fill": round(fill), "work": round(work), "total": total}).encode()
         def go():
             try:

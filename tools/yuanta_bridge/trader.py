@@ -96,7 +96,9 @@ class Trader:
         self.max_loss = float(cfg.get("TRADE_MAX_LOSS", "20000"))   # 2026-10-26 使用者「改。當天虧 20,000 就停止進場」(原 3000)
         # 2026-10-27 使用者:一天買 + 賣成交金額上限(元大額度 500 萬留緩衝 490 萬);自動進場前算這筆一進一出要用多少,不夠就少掛幾張、連 1 張都不夠就不進;
         #   進場委託被拒(額度 / 金額)→ 少 1 張再掛,一直退到 1 張還被拒才放棄。強制進場不看這個(使用者:元大自己會擋)
-        self.max_amount = float(cfg.get("TRADE_MAX_AMOUNT", "4900000"))
+        self.max_amount = float(cfg.get("TRADE_MAX_AMOUNT", "5000000"))
+        # 2026-10-31 14:57 使用者「490萬 改成500萬」:預設 500 萬;bridge.env 還是以前寫的 4900000 也當 500 萬(不用動桌機檔案)
+        if self.max_amount == 4900000: self.max_amount = 5000000
         self.judges = set(x.strip() for x in cfg.get("TRADE_JUDGES", "判一,判二,判三,判四").split(",") if x.strip())   # 2026-10-31 預設加判四(使用者「判四 … 真正的下單也啟動 自動平倉機制也啟動」);bridge.env 有寫 TRADE_JUDGES 的要自己加
         if self.judges == {"判一", "判二", "判三"}: self.judges.add("判四")   # bridge.env 還是舊範本那行(判一,判二,判三)= 沒特別排除 → 一樣加判四;要排除就寫成別的(例如 判一,判二,判三,-)
         self.slip = int(cfg.get("TRADE_SLIP_TICKS", "2"))          # 讓價檔數(確保成交)
