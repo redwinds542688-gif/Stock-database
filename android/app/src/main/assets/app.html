@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-01 03:00(實際時間)訊息欄點判二的訊息 → 進 K 圖直接是漲跌圖;點判四的訊息 → 直接是轉折圖(使用者要求;和按「切換」一樣會記住)。判一、判三、強三的訊息照上次看的那張圖。
   · 2026-11-01 02:55(實際時間)漲跌圖改標判二(使用者「把原來漲跌圖自己的標記拿掉 換成判二邏輯的下去標記」→「改」):漲跌圖自己的多空點不畫了,改標判二今天的進場(多 ▲ / 空 ▼ + 價)和出場(停利黃 / 停損紅 / 其他白圓點 + 價);判二沒進場就只有價格線。燈號、天秤、K 線圖、轉折圖都沒動。
   · 2026-11-01 02:15(實際時間)緊急停止多一個「停止進場 + 全部平倉」(使用者「改」):長按標題 → 「只停止進場」或「停止進場 + 全部平倉」(所有未平倉部位馬上漲停買回 / 跌停賣出);緊急停止中長按 → 「解除」或「全部平倉」;全部平倉要按兩次才送出(中繼 VERSION 2026103117)。
   · 2026-11-01 02:03(實際時間)賺錢慶祝通知(使用者「要有慶祝的通知」):當天(已平倉 + 帳面)賺到 1 萬起每 1 萬一則(到 10 萬),🎉 恭喜 → 🎉🎉 太棒了 → 🎊 大豐收 → 🏆 超強 → 💰🏆🎆 名揚四海;App 開著就灑彩帶 + 大字;App 1.5.51 起通知綠 → 金、拍手震動越來越多下;只通知、不影響交易(中繼 VERSION 2026103116)。
@@ -93,7 +94,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611010255">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611010300">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4955,6 +4956,12 @@ function turnDraw(bars, sBars, sMa, ma24, sOb){
     if (rfAll) rfAll.setData([]);
   }catch(e){ try{ rfLine.setMarkers([]); if (rfChain) rfChain.setData([]); if (rfAll) rfAll.setData([]); }catch(_){} }
 }
+function rfSetView(v){   // 2026-11-01 從訊息欄進圖時直接指定哪一張(0 K 線圖 / 1 漲跌圖 / 2 轉折圖)
+  if (v === RF_VIEW) return;
+  RF_VIEW = v; RF_MODE = RF_VIEW > 0; try{ localStorage.setItem('rfMode', String(RF_VIEW)); }catch(e){}
+  if (RF_ARGS) RF_ARGS.done = RF_VIEW;   // 上一檔的資料不重畫(進新的一檔會重算)
+  try{ applyRfMode(); }catch(e){}
+}
 function applyRfMode(){
   if (RF_MODE) rfDraw();
   try{ const wp = document.getElementById('wiPanel'); if (wp && wp.classList.contains('on')) wiRender(wp); }catch(e){}   // 15:20 切換圖時試算跟著換(漲跌圖 = 乖離率)
@@ -6361,7 +6368,8 @@ window.bgTick = bgTick; window.BG = BG;
     box.querySelectorAll('.card').forEach(r => {
       const c = (window.NL_ALL || shown)[+r.dataset.i]; if (!c) return; const code = c.code, name = c.name;   // 2026-10-20 data-i 是「顯示出來的卡」的序號;2026-10-27 含前幾天的(NL_ALL)
       // 2026-10-19 使用者:「長按該股票沒有動作」→ 卡片長按不再記「我有做」(原本長按 600ms 記多 / 空、再長按取消);點一下照舊開那檔的圖
-      r.addEventListener('click', () => openChart(code, name));
+      // 2026-11-01 使用者「在訊息欄點選判二訊息 則進去k圖時 直接切換成漲跌圖 … 點選判四訊息 則進入k圖時直接切換成轉折圖」:判二 → 漲跌圖、判四 → 轉折圖(和按「切換」一樣記住);其他照上次的圖
+      r.addEventListener('click', () => { const v = c.rs === '判二' ? 1 : c.rs === '判四' ? 2 : -1; if (v >= 0) rfSetView(v); openChart(code, name); });
       if (r.dataset.day === today) fmLongPress(r, () => ({code, name}));   // 2026-10-28 今天的通知長按 = 強制模式(前幾天的沒反應)
     });
   }
