@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-10-31 11:55(實際時間)所有的圖都不標判一二三四的邏輯:轉折圖的轉折 / 加碼箭頭和黃虛線拿掉(K 線圖的進出場標記本來就不畫)(使用者「K線圖上 不用顯示任何來自於判1234的進場跟出場 … 所有的圖都不用標示來自判一二三四的邏輯」)。
   · 2026-10-31 03:09(實際時間)轉折圖天秤的計算搬到私人庫(和判四同一套,公開的網頁只留空殼;看盤版轉折圖照舊沒有點)(使用者「判四 是否已經跟判一二三一樣 放在 github 私人」)。
   · 2026-10-31 03:04(實際時間)確認監控高價(股價上限)和多空上限(交易上限)不再連動:撥任一個都不會帶動另一個,監控清單也不再用多空上限擋高價股(使用者「股價上限 與 交易上限 不再連動」)。
   · 2026-10-31 02:58(實際時間)監控清單不再用多空上限擋高價股:15~500 元符合資格的都監控,一張超過上限的照樣通知、標「超額」(不自動交易,可強制進場);和電腦端一致(使用者「所有 15到500的股票 只要符合資格 都要放進來…」)。
@@ -82,7 +83,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202610310309">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610311155">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2818,6 +2819,7 @@ const YH = {
   turnLogFirst: false,  // 2026-10-31 判四上線:新轉折改走判四的通知,轉折卡回到原本不顯示(01:02 曾改 true)。舊註:2026-10-28 11:42 使用者「把轉折的通知關掉 只留下加碼跟注意」:轉折本身不推、不寫訊息欄、訊息欄也不顯示(加碼 / 急拉急殺注意照舊);true = 回到原本
   turnStopHm: '12:30',   // 2026-10-27 14:40 使用者:「12.30轉折關閉」:12:30(含)以後的轉折、加碼、急拉急殺都不通知、不記;圖上照畫
   turnMinVol: 6000,   // 2026-10-27 12:45 使用者:「轉折通知 加一個 成交量超過6000才可以通知」:那檔今天累積成交量(張)要超過 6000 才發轉折通知(含之後的加碼 / 急拉急殺);0 = 關
+  turnChartMarks: false,   // 2026-10-31 11:55 使用者「所有的圖都不用標示來自判一二三四的邏輯」:轉折圖不畫轉折 / 加碼點和連線(K 線圖的判一二三標記 10/21 起本來就不畫,showSignalMarks)
   turnTouchPct: 0.2,   // 2026-10-31 轉折圖的點、判四都用的碰線門檻(使用者「改0.2」;規則在私人庫)
   turnNotify: false /* 2026-10-29 01:44 使用者「關閉 轉折的所有通知」「太多了」:轉折、加碼、急拉急殺都不推、不記;圖上轉折點照畫。true = 回原本 */, turnNotifyOrg: false,   // 2026-10-23 12:21 使用者:「搭用橘線不可行 因為橘線有點像是未來線」→ 關掉(12:15 曾開:做多要橘線向上、做空向下才發)     // 2026-10-23 11:43 使用者:轉折圖的轉折點(多 / 空)每一個都推手機,不限次數,只是提醒(不進判別式、不記部位)
   lampTrendGate: true,  // 2026-10-23 11:09 使用者:「不要明明上升 燈號卻漸空那種情況 反之亦然」:Ka 2 根往上且收盤在 Ka 上 → 不亮漸空 / 做空;鏡像
@@ -4837,6 +4839,9 @@ function turnDraw(bars, sBars, sMa, ma24, sOb){
     const sMa24 = sBars === bars ? ma24 : sma(sBars, YH.kbPeriod || 28, 'close', false);
     const pts = turnPoints(sBars);
     { const bias = turnBias(sBars); RF_LAMPS = {view: 2, map: rfLampMap(bars, pts, bias, kaSideMap(sMa, sMa24), trendMap(sBars, sMa)), bias}; }
+    // 2026-10-31 11:55(實際時間)使用者「K線圖上 不用顯示任何來自於判1234的進場跟出場 K線圖本身就是乾淨清潔 所有的圖都不用標示來自判一二三四的邏輯」:
+    //   轉折圖的點(轉折 / 加碼箭頭)、連線都是判四的邏輯 → 不畫(YH.turnChartMarks = true 才畫回來);線只畫收盤價
+    if (!YH.turnChartMarks){ rfLine.setData(bars.map(b => ({time: b.time, value: b.close}))); rfLine.setMarkers([]); if (rfChain) rfChain.setData([]); if (rfAll) rfAll.setData([]); return; }
     const kaAt = toTimeMap(sMa);   // 2026-10-24 03:35 箭頭畫在 Ka 紅線上
     const pAt = new Map(pts.map(p => [p.time, kaAt.has(p.time) ? kaAt.get(p.time) : p.price]));
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
