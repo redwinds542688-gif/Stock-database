@@ -461,4 +461,15 @@ s19b, _ = mk(TRADE_STATE_FILE=str(s19.state_file)); ok("1714" in s19b.brk_block)
 s19c, g19c = mk(GWN, TRADE_CAP="250000"); s19c.on_tick("1714", 17.45)
 s19c.step([sig("k193", "short", "和桐 1714 做空進場 17.45", "10:00 空 · 停利 15.88 停損 18.04 · 1張 · 判四")])
 s19c.on_order_reply("", False, "E101 委託價格超過漲跌幅", tag=g19c.tags[-1]); ok(not s19c.brk_block and s19c.can_enter("1714", "判二") is None, s19c.brk_block)
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1)")
+# S20) 2026-10-31 虧損級距通知:合計(已平倉 + 帳面)虧到 1 萬 / 2 萬 … 各推一次;回升再跌不重發;一次跳兩級只發大的;重開還記得;到全部平倉那級不另發
+s20, g20_ = mk(TRADE_CAP="250000", TRADE_MAX_MOVE_PCT="99")
+s20.on_tick("2401", 50.0); s20.step([sig("k201", "short", "股2401 2401 做空進場 50.0", "10:00 空 · 停利 45.50 停損 60.00 · 5張 · 判四")])
+s20.on_report(51, "", 0, s20.positions["2401"]["order"]["want"], s20.positions["2401"]["order"]["price"], basket=g20_.tags[-1])
+n0 = len(s20.alerts); s20.on_tick("2401", 51.5); ok(len(s20.alerts) == n0, s20.alerts[n0:])         # 帳面約 −7,700:還沒到 1 萬
+s20.on_tick("2401", 52.2); ok(len(s20.alerts) == n0 + 1 and "1 萬" in s20.alerts[-1], s20.alerts[n0:])
+s20.on_tick("2401", 51.0); s20.on_tick("2401", 52.3); ok(len(s20.alerts) == n0 + 1, s20.alerts[n0:])   # 回升再跌:1 萬不重發
+s20.on_tick("2401", 56.5); ok(len(s20.alerts) == n0 + 2 and "3 萬" in s20.alerts[-1] and s20.loss_hit == {10000.0, 20000.0, 30000.0}, (s20.alerts[n0:], s20.loss_hit))
+s20b, _ = mk(TRADE_STATE_FILE=str(s20.state_file)); ok(s20b.loss_hit == {10000.0, 20000.0, 30000.0})
+s20.on_tick("2401", 61.0); ok(s20.killed and "全部平倉" in s20.alerts[-1] and not any("5 萬" in a for a in s20.alerts[n0:]), s20.alerts[n0:])
+ok(mk(TRADE_LOSS_ALERTS="")[0].loss_alerts == [] and mk()[0].loss_alerts == [10000.0, 20000.0, 30000.0, 40000.0, 50000.0])
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1)")
