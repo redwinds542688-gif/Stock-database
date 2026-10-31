@@ -549,9 +549,11 @@ class Bridge:
     # ── 2026-10-28 手機強制進場 / 強制平倉 ──
     def trade_pos(self):
         t = self.trader
+        from trader import stop_path
+        halted = (t.stop_file if t else stop_path(CFG)).exists()   # 2026-10-31 緊急停止狀態(手機標題變灰色)
         if not t:
-            return {"ok": False, "msg": "電腦的交易程式還沒啟動(盤前 / 收盤後)"}
-        return {"ok": True, "enabled": t.enabled, "pos": t.positions_view(), "locked": sorted(t.locked), "at": now_tw().strftime("%H:%M:%S")}
+            return {"ok": False, "msg": "電腦的交易程式還沒啟動(盤前 / 收盤後)", "halted": halted}
+        return {"ok": True, "enabled": t.enabled, "pos": t.positions_view(), "locked": sorted(t.locked), "at": now_tw().strftime("%H:%M:%S"), "halted": halted}
 
     def trade_cmd(self, cmd):
         pin = CFG.get("TRADE_CMD_PIN", "")
@@ -559,12 +561,28 @@ class Bridge:
         if pin and str(cmd.get("pin", "")) != pin:
             log("[交易] 強制指令:交易密碼不對"); return {"ok": False, "msg": "交易密碼不對", "badPin": True}
         t = self.trader
+        act = cmd.get("act")
+        if act in ("halt", "resume"):
+            # 2026-10-31 使用者「在 名揚四海。自動當沖 這 設下 長按 即啟動緊急停止功能」:建立 / 刪除緊急停止檔(交易程式沒在跑也能設,開盤時照樣生效)
+            from trader import stop_path
+            sp = t.stop_file if t else stop_path(CFG)
+            try:
+                if act == "halt":
+                    sp.parent.mkdir(parents=True, exist_ok=True); sp.write_text(now_tw().strftime("%Y-%m-%d %H:%M:%S") + " 手機長按標題", encoding="utf-8")
+                else:
+                    sp.unlink(missing_ok=True)
+            except Exception as e:
+                log("[交易] 緊急停止檔設定失敗", e); return {"ok": False, "msg": f"電腦設定失敗:{e}", "halted": sp.exists()}
+            on = sp.exists()
+            log(f"[交易] 手機{'啟動' if on else '解除'}緊急停止({sp})")
+            threading.Thread(target=self.phone_alert, daemon=True, args=("⛔ 已啟動緊急停止" if on else "✅ 已解除緊急停止",   # 另開執行緒:不拖慢回應(Worker 8 秒逾時)
+                             "不再自動進場;已有部位照常停利 / 停損 / 13:20 平倉,強制進場照常" if on else "恢復自動進場")).start()
+            return {"ok": True, "halted": on, "msg": "已啟動緊急停止" if on else "已解除緊急停止"}
         if not t:
             return {"ok": False, "msg": "電腦的交易程式還沒啟動(盤前 / 收盤後)"}
         code = re.sub(r"\D", "", str(cmd.get("code", "")))[:6]; cid = str(cmd.get("id", ""))[:40] or None
         if not code:
             return {"ok": False, "msg": "沒有股票代碼"}
-        act = cmd.get("act")
         log(f"[交易] 手機強制指令 {act} {code} {cmd.get('dir', '')} {cmd.get('lots', '')} 張(編號 {cid})")
         if act == "close":
             ok, msg = t.force_close(code, cid)

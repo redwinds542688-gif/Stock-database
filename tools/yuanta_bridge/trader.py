@@ -142,7 +142,7 @@ class Trader:
         self.cancel_all = cfg.get("TRADE_CANCEL_ALL", "1") == "1"
         self.type_long = cfg.get("TRADE_TYPE_LONG", "0")           # 委託種類:0 現股
         self.type_short = cfg.get("TRADE_TYPE_SHORT", "9")         # 9 現股當沖委託控管(先賣後買)
-        self.stop_file = Path(cfg.get("TRADE_STOP_FILE", "/opt/yuanta_bridge/STOP"))
+        self.stop_file = stop_path(cfg)
         sf = cfg.get("TRADE_STATE_FILE", "")
         self.state_file = Path(sf) if sf else None                 # 強三的停利 / 停損 % 和今天強平過的股票(程式重開接回用)
         self.lock = threading.RLock()
@@ -1193,6 +1193,17 @@ class Trader:
 
 AMT_YES = ("額度", "金額", "上限", "限額", "超過", "不足")
 AMT_NO = ("券", "庫存", "資格", "暫停", "停止", "處置", "全額", "注意股", "漲停", "跌停", "價格", "未開放", "權限")
+def stop_path(cfg):
+    """2026-10-31 緊急停止檔:這個檔案存在 = 不再自動進場(已有部位照常平倉、手機強制進場照常)。
+       使用者「長按名揚四海。自動當沖 啟動緊急停止」:手機長按標題 → 電腦建立 / 刪除這個檔。
+       預設放在程式資料夾(Windows = C:\\Yuanta\\bridge\\STOP);舊 bridge.env 寫的 Linux 路徑 /opt/... 在 Windows 上也改用程式資料夾"""
+    import os
+    v = str(cfg.get("TRADE_STOP_FILE", "") or "").strip()
+    if not v or (os.name == "nt" and v.startswith("/")):
+        return Path(__file__).resolve().parent / "STOP"
+    return Path(v)
+
+
 ELIG_NO = ("當沖", "先賣", "處置", "資格", "暫停", "停止", "全額", "注意股", "未開放", "權限", "券", "分盤", "預收")
 def elig_reject(msg):
     """2026-10-31 元大拒絕原因是不是「這檔今天不能做」(資格類);價格 / 額度 / 金額這類不算(換個價、少張數還可能成交)"""

@@ -3,3 +3,4 @@ android/build/
 android/app/build/
 __pycache__/
 tools/yuanta_bridge/engine_data/
+tools/yuanta_bridge/STOP
