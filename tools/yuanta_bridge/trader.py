@@ -96,7 +96,10 @@ class Trader:
         self.max_loss = float(cfg.get("TRADE_MAX_LOSS", "20000"))
         # 2026-10-31 使用者「加一道虧到多少就全部平倉」→「改 5 萬」:當天 已平倉 + 持倉帳面 虧到 TRADE_KILL_LOSS 就全部平倉、今天不再自動進場(強制進場照收);0 = 關
         #   16 天回測(判一二三四、同時 10 檔):5 萬一次都沒觸發;3 萬會在 10/20 09:31 帳面 −30,378 鎖死(收盤本來 +36,265),所以只當意外保險
-        self.kill_loss = float(cfg.get("TRADE_KILL_LOSS", "50000"))   # 2026-10-26 使用者「改。當天虧 20,000 就停止進場」(原 3000)
+        self.kill_loss = float(cfg.get("TRADE_KILL_LOSS", "50000"))
+        # 2026-10-31 使用者「改 C」(進場一定成交):進場先掛 IOC(讓 TRADE_SLIP_TICKS 檔);元大回報 IOC 結束還有沒成交的張數 →
+        #   現價還在訊號價 ±TRADE_MAX_DEV_PCT 內、13:10 前、沒觸發全部平倉 → 剩下的張數改掛漲停買 / 跌停賣(ROD,保證成交,只補一次);0 = 關(照舊沒成交就放棄)
+        self.entry_fallback = cfg.get("TRADE_ENTRY_FALLBACK", "1") == "1"   # 2026-10-26 使用者「改。當天虧 20,000 就停止進場」(原 3000)
         # 2026-10-27 使用者:一天買 + 賣成交金額上限(元大額度 500 萬留緩衝 490 萬);自動進場前算這筆一進一出要用多少,不夠就少掛幾張、連 1 張都不夠就不進;
         #   進場委託被拒(額度 / 金額)→ 少 1 張再掛,一直退到 1 張還被拒才放棄。強制進場不看這個(使用者:元大自己會擋)
         self.max_amount = float(cfg.get("TRADE_MAX_AMOUNT", "5000000"))
@@ -403,6 +406,10 @@ class Trader:
                         self.recon_seen[c] = key; continue
                     o = p["order"]
                     if n == 0:
+                        # 2026-10-31 改 C:元大確認 IOC 一張都沒成交 → 照樣可以改掛漲停 / 跌停補進場(現價還在訊號價 ±0.5% 內才補)
+                        if (self.entry_fallback and not o.get("fallback") and o.get("tif") != "0" and not p.get("forced") and not p.get("close_after_entry")
+                                and self.entry_fallback_send(p, o)):
+                            self.log(f"[交易] 對帳:{c} 進場單等確認中,元大連續兩次都沒有這檔部位 → 確定 IOC 沒成交,已改掛補單"); continue
                         self.log(f"[交易] 對帳:{c} 進場單等確認中,元大連續兩次都沒有這檔部位 → 確定沒成交,拿掉"); p["order"] = None; self.positions.pop(c, None); continue
                     side = "B" if p["dir"] > 0 else "S"; ts = [t for t in trades if t["code"] == c and t["bs"] == side]
                     q = sum(t["lots"] for t in ts); avg = (sum(t["lots"] * t["price"] for t in ts) / q) if q else (self.last_px.get(c) or p["entry"])
@@ -571,6 +578,10 @@ class Trader:
                 if rpt_type == 51 and qty_shares > 0 and code:
                     if str(basket or "").strip()[:1] in ("T", "F", "R"):   # 2026-10-28 獨立檢查 #5 #6:程式自己的舊單(已結束 / 已取消)晚到的成交 → 只記錄,不當成別人的平倉
                         p2 = self.positions.get(str(code).strip())
+                        if p2 and p2.get("ioc_tag") and p2["ioc_tag"] == str(basket).strip() and p2["state"] == ENTERING and p2.get("pre_filled") is not None:
+                            # 2026-10-31 改 C:IOC 已結束、補單掛著時,IOC 晚到的成交 → 算進補單前的張數(補單成交後一起合併)
+                            p2["pre_filled"] += qty_shares; p2["pre_cost"] = p2.get("pre_cost", 0.0) + qty_shares * price
+                            self.log(f"[交易] {p2['code']} IOC 晚到的成交 {qty_shares // 1000} 張 @ {price} → 算進部位(補單還掛著)"); return
                         if p2 and p2.get("entry_tag") and p2["entry_tag"] == str(basket).strip() and p2["state"] in (HOLDING, EXITING):
                             # 2026-10-29 稽核 #5:IOC 進場已部分成交轉持倉後,同一張進場單剩下的晚到成交 → 併進部位(張數、均價)
                             lots = qty_shares // 1000; tot = p2["qty"] + lots
@@ -593,7 +604,7 @@ class Trader:
                 o["filled"] += qty_shares; o["cost"] += qty_shares * price
                 self.log(f"[交易] 成交 {p['code']} {o['purpose']} {o['side']} {qty_shares // 1000} 張 @ {price}(累計 {o['filled'] // 1000}/{o['want'] // 1000})")
             elif rpt_type == 50 and status in (1, 2, 24, 25):
-                o["dead"] = True
+                o["dead"] = True; o["end_status"] = status
                 self.log(f"[交易] {p['code']} 委託結束 狀態 {status}({ {1: '委託失敗', 2: '取消成功', 24: '委託失效', 25: '價穩失效'}[status] })")
             self.after_report(p)
 
@@ -997,6 +1008,7 @@ class Trader:
             if fit < lots:
                 self.log(f"[交易] 額度只夠 {fit} 張(今天成交金額 {self.amount_today:,.0f} / 上限 {self.max_amount:,.0f}),{lots} 張改掛 {fit} 張"); lots = fit
         p = self.new_pos(code, d, judge, title, tp=tp_sig, sl=sl_sig)
+        p["px_sig"] = px_sig                                       # 2026-10-31 改 C:補單前檢查現價離訊號價多遠
         p["no_max_move"] = "✓破" in body   # 2026-10-28 使用者選「元大那邊對假突破空單不套 6.5%」:判三「假突破跌破 Ka 空」(通知帶「空✓破」)常在離昨收 +6.5% 以上才進場,不套 ±6.5% 強制平倉(停利 / 停損 / 13:20 / 手機平倉通知照舊)
         if ekey:
             self.entered_keys.add(ekey); self.save_state()      # 2026-10-29 稽核 #3:送單就記(沒成交也不再追同一個訊號)
@@ -1058,6 +1070,35 @@ class Trader:
         else:
             self.send(p, "平倉", side, lots, shift(px, -self.slip * p["dir"]), p["typ"])
 
+    def entry_fallback_lots(self, p, left):
+        """改 C:IOC 沒成交完的張數能不能補、補幾張;不能補回 0(原因寫 log)"""
+        c = p["code"]; last = self.last_px.get(c); sig = p.get("px_sig") or p["entry"] or last
+        why = ("自動交易關閉" if not self.enabled else "緊急停止" if self.stop_file.exists() else
+               "今天已全部平倉過" if getattr(self, "killed", False) else f"已過 {self.last_entry}" if self.hm() >= self.last_entry else
+               "沒有即時價" if not last else f"現價 {last} 離訊號價 {sig} 超過 {self.max_dev}%" if sig and abs(last - sig) / sig * 100 > self.max_dev else "")
+        if why:
+            self.log(f"[交易] {c} 進場 IOC 沒成交 {left} 張,不補單:{why}"); return 0
+        if self.max_amount > 0:
+            fit = int((self.max_amount - self.amount_today) // (last * 1000 * 2))
+            if fit < 1:
+                self.log(f"[交易] {c} 進場 IOC 沒成交 {left} 張,不補單:今天成交金額額度不夠"); return 0
+            left = min(left, fit)
+        return left
+
+    def entry_fallback_send(self, p, o):
+        """改 C:IOC 這張單(o)確定結束,沒成交的張數改掛漲停買 / 跌停賣 ROD;送出回 True"""
+        left = self.entry_fallback_lots(p, (o["want"] - o["filled"]) // 1000)
+        if left <= 0:
+            return False
+        p["pre_filled"] = p.get("pre_filled", 0) + o["filled"]; p["pre_cost"] = p.get("pre_cost", 0.0) + o["cost"]
+        p.pop("wait_confirm", None)
+        side = "B" if p["dir"] > 0 else "S"
+        self.log(f"[交易] {p['code']} 進場 IOC 成交 {o['filled'] // 1000}/{o['want'] // 1000} 張 → 剩 {left} 張改掛{'漲停買' if side == 'B' else '跌停賣'}(ROD)補進場")
+        p["ioc_tag"] = o["tag"]
+        self.send(p, "進場", side, left, 0, p["typ"], "H" if side == "B" else "L", "0")
+        p["order"]["fallback"] = True
+        return True
+
     def after_report(self, p):
         o = p.get("order")
         if not o:
@@ -1065,6 +1106,13 @@ class Trader:
         done = o["filled"] >= o["want"] or o.get("dead")
         if not done:
             return
+        # 2026-10-31 改 C:進場 IOC 確定結束(元大回報取消 / 失效 / 價穩失效,不是程式自己等逾時)還有沒成交的 → 剩下的改掛漲停 / 跌停 ROD 補一次
+        if (o["purpose"] == "進場" and self.entry_fallback and o.get("dead") and not o.get("timeout") and not o.get("fallback") and o.get("tif") != "0"
+                and o.get("end_status") in (2, 24, 25) and not p.get("forced") and not p.get("close_after_entry") and o["filled"] < o["want"]):
+            if self.entry_fallback_send(p, o):
+                return
+        if o["purpose"] == "進場" and p.get("pre_filled") is not None:   # 補單結束:和 IOC 那次的成交合併成同一個部位
+            o["filled"] += p.pop("pre_filled"); o["cost"] += p.pop("pre_cost", 0.0)
         lots = o["filled"] // 1000; avg = o["cost"] / o["filled"] if o["filled"] else 0
         p["order"] = None
         if o["purpose"] == "進場":

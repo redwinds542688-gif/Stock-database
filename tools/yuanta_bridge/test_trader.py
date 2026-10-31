@@ -40,8 +40,11 @@ t.on_tick("6269", 85.0); ok(p["state"] == HOLDING)
 t.on_tick("6269", 84.0); ok(p["state"] == EXITING and g.sent[-1] == ("6269", "B", 1, 0, "9", "0", "H"), g.sent[-1])
 t.on_report(51, "A0002", 0, 1000, 84.1); ok("6269" not in t.positions and t.journal[-1]["why"] == "停利" and t.pnl > 1500, t.pnl)
 ok(not t.posts, t.posts)                                                              # 判二自己的平倉訊息由手機發,程式不重複寫
-# 2) 進場沒成交(價穩失效)→ 拿掉
-t2, g2 = mk(); t2.on_tick("6269", 86.2); t2.step([ENT]); t2.on_report(50, "A0001", 25, 0, 0); ok("6269" not in t2.positions)
+# 2) 進場 IOC 沒成交(價穩失效)→ 2026-10-31 改 C:改掛跌停賣 ROD 補進場;補單也結束沒成交 → 拿掉;TRADE_ENTRY_FALLBACK=0 照舊直接拿掉
+t2, g2 = mk(); t2.on_tick("6269", 86.2); t2.step([ENT]); t2.on_report(50, "A0001", 25, 0, 0)
+ok("6269" in t2.positions and g2.sent[-1] == ("6269", "S", 1, 0, "9", "0", "L"), g2.sent)
+t2.on_report(50, "A0002", 2, 0, 0); ok("6269" not in t2.positions)
+t2b, g2b = mk(TRADE_ENTRY_FALLBACK="0"); t2b.on_tick("6269", 86.2); t2b.step([ENT]); t2b.on_report(50, "A0001", 25, 0, 0); ok("6269" not in t2b.positions and len(g2b.sent) == 1)
 # 3) 平倉只成交一部分 → 再送剩下的
 t3, g3 = mk(TRADE_QTY="2"); t3.on_tick("6269", 86.2); t3.step([ENT]); t3.on_report(51, "A0001", 0, 2000, 86.2)
 t3.on_tick("6269", 88.8); ok(t3.positions["6269"]["state"] == EXITING)              # 停損
@@ -397,7 +400,11 @@ s9, gs9 = mk(); s9.on_tick("6269", 86.2); s9.step([ENT]); s9.positions["6269"]["
 T9 = [{"code": "6269", "bs": "S", "lots": 1, "price": 86.0, "time": "10:00", "order_no": "A0001"}]
 s9.reconcile(T9, []); ok(p9["state"] == ENTERING); s9.reconcile(T9, []); ok(p9["state"] == HOLDING and p9["qty"] == 1 and p9["entry"] == 86.0 and p9["tp"] == 84.05 and not p9.get("wait_confirm"), p9)
 s9b, gs9b = mk(); s9b.on_tick("6269", 86.2); s9b.step([ENT]); s9b.positions["6269"]["order"]["at"] -= 9; s9b.step()
-s9b.reconcile([], []); ok("6269" in s9b.positions); s9b.reconcile([], []); ok("6269" not in s9b.positions and "確定沒成交" in logs[-1], logs[-1])
+s9b.reconcile([], []); ok("6269" in s9b.positions); s9b.reconcile([], [])
+ok("6269" in s9b.positions and "已改掛補單" in logs[-1] and gs9b.sent[-1] == ("6269", "S", 1, 0, "9", "0", "L"), (logs[-1], gs9b.sent[-1]))   # 2026-10-31 改 C:元大確認 IOC 沒成交 → 改掛跌停補
+s9b.on_report(50, "", 2, 0, 0, basket=s9b.positions["6269"]["order"]["tag"]); ok("6269" not in s9b.positions)
+s9c, gs9c = mk(TRADE_ENTRY_FALLBACK="0"); s9c.on_tick("6269", 86.2); s9c.step([ENT]); s9c.positions["6269"]["order"]["at"] -= 9; s9c.step()
+s9c.reconcile([], []); s9c.reconcile([], []); ok("6269" not in s9c.positions and "確定沒成交" in logs[-1], logs[-1])
 # S10) 超額(一張就超過多空上限):只通知,不自動進場
 s10, gs10 = mk(); s10.on_tick("3008", 1035.0)
 s10.step([sig("k101", "long", "大立光 3008 做多進場 1,035.00", "10:00 多✓ · 停利 1,060.00 停損 1,020.00 · 超額 · 判一")])
@@ -424,4 +431,22 @@ s14.on_tick("2401", 51.0); ok(not s14.killed)                      # 帳面 −5
 s14.on_tick("2402", 51.5); ok(s14.killed and all(s14.positions[c]["state"] == EXITING for c in ("2401", "2402")) and g14.sent[-1][-1] == "H", (s14.killed, g14.sent[-2:]))
 ok(s14.can_enter("2403", "判四").startswith("今天已虧到"))
 s14b, _ = mk(TRADE_STATE_FILE=str(s14.state_file)); ok(s14b.killed)
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1)")
+# S15) 2026-10-31 改 C:IOC 部分成交 → 剩下的掛跌停補,成交後合併成一個部位(張數相加、均價);現價離訊號價超過 0.5% → 不補;IOC 沒回報(逾時等確認)不補
+s15, g15 = mk(TRADE_CAP="250000"); s15.on_tick("1714", 17.45)
+s15.step([sig("k151", "short", "和桐 1714 做空進場 17.45", "10:00 空 · 停利 15.88 停損 18.04 · 14張 · 判四")])
+o15 = s15.positions["1714"]["order"]; s15.on_report(51, "", 0, 6000, 17.40, basket=o15["tag"]); s15.on_report(50, "", 2, 0, 0, basket=o15["tag"])
+ok(s15.positions["1714"]["state"] == ENTERING and g15.sent[-1] == ("1714", "S", 8, 0, "9", "0", "L"), g15.sent)
+o15b = s15.positions["1714"]["order"]; s15.on_report(51, "", 0, 8000, 17.35, basket=o15b["tag"])
+p15 = s15.positions["1714"]; ok(p15["state"] == HOLDING and p15["qty"] == 14 and abs(p15["entry"] - (17.40 * 6 + 17.35 * 8) / 14) < 1e-9, p15)
+s18, g18 = mk(TRADE_CAP="250000"); s18.on_tick("1714", 17.45)   # IOC 取消回報先到、成交回報晚到 → 張數照樣算進去
+s18.step([sig("k181", "short", "和桐 1714 做空進場 17.45", "10:00 空 · 停利 15.88 停損 18.04 · 14張 · 判四")])
+o18 = s18.positions["1714"]["order"]; s18.on_report(50, "", 2, 0, 0, basket=o18["tag"]); ok(g18.sent[-1][2] == 14)
+s18.on_report(51, "", 0, 3000, 17.40, basket=o18["tag"], code="1714", bs="S"); s18.on_report(51, "", 0, 14000, 17.35, basket=s18.positions["1714"]["order"]["tag"])
+ok(s18.positions["1714"]["state"] == HOLDING and s18.positions["1714"]["qty"] == 17, s18.positions["1714"])
+s16, g16 = mk(TRADE_CAP="250000"); s16.on_tick("1714", 17.45)
+s16.step([sig("k161", "short", "和桐 1714 做空進場 17.45", "10:00 空 · 停利 15.88 停損 18.04 · 14張 · 判四")])
+s16.on_tick("1714", 17.60); o16 = s16.positions["1714"]["order"]; s16.on_report(50, "", 2, 0, 0, basket=o16["tag"])
+ok("1714" not in s16.positions and len(g16.sent) == 1 and "不補單" in "".join(logs[-3:]), logs[-3:])
+s17, g17 = mk(); s17.on_tick("6269", 86.2); s17.step([ENT]); s17.positions["6269"]["order"]["at"] -= 9; s17.step()
+ok(s17.positions["6269"].get("wait_confirm") and not any(x[0] == "6269" and x[5] == "0" for x in g17.sent if len(x) > 5), g17.sent)
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3)")
