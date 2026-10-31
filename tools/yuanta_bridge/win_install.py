@@ -13,7 +13,7 @@
 import getpass, os, subprocess, sys, tempfile, time, urllib.request
 from pathlib import Path
 
-REF = "1fdc1963"                      # 下載這個版本的中繼程式(固定版本,避免 GitHub 暫存到舊檔)
+REF = "01e722d9"                      # 下載這個版本的中繼程式(固定版本,避免 GitHub 暫存到舊檔)
 RAW = f"https://raw.githubusercontent.com/redwinds542688-gif/Stock-database/{REF}/tools/yuanta_bridge/"
 BASE = Path(r"C:\Yuanta")
 SDK = BASE / "YuantaSparkAPI_win-x64_Python"
