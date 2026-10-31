@@ -832,10 +832,12 @@ class Bridge:
         except Exception as e:
             log("複查失敗", e)
 
-    def phone_alert(self, title, body=""):
-        """發一則提醒到手機的「今日監控紀錄」(Worker ?log=add)"""
+    def phone_alert(self, title, body="", kind="pc"):
+        """發一則提醒到手機的「今日監控紀錄」(Worker ?log=add)
+           2026-10-31 kind 原本是 warn:手機只把 warn 當股票的「注意 / 反彈」狀態、不跳通知 → 電腦的提醒手機都沒跳出來。改成 pc(一般提醒,會跳通知);
+           虧損分級 lv1~lv5(手機一級比一級強的顏色、聲音、震動)"""
         try:
-            n = now_tw(); it = {"d": n.strftime("%Y-%m-%d"), "t": n.strftime("%H:%M"), "title": title, "body": body + " · 元大中繼", "kind": "warn", "key": "yt|" + title}
+            n = now_tw(); it = {"d": n.strftime("%Y-%m-%d"), "t": n.strftime("%H:%M"), "title": title, "body": body + " · 元大中繼", "kind": kind or "pc", "key": "yt|" + title}
             req = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?log=add", data=json.dumps(it).encode(), method="POST", headers={"Content-Type": "application/json", "X-Push-Key": CFG.get("PUSH_KEY", "")})   # 2026-10-29 鑰匙
             urllib.request.urlopen(req, timeout=10)
         except Exception as e:

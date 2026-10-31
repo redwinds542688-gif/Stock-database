@@ -20,7 +20,7 @@ def mk(gw=GW, prime=True, **kw):
     NMK[0] += 1   # 2026-10-29 每個測試自己的狀態檔(今天進場過的訊號會存檔,不要互相影響)
     cfg = {"TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json")}; cfg.update(kw)
     g = gw(); t = Trader(cfg, g, logs.append, lambda: NOW[0]); t.posts = []; t.alerts = []
-    t.post = lambda a, b, k: t.posts.append((a, b, k)); t.alert = lambda a, b="": t.alerts.append(a)
+    t.post = lambda a, b, k: t.posts.append((a, b, k)); t.akinds = []; t.alert = lambda a, b="", k="pc": (t.alerts.append(a), t.akinds.append(k))
     if prime: t.prime([])   # 2026-10-29 稽核 #1:跟 bridge 一樣,啟動時讀到通知(這裡是空的)才算準備好
     return t, g
 sig = lambda k, kind, title, body: {"_k": k, "kind": kind, "title": title, "body": body}
@@ -467,9 +467,12 @@ s20.on_tick("2401", 50.0); s20.step([sig("k201", "short", "股2401 2401 做空�
 s20.on_report(51, "", 0, s20.positions["2401"]["order"]["want"], s20.positions["2401"]["order"]["price"], basket=g20_.tags[-1])
 n0 = len(s20.alerts); s20.on_tick("2401", 51.5); ok(len(s20.alerts) == n0, s20.alerts[n0:])         # 帳面約 −7,700:還沒到 1 萬
 s20.on_tick("2401", 52.2); ok(len(s20.alerts) == n0 + 1 and "1 萬" in s20.alerts[-1], s20.alerts[n0:])
+ok(s20.akinds[-1] == "lv1" and s20.alerts[-1].startswith("⚠ 注意"), (s20.akinds, s20.alerts[-1]))
 s20.on_tick("2401", 51.0); s20.on_tick("2401", 52.3); ok(len(s20.alerts) == n0 + 1, s20.alerts[n0:])   # 回升再跌:1 萬不重發
 s20.on_tick("2401", 56.5); ok(len(s20.alerts) == n0 + 2 and "3 萬" in s20.alerts[-1] and s20.loss_hit == {10000.0, 20000.0, 30000.0}, (s20.alerts[n0:], s20.loss_hit))
+ok(s20.akinds[-1] == "lv3" and "危險" in s20.alerts[-1], (s20.akinds, s20.alerts[-1]))
 s20b, _ = mk(TRADE_STATE_FILE=str(s20.state_file)); ok(s20b.loss_hit == {10000.0, 20000.0, 30000.0})
 s20.on_tick("2401", 61.0); ok(s20.killed and "全部平倉" in s20.alerts[-1] and not any("5 萬" in a for a in s20.alerts[n0:]), s20.alerts[n0:])
+ok(s20.akinds[-1] == "lv5" and s20.akinds[-2] == "lv4" and "緊急" in s20.alerts[-2], (s20.akinds, s20.alerts[n0:]))
 ok(mk(TRADE_LOSS_ALERTS="")[0].loss_alerts == [] and mk()[0].loss_alerts == [10000.0, 20000.0, 30000.0, 40000.0, 50000.0])
 print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1)")

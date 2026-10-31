@@ -1,4 +1,4 @@
-// note: 免費 7 天改用 Android ID 認手機(重裝 App 不會重新計算)
+// note: 虧損通知分級:1 萬到 5 萬一級比一級強(顏色、鬧鐘聲、震動);電腦的提醒會跳通知
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -10,8 +10,8 @@ android {
         applicationId = "tw.mysh.monitor"
         minSdk = 26
         targetSdk = 34
-        versionCode = 55
-        versionName = "1.5.49"
+        versionCode = 56
+        versionName = "1.5.50"
     }
     // 2026-10-29 看盤版(使用者:「如果 程式給別人用 但我要控制判123在手上」→「先做1.2.3」第 1 項):同一份程式兩個口味,
     //   owner = 自己用的(app.html 含判一二三)、viewer = 給別人的看盤版(內建 / 更新都抓 viewer.html,沒有判一二三;套件名多 .viewer,兩個可以同時裝)

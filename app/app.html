@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-01 01:46(實際時間)虧損分級通知(使用者「浮輸1,2,3,4 訊息通知 要有危機感 一則要比一則嚴重」):電腦推的 1 萬 ⚠ 注意 → 2 萬 ⚠⚠ 警告 → 3 萬 🔴 危險 → 4 萬 🚨 緊急 → 5 萬全部平倉,App 1.5.50 起顏色 黃→橘→紅→深紅、鬧鐘聲 3→6→12→20→30 秒、震動 2→3→5→8→12 下;舊版 App 2 萬起用「賠錢平倉」那種紅底鬧鐘。另修:電腦推的提醒(元大拒單、全部平倉、緊急停止…)原本手機不跳通知,現在會跳(中繼 VERSION 2026103115)。
   · 2026-11-01 01:23(實際時間)緊急停止:長按標題「名揚四海。自動當沖」0.8 秒 → 確認 → 電腦不再自動進場(已有部位照常停利 / 停損 / 13:20 平倉,強制進場照常),標題變灰色;再長按一次解除、變回彩色(使用者「長按 即啟動緊急停止功能 … 就會變成灰色的」)。電腦端緊急停止檔改放程式資料夾(中繼 VERSION 2026103113)。
   · 2026-10-31 00:34(實際時間)選股「昨日收跌停不選」拿掉(使用者選 B):原本這條因跌停價算低一檔從沒生效,16 天回測昨收跌停的股票被做到 2 筆都賺 +6,090;現在 make_pool 跌停價算對、只記錄,手機清單 / 電腦引擎都不再擋(中繼 VERSION 2026103110)。
   · 2026-10-31 18:47(實際時間)程式註解裡的判別式規則說明(146 段)搬到私人庫,公開的網頁只留「判別式相關說明已移到私人庫」;程式本身沒改(使用者「清註解」)。
@@ -89,7 +90,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611010123">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611010146">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5630,6 +5631,9 @@ function notifLay(title, body, kind){
 }
 function andNotify(title, body, kind){
   if (!(window.Android && Android.notify)) return;
+  // 2026-10-31 使用者「浮輸1,2,3,4 訊息通知 要有危機感 一則要比一則嚴重」:電腦推的虧損分級 lv1~lv5 —— 新版 App(1.5.50 起,Android.caps 有 lv)照級數放顏色 / 鬧鐘聲 / 震動;
+  //   舊版 App 沒有分級:lv1 當一般通知、lv2 以上當「賠錢平倉(危險)」那種(紅底 + 鬧鐘聲 + 長震動)
+  { const m = /^lv(\d)$/.exec(kind || ''); if (m){ let cap = ''; try{ cap = Android.caps ? String(Android.caps()) : ''; }catch(e){} if (!/\blv\b/.test(cap)) kind = +m[1] >= 2 ? 'loss' : ''; } }
   const lay = notifLay(title, body, kind);
   if (lay && Android.notify2) Android.notify2(title, body, kind || '', JSON.stringify(lay)); else Android.notify(title, body, kind || '');
 }

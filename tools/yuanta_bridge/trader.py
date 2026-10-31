@@ -136,7 +136,7 @@ class Trader:
         self.recheck_times = [x.strip() for x in cfg.get("TRADE_RECHECK", "13:22,13:23,13:24").split(",") if x.strip()]
         self.recheck_at = self.recheck_times[0] if self.recheck_times else "13:23"
         self.recheck_close = cfg.get("TRADE_RECHECK_CLOSE", "all")
-        self.alert = lambda title, body="": None      # bridge 會換成「發提醒到手機」
+        self.alert = lambda title, body="", kind="pc": None      # bridge 會換成「發提醒到手機」(kind:pc = 一般、lv1~lv5 = 虧損分級)
         self.post = lambda title, body, kind: None    # bridge 會換成「寫一則交易訊息到手機的訊息欄」(強三進出場、強平)
         self.ref_of = lambda code: None                # bridge 會換成「這檔的昨收」(±6.5% 用)
         self.name_of = lambda code: code               # bridge 會換成「這檔的名稱」
@@ -538,16 +538,24 @@ class Trader:
                 self.loss_hit |= set(new); self.save_state()
                 show = [x for x in new if not (kill and x >= self.kill_loss)]
                 if show:
-                    lv = max(show); w = lambda v: f"{v / 10000:g} 萬"
-                    self.log(f"[交易] 當天虧損達 {w(lv)}:已平倉 {self.pnl:+,.0f}、持倉帳面 {unreal:+,.0f},合計 {total:+,.0f}")
-                    self.alert(f"⚠ 當天虧損達 {w(lv)}", f"已平倉 {self.pnl:+,.0f}、持倉帳面 {unreal:+,.0f},合計 {total:+,.0f}"
-                               + (f";虧到 {w(self.kill_loss)} 會全部平倉" if self.kill_loss > 0 else ""))
+                    # 2026-10-31 使用者「浮輸1,2,3,4 訊息通知 要有危機感 一則要比一則嚴重」:第幾級(1 萬 = 1 … )標題、內容、手機聲音 / 震動一級比一級強(kind lv1~lv5)
+                    amt = max(show); n = self.loss_alerts.index(amt) + 1; w = lambda v: f"{v / 10000:g} 萬"
+                    head = {1: "⚠ 注意", 2: "⚠⚠ 警告", 3: "🔴🔴🔴 危險", 4: "🚨🚨🚨🚨 緊急"}.get(n, "🚨🚨🚨🚨🚨 最高警戒")
+                    body = f"已平倉 {self.pnl:+,.0f}、持倉帳面 {unreal:+,.0f},合計 {total:+,.0f}"
+                    if n >= 2 and self.max_loss > 0:
+                        body += ";已停止新進場" if self.pnl <= -self.max_loss else f";已平倉虧到 {w(self.max_loss)} 會停止新進場"
+                    if self.kill_loss > 0:
+                        body += f";再虧 {self.kill_loss + total:,.0f} 就全部平倉" + ("!!" if n >= 4 else "")
+                    if n >= 3:
+                        body += ";要停手請長按標題啟動緊急停止"
+                    self.log(f"[交易] 當天虧損達 {w(amt)}(第 {n} 級):{body}")
+                    self.alert(f"{head}:當天虧損 {w(amt)}", body, f"lv{min(n, 5)}")
             if not kill:
                 return
             self.killed = True; self.save_state()
             why = f"當天虧 {-total:,.0f}(上限 {self.kill_loss:,.0f})全部平倉"
             self.log(f"[交易] !!!! {why}:已平倉 {self.pnl:+,.0f}、持倉帳面 {unreal:+,.0f};今天不再自動進場")
-            self.alert("⚠⚠ 當天虧損到上限,全部平倉", f"已平倉 {self.pnl:+,.0f}、持倉帳面 {unreal:+,.0f},合計 {total:+,.0f};今天不再自動進場")
+            self.alert("🚨🚨🚨🚨🚨 當天虧損到上限,全部平倉", f"已平倉 {self.pnl:+,.0f}、持倉帳面 {unreal:+,.0f},合計 {total:+,.0f};今天不再自動進場", "lv5")
             for p in list(self.positions.values()):
                 if p["state"] == HOLDING: self.exit_pos(p, why, self.last_px.get(p["code"]) or p["entry"], force_limit=True)
                 elif p["state"] == ENTERING: p["exit_pending"] = why   # 進場單還沒成交:成交轉持倉後馬上平
