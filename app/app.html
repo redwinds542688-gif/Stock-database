@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-01 02:55(實際時間)漲跌圖改標判二(使用者「把原來漲跌圖自己的標記拿掉 換成判二邏輯的下去標記」→「改」):漲跌圖自己的多空點不畫了,改標判二今天的進場(多 ▲ / 空 ▼ + 價)和出場(停利黃 / 停損紅 / 其他白圓點 + 價);判二沒進場就只有價格線。燈號、天秤、K 線圖、轉折圖都沒動。
   · 2026-11-01 02:15(實際時間)緊急停止多一個「停止進場 + 全部平倉」(使用者「改」):長按標題 → 「只停止進場」或「停止進場 + 全部平倉」(所有未平倉部位馬上漲停買回 / 跌停賣出);緊急停止中長按 → 「解除」或「全部平倉」;全部平倉要按兩次才送出(中繼 VERSION 2026103117)。
   · 2026-11-01 02:03(實際時間)賺錢慶祝通知(使用者「要有慶祝的通知」):當天(已平倉 + 帳面)賺到 1 萬起每 1 萬一則(到 10 萬),🎉 恭喜 → 🎉🎉 太棒了 → 🎊 大豐收 → 🏆 超強 → 💰🏆🎆 名揚四海;App 開著就灑彩帶 + 大字;App 1.5.51 起通知綠 → 金、拍手震動越來越多下;只通知、不影響交易(中繼 VERSION 2026103116)。
   · 2026-11-01 01:46(實際時間)虧損分級通知(使用者「浮輸1,2,3,4 訊息通知 要有危機感 一則要比一則嚴重」):電腦推的 1 萬 ⚠ 注意 → 2 萬 ⚠⚠ 警告 → 3 萬 🔴 危險 → 4 萬 🚨 緊急 → 5 萬全部平倉,App 1.5.50 起顏色 黃→橘→紅→深紅、鬧鐘聲 3→6→12→20→30 秒、震動 2→3→5→8→12 下;舊版 App 2 萬起用「賠錢平倉」那種紅底鬧鐘。另修:電腦推的提醒(元大拒單、全部平倉、緊急停止…)原本手機不跳通知,現在會跳(中繼 VERSION 2026103115)。
@@ -92,7 +93,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611010215">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611010255">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2895,6 +2896,7 @@ const YH = {
   turnLogFirst: false,  // (判別式相關說明已移到私人庫)
   turnStopHm: '12:30',   // (判別式相關說明已移到私人庫)
   turnMinVol: 6000,   // (判別式相關說明已移到私人庫)
+  rfJudge2Marks: true,    // 2026-11-01 使用者「把原來漲跌圖自己的標記拿掉 換成判二邏輯的下去標記」→「改」:漲跌圖只標判二今天的進場 / 出場;false = 照舊標漲跌圖自己的多空點
   turn4Marks: true,       // 2026-10-31 12:00 使用者「轉折圖上 用現在的判四 去搭配 標記盡量簡潔明瞭」:轉折圖標判四今天那一筆(轉 / 空 / 出或停損);false = 不標
   turnChartMarks: false,   // (判別式相關說明已移到私人庫)
   turnTouchPct: 0.2,   // 2026-10-31 轉折圖的點、判四都用的碰線門檻(使用者「改0.2」;規則在私人庫)
@@ -4873,6 +4875,14 @@ function rfDraw(){
   try{
     const sMa24 = sBars === bars ? ma24 : sma(sBars, YH.kbPeriod || 28, 'close', false);
     const rp2 = rfPoints(sBars, sMa, sMa24, sOb, sObma, sma(sOb, 24, 'value'));
+    if (YH.rfJudge2Marks){   // 2026-11-01 漲跌圖改標判二(燈號 / 天秤照舊用漲跌圖自己的點算,只是不畫)
+      rfLine.setData(bars.map(b => ({time: b.time, value: b.close})));
+      rfLine.setMarkers(judge2Marks(sBars, RF_ARGS.j2));
+      { const bias = rfBias(sBars, sMa, sMa24, sOb, sObma), ks = kaSideMap(sMa, sMa24);
+        RF_LAMPS = {view: 1, map: rfLampMap(bars, rp2.filter(p => !p.fake && p.press), bias, ks, trendMap(sBars, sMa)), bias}; }
+      if (rfChain) rfChain.setData([]); if (rfAll) rfAll.setData([]);
+      return;
+    }
     const kaAt = toTimeMap(sMa);   // 2026-10-24 03:35 使用者(時碩 09:11「這個多 為啥沒有畫在線上」→「畫在線上」):箭頭畫在 Ka 紅線上(原本畫在那根 K 的高 / 低價)
     const pAt = new Map(rp2.map(p => [p.time, kaAt.has(p.time) ? kaAt.get(p.time) : p.price]));
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
@@ -4889,6 +4899,28 @@ function turnPoints(){ return []; }
 function turnBias(){ return new Map(); }   // 2026-10-31 轉折圖天秤的四項搬到私人庫 judge.js(判四用同一套,不放公開庫)
 /*@@END:TURN@@*/
 /* (判別式相關說明已移到私人庫) */
+/* 2026-11-01 使用者「把原來漲跌圖自己的標記拿掉 換成判二邏輯的下去標記」→「改」:漲跌圖標判二(私人庫 judge.js 的 replaySignals,RULESETS['二'])今天的
+   進場(多 ▲ 紅「多 價」/ 空 ▼ 綠「空 價」,價 = 確認那根收盤)與出場(圓點:停利黃、停損紅、其他白,「停利 價」…,價 = 出場那根收盤);
+   沒過濾條件、沒真的進場的淡色點、反彈 / 注意小點都不畫。判二沒載入 / 算不出來 → 不標 */
+function judge2Marks(sBars, a){
+  try{
+    if (!a || typeof replaySignals !== 'function' || !RULESETS['二'] || RULESETS['二'].sig.entryMode !== 'cross') return [];
+    const keepR = RULESET, keepS = SIG; let rp, tp = 0, sl = 0;
+    try{ RULESET = RULESETS['二']; SIG = RULESET.sig; tp = +SIG.takePct || 0; sl = +SIG.stopPct || 0; rp = replaySignals(sBars, a.ma, a.ob, a.obma, a.prevClose, a.dtShort); } finally { RULESET = keepR; SIG = keepS; }
+    const px = new Map(sBars.map(b => [b.time, +b.close])), out = []; let ent = 0, sd = 0;
+    for (const m of (rp && rp.marks) || []){
+      let p = px.get(m.time);
+      if (m.shape === 'arrowUp' && m.color === CHART_THEME.up){ ent = p; sd = 1; out.push({time: m.time, position: 'belowBar', shape: 'arrowUp', size: 1.3, color: '#FF5C6C', text: '多' + (p ? ' ' + p.toFixed(2) : '')}); }
+      else if (m.shape === 'arrowDown' && m.color === CHART_THEME.down){ ent = p; sd = -1; out.push({time: m.time, position: 'aboveBar', shape: 'arrowDown', size: 1.3, color: '#3EE6A0', text: '空' + (p ? ' ' + p.toFixed(2) : '')}); }
+      else if (m.shape === 'circle' && m.text !== '彈' && m.text !== '注'){
+        if (ent && sd && m.text === '停利' && tp) p = ent * (1 + sd * tp / 100);        // 停利 / 停損照進場價算(和模擬器的出場價一樣),其他出場用那根收盤
+        else if (ent && sd && m.text === '停損' && sl) p = ent * (1 - sd * sl / 100);
+        out.push({time: m.time, position: 'inBar', shape: 'circle', size: 0.9, color: m.text === '停損' ? '#FF5C6C' : m.text === '停利' ? '#F5D000' : '#D8DEE9', text: m.text + (p ? ' ' + (Math.round(p * 100 + 1e-6) / 100).toFixed(2) : '')});
+        ent = 0; sd = 0; }
+    }
+    return out.sort((x, y) => x.time - y.time);
+  }catch(e){ return []; }
+}
 function turn4Marks(sBars){
   try{
     if (YH.turn4Marks === false || typeof replayTurn4 !== 'function' || !RULESETS['四'] || RULESETS['四'].sig.entryMode !== 'turn4') return [];
@@ -5242,7 +5274,7 @@ function drawBars0(bars, code, srcLabel, keepView){
   // 2026-10-22 漲跌圖(使用者:「畫好價格線 然後把多空點標示出來」→「加一個按鍵 切換K線圖跟這個漲跌圖」):
   //   收盤價線 + 三訊號多空點,只是畫面,判別式 / 通知 / 燈號都不用。多空點用和訊號同一份 K(sBars,只用雲端 K)
   // 2026-10-22 19:10 使用者:「現在進入k圖 非常慢」:漲跌圖的點和連線只在切到漲跌圖時才算(看 K 線圖時不算)
-  RF_ARGS = {bars, sBars, sMa: sMaX, sOb: obCA, sObma: obmaCA, ma24, done: -1};   // done = 已經畫好的是哪一張(1 漲跌圖 / 2 轉折圖)
+  RF_ARGS = {bars, sBars, sMa: sMaX, sOb: obCA, sObma: obmaCA, ma24, done: -1, j2: {ma: sMa, ob: sOb, obma: sObma, prevClose, dtShort: src ? !!src.dtShort : undefined}};   // j2 = 判二重算用(和 K 圖訊號同一份參數)   // done = 已經畫好的是哪一張(1 漲跌圖 / 2 轉折圖)
   if (RF_MODE) rfDraw();
   const cyc = YH.exitRule ? rpSig.state : null;    // 訊號循環(不受 3.5% 限制),只用來寫小字
   const trade = YH.exitRule ? rp.state : null;     // 真正的交易循環
