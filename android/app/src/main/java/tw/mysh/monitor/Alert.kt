@@ -32,6 +32,16 @@ object Alert {
         val ms = when (lv) { 1 -> 3000L; 2 -> 6000L; 3 -> 12000L; 4 -> 20000L; else -> 30000L }
         h.post { vibratePattern(ctx, pattern); soundFor(ctx, lv >= 2, ms) }
     }
+    /** 2026-10-31 賺錢慶祝 1~5:輕快的短震(像拍手)+ 一般提示音,級數越高拍越多下、響越久;不用鬧鐘聲 */
+    fun cheer(ctx: Context, lv: Int) {
+        val n = 2 + lv * 2
+        val pattern = LongArray(n * 2 + 3).also { p ->
+            p[0] = 0L
+            for (i in 0 until n) { p[1 + i * 2] = 70L; p[2 + i * 2] = 90L }
+            p[n * 2 + 1] = 120L; p[n * 2 + 2] = 350L
+        }
+        h.post { vibratePattern(ctx, pattern); soundFor(ctx, false, 1500L + lv * 700L) }
+    }
     private fun vibratePattern(ctx: Context, pattern: LongArray) {
         try {
             val vib: Vibrator = if (Build.VERSION.SDK_INT >= 31) (ctx.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator

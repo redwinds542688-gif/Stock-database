@@ -475,4 +475,14 @@ s20b, _ = mk(TRADE_STATE_FILE=str(s20.state_file)); ok(s20b.loss_hit == {10000.0
 s20.on_tick("2401", 61.0); ok(s20.killed and "全部平倉" in s20.alerts[-1] and not any("5 萬" in a for a in s20.alerts[n0:]), s20.alerts[n0:])
 ok(s20.akinds[-1] == "lv5" and s20.akinds[-2] == "lv4" and "緊急" in s20.alerts[-2], (s20.akinds, s20.alerts[n0:]))
 ok(mk(TRADE_LOSS_ALERTS="")[0].loss_alerts == [] and mk()[0].loss_alerts == [10000.0, 20000.0, 30000.0, 40000.0, 50000.0])
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1)")
+# S21) 2026-10-31 賺錢慶祝:合計賺到 1 萬 / 2 萬 … 各發一次(win1~);回落再漲不重發;跳級只發大的;重開還記得
+s21, g21 = mk(TRADE_CAP="250000", TRADE_MAX_MOVE_PCT="99")
+s21.on_tick("2401", 50.0); s21.step([sig("k211", "short", "股2401 2401 做空進場 50.0", "10:00 空 · 停利 40.00 停損 60.00 · 5張 · 判四")])
+s21.on_report(51, "", 0, s21.positions["2401"]["order"]["want"], s21.positions["2401"]["order"]["price"], basket=g21.tags[-1])
+m0 = len(s21.alerts); s21.on_tick("2401", 48.5); ok(len(s21.alerts) == m0, s21.alerts[m0:])          # 帳面約 +7,000:還沒到 1 萬
+s21.on_tick("2401", 47.7); ok(len(s21.alerts) == m0 + 1 and s21.akinds[-1] == "win1" and s21.alerts[-1].startswith("🎉 恭喜"), (s21.akinds, s21.alerts[m0:]))
+s21.on_tick("2401", 49.0); s21.on_tick("2401", 47.6); ok(len(s21.alerts) == m0 + 1)                  # 回落再漲:不重發
+s21.on_tick("2401", 43.5); ok(s21.akinds[-1] == "win3" and "大豐收" in s21.alerts[-1] and s21.win_hit == {10000.0, 20000.0, 30000.0}, (s21.akinds, s21.alerts[m0:]))
+s21b, _ = mk(TRADE_STATE_FILE=str(s21.state_file)); ok(s21b.win_hit == {10000.0, 20000.0, 30000.0})
+ok(mk(TRADE_WIN_ALERTS="")[0].win_alerts == [] and len(mk()[0].win_alerts) == 10)
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1)")

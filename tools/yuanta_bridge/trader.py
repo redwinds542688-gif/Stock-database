@@ -98,6 +98,8 @@ class Trader:
         #   16 天回測(判一二三四、同時 10 檔):5 萬一次都沒觸發;3 萬會在 10/20 09:31 帳面 −30,378 鎖死(收盤本來 +36,265),所以只當意外保險
         self.kill_loss = float(cfg.get("TRADE_KILL_LOSS", "50000"))
         # 2026-10-31 使用者「再設一個 浮輸一萬 二萬 三萬 四萬 五萬 的通知」:當天(已平倉 + 持倉帳面)虧到每一級各推手機一次(一天一次,重開還記得)
+        # 2026-10-31 使用者「如果贏錢超過一萬呢」→「要有慶祝的通知」:當天合計賺到每一級各推一次慶祝通知(一級比一級熱鬧;只通知,不影響交易)
+        self.win_alerts = sorted({float(x) for x in re.split(r"[,\s]+", str(cfg.get("TRADE_WIN_ALERTS", "10000,20000,30000,40000,50000,60000,70000,80000,90000,100000"))) if x.strip().replace(".", "", 1).isdigit() and float(x) > 0})
         self.loss_alerts = sorted({float(x) for x in re.split(r"[,\s]+", str(cfg.get("TRADE_LOSS_ALERTS", "10000,20000,30000,40000,50000"))) if x.strip().replace(".", "", 1).isdigit() and float(x) > 0})
         # 2026-10-31 使用者「改 C」(進場一定成交):進場先掛 IOC(讓 TRADE_SLIP_TICKS 檔);元大回報 IOC 結束還有沒成交的張數 →
         #   現價還在訊號價 ±TRADE_MAX_DEV_PCT 內、13:10 前、沒觸發全部平倉 → 剩下的張數改掛漲停買 / 跌停賣(ROD,保證成交,只補一次);0 = 關(照舊沒成交就放棄)
@@ -168,6 +170,7 @@ class Trader:
         self.entered_keys = set(self.load_state().get("entered") or [])
         self.killed = bool(self.load_state().get("killed"))   # 2026-10-31 今天已經虧到 TRADE_KILL_LOSS 全部平倉過(程式重開還記得)
         self.loss_hit = {float(x) for x in (self.load_state().get("loss_hit") or [])}   # 2026-10-31 今天已經通知過的虧損級距
+        self.win_hit = {float(x) for x in (self.load_state().get("win_hit") or [])}     # 2026-10-31 今天已經慶祝過的賺錢級距
         # 2026-10-31 使用者「增加一個開盤後檢查股票是否真能當沖的機制」:元大以「資格」類原因(不可當沖 / 暫停先賣後買 / 處置 / 全額交割…)拒絕進場單的股票,
         #   今天不再自動進場(元大才是最後的真相;官方名單、雲端 / 電腦複檢都漏掉時,第一次被拒就記住,不會整天一直送一直被拒);存狀態檔(程式重開還在)
         self.brk_block = dict(self.load_state().get("brk_block") or {})
@@ -204,6 +207,7 @@ class Trader:
                 js["forced"].setdefault(c, v)                       # 已平倉的也留著(同一天程式重開接回時還找得到)
             js["entered"] = sorted(set(old.get("entered") or []) | self.entered_keys)   # 2026-10-29 稽核 #3
             js["killed"] = bool(getattr(self, "killed", False) or old.get("killed"))
+            js["win_hit"] = sorted({float(x) for x in (old.get("win_hit") or [])} | getattr(self, "win_hit", set()))      # 2026-10-31 賺錢慶祝
             js["loss_hit"] = sorted({float(x) for x in (old.get("loss_hit") or [])} | getattr(self, "loss_hit", set()))   # 2026-10-31 虧損級距通知
             js["brk_block"] = {**(old.get("brk_block") or {}), **getattr(self, "brk_block", {})}   # 2026-10-31 元大拒絕(資格)的股票
             self.state_file.write_text(json.dumps(js, ensure_ascii=False), encoding="utf-8")
@@ -521,7 +525,7 @@ class Trader:
     # ── 外部事件 ──
     def check_kill(self):
         """2026-10-31 當天虧損保險:已平倉損益 + 持倉帳面(現價、扣手續費 / 稅)≤ −TRADE_KILL_LOSS → 全部平倉(漲停買 / 跌停賣),今天不再自動進場"""
-        if self.killed or self.hm() < "09:00" or (self.kill_loss <= 0 and not self.loss_alerts):
+        if self.killed or self.hm() < "09:00" or (self.kill_loss <= 0 and not self.loss_alerts and not self.win_alerts):
             return
         with self.lock:
             unreal = 0.0
@@ -550,6 +554,17 @@ class Trader:
                         body += ";要停手請長按標題啟動緊急停止"
                     self.log(f"[交易] 當天虧損達 {w(amt)}(第 {n} 級):{body}")
                     self.alert(f"{head}:當天虧損 {w(amt)}", body, f"lv{min(n, 5)}")
+            # 2026-10-31 賺錢慶祝(1 萬 / 2 萬 / … / 10 萬):每一級一天一次(回落再漲回去不重發);一次跳好幾級只發最大的;kind win1~win5(手機綠 → 金、提示音 / 震動越來越熱鬧)
+            gain = [lv for lv in self.win_alerts if total >= lv and lv not in self.win_hit]
+            if gain:
+                self.win_hit |= set(gain); self.save_state()
+                amt = max(gain); n = self.win_alerts.index(amt) + 1; w = lambda v: f"{v / 10000:g} 萬"
+                head = {1: "🎉 恭喜", 2: "🎉🎉 太棒了", 3: "🎊🎉🎉🎉 大豐收", 4: "🏆🎉🎉🎉🎉 超強"}.get(n, "💰🏆🎆🎉🎊 名揚四海")
+                body = f"已平倉 {self.pnl:+,.0f}、持倉帳面 {unreal:+,.0f},合計 {total:+,.0f}"
+                if unreal > 0 and unreal >= total / 2:
+                    body += ";大部分還在帳面上,還沒落袋"
+                self.log(f"[交易] 當天賺到 {w(amt)}(第 {n} 級):{body}")
+                self.alert(f"{head}!當天賺 {w(amt)}", body, f"win{min(n, 5)}")
             if not kill:
                 return
             self.killed = True; self.save_state()

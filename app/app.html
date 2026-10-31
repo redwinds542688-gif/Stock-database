@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-01 02:03(實際時間)賺錢慶祝通知(使用者「要有慶祝的通知」):當天(已平倉 + 帳面)賺到 1 萬起每 1 萬一則(到 10 萬),🎉 恭喜 → 🎉🎉 太棒了 → 🎊 大豐收 → 🏆 超強 → 💰🏆🎆 名揚四海;App 開著就灑彩帶 + 大字;App 1.5.51 起通知綠 → 金、拍手震動越來越多下;只通知、不影響交易(中繼 VERSION 2026103116)。
   · 2026-11-01 01:46(實際時間)虧損分級通知(使用者「浮輸1,2,3,4 訊息通知 要有危機感 一則要比一則嚴重」):電腦推的 1 萬 ⚠ 注意 → 2 萬 ⚠⚠ 警告 → 3 萬 🔴 危險 → 4 萬 🚨 緊急 → 5 萬全部平倉,App 1.5.50 起顏色 黃→橘→紅→深紅、鬧鐘聲 3→6→12→20→30 秒、震動 2→3→5→8→12 下;舊版 App 2 萬起用「賠錢平倉」那種紅底鬧鐘。另修:電腦推的提醒(元大拒單、全部平倉、緊急停止…)原本手機不跳通知,現在會跳(中繼 VERSION 2026103115)。
   · 2026-11-01 01:23(實際時間)緊急停止:長按標題「名揚四海。自動當沖」0.8 秒 → 確認 → 電腦不再自動進場(已有部位照常停利 / 停損 / 13:20 平倉,強制進場照常),標題變灰色;再長按一次解除、變回彩色(使用者「長按 即啟動緊急停止功能 … 就會變成灰色的」)。電腦端緊急停止檔改放程式資料夾(中繼 VERSION 2026103113)。
   · 2026-10-31 00:34(實際時間)選股「昨日收跌停不選」拿掉(使用者選 B):原本這條因跌停價算低一檔從沒生效,16 天回測昨收跌停的股票被做到 2 筆都賺 +6,090;現在 make_pool 跌停價算對、只記錄,手機清單 / 電腦引擎都不再擋(中繼 VERSION 2026103110)。
@@ -90,7 +91,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611010146">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611010203">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5634,6 +5635,8 @@ function andNotify(title, body, kind){
   // 2026-10-31 使用者「浮輸1,2,3,4 訊息通知 要有危機感 一則要比一則嚴重」:電腦推的虧損分級 lv1~lv5 —— 新版 App(1.5.50 起,Android.caps 有 lv)照級數放顏色 / 鬧鐘聲 / 震動;
   //   舊版 App 沒有分級:lv1 當一般通知、lv2 以上當「賠錢平倉(危險)」那種(紅底 + 鬧鐘聲 + 長震動)
   { const m = /^lv(\d)$/.exec(kind || ''); if (m){ let cap = ''; try{ cap = Android.caps ? String(Android.caps()) : ''; }catch(e){} if (!/\blv\b/.test(cap)) kind = +m[1] >= 2 ? 'loss' : ''; } }
+  // 2026-10-31 使用者「要有慶祝的通知」:賺錢分級 win1~win5 —— 新版 App(caps 有 win)綠 → 金、提示音 / 震動越來越熱鬧;舊版 App 當一般「賺錢」通知(綠色)
+  { const m = /^win(\d)$/.exec(kind || ''); if (m){ let cap = ''; try{ cap = Android.caps ? String(Android.caps()) : ''; }catch(e){} if (!/\bwin\b/.test(cap)) kind = 'profit'; } }
   const lay = notifLay(title, body, kind);
   if (lay && Android.notify2) Android.notify2(title, body, kind || '', JSON.stringify(lay)); else Android.notify(title, body, kind || '');
 }
@@ -5709,6 +5712,24 @@ function engPoll(force){
   }catch(e){}
 }
 window.engPoll = engPoll;
+/* 2026-10-31 使用者「要有慶祝的通知」:電腦推「當天賺到 N 萬」(kind win1~win5)時,App 開在前景就灑彩帶 + 中間一行大字,級數越高彩帶越多、越久 */
+function celebrate(title, n){
+  if (document.visibilityState === 'hidden' || (window.Android && Android.isService && Android.isService())) return;
+  n = Math.max(1, Math.min(5, n || 1));
+  const cv = document.createElement('canvas'); cv.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;z-index:3000;pointer-events:none';
+  const W = cv.width = innerWidth * 2, H = cv.height = innerHeight * 2; document.body.appendChild(cv); const g = cv.getContext('2d');
+  const msg = document.createElement('div'); msg.textContent = title;
+  msg.style.cssText = 'position:fixed;left:16px;right:16px;top:38%;z-index:3001;pointer-events:none;text-align:center;font-weight:900;font-size:' + (26 + n * 3) + 'px;color:#FFE74C;text-shadow:0 2px 0 #000,0 0 18px rgba(255,200,0,.8);transition:opacity .8s;opacity:1';
+  document.body.appendChild(msg);
+  const C = ['#FF4D4D', '#FF9F1C', '#FFE74C', '#3DDC84', '#4FC3F7', '#B388FF', '#FF4D8D', '#FFD700'];
+  const P = []; for (let i = 0; i < 70 * n; i++) P.push({x: Math.random() * W, y: -Math.random() * H * 0.6, vx: (Math.random() - .5) * 6, vy: 4 + Math.random() * 8, r: Math.random() * 6.3, vr: (Math.random() - .5) * .3, w: 10 + Math.random() * 12, h: 6 + Math.random() * 8, c: C[i % C.length]});
+  const end = Date.now() + 2500 + n * 700;
+  const tick = () => { g.clearRect(0, 0, W, H);
+    for (const p of P){ p.x += p.vx; p.y += p.vy; p.vy += .12; p.r += p.vr; g.save(); g.translate(p.x, p.y); g.rotate(p.r); g.fillStyle = p.c; g.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); g.restore(); }
+    if (Date.now() < end) requestAnimationFrame(tick); else { cv.remove(); msg.style.opacity = '0'; setTimeout(() => msg.remove(), 900); } };
+  requestAnimationFrame(tick);
+}
+window.celebrate = celebrate;
 async function cloudNotifyNew(force){
   try{
     const now = Date.now(); if (!force && now - (BG.vAt || 0) < 15000) return 'ok ' + (BG.vN || 0);
@@ -5720,7 +5741,8 @@ async function cloudNotifyNew(force){
     CLOUD_LOG.items[d] = arr; CLOUD_LOG.at[d] = now;
     if (BG.vDay !== d){ BG.vDay = d; BG.vSeen = new Set(arr.map(cloudLogKey)); BG.vN = arr.length; return 'init ' + arr.length; }   // 第一輪(或換日):已有的不重發
     for (const x of arr.slice().reverse()){ const k = cloudLogKey(x); if (BG.vSeen.has(k)) continue; BG.vSeen.add(k);
-      if (x.kind && x.kind !== 'warn' && x.kind !== 'sys'){ try{ andNotify(x.title, x.body, x.kind); }catch(e){} } }
+      if (x.kind && x.kind !== 'warn' && x.kind !== 'sys'){ try{ andNotify(x.title, x.body, x.kind); }catch(e){} }
+      { const mw = /^win(\d)$/.exec(x.kind || ''); if (mw) try{ celebrate(x.title, +mw[1]); }catch(e){} } }
     BG.vN = arr.length; try{ if (window.nlRender) nlRender(); }catch(e){}
     return 'ok ' + arr.length;
   }catch(e){ return 'err ' + (e && e.message); }

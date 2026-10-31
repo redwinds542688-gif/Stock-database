@@ -57,9 +57,9 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
     @JavascriptInterface
     fun notify(title: String?, body: String?, kind: String?) = notify2(title, body, kind, null)
 
-    /** 2026-10-31 這版 App 會的功能(網頁用來判斷):lv = 虧損分級通知 */
+    /** 2026-10-31 這版 App 會的功能(網頁用來判斷):lv = 虧損分級通知、win = 賺錢慶祝通知 */
     @JavascriptInterface
-    fun caps(): String = "lv"
+    fun caps(): String = "lv,win"
 
     /** 2026-10-24 使用者:「照這樣的排版 改 判一二三 的訊息 跟 轉折第一則訊息」「安卓系統的通知 也一樣」
      *  lay = {t:[上列 3 欄], b:[下列 3 欄], c:上列顏色, bg:turn/add/alert/long/short/profit/loss}:畫成一張圖放進通知(兩列、三欄「·」上下對齊、字放到最大、底色網紋)。
@@ -79,7 +79,14 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
             val pi = PendingIntent.getActivity(ctx, id, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             // 2026-10-31 使用者「浮輸1,2,3,4 訊息通知 要有危機感 一則要比一則嚴重」:電腦推的虧損分級 lv1~lv5,顏色 黃 → 橘 → 紅 → 深紅,聲音 / 震動一級比一級長
             val lv = Regex("^lv(\\d)$").find(kind ?: "")?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            // 2026-10-31 使用者「要有慶祝的通知」:賺錢分級 win1~win5,綠 → 青 → 金
+            val win = Regex("^win(\\d)$").find(kind ?: "")?.groupValues?.get(1)?.toIntOrNull() ?: 0
             val color = when {
+                win == 1 -> 0xFF66BB6A.toInt()
+                win == 2 -> 0xFF00C853.toInt()
+                win == 3 -> 0xFF00BFA5.toInt()
+                win == 4 -> 0xFFFFD54F.toInt()
+                win >= 5 -> 0xFFFFC107.toInt()
                 lv == 1 -> 0xFFFFC107.toInt()
                 lv == 2 -> 0xFFFF8C00.toInt()
                 lv == 3 -> 0xFFFF3B3B.toInt()
@@ -95,13 +102,13 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
                 .setContentTitle(title ?: "訊號").setContentText(body ?: "")
                 .setStyle(Notification.BigTextStyle().bigText(body ?: ""))
                 .also { nb -> NotifCard.apply(ctx, nb, lay) }
-                .setColor(color).setColorized(danger || lv >= 1)
+                .setColor(color).setColorized(danger || lv >= 1 || win >= 1)
                 .setCategory(Notification.CATEGORY_ALARM).setPriority(Notification.PRIORITY_HIGH)
                 .setGroup(if (danger) "danger" else "signals")
                 .setAutoCancel(true).setContentIntent(pi).setWhen(System.currentTimeMillis()).setShowWhen(true)
                 .build()
             nm.notify(id, n)
-            if (lv > 0) Alert.buzzLevel(ctx, lv) else Alert.buzz(ctx, danger)
+            if (lv > 0) Alert.buzzLevel(ctx, lv) else if (win > 0) Alert.cheer(ctx, win) else Alert.buzz(ctx, danger)
             NotifLog.add(ctx, title ?: "", body ?: "", kind ?: "")
             Log.i("mysh", "[$tag] notify $title | $body")
         } catch (e: Exception) { Log.e("mysh", "notify failed", e) }
