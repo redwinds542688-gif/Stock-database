@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-10-31 14:53(實際時間)進 K 變快(使用者:「進入k又慢了」「不是後台已經會把K圖乖離圖先存檔嗎」→「改」「一般就是監控中 通知欄 裡面的股票最有可能會先點先看」):背景下載的 1 分 K 週檔改存進手機(IndexedDB,不佔原本 5 MB),當天抓過一次 App 重開也不用再下載;背景先抓通知欄 / 監控中的股票,再照清單往下。
   · 2026-10-31 12:00(實際時間)轉折圖改標判四:每檔今天那一筆只標三個點 —「轉」(轉折點)、「空 價」(進場)、「出 價 / 停損 價」(平倉);其他轉折點不標(使用者「轉折圖上 用現在的判四 去搭配 標記盡量簡潔明瞭」)。
   · 2026-10-31 11:55(實際時間)所有的圖都不標判一二三四的邏輯:轉折圖的轉折 / 加碼箭頭和黃虛線拿掉(K 線圖的進出場標記本來就不畫)(使用者「K線圖上 不用顯示任何來自於判1234的進場跟出場 … 所有的圖都不用標示來自判一二三四的邏輯」)。
   · 2026-10-31 03:09(實際時間)轉折圖天秤的計算搬到私人庫(和判四同一套,公開的網頁只留空殼;看盤版轉折圖照舊沒有點)(使用者「判四 是否已經跟判一二三一樣 放在 github 私人」)。
@@ -84,7 +85,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202610311200">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202610311453">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2032,13 +2033,29 @@ const BARS_MEM = new Map();            // 本次開啟期間點過的股票:code
 /* 2026-10-30 01:12 使用者「可以進程式後 背景就開始一直收集監控所有股票的k圖」:開 App 後背景一檔一檔把監控清單的歷史 K 下載進記憶體(BARS_MEM),
    開圖 / ◀ ▶ 切換直接用。歷史週檔走 GitHub 公開檔(不經 Worker、不吃額度);只放記憶體不寫手機快取(手機快取約 5 MB,49 檔全存會擠掉鑰匙 / 公式);
    每 2 分鐘看一次清單,新進的、換日失效的再補;正在開圖時讓開圖先走 */
+/* 2026-10-31 14:51 使用者「不是後台已經會把K圖乖離圖先存檔嗎」→「改」:下載過的 1 分 K 週檔存進手機的 IndexedDB(不佔 localStorage 的 5 MB),
+   當天抓過一次,之後 App 重開 / 換日前都直接讀手機的,不再下載;鍵 = 代號.週(元大前面加 y),值 {v: 資料日期或 'fixed'(上週), t: CSV} */
+const KIDB = (() => { let dbp = null;
+  const open = () => dbp || (dbp = new Promise(res => { try{ const r = indexedDB.open('myshK', 1); r.onupgradeneeded = () => { try{ r.result.createObjectStore('k'); }catch(e){} };
+    r.onsuccess = () => res(r.result); r.onerror = () => res(null); r.onblocked = () => res(null); }catch(e){ res(null); } }));
+  const tx = (mode, fn) => open().then(db => db ? new Promise(res => { try{ const t = db.transaction('k', mode), st = t.objectStore('k'); const q = fn(st); t.oncomplete = () => res(q && q.result); t.onerror = t.onabort = () => res(undefined); }catch(e){ res(undefined); } }) : undefined);
+  return {
+    get: k => tx('readonly', st => st.get(k)),
+    put: (k, v) => tx('readwrite', st => st.put(v, k)),
+    // 換日清掉舊的:留目前資料日期的、和上週的固定版本
+    clean: (ver, lastWk) => open().then(db => { if (!db) return; try{ const t = db.transaction('k', 'readwrite'), c = t.objectStore('k').openCursor();
+      c.onsuccess = () => { const cur = c.result; if (!cur) return; const v = cur.value || {}; if (v.v !== ver && !(v.v === 'fixed' && String(cur.key).endsWith(lastWk))) cur.delete(); cur.continue(); }; }catch(e){} }) };
+})();
 const KPRE = { busy: false };
 async function kPrefetchAll(){
   if (KPRE.busy || !LIST_CODES.length) return;
   try{ if (window.Android && Android.isService && Android.isService()) return; }catch(e){}   // 背景服務那份網頁不抓(不開圖)
   KPRE.busy = true;
   try{ const ver = SRC_DATE || hourKey();
-    for (const c of [...LIST_CODES]){
+    try{ if (!KPRE.cleaned || KPRE.cleaned !== ver){ KPRE.cleaned = ver; KIDB.clean(ver, weekKey(new Date(Date.now() - 7 * 86400000))); } }catch(e){}
+    // 14:51 先抓最可能點的:通知欄正在顯示的股票、清單前面的,再照清單往下
+    const first = (window.NL_SHOWN && Array.isArray(NL_SHOWN.codes)) ? NL_SHOWN.codes : [];
+    for (const c of [...new Set([...first.filter(x => LIST_CODES.includes(x)), ...LIST_CODES])]){
       const m = BARS_MEM.get(c); if (m && m.ver === ver) continue;
       while (KPRE.hold && Date.now() - KPRE.hold < 3000) await new Promise(r => setTimeout(r, 300));   // 正在開圖 → 等它
       try{ await loadMinuteBars(c, null, {noStore: true}); }catch(e){}
@@ -2072,16 +2089,19 @@ async function loadMinuteBars(code, onProgress, opts){   // opts.noStore:背景�
     try{ const t = await fetchText(PUB + path, ver); window.__rawOK = true; return t; }
     catch(e){ if (window.__rawOK && /^HTTP 404/.test(e.message)) throw e;   // 直接抓已經成功過 = repo 是公開的,404 就是真的沒有這個檔(元大沒抓到那檔),不用再問 Worker
       const t = await fetchText(REPO_RAW + path, ver); if (/^HTTP 40[34]/.test(e.message)) try{ localStorage.setItem('mysh.ghPriv', '1'); }catch(e2){} return t; } };
+  // 2026-10-31 14:51 手機 IndexedDB 存的週檔(背景預抓也存):先讀它,沒有才下載
+  const idbGet = async k => { if (FORCE_FRESH) return null; try{ const x = await KIDB.get(code + '.' + k); return x && (x.v === ver || (x.v === 'fixed' && !k.endsWith(thisWk))) ? x.t : null; }catch(e){ return null; } };
+  const idbPut = (k, wk, txt) => { try{ KIDB.put(code + '.' + k, {v: (wk !== thisWk && txt) ? 'fixed' : ver, t: txt}); }catch(e){} };
   const getY = async wk => {   // Yahoo 週檔
-    let txt = cached(wk, wk);
-    if (txt == null){ txt = await fetchK(`/kline/${code}/${wk}.csv`); put(wk, wk, txt); }
+    let txt = cached(wk, wk); if (txt == null) txt = await idbGet(wk);
+    if (txt == null){ txt = await fetchK(`/kline/${code}/${wk}.csv`); put(wk, wk, txt); idbPut(wk, wk, txt); }
     return parseCSV(txt);
   };
   const getYt = async wk => {  // 元大週檔(2026-10-26 使用者「改」:歷史 K 也優先用元大;沒有這檔 / 這週就只用 Yahoo)
-    let yt = cached('y' + wk, wk);
+    let yt = cached('y' + wk, wk); if (yt == null) yt = await idbGet('y' + wk);
     if (yt == null){
       try{ yt = await fetchK(`/kline_yuanta/${code}/${wk}.csv`); }catch(e){ yt = /^HTTP 404/.test(e.message) ? '' : null; }
-      if (yt != null) put('y' + wk, wk, yt);
+      if (yt != null){ put('y' + wk, wk, yt); idbPut('y' + wk, wk, yt); }
     }
     return yt ? parseCSV(yt) : [];
   };
