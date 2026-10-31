@@ -485,4 +485,12 @@ s21.on_tick("2401", 49.0); s21.on_tick("2401", 47.6); ok(len(s21.alerts) == m0 +
 s21.on_tick("2401", 43.5); ok(s21.akinds[-1] == "win3" and "大豐收" in s21.alerts[-1] and s21.win_hit == {10000.0, 20000.0, 30000.0}, (s21.akinds, s21.alerts[m0:]))
 s21b, _ = mk(TRADE_STATE_FILE=str(s21.state_file)); ok(s21b.win_hit == {10000.0, 20000.0, 30000.0})
 ok(mk(TRADE_WIN_ALERTS="")[0].win_alerts == [] and len(mk()[0].win_alerts) == 10)
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1)")
+# S22) 2026-10-31 手機「緊急停止 + 全部平倉」:持倉全部漲停買回 / 跌停賣出;進場中的成交後馬上平
+s22, g22 = mk(TRADE_CAP="250000", TRADE_MAX_MOVE_PCT="99")
+for c, px, kd in (("2401", 50.0, "short"), ("2402", 60.0, "long")):
+    s22.on_tick(c, px); s22.step([sig(f"k22{c}", kd, f"股{c} {c} 做{'空' if kd == 'short' else '多'}進場 {px}", f"10:00 {'空' if kd == 'short' else '多'} · 停利 {px * (0.91 if kd == 'short' else 1.09):.2f} 停損 {px * (1.2 if kd == 'short' else 0.8):.2f} · 5張 · 判四")])
+s22.on_report(51, "", 0, s22.positions["2401"]["order"]["want"], s22.positions["2401"]["order"]["price"], basket=s22.positions["2401"]["order"]["tag"])
+ok(s22.positions["2401"]["state"] == HOLDING and s22.positions["2402"]["state"] == ENTERING)
+ok(s22.close_all("手機緊急停止 + 全部平倉") == 2 and s22.positions["2401"]["state"] == EXITING and g22.sent[-1][:2] == ("2401", "B") and g22.sent[-1][-1] == "H"
+   and s22.positions["2402"].get("exit_pending"), (g22.sent[-1], s22.positions["2402"]))
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1)")

@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-01 02:15(實際時間)緊急停止多一個「停止進場 + 全部平倉」(使用者「改」):長按標題 → 「只停止進場」或「停止進場 + 全部平倉」(所有未平倉部位馬上漲停買回 / 跌停賣出);緊急停止中長按 → 「解除」或「全部平倉」;全部平倉要按兩次才送出(中繼 VERSION 2026103117)。
   · 2026-11-01 02:03(實際時間)賺錢慶祝通知(使用者「要有慶祝的通知」):當天(已平倉 + 帳面)賺到 1 萬起每 1 萬一則(到 10 萬),🎉 恭喜 → 🎉🎉 太棒了 → 🎊 大豐收 → 🏆 超強 → 💰🏆🎆 名揚四海;App 開著就灑彩帶 + 大字;App 1.5.51 起通知綠 → 金、拍手震動越來越多下;只通知、不影響交易(中繼 VERSION 2026103116)。
   · 2026-11-01 01:46(實際時間)虧損分級通知(使用者「浮輸1,2,3,4 訊息通知 要有危機感 一則要比一則嚴重」):電腦推的 1 萬 ⚠ 注意 → 2 萬 ⚠⚠ 警告 → 3 萬 🔴 危險 → 4 萬 🚨 緊急 → 5 萬全部平倉,App 1.5.50 起顏色 黃→橘→紅→深紅、鬧鐘聲 3→6→12→20→30 秒、震動 2→3→5→8→12 下;舊版 App 2 萬起用「賠錢平倉」那種紅底鬧鐘。另修:電腦推的提醒(元大拒單、全部平倉、緊急停止…)原本手機不跳通知,現在會跳(中繼 VERSION 2026103115)。
   · 2026-11-01 01:23(實際時間)緊急停止:長按標題「名揚四海。自動當沖」0.8 秒 → 確認 → 電腦不再自動進場(已有部位照常停利 / 停損 / 13:20 平倉,強制進場照常),標題變灰色;再長按一次解除、變回彩色(使用者「長按 即啟動緊急停止功能 … 就會變成灰色的」)。電腦端緊急停止檔改放程式資料夾(中繼 VERSION 2026103113)。
@@ -91,7 +92,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611010203">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611010215">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1148,27 +1149,41 @@ function haltPaint(){ const s = document.querySelector('h1 .rainbow'); if (s) s.
 function haltSet(on){ HALT.on = !!on; try{ localStorage.setItem('mysh.halted', HALT.on ? '1' : '0'); }catch(e){} haltPaint(); }
 window.haltSet = haltSet;
 function haltAsk(){
+  // 2026-10-31 使用者「改」:多一個「停止進場 + 全部平倉」(所有未平倉部位馬上漲停買回 / 跌停賣出,和虧到 5 萬同一個做法);全部平倉要按兩次才送出,免得誤觸
   if (window.VIEWER) return;
   const on = !HALT.on; let w = el('fmWin'); if (w) w.remove();
   w = document.createElement('div'); w.id = 'fmWin';
-  const btn = (c, bg, t) => `<button data-a="${c}" style="flex:1;padding:12px 0;border-radius:10px;font-size:18px;font-weight:700;font-family:inherit;border:2px solid ${bg};background:${c === 'ok' ? bg : '#000'};color:${c === 'ok' ? '#fff' : bg}">${t}</button>`;
-  w.innerHTML = `<div class="fmbg"></div><div class="fmp0"><div class="fmh"><span class="fmn">${on ? '⛔ 啟動緊急停止?' : '✅ 解除緊急停止?'}</span></div>
-    <div class="fmbx" style="line-height:1.7;font-size:15px">${on ? '電腦<b style="color:#FF4D5E">不再自動進場</b>。<br>已有的部位照常停利 / 停損 / 13:20 平倉;手機強制進場照常可用。<br>標題會變成灰色,再長按一次可解除。' : '電腦恢復自動進場,標題變回彩色。'}</div>
+  const btn = (c, bg, t, fill) => `<button data-a="${c}" style="flex:1;padding:12px 4px;border-radius:10px;font-size:17px;font-weight:700;font-family:inherit;border:2px solid ${bg};background:${fill ? bg : '#000'};color:${fill ? '#fff' : bg}">${t}</button>`;
+  const txt = on ? '<b style="color:#FF4D5E">只停止進場</b>:電腦不再自動進場,已有的部位照常停利 / 停損 / 13:20 平倉。<br><b style="color:#FF4D5E">停止進場 + 全部平倉</b>:另外把所有未平倉部位<b>馬上</b>用漲停買回 / 跌停賣出平掉。<br>兩種都會讓標題變灰色;手機強制進場照常可用。'
+                 : '目前<b style="color:#FF4D5E">緊急停止中</b>(電腦不自動進場)。<br><b style="color:#2EE59D">解除</b>:恢復自動進場,標題變回彩色。<br><b style="color:#FF4D5E">全部平倉</b>:所有未平倉部位馬上用漲停買回 / 跌停賣出平掉(維持停止進場)。';
+  const row = on ? btn('halt', '#E0303F', '只停止進場', true) + btn('halt_close', '#8B0000', '停止進場 + 全部平倉', true)
+                 : btn('halt_close', '#8B0000', '全部平倉', true) + btn('resume', '#08A060', '解除', true);
+  w.innerHTML = `<div class="fmbg"></div><div class="fmp0"><div class="fmh"><span class="fmn">${on ? '⛔ 緊急停止' : '⛔ 緊急停止中'}</span></div>
+    <div class="fmbx" style="line-height:1.7;font-size:15px">${txt}</div>
     <div class="fmerr" style="color:#FF4D5E;min-height:20px;margin-top:8px"></div>
-    <div style="display:flex;gap:10px;margin-top:6px">${btn('no', '#8C96AB', '取消')}${btn('ok', on ? '#E0303F' : '#08A060', on ? '啟動' : '解除')}</div></div>`;
+    <div style="display:flex;gap:10px;margin-top:6px">${row}</div>
+    <div style="display:flex;margin-top:10px">${btn('no', '#8C96AB', '取消', false)}</div></div>`;
   document.body.appendChild(w);
   const close = () => w.remove(), er = w.querySelector('.fmerr');
   w.querySelector('.fmbg').onclick = close; w.querySelector('[data-a="no"]').onclick = close;
-  const ok = w.querySelector('[data-a="ok"]');
-  ok.onclick = async () => {
-    const api = fmApi(); if (!api){ er.textContent = '沒有設定雲端網址,不能送到電腦'; return; }
-    ok.disabled = true; ok.textContent = '送出中…';
-    const cmd = {act: on ? 'halt' : 'resume', id: 'halt-' + Date.now()}; const pin = fmPin.get(); if (pin) cmd.pin = pin;
-    let r = null; try{ const q = await fetch(api + 'cmd', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cmd), signal: AbortSignal.timeout(12000)}); r = await q.json(); }
-    catch(e){ r = {ok: false, msg: '電腦沒有回應(電腦關機、斷線或元大中繼沒在跑),沒有設定成功'}; }
-    if (!r || !r.ok){ ok.disabled = false; ok.textContent = on ? '啟動' : '解除'; er.textContent = (r && r.msg) || '沒有設定成功'; if (r && typeof r.halted === 'boolean') haltSet(r.halted); return; }
-    haltSet(typeof r.halted === 'boolean' ? r.halted : on); close(); fmToast(r.msg || (on ? '已啟動緊急停止' : '已解除緊急停止'), 3500);
-  };
+  let busy = false;
+  w.querySelectorAll('button[data-a]').forEach(b => { const act = b.dataset.a; if (act === 'no') return; const label = b.textContent;
+    b.onclick = async () => {
+      if (busy) return;
+      if (act === 'halt_close' && !b.dataset.sure){   // 全部平倉:第一次按只是確認
+        b.dataset.sure = '1'; b.textContent = '再按一次確認全部平倉'; er.textContent = '確定要把所有未平倉部位馬上平掉嗎?再按一次送出';
+        setTimeout(() => { if (b.isConnected && !busy){ delete b.dataset.sure; b.textContent = label; er.textContent = ''; } }, 4000); return; }
+      const api = fmApi(); if (!api){ er.textContent = '沒有設定雲端網址,不能送到電腦'; return; }
+      busy = true; b.disabled = true; b.textContent = '送出中…';
+      const cmd = {act, id: 'halt-' + Date.now()}; const pin = fmPin.get(); if (pin) cmd.pin = pin;
+      let r = null; try{ const q = await fetch(api + 'cmd', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cmd), signal: AbortSignal.timeout(12000)}); r = await q.json(); }
+      catch(e){ r = {ok: false, msg: '電腦沒有回應(電腦關機、斷線或元大中繼沒在跑),沒有設定成功'}; }
+      busy = false;
+      if (!r || !r.ok){ b.disabled = false; delete b.dataset.sure; b.textContent = label; er.textContent = (r && r.msg) || '沒有設定成功'; if (r && typeof r.halted === 'boolean') haltSet(r.halted); return; }
+      haltSet(typeof r.halted === 'boolean' ? r.halted : act !== 'resume'); close();
+      fmToast(r.msg || (act === 'resume' ? '已解除緊急停止' : '已啟動緊急停止'), 4000);
+      if (act === 'halt_close') try{ tposPoll(true); }catch(e){}
+    }; });
 }
 (function haltInit(){
   const go = () => {

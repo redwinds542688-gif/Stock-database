@@ -562,18 +562,25 @@ class Bridge:
             log("[交易] 強制指令:交易密碼不對"); return {"ok": False, "msg": "交易密碼不對", "badPin": True}
         t = self.trader
         act = cmd.get("act")
-        if act in ("halt", "resume"):
+        if act in ("halt", "resume", "halt_close"):
             # 2026-10-31 使用者「在 名揚四海。自動當沖 這 設下 長按 即啟動緊急停止功能」:建立 / 刪除緊急停止檔(交易程式沒在跑也能設,開盤時照樣生效)
             from trader import stop_path
             sp = t.stop_file if t else stop_path(CFG)
             try:
-                if act == "halt":
+                if act in ("halt", "halt_close"):
                     sp.parent.mkdir(parents=True, exist_ok=True); sp.write_text(now_tw().strftime("%Y-%m-%d %H:%M:%S") + " 手機長按標題", encoding="utf-8")
                 else:
                     sp.unlink(missing_ok=True)
             except Exception as e:
                 log("[交易] 緊急停止檔設定失敗", e); return {"ok": False, "msg": f"電腦設定失敗:{e}", "halted": sp.exists()}
             on = sp.exists()
+            if act == "halt_close":
+                # 2026-10-31 使用者「改」(緊急停止多一個「停止進場 + 全部平倉」):所有未平倉部位馬上漲停買回 / 跌停賣出(和虧到 5 萬同一個做法)
+                n = t.close_all("手機緊急停止 + 全部平倉") if t else 0
+                log(f"[交易] 手機啟動緊急停止 + 全部平倉:{n} 檔({sp})")
+                threading.Thread(target=self.phone_alert, daemon=True, args=("⛔ 已啟動緊急停止 + 全部平倉",
+                                 (f"{n} 檔未平倉部位正在用漲停買回 / 跌停賣出平倉" if n else "目前沒有未平倉部位") + ";不再自動進場,強制進場照常")).start()
+                return {"ok": True, "halted": on, "closed": n, "msg": f"已啟動緊急停止,{n} 檔全部平倉中" if n else "已啟動緊急停止(沒有未平倉部位)"}
             log(f"[交易] 手機{'啟動' if on else '解除'}緊急停止({sp})")
             threading.Thread(target=self.phone_alert, daemon=True, args=("⛔ 已啟動緊急停止" if on else "✅ 已解除緊急停止",   # 另開執行緒:不拖慢回應(Worker 8 秒逾時)
                              "不再自動進場;已有部位照常停利 / 停損 / 13:20 平倉,強制進場照常" if on else "恢復自動進場")).start()
