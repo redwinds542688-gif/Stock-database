@@ -823,6 +823,13 @@ class Bridge:
         except Exception as e:
             log("發手機提醒失敗", e)
 
+    def elig_need(self):
+        """2026-10-31 盤中要不要再複檢:今天還沒有複檢結果、可當沖名單還不是今天的、或有來源抓失敗 → 要"""
+        try:
+            import elig; r = elig.load_today()
+        except Exception: return True
+        return (not r) or bool(r.get("stale", True)) or bool(r.get("err"))
+
     def elig_run(self, why):
         """開盤前資格複檢(elig.py)另開執行緒跑,不卡住行情;13:30 後啟動不用做"""
         if now_tw().strftime("%H:%M") >= "13:30" or now_tw().weekday() >= 5: return
@@ -834,7 +841,7 @@ class Bridge:
                     nm = {"disposed": "處置", "attention": "注意", "nodt": "不可當沖", "noshort": "不可先賣"}
                     if r.get("new"):
                         self.phone_alert(f"⚠ 盤中複檢:{len(r['new'])} 檔今天不能做", "、".join(f"{c}({nm.get(k, k)})" for c, k in r["new"]) + " · 已停止自動進場這幾檔")
-                    if r.get("stale") and why == "盤中 09:15":
+                    if r.get("stale") and why == "盤中 09:05":
                         self.phone_alert("⚠ 證交所 / 櫃買今天的可當沖名單還沒更新", f"名單日 {r.get('dt_date') or '抓不到'},程式會繼續重抓;元大拒單的股票也會自動停做")
             except Exception as e: log(f"[複檢] 失敗({why})", e)
         threading.Thread(target=_go, daemon=True, name="elig").start()
@@ -964,8 +971,10 @@ class Bridge:
                     raise LoginRejected(self.login_fail)
                 hm_e = now_tw().strftime("%H:%M")
                 if hm_e in ("08:30", "08:44") and hm_e not in self.elig_done: self.elig_done.add(hm_e); self.elig_run(hm_e)
-                # 2026-10-31 使用者「增加一個開盤後檢查股票是否真能當沖的機制」:開盤後再複檢幾次(證交所 / 櫃買晚更新、早上抓失敗都補得到)
-                if hm_e in ("09:01", "09:15", "09:45", "10:30", "11:30", "12:30") and hm_e not in self.elig_done: self.elig_done.add(hm_e); self.elig_run("盤中 " + hm_e)
+                # 2026-10-31 使用者「增加一個開盤後檢查股票是否真能當沖的機制」→「改成需要才查」:09:01 照查(在判四最早進場前);
+                #   09:05 之後只有今天的複檢還沒抓到當天的可當沖名單(stale)或有抓失敗才繼續查,早上正常就不再查(資格盤中不會變,多抓反而可能抓到殘缺名單誤擋)
+                if hm_e not in self.elig_done and (hm_e == "09:01" or (hm_e in ("09:05", "09:15", "09:45", "10:30", "11:30", "12:30") and self.elig_need())):
+                    self.elig_done.add(hm_e); self.elig_run("盤中 " + hm_e)
                 # 2026-10-28 14:29 使用者「當沒有k 資料進來的時候就要馬上檢查連線 不是嗎」(10/28 12:07 起逐筆整個停掉、程式沒發現):
                 #   盤中(09:01~13:24,開盤前試撮和 13:25 收盤集合競價本來就沒有逐筆)連續 TICK_WATCH 秒(預設 60)一筆逐筆都沒有 → 當作斷線,重新登入、重新訂閱;
                 #   重連後還是沒有,每次間隔拉長(60 → 120 → 240 秒,最多 5 分鐘),避免一直登入被元大鎖;第一次和每第 3 次發手機提醒
