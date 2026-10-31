@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-01 03:21(實際時間)圖左邊價格刻度黃字改成藍字(使用者「把 黃色 換 藍色」,#4FC3F7);時間刻度照舊金黃。
   · 2026-11-01 03:11(實際時間)圖左邊的價格刻度一律黃字(使用者「都改成 黃字 不再隨價格改變顏色」):K 線圖 / 漲跌圖 / 轉折圖、指標二(顯示價格時)、乖離圖都改;原本高於昨收紅、平白、低綠。十字線那格價格標籤照舊。
   · 2026-11-01 03:00(實際時間)進 K 圖一律先是 K 線圖(使用者「其他進入 一律是k圖」):清單、當沖、明細、手機通知、訊息欄判一 / 判三 / 強三都是 K 線圖;只有訊息欄點判二 → 漲跌圖、判四 → 轉折圖。在圖裡 ◀ ▶ 換股票維持目前那張。
   · 2026-11-01 03:00(實際時間)訊息欄點判二的訊息 → 進 K 圖直接是漲跌圖;點判四的訊息 → 直接是轉折圖(使用者要求;和按「切換」一樣會記住)。判一、判三、強三的訊息照上次看的那張圖。
@@ -96,7 +97,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611010311">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611010321">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3188,7 +3189,7 @@ function wiDevDraw(wp, r){
     g.font = '11px ui-monospace,Menlo,monospace'; g.textAlign = 'right'; g.textBaseline = 'middle';
     for (let v = Math.ceil(lo / st) * st; v <= hi + 1e-9; v += st){ const y = yOf(v); if (y < 6 || y > H - 6) continue;
       g.strokeStyle = '#1C1C1C'; g.beginPath(); g.moveTo(ox, Math.round(y) + 0.5); g.lineTo(W, Math.round(y) + 0.5); g.stroke();
-      const vv = +v.toFixed(2); g.fillStyle = CHART_THEME.axisText; /* 2026-11-01 使用者「都改成 黃字 不再隨價格改變顏色」 */ g.fillText(vv.toFixed(2), ox - 4, y); }
+      const vv = +v.toFixed(2); g.fillStyle = PX_AXIS_COL; /* 2026-11-01 使用者「都改成 黃字」→「把 黃色 換 藍色」 */ g.fillText(vv.toFixed(2), ox - 4, y); }
     g.strokeStyle = '#3A3A3A'; g.beginPath(); g.moveTo(ox + 0.5, 0); g.lineTo(ox + 0.5, H); g.stroke(); }
   for (const [i, x] of pts){ if (KAa[i] == null) continue; const ya = yOf(KAa[i]), yb = yOf(KBa[i]), w = Math.max(1, bw * 0.7);
     g.globalAlpha = 1; /* 2026-10-27 11:40 使用者:「右邊也一律亮色 改」:十字線之後的柱子不再畫淡色(原 0.3) */ g.fillStyle = KAa[i] >= KBa[i] ? '#E0303F' : '#2EE59D'; g.fillRect(x - w / 2, Math.min(ya, yb), w, Math.max(1, Math.abs(ya - yb))); }
@@ -3928,6 +3929,7 @@ const tpeLabel = t => { let s = TPE_LBL.get(t); if (s === undefined){ if (TPE_LB
 
 /* 圖表配色:比照元大證券 App 的 1 分K / OBV 畫面(黑底、紅漲綠跌、白影線、紫均價、
    OBV 紅線 + 青色均線、黃色時間軸文字)。想換色只改這裡。 */
+const PX_AXIS_COL = '#4FC3F7';   // 2026-11-01 使用者「把 黃色 換 藍色」:圖左邊價格刻度的字色(K 線圖 / 漲跌圖 / 轉折圖、指標二、乖離圖;時間刻度照舊金黃)
 const CHART_THEME = {
   bg: '#000000', text: '#D8DEE9', axisText: '#E8C547', grid: '#262626', axis: '#3A3A3A',   // axisText:價格與時間刻度(元大金黃色)
   up: '#FF3B3B', down: '#1DD75B', wick: '#E6E6E6',          // K 棒:漲紅、跌綠、影線白
@@ -4003,7 +4005,7 @@ function pxAxisAttach(ch, box, getSeries, isOn, xcAt){
         const y = s.priceToCoordinate(p); if (y == null || y < 4 || y > H - 4) continue;
         g += '<div style="position:absolute;left:' + aw + 'px;right:0;top:' + Math.round(y) + 'px;height:1px;background:' + CHART_THEME.grid + '"></div>';
         if (xc != null && Math.abs(y - xc) < 13) continue;
-        const pv = +p.toFixed(4), col = CHART_THEME.axisText;   // 2026-11-01 使用者「都改成 黃字 不再隨價格改變顏色」(原本高於昨收紅、平白、低綠)
+        const pv = +p.toFixed(4), col = PX_AXIS_COL;   // 2026-11-01 使用者「都改成 黃字 不再隨價格改變顏色」→「把 黃色 換 藍色」(原本高於昨收紅、平白、低綠)
         l += '<div style="position:absolute;left:0;width:' + (aw - 6) + 'px;text-align:right;top:' + Math.round(y - 7) + 'px;color:' + col + '">' + pv.toFixed(dp) + '</div>';
       }
       gl.innerHTML = g; lb.style.width = aw + 'px'; lb.innerHTML = l;
@@ -4080,7 +4082,7 @@ function initChart(){
           const y = candle.priceToCoordinate(p); if (y == null || y < 4 || y > H - 4) continue;
           g += '<div style="position:absolute;left:' + aw + 'px;right:0;top:' + Math.round(y) + 'px;height:1px;background:' + CHART_THEME.grid + '"></div>';
           if (xc != null && Math.abs(y - xc) < 13) continue;
-          const pv = +p.toFixed(4), col = CHART_THEME.axisText;   // 2026-11-01 使用者「都改成 黃字 不再隨價格改變顏色」(原本高於昨收紅、平白、低綠)
+          const pv = +p.toFixed(4), col = PX_AXIS_COL;   // 2026-11-01 使用者「都改成 黃字 不再隨價格改變顏色」→「把 黃色 換 藍色」(原本高於昨收紅、平白、低綠)
           l += '<div style="position:absolute;left:0;width:' + (aw - 6) + 'px;text-align:right;top:' + Math.round(y - 7) + 'px;color:' + col + '">' + pv.toFixed(dp) + '</div>';
         }
         gl.innerHTML = g; lb.style.width = aw + 'px'; lb.innerHTML = l;
