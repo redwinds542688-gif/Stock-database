@@ -601,6 +601,7 @@ export default {
       if (capQ === "set") {
         if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
         if (!ownerKI || !kq.includes("5861")) return J({ error: "只有主導機(5861)能改" }, 403);
+        { const t = twNow(), wd = t.getUTCDay(), m = t.getUTCHours() * 60 + t.getUTCMinutes(); if (wd > 0 && wd < 6 && m >= 540 && m <= 810) return J({ error: "開盤中不能改設定(13:30 後才能用)" }, 403); }
         const n = Math.round(Number(url.searchParams.get("v")));
         if (!(n >= 50000 && n <= 500000)) return J({ error: "金額要 5萬~50萬" }, 400);
         const v = { cap: n, at: Date.now(), by: "5861" };

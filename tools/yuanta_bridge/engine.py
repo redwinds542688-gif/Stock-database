@@ -776,7 +776,7 @@ def live():
             if hm < "09:01" or n.second < 4 or hm in done:
                 time.sleep(0.5 if pre_on else 1); continue
             done.add(hm)
-            c2 = cloud_cap(eng.cap)   # 2026-11-02 每分鐘跟 5861 主導機的多空上限(通知裡的張數)
+            c2 = cloud_cap(eng.cap) if hm < "09:03" else eng.cap   # 2026-11-02 跟 5861 主導機的多空上限(通知裡的張數);盤中設定禁改 → 只在開盤頭兩分鐘再確認
             if c2 != eng.cap: log(f"多空上限 {eng.cap:,} → {c2:,}(5861 主導機)"); eng.cap = c2
             try:
                 flags = []; off = []

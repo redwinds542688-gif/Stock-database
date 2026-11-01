@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 02:45(實際時間)多空上限主控省額度(使用者「設定有開盤禁改」):盤中 09:00–13:30 設定改不了 → 手機盤中只在開啟時讀一次、電腦只在 09:03 前讀;Worker 盤中也拒絕改
   · 2026-11-02 02:33(實際時間)多空上限主控:鑰匙含 5861 的手機 = 主導機,改滾輪先問「確定改成 XX 萬？」再送雲端;其他手機每分鐘自動跟上(自己轉會退回並提示),電腦中繼下單張數、引擎通知張數也每分鐘跟上(讀不到維持 bridge.env)
   · 2026-11-02 01:08(實際時間)監控最低價 15 → 10 元(使用者:「最低15元改成10元 重新搜索合格的新股票」):選股名單(make_pool.py)、手機「監控低價」滾輪(預設 10,範圍 10~50,舊存檔 15 搬到 10)、電腦公式程式篩選都改 10 元;重新跑每日選股。
   · 2026-11-02 00:20(實際時間)鑰匙可以掃 QR Code(使用者「在輸入金鑰的旁邊增設一個掃描QR Code的功能 然後金鑰產生器必須要可以產生一個QR Code的圖形底下才打著金鑰的密碼」):鑰匙視窗輸入格旁邊多一個「掃描」鍵,開後鏡頭掃到鑰匙(或 6 位數取件碼)就直接存;桌機 win_keys.py add 建鑰匙時自動產生 QR Code 圖(下面印鑰匙),也可以 win_keys.py qr <鑰匙> 再產生一次。Android 要 App 1.5.52(要允許相機),iPhone 網頁版直接可用。
@@ -108,7 +109,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611020233">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611020245">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1971,6 +1972,8 @@ const onCapChange = () => {
 };
 function capPull(){
   const role = capRole(); if (!role || !liveOn() || document.hidden) return;
+  if (capPull.first && inSession(new Date(Date.now() - 2 * 60000))) return;   // 2026-11-02 使用者「設定有開盤禁改」:09:00–13:30 設定改不了 → 盤中不問(開啟時問一次、09:02 前還會再跟一次)
+  capPull.first = true;
   fetch(capUrl('get&_=' + Date.now()), {cache: 'no-store', signal: AbortSignal.timeout(9000)}).then(r => r.ok ? r.json() : null).then(j => {
     if (!j || !j.ok) return;
     if (!j.cap) { if (role === 'master') fetch(capUrl('set&v=' + capFund()), {method: 'POST', cache: 'no-store'}).catch(() => {}); return; }   // 還沒設過 → 主導機把目前值送上去一次
