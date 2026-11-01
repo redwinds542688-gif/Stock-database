@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-01 12:06(實際時間)免費和試用合併成「免鑰匙 30 天」(使用者「改」):第 1~7 天全部(含交易通知);第 8~30 天看圖、看報價,訊息 / 明細只列已平倉的交易結果、不跳通知;第 31 天起整個畫面蓋上「免費使用期已結束,請輸入鑰匙」。天數照手機 Android ID 第一次使用算(雲端時間,刪 App 重裝也一樣)。試用鑰匙方案拿掉。
   · 2026-11-01 10:57(實際時間)手機網頁和電腦中繼用同一個版本號(使用者「以後電腦跟手機要同樣版本」):app-build 和 tools/yuanta_bridge/VERSION 每次一起改成同一個「年月日時分」,這次兩邊都是 202611011057。
   · 2026-11-01 10:00(實際時間)每天第一次開 K 圖加快(使用者「讀K圖顯示要快」→「第一次」):背景預抓清單上各檔的 1 分 K 改成同時 4 檔、清單一出來就開始(原本一檔一檔、App 開 4 秒後才開始)。模擬每個請求 0.3 秒:49 檔全部抓好 30 秒 → 10 秒內。
   · 2026-11-01 05:41(實際時間)開 K 圖加快(使用者「讀K圖顯示要快」):實測最花時間的是讀 1 分 K 週檔(parseCSV)→ 同一天日期只算一次、兩位小數直接用,快約 40%(2,645 個週檔逐筆比對結果完全一樣);十字線時間改自己排版(不用 toLocaleTimeString)。
@@ -101,7 +102,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611011057">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611011206">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2265,10 +2266,24 @@ function freeDev(){ try{ let a = (window.Android && Android.androidId) ? String(
   window.fetch = function(u, o){
     try{ if (typeof u === 'string' && liveOn() && u.startsWith(BASE.liveUrl.replace(/\/$/, '')) && !/[?&]k=/.test(u)){ const k = appKey.get(); if (k) u += (u.includes('?') ? '&' : '?') + 'k=' + encodeURIComponent(k) + '&dv=' + appDev; else if (/[?&]log=get/.test(u)) u += '&dv=' + freeDev(); } }catch(e){}   // 2026-10-30 免費(沒鑰匙)讀通知也帶手機識別碼,Worker 算 7 天
     const pr = f0.call(this, u, o);
-    try{ if (typeof u === 'string' && /[?&]log=get/.test(u)) pr.then(r => { if (r && r.headers && r.headers.get('X-Free-End') && !window.FREE_END_SHOWN){ window.FREE_END_SHOWN = true; setTimeout(() => { try{ fmToast('免費試看 7 天已結束,不再顯示程式的交易訊息;要繼續請到「公式 → 鑰匙」輸入付費鑰匙', 8000); }catch(e){} }, 1500); } }).catch(() => {}); }catch(e){}   // 2026-10-30 免費 7 天到期提示(一次)
+    // 2026-11-01 免鑰匙 30 天(使用者「免鑰匙 30天使用權 7天交易通知」「第 8~30 天 … 也能看到平倉後的結果」「30天後也不能使用了」→「改」):
+    //   X-Free-End = 滿 30 天 → 整個畫面蓋上「免費使用期已結束,請輸入鑰匙」;X-Free-Stage: results = 第 8~30 天,只列已平倉的結果、不跳通知(提示一次)
+    try{ if (typeof u === 'string' && /[?&]log=get/.test(u)) pr.then(r => { if (!r || !r.headers) return;
+        if (r.headers.get('X-Free-End')) freeExpired();
+        else if (r.headers.get('X-Free-Stage') === 'results' && !window.FREE_STAGE_SHOWN){ window.FREE_STAGE_SHOWN = true; const dd = +r.headers.get('X-Free-Day') || 0;
+          setTimeout(() => { try{ fmToast('免費試用第 ' + (dd || '8~30') + ' 天:交易通知只有前 7 天,現在只顯示已平倉的結果;滿 30 天後要鑰匙才能使用', 8000); }catch(e){} }, 1500); } }).catch(() => {}); }catch(e){}
     try{ if (typeof u === 'string' && liveOn() && u.startsWith(BASE.liveUrl.replace(/\/$/, ''))) pr.then(r => { if (r && r.status === 403 && Date.now() - askAt > 5 * 60000){ askAt = Date.now(); r.clone().json().then(j => { if (j && j.badKey && window.keyShow){ keyShow(j.needKey ? '這支手機要有鑰匙才能用' : (j.error || '鑰匙無效或已停用')); } }).catch(() => {}); } }).catch(() => {}); }catch(e){}
     return pr; };
 })();
+function freeExpired(){   // 2026-11-01 免鑰匙滿 30 天:整個畫面蓋住,只能輸入鑰匙
+  if (!window.VIEWER || document.getElementById('freeEnd')) return;
+  const w = document.createElement('div'); w.id = 'freeEnd';
+  w.style.cssText = 'position:fixed;inset:0;z-index:5000;background:#000;color:#E6EAF2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;font-size:18px;line-height:1.6';
+  w.innerHTML = '<div style="font-size:24px;font-weight:900">免費使用期已結束</div><div>免鑰匙可以使用 30 天(前 7 天有交易通知)。<br>要繼續使用,請輸入鑰匙。</div><button style="padding:12px 28px;font-size:18px;font-weight:700;border-radius:10px;border:2px solid #4FC3F7;background:#4FC3F7;color:#000">輸入鑰匙</button>';
+  w.querySelector('button').onclick = () => { try{ keyShow('請輸入鑰匙'); const k = document.getElementById('fmWin'); if (k) k.style.zIndex = '6000'; }catch(e){} };   // 鑰匙視窗要在這層上面
+  document.body.appendChild(w);
+  const t = setInterval(() => { try{ if (appKey.get()){ clearInterval(t); w.remove(); window.FREE_END_SHOWN = false; } }catch(e){} }, 1000);   // 輸入鑰匙後拿掉
+}
 /* 鑰匙視窗:公式 → 鑰匙(或 Worker 說要鑰匙時自動跳出);存 = 存進這支手機,清除 = 拿掉 */
 function keyShow(msg){
   try{ const old = document.getElementById('fmWin'); if (old) old.remove(); }catch(e){}
@@ -5813,11 +5828,12 @@ async function cloudNotifyNew(force){
     const d = new Date(now + 8 * 3600000).toISOString().slice(0, 10);
     const r = await fetch(cloudLogUrl() + 'get&d=' + d + '&_=' + now, {cache: 'no-store', signal: AbortSignal.timeout(9000)});
     if (!r.ok) return 'http ' + r.status;
+    const freeRes = r.headers && r.headers.get('X-Free-Stage') === 'results';   // 2026-11-01 免費第 8~30 天:只列結果,不跳通知
     const arr = await r.json(); if (!Array.isArray(arr)) return 'bad';
     CLOUD_LOG.items[d] = arr; CLOUD_LOG.at[d] = now;
     if (BG.vDay !== d){ BG.vDay = d; BG.vSeen = new Set(arr.map(cloudLogKey)); BG.vN = arr.length; return 'init ' + arr.length; }   // 第一輪(或換日):已有的不重發
     for (const x of arr.slice().reverse()){ const k = cloudLogKey(x); if (BG.vSeen.has(k)) continue; BG.vSeen.add(k);
-      if (x.kind && x.kind !== 'warn' && x.kind !== 'sys'){ try{ andNotify(x.title, x.body, x.kind); }catch(e){} }
+      if (x.kind && x.kind !== 'warn' && x.kind !== 'sys' && !freeRes){ try{ andNotify(x.title, x.body, x.kind); }catch(e){} }
       { const mw = /^win(\d)$/.exec(x.kind || ''); if (mw) try{ celebrate(x.title, +mw[1]); }catch(e){} } }
     BG.vN = arr.length; try{ if (window.nlRender) nlRender(); }catch(e){}
     return 'ok ' + arr.length;

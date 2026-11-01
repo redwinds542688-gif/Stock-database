@@ -392,7 +392,7 @@ const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "*",
-  "Access-Control-Expose-Headers": "X-Free-End",   // 2026-10-30 免費 7 天到期的標記,手機(file:// 跨來源)要讀得到
+  "Access-Control-Expose-Headers": "X-Free-End, X-Free-Stage, X-Free-Day",   // 2026-11-01 加 X-Free-Stage(results = 第 8~30 天只看平倉結果)、X-Free-Day(第幾天)   // 2026-10-30 免費 7 天到期的標記,手機(file:// 跨來源)要讀得到
   "Cache-Control": "no-store",
 };
 
@@ -556,9 +556,9 @@ export default {
       if (keysQ === "add") {
         let b; try { b = await request.json(); } catch (e) { b = {}; }
         // 2026-10-29 15:54 方案(使用者:「金鑰分試用一個月+自帶系統交易成績單 / 一個月 / 三個月 / 一年 對應 免費/600/1700/6000」);16:00 試用和看盤內容一樣,只差 30 天免費
-        const PLANS = { trial: { role: "trial", days: 30, price: 0, label: "試用一個月" }, m1: { role: "viewer", days: 30, price: 600, label: "一個月" }, m3: { role: "viewer", days: 90, price: 1700, label: "三個月" }, y1: { role: "viewer", days: 365, price: 6000, label: "一年" } };
+        const PLANS = { /* 2026-11-01 試用方案拿掉(和免費合併成「免鑰匙 30 天」) */ m1: { role: "viewer", days: 30, price: 600, label: "一個月" }, m3: { role: "viewer", days: 90, price: 1700, label: "三個月" }, y1: { role: "viewer", days: 365, price: 6000, label: "一年" } };
         const pl = PLANS[b.plan] || null;
-        const role = pl ? pl.role : b.role === "owner" ? "owner" : b.role === "trial" ? "trial" : "viewer", name = String(b.name || "").slice(0, 40), k = newKey();
+        const role = pl ? pl.role : b.role === "owner" ? "owner" : "viewer", name = String(b.name || "").slice(0, 40), k = newKey();
         const rec = { name, role, on: true, made: ymdOf(twNow()) };
         if (pl) { rec.plan = b.plan; rec.price = pl.price; }
         const days = +b.days > 0 ? Math.floor(+b.days) : pl ? pl.days : role === "trial" ? 30 : 0;   // 試用(trial):30 天,期間沒有今天的判一二三訊號(過去的成績單看得到)
@@ -866,21 +866,37 @@ export default {
         // 2026-10-30 00:35 使用者「免費使用者 只有七天可以看到 由程式發出的交易訊息 七天後 系統便不再發給該名免費使用者 任何關於交易的訊息」:
         //   沒鑰匙(免費)= 用手機識別碼 dv 記第一次讀通知的時間(Hub,伺服器時間,手機改時間沒用);滿 7 天後所有日子的通知都回空的,並帶 X-Free-End: 1。
         //   沒帶 dv 的免費請求一律回空的。有鑰匙(owner / 付費 / 試用)、中繼金鑰不受影響
+        // 2026-11-01 使用者(免費和試用合併:「免鑰匙 30天使用權 7天交易通知」「第 8~30 天 看圖、看報價,沒有交易通知 除此之外 也能看到平倉後的結果」「30天後也不能使用了」「同手機 再下載第二次也無用」→「改」):
+        //   第 1~7 天:照舊全部;第 8~30 天:只回已經平倉的交易(平倉那則 + 它的進場那則),不回進行中的單 / 反彈注意,帶 X-Free-Stage: results(手機不跳通知);
+        //   第 31 天起:回空的 + X-Free-End: 1(手機整個畫面蓋上「請輸入鑰匙」)。天數照 dv(Android ID)第一次讀通知算,伺服器時間
+        let freeStage = "", freeDay = 0;
         if (!KI && !pushOk) {
           const free = { "X-Free-End": "1" };
           if (!/^[a-f0-9]{16}$/.test(dv) || !env.HUB) return new Response("[]", { headers: { ...CORS, ...free, "Content-Type": "application/json; charset=utf-8" } });
           let first = null; try { first = await hubOf(env).kvGet("free:" + dv); if (!first) { first = Date.now(); await hubOf(env).kvPut("free:" + dv, first); } } catch (e) { first = Date.now(); }
-          if (Date.now() - +first > 7 * 86400e3) return new Response("[]", { headers: { ...CORS, ...free, "Content-Type": "application/json; charset=utf-8" } });
+          const age = Date.now() - +first; freeDay = Math.floor(age / 86400e3) + 1;
+          if (age > 30 * 86400e3) return new Response("[]", { headers: { ...CORS, ...free, "X-Free-Day": String(freeDay), "Content-Type": "application/json; charset=utf-8" } });
+          if (age > 7 * 86400e3) freeStage = "results";
         }
         // 2026-11-01 只給自己(owner 鑰匙 / 中繼)看的:電腦中繼推的提醒(內容結尾「· 元大中繼」:當天虧損 / 賺錢金額、緊急停止、元大拒單、對帳…)
         //   是你帳戶的私事,看盤版 / 試用 / 免費的人讀通知時拿掉(只留判別式的進出場訊號)
         //   使用者「除了我 永久會員以外 能看到我元大買賣的資訊 其他看到的資訊都是程式虛擬交易的狀況與結果」:元大真實買賣也只給自己看 ——
         //   強三(手機強制進場)/ 元三(元大手動單接回)的進出場、任何部位被強平的平倉訊息(內容有「· 強平 ·」),看盤版 / 試用 / 免費都拿掉;判別式的訊號(虛擬交易)照給
         const REAL = /·\s*元大中繼\s*$|·\s*(強三|元三)\s*$|·\s*強平\s*·/;
-        const mine = pushOk || ownerKI, scrub = a => mine || !Array.isArray(a) ? a : a.filter(x => !REAL.test(String((x && x.body) || "")) && !String((x && x.key) || "").startsWith("yt|"));
-        if (d >= DO_SINCE && env.HUB) return J(scrub(await hubOf(env).logGet(d)));   // 手機每分鐘、自動交易每 3 秒:讀 Hub,不 list
+        const mine = pushOk || ownerKI, scrub0 = a => mine || !Array.isArray(a) ? a : a.filter(x => !REAL.test(String((x && x.body) || "")) && !String((x && x.key) || "").startsWith("yt|"));
+        // 免費第 8~30 天:只留平倉的(kind loss / profit / exit)和配得上的進場(同代碼、同判別式、進場那根時間 = 平倉內容裡的「HH:MM 進」)
+        const closedOnly = a => {
+          if (!Array.isArray(a)) return a;
+          const codeOf = x => ((String(x.title || "").match(/(\d{4,6}[A-Z]*)/) || [])[1]) || "", rsOf = x => ((String(x.body || "").match(/·\s*(判[一二三四])\s*$/) || [])[1]) || "";
+          const EX = new Set(["loss", "profit", "exit"]), done = new Set();
+          for (const x of a) if (EX.has(x.kind)) { const t = (String(x.body || "").match(/(\d{2}:\d{2}) 進/) || [])[1]; if (t) done.add(codeOf(x) + "|" + rsOf(x) + "|" + t); }
+          return a.filter(x => EX.has(x.kind) || ((x.kind === "long" || x.kind === "short") && done.has(codeOf(x) + "|" + rsOf(x) + "|" + ((String(x.body || "").match(/^(\d{2}:\d{2})/) || [])[1] || ""))));
+        };
+        const scrub = a => freeStage === "results" ? closedOnly(scrub0(a)) : scrub0(a);
+        const JL = a => freeStage || freeDay ? new Response(JSON.stringify(a), { headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", ...(freeStage ? { "X-Free-Stage": freeStage } : {}), "X-Free-Day": String(freeDay) } }) : J(a);
+        if (d >= DO_SINCE && env.HUB) return JL(scrub(await hubOf(env).logGet(d)));   // 手機每分鐘、自動交易每 3 秒:讀 Hub,不 list
         // 2026-10-27 21:45 DO_SINCE 以前的日子:先看 Hub 有沒有搬過來,有就直接回(不 list);沒有才 list KV 一次、搬進 Hub(10/27 KV 一天 1,000 次 list 被用完過)
-        if (env.HUB) { const h = await hubOf(env).logGet(d); if (h && h.length) return J(scrub(h)); }
+        if (env.HUB) { const h = await hubOf(env).logGet(d); if (h && h.length) return JL(scrub(h)); }
         const out = [], rows = []; let cursor;
         try {
         do {
@@ -896,7 +912,7 @@ export default {
         } catch (e) { return J({ error: "KV 今天的 list 額度用完了(台灣時間 08:00 恢復),這天的通知稍後再讀" }, 503); }
         out.sort((a, b) => (b.t || "").localeCompare(a.t || ""));   // 新的在前,和手機本機紀錄一樣
         if (env.HUB && rows.length) { try { await hubOf(env).logImport(d, rows); } catch (e) {} }
-        return J(scrub(out));
+        return JL(scrub(out));
       }
       if (lg === "del") {
         if (!(await ownerOk())) return J({ error: "刪通知要 owner 鑰匙", badKey: true }, 403);   // 2026-10-29 鑰匙
