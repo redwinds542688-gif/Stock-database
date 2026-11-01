@@ -79,7 +79,7 @@ const GH_REPO_LOGIC = "Stock-logic";   // 2026-10-29 18:03 判一二三搬到的
 async function ghRaw(env, path, ref = GH_REF, ttl = 1800, repo = GH_REPO) {
   path = String(path || "").replace(/^\/+/, "").split("?")[0];
   const u = `https://raw.githubusercontent.com/${GH_OWNER}/${repo}/${ref}/${path}`;
-  const cache = caches.default, ck = new Request(`https://twse-proxy.internal/__gh/${repo}/${ref}/${path}`);
+  const cache = caches.default, ck = new Request(`https://twse-proxy.internal/__gh2/${repo}/${ref}/${path}`);   // 2026-11-01 __gh → __gh2:換掉舊的 30 分鐘快取(中繼抓不到新 VERSION)
   if (ttl > 0) { const hit = await cache.match(ck); if (hit) return hit; }
   const h = { "User-Agent": "twse-proxy" }; if (env && env.GH_TOKEN) h.Authorization = "token " + env.GH_TOKEN;
   const r = await fetch(u, { headers: h });
