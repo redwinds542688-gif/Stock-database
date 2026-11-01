@@ -1263,6 +1263,16 @@ def amount_reject(msg):
     return any(k in m for k in AMT_YES) and not any(k in m for k in AMT_NO)
 
 
+def fetch_cap(worker_url, push_key=""):
+    """2026-11-02 多空上限主控(使用者:「金鑰裡面有5861的為主導機」):讀 5861 主導機設定的每筆上限(元);讀不到 / 沒設過 / 超出 5萬~50萬 → None(維持原值)"""
+    try:
+        r = urllib.request.urlopen(urllib.request.Request(f"{worker_url.rstrip('/')}/?cap=get&_={int(time.time())}", headers={"X-Push-Key": push_key or "", "User-Agent": "yuanta-bridge/1"}), timeout=8)
+        v = int(json.loads(r.read().decode("utf-8")).get("cap") or 0)
+        return v if 50000 <= v <= 500000 else None
+    except Exception:
+        return None
+
+
 def fetch_signals(worker_url, day, push_key=""):
     """抓手機今天的通知(雲端紀錄,新的在前)→ 回傳舊到新。2026-10-29 鑰匙:帶中繼金鑰(以後 Worker 全面要鑰匙時照樣讀得到)"""
     try:

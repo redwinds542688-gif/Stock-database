@@ -103,6 +103,15 @@ def worker_url(q):
     return CFG["WORKER_URL"].rstrip("/") + "/?" + q
 
 
+def cloud_cap(cur):
+    """2026-11-02 多空上限主控:5861 主導機設定的每筆上限(元);讀不到 / 沒設過 → 原值 cur"""
+    try:
+        v = int(http(worker_url(f"cap=get&_={int(time.time())}"), key=True, timeout=8).get("cap") or 0)
+        return v if 50000 <= v <= 500000 else cur
+    except Exception:
+        return cur
+
+
 def iso_week(d):
     y, w, _ = dt.date.fromisoformat(d).isocalendar(); return f"{y}-W{w:02d}"
 
@@ -509,7 +518,7 @@ class Engine:
                 if self.pos or self.emitted: log(f"接回狀態:開著 {len(self.pos)} 筆、處理過的進場 {len(self.emitted)} 個")
             except FileNotFoundError: pass
             except Exception as e: log("!! 狀態檔讀不懂(當作沒有;雲端通知會再對一次)", e)
-        self.cap = int(CFG.get("ENGINE_CAP", "250000"))   # 手機的多空上限(通知裡的張數);2026-10-29 手機設 25 萬
+        self.cap = int(CFG.get("ENGINE_CAP", "250000")) if dry else cloud_cap(int(CFG.get("ENGINE_CAP", "250000")))   # 2026-11-02 跟 5861 主導機(回放 --dry 不讀雲端);手機的多空上限(通知裡的張數);2026-10-29 手機設 25 萬
         self.set_universe(uni)
         self.reload_envs()
         self.pool = Pool(int(CFG.get("ENGINE_WORKERS", "3")))
@@ -717,7 +726,7 @@ def acquire_lock():
 def live():
     lockf = acquire_lock()
     day = now_tw().strftime("%Y-%m-%d")
-    cap = int(CFG.get("ENGINE_CAP", "250000"))
+    cap = cloud_cap(int(CFG.get("ENGINE_CAP", "250000")))   # 2026-11-02 跟 5861 主導機
     j = load_pool(day)
     try:   # 先看狀態檔裡今天通知過哪些股票(和手機一樣不受篩選,平倉要靠它)
         sj = json.loads((DATA / f"engine_state_{day}.json").read_text(encoding="utf-8"))
@@ -767,6 +776,8 @@ def live():
             if hm < "09:01" or n.second < 4 or hm in done:
                 time.sleep(0.5 if pre_on else 1); continue
             done.add(hm)
+            c2 = cloud_cap(eng.cap)   # 2026-11-02 每分鐘跟 5861 主導機的多空上限(通知裡的張數)
+            if c2 != eng.cap: log(f"多空上限 {eng.cap:,} → {c2:,}(5861 主導機)"); eng.cap = c2
             try:
                 flags = []; off = []
                 # 規則每 30 分鐘重抓(稽核 #5)

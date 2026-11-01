@@ -586,6 +586,29 @@ export default {
       const today = ymdOf(twNow()); const left = KI.exp ? Math.max(0, Math.round((Date.parse(KI.exp + "T00:00:00+08:00") - Date.parse(today + "T00:00:00+08:00")) / 86400e3)) : null;
       return J({ ok: true, role: KI.role, name: KI.name, exp: KI.exp || null, left, today, plan: KI.plan || null });
     }
+    // 2026-11-02 多空上限主控(使用者:「金鑰裡面有5861的為主導機」「其他二隻跟電腦偵測到 都自動改成與5861這隻一樣的金額」):
+    //   ?cap=get → {cap, at, by}(中繼 X-Push-Key 或 owner 鑰匙);?cap=set&v=<元>(POST)只有鑰匙含 5861 的 owner 手機(帶 dv)能改,5萬~50萬
+    //   KV 只在改的時候寫一次;讀用 cacheTtl 60(不吃額度)
+    const capQ = url.searchParams.get("cap");
+    if (capQ) {
+      if (!env || !env.LOGS) return J({ error: "Worker 還沒綁定 KV(LOGS)" }, 503);
+      const isOwner = !!(KI && KI.role === "owner");
+      if (capQ === "get") {
+        if (!pushOk && !isOwner) return J({ error: "要中繼金鑰或 owner 鑰匙" }, 403);
+        let v = null; try { v = JSON.parse((await env.LOGS.get("cfg:cap", { cacheTtl: 60 })) || "null"); } catch (e) {}
+        return J({ ok: true, ...(v || { cap: null }) });
+      }
+      if (capQ === "set") {
+        if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
+        if (!ownerKI || !kq.includes("5861")) return J({ error: "只有主導機(5861)能改" }, 403);
+        const n = Math.round(Number(url.searchParams.get("v")));
+        if (!(n >= 50000 && n <= 500000)) return J({ error: "金額要 5萬~50萬" }, 400);
+        const v = { cap: n, at: Date.now(), by: "5861" };
+        await env.LOGS.put("cfg:cap", JSON.stringify(v));
+        return J({ ok: true, ...v });
+      }
+      return J({ error: "cap 只有 get / set" }, 400);
+    }
     if (keysQ) {
       if (!env || !env.LOGS) return J({ error: "Worker 還沒綁定 KV(LOGS)" }, 503);
       if (!pushOk && !ownerKI) return J({ error: "要中繼金鑰或 owner 鑰匙" }, 403);   // 2026-10-29 安全修補:owner 鑰匙已綁手機要帶 dv

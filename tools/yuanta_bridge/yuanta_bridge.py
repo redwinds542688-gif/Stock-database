@@ -17,7 +17,7 @@ import math
 import json, os, re, sys, time, threading, urllib.request, urllib.error, datetime as dt
 from pathlib import Path
 from bars import BarBook
-from trader import Trader, fetch_signals
+from trader import Trader, fetch_signals, fetch_cap
 from quotes import QuoteBook
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
@@ -815,6 +815,14 @@ class Bridge:
                 r = {"trades": [{"code": p["code"], "bs": "B" if p["dir"] > 0 else "S", "lots": p["qty"]} for p in list(self.trader.positions.values()) if p["qty"]], "working": []}
         self.trader.recheck(r["trades"], r["working"], at)
 
+    def cap_sync(self):
+        """2026-11-02 多空上限主控(使用者:「其他二隻跟電腦偵測到 都自動改成與5861這隻一樣的金額」):讀雲端主導機的值改 trader.cap(之後新進場的張數照它算);
+           TRADE_CAP=0(固定張數)不動;讀不到維持原值(bridge.env 的 TRADE_CAP / ENGINE_CAP)"""
+        if self.trader.cap <= 0: return
+        v = fetch_cap(CFG["WORKER_URL"], CFG.get("PUSH_KEY", ""))
+        if v and v != self.trader.cap:
+            log(f"多空上限 {self.trader.cap:,} → {v:,}(5861 主導機)"); self.trader.cap = v
+
     def resume_positions(self, day):
         """2026-10-22 使用者:「加 啟動時接回部位」:查元大今天的委託成交回報 + 有效的二擇一條件單,交給 trader 接回程式開的未平部位"""
         if not self.trader or not self.trader.enabled:
@@ -1032,6 +1040,7 @@ class Bridge:
                     loc = self.local_signals(day)
                     if loc: sig = loc + (sig or []) if sig is not None else loc
                 self.trader.step(sig)
+                if k % 60 == 1: threading.Thread(target=self.cap_sync, daemon=True).start()   # 2026-11-02 每分鐘跟 5861 主導機的多空上限
                 # 2026-10-29 額度(使用者「我現在要做的是2」):沒開自動交易時沒有人查今天的委託成交 → 每 QUOTA_SEC(60)秒查一次,查到就由 quota_from_report 推上雲端
                 if CFG.get("QUOTA_PUSH", "1") == "1" and CFG.get("PUSH_KEY") and k % int(CFG.get("QUOTA_SEC", "60")) == 0 and self.logged_in.is_set():
                     try: self.query_today(with_oco=False)

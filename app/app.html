@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 02:33(實際時間)多空上限主控:鑰匙含 5861 的手機 = 主導機,改滾輪先問「確定改成 XX 萬？」再送雲端;其他手機每分鐘自動跟上(自己轉會退回並提示),電腦中繼下單張數、引擎通知張數也每分鐘跟上(讀不到維持 bridge.env)
   · 2026-11-02 01:08(實際時間)監控最低價 15 → 10 元(使用者:「最低15元改成10元 重新搜索合格的新股票」):選股名單(make_pool.py)、手機「監控低價」滾輪(預設 10,範圍 10~50,舊存檔 15 搬到 10)、電腦公式程式篩選都改 10 元;重新跑每日選股。
   · 2026-11-02 00:20(實際時間)鑰匙可以掃 QR Code(使用者「在輸入金鑰的旁邊增設一個掃描QR Code的功能 然後金鑰產生器必須要可以產生一個QR Code的圖形底下才打著金鑰的密碼」):鑰匙視窗輸入格旁邊多一個「掃描」鍵,開後鏡頭掃到鑰匙(或 6 位數取件碼)就直接存;桌機 win_keys.py add 建鑰匙時自動產生 QR Code 圖(下面印鑰匙),也可以 win_keys.py qr <鑰匙> 再產生一次。Android 要 App 1.5.52(要允許相機),iPhone 網頁版直接可用。
   · 2026-11-02 00:07(實際時間)發鑰匙工具(win_keys.py)拿掉試用(trial)選項,雲端也拒絕 trial(原本會變成不到期的看盤鑰匙);付費只有 m1 / m3 / y1。
@@ -107,7 +108,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611020108">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611020233">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1940,7 +1941,43 @@ function startVal(key, fallback){
 //   篩選時本來就取兩者較小的(scan 的 capMax),這裡只是讓滾輪顯示一致。高價滾輪最低 51,所以上限 5 萬時高價停在 51。
 // (判別式相關說明已移到私人庫)
 const onHiChange = () => onFeeChange();
-const onCapChange = () => onFeeChange();
+/* 2026-11-02 多空上限主控(使用者:「我要5861 那支可以改 其他二隻跟電腦偵測到 都自動改成與5861這隻一樣的金額」「金鑰裡面有5861的為主導機」「可以 改」):
+   主程式(非看盤版)鑰匙含 5861 = 主導機:滾輪改完跳「確定改成 XX 萬？」→ 確定才送 Worker ?cap=set,取消就退回原值;
+   其他主程式手機 = 跟隨機:開啟 / 回到畫面 / 每 60 秒(畫面開著才問)讀 ?cap=get 自動跟上,自己轉滾輪會退回並提示;電腦中繼也每分鐘讀同一個值。看盤版不受影響 */
+let capSyncing = false, capLast = null;
+const capRole = () => { if (window.VIEWER) return ''; const k = (window.appKey && appKey.get()) || ''; return !k ? '' : k.includes('5861') ? 'master' : 'follow'; };
+const capSet = v => { capSyncing = true; try{ wCap.setValue(v); }finally{ capSyncing = false; } capLast = wCap.value; };
+function capAsk(v, yes, no){
+  const w = document.createElement('div'); w.id = 'capAsk';
+  w.innerHTML = `<div style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9998"></div><div style="position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:9999;background:#11161F;border:1px solid #4A5570;border-radius:14px;padding:18px 18px 14px;width:min(86vw,340px);color:#E6EAF2;text-align:center"><div style="font-size:20px;font-weight:700;margin-bottom:6px">確定改成 ${v}？</div><div style="font-size:14px;color:#8C96AB;margin-bottom:14px">其他手機和電腦會跟著改</div><div style="display:flex;gap:10px"><button class="no" style="flex:1;padding:12px;font-size:18px;font-weight:700;border-radius:10px;border:1px solid #4A5570;background:#11161F;color:#E6EAF2">取消</button><button class="yes" style="flex:1;padding:12px;font-size:18px;font-weight:700;border-radius:10px;border:1px solid #1DD75B;background:#0F2A1A;color:#1DD75B">確定</button></div></div>`;
+  document.body.appendChild(w);
+  const done = f => { try{ w.remove(); }catch(e){} f(); };
+  w.querySelector('.yes').addEventListener('click', () => done(yes)); w.querySelector('.no').addEventListener('click', () => done(no)); w.firstElementChild.addEventListener('click', () => done(no));
+}
+const capUrl = q => BASE.liveUrl.replace(/\/$/, '') + '/?cap=' + q;
+const onCapChange = () => {
+  if (capSyncing) { onFeeChange(); return; }
+  const role = capRole(), old = capLast, v = wCap.value;
+  if (role === 'follow' && old != null && liveOn()) { capSet(old); fmToast('多空上限由主導機(5861)控制', 2600); return; }
+  if (role === 'master' && liveOn()) {
+    capAsk(v, () => {
+      fetch(capUrl('set&v=' + Math.round(parseFloat(v) * 10000)), {method: 'POST', cache: 'no-store', signal: AbortSignal.timeout(9000)})
+        .then(r => r.json().catch(() => ({})).then(j => { if (!r.ok || !j.ok) throw new Error(j.error || r.status); capLast = v; onFeeChange(); fmToast('多空上限 ' + v + ',其他手機和電腦 1 分鐘內跟上', 3000); }))
+        .catch(e => { if (old != null) capSet(old); fmToast('沒改成功:' + (e && e.message || '連不上'), 3000); });
+    }, () => { if (old != null) capSet(old); });
+    return;
+  }
+  capLast = v; onFeeChange();
+};
+function capPull(){
+  const role = capRole(); if (!role || !liveOn() || document.hidden) return;
+  fetch(capUrl('get&_=' + Date.now()), {cache: 'no-store', signal: AbortSignal.timeout(9000)}).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j || !j.ok) return;
+    if (!j.cap) { if (role === 'master') fetch(capUrl('set&v=' + capFund()), {method: 'POST', cache: 'no-store'}).catch(() => {}); return; }   // 還沒設過 → 主導機把目前值送上去一次
+    const v = Math.round(j.cap / 10000) + '萬';
+    if (v !== wCap.value && document.getElementById('capAsk') == null) { capSet(v); saveFees(); }
+  }).catch(() => {});
+}
 const wHi  = makeWheel('wHi',  buildVals(CFG.hi   && CFG.hi.range),
                        String(Math.min(500, Math.max(50, Math.round(+startVal('hi', 350) / 5) * 5))), onHiChange);   // 2026-10-24 存檔的舊值(例如 331)對齊到 5 的倍數
 const wLo  = makeWheel('wLo',  buildVals(CFG.lo   && CFG.lo.range),
@@ -2014,6 +2051,8 @@ attachCycle('hiWheel',  wHi,  ['50','100','150','200','250','300',
 attachCycle('ampWheel', wAmp, ['3.0%', '4.0%', '5.0%', '8.0%'], 'high');
 attachCycle('capWheel', wCap, ['5萬','10萬','15萬','20萬','25萬',
                                '30萬','35萬','40萬','45萬','50萬']);
+capLast = wCap.value;
+setTimeout(capPull, 1500); setInterval(capPull, 60000); document.addEventListener('visibilitychange', () => { if (!document.hidden) capPull(); });
 
 /* 長按「手續費折扣」展開 / 收合券商與證交所費率 */
 window.feeLock = () => { const w = document.getElementById('feeWheel'), sub = document.getElementById('subFee'); if (sub) sub.classList.remove('show'); if (sub && sub.parentElement) sub.parentElement.classList.remove('subOn'); if (w) w.classList.add('locked'); };
