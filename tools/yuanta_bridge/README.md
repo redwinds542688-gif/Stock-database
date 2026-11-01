@@ -235,5 +235,5 @@ python win_update.py <commit> engine.py  # 只抓一個
 ## 2026-10-30 02:58 中繼自動更新(使用者「你有辦法推上電腦嗎」)
 Claude 碰不到 Windows 桌機,改成中繼自己更新:啟動時(08:40 排程 / 開機 / 崩潰重拉;盤中 08:45~13:40 不做)讀 GitHub `tools/yuanta_bridge/VERSION`,
 和本機的不同就經 Worker 抓 main 最新的中繼程式檔(每個先編譯檢查、舊檔留 .bak),寫 VERSION,重新啟動自己。
-**改了中繼程式要讓桌機吃到:推 main 時把 `tools/yuanta_bridge/VERSION` 改成新的版本號(2026-11-01 起用年月日時分,和手機網頁版本戳同格式,例如 202611011100;舊的是日期 + 序號 2026103117)。** 隔天 08:40 自動換;要馬上換就在桌機跑一次 `python win_update.py <commit>` 或重啟排程。
+**改了中繼程式要讓桌機吃到:推 main 時把 `tools/yuanta_bridge/VERSION` 改成新的版本號(2026-11-01 起用年月日時分,而且一律和手機網頁 app/app.html 的 app-build 同一個值,兩邊一起改;舊的是日期 + 序號 2026103117)。** 隔天 08:40 自動換;要馬上換就在桌機跑一次 `python win_update.py <commit>` 或重啟排程。
 bridge.env `AUTO_UPDATE=0` 可關。第一次要先手動裝到有這功能的版本。

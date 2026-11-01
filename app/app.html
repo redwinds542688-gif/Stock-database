@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-01 10:57(實際時間)手機網頁和電腦中繼用同一個版本號(使用者「以後電腦跟手機要同樣版本」):app-build 和 tools/yuanta_bridge/VERSION 每次一起改成同一個「年月日時分」,這次兩邊都是 202611011057。
   · 2026-11-01 10:00(實際時間)每天第一次開 K 圖加快(使用者「讀K圖顯示要快」→「第一次」):背景預抓清單上各檔的 1 分 K 改成同時 4 檔、清單一出來就開始(原本一檔一檔、App 開 4 秒後才開始)。模擬每個請求 0.3 秒:49 檔全部抓好 30 秒 → 10 秒內。
   · 2026-11-01 05:41(實際時間)開 K 圖加快(使用者「讀K圖顯示要快」):實測最花時間的是讀 1 分 K 週檔(parseCSV)→ 同一天日期只算一次、兩位小數直接用,快約 40%(2,645 個週檔逐筆比對結果完全一樣);十字線時間改自己排版(不用 toLocaleTimeString)。
   · 2026-11-01 04:19(實際時間)整個試算視窗都能當圖操作(使用者「在這區域 所有的圖都一樣 也是可以 上滑放大 下滑縮小 有時可以移動畫面跟移動十字線」):上面「試算 這根」、價格那排、小長條也一樣:點 = 十字線到那根、放下馬上上下滑 = 縮放、左右滑 = 捲圖、按在十字直線上拖 = 拖十字線(原本只有乖離圖可以)。
@@ -100,7 +101,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611011000">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611011057">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
