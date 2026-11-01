@@ -874,7 +874,10 @@ export default {
         }
         // 2026-11-01 只給自己(owner 鑰匙 / 中繼)看的:電腦中繼推的提醒(內容結尾「· 元大中繼」:當天虧損 / 賺錢金額、緊急停止、元大拒單、對帳…)
         //   是你帳戶的私事,看盤版 / 試用 / 免費的人讀通知時拿掉(只留判別式的進出場訊號)
-        const mine = pushOk || ownerKI, scrub = a => mine || !Array.isArray(a) ? a : a.filter(x => !/·\s*元大中繼\s*$/.test(String((x && x.body) || "")) && !String((x && x.key) || "").startsWith("yt|"));
+        //   使用者「除了我 永久會員以外 能看到我元大買賣的資訊 其他看到的資訊都是程式虛擬交易的狀況與結果」:元大真實買賣也只給自己看 ——
+        //   強三(手機強制進場)/ 元三(元大手動單接回)的進出場、任何部位被強平的平倉訊息(內容有「· 強平 ·」),看盤版 / 試用 / 免費都拿掉;判別式的訊號(虛擬交易)照給
+        const REAL = /·\s*元大中繼\s*$|·\s*(強三|元三)\s*$|·\s*強平\s*·/;
+        const mine = pushOk || ownerKI, scrub = a => mine || !Array.isArray(a) ? a : a.filter(x => !REAL.test(String((x && x.body) || "")) && !String((x && x.key) || "").startsWith("yt|"));
         if (d >= DO_SINCE && env.HUB) return J(scrub(await hubOf(env).logGet(d)));   // 手機每分鐘、自動交易每 3 秒:讀 Hub,不 list
         // 2026-10-27 21:45 DO_SINCE 以前的日子:先看 Hub 有沒有搬過來,有就直接回(不 list);沒有才 list KV 一次、搬進 Hub(10/27 KV 一天 1,000 次 list 被用完過)
         if (env.HUB) { const h = await hubOf(env).logGet(d); if (h && h.length) return J(scrub(h)); }
