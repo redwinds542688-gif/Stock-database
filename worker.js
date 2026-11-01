@@ -413,6 +413,11 @@ export class Hub extends DurableObject {
   }
   kvPut(k, v) { this.sql.exec("INSERT OR REPLACE INTO kv (k, v) VALUES (?, ?)", k, JSON.stringify(v)); return { ok: true }; }
   kvGet(k) { const r = this.sql.exec("SELECT v FROM kv WHERE k = ?", k).toArray(); return r.length ? JSON.parse(r[0].v) : null; }
+  kvSetIfAbsent(k, v) { const o = this.kvGet(k); if (o != null) return o; this.kvPut(k, v); return v; }   // 2026-11-01 VAPID 金鑰只產生一次(兩個請求同時產生也只留第一把)
+  // 2026-11-01 iPhone 網頁版 App 的推播訂閱(使用者「先做A」):[{id, endpoint, k, dv, made}]
+  pushSubPut(rec) { const a = (this.kvGet("pushsubs") || []).filter(x => x.id !== rec.id); a.push(rec); this.kvPut("pushsubs", a.slice(-500)); return { ok: true, n: a.length }; }
+  pushSubDel(id) { const a = (this.kvGet("pushsubs") || []).filter(x => x.id !== id); this.kvPut("pushsubs", a); return { ok: true }; }
+  pushSubs() { return this.kvGet("pushsubs") || []; }
   // 2026-10-29 安全修補:?keys=pick 取件碼嘗試次數(同步執行,一次一個請求,不會被並發繞過)。每 IP 10 分鐘 10 次、全體 10 分鐘 60 次
   pickGate(ip, now) {
     const W = 600e3, st = this.kvGet("pickrl") || {}, o = {};
@@ -471,6 +476,44 @@ const hubOf = env => env.HUB.get(env.HUB.idFromName("main"));
 //   管理:?keys=list(GET)、?keys=add(POST {name, role})、?keys=off|on|del&k2=<鑰匙>(POST),要 X-Push-Key(中繼的 win_keys.py)或 owner 鑰匙。
 //   額度:每個帶鑰匙的請求 1 次 KV 讀(邊緣快取 300 秒);list 只在管理時用。
 const KEY_RE = /^[a-f0-9]{16,40}$/;
+// ── 2026-11-01 iPhone 網頁版 App 推播(使用者「這程式蘋果手機可以使用嗎」→「先做A」)──
+//   VAPID 金鑰第一次用到時在 Worker 裡產生、存 Hub(不用另外設密鑰);推播不帶內容(不用加密),手機的 sw.js 收到後問 ?push=last 拿內容。
+//   誰收得到什麼和讀通知(log=get)同一套:owner 全部;付費看盤 / 免費前 7 天只有判別式的進出場(看不到元大真實買賣、電腦提醒);免費第 8 天起、鑰匙到期 / 停用 → 不推
+const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const b64uStr = t => b64u(new TextEncoder().encode(t));
+const PUSH_KINDS = new Set(["long", "short", "loss", "profit", "exit"]);
+const REAL_RE = /·\s*元大中繼\s*$|·\s*(強三|元三)\s*$|·\s*強平\s*·/;
+async function vapidKeys(env) {
+  const hub = hubOf(env); let v = await hub.kvGet("vapid");
+  if (!v) { const kp = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+    v = await hub.kvSetIfAbsent("vapid", { pub: b64u(await crypto.subtle.exportKey("raw", kp.publicKey)), jwk: await crypto.subtle.exportKey("jwk", kp.privateKey) }); }
+  return v;
+}
+async function vapidAuth(env, endpoint) {
+  const v = await vapidKeys(env), aud = new URL(endpoint).origin;
+  const key = await crypto.subtle.importKey("jwk", { ...v.jwk, key_ops: ["sign"] }, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+  const unsigned = b64uStr(JSON.stringify({ typ: "JWT", alg: "ES256" })) + "." + b64uStr(JSON.stringify({ aud, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: "https://twse-proxy.redwinds542688.workers.dev" }));
+  const sig = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, new TextEncoder().encode(unsigned));
+  return `vapid t=${unsigned}.${b64u(sig)}, k=${v.pub}`;
+}
+async function pushTier(env, s) {
+  if (s.k) { const KI = await keyInfo(env, s.k); if (!KI || !KI.on || (KI.exp && ymdOf(twNow()) > KI.exp)) return ""; return KI.role === "owner" ? "owner" : "viewer"; }
+  if (s.dv) { let first = null; try { first = await hubOf(env).kvGet("free:" + s.dv); } catch (e) {} return !first || Date.now() - +first <= 7 * 86400e3 ? "free" : ""; }
+  return "";
+}
+const pushCanSee = (tier, x) => !!tier && !!x && (tier === "owner" ? (x.kind !== "sys" && x.kind !== "warn")
+  : PUSH_KINDS.has(x.kind) && !REAL_RE.test(String(x.body || "")) && !String(x.key || x._k || "").startsWith("yt|"));
+async function pushFanout(env, item) {
+  let subs = []; try { subs = await hubOf(env).pushSubs(); } catch (e) { return; }
+  for (const s of subs.slice(0, 40)) {   // 一則訊號最多推 40 支(免費方案一次最多 50 個子請求)
+    try { const tier = await pushTier(env, s); if (!pushCanSee(tier, item)) continue;
+      const r = await fetch(s.endpoint, { method: "POST", headers: { Authorization: await vapidAuth(env, s.endpoint), TTL: "3600", Urgency: "high" } });
+      if (r.status === 404 || r.status === 410) await hubOf(env).pushSubDel(s.id); } catch (e) {}
+  }
+}
+const PWA_FILES = { "/app": "app/viewer.html", "/app/": "app/viewer.html", "/pool.js": "pool.js", "/sw.js": "app/pwa/sw.js", "/manifest.webmanifest": "app/pwa/manifest.webmanifest",
+  "/icon-180.png": "app/pwa/icon-180.png", "/icon-192.png": "app/pwa/icon-192.png", "/icon-512.png": "app/pwa/icon-512.png" };
+
 async function keyInfo(env, k) {
   if (!env || !env.LOGS || !KEY_RE.test(k || "")) return null;
   try { const v = await env.LOGS.get("key:" + k, { cacheTtl: 300 }); return v ? JSON.parse(v) : null; } catch (e) { return null; }
@@ -495,6 +538,14 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
 
     const url = new URL(request.url);
+    // 2026-11-01 iPhone 網頁版 App(看盤版):/app = 看盤版網頁,加上 manifest / sw.js / 圖示(公開庫的檔,不用鑰匙;內容和 Android 看盤版一樣)
+    if (request.method === "GET" && PWA_FILES[url.pathname] && env && env.GH_TOKEN) {
+      const r = await ghRaw(env, PWA_FILES[url.pathname], GH_REF, 60);
+      const h = new Headers(r.headers); h.set("Cache-Control", "no-cache");
+      if (url.pathname === "/manifest.webmanifest") h.set("Content-Type", "application/manifest+json");
+      if (url.pathname === "/sw.js") h.set("Service-Worker-Allowed", "/");
+      return new Response(r.body, { status: r.status, headers: h });
+    }
     const J = (obj, status = 200) => new Response(JSON.stringify(obj, null, 1), { status, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });
 
     // ── 2026-10-29 鑰匙 ──
@@ -573,6 +624,26 @@ export default {
       if (keysQ === "unbind") { delete cur.dev; await env.LOGS.put("key:" + k2, JSON.stringify(cur)); return J({ ok: true, k: k2, ...cur }); }   // 換手機:解綁,下一支用的手機重新綁
       if (keysQ === "off" || keysQ === "on") { cur.on = keysQ === "on"; await env.LOGS.put("key:" + k2, JSON.stringify(cur)); return J({ ok: true, k: k2, ...cur }); }
       return J({ error: "keys=list / add / off / on / del / unbind / me / stash / pick" }, 400);
+    }
+    // 2026-11-01 iPhone 網頁版 App 推播:?push=key(公鑰)/ sub(訂閱:帶 k 就記鑰匙,免費記 dv)/ unsub / last(sw.js 收到推播後拿這支手機看得到的最新訊號)
+    const pq = url.searchParams.get("push");
+    if (pq && env && env.HUB) {
+      if (pq === "key") return J({ pub: (await vapidKeys(env)).pub });
+      let b = {}; try { b = await request.json(); } catch (e) {}
+      const ep = String((b.sub && b.sub.endpoint) || b.endpoint || "");
+      if (!/^https:\/\/[\w.-]+\.(push\.apple\.com|googleapis\.com|mozilla\.com|windows\.com)\//.test(ep)) return J({ error: "不是推播網址" }, 400);
+      const id = b64u(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ep))).slice(0, 22);
+      if (pq === "sub") { const fdv = /^[a-f0-9]{16}$/.test(String(b.dv || "")) ? String(b.dv) : "";
+        return J(await hubOf(env).pushSubPut({ id, endpoint: ep, k: KI ? kq : "", dv: KI ? "" : fdv, made: Date.now() })); }
+      if (pq === "unsub") return J(await hubOf(env).pushSubDel(id));
+      if (pq === "last") {
+        const s = (await hubOf(env).pushSubs()).find(x => x.id === id); if (!s) return J({ items: [] });
+        const tier = await pushTier(env, s), all = (await hubOf(env).logGet(ymdOf(twNow()))).filter(x => pushCanSee(tier, x));
+        const now = hhmmOf(twNow()), m = +now.slice(0, 2) * 60 + +now.slice(3) - 3, since = String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+        const recent = all.filter(x => (x.t || "") >= since).slice(0, 3);
+        return J({ items: (recent.length ? recent : all.slice(0, 1)).map(x => ({ title: x.title, body: x.body, key: x._k || x.title })) });
+      }
+      return J({ error: "push=key / sub / unsub / last" }, 400);
     }
     if (env && env.KEYS_REQUIRED === "1" && !KI && !pushOk && !url.searchParams.get("gh")) return J({ error: "要帶鑰匙(k)", badKey: true, needKey: true }, 403);
     // 寫入 / 下單類:只有 owner 鑰匙或中繼金鑰可以用(看盤版 viewer 鑰匙不行)
@@ -845,8 +916,12 @@ export default {
         const item = { t: it.t, title: String(it.title).slice(0, 200), body: String(it.body || "").slice(0, 500), kind: String(it.kind || "").slice(0, 10) };
         if (it.prev != null && isFinite(+it.prev)) item.prev = +it.prev;
         const key = `log:${it.d}:${it.t}:${String(it.key || item.title).replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 120)}`;
-        if (it.d >= DO_SINCE && env.HUB)                          // 2026-10-24 起存 Hub(不用 KV 寫入 / list 額度)
-          return J(await hubOf(env).logAdd(it.d, key, item, it.pos ? String(it.pos).replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 80) : ""));
+        if (it.d >= DO_SINCE && env.HUB) {                        // 2026-10-24 起存 Hub(不用 KV 寫入 / list 額度)
+          const res = await hubOf(env).logAdd(it.d, key, item, it.pos ? String(it.pos).replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 80) : "");
+          // 2026-11-01 iPhone 網頁版 App:今天的新通知(不是重複的平倉)→ 推播給訂閱的手機(背景做,不拖慢回應)
+          if (res && !res.dup && it.d === ymdOf(twNow()) && ctx && ctx.waitUntil) ctx.waitUntil(pushFanout(env, { ...item, key: String(it.key || "") }).catch(() => {}));
+          return J(res);
+        }
         // 2026-10-20 部位鍵去重(使用者:同一筆平倉發三次 → 「改」):手機帶 pos = 判別式|代碼|進場時間,同一個部位的平倉雲端只留第一則(兩支手機、服務重啟都不重複)
         if (it.pos) {
           const mk = `exited:${it.d}:${String(it.pos).replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 80)}`;

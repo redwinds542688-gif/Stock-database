@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-01 23:50(實際時間)iPhone 網頁版 App(使用者「這程式蘋果手機可以使用嗎」→「先做A」):Safari 開雲端網址 /app(看盤版)→ 下方提示「分享 → 加入主畫面」;從主畫面打開後按「開啟通知」就能收推播(iOS 16.4 起)。推播內容和看盤版一樣分級(付費 / 免費前 7 天只有判別式訊號,看不到元大真實買賣)。Android App 不受影響。
   · 2026-11-01 23:33(實際時間)全面顯示測試時發現:收盤後到下個交易日 08:45,前一天有訊號的股票如果不在今天名單,監控清單只顯示代號(例:2409)→ 改成顯示名稱(友達)。
   · 2026-11-01 12:06(實際時間)免費和試用合併成「免鑰匙 30 天」(使用者「改」):第 1~7 天全部(含交易通知);第 8~30 天看圖、看報價,訊息 / 明細只列已平倉的交易結果、不跳通知;第 31 天起整個畫面蓋上「免費使用期已結束,請輸入鑰匙」。天數照手機 Android ID 第一次使用算(雲端時間,刪 App 重裝也一樣)。試用鑰匙方案拿掉。
   · 2026-11-01 10:57(實際時間)手機網頁和電腦中繼用同一個版本號(使用者「以後電腦跟手機要同樣版本」):app-build 和 tools/yuanta_bridge/VERSION 每次一起改成同一個「年月日時分」,這次兩邊都是 202611011057。
@@ -103,7 +104,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611012333">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611012350">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2285,6 +2286,40 @@ function freeExpired(){   // 2026-11-01 免鑰匙滿 30 天:整個畫面蓋住,�
   document.body.appendChild(w);
   const t = setInterval(() => { try{ if (appKey.get()){ clearInterval(t); w.remove(); window.FREE_END_SHOWN = false; } }catch(e){} }, 1000);   // 輸入鑰匙後拿掉
 }
+/* 2026-11-01 使用者「這程式蘋果手機可以使用嗎」→「先做A」:iPhone 用 Safari 開雲端網址 /app(看盤版)→「分享 → 加入主畫面」當 App 用,收推播通知。
+   只在 https(雲端網址)開的時候做,Android App(file://)不受影響。Safari 還沒加入主畫面 → 底下一條提示怎麼加;加入後 → 「開啟通知」按鈕(iPhone 規定要手指按才能問);
+   開了就把推播訂閱交給雲端(?push=sub,有鑰匙帶鑰匙、免費帶手機識別碼),之後每次打開都再送一次(換了鑰匙也跟著更新) */
+(function pwaInit(){
+  if (location.protocol !== 'https:' || !('serviceWorker' in navigator)) return;
+  const add = (tag, at) => { const e = document.createElement(tag); for (const k in at) e.setAttribute(k, at[k]); document.head.appendChild(e); };
+  add('link', {rel: 'manifest', href: '/manifest.webmanifest'}); add('link', {rel: 'apple-touch-icon', href: '/icon-180.png'});
+  add('meta', {name: 'apple-mobile-web-app-capable', content: 'yes'}); add('meta', {name: 'apple-mobile-web-app-title', content: '名揚四海'});
+  add('meta', {name: 'apple-mobile-web-app-status-bar-style', content: 'black'}); add('meta', {name: 'theme-color', content: '#000000'});
+  const W = () => (BASE.liveUrl || location.origin).replace(/\/$/, '');
+  const u8 = t => { const b = atob((t + '='.repeat((4 - t.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent), standalone = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+  const hide = () => { const w = document.getElementById('pwaBar'); if (w) w.remove(); };
+  const bar = (txt, btn, fn) => { hide(); const w = document.createElement('div'); w.id = 'pwaBar';
+    w.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:4000;background:#1B2233;border-top:2px solid #4FC3F7;color:#E6EAF2;padding:12px 44px 14px 14px;font-size:16px;line-height:1.5;display:flex;align-items:center;gap:10px';
+    w.innerHTML = '<span style="flex:1">' + txt + '</span>' + (btn ? '<button style="padding:8px 16px;font-size:16px;font-weight:700;border-radius:8px;border:0;background:#4FC3F7;color:#000">' + btn + '</button>' : '') + '<i style="position:absolute;right:12px;top:8px;font-style:normal;color:#8C96AB;font-size:20px">✕</i>';
+    w.querySelector('i').onclick = hide; if (btn) w.querySelector('button').onclick = fn; document.body.appendChild(w); };
+  const sync = async reg => { const sb = await reg.pushManager.getSubscription(); if (!sb) return false;
+    await fetch(W() + '/?push=sub', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sub: sb.toJSON(), dv: (typeof freeDev === 'function' ? freeDev() : '')})}); return true; };
+  window.addEventListener('load', () => setTimeout(() => {
+    navigator.serviceWorker.register('/sw.js', {scope: '/'}).then(async reg => {
+      if (ios && !standalone){ bar('要收到交易通知:按 Safari 下方的「分享」→「加入主畫面」,再從主畫面的「名揚四海」打開'); return; }   // iPhone 只有加入主畫面後才能收推播
+      if (!('PushManager' in window) || !('Notification' in window)) return;
+      try{ if (await sync(reg)) return; }catch(e){}
+      if (Notification.permission === 'denied') return;
+      bar('要收到交易通知嗎?', '開啟通知', async () => {
+        try{ const pm = await Notification.requestPermission(); if (pm !== 'granted'){ bar('沒有開啟通知(可以到 iPhone「設定 → 通知 → 名揚四海」打開)'); return; }
+          const k = await (await fetch(W() + '/?push=key')).json();
+          await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: u8(k.pub)});
+          await sync(reg); hide(); try{ fmToast('已開啟交易通知', 3000); }catch(e){}
+        }catch(e){ bar('開啟通知失敗:' + (e && e.message || e)); } });
+    }).catch(() => {});
+  }, 1500));
+})();
 /* 鑰匙視窗:公式 → 鑰匙(或 Worker 說要鑰匙時自動跳出);存 = 存進這支手機,清除 = 拿掉 */
 function keyShow(msg){
   try{ const old = document.getElementById('fmWin'); if (old) old.remove(); }catch(e){}
