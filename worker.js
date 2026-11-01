@@ -609,6 +609,9 @@ export default {
         // 2026-10-29 15:54 方案(使用者:「金鑰分試用一個月+自帶系統交易成績單 / 一個月 / 三個月 / 一年 對應 免費/600/1700/6000」);16:00 試用和看盤內容一樣,只差 30 天免費
         const PLANS = { /* 2026-11-01 試用方案拿掉(和免費合併成「免鑰匙 30 天」) */ m1: { role: "viewer", days: 30, price: 600, label: "一個月" }, m3: { role: "viewer", days: 90, price: 1700, label: "三個月" }, y1: { role: "viewer", days: 365, price: 6000, label: "一年" } };
         const pl = PLANS[b.plan] || null;
+        // 2026-11-01 試用方案已拿掉:舊的發鑰匙工具還會送 plan / role = trial,原本會變成「不到期的看盤鑰匙」→ 直接拒絕
+        if (b.plan === "trial" || b.role === "trial") return J({ error: "試用方案已取消(免鑰匙就有 30 天);付費請用 m1 / m3 / y1" }, 400);
+        if (b.plan && !pl) return J({ error: "沒有這個方案:" + String(b.plan).slice(0, 10) + "(m1 / m3 / y1)" }, 400);
         const role = pl ? pl.role : b.role === "owner" ? "owner" : "viewer", name = String(b.name || "").slice(0, 40), k = newKey();
         const rec = { name, role, on: true, made: ymdOf(twNow()) };
         if (pl) { rec.plan = b.plan; rec.price = pl.price; }

@@ -9,7 +9,7 @@
   python win_keys.py add 小王 viewer       # 建一把 viewer 鑰匙(給別人)
   python win_keys.py add 小王 viewer 30    # 30 天後自動到期
   方案(2026-10-29 使用者定價):
-  python win_keys.py add 小王 trial        # 試用一個月 免費:和看盤一樣有訊號 / 當沖 / 明細(都是系統模擬);30 天到期(日期看 Worker,手機改時間沒用)
+  (2026-11-01 試用方案取消:免鑰匙就能用 30 天(前 7 天有交易通知),不用再發試用鑰匙)
   python win_keys.py add 小王 m1           # 一個月  600 元(30 天)
   python win_keys.py add 小王 m3           # 三個月 1700 元(90 天)
   python win_keys.py add 小王 y1           # 一年   6000 元(365 天)
@@ -51,7 +51,7 @@ def main(a):
         return
     if a[0] == "add":
         name = a[1] if len(a) > 1 else ""; kind = a[2] if len(a) > 2 else "viewer"; days = int(a[3]) if len(a) > 3 else 0
-        PLANS = {"trial": "試用一個月 免費", "m1": "一個月 600", "m3": "三個月 1700", "y1": "一年 6000"}
+        PLANS = {"m1": "一個月 600", "m3": "三個月 1700", "y1": "一年 6000"}   # 2026-11-01 trial 拿掉
         body = {"name": name, "days": days}
         if kind in PLANS: body["plan"] = kind
         else: body["role"] = kind
