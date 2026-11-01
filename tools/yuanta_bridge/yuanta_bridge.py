@@ -1111,7 +1111,7 @@ def self_update():
     """2026-10-30 02:58 使用者「你有辦法推上電腦嗎」:Claude 不能直接碰 Windows 桌機,改成中繼自己更新 ——
        啟動時(排程 08:40 / 開機 / 崩潰重拉,不在盤中)讀 GitHub 的 tools/yuanta_bridge/VERSION(一個版本號,改了就代表要更新),
        和本機 VERSION 不同就經 Worker 把 main 最新的程式檔抓下來(每個檔先編譯檢查,壞的不換,舊檔留 .bak),寫好 VERSION 後重新啟動自己。
-       改中繼程式的人:推完 main 後把 VERSION 改成新的版本號(例如 日期+序號 2026103001)一起推。
+       改中繼程式的人:推完 main 後把 VERSION 改成新的版本號(2026-11-01 起用「年月日時分」,和手機網頁的版本戳同一種寫法,例如 202611011100;只比對是否相同,不比大小)一起推。
        bridge.env AUTO_UPDATE=0 可關。"""
     if CFG.get("AUTO_UPDATE", "1") != "1" or os.environ.get("MYSH_UPDATED"): return
     hm = now_tw().strftime("%H:%M")
