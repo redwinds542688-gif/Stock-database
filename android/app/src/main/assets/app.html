@@ -102,7 +102,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611011206">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611011402">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3237,7 +3237,7 @@ function wiDevDraw(wp, r){
   const dvAr = (up, col) => `<svg viewBox="0 0 16 18" width="11" height="13" style="vertical-align:-1px;margin-left:1px"><path d="${up ? 'M8 1 L15 9 L11 9 L11 17 L5 17 L5 9 L1 9 Z' : 'M8 17 L15 9 L11 9 L11 1 L5 1 L5 9 L1 9 Z'}" fill="${col}"/></svg>`;   // 和 Ka / Kb 的 thickArrow 同一個圖
   const dvTr = (v, pv) => (pv == null || v == null || !isFinite(v) || !isFinite(pv)) ? '' : v > pv ? dvAr(true, '#FF3B3B') : v < pv ? dvAr(false, '#3EE6A0')
     : `<svg viewBox="0 0 16 18" width="11" height="13" style="vertical-align:-1px;margin-left:1px"><rect x="1" y="7" width="14" height="4" rx="1" fill="#D8DDE6"/></svg>`;   // 2026-10-29 00:30 持平 = 白色粗橫槓
-  if (hd && dl != null) hd.innerHTML = '乖離 <b style="color:' + (dl >= 0 ? '#FF4D5E' : '#2EE59D') + '">' + (dl > 0 ? '+' : '') + dl.toFixed(2) + '%</b>' + dvTr(dl, ci > 0 ? dev[ci - 1] : null) + (al != null ? ' · <span style="color:#B15CFF">均' + (YH.devAvgPeriod || 10) + ' ' + (al > 0 ? '+' : '') + al.toFixed(2) + '%</span>' + dvTr(al, ci > 0 ? avg[ci - 1] : null) : '');
+  if (hd && dl != null) hd.innerHTML = '<span style="color:#FFE14D">GL</span> <b style="color:#FFFFFF">' + (dl > 0 ? '+' : '') + dl.toFixed(2) + '%</b>' + dvTr(dl, ci > 0 ? dev[ci - 1] : null) + (al != null ? ' · <span style="color:#B15CFF">GT</span> <span style="color:#FFFFFF">' + (al > 0 ? '+' : '') + al.toFixed(2) + '%</span>' + dvTr(al, ci > 0 ? avg[ci - 1] : null) : '');   // 2026-11-01 14:02 使用者「“乖離”改“GL”黃色+後面的數值 白色 “均10” 改"GT"紫色+後面的數值 白色」
 }
 /* 2026-10-28 00:45 使用者:「乖離圖 最下面 原先是一個十字線的拖曳鍵 現在取消 顯示跟剛剛一樣的時間軸」:
    拿掉滑軌列,乖離視窗底部往上縮到時間軸上緣 → 露出底下 K 圖本來的時間軸(含左下角日期),跟 K 圖完全同步 */
