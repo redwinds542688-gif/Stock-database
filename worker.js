@@ -872,9 +872,12 @@ export default {
           let first = null; try { first = await hubOf(env).kvGet("free:" + dv); if (!first) { first = Date.now(); await hubOf(env).kvPut("free:" + dv, first); } } catch (e) { first = Date.now(); }
           if (Date.now() - +first > 7 * 86400e3) return new Response("[]", { headers: { ...CORS, ...free, "Content-Type": "application/json; charset=utf-8" } });
         }
-        if (d >= DO_SINCE && env.HUB) return J(await hubOf(env).logGet(d));   // 手機每分鐘、自動交易每 3 秒:讀 Hub,不 list
+        // 2026-11-01 只給自己(owner 鑰匙 / 中繼)看的:電腦中繼推的提醒(內容結尾「· 元大中繼」:當天虧損 / 賺錢金額、緊急停止、元大拒單、對帳…)
+        //   是你帳戶的私事,看盤版 / 試用 / 免費的人讀通知時拿掉(只留判別式的進出場訊號)
+        const mine = pushOk || ownerKI, scrub = a => mine || !Array.isArray(a) ? a : a.filter(x => !/·\s*元大中繼\s*$/.test(String((x && x.body) || "")) && !String((x && x.key) || "").startsWith("yt|"));
+        if (d >= DO_SINCE && env.HUB) return J(scrub(await hubOf(env).logGet(d)));   // 手機每分鐘、自動交易每 3 秒:讀 Hub,不 list
         // 2026-10-27 21:45 DO_SINCE 以前的日子:先看 Hub 有沒有搬過來,有就直接回(不 list);沒有才 list KV 一次、搬進 Hub(10/27 KV 一天 1,000 次 list 被用完過)
-        if (env.HUB) { const h = await hubOf(env).logGet(d); if (h && h.length) return J(h); }
+        if (env.HUB) { const h = await hubOf(env).logGet(d); if (h && h.length) return J(scrub(h)); }
         const out = [], rows = []; let cursor;
         try {
         do {
@@ -890,7 +893,7 @@ export default {
         } catch (e) { return J({ error: "KV 今天的 list 額度用完了(台灣時間 08:00 恢復),這天的通知稍後再讀" }, 503); }
         out.sort((a, b) => (b.t || "").localeCompare(a.t || ""));   // 新的在前,和手機本機紀錄一樣
         if (env.HUB && rows.length) { try { await hubOf(env).logImport(d, rows); } catch (e) {} }
-        return J(out);
+        return J(scrub(out));
       }
       if (lg === "del") {
         if (!(await ownerOk())) return J({ error: "刪通知要 owner 鑰匙", badKey: true }, 403);   // 2026-10-29 鑰匙
