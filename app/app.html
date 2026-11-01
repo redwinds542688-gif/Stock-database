@@ -102,7 +102,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611012045">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611012050">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -706,7 +706,7 @@
       <div class="yh-lbl" style="gap:6px;font-size:11px;letter-spacing:-0.3px"><span style="color:#FFFFFF">指標一</span>   <!-- 2026-10-23 21:05 加了 Ap 之後塞不下,字級 / 間距改成和指標二一樣 -->   <!-- (判別式相關說明已移到私人庫) -->
         <span id="lblMaBox" style="color:#D63AF9">Ka<span id="lblMaN" hidden>10</span> <span id="lblMaV" style="color:#FFFFFF">—</span></span>   <!-- 2026-10-23 20:50 使用者:「Ka/Kb 隨線的顏色 後面的價格 白色(小數點後二位)」 -->   <!-- 2026-10-23 20:45 使用者:「指標二,一 也是這樣」:拿掉 Ka: / Kb: / Oa: ~ Od: 字樣,只留數字(顏色 = 線) -->   <!-- (判別式相關說明已移到私人庫) -->
         <span id="lblMa24Box" style="color:#FFE14D">Kb <span id="lblMa24V" style="color:#FFFFFF">—</span></span>   <!-- 2026-10-23 10:24 使用者:「三圖Kb改藍色」(10:05 曾改粉紅 #FF6FB5) -->   <!-- 2026-10-21 使用者:「k24 改成 Kb」(Kb = 均價 24) -->   <!-- 2026-10-21 使用者:「加一條 k24」 -->
-        <span id="lblVwapBox" style="color:#FF9F43">Ap <span id="lblVwapV" style="color:#FFFFFF">—</span></span>   <!-- 2026-10-23 21:05 使用者:「只顯示 不畫線」:Ap 文字顯示回來(橘字、價格白),線照舊不畫 --><span id="rfDate" style="color:#D8DEE9;margin-left:auto;margin-right:6px;display:inline-block;width:3em;text-align:right;font-variant-numeric:tabular-nums"></span><span id="rfSrc" style="display:none;font-weight:700;margin-left:3px"></span><span id="rfName" style="color:#D8DEE9;display:inline-block;width:3em;text-align:center">K線圖</span><button id="rfToggle" class="rfbtn" style="margin-left:4px" aria-label="切換 K 線圖 / 漲跌圖 / 轉折圖">切換</button></div>   <!-- 2026-10-23 10:30 使用者:「漲跌圖切換按鍵 改成切換 在切換前面 顯示 當下的圖 名稱」 -->   <!-- 2026-10-21 使用者:「vwap 改顯示 Ap 後面的價上用箭頭顯示」 -->
+        <span id="lblVwapBox" style="color:#FF9F43">Ap <span id="lblVwapV" style="color:#FFFFFF">—</span></span>   <!-- 2026-10-23 21:05 使用者:「只顯示 不畫線」:Ap 文字顯示回來(橘字、價格白),線照舊不畫 --><span id="rfDate" style="color:#D8DEE9;margin-left:auto;margin-right:6px;display:inline-block;width:3em;text-align:right;font-variant-numeric:tabular-nums"></span><span id="rfSrc" style="display:none;font-weight:700;margin-left:3px"></span><span id="rfName" style="display:none">K線圖</span><button id="rfToggle" class="rfbtn on" style="margin-left:4px" aria-label="切換 K 線圖 / 漲跌圖 / 轉折圖">K線圖</button>   <!-- 2026-11-01 20:50 使用者「把上面的切換鍵取消 然後 k線圖 漲跌圖 轉折圖 比照下面的 乖離圖 壓力圖這樣切換」:按鍵直接寫現在是哪一張,按一下換下一張 --></div>   <!-- 2026-10-23 10:30 使用者:「漲跌圖切換按鍵 改成切換 在切換前面 顯示 當下的圖 名稱」 -->   <!-- 2026-10-21 使用者:「vwap 改顯示 Ap 後面的價上用箭頭顯示」 -->
       <div id="chartTop"><span class="hilo up hidden" id="hiLbl"></span><span class="hilo down hidden" id="loLbl"></span><span class="xvol hidden" id="xVolLbl"></span></div>
       <div class="yh-lbl sep" style="gap:6px;font-size:11px;letter-spacing:-0.3px"><span style="color:#FFFFFF">指標二</span>   <!-- 2026-10-21 使用者:「OBV 指標二」 -->
         <span style="color:#FFE14D">Oa <span id="lblObvV" style="color:#FFFFFF">—</span></span>   <!-- 2026-10-23 20:55 使用者:「指標二 也是一樣」:Oa ~ Od 字跟線的顏色、數字白色 -->   <!-- (判別式相關說明已移到私人庫) -->
@@ -5027,7 +5027,7 @@ function applyRfMode(){
   if (RF_MODE) rfDraw();
   try{ const wp = document.getElementById('wiPanel'); if (wp && wp.classList.contains('on')) wiRender(wp); }catch(e){}   // 15:20 切換圖時試算跟著換(漲跌圖 = 乖離率)
   const b = el('rfToggle');
-  if (b){ b.textContent = '切換'; b.classList.add('on');   // 2026-10-23 10:32 使用者:「切換按鍵 一致 橘色」:三張圖按鍵都橘色(原本只有漲跌 / 轉折圖才橘)
+  if (b){ b.textContent = ['K線圖', '漲跌圖', '轉折圖'][RF_VIEW] || 'K線圖'; b.classList.add('on');   // 2026-11-01 20:50 按鍵直接寫圖名(原本固定寫「切換」、前面另外標圖名)   // 2026-10-23 10:32 使用者:「切換按鍵 一致 橘色」:三張圖按鍵都橘色(原本只有漲跌 / 轉折圖才橘)
  const nm = el('rfName'); if (nm) nm.textContent = ['K線圖', '漲跌圖', '轉折圖'][RF_VIEW] || 'K線圖'; }   // 2026-10-23 10:30 按鍵固定寫「切換」,前面顯示現在是哪一張
   if (candle) candle.applyOptions({visible: !RF_MODE});
   try{ if (maLine && KA_COLORED && KA_PLAIN) maLine.setData(RF_MODE ? KA_PLAIN : KA_COLORED); }catch(e){}   // 2026-10-23 Ka:K 線圖紅綠、漲跌 / 轉折圖紫
