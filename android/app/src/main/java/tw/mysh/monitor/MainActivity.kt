@@ -8,6 +8,8 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.webkit.PermissionRequest
+import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.widget.PopupMenu
 import android.widget.TextView
@@ -20,6 +22,7 @@ import kotlin.concurrent.thread
 
 class MainActivity : AppCompatActivity() {
     private lateinit var web: WebView
+    private var pendingCam: PermissionRequest? = null   // 2026-11-01 網頁要用相機(掃鑰匙 QR Code),等使用者在系統視窗按允許
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,6 +32,20 @@ class MainActivity : AppCompatActivity() {
         val bridge = JsBridge(this, "activity")
         bridge.onMenu = { runOnUiThread { showMenu(findViewById(R.id.menuBtn)) } }   // 2026-10-19:長按網頁「設定」鍵 → 開選單;右下角的「≡」隱藏起來只當錨點
         Page.setup(web, bridge)
+        // 2026-11-01 使用者「在輸入金鑰的旁邊增設一個掃描QR Code的功能」:網頁開相機時(getUserMedia)要 App 同意;沒有相機權限就先跳系統視窗問
+        web.webChromeClient = object : WebChromeClient() {
+            override fun onPermissionRequest(request: PermissionRequest) {
+                runOnUiThread {
+                    if (!request.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) { request.deny(); return@runOnUiThread }
+                    if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                        request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
+                    } else {
+                        pendingCam?.deny(); pendingCam = request
+                        ActivityCompat.requestPermissions(this@MainActivity, arrayOf(Manifest.permission.CAMERA), 7)
+                    }
+                }
+            }
+        }
         web.loadUrl(Page.url(this)); loadedBuild = Page.currentBuild(this)
         web.postDelayed({ openFromIntent(intent) }, 1500)   // 2026-10-19 從通知冷啟動也要開那檔的圖
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
@@ -59,6 +76,15 @@ class MainActivity : AppCompatActivity() {
                     if (changed && MonitorService.running) { MonitorService.stop(this); web.postDelayed({ MonitorService.start(this) }, 1500) }   // 服務自己換的就不用重啟,它已經重載過了
                 }
             }
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 7) {
+            val r = pendingCam; pendingCam = null
+            if (r != null) { if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) r.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) else r.deny() }
         }
     }
 
