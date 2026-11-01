@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-01 23:33(實際時間)全面顯示測試時發現:收盤後到下個交易日 08:45,前一天有訊號的股票如果不在今天名單,監控清單只顯示代號(例:2409)→ 改成顯示名稱(友達)。
   · 2026-11-01 12:06(實際時間)免費和試用合併成「免鑰匙 30 天」(使用者「改」):第 1~7 天全部(含交易通知);第 8~30 天看圖、看報價,訊息 / 明細只列已平倉的交易結果、不跳通知;第 31 天起整個畫面蓋上「免費使用期已結束,請輸入鑰匙」。天數照手機 Android ID 第一次使用算(雲端時間,刪 App 重裝也一樣)。試用鑰匙方案拿掉。
   · 2026-11-01 10:57(實際時間)手機網頁和電腦中繼用同一個版本號(使用者「以後電腦跟手機要同樣版本」):app-build 和 tools/yuanta_bridge/VERSION 每次一起改成同一個「年月日時分」,這次兩邊都是 202611011057。
   · 2026-11-01 10:00(實際時間)每天第一次開 K 圖加快(使用者「讀K圖顯示要快」→「第一次」):背景預抓清單上各檔的 1 分 K 改成同時 4 檔、清單一出來就開始(原本一檔一檔、App 開 4 秒後才開始)。模擬每個請求 0.3 秒:49 檔全部抓好 30 秒 → 10 秒內。
@@ -102,7 +103,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611012057">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611012333">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6050,7 +6051,7 @@ window.bgTick = bgTick; window.BG = BG;
     if (d === today && !shownCodes.length){ try{ const n_ = new Date(Date.now() + 8 * 3600000), hm_ = n_.getUTCHours() * 60 + n_.getUTCMinutes(), wd_ = n_.getUTCDay();
       const hol_ = (window.TW_HOL && TW_HOL.has(n_.toISOString().slice(0, 10)));   // 00:25 使用者「關盤後一直到下一個有交易當天開盤前15分鐘 再消失」:休市日也留著
       if (!(wd_ >= 1 && wd_ <= 5 && !hol_ && hm_ >= 8 * 60 + 45)){ const pv = ds.filter(x => x < today).sort().reverse().find(x => itemsFor(x).some(y => y.kind !== 'sys'));
-        if (pv) shownCodes = finish(itemsFor(pv).filter(x => x.kind !== 'sys').map(parse).filter(Boolean)).filter(o => !o._hide).map(o => o.code); } }catch(e){} }
+        if (pv){ const pc = finish(itemsFor(pv).filter(x => x.kind !== 'sys').map(parse).filter(Boolean)).filter(o => !o._hide); pc.forEach(o => { if (o.name && o.name !== o.code && !SIG_NAMES.has(o.code)) SIG_NAMES.set(o.code, o.name); }); shownCodes = pc.map(o => o.code); } }   /* 2026-11-01 測試發現:前一天的股票不在今天名單時清單只顯示代號 → 記下卡片上的名稱 */ }catch(e){} }
     window.NL_SHOWN = {d, codes: shownCodes};   // 2026-10-19 給股票清單排序用:通知欄正在顯示的股票(新的在前)排最前面,不管有沒有平倉
     { const sig = [...new Set(NL_SHOWN.codes)].join(','); if (sig !== (window.NL_SIG || '')){ window.NL_SIG = sig; if (typeof scan === 'function' && LAST_LIST){ clearTimeout(window.NL_SCAN_T); window.NL_SCAN_T = setTimeout(() => { try{ scan(); }catch(e){} }, 300); } } }   // 通知欄裡的股票變了 → 清單重新產生(補進新的、拿掉超過上限的)
     // 2026-10-20 使用者:「反彈中跟請注意改顯示在監控欄位的股票下方監控中那邊」:每檔取最新一張還沒平倉的進場卡的反彈 / 注意狀態
