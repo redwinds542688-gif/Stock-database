@@ -102,7 +102,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611011901">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611011920">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3231,6 +3231,8 @@ function wiDevDraw(wp, r){
   const line = (f, col, lw) => { g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); let on = false; for (const [i, x] of pts){ const v = f(i); if (v == null){ continue; }   /* 2026-10-27 11:40 同上:線也畫到最右邊,不在十字線停 */ const y = yOf(v); if (!on){ g.moveTo(x, y); on = true; } else g.lineTo(x, y); } g.stroke(); };
   g.save(); g.setLineDash([3, 3]); line(i => KBa[i], '#FFE14D', 1.2); g.restore();   /* 0 線 = Kb;2026-10-27 18:40 使用者:「改成跟k線一樣的藍色虛線」(原灰色實線),顏色同 K 圖 Kb #19D3F5 */
   line(PY, '#B15CFF', 1.5);   /* 2026-10-27 18:45 均 10 線改紫色(使用者:「乖離綠線 改紫色」) */   /* 2026-10-27 18:45 使用者:「Kb改成黃色虛線 原乖離黃色 換成綠色」:均 10 線改綠、Kb 0 線改黃色虛線(只在乖離圖) */
+  { const sb = wp.querySelector('#dvSeam'); if (sb){ const tx = SEAM ? '無縫' : '原本'; if (sb.textContent !== tx) sb.textContent = tx;
+      const ak = innerWidth + '|' + innerHeight; if (sb.__ak !== ak){ const t = el('rfToggle'); if (t){ const R1 = t.getBoundingClientRect(), R2 = sb.parentElement.getBoundingClientRect(); if (R1.width && R2.width){ sb.style.right = Math.max(0, Math.round(R2.right - R1.right)) + 'px'; sb.__ak = ak; } } } } }   // 2026-11-01 19:20 和 K 圖「切換」右緣對齊
   const ci = (k => k >= 0 && B[k].time === cut ? k : -1)(wiBsearch(B, cut)), hd = wp.querySelector('#dvHd'), dl = ci >= 0 ? dev[ci] : null, al = ci >= 0 ? avg[ci] : null;
   // 十字線:直虛線 + Ka 那個價位的橫虛線,左邊標 Ka 價格(Ka 在 Kb 上紅底、下綠底)
   if (ci >= 0 && KAa[ci] != null){ const xc = ts.timeToCoordinate(B[ci].time); if (xc != null){ const X = Math.min(W - 1, Math.max(ox + 1, Math.round(ox + xc))) + 0.5, Y = Math.round(yOf(KAa[ci])) + 0.5;   // 2026-10-26 23:05 十字線在最右邊那根(跟著最新 K)時 x 落在畫布外、直虛線看不到(使用者「乖離圖 十字虛線不見了」)→ 夾在畫布內
@@ -3246,7 +3248,7 @@ function wiDevDraw(wp, r){
   const dvAr = (up, col) => `<svg viewBox="0 0 16 18" width="11" height="13" style="vertical-align:-1px;margin-left:1px"><path d="${up ? 'M8 1 L15 9 L11 9 L11 17 L5 17 L5 9 L1 9 Z' : 'M8 17 L15 9 L11 9 L11 1 L5 1 L5 9 L1 9 Z'}" fill="${col}"/></svg>`;   // 和 Ka / Kb 的 thickArrow 同一個圖
   const dvTr = (v, pv) => (pv == null || v == null || !isFinite(v) || !isFinite(pv)) ? '' : v > pv ? dvAr(true, '#FF3B3B') : v < pv ? dvAr(false, '#3EE6A0')
     : `<svg viewBox="0 0 16 18" width="11" height="13" style="vertical-align:-1px;margin-left:1px"><rect x="1" y="7" width="14" height="4" rx="1" fill="#D8DDE6"/></svg>`;   // 2026-10-29 00:30 持平 = 白色粗橫槓
-  if (hd && dl != null) hd.innerHTML = '<span style="color:#FFE14D">GL</span> <b style="color:#FFFFFF">' + (dl > 0 ? '+' : '') + dl.toFixed(2) + '%</b>' + dvTr(dl, ci > 0 ? dev[ci - 1] : null) + (al != null ? ' · <span style="color:#B15CFF">GT</span> <span style="color:#FFFFFF">' + (al > 0 ? '+' : '') + al.toFixed(2) + '%</span>' + dvTr(al, ci > 0 ? avg[ci - 1] : null) : '') + ' <button onclick="wiSeamToggle(event)" style="margin-left:6px;padding:1px 7px;font-size:11px;line-height:16px;border-radius:9px;border:1px solid ' + (SEAM ? '#19D3F5' : '#555') + ';background:' + (SEAM ? '#0B3A44' : '#1A1A1A') + ';color:' + (SEAM ? '#19D3F5' : '#AAA') + '">' + (SEAM ? '無縫' : '原本') + '</button>';   // 2026-11-01 19:00 乖離圖「原本 / 無縫」切換鍵;2026-11-01 14:02 使用者「“乖離”改“GL”黃色+後面的數值 白色 “均10” 改"GT"紫色+後面的數值 白色」
+  if (hd && dl != null) hd.innerHTML = '<span style="color:#FFE14D">GL</span> <b style="color:#FFFFFF">' + (dl > 0 ? '+' : '') + dl.toFixed(2) + '%</b>' + dvTr(dl, ci > 0 ? dev[ci - 1] : null) + (al != null ? ' · <span style="color:#B15CFF">GT</span> <span style="color:#FFFFFF">' + (al > 0 ? '+' : '') + al.toFixed(2) + '%</span>' + dvTr(al, ci > 0 ? avg[ci - 1] : null) : '');   // 2026-11-01 19:20 切換鍵改成獨立按鍵(#dvSeam,和 K 圖「切換」同樣式、靠最右);2026-11-01 14:02 使用者「“乖離”改“GL”黃色+後面的數值 白色 “均10” 改"GT"紫色+後面的數值 白色」
 }
 /* 2026-10-28 00:45 使用者:「乖離圖 最下面 原先是一個十字線的拖曳鍵 現在取消 顯示跟剛剛一樣的時間軸」:
    拿掉滑軌列,乖離視窗底部往上縮到時間軸上緣 → 露出底下 K 圖本來的時間軸(含左下角日期),跟 K 圖完全同步 */
@@ -3304,7 +3306,7 @@ function wiRender(wp){
       tab.innerHTML = '<table style="font-size:' + Math.max(10, Math.floor(h * 0.5)) + 'px"><tr class="ttl"><td colspan="' + (2 + BG_RS.length) + '"><div style="display:flex;justify-content:space-between;align-items:baseline"><b class="wiTt" style="color:#E6EAF2;font-size:1em"></b><span class="wiInf" style="color:#8C96AB;font-size:0.8em"></span></div></td></tr></table>'
         + '<div class="dvg" style="height:' + h + 'px;font-size:' + fs + 'px">' + xs.map(() => '<div class="wiPx" style="width:36px;text-align:center;white-space:nowrap;overflow:hidden"></div>').join('') + '</div>'
         + '<div class="dvg dvp" style="height:' + h + 'px"><i class="dvl" style="top:' + mid + 'px"></i>' + xs.map(() => '<div style="width:36px;height:100%;position:relative"><i class="wiBar" style="position:absolute;left:6px;width:24px"></i></div>').join('') + '</div>'
-        + '<div class="dvH" style="height:' + (h * 8) + 'px"><div id="dvHd"></div><canvas id="dvCv"></canvas></div>';
+        + '<div class="dvH" style="height:' + (h * 8) + 'px"><div id="dvHd"></div><button id="dvSeam" class="rfbtn on" onclick="wiSeamToggle(event)" style="position:absolute;top:2px;right:8px;z-index:2;margin:0">' + (wiSeamOn() ? '無縫' : '原本') + '</button><canvas id="dvCv"></canvas></div>';   /* 2026-11-01 19:20 使用者「把這個按鍵設跟K圖的切換鍵 對齊 大小一樣 靠最右」 */
       U = tab.__ui = {key, mid, up: mid - 1, dn: h - mid - 2, tt: tab.querySelector('.wiTt'), inf: tab.querySelector('.wiInf'), px: [...tab.querySelectorAll('.wiPx')], bar: [...tab.querySelectorAll('.wiBar')], cv: tab.querySelector('#dvCv'), last: {}};
     }
     const put = (k, v, f) => { if (U.last[k] !== v){ U.last[k] = v; f(v); } };   /* 跟上一次一樣就不碰畫面 */
