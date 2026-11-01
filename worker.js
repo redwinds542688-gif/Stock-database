@@ -804,7 +804,9 @@ export default {
       if (!env || !env.GH_TOKEN) return J({ error: "Worker 沒有 GH_TOKEN" }, 503);
       // 2026-10-30 10:34(實際時間)使用者「東台 今天是處置股 為何還會被挑選進來」:pool.json 早上 08:20 起每 15~20 分鐘會被資格複檢改寫(新處置股 / 不能當沖),
       //   這裡原本快取 30 分鐘,手機 08:15~09:50 每 5 分鐘來抓也可能拿到舊的 → pool.json 和 html / js 一樣只快取 60 秒
-      const ttl = /\.(html|js)$/.test(path) ? 60 : /(version|pool)\.json$/.test(path) ? 60 : ref !== GH_REF ? 86400 : 1800;
+      // 2026-11-01 使用者重開中繼兩次都沒換到新 VERSION:中繼的檔(VERSION / FILES / *.py)和私人庫(模擬器 / 規則)原本快取 30 分鐘,
+      //   剛推的新版要等半小時才抓得到,而且 VERSION 和程式檔可能一新一舊 → 這兩類也只快取 60 秒
+      const ttl = ref !== GH_REF ? 86400 : (/\.(html|js)$/.test(path) || /(version|pool)\.json$/.test(path) || path.startsWith("tools/yuanta_bridge/") || logic) ? 60 : 1800;
       const r = await ghRaw(env, path, ref, ttl, logic ? GH_REPO_LOGIC : GH_REPO);
       const h = new Headers(r.headers); for (const [k, v] of Object.entries(CORS)) h.set(k, v); h.set("Cache-Control", "no-store");
       return new Response(r.body, { status: r.status, headers: h });
