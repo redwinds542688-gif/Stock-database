@@ -102,7 +102,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611012050">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611012053">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3209,7 +3209,7 @@ function wiDevDraw(wp, r){
     if (PC && PC.B === B && PC.n === n && PC.last === B[n - 1].close && PC.lv === B[n - 1].volume){ PR = PC.PR; PRA = PC.PRA; } else {
       PR = new Array(n).fill(null); let vs = 0;
       for (let i = 0; i < n; i++){ if (i >= 1) vs += (+B[i - 1].volume || 0); if (i >= 31) vs -= (+B[i - 31].volume || 0);
-        if (i < 30 || dayKey(B[i - 10].time) !== dayKey(B[i].time)) continue;
+        if (i < 30 || dayKey(B[i - 10].time) !== dayKey(B[i].time) || hmKey(B[i].time) >= '13:25') continue;   // 2026-11-01 20:53 13:25 後是收盤撮合(量一定大),和「撐 / 壓」標記一樣不算
         const vm = vs / 30, vmul = vm > 0 ? (+B[i].volume || 0) / vm : 0, tk = Math.abs(B[i].close - B[i - 1].close) / wiTick(B[i].close), pre = (B[i].close - B[i - 10].close) / B[i - 10].close;
         const sc = Math.min(8, vmul / (tk + 1)); PR[i] = pre > 0 ? sc : pre < 0 ? -sc : 0; }
       PRA = new Array(n).fill(null); { let sm = 0, k = 0; const q = []; for (let i = 0; i < n; i++){ if (PR[i] == null){ continue; } q.push(PR[i]); sm += PR[i]; if (q.length > 10) sm -= q.shift(); if (q.length >= 5) PRA[i] = sm / q.length; } }
