@@ -395,7 +395,7 @@ def _f(v, d):
 
 def pool_rules(j, cap):
     r = (j.get("rules") or {}) if isinstance(j, dict) else {}
-    return {"lo": max(_f(r.get("lo"), 15), _f(CFG.get("ENGINE_LO"), 15)),                      # 手機 BASE.lo 15 / 滾輪「監控低價」
+    return {"lo": max(_f(r.get("lo"), 10), _f(CFG.get("ENGINE_LO"), 10)),   # 2026-11-02 使用者「最低15元改成10元」                      # 手機 BASE.lo 15 / 滾輪「監控低價」
             "hi": min(_f(r.get("hi"), 500), _f(CFG.get("ENGINE_HI"), 500)),                      # 手機 BASE.hi 500 / 滾輪「監控高價」(2026-10-30 不再和「多空上限 ÷ 1000」取小:超額的照算、通知標「超額」)
             "amp": max(_f(r.get("min_amp"), 3.0), _f(CFG.get("ENGINE_AMP"), 3.0)),              # 手機 BASE.amp 3.0 / 滾輪「振幅」
             "size": int(_f(r.get("size"), 130)), "cnt": int(_f(CFG.get("ENGINE_MAX_CODES"), 99)), # 原始池前 size 名 / 滾輪「監控檔數」(2026-10-31 預設 49 → 99:使用者「現在不是99嗎」手機監控檔數是 99,電腦要一樣;「所有 15到500的股票 只要符合資格 都要放進來」)

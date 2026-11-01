@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 01:08(實際時間)監控最低價 15 → 10 元(使用者:「最低15元改成10元 重新搜索合格的新股票」):選股名單(make_pool.py)、手機「監控低價」滾輪(預設 10,範圍 10~50,舊存檔 15 搬到 10)、電腦公式程式篩選都改 10 元;重新跑每日選股。
   · 2026-11-02 00:20(實際時間)鑰匙可以掃 QR Code(使用者「在輸入金鑰的旁邊增設一個掃描QR Code的功能 然後金鑰產生器必須要可以產生一個QR Code的圖形底下才打著金鑰的密碼」):鑰匙視窗輸入格旁邊多一個「掃描」鍵,開後鏡頭掃到鑰匙(或 6 位數取件碼)就直接存;桌機 win_keys.py add 建鑰匙時自動產生 QR Code 圖(下面印鑰匙),也可以 win_keys.py qr <鑰匙> 再產生一次。Android 要 App 1.5.52(要允許相機),iPhone 網頁版直接可用。
   · 2026-11-02 00:07(實際時間)發鑰匙工具(win_keys.py)拿掉試用(trial)選項,雲端也拒絕 trial(原本會變成不到期的看盤鑰匙);付費只有 m1 / m3 / y1。
   · 2026-11-01 23:50(實際時間)iPhone 網頁版 App(使用者「這程式蘋果手機可以使用嗎」→「先做A」):Safari 開雲端網址 /app(看盤版)→ 下方提示「分享 → 加入主畫面」;從主畫面打開後按「開啟通知」就能收推播(iOS 16.4 起)。推播內容和看盤版一樣分級(付費 / 免費前 7 天只有判別式訊號,看不到元大真實買賣)。Android App 不受影響。
@@ -106,7 +107,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611020020">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611020108">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -779,8 +780,8 @@ window.MONITOR_SETTINGS = {
 
   lo: {                       // 監控低價
     label: '監控低價',
-    init : 15,
-    range: [{ from: 15, to: 50, step: 1 }],     // 每 1 元;長按才跳 15/20/30/40/50
+    init : 10,   // 2026-11-02 01:07 使用者「最低15元改成10元」
+    range: [{ from: 10, to: 50, step: 1 }],     // 每 1 元;長按才跳 10/15/20/30/40/50
   },
 
   amp: {                      // 最低振幅(含 % 符號)
@@ -1827,6 +1828,8 @@ const saved = (() => {
 if (!saved.cnt100 && String(saved.cnt) === '33') saved.cnt = '100';
 /* 2026-10-18 監控檔數改成 99~19 每 10 一格:舊存檔不在清單裡的(100、50、33、20、5)一律搬到 99 */
 if (!['99','89','79','69','59','49','39','29','19'].includes(String(saved.cnt))) saved.cnt = '99';
+/* 2026-11-02 01:07 使用者「最低15元改成10元」:監控低價舊存檔是 15 的搬到 10(只搬一次,之後自己撥回 15 會保留) */
+if (!saved.lo10 && String(saved.lo) === '15'){ saved.lo = '10'; saved.lo10 = 1; }
 /* 2026-10-17 監控高價預設 300 → 350:同樣只搬一次 */
 if (!saved.hi350 && String(saved.hi) === '300') saved.hi = '350';
 /* 2026-10-21 最低振幅預設 4.0% → 3.0%(使用者:「挑選股票 振幅改 3% 設定調整最低也一樣」):舊存檔還是 4.0% 的只搬一次 */
@@ -1841,7 +1844,7 @@ const saveFees = () => {
     hi: wHi.value, lo: wLo.value, amp: wAmp.value,
     disc: wFee.value, cnt: wCnt.value, cap: wCap.value,
     broker: wBroker.value, exch: wExch.value, tax: wTax.value,
-    cnt100: true, hi350: true, amp3: true, cnt49: true, fee25: true,
+    cnt100: true, hi350: true, amp3: true, cnt49: true, fee25: true, lo10: true,
   });
   try { localStorage.setItem(STORE_KEY, txt); } catch (e) { /* 無法存檔時忽略 */ }
   try { if (window.Android && Android.setPref) Android.setPref(STORE_KEY, txt); } catch (e) {}   // App 也存一份(2026-10-19)
@@ -1880,7 +1883,7 @@ function exportSettings(){
 /* 內建備份:settings.js 讀不到時使用,確保程式一定跑得起來 */
 const DEFAULT_SETTINGS = {
   hi    : { init: 350, range: [{from:51,to:500,step:1}] },
-  lo    : { init: 15,  range: [{from:15,to:50,step:1}] },
+  lo    : { init: 10,  range: [{from:10,to:50,step:1}] },
   amp   : { init: '4.0%',  range: [{from:4.0,to:8,step:0.1,decimals:1,suffix:'%'}] },
   disc  : { init: '25%',   range: [{from:10,to:100,step:5,suffix:'%'}] },
   cnt   : { init: 99, range: ['19','29','39','49','59','69','79','89','99'] },   // 2026-10-18 使用者:最多 99,每 10 一格
@@ -2005,7 +2008,7 @@ function attachCycle(wheelId, wheel, cycle, tie = 'low'){
 }
 
 attachCycle('cntWheel', wCnt, ['19', '29', '39', '49', '59', '69', '79', '89', '99']);
-attachCycle('loWheel',  wLo,  ['50', '40', '30', '20', '15']);
+attachCycle('loWheel',  wLo,  ['50', '40', '30', '20', '15', '10']);
 attachCycle('hiWheel',  wHi,  ['50','100','150','200','250','300',
                                '350','400','450','500']);
 attachCycle('ampWheel', wAmp, ['3.0%', '4.0%', '5.0%', '8.0%'], 'high');
@@ -5561,7 +5564,7 @@ function togglePosition(code, side, price){
 function posStatus(code){ const p = POSITIONS.get(code); return p ? (p.status === 'closed' ? 'closed' : 'open') : ''; }
 function closedRecently(code){ const p = POSITIONS.get(code); return !!(p && p.status === 'closed' && Date.now() - (p.closedAt || 0) < 60000); }   // 已平倉 1 分鐘內
 
-const BASE = window.MONITOR_BASE || { lo: 15, hi: 500, amp: 4.0, size: 100,
+const BASE = window.MONITOR_BASE || { lo: 10, hi: 500, amp: 4.0, size: 100,
                                        excludeIndustry: ['17'], avg5MinAmp: 4.0, tickMaxPct: 0.5, entryMaxChg: 3.5,
                                        maPeriod: 10, obvMaPeriod: 10,
                                        atrPeriod: 14, stopAtr: 1.5, takeAtr: 3.0, riskPerTrade: 2000 };
