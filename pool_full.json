@@ -1,7 +1,7 @@
 {
 "date": "2026-10-30",
 "rules": {
-"lo": 15,
+"lo": 10,
 "hi": 500,
 "min_amp": 3.0,
 "min_lots": 6000,
@@ -296,6 +296,12 @@
 "name": "台虹",
 "market": "twse",
 "lots": 13108
+},
+{
+"code": "2323",
+"name": "中環",
+"market": "twse",
+"lots": 12950
 },
 {
 "code": "2465",
