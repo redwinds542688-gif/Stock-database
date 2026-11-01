@@ -102,7 +102,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611012016">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611012045">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3176,6 +3176,9 @@ function wiDevTap(wp){
   const up = ev => { if (st && st.mode === 'x') try{ edgeScroll.stop(); }catch(e){} if (st && (st.mode === null || (st.mode === 'x' && !st.mv && Date.now() - st.t0 < 250)) && ev && ev.type === 'pointerup') go(ev); st = null; };   /* 2026-10-28 00:50 長按在十字線上沒移動 = 十字線不動 */   /* 沒移動 = 點一下 */
   wp.addEventListener('pointerup', up); wp.addEventListener('pointercancel', up);
 }
+function wiPressOn(){ try{ return localStorage.getItem('mysh.devMode') === 'press'; }catch(e){ return !!window.__devPress; } }   // 2026-11-01 20:44 乖離圖 / 壓力圖 切換(每台手機自己記)
+function wiPressToggle(ev){ try{ ev && ev.stopPropagation && ev.stopPropagation(); }catch(e){} const on = !wiPressOn(); window.__devPress = on; try{ localStorage.setItem('mysh.devMode', on ? 'press' : 'dev'); }catch(e){}
+  try{ const wp = document.getElementById('wiPanel'); if (wp && window.__wiLastR) wiDevDraw(wp, window.__wiLastR); }catch(e){} }
 function wiDevDraw(wp, r){
   wiDevTap(wp); { const c0 = wp.querySelector('#dvCv'); if (c0) c0.style.touchAction = 'none'; }
   // 2026-10-25 15:25 使用者(元大「均線乖離率」截圖 →「上下顯示」→ 選「元大那種走勢柱狀圖」):乖離率 = (Ka − Kb) ÷ Kb %(Ka = 收盤均 10、Kb = 收盤均 24,都跨日);
@@ -3198,6 +3201,20 @@ function wiDevDraw(wp, r){
    /* 2026-10-25 18:30 使用者「乖離率 設短10長28均10」:黃線改成乖離率的均 10(原 28) */
   avg = new Array(n).fill(null); { let s = 0, k = 0; for (let i = 0; i < n; i++){ if (dev[i] == null) continue; s += dev[i]; k++; const j = i - AP; if (k > AP && dev[j] != null){ s -= dev[j]; k--; } if (k >= AP) avg[i] = s / AP; } }
   window.__wiDevC = {B, n, last: B[n - 1].close, k: KN + '|' + KB + '|' + AP, dev, avg, KAa, KBa}; }
+  // 2026-11-01 20:44 使用者「那就 加在乖離圖這 像剛剛那樣切換 這圖命名 壓力圖」:壓力圖 —— 每根壓力值 = 量倍數(這根量 ÷ 前 30 根平均)÷(這根收盤和前一根差幾檔 + 1),
+  //   前 10 根(同一天)在漲記 +(壓力)、在跌記 −(支撐);左邊刻度 = 價格:0 線 = Ka(K10),柱 = Ka × (1 + 壓力 × 0.4%),橘線 = 壓力 10 根平均換成價格。只是顯示,不進判別式
+  const PRESS = wiPressOn(), PRS = 0.4;
+  let PR = null, PRA = null;
+  if (PRESS){ const PC = window.__wiPrC;
+    if (PC && PC.B === B && PC.n === n && PC.last === B[n - 1].close && PC.lv === B[n - 1].volume){ PR = PC.PR; PRA = PC.PRA; } else {
+      PR = new Array(n).fill(null); let vs = 0;
+      for (let i = 0; i < n; i++){ if (i >= 1) vs += (+B[i - 1].volume || 0); if (i >= 31) vs -= (+B[i - 31].volume || 0);
+        if (i < 30 || dayKey(B[i - 10].time) !== dayKey(B[i].time)) continue;
+        const vm = vs / 30, vmul = vm > 0 ? (+B[i].volume || 0) / vm : 0, tk = Math.abs(B[i].close - B[i - 1].close) / wiTick(B[i].close), pre = (B[i].close - B[i - 10].close) / B[i - 10].close;
+        const sc = Math.min(8, vmul / (tk + 1)); PR[i] = pre > 0 ? sc : pre < 0 ? -sc : 0; }
+      PRA = new Array(n).fill(null); { let sm = 0, k = 0; const q = []; for (let i = 0; i < n; i++){ if (PR[i] == null){ continue; } q.push(PR[i]); sm += PR[i]; if (q.length > 10) sm -= q.shift(); if (q.length >= 5) PRA[i] = sm / q.length; } }
+      window.__wiPrC = {B, n, last: B[n - 1].close, lv: B[n - 1].volume, PR, PRA}; } }
+  const PTOP = i => PR && PR[i] != null && KAa[i] != null ? KAa[i] * (1 + PR[i] * PRS / 100) : null, PAVG = i => PRA && PRA[i] != null && KAa[i] != null ? KAa[i] * (1 + PRA[i] * PRS / 100) : null;
   const ts = chart.timeScale(), aw = chart.priceScale('left').width() || 0, ok = innerWidth + '|' + W + '|' + aw;
   if (!box.__ox || box.__ox.k !== ok) box.__ox = {k: ok, v: el('chartTop').getBoundingClientRect().left - box.getBoundingClientRect().left};   /* 18:58 同上,量一次記住 */
   const ox = box.__ox.v + aw;
@@ -3209,7 +3226,7 @@ function wiDevDraw(wp, r){
   // 2026-10-25 19:20 使用者「如果 左側改成價格 乖離的0跟隨價格改變的話 是不是可以開出乖離又可以看到價格下跌」→ 選「中」:
   //   左邊刻度改成價格;0 線 = Kb(灰,跟著價格走);柱 = Kb 到 Ka 的實際差價(Ka 在上紅、在下綠);黃線 = 乖離均 10 換成價格(Kb × (1 + 均 10 %))
   const PY = i => avg[i] == null || KBa[i] == null ? null : KBa[i] * (1 + avg[i] / 100);
-  let lo = 1e18, hi = -1e18; for (const [i] of pts){ for (const v of [KAa[i], KBa[i], PY(i)]) if (v != null){ if (v < lo) lo = v; if (v > hi) hi = v; } }
+  let lo = 1e18, hi = -1e18; for (const [i] of pts){ for (const v of (PRESS ? [KAa[i], PTOP(i), PAVG(i), B[i].close] : [KAa[i], KBa[i], PY(i)])) if (v != null){ if (v < lo) lo = v; if (v > hi) hi = v; } }
   if (!(hi > lo)){ const m = isFinite(lo) ? lo : B[n - 1].close; lo = m * 0.999; hi = m * 1.001; }
   { const pad = (hi - lo) * 0.08; lo -= pad; hi += pad; }
   const sy = (H - 8) / (hi - lo), yOf = v => 4 + (hi - v) * sy, pc = A.prevClose;
@@ -3220,12 +3237,17 @@ function wiDevDraw(wp, r){
       g.strokeStyle = '#1C1C1C'; g.beginPath(); g.moveTo(ox, Math.round(y) + 0.5); g.lineTo(W, Math.round(y) + 0.5); g.stroke();
       const vv = +v.toFixed(2); g.fillStyle = PX_AXIS_COL; /* 2026-11-01 使用者「都改成 黃字」→「把 黃色 換 藍色」 */ g.fillText(vv.toFixed(2), ox - 4, y); }
     g.strokeStyle = '#3A3A3A'; g.beginPath(); g.moveTo(ox + 0.5, 0); g.lineTo(ox + 0.5, H); g.stroke(); }
-  for (const [i, x] of pts){ if (KAa[i] == null) continue; const ya = yOf(KAa[i]), yb = yOf(KBa[i]), w = Math.max(1, bw * 0.7);
+  if (PRESS){ const w = Math.max(1, bw * 0.7);
+    for (const [i, x] of pts){ const tp = PTOP(i); if (tp == null) continue; const ya = yOf(KAa[i]), yt = yOf(tp); g.fillStyle = PR[i] >= 0 ? '#FFB300' : '#00E5FF'; g.fillRect(x - w / 2, Math.min(ya, yt), w, Math.max(1, Math.abs(ya - yt))); } }
+  else for (const [i, x] of pts){ if (KAa[i] == null) continue; const ya = yOf(KAa[i]), yb = yOf(KBa[i]), w = Math.max(1, bw * 0.7);
     g.globalAlpha = 1; /* 2026-10-27 11:40 使用者:「右邊也一律亮色 改」:十字線之後的柱子不再畫淡色(原 0.3) */ g.fillStyle = KAa[i] >= KBa[i] ? '#E0303F' : '#2EE59D'; g.fillRect(x - w / 2, Math.min(ya, yb), w, Math.max(1, Math.abs(ya - yb))); }
   g.globalAlpha = 1;
   const line = (f, col, lw) => { g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); let on = false; for (const [i, x] of pts){ const v = f(i); if (v == null){ continue; }   /* 2026-10-27 11:40 同上:線也畫到最右邊,不在十字線停 */ const y = yOf(v); if (!on){ g.moveTo(x, y); on = true; } else g.lineTo(x, y); } g.stroke(); };
+  if (PRESS){ line(i => B[i].close, 'rgba(230,237,243,0.55)', 1); g.save(); g.setLineDash([3, 3]); line(i => KAa[i], '#D63AF9', 1.2); g.restore(); line(PAVG, '#FF7A00', 1.6); } else {
   g.save(); g.setLineDash([3, 3]); line(i => KBa[i], '#FFE14D', 1.2); g.restore();   /* 0 線 = Kb;2026-10-27 18:40 使用者:「改成跟k線一樣的藍色虛線」(原灰色實線),顏色同 K 圖 Kb #19D3F5 */
-  line(PY, '#B15CFF', 1.5);   /* 2026-10-27 18:45 均 10 線改紫色(使用者:「乖離綠線 改紫色」) */   /* 2026-10-27 18:45 使用者:「Kb改成黃色虛線 原乖離黃色 換成綠色」:均 10 線改綠、Kb 0 線改黃色虛線(只在乖離圖) */
+  line(PY, '#B15CFF', 1.5);   /* 2026-10-27 18:45 均 10 線改紫色(使用者:「乖離綠線 改紫色」) */   /* 2026-10-27 18:45 使用者:「Kb改成黃色虛線 原乖離黃色 換成綠色」:均 10 線改綠、Kb 0 線改黃色虛線(只在乖離圖) */ }   // 2026-11-01 20:44 壓力圖分支結束
+  { const sb = wp.querySelector('#dvMode'); if (sb){ const tx = PRESS ? '壓力圖' : '乖離圖'; if (sb.textContent !== tx) sb.textContent = tx;
+      const ak = innerWidth + '|' + innerHeight; if (sb.__ak !== ak){ const t = el('rfToggle'); if (t){ const R1 = t.getBoundingClientRect(), R2 = sb.parentElement.getBoundingClientRect(); if (R1.width && R2.width){ sb.style.right = Math.max(0, Math.round(R2.right - R1.right)) + 'px'; sb.__ak = ak; } } } } }   // 和 K 圖「切換」右緣對齊
   const ci = (k => k >= 0 && B[k].time === cut ? k : -1)(wiBsearch(B, cut)), hd = wp.querySelector('#dvHd'), dl = ci >= 0 ? dev[ci] : null, al = ci >= 0 ? avg[ci] : null;
   // 十字線:直虛線 + Ka 那個價位的橫虛線,左邊標 Ka 價格(Ka 在 Kb 上紅底、下綠底)
   if (ci >= 0 && KAa[ci] != null){ const xc = ts.timeToCoordinate(B[ci].time); if (xc != null){ const X = Math.min(W - 1, Math.max(ox + 1, Math.round(ox + xc))) + 0.5, Y = Math.round(yOf(KAa[ci])) + 0.5;   // 2026-10-26 23:05 十字線在最右邊那根(跟著最新 K)時 x 落在畫布外、直虛線看不到(使用者「乖離圖 十字虛線不見了」)→ 夾在畫布內
@@ -3233,7 +3255,7 @@ function wiDevDraw(wp, r){
       g.beginPath(); g.moveTo(X, 0); g.lineTo(X, H); g.stroke(); g.beginPath(); g.moveTo(ox, Y); g.lineTo(W, Y); g.stroke(); g.restore();
       // 2026-10-27 20:05 使用者:「乖離圖也要跟k圖一樣 十字線碰到乖離均線與kb 要有點」:十字線那根在 Kb(黃虛線)、乖離均 10(紫線)上各畫一個實心點
       { const dot = (v, col) => { if (v == null || !isFinite(v)) return; const yy = yOf(v); g.beginPath(); g.arc(X, yy, 4.5, 0, Math.PI * 2); g.fillStyle = col; g.fill(); g.lineWidth = 1; g.strokeStyle = '#000'; g.stroke(); };
-        dot(KBa[ci], '#FFE14D'); dot(PY(ci), '#B15CFF'); }
+        if (PRESS) dot(PAVG(ci), '#FF7A00'); else { dot(KBa[ci], '#FFE14D'); dot(PY(ci), '#B15CFF'); } }
       const txt = KAa[ci].toFixed(2); g.font = 'bold 11px ui-monospace,Menlo,monospace';
       g.fillStyle = dl > 0 ? '#E0303F' : dl < 0 ? '#08A060' : '#FFFFFF'; g.fillRect(0, Y - 8, ox, 16);
       g.fillStyle = dl === 0 ? '#000' : '#FFF'; g.textAlign = 'right'; g.textBaseline = 'middle'; g.fillText(txt, ox - 4, Y); } }
@@ -3241,7 +3263,10 @@ function wiDevDraw(wp, r){
   const dvAr = (up, col) => `<svg viewBox="0 0 16 18" width="11" height="13" style="vertical-align:-1px;margin-left:1px"><path d="${up ? 'M8 1 L15 9 L11 9 L11 17 L5 17 L5 9 L1 9 Z' : 'M8 17 L15 9 L11 9 L11 1 L5 1 L5 9 L1 9 Z'}" fill="${col}"/></svg>`;   // 和 Ka / Kb 的 thickArrow 同一個圖
   const dvTr = (v, pv) => (pv == null || v == null || !isFinite(v) || !isFinite(pv)) ? '' : v > pv ? dvAr(true, '#FF3B3B') : v < pv ? dvAr(false, '#3EE6A0')
     : `<svg viewBox="0 0 16 18" width="11" height="13" style="vertical-align:-1px;margin-left:1px"><rect x="1" y="7" width="14" height="4" rx="1" fill="#D8DDE6"/></svg>`;   // 2026-10-29 00:30 持平 = 白色粗橫槓
-  if (hd && dl != null) hd.innerHTML = '<span style="color:#FFE14D">GL</span> <b style="color:#FFFFFF">' + (dl > 0 ? '+' : '') + dl.toFixed(2) + '%</b>' + dvTr(dl, ci > 0 ? dev[ci - 1] : null) + (al != null ? ' · <span style="color:#B15CFF">GT</span> <span style="color:#FFFFFF">' + (al > 0 ? '+' : '') + al.toFixed(2) + '%</span>' + dvTr(al, ci > 0 ? avg[ci - 1] : null) : '');   // 2026-11-01 14:02 使用者「“乖離”改“GL”黃色+後面的數值 白色 “均10” 改"GT"紫色+後面的數值 白色」
+  if (PRESS && hd){ const pv = ci >= 0 && PR ? PR[ci] : null, pa = ci >= 0 && PRA ? PRA[ci] : null;
+    hd.innerHTML = pv == null ? '<span style="color:#FFB300">壓力圖</span>' : '<span style="color:' + (pv >= 0 ? '#FFB300' : '#00E5FF') + '">' + (pv >= 0 ? '壓力' : '支撐') + '</span> <b style="color:#FFFFFF">' + Math.abs(pv).toFixed(2) + '</b>'
+      + (pa != null ? ' · <span style="color:#FF7A00">均10</span> <span style="color:#FFFFFF">' + (pa > 0 ? '+' : '') + pa.toFixed(2) + '</span>' : ''); }
+  else if (hd && dl != null) hd.innerHTML = '<span style="color:#FFE14D">GL</span> <b style="color:#FFFFFF">' + (dl > 0 ? '+' : '') + dl.toFixed(2) + '%</b>' + dvTr(dl, ci > 0 ? dev[ci - 1] : null) + (al != null ? ' · <span style="color:#B15CFF">GT</span> <span style="color:#FFFFFF">' + (al > 0 ? '+' : '') + al.toFixed(2) + '%</span>' + dvTr(al, ci > 0 ? avg[ci - 1] : null) : '');   // 2026-11-01 14:02 使用者「“乖離”改“GL”黃色+後面的數值 白色 “均10” 改"GT"紫色+後面的數值 白色」
 }
 /* 2026-10-28 00:45 使用者:「乖離圖 最下面 原先是一個十字線的拖曳鍵 現在取消 顯示跟剛剛一樣的時間軸」:
    拿掉滑軌列,乖離視窗底部往上縮到時間軸上緣 → 露出底下 K 圖本來的時間軸(含左下角日期),跟 K 圖完全同步 */
@@ -3299,7 +3324,7 @@ function wiRender(wp){
       tab.innerHTML = '<table style="font-size:' + Math.max(10, Math.floor(h * 0.5)) + 'px"><tr class="ttl"><td colspan="' + (2 + BG_RS.length) + '"><div style="display:flex;justify-content:space-between;align-items:baseline"><b class="wiTt" style="color:#E6EAF2;font-size:1em"></b><span class="wiInf" style="color:#8C96AB;font-size:0.8em"></span></div></td></tr></table>'
         + '<div class="dvg" style="height:' + h + 'px;font-size:' + fs + 'px">' + xs.map(() => '<div class="wiPx" style="width:36px;text-align:center;white-space:nowrap;overflow:hidden"></div>').join('') + '</div>'
         + '<div class="dvg dvp" style="height:' + h + 'px"><i class="dvl" style="top:' + mid + 'px"></i>' + xs.map(() => '<div style="width:36px;height:100%;position:relative"><i class="wiBar" style="position:absolute;left:6px;width:24px"></i></div>').join('') + '</div>'
-        + '<div class="dvH" style="height:' + (h * 8) + 'px"><div id="dvHd"></div><canvas id="dvCv"></canvas></div>';
+        + '<div class="dvH" style="height:' + (h * 8) + 'px"><div id="dvHd"></div><button id="dvMode" class="rfbtn on" onclick="wiPressToggle(event)" style="position:absolute;top:2px;right:8px;z-index:2;margin:0">' + (wiPressOn() ? '壓力圖' : '乖離圖') + '</button><canvas id="dvCv"></canvas></div>';   /* 2026-11-01 20:44 乖離圖 / 壓力圖 切換鍵(和 K 圖「切換」同樣式、靠最右) */
       U = tab.__ui = {key, mid, up: mid - 1, dn: h - mid - 2, tt: tab.querySelector('.wiTt'), inf: tab.querySelector('.wiInf'), px: [...tab.querySelectorAll('.wiPx')], bar: [...tab.querySelectorAll('.wiBar')], cv: tab.querySelector('#dvCv'), last: {}};
     }
     const put = (k, v, f) => { if (U.last[k] !== v){ U.last[k] = v; f(v); } };   /* 跟上一次一樣就不碰畫面 */
