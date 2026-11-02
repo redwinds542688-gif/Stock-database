@@ -475,6 +475,7 @@ export class Hub extends DurableObject {
   snapPut(k, v) { this.sql.exec("INSERT OR REPLACE INTO snaps (k, v) VALUES (?, ?)", k, v);
     if (k.startsWith("bar:") && k.endsWith(":09:00")) this.sql.exec("DELETE FROM snaps WHERE substr(k, 5, 10) < ?", new Date(Date.parse(k.slice(4, 14) + "T00:00:00Z") - 14 * 86400e3).toISOString().slice(0, 10));   // 留 14 天
     return true; }
+  badLog(rec) { const a = (this.kvGet("badlog") || []); a.push(rec); this.kvPut("badlog", a.slice(-40)); return true; }
   snapHas(k) { return this.sql.exec("SELECT 1 FROM snaps WHERE k = ?", k).toArray().length > 0; }
   snapGet(keys) {
     const m = new Map();
@@ -600,7 +601,13 @@ export default {
       if (url.pathname === "/sw.js") h.set("Service-Worker-Allowed", "/");
       return new Response(r.body, { status: r.status, headers: h });
     }
-    const J = (obj, status = 200) => new Response(JSON.stringify(obj, null, 1), { status, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });
+    const J = (obj, status = 200) => {
+      // 2026-11-02 15:16 查「一進去就跳輸入鑰匙」:被拒(badKey)的請求記到 Hub(鑰匙只留頭尾 4 碼),?kvping 看得到
+      try { if (status === 403 && obj && obj.badKey && env && env.HUB && ctx && ctx.waitUntil) { const kk = (url.searchParams.get("k") || request.headers.get("X-App-Key") || "").trim();
+        const q = url.search.replace(/([?&]k=)[^&]*/, "$1*").replace(/([?&]dv=)[^&]*/, "$1*").slice(0, 120);
+        ctx.waitUntil(hubOf(env).badLog({ t: new Date(Date.now() + 8 * 3600e3).toISOString().slice(11, 19), k: kk ? kk.slice(0, 4) + "…" + kk.slice(-4) : "", dv: !!url.searchParams.get("dv"), q, e: String(obj.error || obj.msg || "").slice(0, 60), ki: typeof KI === "undefined" || !KI ? null : (KI.role + (KI.emer ? "(緊急)" : "")) }).catch(() => {})); } } catch (e) {}
+      return new Response(JSON.stringify(obj, null, 1), { status, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });
+    };
 
     // 2026-11-02 11:05 診斷:KV 讀得到嗎(手機鑰匙一直被說無效 → 查是不是 KV 每日讀取額度用完);不回任何鑰匙內容
     if (url.searchParams.get("kvping") !== null) {
@@ -608,6 +615,7 @@ export default {
       try { const v = await env.LOGS.get("keys:owners"); out.kv = v ? "ok" : "空"; } catch (e) { out.kv = "錯誤:" + String(e && e.message || e).slice(0, 160); }
       try { const v = await env.LOGS.get("keys:owners", { cacheTtl: 300 }); out.kvCache = v ? "ok" : "空"; } catch (e) { out.kvCache = "錯誤:" + String(e && e.message || e).slice(0, 160); }
       try { const v = env.HUB ? await hubOf(env).kvGet("m:cfg:cap") : null; const c = v ? JSON.parse(v) : null; out.cfg = c ? { cap: c.cap, at: new Date(c.at + 8 * 3600e3).toISOString().slice(5, 16), set: c.set || null } : "雲端備份還沒有(主導機還沒送過)"; } catch (e) { out.cfg = "讀不到"; }   // 2026-11-02 看主導機設定有沒有送上來(只有數值,沒有鑰匙)
+      try { out.bad = env.HUB ? (await hubOf(env).kvGet("badlog") || []).slice(-15) : []; } catch (e) {}
       try { const r = await env.LOGS.list({ prefix: "key:", limit: 1000 }); out.keys = r.keys.length; out.meta = r.keys.filter(k => k.metadata).length; } catch (e) { out.keys = "錯誤:" + String(e && e.message || e).slice(0, 120); }
       return J(out);
     }
