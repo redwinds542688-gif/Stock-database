@@ -150,7 +150,7 @@ ok(amount_reject("當日委託額度不足") and amount_reject("超過可用額�
 # 21) 一天成交總金額上限(自動進場):只夠 1 張掛 1 張;不夠不進
 t21, g21 = mk(TRADE_QTY="5", TRADE_MAX_AMOUNT="200000"); t21.on_tick("6269", 86.2); t21.step([ENT]); ok(g21.sent[-1][2] == 1)
 t21.on_report(51, "A0001", 0, 1000, 86.1); t21.on_tick("6269", 84.0); t21.on_report(51, "A0002", 0, 1000, 84.1); ok(abs(t21.amount_today - 170200) < 1)
-t21.on_tick("2409", 37.25); t21.step([ENTX("2409", 37.25, k="z1")]); ok("2409" not in t21.positions and "不夠一進一出" in logs[-1])
+t21.on_tick("2409", 37.25); t21.step([ENTX("2409", 37.25, k="z1")]); ok("2409" not in t21.positions and "不夠 1 張" in logs[-1])
 
 # ── 2026-10-28 新規格 ──
 # F1) 強制做多:漲停價買進 ROD、自訂編號 F 開頭;成交 → 停利 / 停損 = 判三 % 從成交價算;寫一則「強三」進場訊息

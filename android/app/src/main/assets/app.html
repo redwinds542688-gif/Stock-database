@@ -140,7 +140,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611021521">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611021618">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2767,10 +2767,10 @@ window.yuantaLive = yuantaLive;
 // 2026-10-21 判二「大盤偏多只做黑盤空」:大盤寬度(每分鐘上漲比例)。跟雲端 K 一起每 55 秒抓一次;沒抓到 = 不擋
 /* 2026-10-29 使用者:「我說的可用資金是訊息右上那個」→「我現在要做的是2」:當沖額度剩多少,由桌機中繼每 ~30 秒算好推上 Worker(?quota):
    總額度 − 今天成交(買 + 賣,含手動)− 還掛著的委託(含手動)。訊息右上角「資金」優先顯示這個;沒有、不是今天、或超過 10 分鐘沒更新就用 App 自己算的 */
-const QUOTA = { d: '', at: 0, fill: 0, work: 0, total: 0, got: 0 };
+const QUOTA = { d: '', at: 0, fill: 0, work: 0, hold: 0, total: 0, got: 0 };
 async function loadQuota(force){ try{ if (!liveOn()) return; if (!force && Date.now() - QUOTA.got < 30000) return; QUOTA.got = Date.now();
   const r = await fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?quota=get&_=${Date.now()}`, {cache: 'no-store'}); const j = await r.json();
-  if (j && j.d){ QUOTA.d = j.d; QUOTA.at = +j.at || 0; QUOTA.fill = +j.fill || 0; QUOTA.work = +j.work || 0; QUOTA.total = +j.total || 0; } }catch(e){} }
+  if (j && j.d){ QUOTA.d = j.d; QUOTA.at = +j.at || 0; QUOTA.fill = +j.fill || 0; QUOTA.work = +j.work || 0; QUOTA.hold = +j.hold || 0; QUOTA.total = +j.total || 0; }   /* 2026-11-02 hold = 還沒平倉部位 × 漲停價(元大先扣贖回額度) */ }catch(e){} }
 window.QUOTA = QUOTA; window.loadQuota = loadQuota;
 /* 2026-10-30 11:08(實際時間)電腦開盤前資格複檢(使用者「該如何避免再次出現這問題」→「2道都做」第 1 道):
    桌機 bridge 啟動時、08:30、08:44 直接向證交所 / 櫃買抓今天的處置股 / 注意股 / 可當沖 / 暫停先賣後買,對照名單檔後推 Worker(?elig)。
@@ -6589,12 +6589,12 @@ window.bgTick = bgTick; window.BG = BG;
         else if (o.type === 'exit' && o.price > 0) u += o.price * lt * 1000; } }catch(e){} return Math.round(u); };
     const used = usedOf(cards); const CAPD = 5000000;   // 2026-10-31 14:57 使用者「490萬 改成500萬」
     // 2026-10-29 使用者:「我說的可用資金是訊息右上那個」→ 有桌機推上來的當沖額度(今天、10 分鐘內)就用它:總額度 − 成交 − 掛著的(含手動);沒有就照上面 App 自己算的
-    let fundLeft = CAPD - used; try{ if (QUOTA.d === today && QUOTA.total > 0) fundLeft = Math.round(QUOTA.total - QUOTA.fill - QUOTA.work); }catch(e){}   // 2026-11-02 14:34 使用者「資金 怎麼會-500620」:收盤後電腦不再推額度,超過 10 分鐘就改用手機自己算(連沒交易的訊號都算進去)→ 今天電腦推過的就一直用最後那份
+    let fundLeft = CAPD - used; try{ if (QUOTA.d === today && QUOTA.total > 0) fundLeft = Math.round(QUOTA.total - QUOTA.fill - QUOTA.work - (QUOTA.hold || 0)); }catch(e){}   // 2026-11-02 14:34 使用者「資金 怎麼會-500620」:收盤後電腦不再推額度,超過 10 分鐘就改用手機自己算(連沒交易的訊號都算進去)→ 今天電腦推過的就一直用最後那份
     // 2026-10-30 03:39(實際時間)使用者「右上角 資金4900000 一樣確定開盤當日開盤前15分 才顯示 在此之前 都是顯示剩餘資金」:
     //   平日 08:45 以前(含週末、半夜)→ 顯示前一個交易日收盤時剩下的額度(桌機最後推的 ?quota 是那天的就用它:總額度 − 成交 − 掛著的;否則 490 萬 − 那天的成交),08:45 起才歸回 490 萬(和當沖頁換日的時間一樣)
     try{ const n_ = new Date(Date.now() + 8 * 3600000), hm_ = n_.getUTCHours() * 60 + n_.getUTCMinutes(), wd_ = n_.getUTCDay();
       if (!(wd_ >= 1 && wd_ <= 5 && hm_ >= 8 * 60 + 45)){ const prev = ds.filter(x => x < today).sort().reverse()[0];
-        if (prev){ if (QUOTA.d === prev && QUOTA.total > 0) fundLeft = Math.round(QUOTA.total - QUOTA.fill - QUOTA.work);
+        if (prev){ if (QUOTA.d === prev && QUOTA.total > 0) fundLeft = Math.round(QUOTA.total - QUOTA.fill - QUOTA.work - (QUOTA.hold || 0));
           else { ensureCloud(prev); fundLeft = CAPD - usedOf(finish(prep(itemsFor(prev)))); } } } }catch(e){}
     fundLeft = Math.max(0, fundLeft);   // 不顯示負的
     if (d === today) window.__fundLeft = fundLeft;   // 2026-10-28 強制進場:資金買不到 1 張 → 長按沒反應

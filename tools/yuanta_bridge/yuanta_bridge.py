@@ -761,7 +761,12 @@ class Bridge:
         self._quota_at = now
         total = float(CFG.get("QUOTA_TOTAL", CFG.get("TRADE_MAX_AMOUNT", "5000000")))
         if total == 4900000: total = 5000000   # 2026-10-31 14:57 使用者「490萬 改成500萬」(bridge.env 舊的 490 萬也當 500 萬)
-        body = json.dumps({"d": now_tw().strftime("%Y-%m-%d"), "hm": now_tw().strftime("%H:%M:%S"), "fill": round(fill), "work": round(work), "total": total}).encode()
+        # 2026-11-02 16:16 使用者「當沖還未贖回 皆以漲停價 暗自計算 … 剩餘的 才是能再交易的資金」→「改」:還沒平倉的部位(還沒掛平倉單的)用漲停價先扣 = hold
+        hold = 0.0
+        try:
+            if self.trader: hold = self.trader.hold_reserve(("進場中", "持倉中"))
+        except Exception: hold = 0.0
+        body = json.dumps({"d": now_tw().strftime("%Y-%m-%d"), "hm": now_tw().strftime("%H:%M:%S"), "fill": round(fill), "work": round(work), "hold": round(hold), "total": total}).encode()
         def go():
             try:
                 req = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?quota=push", data=body, method="POST",

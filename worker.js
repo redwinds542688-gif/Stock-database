@@ -822,7 +822,7 @@ export default {
     }
 
     // ── 2026-10-29 當沖額度(使用者「我說的可用資金是訊息右上那個」):POST ?quota=push {d,hm,fill,work,total}(中繼程式每 ~30 秒,要金鑰);
-    //    GET ?quota=get → 最近一筆(邊緣快取 10 秒);手機訊息右上角「資金」= total − fill − work ──
+    //    GET ?quota=get → 最近一筆(邊緣快取 10 秒);手機訊息右上角「資金」= total − fill − work − hold ──
     const qt = url.searchParams.get("quota");
     if (qt) {
       if (!env || !env.HUB) return J({ error: "Worker 還沒綁定 Durable Object(HUB)" }, 503);
@@ -831,7 +831,7 @@ export default {
         if (!env.YT_PUSH_KEY || request.headers.get("X-Push-Key") !== env.YT_PUSH_KEY) return J({ error: "金鑰不對" }, 403);
         let b; try { b = await request.json(); } catch (e) { return J({ error: "JSON 格式錯誤" }, 400); }
         if (!b || !/^\d{4}-\d{2}-\d{2}$/.test(b.d || "")) return J({ error: "要有 d(YYYY-MM-DD)" }, 400);
-        await hubOf(env).kvPut("quota", { d: b.d, hm: String(b.hm || ""), fill: +b.fill || 0, work: +b.work || 0, total: +b.total || 0, at: Date.now() });
+        await hubOf(env).kvPut("quota", { d: b.d, hm: String(b.hm || ""), fill: +b.fill || 0, work: +b.work || 0, hold: +b.hold || 0, total: +b.total || 0, at: Date.now() });   // 2026-11-02 hold = 還沒平倉部位 × 漲停價(元大先扣)
         return J({ ok: true });
       }
       const v = await hubOf(env).kvGet("quota");

@@ -24,6 +24,14 @@ def tick_size(p):
     return 0.01 if p < 10 else 0.05 if p < 50 else 0.1 if p < 100 else 0.5 if p < 500 else 1 if p < 1000 else 5
 
 
+def limit_up(ref):
+    """2026-11-02 漲停價 = 昨收 × 1.1 往下取到升降單位;沒昨收回 0"""
+    if not ref or ref <= 0: return 0.0
+    v = ref * 1.1; t = tick_size(v); lu = math.floor(v / t + 1e-6) * t
+    if tick_size(lu) != t: lu = math.floor(v / tick_size(lu) + 1e-6) * tick_size(lu)
+    return round(lu, 2)
+
+
 def shift(p, ticks):
     """價格往上(+)/ 往下(−)移 ticks 檔"""
     for _ in range(abs(ticks)):
@@ -1101,10 +1109,11 @@ class Trader:
         price = shift(last, self.slip * d)                     # 買進往上讓、賣出往下讓
         lots = max(1, int(self.cap // (px_sig * 1000))) if self.cap > 0 else self.qty   # 2026-10-30 張數照多空上限(訊號價算,和通知上的張數一樣)
         if self.max_amount > 0:                                 # 2026-10-27 一天成交總金額上限(買 + 賣都算):剩的額度夠幾張就掛幾張
-            room = self.max_amount - self.amount_today
-            fit = int(room // (price * 1000 * 2))
+            hold = self.hold_reserve(); lu = self.lu_of(code, price)
+            room = self.max_amount - self.amount_today - hold          # 2026-11-02 照元大:持倉的部位先用漲停價扣贖回額度
+            fit = int(room // ((price + lu) * 1000))                    #   新單每張 = 進場價 + 漲停價(元大一樣這樣先扣)
             if fit < 1:
-                self.log(f"[交易] 不進場 {title}:今天成交金額已 {self.amount_today:,.0f},剩 {room:,.0f} 不夠一進一出 1 張(上限 {self.max_amount:,.0f})"); return
+                self.log(f"[交易] 不進場 {title}:今天成交 {self.amount_today:,.0f} + 持倉漲停預留 {hold:,.0f},剩 {room:,.0f} 不夠 1 張(進場 {price} + 漲停 {lu};上限 {self.max_amount:,.0f})"); return
             if fit < lots:
                 self.log(f"[交易] 額度只夠 {fit} 張(今天成交金額 {self.amount_today:,.0f} / 上限 {self.max_amount:,.0f}),{lots} 張改掛 {fit} 張"); lots = fit
         p = self.new_pos(code, d, judge, title, tp=tp_sig, sl=sl_sig)
@@ -1139,6 +1148,20 @@ class Trader:
         if not ("09:00" <= hm < self.last_entry):
             return f"不在 09:00~{self.last_entry}"
         return None
+
+    # 2026-11-02 16:16 使用者「500萬 就是買和賣的總和 當沖還未贖回 皆以漲停價 暗自計算 … 再扣除如果做空 就以漲停價贖回的價格 剩餘的 才是能再交易的資金」→「改」:
+    #   元大可用額度 = 500 萬 − 已成交(買 + 賣)− 還沒平倉的部位 × 漲停價(多空都用漲停,使用者「皆以漲停價」);新單每張要預留 進場價 + 漲停價
+    def lu_of(self, code, px=0.0):
+        lu = limit_up(self.ref_of(code) or 0)
+        return lu if lu > 0 else round((px or 0) * 1.1, 2)
+
+    def hold_reserve(self, states=None):
+        """還沒平倉的張數(進場中已成交的、持倉中、平倉中還沒賣 / 買回的)× 漲停價 × 1000;states 指定只算哪些狀態(額度推手機用:平倉單已掛在委託裡,不重算)"""
+        s = 0.0
+        for c, p in self.positions.items():
+            if p.get("state") in (states or (ENTERING, HOLDING, EXITING)) and p.get("qty", 0) > 0:
+                s += p["qty"] * self.lu_of(c, p.get("entry") or 0) * 1000
+        return s
 
     # ── 下單 ──
     def send(self, p, purpose, side, lots, price, typ, flag=" ", tif="3"):
@@ -1181,7 +1204,7 @@ class Trader:
         if why:
             self.log(f"[交易] {c} 進場 IOC 沒成交 {left} 張,不補單:{why}"); return 0
         if self.max_amount > 0:
-            fit = int((self.max_amount - self.amount_today) // (last * 1000 * 2))
+            fit = int((self.max_amount - self.amount_today - self.hold_reserve()) // ((last + self.lu_of(c, last)) * 1000))   # 2026-11-02 照元大:持倉漲停預留 + 每張 進場 + 漲停
             if fit < 1:
                 self.log(f"[交易] {c} 進場 IOC 沒成交 {left} 張,不補單:今天成交金額額度不夠"); return 0
             left = min(left, fit)
