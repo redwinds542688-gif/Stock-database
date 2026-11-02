@@ -248,6 +248,14 @@ tm.on_report(51, "M900", 0, 2000, 86.4, basket="", code="6269", bs="S")
 ok(pm["qty"] == 3 and abs(pm["entry"] - 86.3) < 1e-9 and pm["tp"] == round(86.3 * 84.05 / 86.1, 2) and pm["sl"] == round(86.3 * 88.70 / 86.1, 2) and pm["judge"] == "判二" and "手動加碼" in tm.alerts[-1], pm, tm.alerts)
 tm.on_tick("6269", 84.0); ok(pm["state"] == EXITING and gm.sent[-1][:3] == ("6269", "B", 3), gm.sent[-1])
 tm.on_report(51, "A0002", 0, 3000, 84.1); ok("6269" not in tm.positions)
+# Y1c) 2026-11-02 程式進場單還在送(ENTERING)時手動同方向成交 2 張 @86.4 → 進場單成交 1 張 @86.1 → 併成 3 張 均價 86.3,停利停損照 % 重算
+tn, gn = mk(); tn.name_of = lambda c: "台郡"; tn.on_tick("6269", 86.2); tn.step([ENT]); pn = tn.positions["6269"]
+tn.on_report(51, "M901", 0, 2000, 86.4, basket="", code="6269", bs="S"); ok(pn["state"] == ENTERING and pn["man_lots"] == 2, pn)
+tn.on_report(51, "A0001", 0, 1000, 86.1); ok(pn["state"] == HOLDING and pn["qty"] == 3 and abs(pn["entry"] - 86.3) < 1e-9 and pn["tp"] == round(86.3 * 84.05 / 86.1, 2), pn)
+# Y1d) 程式進場單沒成交(IOC 結束、不補單)但進場中有手動 2 張 @86.4 → 只用手動 2 張接成判二部位(停利停損照訊號 % 從 86.4 算)
+to_, go_ = mk(TRADE_ENTRY_FALLBACK="0"); to_.name_of = lambda c: "台郡"; to_.on_tick("6269", 86.2); to_.step([ENT]); po_ = to_.positions["6269"]
+to_.on_report(51, "M902", 0, 2000, 86.4, basket="", code="6269", bs="S"); to_.on_report(50, "A0001", 25, 0, 0)
+ok("6269" in to_.positions and po_["state"] == HOLDING and po_["qty"] == 2 and po_["entry"] == 86.4 and po_["tp"] == round(86.4 * 84.05 / 86.2, 2), po_)
 # Y2) 元三你自己在元大平掉 → 程式結束這個部位;判三的平倉通知也會讓元三出場;元三不佔 5 檔名額
 tz2, gz2 = mk(); tz2.on_report(51, "M1", 0, 1000, 50.0, basket="", code="3001", bs="S"); ok(tz2.positions["3001"]["dir"] == -1 and tz2.positions["3001"]["sl"] == 52.25)
 tz2.on_report(51, "M2", 0, 1000, 49.0, basket="", code="3001", bs="B"); ok("3001" not in tz2.positions and not gz2.sent)
@@ -499,4 +507,4 @@ s22.on_report(51, "", 0, s22.positions["2401"]["order"]["want"], s22.positions["
 ok(s22.positions["2401"]["state"] == HOLDING and s22.positions["2402"]["state"] == ENTERING)
 ok(s22.close_all("手機緊急停止 + 全部平倉") == 2 and s22.positions["2401"]["state"] == EXITING and g22.sent[-1][:2] == ("2401", "B") and g22.sent[-1][-1] == "H"
    and s22.positions["2402"].get("exit_pending"), (g22.sent[-1], s22.positions["2402"]))
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 1)")
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3)")

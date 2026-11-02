@@ -417,16 +417,19 @@ class Trader:
                     if seen.get(c) != key:
                         self.recon_seen[c] = key; continue
                     o = p["order"]
-                    if n == 0:
+                    ml, mc = p.get("man_lots", 0), p.get("man_cost", 0.0)   # 2026-11-02 元大的張數包含進場中的手動成交,扣掉才是程式這張單成交的
+                    if n == 0 or abs(n) <= ml:
                         # 2026-10-31 改 C:元大確認 IOC 一張都沒成交 → 照樣可以改掛漲停 / 跌停補進場(現價還在訊號價 ±0.5% 內才補)
                         if (self.entry_fallback and not o.get("fallback") and o.get("tif") != "0" and not p.get("forced") and not p.get("close_after_entry")
                                 and self.entry_fallback_send(p, o)):
                             self.log(f"[交易] 對帳:{c} 進場單等確認中,元大連續兩次都沒有這檔部位 → 確定 IOC 沒成交,已改掛補單"); continue
+                        if self.man_only(p, "對帳:進場單確定沒成交"): continue
                         self.log(f"[交易] 對帳:{c} 進場單等確認中,元大連續兩次都沒有這檔部位 → 確定沒成交,拿掉"); p["order"] = None; self.positions.pop(c, None); continue
                     side = "B" if p["dir"] > 0 else "S"; ts = [t for t in trades if t["code"] == c and t["bs"] == side]
                     q = sum(t["lots"] for t in ts); avg = (sum(t["lots"] * t["price"] for t in ts) / q) if q else (self.last_px.get(c) or p["entry"])
-                    self.log(f"[交易] 對帳:{c} 進場單等確認中,元大有 {abs(n)} 張 → 當成成交(均價 {avg:.2f}),轉持倉")
-                    o["filled"] = abs(n) * 1000; o["cost"] = avg * abs(n) * 1000; o["dead"] = True; self.after_report(p); continue
+                    np_ = abs(n) - ml; pc = avg * abs(n) * 1000 - mc; avg_p = pc / (np_ * 1000) if np_ > 0 and pc > 0 else avg
+                    self.log(f"[交易] 對帳:{c} 進場單等確認中,元大有 {abs(n)} 張(手動 {ml})→ 程式這張當成成交 {np_} 張(均價 {avg_p:.2f}),轉持倉")
+                    o["filled"] = np_ * 1000; o["cost"] = avg_p * np_ * 1000; o["dead"] = True; self.after_report(p); continue
                 if p and (p.get("order") or p["state"] != HOLDING):
                     continue                                              # 程式自己的單還在跑,以它為準
                 mine = p["qty"] * p["dir"] if p else 0
@@ -680,7 +683,13 @@ class Trader:
             if p["state"] == EXITING:
                 self.resize_exit(p, "平倉中又手動加碼")                 # 平倉單張數不夠了 → 取消重送全部
             return
-        if p and bs != close_side(p["dir"]):   # 程式的進場單還在送(ENTERING)時手動同方向成交 → 分不清楚,照舊請自己處理
+        if p and bs != close_side(p["dir"]) and p["state"] == ENTERING and lots > 0:
+            # 2026-11-02 11:47 使用者「不管是誰做的 只要有成交 程式一律接管」:程式的進場單還在送時手動同方向成交 → 先記著,進場單結束時一起併成同一個部位
+            #   (程式的進場單沒成交也照樣把手動這幾張接成部位,停利 / 停損照訊號的 % 從手動均價算)
+            p["man_lots"] = p.get("man_lots", 0) + lots; p["man_cost"] = p.get("man_cost", 0.0) + price * lots * 1000
+            self.log(f"[交易] {p['judge']} {code} 進場中又有手動同方向成交 {lots} 張 @ {price}(委託 {order_no})→ 進場單結束時一起併進程式部位")
+            return
+        if p and bs != close_side(p["dir"]):
             self.log(f"[交易] !! {code} 程式已有部位({p['judge']}),又有一筆不是程式下的同方向成交 {lots} 張 @ {price} → 不合併,請自己處理")
             self.alert(f"⚠ {code} 手動同方向成交 {lots} 張", f"程式已有這檔的部位({p['judge']}),手動這 {lots} 張沒有交給程式管,請自己處理(13:22 複查會以元大為準平掉)")
             return
@@ -848,8 +857,9 @@ class Trader:
                 if p.get("wait_confirm") and p["state"] == ENTERING and time.time() - p["wait_confirm"] > self.confirm_wait:
                     oo = p.get("order")
                     if not (oo and oo.get("filled")):
-                        self.log(f"[交易] {p['code']} 進場單等確認 {self.confirm_wait:.0f} 秒還是沒有成交回報 → 確定沒成交,放棄(對帳 / 13:22 複查仍以元大為準)")
-                        p["order"] = None; self.positions.pop(p["code"], None)
+                        if not self.man_only(p, "進場單等確認逾時沒成交"):
+                            self.log(f"[交易] {p['code']} 進場單等確認 {self.confirm_wait:.0f} 秒還是沒有成交回報 → 確定沒成交,放棄(對帳 / 13:22 複查仍以元大為準)")
+                            p["order"] = None; self.positions.pop(p["code"], None)
             if signals is not None and not self.primed:               # 2026-10-29 稽核 #1:啟動時沒讀到通知 → 第一次讀成功的這批先當「啟動時已有」,不拿來進場
                 self.prime(signals); signals = None
             for it in (signals or []):
@@ -1166,6 +1176,22 @@ class Trader:
         p["order"]["fallback"] = True
         return True
 
+    def man_only(self, p, why):
+        """2026-11-02 程式的進場單確定沒成交,但進場中有手動同方向成交 → 只用手動那幾張接成部位(不拿掉);沒有手動成交回 False"""
+        ml, mc = p.pop("man_lots", 0), p.pop("man_cost", 0.0)
+        if not ml:
+            return False
+        avg = mc / (ml * 1000); base = p.get("px_sig") or avg
+        p["order"] = None; p.pop("wait_confirm", None)
+        if p.get("forced"): self.set_forced_tpsl(p, avg)
+        elif base:
+            if p.get("tp"): p["tp"] = round(avg * p["tp"] / base, 2)
+            if p.get("sl"): p["sl"] = round(avg * p["sl"] / base, 2)
+        p.update({"qty": ml, "entry": avg, "state": HOLDING, "t0": self.hm()}); self.amount_today += mc; self.n_trades += 1; self.save_state()
+        self.log(f"[交易] {p['code']} {why},但有手動同方向成交 {ml} 張 → 接成程式部位 {p['judge']} 均價 {avg:.2f} 停利 {p['tp']} 停損 {p['sl']}")
+        self.alert(f"✅ {self.name_of(p['code'])} {p['code']} 手動 {ml} 張已交給程式", f"均價 {avg:.2f}(停利 {p['tp']} / 停損 {p['sl']})")
+        return True
+
     def after_report(self, p):
         o = p.get("order")
         if not o:
@@ -1182,6 +1208,14 @@ class Trader:
             o["filled"] += p.pop("pre_filled"); o["cost"] += p.pop("pre_cost", 0.0)
         lots = o["filled"] // 1000; avg = o["cost"] / o["filled"] if o["filled"] else 0
         p["order"] = None
+        if o["purpose"] == "進場" and lots > 0 and p.get("man_lots"):   # 2026-11-02 進場中的手動同方向成交一起併進來,停利 / 停損照原本 % 從新均價重算
+            ml, mc = p.pop("man_lots"), p.pop("man_cost", 0.0); base = avg
+            o["cost"] += mc; lots += ml; avg = o["cost"] / (lots * 1000)
+            if not p.get("forced") and base:
+                if p.get("tp"): p["tp"] = round(avg * p["tp"] / base, 2)
+                if p.get("sl"): p["sl"] = round(avg * p["sl"] / base, 2)
+            self.log(f"[交易] {p['code']} 進場單成交 {lots - ml} 張 + 手動 {ml} 張 → 併成 {lots} 張 均價 {avg:.2f}")
+            self.alert(f"✅ {self.name_of(p['code'])} {p['code']} 手動 {ml} 張已交給程式", f"共 {lots} 張 均價 {avg:.2f}")
         if o["purpose"] == "進場":
             if lots == 0:
                 if o.get("timeout") and not p.get("close_after_entry"):
@@ -1192,6 +1226,7 @@ class Trader:
                         p["wait_confirm"] = time.time()
                         self.log(f"[交易] {p['code']} 進場 {self.fill_wait:.0f} 秒沒成交回報 → 等確認(再等 {self.confirm_wait:.0f} 秒,晚到的成交照樣接)")
                     return
+                if self.man_only(p, "進場單沒成交"): return
                 self.log(f"[交易] {p['code']} 進場沒成交,放棄"); self.positions.pop(p["code"], None)
                 if p.get("forced"): self.alert(f"⚠ 強制進場 {p['code']} 沒有成交", "元大回報委託結束、沒有成交")
                 return
