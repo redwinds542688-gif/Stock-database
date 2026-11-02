@@ -548,6 +548,13 @@ export default {
     }
     const J = (obj, status = 200) => new Response(JSON.stringify(obj, null, 1), { status, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });
 
+    // 2026-11-02 11:05 診斷:KV 讀得到嗎(手機鑰匙一直被說無效 → 查是不是 KV 每日讀取額度用完);不回任何鑰匙內容
+    if (url.searchParams.get("kvping") !== null) {
+      const out = {};
+      try { const v = await env.LOGS.get("keys:owners"); out.kv = v ? "ok" : "空"; } catch (e) { out.kv = "錯誤:" + String(e && e.message || e).slice(0, 160); }
+      try { const v = await env.LOGS.get("keys:owners", { cacheTtl: 300 }); out.kvCache = v ? "ok" : "空"; } catch (e) { out.kvCache = "錯誤:" + String(e && e.message || e).slice(0, 160); }
+      return J(out);
+    }
     // ── 2026-10-29 鑰匙 ──
     const pushOk = !!(env && env.YT_PUSH_KEY && request.headers.get("X-Push-Key") === env.YT_PUSH_KEY);
     const kq = (url.searchParams.get("k") || request.headers.get("X-App-Key") || "").trim();
