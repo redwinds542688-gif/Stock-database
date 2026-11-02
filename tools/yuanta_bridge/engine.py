@@ -505,6 +505,7 @@ class Engine:
         self.emitted = set()  # (rs, code, 訊號 K 時間):已經處理過的進場(推了、或太舊 / 雲端已有),不再發(2026-10-29 稽核 #7,存檔)
         self.cloud_in = {}    # (rs, code, tm) → item:雲端今天的進場通知(手機 / 上一個 engine 發的)
         self.cloud_out = set()  # (rs, code, tm):雲端已經有平倉通知的部位
+        self.fclosed = set()    # 2026-11-02 今天手機強平過的股票(雲端有「· 強平 ·」的平倉):這檔不再發任何判一~四的進場 / 平倉通知
         self.j4 = set()       # 2026-10-31 判四今天已進場(推了、或雲端已有,超額的不算)的股票:一天最多 T4MAX 檔
         self.sent = []; self.px = {}; self.last_hm = {}; self.held_note = set()   # px / last_hm:每檔最新價、今天 K 到哪一分鐘(判定「訊號消失」前要確認這檔的 K 有到)
         self.state_f = DATA / f"engine_state_{day}.json" if state else None
@@ -578,6 +579,9 @@ class Engine:
         except Exception as e:
             log("讀雲端通知失敗(這輪只靠本機狀態去重)", e); return False
         for it in arr if isinstance(arr, list) else []:
+            if re.search(r"·\s*強平\s*·", it.get("body", "")):   # 2026-11-02 10:23 使用者「這檔已經平倉者 就不用再通知顯示停利或其他了」
+                mf = re.search(r"\b(\d{4,6})\b", it.get("title", ""))
+                if mf and mf.group(1) not in self.fclosed: self.fclosed.add(mf.group(1)); log(f"{mf.group(1)} 手機強平過 → 今天這檔不再發通知")
             mj = re.search(r"判[一二三四]", it.get("body", "")); rs = RS_OF.get(mj.group(0)) if mj else None
             if not rs: continue
             if it.get("kind") in ("long", "short"):
@@ -646,6 +650,10 @@ class Engine:
             if err: log(f"模擬器錯誤 {JUDGE[rs]} {code}: {err[:160]}"); continue
             ev = parse_events(out); n_ev += sum(1 for tm, _, _ in ev if tm < upto)
             trades, open_tm = sim_trades(ev, upto); k = (rs, code)
+            if code in self.fclosed:   # 2026-11-02 強平過:部位已由中繼平掉,不再發這檔的停利 / 停損 / 出場,也不發新進場
+                if self.pos.pop(k, None): log(f"{JUDGE[rs]} {code} 已強平 → 結束部位(不推平倉)")
+                if open_tm: self.emitted.add((rs, code, open_tm))
+                continue
             p = self.pos.get(k)
             if p and (rs, code, p["t"]) in self.cloud_out:   # 雲端已有這個部位的平倉(手機發的 / 重開前發的)
                 log(f"{JUDGE[rs]} {code} {p['t']} 雲端已有平倉通知 → 結束部位"); self.pos.pop(k); p = None

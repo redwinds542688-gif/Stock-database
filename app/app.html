@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 10:26(實際時間)強平過的股票:訊息欄照顯示強平,之後這檔的進場 / 停利 / 停損 / 出場不再顯示(強制進場、元大手動照顯示),當沖也不再算它還開著;電腦引擎讀到強平就不再發這檔通知;判四強平也寫訊息
   · 2026-11-02 10:20(實際時間)K 圖裡長按上方股票名稱 0.6 秒 = 強制交易(使用者「在k圖裡 長按股票名稱 一樣可以啟動 強制交易」;有部位 = 強制平倉,沒有 = 強制進場,和清單長按一樣)
   · 2026-11-02 10:09(實際時間)左上角監控點重影(使用者截圖):監控中網頁那顆綠點不畫,只留 App 的閃爍綠點
   · 2026-11-02 09:46(實際時間)當沖 / 明細超過三筆往上滑,報價更新重畫時會跳回最上面(使用者「上滑看第一筆 卻一下子就又變成最後一筆」)→ 重畫後放回原本捲到的位置
@@ -117,7 +118,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611021020">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611021026">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6130,6 +6131,10 @@ window.bgTick = bgTick; window.BG = BG;
     const _pc = items.map(parse).filter(Boolean);
     { const lm = new Map(); for (const o of _pc){ const q = +(((o.x.body || '').match(/· (\d+)張/) || [])[1]) || 0; if (q) o.lots = q; if (o.lots && o.type === 'entry') lm.set(o.code + '|' + (((o.x.body || '').match(/^(\d\d:\d\d)/) || [])[1] || o.t), o.lots); }   // 進場內容開頭的時間 = 平倉內容裡「做空 09:20 進」的時間
       for (const o of _pc) if (!o.lots && o.type === 'exit'){ const q = lm.get(o.code + '|' + o.entT); if (q) o.lots = q; } }
+    // 2026-11-02 10:23 使用者「有些股票 我已經強制平倉 訊息欄要顯示 而這檔已經平倉者 就不用再通知顯示停利或其他了」:
+    //   同一天某檔有「強平」平倉卡 → 那張之後這檔的進場 / 停利 / 停損 / 出場 / 注意卡都不顯示(強平那張照顯示;強平之前的照舊)
+    { const fcT = new Map(); for (const o of _pc) if (o.fc && o.t && (!fcT.has(o.code) || o.t < fcT.get(o.code))) fcT.set(o.code, o.t);
+      if (fcT.size) for (let k = _pc.length - 1; k >= 0; k--){ const o = _pc[k], t0 = fcT.get(o.code); if (t0 && !o.fc && o.type !== 'turn' && o.rs !== '強三' && o.rs !== '元三' && o.t >= t0) _pc.splice(k, 1);   /* 強平後自己再強制進場(強三)/ 元大手動(元三)照顯示 */ } }
     const cards = _pc.filter(o => !(o.type === 'turn' && !o.add && !o.warnT && YH.turnLogFirst === false))   // (判別式相關說明已移到私人庫)
       // (判別式相關說明已移到私人庫)
       //   (量只會增加,現在都不到,當時一定不到 = 照規則本來就不該發;舊版背景發的也一併藏起來),清單也就不會因為它標「監控中」
@@ -6331,7 +6336,7 @@ window.bgTick = bgTick; window.BG = BG;
         const TP = TP0 && TP0.ok && TP0.enabled && Date.now() - (TP0.at || 0) < 2 * 60000 ? TP0 : null;   // 2026-10-30 13:21 使用者「如果沒有連線主機 這裡跟明細一樣 顯示程式自己做的模擬交易」:2 分鐘沒問到電腦也算連不上 → 列模擬(標「當沖 系統」)
         const nmOf = c => SIG_NAMES.get(c) || ((SRC || []).find(x => x.code === c) || {}).name || ((cards.find(o => o.code === c) || {}).name) || c;
         // 12:37 使用者「電腦那邊沒辦法連線也不要影響這邊的顯示」:電腦連不上(或還沒問到)→ 照原本用手機通知列(和改之前一樣)
-        const open = over ? [] : (!TP || !TP.ok) ? cards.filter(o => o.type === 'entry' && !o._hide && o._alert !== 'exit' && o.entP > 0) : (TP.pos || []).filter(p => p.qty > 0 && p.entry > 0 && (p.state === '持倉中' || p.state === '平倉中'))
+        const open = over ? [] : (!TP || !TP.ok) ? cards.filter(o => o.type === 'entry' && !o._hide && o._alert !== 'exit' && o.entP > 0 && !cards.some(x => x.fc && x.code === o.code && x.t >= o.t)) : (TP.pos || []).filter(p => p.qty > 0 && p.entry > 0 && (p.state === '持倉中' || p.state === '平倉中'))
           .map(p => ({code: p.code, name: nmOf(p.code), side: p.dir > 0 ? 'long' : 'short', entP: +p.entry, lots: +p.qty, rs: p.judge, exiting: p.state === '平倉中'}));
         // 2026-10-29 12:25(實際時間)使用者「既然真實接通 … 顯示元大裡的真實的交易」:元大帳號裡手動進場、還沒沖掉的張數(成交回報 open ≠ 0)也列進當沖(程式的部位已在上面,不重複)
         if (TP && !over){ tfillsPoll(); try{ const F = window.__tfills; if (F && F.ok && F.d === today && Array.isArray(F.rows)) for (const r of F.rows){ const q = +r.open || 0; if (!q || open.some(o => o.code === r.code)) continue;
