@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 02:04(實際時間)試算列的紅箭頭尖端被表格格子切掉一塊,和指標二那顆看起來不一樣 → 改放在表格外面、疊在指標二那顆同一位置,整顆完整顯示,切換時形狀、位置完全一樣(使用者「切換後 箭頭 好像不一樣」)
   · 2026-11-03 02:00(實際時間)試算列紅箭頭沒出現時位置照樣佔著,「收 / 量」那段固定不左右移(使用者「這列 原灰字現白字這些 固定位置 不要因為沒有箭頭 而移動」)
   · 2026-11-03 01:58(實際時間)試算列「hh:mm 收 xx · 量 xx 張」改成和左邊「試算 … 這根」同字級(取代 01:39 的放大),整列字往上移、和紅箭頭上下對齊(使用者「改 與最左邊的字一樣大小 然後這一列字 上移 與箭頭平齊」)
   · 2026-11-03 01:52(實際時間)乖離圖 / 壓力圖試算列的紅箭頭對準指標二那顆在螢幕上的位置(左右、上下都一樣),長按價格切換時箭頭不跳(使用者「兩個箭頭 切換 位置不變」)
@@ -160,7 +161,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611030200">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611030204">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -537,7 +538,8 @@
   .sheetbody{flex:1;position:relative;min-height:0}
   /* 兩指縮放只作用在 K 線圖 / OBV 圖(圖表套件自己處理),不讓瀏覽器放大整個頁面 */
   .sheet, #chartTop, #chartMid, #chartBot{touch-action:none}
-  #wiPanel .xgo.wiXgo.hidden{display:inline-block;visibility:hidden;pointer-events:none}   /* 2026-11-03 02:00 使用者「這列 原灰字現白字這些 固定位置 不要因為沒有箭頭 而移動」:箭頭沒出現時位置照樣佔著,收 / 量那段不左右跑 */
+  #wiPanel .xgo.wiXgo{visibility:hidden;pointer-events:none} #wiPanel .xgo.wiXgo.hidden{display:inline-block}   /* 2026-11-03 02:00 使用者「這列 原灰字現白字這些 固定位置 不要因為沒有箭頭 而移動」:表格裡這顆只佔位置(收 / 量那段不左右跑) */
+  #wiPanel .wiXgoAbs{position:absolute;z-index:6;margin:0}   /* 02:03 使用者「切換後 箭頭 好像不一樣」:表格格子會把箭頭尖端切掉 → 真正看得到、能按的那顆放在表格外面,疊在指標二那顆的同一個位置 */   /* 2026-11-03 02:00 使用者「這列 原灰字現白字這些 固定位置 不要因為沒有箭頭 而移動」:箭頭沒出現時位置照樣佔著,收 / 量那段不左右跑 */
   .xgo{margin-left:auto;align-self:center;background:none;border:0;line-height:0;padding:0 0 0 12px;height:17px;touch-action:manipulation}   /* 2026-10-20 使用者給圖:紅色實心塊狀箭頭、白邊 → 內嵌 SVG */   /* 2026-10-20 使用者:「最新取消 改設一個向右實心箭頭 放在 OBV 那一列最右邊」:十字線不在最新一根時才顯示,點了回到最新 */
   #chart{position:absolute;inset:0;display:flex;flex-direction:column;background:#000}
   #chartTop{flex:11;min-height:0;position:relative;background:#000}
@@ -3601,10 +3603,12 @@ function wiRender(wp){
       let cy = R && R.height ? (R.top + R.bottom) / 2 : null;
       if (xb && cy != null){ const hid = xb.classList.contains('hidden'); if (hid){ xb.style.visibility = 'hidden'; xb.classList.remove('hidden'); } const xr = xb.getBoundingClientRect(); if (hid){ xb.classList.add('hidden'); xb.style.visibility = ''; } if (xr.height) cy = (xr.top + xr.bottom) / 2; }   /* 對準箭頭本身的正中間(箭頭沒出現時先偷量一下它會在哪) */
       if (cy != null){ for (const t of [U.tt, U.inf]){ t.style.transform = ''; t.style.display = 'inline-block'; const q = t.getBoundingClientRect(); const d = Math.round((cy - (q.top + q.bottom) / 2) * 2) / 2; t.style.transform = d ? 'translateY(' + d + 'px)' : ''; } }
-      if (!g || g.classList.contains('hidden')) return; g.style.transform = '';
-      if (!xb || xb.classList.contains('hidden')) return; const a = xb.getBoundingClientRect(), b = g.getBoundingClientRect(); if (!a.width || !b.width) return;
-      const dx = Math.round((a.right - b.right) * 2) / 2, dy = Math.round(((a.top + a.bottom) - (b.top + b.bottom)) / 2 * 2) / 2;
-      if (dx || dy) g.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; }catch(e){} }));
+      let ab = wp.querySelector(':scope > .wiXgoAbs');
+      if (!ab && g){ ab = g.cloneNode(true); ab.classList.remove('wiXgo'); ab.classList.add('wiXgoAbs'); ab.style.transform = ''; wp.appendChild(ab); }
+      if (!ab) return; const show = g && !g.classList.contains('hidden') && xb && !xb.classList.contains('hidden');
+      ab.classList.toggle('hidden', !show); if (!show) return;
+      const a = xb.getBoundingClientRect(), pr = wp.getBoundingClientRect(); if (!a.width) return;
+      ab.style.left = (a.left - pr.left - wp.clientLeft) + 'px'; ab.style.top = (a.top - pr.top - wp.clientTop) + 'px'; }catch(e){} }));
     put('inf', hmKey(r.t - 60) + ' 收 ' + r.c0.toFixed(2) + ' · 量 ' + Math.round(r.v / 1000) + ' 張', v => { U.inf.textContent = v; });
     const pm = Math.max(1e-9, ...xs.filter(x => x.pc !== 0).map(x => x.p || 0));
     xs.forEach((x, k) => {
