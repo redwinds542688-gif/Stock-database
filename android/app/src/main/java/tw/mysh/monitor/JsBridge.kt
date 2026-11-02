@@ -17,6 +17,10 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
     var onMenu: (() -> Unit)? = null
     @JavascriptInterface
     fun openMenu() { onMenu?.invoke() }
+    /** 2026-11-02 使用者「從螢幕最左邊或最右邊往內滑就等於按一次返回 這個不需要」:網頁告訴 App 通知欄在哪(CSS px),App 把那段左右邊緣從系統返回手勢排除 */
+    var onGesture: ((Int, Int) -> Unit)? = null
+    @JavascriptInterface
+    fun gestureZone(top: Int, h: Int) { onGesture?.invoke(top, h) }
     /** 2026-10-30 使用者「Android ID … 這個可以」:系統給這個 App 的識別碼(解除安裝重裝不變,恢復原廠才換),免費 7 天用;不需要權限 */
     @JavascriptInterface
     fun androidId(): String = try { Settings.Secure.getString(ctx.contentResolver, Settings.Secure.ANDROID_ID) ?: "" } catch (e: Exception) { "" }

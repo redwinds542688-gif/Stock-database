@@ -31,6 +31,10 @@ class MainActivity : AppCompatActivity() {
         web = findViewById(R.id.web)
         val bridge = JsBridge(this, "activity")
         bridge.onMenu = { runOnUiThread { showMenu(findViewById(R.id.menuBtn)) } }   // 2026-10-19:長按網頁「設定」鍵 → 開選單;右下角的「≡」隱藏起來只當錨點
+        // 2026-11-02 通知欄那段的左右邊緣不當返回手勢(左右滑是切分頁);Android 規定每邊最多排除 200dp 高
+        bridge.onGesture = { top, h -> runOnUiThread { try { if (android.os.Build.VERSION.SDK_INT >= 29) {
+            val d = resources.displayMetrics.density; val t = (top * d).toInt(); val hh = minOf((h * d).toInt(), (200 * d).toInt()); val ew = (48 * d).toInt(); val w = web.width
+            web.systemGestureExclusionRects = listOf(android.graphics.Rect(0, t, ew, t + hh), android.graphics.Rect(w - ew, t, w, t + hh)) } } catch (e: Exception) {} } }
         Page.setup(web, bridge)
         // 2026-11-01 使用者「在輸入金鑰的旁邊增設一個掃描QR Code的功能」:網頁開相機時(getUserMedia)要 App 同意;沒有相機權限就先跳系統視窗問
         web.webChromeClient = object : WebChromeClient() {
