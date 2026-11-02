@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 10:09(實際時間)左上角監控點重影(使用者截圖):監控中網頁那顆綠點不畫,只留 App 的閃爍綠點
   · 2026-11-02 09:46(實際時間)當沖 / 明細超過三筆往上滑,報價更新重畫時會跳回最上面(使用者「上滑看第一筆 卻一下子就又變成最後一筆」)→ 重畫後放回原本捲到的位置
   · 2026-11-02 09:26(實際時間)設定全部由主導機(5861)節制(使用者「改 所有設定下的數值 皆由主導機節制」):高價/低價/振幅/檔數/上限/折扣/券商/證交所/證交稅 9 個滾輪,主導機轉完 1.5 秒送雲端,其他手機自動跟上、自己轉默默退回
   · 2026-11-02 09:08(實際時間)電腦盤中資格複檢:上櫃可當沖名單的資料日期本來就是前一個交易日,原本被當成「還沒更新」→ 09:05 推了假警報;改成上市要今天、上櫃 4 天內就算正常(中繼明天開機自動更新)。
@@ -115,7 +116,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611020946">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611021009">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -603,7 +604,7 @@
 #bgDot.off{display:block;background:#FF3B3B}
 /* 2026-10-28 11:00 使用者「設一個抓bug 程式 隱藏在長按左上角監控燈那邊 監控開盤綠色 平時灰色」:左上角燈(App 的閃爍綠點疊在它上面);長按 0.8 秒開抓 bug 面板 */
 #bugDot{position:fixed;top:3px;left:6px;width:12px;height:12px;border-radius:50%;background:#5C667A;z-index:2000;box-shadow:0 0 0 1px rgba(0,0,0,.6)}
-#bugDot.on{background:#1DD75B} #bugDot.off{background:#FF3B3B} #bugDot.hit{box-shadow:0 0 0 2px #FF3B3B}
+#bugDot.on{background:transparent;box-shadow:none}   /* 2026-11-02 10:08 使用者「左上角 監控點 出現重影」:監控中 App 自己的閃爍綠點(疊在所有畫面上)位置和這顆差幾 px(各手機狀態列高度不同)→ 監控中這顆不畫,只留閃爍那顆(長按開抓 bug 照舊) */ #bugDot.off{background:#FF3B3B} #bugDot.hit{box-shadow:0 0 0 2px #FF3B3B}
 #bugDot::before{content:'';position:absolute;left:-6px;top:-3px;width:28px;height:21px}
 #bugPanel{position:fixed;left:8px;right:8px;top:30px;z-index:2001;background:#0B0F17;border:1.5px solid #4A5570;border-radius:12px;padding:12px;color:#E6EAF2;font-size:15px;display:none}
 #bugPanel.on{display:block} #bugPanel .bp-r{display:flex;justify-content:space-between;padding:3px 0;color:#8C96AB} #bugPanel .bp-r b{color:#E6EAF2;font-weight:600}
