@@ -1255,6 +1255,16 @@ def main():
                         subprocess.run([sys.executable, str(HERE / "hist_kline.py"), "today"], cwd=str(HERE), timeout=3 * 3600)
                     except Exception as e:
                         log("抓今天 1 分 K 失敗", e)
+        # 2026-11-02 20:33 使用者「你測電腦是否更新」:中繼一直開著(電腦沒關機)就永遠不會更新(只在啟動時檢查)→ 不在盤中時每 30 分鐘看 GitHub 的 VERSION,
+        #   不一樣就結束自己,工作排程(每 5 分鐘檢查一次)重新拉起來時就會更新。盤中(08:40~13:40)和收盤後補查 / 抓 K 進行中不做
+        if not ("08:40" <= hm < "13:40") and CFG.get("AUTO_UPDATE", "1") == "1" and time.time() - getattr(b, "_ver_chk", 0) > 1800:
+            b._ver_chk = time.time()
+            try:
+                want = gh_get("tools/yuanta_bridge/VERSION", timeout=20).decode("utf-8").strip().split()[0]
+                cur = (HERE / "VERSION").read_text(encoding="utf-8").strip().split()[0] if (HERE / "VERSION").exists() else ""
+                if want and want != cur:
+                    log(f"有新版 {cur} → {want}:結束自己,讓工作排程重開時更新"); os._exit(0)
+            except Exception as e: log("檢查新版失敗", e)
         if n.weekday() < 5 and "08:45" <= hm < "13:36":
             try:
                 b.run_day()

@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 20:36(實際時間)電腦:中繼一直開著也會更新 —— 不在盤中時每 30 分鐘看 GitHub 的 VERSION,有新版就結束自己,工作排程重開時更新(原本只在開機 / 啟動時更新)
   · 2026-11-02 15:21(實際時間)清單沒有價 / 量的股票顯示「—」,不再顯示 0.00(使用者截圖大甲 0.00:那時那支手機鑰匙已刪、報價抓不到)
   · 2026-11-02 14:50(實際時間)明細收盤後問不到電腦時,今天改用手機存的最後一份元大成交(使用者截圖「明細 11/02 系統」,列出沒成交的台化)
   · 2026-11-02 14:34(實際時間)右上角資金收盤後變負的(使用者「資金 怎麼會-500620」):電腦今天推過的額度一直用最後那份(原本超過 10 分鐘就改手機自己算,連沒交易的訊號都算);也不顯示負數
@@ -140,7 +141,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611021618">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611022036">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
