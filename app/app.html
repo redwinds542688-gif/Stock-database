@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 01:44(實際時間)K 圖下方記住上次看的:離開時是指標二、三,下次從清單 / 通知進來還是指標二、三;是乖離圖就還是乖離圖(使用者「開指標二三 離開再進來 又跳回乖離圖」→「改」;取代 10/30「每次進圖一律先乖離圖」)
   · 2026-11-03 01:39(實際時間)乖離圖 / 壓力圖試算列的「hh:mm 收 xx · 量 xx 張」改白字、字級放大到塞滿標題和紅箭頭中間(使用者「這些灰字最大化 白色」)
   · 2026-11-03 01:18(實際時間)修指標二(使用者截圖「指標二 出問題」,佳世達):① 十字線離開最新一根時最右邊紅箭頭被擠出畫面一半 → 箭頭出現 / 消失也重算字級,整列塞得下;② 三條線壓成一條平線、刻度變 -1000~-6500:23:09 加的「上下範圍沿用上次」在最後一根沒值時認不出資料已換成價格版 → 改成依目前那份資料判斷,資料一換就重算
   · 2026-11-03 01:06(實際時間)乖離圖 / 壓力圖的「試算 … 這根」那列最右邊加一顆和指標二一樣的紅箭頭(十字線回到最新一根,十字線不在最新一根時才出現),原本的「收 / 量」往左移(使用者「指標二最右邊有一個向右的箭頭 乖離圖 壓力圖上也設一個」)
@@ -156,7 +157,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611030139">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611030144">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5011,7 +5012,8 @@ async function openChart(code, name, view = 0){
   const wasOpen = sheet.classList.contains('open');
   sheet.classList.add('open');
   // 2026-10-30 01:15 使用者「程式k圖下面乖離圖是初始 長按價格才會顯示 指標二跟三」:每次從清單 / 通知進 K 圖,下面一律先是乖離圖;長按價格切到指標二、三(◀ ▶ 換股票時維持目前這個)
-  if (!wasOpen){ try{ localStorage.setItem('mysh.wiOn', '1'); }catch(e){} }
+  // 2026-11-03 01:43 使用者「開指標二三 離開再進來 又跳回乖離圖」→「改」:不再每次進圖都強制乖離圖,記住上次離開時看的(mysh.wiOn;第一次用、沒有紀錄時才是乖離圖)
+  try{ if (localStorage.getItem('mysh.wiOn') == null) localStorage.setItem('mysh.wiOn', '1'); }catch(e){}
   // 2026-10-27 19:50 使用者(影片:「顯示乖離圖前 先顯示指標二,三」,而且先閃一下上一檔的乖離圖):試算視窗是開著的狀態 → 進圖 / 換股票一開始就先蓋上
   //   (清掉上一檔的內容,只留黑底「計算中」),指標二、三不會先露出來;這檔的 K 到了再畫乖離圖
   try{ const wp = document.getElementById('wiPanel'); if (wp && localStorage.getItem('mysh.wiOn') === '1'){
