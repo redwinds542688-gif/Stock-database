@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 11:50(實際時間)三支主程式手機同步強平清單(使用者「a手機強制平倉 a就看不到再次平倉訊息 b.c也同步一樣」):從電腦回的今天強平過的股票讀,訊息欄一樣藏之後的停利 / 停損 / 出場
   · 2026-11-02 11:48(實際時間)電腦:程式進場單還在送時的手動同方向成交也接管(使用者「不管是誰做的 只要有成交 程式一律接管」);進場單成交 → 合併重算,進場單沒成交 → 只用手動那幾張接成部位
   · 2026-11-02 11:45(實際時間)電腦:手動加碼併入後停利 / 停損從新均價重算(使用者「這邊需要重新再算過停利跟停損」;判一~四照原本離進場價的 %)
   · 2026-11-02 11:44(實際時間)電腦:程式已有部位時,元大手動同方向加碼併進程式一起管(使用者「新做空的股票我需要程式一併接手」;張數加總、均價重算,判一~四停利停損照原訊號價,平倉全部一起平)
@@ -126,7 +127,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611021148">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611021150">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1173,7 +1174,10 @@ function tposPoll(force){
       .then(j => { const g = j && typeof j === 'object' ? j : {ok: false, msg: '回應不對'};
         // 2026-11-02 10:54 使用者「現在當沖裡面真實只有四檔股票 怎麼七八檔」:偶爾一次問不到電腦(通道慢、8 秒逾時)就整片換成系統模擬(連沒交易的訊號都列)→ 2 分鐘內有拿到過元大的就繼續用那份
         if (!g.ok && window.__tpos && window.__tpos.ok && Date.now() - (window.__tpos.at || 0) < 2 * 60000) return;
-        window.__tpos = g; window.__tpos.at = Date.now(); if (typeof window.__tpos.halted === 'boolean') haltSet(window.__tpos.halted); })
+        window.__tpos = g; window.__tpos.at = Date.now(); if (typeof window.__tpos.halted === 'boolean') haltSet(window.__tpos.halted);
+        // 2026-11-02 11:49 使用者「a手機強制平倉 a就看不到再次平倉訊息 b.c也同步一樣」:電腦回的「今天強平過的股票」(locked)記進這支手機的強平清單 →
+        //   三支手機一樣:訊息欄藏之後的停利 / 停損 / 出場,背景也不再發這檔判一~三的通知
+        try{ if (g.ok && Array.isArray(g.locked)){ let add = 0; for (const c of g.locked) if (c && !fcList().includes(String(c))){ fcAdd(String(c)); add++; } if (add && window.nlRender) nlRender(); } }catch(e){} })
       .catch(e => { if (window.__tpos && window.__tpos.ok && Date.now() - (window.__tpos.at || 0) < 2 * 60000) return; window.__tpos = {ok: false, msg: '電腦沒有回應', at: Date.now()}; });
   }catch(e){}
 }
@@ -6152,7 +6156,7 @@ window.bgTick = bgTick; window.BG = BG;
     { const fcT = new Map(); for (const o of _pc) if (o.fc && o.t && (!fcT.has(o.code) || o.t < fcT.get(o.code))) fcT.set(o.code, o.t);
       if (fcT.size) for (let k = _pc.length - 1; k >= 0; k--){ const o = _pc[k], t0 = fcT.get(o.code); if (t0 && !o.fc && o.type !== 'turn' && o.rs !== '強三' && o.rs !== '元三' && o.t >= t0) _pc.splice(k, 1);   /* 強平後自己再強制進場(強三)/ 元大手動(元三)照顯示 */ } }
     // 2026-11-02 11:39 使用者「金山電 早已經強制平倉 怎麼還出現停損訊息」:判四強平今天電腦還沒寫強平卡(明天更新後才寫)→ 這支手機自己強平過的股票(fclosed)也藏後面的停利 / 停損 / 出場
-    if (d === today){ let fl = []; try{ fl = fcList(); }catch(e){}
+    if (d === today){ let fl = []; try{ fl = fcList(); if (!window.VIEWER) tposPoll(); }catch(e){}
       if (fl.length) for (let k = _pc.length - 1; k >= 0; k--){ const o = _pc[k]; if (fl.includes(o.code) && !_pc.some(x => x.fc && x.code === o.code) && o.type === 'exit' && !o.fc && /^判[一二三四]$/.test(o.rs || '')) _pc.splice(k, 1); } }
     const cards = _pc.filter(o => !(o.type === 'turn' && !o.add && !o.warnT && YH.turnLogFirst === false))   // (判別式相關說明已移到私人庫)
       // (判別式相關說明已移到私人庫)
