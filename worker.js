@@ -713,6 +713,18 @@ export default {
         if (role === "owner") await env.LOGS.put("keys:owners", "1");
         return J({ ok: true, k, ...rec });
       }
+      // 2026-11-02 14:29 使用者刪鑰匙打錯(整串鑰匙要手打):?keys=delsfx&sfx=結尾幾碼 / ?keys=delpfx&pfx=開頭幾碼(至少 4 碼,只用 KV list、不讀內容,KV 讀取額度用完也能刪);
+      //   剛好一把符合才刪,回傳只露頭尾 4 碼
+      if (keysQ === "delsfx" || keysQ === "delpfx") {
+        const part = String(url.searchParams.get(keysQ === "delsfx" ? "sfx" : "pfx") || "").trim().toLowerCase();
+        if (!/^[a-f0-9]{4,40}$/.test(part)) return J({ error: "要給至少 4 碼(0-9 a-f)" }, 400);
+        const names = []; let cursor;
+        do { const r = await env.LOGS.list({ prefix: "key:", cursor, limit: 1000 }); for (const x of r.keys) names.push(x.name.slice(4)); cursor = r.list_complete ? null : r.cursor; } while (cursor);
+        const hit = names.filter(k => keysQ === "delsfx" ? k.endsWith(part) : k.startsWith(part)), mask = k => k.slice(0, 4) + "…" + k.slice(-4);
+        if (hit.length !== 1) return J({ error: hit.length ? `有 ${hit.length} 把符合,請多給幾碼` : "沒有符合的鑰匙", match: hit.map(mask) }, hit.length ? 409 : 404);
+        await env.LOGS.delete("key:" + hit[0]); MC.delete("key:" + hit[0]); MC.delete("ex:" + hit[0]);
+        return J({ ok: true, deleted: true, k: mask(hit[0]), left: names.length - 1 });
+      }
       const k2 = url.searchParams.get("k2") || ""; const cur = await keyInfo(env, k2);
       if (!cur) return J({ error: "沒有這把鑰匙" }, 404);
       if (keysQ === "del") { await env.LOGS.delete("key:" + k2); return J({ ok: true, k: k2, deleted: true }); }

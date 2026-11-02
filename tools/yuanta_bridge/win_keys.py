@@ -19,6 +19,8 @@
   python win_keys.py off <鑰匙>            # 停用
   python win_keys.py on <鑰匙>             # 重新啟用
   python win_keys.py del <鑰匙>            # 刪掉
+  python win_keys.py delend d2a2          # 2026-11-02 用「結尾幾碼」刪(至少 4 碼,剛好一把符合才刪;不用打整串)
+  python win_keys.py delstart 39d192      # 用「開頭幾碼」刪(QR Code 圖檔名後面那 6 碼)
 建好的鑰匙給那支手機:公式 → 鑰匙 → 貼上 → 存。
 注意:建了第一把 owner 鑰匙以後,沒帶 owner 鑰匙的手機就不能寫通知、不能下單(看還是看得到),所以自己的手機要先輸入。
 """
@@ -104,6 +106,8 @@ def main(a):
             try: make_qr(r["k"], name, PLANS.get(kind, kind) + (f" 到期 {r['exp']}" if r.get("exp") else ""))
             except Exception as e: print("產生 QR Code 失敗:", e)
         return
+    if a[0] in ("delend", "delstart") and len(a) > 1:
+        print(call(("delsfx&sfx=" if a[0] == "delend" else "delpfx&pfx=") + a[1].strip().lower(), {})); return
     if a[0] == "qr" and len(a) > 1:
         make_qr(a[1], a[2] if len(a) > 2 else ""); return
     if a[0] == "send" and len(a) > 1:
