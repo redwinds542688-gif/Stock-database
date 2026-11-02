@@ -663,15 +663,21 @@ class Trader:
         p = self.positions.get(code)
         close_side = lambda d: "B" if d < 0 else "S"
         lots = qty_shares // 1000
-        if p and p.get("judge") == MANUAL and bs != close_side(p["dir"]) and p["state"] in (HOLDING, EXITING):
+        if p and bs != close_side(p["dir"]) and p["state"] in (HOLDING, EXITING) and lots > 0:
             # 平倉檢查 #5:元三同方向再成交(同一張分批成交,或另外下一張加碼)→ 併進去、成本平均,停利 / 停損照新均價
+            # 2026-11-02 11:43 使用者「新做空的股票我需要程式一併接手可以嗎」:判一~四 / 強三的部位,元大手動同方向加碼也併進去一起管
+            #   (張數加總、均價重算;判一~四的停利 / 停損照原訊號的價位不變,強三 / 元三照 % 從新均價重算;平倉時全部一起平)
             tot = p["qty"] + lots
             p["entry"] = (p["entry"] * p["qty"] + price * lots) / tot; p["qty"] = tot; self.amount_today += price * lots * 1000
-            self.set_forced_tpsl(p, p["entry"]); self.log(f"[交易] 元三 {code} 同方向再成交 {lots} 張(委託 {order_no})→ 共 {tot} 張 均價 {p['entry']:.2f}")
+            if p.get("judge") in (MANUAL, FORCED) and (p.get("tp_pct") or p.get("sl_pct")): self.set_forced_tpsl(p, p["entry"])
+            self.log(f"[交易] {p['judge']} {code} 元大手動同方向成交 {lots} 張(委託 {order_no})→ 併進程式部位,共 {tot} 張 均價 {p['entry']:.2f} 停利 {p['tp']} 停損 {p['sl']}")
+            if p.get("judge") != MANUAL:
+                self.alert(f"✅ {self.name_of(code)} {code} 手動加碼 {lots} 張已交給程式", f"共 {tot} 張 均價 {p['entry']:.2f}(停利 {p['tp']} / 停損 {p['sl']}),平倉時全部一起平")
+            self.save_state()
             if p["state"] == EXITING:
-                self.resize_exit(p, "元三平倉中又加碼")                 # 平倉單張數不夠了 → 取消重送全部
+                self.resize_exit(p, "平倉中又手動加碼")                 # 平倉單張數不夠了 → 取消重送全部
             return
-        if p and bs != close_side(p["dir"]):
+        if p and bs != close_side(p["dir"]):   # 程式的進場單還在送(ENTERING)時手動同方向成交 → 分不清楚,照舊請自己處理
             self.log(f"[交易] !! {code} 程式已有部位({p['judge']}),又有一筆不是程式下的同方向成交 {lots} 張 @ {price} → 不合併,請自己處理")
             self.alert(f"⚠ {code} 手動同方向成交 {lots} 張", f"程式已有這檔的部位({p['judge']}),手動這 {lots} 張沒有交給程式管,請自己處理(13:22 複查會以元大為準平掉)")
             return
