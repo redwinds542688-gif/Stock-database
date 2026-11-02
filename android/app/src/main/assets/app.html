@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 21:34(實際時間)鑰匙視窗不再顯示整串鑰匙(使用者「一進去就看到金鑰全部 改成只顯示最後五碼」):輸入框空白,提示寫「目前 ••••後五碼」;沒輸入新的按存 = 維持原本的
   · 2026-11-02 20:36(實際時間)電腦:中繼一直開著也會更新 —— 不在盤中時每 30 分鐘看 GitHub 的 VERSION,有新版就結束自己,工作排程重開時更新(原本只在開機 / 啟動時更新)
   · 2026-11-02 15:21(實際時間)清單沒有價 / 量的股票顯示「—」,不再顯示 0.00(使用者截圖大甲 0.00:那時那支手機鑰匙已刪、報價抓不到)
   · 2026-11-02 14:50(實際時間)明細收盤後問不到電腦時,今天改用手機存的最後一份元大成交(使用者截圖「明細 11/02 系統」,列出沒成交的台化)
@@ -141,7 +142,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611022036">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611022134">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2458,13 +2459,14 @@ function keyShow(msg){
   try{ const old = document.getElementById('fmWin'); if (old) old.remove(); }catch(e){}
   const w = document.createElement('div'); w.id = 'fmWin'; const cur = appKey.get();
   w.innerHTML = `<div class="fmbg"></div><div class="fmp0"><div class="fmhd"><b class="fmnm">鑰匙</b><span class="fmpx" style="font-size:14px;color:#8C96AB">${cur ? (window.KEYME && KEYME.role === 'trial' ? '試用版,到 ' + String(KEYME.exp || '').slice(5).replace('-', '/') + ' 止' : window.KEYME && KEYME.role ? (KEYME.role === 'owner' ? '自己的鑰匙' : '看盤鑰匙') + (KEYME.exp ? ',到 ' + String(KEYME.exp).slice(5).replace('-', '/') + ' 止' : '') : '這支手機已有鑰匙') : '還沒有鑰匙'}</span><button class="fmx" aria-label="關閉">✕</button></div>
-    <div class="fmpin"><span>鑰匙</span><input type="text" inputmode="numeric" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="6 位數取件碼,或 24 碼鑰匙" value="${fmEsc(cur)}"><button class="fmqr" type="button" style="margin-left:8px;padding:6px 10px;font-size:16px;font-weight:700;border-radius:8px;border:1px solid #4FC3F7;background:#0B1A26;color:#4FC3F7;white-space:nowrap">掃描</button></div>
+    <div class="fmpin"><span>鑰匙</span><input type="text" inputmode="numeric" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${cur ? '目前 ••••' + fmEsc(cur.slice(-5)) + '(要換才輸入)' : '6 位數取件碼,或 24 碼鑰匙'}" value=""><button class="fmqr" type="button" style="margin-left:8px;padding:6px 10px;font-size:16px;font-weight:700;border-radius:8px;border:1px solid #4FC3F7;background:#0B1A26;color:#4FC3F7;white-space:nowrap">掃描</button></div>
     <div class="fmerr" style="min-height:20px">${fmEsc(msg || '')}</div>
     <div style="display:flex;gap:10px;margin-top:8px"><button class="fmkbtn save" style="flex:1;padding:12px;font-size:18px;font-weight:700;border-radius:10px;border:1px solid #1DD75B;background:#0F2A1A;color:#1DD75B">存</button><button class="fmkbtn clr" style="flex:1;padding:12px;font-size:18px;font-weight:700;border-radius:10px;border:1px solid #4A5570;background:#11161F;color:#E6EAF2">清除</button></div></div>`;
   document.body.appendChild(w);
   const close = () => { try{ w.remove(); }catch(e){} };
   w.querySelector('.fmx').addEventListener('click', close); w.querySelector('.fmbg').addEventListener('click', close);
   w.querySelector('.save').addEventListener('click', () => { const v = w.querySelector('input').value.trim();
+    if (!v && cur){ close(); return; }   // 2026-11-02 沒輸入新的 = 維持原本的鑰匙(輸入框不再顯示整串)
     // 2026-10-29 17:39(實際時間)取件碼(使用者:「存在你這 你幫我遮起來 我用手機來複製」→ 鑰匙不經對話):輸入桌機 win_keys.py send 印的 6 位數,向 Worker 換成鑰匙
     if (/^\d{6}$/.test(v)){ const er = w.querySelector('.fmerr'); er.textContent = '取件中…';
       fetch(BASE.liveUrl.replace(/\/$/, '') + '/?keys=pick&code=' + v + '&_=' + Date.now(), {cache: 'no-store', signal: AbortSignal.timeout(9000)}).then(r => r.json()).then(j => {
