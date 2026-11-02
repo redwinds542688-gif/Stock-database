@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 01:01(實際時間)乖離圖 / 壓力圖:紫線改虛線、黃線改實線(使用者「乖離圖 紫色改虛線 黃色改實線」「壓力圖也一樣」)
   · 2026-11-03 00:00(實際時間)第一顆按鍵「訊息」改名「進場」(使用者「第一顆資訊改名 進場」)
   · 2026-11-02 23:57(實際時間)按鍵順序改成 訊息 / 當沖 / 明細 / 公式 / 設定(使用者「第一顆訊息 第二顆當沖 第三顆明細 第四顆公式 第五顆設定」);通知欄左右滑的順序也跟著按鍵走
   · 2026-11-02 23:44(實際時間)訊息 / 當沖 / 明細 通知欄上下滑動更順(使用者「訊息通知欄 當沖通知欄 明細通知欄 上下滑動也要順暢」):原本每 5 秒整欄重建 + 重新量字級(內容沒變也一樣),捲到一半碰到就頓一下 → 內容沒變就完全不動;手指在通知欄上或慣性捲動中先不重畫,停下 0.8 秒再補;捲動時標題日期 / 當日輸贏一格畫面只算一次、沒變不重寫
@@ -152,7 +153,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611030000">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611030101">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3496,9 +3497,9 @@ function wiDevDraw(wp, r){
     g.globalAlpha = 1; /* 2026-10-27 11:40 使用者:「右邊也一律亮色 改」:十字線之後的柱子不再畫淡色(原 0.3) */ g.fillStyle = KAa[i] >= KBa[i] ? '#E0303F' : '#2EE59D'; g.fillRect(x - w / 2, Math.min(ya, yb), w, Math.max(1, Math.abs(ya - yb))); }
   g.globalAlpha = 1;
   const line = (f, col, lw) => { g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); let on = false; for (const [i, x] of pts){ const v = f(i); if (v == null){ continue; }   /* 2026-10-27 11:40 同上:線也畫到最右邊,不在十字線停 */ const y = yOf(v); if (!on){ g.moveTo(x, y); on = true; } else g.lineTo(x, y); } g.stroke(); };
-  if (PRESS){ g.save(); g.setLineDash([3, 3]); line(i => KAa[i], '#FFE14D', 1.2); g.restore(); line(PAVG, '#B15CFF', 1.5); } else {   // 2026-11-01 20:56 比照乖離圖:黃虛線 0 線、紫線 PT
-  g.save(); g.setLineDash([3, 3]); line(i => KBa[i], '#FFE14D', 1.2); g.restore();   /* 0 線 = Kb;2026-10-27 18:40 使用者:「改成跟k線一樣的藍色虛線」(原灰色實線),顏色同 K 圖 Kb #19D3F5 */
-  line(PY, '#B15CFF', 1.5);   /* 2026-10-27 18:45 均 10 線改紫色(使用者:「乖離綠線 改紫色」) */   /* 2026-10-27 18:45 使用者:「Kb改成黃色虛線 原乖離黃色 換成綠色」:均 10 線改綠、Kb 0 線改黃色虛線(只在乖離圖) */ }   // 2026-11-01 20:44 壓力圖分支結束
+  if (PRESS){ line(i => KAa[i], '#FFE14D', 1.2); g.save(); g.setLineDash([3, 3]); line(PAVG, '#B15CFF', 1.5); g.restore(); } else {   // 2026-11-03 01:00 使用者「乖離圖 紫色改虛線 黃色改實線」「壓力圖也一樣」   // 2026-11-01 20:56 比照乖離圖:黃虛線 0 線、紫線 PT
+  line(i => KBa[i], '#FFE14D', 1.2);   /* 2026-11-03 01:00 黃線改實線、紫線改虛線(使用者「乖離圖 紫色改虛線 黃色改實線」) */   /* 0 線 = Kb;2026-10-27 18:40 使用者:「改成跟k線一樣的藍色虛線」(原灰色實線),顏色同 K 圖 Kb #19D3F5 */
+  g.save(); g.setLineDash([3, 3]); line(PY, '#B15CFF', 1.5); g.restore();   /* 2026-10-27 18:45 均 10 線改紫色(使用者:「乖離綠線 改紫色」) */   /* 2026-10-27 18:45 使用者:「Kb改成黃色虛線 原乖離黃色 換成綠色」:均 10 線改綠、Kb 0 線改黃色虛線(只在乖離圖) */ }   // 2026-11-01 20:44 壓力圖分支結束
   { const sb = wp.querySelector('#dvMode'); if (sb){ const tx = PRESS ? '壓力圖' : '乖離圖'; if (sb.textContent !== tx) sb.textContent = tx;
       const ak = innerWidth + '|' + innerHeight; if (sb.__ak !== ak){ const t = el('rfToggle'); if (t){ const R1 = t.getBoundingClientRect(), R2 = sb.parentElement.getBoundingClientRect(); if (R1.width && R2.width){ sb.style.right = Math.max(0, Math.round(R2.right - R1.right)) + 'px'; sb.__ak = ak; } } } } }   // 和 K 圖「切換」右緣對齊
   const ci = (k => k >= 0 && B[k].time === cut ? k : -1)(wiBsearch(B, cut)), hd = wp.querySelector('#dvHd'), dl = ci >= 0 ? dev[ci] : null, al = ci >= 0 ? avg[ci] : null;
