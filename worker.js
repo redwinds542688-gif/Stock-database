@@ -564,7 +564,10 @@ async function keyInfo(env, k) {
   const ek = "ex:" + k; let ex = MC.get(ek);
   if (!ex || Date.now() - ex.at > 3600e3) { let has = false; try { const r = await env.LOGS.list({ prefix: "key:" + k, limit: 5 }); has = r.keys.some(x => x.name === "key:" + k); } catch (e) {} ex = { v: has, at: Date.now() }; MC.set(ek, ex); }
   if (!ex.v) return null;
-  const own = k.includes("5861") || EMER_OWN.some(s => k.endsWith(s));
+  // 2026-11-02 11:35 使用者「第三把 扣除前二把 就是第三把啊」:第三支手機的鑰匙不知道是哪一把 → 用主程式(不是看盤版)才會問的 ?cap=get / ?trade=pos 認出來(記在 Hub),認到就當 owner
+  let emo = MC.get("emo:" + k);
+  if (!emo || Date.now() - emo.at > 600e3) { let v = false; try { v = env.HUB ? !!(await hubOf(env).kvGet("emo:" + k)) : false; } catch (e) {} emo = { v, at: Date.now() }; MC.set("emo:" + k, emo); }
+  const own = k.includes("5861") || EMER_OWN.some(s => k.endsWith(s)) || emo.v;
   return { role: own ? "owner" : "viewer", on: true, name: "緊急(KV 額度用完)", emer: true };
 }
 function newKey() { const a = new Uint8Array(12); crypto.getRandomValues(a); return [...a].map(b => b.toString(16).padStart(2, "0")).join(""); }
@@ -620,6 +623,10 @@ export default {
       if (dv && !KI.emer && (!KI.dev || !KI.seen || Date.now() - KI.seen > 3600e3)) { try { if (!KI.dev) KI.dev = dv; KI.seen = Date.now(); await env.LOGS.put("key:" + kq, JSON.stringify(KI)); } catch (e) {} } }
     // 2026-10-29 安全修補:owner 鑰匙做「寫入 / 下單 / 管鑰匙」時,鑰匙已綁手機就一定要帶 dv(手機 App 的 fetch 包裝每次都帶;不帶 dv 不能繞過一人一機去下單)。
     //   讀的端點(gh=raw 更新等)照舊不要求 dv,避免 Page.kt 偏好裡沒有 dev 時更新失敗
+    if (KI && KI.emer && KI.role !== "owner" && (url.searchParams.get("cap") === "get" || url.searchParams.get("trade") === "pos") && dv && env.HUB) {   // 主程式的手機 → 記成 owner(緊急模式才有)
+      try { await hubOf(env).kvPut("emo:" + kq, { dv, at: Date.now() }); } catch (e) {}
+      MC.set("emo:" + kq, { v: true, at: Date.now() }); KI = { ...KI, role: "owner" };
+    }
     const ownerKI = !!(KI && KI.role === "owner" && (!KI.dev || dv));
     const keysQ = url.searchParams.get("keys");
     // 2026-10-29 17:39 取件碼(使用者:「存在你這 你幫我遮起來 我用手機來複製」→ 鑰匙不經對話):桌機 ?keys=stash(中繼金鑰)把鑰匙存成 6 位數取件碼(10 分鐘、用一次就刪),
