@@ -1,4 +1,4 @@
-// note: 鑰匙可以掃 QR Code(要允許相機)
+// note: 返回鍵先關強制交易視窗 / 公式小視窗 / 設定,不再一按就問要不要離開
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -10,8 +10,8 @@ android {
         applicationId = "tw.mysh.monitor"
         minSdk = 26
         targetSdk = 34
-        versionCode = 58
-        versionName = "1.5.52"
+        versionCode = 59
+        versionName = "1.5.53"
     }
     // 2026-10-29 看盤版(使用者:「如果 程式給別人用 但我要控制判123在手上」→「先做1.2.3」第 1 項):同一份程式兩個口味,
     //   owner = 自己用的(app.html 含判一二三)、viewer = 給別人的看盤版(內建 / 更新都抓 viewer.html,沒有判一二三;套件名多 .viewer,兩個可以同時裝)

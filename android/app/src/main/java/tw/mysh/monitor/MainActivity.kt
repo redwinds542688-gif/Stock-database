@@ -159,7 +159,8 @@ class MainActivity : AppCompatActivity() {
     /** 返回鍵(2026-10-19 使用者:「虛擬按鍵 返回 出現離開程式 確認 結束程式」;同日 11:17「結束程式部分 取消」→ 只剩 確認 / 取消):
      *  圖表開著就只關圖表;否則跳「離開程式?」確認 = 回桌面,背景監控照跑、通知照發;取消 = 留在程式。背景監控只能由看門狗自動管,沒有手動停止 */
     override fun onBackPressed() {
-        web.evaluateJavascript("(function(){ try{ var s = document.getElementById('sheet'); if (s && s.classList.contains('open')){ closeChart(); return 'closed'; } }catch(e){} return ''; })()") { r ->
+        // 2026-11-02 使用者(強制平倉視窗開著又跳「離開程式?」):先讓網頁關最上面那層(appBack:強制交易 / 鑰匙視窗、公式小視窗、設定、K 圖),都沒開才問
+        web.evaluateJavascript("(function(){ try{ if (window.appBack){ var r = window.appBack(); if (r) return 'closed'; } var s = document.getElementById('sheet'); if (s && s.classList.contains('open')){ closeChart(); return 'closed'; } }catch(e){} return ''; })()") { r ->
             if (r != null && r.contains("closed")) return@evaluateJavascript
             AlertDialog.Builder(this).setTitle("離開程式?")
                 .setMessage("確認:回到桌面,背景監控繼續跑、通知照發。")

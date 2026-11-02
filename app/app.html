@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 12:04(實際時間)返回鍵 / 返回手勢先關最上面那層(強制交易視窗、公式小視窗、設定、K 圖),都沒開才問「離開程式?」(使用者截圖「怎麼同時出現」;App 1.5.53)
   · 2026-11-02 11:56(實際時間)通知欄左右滑切分頁(使用者「往左滑 切換到公式 再往左滑 切換到當沖…往右滑也是反向」):訊息 → 公式 → 當沖 → 明細 →(收盤後才有 設定)→ 訊息,右滑反過來
   · 2026-11-02 11:50(實際時間)三支主程式手機同步強平清單(使用者「a手機強制平倉 a就看不到再次平倉訊息 b.c也同步一樣」):從電腦回的今天強平過的股票讀,訊息欄一樣藏之後的停利 / 停損 / 出場
   · 2026-11-02 11:48(實際時間)電腦:程式進場單還在送時的手動同方向成交也接管(使用者「不管是誰做的 只要有成交 程式一律接管」);進場單成交 → 合併重算,進場單沒成交 → 只用手動那幾張接成部位
@@ -128,7 +129,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611021156">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611021204">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4835,7 +4836,17 @@ function placeXVol(t){
 }
 
 /* 關閉圖表(✕ 或手機返回鍵都走這裡) */
+/* 2026-11-02 12:03 使用者(截圖:強制平倉視窗開著,又跳出「離開程式?」):返回鍵 / 返回手勢先關最上面那層(強制交易 / 鑰匙視窗、抓 bug 面板、公式小視窗、設定、K 圖),
+   都沒有開才問要不要離開。App 1.5.53 起返回鍵先問 appBack();舊 App 只在 K 圖開著時呼叫 closeChart,所以 closeChart 也先關視窗 */
+window.appBack = () => { try{
+  const w = document.getElementById('fmWin'); if (w){ w.remove(); return 'closed'; }
+  const bp = document.getElementById('bugPanel'); if (bp && bp.classList.contains('on')){ bp.classList.remove('on'); return 'closed'; }
+  const m = document.getElementById('rsMenu'); if (m && !m.classList.contains('hidden') && window.closeRsMenu){ closeRsMenu(); return 'closed'; }
+  const sh = document.getElementById('sheet'); if (sh && sh.classList.contains('open')){ closeChart(); return 'closed'; }
+  const pn = document.querySelector('.panel'); if (pn && pn.classList.contains('open')){ pn.classList.remove('open'); if (window.feeLock) feeLock(); if (window.refreshToolbar) refreshToolbar(); return 'closed'; }
+}catch(e){} return ''; };
 function closeChart(){
+  { const w = document.getElementById('fmWin'); if (w){ w.remove(); return; } }   // 2026-11-02 視窗開著時返回先關視窗,K 圖留著
   try{ const r = el('result'), y = window.__listY; if (r && y != null){ const back = () => { if (Math.abs(r.scrollTop - y) > 2) r.scrollTop = y; }; requestAnimationFrame(back); setTimeout(back, 150); setTimeout(back, 600); } }catch(e){}   // 2026-10-27 18:30 退出 K 圖:清單回到進圖前的位置,不讓它自己跑
   el('sheet').classList.remove('open'); { const wp = document.getElementById('wiPanel'); if (wp) wp.classList.remove('on'); }   // 試算視窗跟著關(狀態 mysh.wiOn 記著,下次進圖再開)
   if (history.state && history.state.chart) history.back();   // 把開圖時留的那筆紀錄收回
