@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 10:20(實際時間)K 圖裡長按上方股票名稱 0.6 秒 = 強制交易(使用者「在k圖裡 長按股票名稱 一樣可以啟動 強制交易」;有部位 = 強制平倉,沒有 = 強制進場,和清單長按一樣)
   · 2026-11-02 10:09(實際時間)左上角監控點重影(使用者截圖):監控中網頁那顆綠點不畫,只留 App 的閃爍綠點
   · 2026-11-02 09:46(實際時間)當沖 / 明細超過三筆往上滑,報價更新重畫時會跳回最上面(使用者「上滑看第一筆 卻一下子就又變成最後一筆」)→ 重畫後放回原本捲到的位置
   · 2026-11-02 09:26(實際時間)設定全部由主導機(5861)節制(使用者「改 所有設定下的數值 皆由主導機節制」):高價/低價/振幅/檔數/上限/折扣/券商/證交所/證交稅 9 個滾輪,主導機轉完 1.5 秒送雲端,其他手機自動跟上、自己轉默默退回
@@ -116,7 +117,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611021009">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611021020">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1286,6 +1287,9 @@ function fmLongPress(node, get){
   node.addEventListener('click', ev => { if (node.__lp && Date.now() - node.__lp < 900){ ev.preventDefault(); ev.stopImmediatePropagation(); } }, true);
 }
 window.fmLongPress = fmLongPress;
+// 2026-11-02 10:12 使用者「在k圖裡 長按股票名稱 一樣可以啟動 強制交易」:K 圖上方的名稱 / 代碼長按 0.6 秒 → 和清單長按一樣(有部位 = 強制平倉,沒有 = 強制進場)
+(() => { const n = document.querySelector('.sheethead .yh-name'); if (n) fmLongPress(n, () => { const c = ((el('shCode') || {}).textContent || '').trim();
+  return /^\d{4,6}[A-Z]?$/.test(c) ? {code: c, name: ((el('shName') || {}).textContent || '').trim() || c} : null; }); })();
 const fmPx = code => { const r = LIVE.get(code) || {}; let z = +r.z || 0, y = +r.y || 0;
   if (!(z > 0) || !(y > 0)){ const sn = (typeof SNAPSHOT !== 'undefined' ? SNAPSHOT : []).find(q => q.code === code); if (sn){ if (!(z > 0)) z = +sn.close || 0; if (!(y > 0)) y = sn.date < fmToday() ? (+sn.close || 0) : (+sn.prev || 0); } }
   return {z, y}; };
