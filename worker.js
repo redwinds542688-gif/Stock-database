@@ -629,8 +629,12 @@ export default {
       const out = {};
       try { const v = await env.LOGS.get("keys:owners"); out.kv = v ? "ok" : "空"; } catch (e) { out.kv = "錯誤:" + String(e && e.message || e).slice(0, 160); }
       try { const v = await env.LOGS.get("keys:owners", { cacheTtl: 300 }); out.kvCache = v ? "ok" : "空"; } catch (e) { out.kvCache = "錯誤:" + String(e && e.message || e).slice(0, 160); }
+      // 2026-11-02 使用者「當然 金鑰也是機密」:這裡不用鑰匙就能看 → 只給 KV 狀態和用量;被拒紀錄(含鑰匙頭尾碼)、主導機設定、鑰匙數量(會用掉 list 額度)
+      //   只有中繼金鑰或 owner 鑰匙看得到
+      const kpK = (url.searchParams.get("k") || "").trim(), kpOwner = (env.YT_PUSH_KEY && request.headers.get("X-Push-Key") === env.YT_PUSH_KEY) || (kpK && await (async () => { try { const ki = await keyInfo(env, kpK); return !!(ki && ki.on && ki.role === "owner"); } catch (e) { return false; } })());
+      try { out.count = env.HUB ? await hubOf(env).kvGet("kvcount:" + ymdOf(twNow())) : null; } catch (e) {}
+      if (!kpOwner) return J(out);
       try { const v = env.HUB ? await hubOf(env).kvGet("m:cfg:cap") : null; const c = v ? JSON.parse(v) : null; out.cfg = c ? { cap: c.cap, at: new Date(c.at + 8 * 3600e3).toISOString().slice(5, 16), set: c.set || null } : "雲端備份還沒有(主導機還沒送過)"; } catch (e) { out.cfg = "讀不到"; }   // 2026-11-02 看主導機設定有沒有送上來(只有數值,沒有鑰匙)
-      try { out.count = env.HUB ? await hubOf(env).kvGet("kvcount:" + ymdOf(twNow())) : null; } catch (e) {}   // 今天 KV 用量(大約,每個執行個體滿 50 次才記一次)
       try { out.bad = env.HUB ? (await hubOf(env).kvGet("badlog") || []).slice(-15) : []; } catch (e) {}
       try { const r = await env.LOGS.list({ prefix: "key:", limit: 1000 }); out.keys = r.keys.length; out.meta = r.keys.filter(k => k.metadata).length; } catch (e) { out.keys = "錯誤:" + String(e && e.message || e).slice(0, 120); }
       return J(out);
