@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 23:09(實際時間)所有圖左右捲動更順(使用者「所有圖的左右滑動也要順暢」「捲動要順暢」):圖上的價格刻度 / 橫格線不再每格整段重建,只移動位置、改數字;指標二上下範圍同一段不重算;手指捲圖 / 慣性滑行中乖離試算停下 0.15 秒再算。畫面和原本一模一樣,程式每格花的時間約少一半
   · 2026-11-02 22:57(實際時間)下面監控股票上下滑動更順(使用者「下面監控股票上下滑動也要順暢」):手指在清單上或還在慣性捲動時,不重排、不重畫、不改價錢,停下 0.5 秒後一次補上;價錢沒變的格子不重寫;清單捲動區獨立一層
   · 2026-11-02 22:43(實際時間)通知欄左右滑換頁更順(使用者「下一個顯示有延遲現象 不順暢」):原本放手後要等舊頁滑出 0.14 秒才換新頁 → 放手當下就換,舊頁接著滑出、新頁同時從旁邊滑進來,快慢跟著手指
   · 2026-11-02 22:32(實際時間)從明細(或訊息)左右滑到設定時,下面五顆按鍵(訊息/公式/當沖/明細/設定)會跟著滑動(使用者影片「五顆按鍵都會移動」)→ 只移動設定的轉盤區,按鍵列固定不動
@@ -147,7 +148,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611022257">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611022309">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3614,8 +3615,9 @@ function showBarInfo(t){
   axDate(t);
   // 2026-10-25 13:20 使用者「畫面 十字虛線 … 下面試算沒有跟上」:試算視窗開著時,十字線移動就重算(停 0.3 秒才算,拖動中不卡)
   try{ const wp = document.getElementById('wiPanel'); if (wp && wp.classList.contains('on')){ wiSlideSync(wp);
+      // 2026-11-02 23:05 手指左右捲圖 / 慣性滑行中也一樣:停下 150 毫秒再算試算
       // 2026-10-26 23:50 使用者「順暢嗎」:邊緣捲動中每秒換幾十根,每根都整張試算重算會卡 → 捲動中只動滑軌和乖離圖(乖離圖隨範圍變化自己重畫),停下 150 毫秒再算一次試算
-      if (window.edgeScroll && edgeScroll.on()){ clearTimeout(window.__wiEdgeT); window.__wiEdgeT = setTimeout(() => { try{ wiRender(wp); }catch(e){} }, 150); }
+      if ((window.edgeScroll && edgeScroll.on()) || Date.now() - (window.__panAt || 0) < 150){ clearTimeout(window.__wiEdgeT); window.__wiEdgeT = setTimeout(() => { try{ wiRender(wp); }catch(e){} }, 150); }
       else if (!window.__wiRaf) window.__wiRaf = requestAnimationFrame(() => { window.__wiRaf = 0; try{ wiRender(wp); }catch(e){} }); } }catch(e){}   // 15:15 每一畫格跟著算(原本停 0.3 秒才算)
   if (!CUR) return;
   const d = (t && CUR.byTime.get(t)) || CUR.last;
@@ -4271,6 +4273,21 @@ const chartOpts = () => ({
 /* 2026-10-26 22:55 使用者「指標二三的刻度也改成依昨收上色」:K 圖左邊自畫刻度那套(initChart 裡 2026-10-25 14:45 的做法)抽成共用,
    指標二(刻度已換算成價格時;顯示張數時照舊黃字)、指標三也用:套件的刻度字和橫格線藏起來、底色透明,自己畫格線、左邊寫價格(高於昨收紅、平白、低綠),
    十字線那格照舊是套件的標籤,自己的刻度離它太近就不寫。isOn() 回 false 時還原套件原本的刻度。回傳強制重畫的函式。 */
+/* 2026-11-02 23:05 使用者「所有圖的左右滑動也要順暢」「捲動要順暢」:圖上自己畫的價格刻度 / 橫格線原本每一格捲動都整段 innerHTML 重建(建幾十個 div、重排版面),
+   改成重複使用同一批 div,只改位置(transform)和數字;圖框高度用 ResizeObserver 記住,不用每格量版面;找十字線那根用二分搜尋(原本從頭找 1300 多根) */
+const __pxH = new WeakMap();
+function pxBoxH(box){ let v = __pxH.get(box); if (v == null){ v = box.clientHeight; __pxH.set(box, v); try{ new ResizeObserver(() => __pxH.set(box, box.clientHeight)).observe(box); }catch(e){ __pxH.delete(box); } } return v; }
+function barIdx(t){ if (typeof BARS === 'undefined' || !BARS.length) return -1; let lo = 0, hi = BARS.length - 1; while (lo <= hi){ const m = (lo + hi) >> 1, v = BARS[m].time; if (v < t) lo = m + 1; else if (v > t) hi = m - 1; else return m; } return BARS.findIndex(b => b.time === t); }
+function pxPaint(gl, lb, aw, gridCol, gy, lab){
+  const P = gl.__pool || (gl.__pool = []), Q = lb.__pool || (lb.__pool = []);
+  for (let k = 0; k < gy.length; k++){ let d = P[k]; if (!d){ d = document.createElement('div'); d.style.cssText = 'position:absolute;right:0;top:0;height:1px;will-change:transform'; gl.appendChild(d); P.push(d); }
+    const t = 'translate3d(0,' + gy[k] + 'px,0)'; if (d.__t !== t){ d.style.transform = t; d.__t = t; } if (d.__l !== aw){ d.style.left = aw + 'px'; d.__l = aw; } if (d.__c !== gridCol){ d.style.background = gridCol; d.__c = gridCol; } if (d.__h){ d.style.display = ''; d.__h = 0; } }
+  for (let k = gy.length; k < P.length; k++) if (!P[k].__h){ P[k].style.display = 'none'; P[k].__h = 1; }
+  if (lb.__w !== aw){ lb.style.width = aw + 'px'; lb.__w = aw; }
+  for (let k = 0; k < lab.length; k++){ const [y, txt, col] = lab[k]; let d = Q[k]; if (!d){ d = document.createElement('div'); d.style.cssText = 'position:absolute;left:0;top:0;text-align:right;will-change:transform'; lb.appendChild(d); Q.push(d); }
+    const t = 'translate3d(0,' + y + 'px,0)'; if (d.__t !== t){ d.style.transform = t; d.__t = t; } const w = (aw - 6) + 'px'; if (d.__w !== w){ d.style.width = w; d.__w = w; } if (d.__c !== col){ d.style.color = col; d.__c = col; } if (d.__x !== txt){ d.textContent = txt; d.__x = txt; } if (d.__h){ d.style.display = ''; d.__h = 0; } }
+  for (let k = lab.length; k < Q.length; k++) if (!Q[k].__h){ Q[k].style.display = 'none'; Q[k].__h = 1; }
+}
 function pxAxisAttach(ch, box, getSeries, isOn, xcAt){
   const STEPS = [0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 500];
   const gl = document.createElement('div'), lb = document.createElement('div');
@@ -4283,30 +4300,30 @@ function pxAxisAttach(ch, box, getSeries, isOn, xcAt){
     if (on === hidden) return; hidden = on;
     ch.priceScale('left').applyOptions({textColor: on ? 'rgba(0,0,0,0)' : CHART_THEME.axisText});
     ch.applyOptions({layout: {background: {type: 'solid', color: on ? 'rgba(0,0,0,0)' : CHART_THEME.bg}}, grid: {horzLines: {visible: !on}}});
-    if (!on){ gl.innerHTML = ''; lb.innerHTML = ''; memo = ''; }
+    if (!on){ pxPaint(gl, lb, 0, '', [], []); memo = ''; }
   };
   const draw = () => {
     try{
       if (!el('sheet').classList.contains('open')) return;
       { const wpn = document.getElementById('wiPanel'); if (wpn && wpn.classList.contains('on')){ memo = ''; return; } }   // 2026-10-27 21:10 乖離視窗蓋住指標二、三時不用每格量版面畫刻度
       const s = getSeries(); const on = !!s && !!isOn(); setHidden(on); if (!on) return;
-      const aw = ch.priceScale('left').width() || 0, H = box.clientHeight - (ch.timeScale().height() || 0);
+      const aw = ch.priceScale('left').width() || 0, H = pxBoxH(box) - (ch.timeScale().height() || 0);
       const pT = s.coordinateToPrice(0), pB = s.coordinateToPrice(H); if (pT == null || pB == null || !(pT > pB)) return;
       const y0 = (CUR && CUR.prevClose) || memoY0; if (CUR && CUR.prevClose) memoY0 = CUR.prevClose;   // 2026-10-27 00:10 換股票中沿用上一檔的昨收(同 K 圖)
       let xc = null; try{ const x = window.getXLock && getXLock(); const tt = x && !x.follow ? x.time : (BARS.length ? BARS[BARS.length - 1].time : null);
-        if (tt != null){ const i = BARS.findIndex(b => b.time === tt); if (i >= 0){ const v = xcAt(i); if (v != null) xc = s.priceToCoordinate(v); } } }catch(e){}
+        if (tt != null){ const i = barIdx(tt); if (i >= 0){ const v = xcAt(i); if (v != null) xc = s.priceToCoordinate(v); } } }catch(e){}
       const key = [aw, H, pT.toFixed(4), pB.toFixed(4), y0, xc == null ? '' : Math.round(xc)].join('|'); if (key === memo) return; memo = key;
       const range = pT - pB; let step = STEPS[STEPS.length - 1]; for (const st of STEPS){ if (st / range * H >= 30){ step = st; break; } }
       const dec = step < 0.1 ? 2 : step < 1 ? (Math.round(step * 100) % 10 ? 2 : 1) : 0, dp = Math.max(2, dec);
-      let g = '', l = '';
+      const g = [], l = [];
       for (let p = Math.ceil(pB / step - 1e-9) * step; p <= pT + 1e-9; p += step){
         const y = s.priceToCoordinate(p); if (y == null || y < 4 || y > H - 4) continue;
-        g += '<div style="position:absolute;left:' + aw + 'px;right:0;top:' + Math.round(y) + 'px;height:1px;background:' + CHART_THEME.grid + '"></div>';
+        g.push(Math.round(y));
         if (xc != null && Math.abs(y - xc) < 13) continue;
         const pv = +p.toFixed(4), col = PX_AXIS_COL;   // 2026-11-01 使用者「都改成 黃字 不再隨價格改變顏色」→「把 黃色 換 藍色」(原本高於昨收紅、平白、低綠)
-        l += '<div style="position:absolute;left:0;width:' + (aw - 6) + 'px;text-align:right;top:' + Math.round(y - 7) + 'px;color:' + col + '">' + pv.toFixed(dp) + '</div>';
+        l.push([Math.round(y - 7), pv.toFixed(dp), col]);
       }
-      gl.innerHTML = g; lb.style.width = aw + 'px'; lb.innerHTML = l;
+      pxPaint(gl, lb, aw, CHART_THEME.grid, g, l);
     }catch(e){}
   };
   const loop = () => { draw(); requestAnimationFrame(loop); }; requestAnimationFrame(loop);
@@ -4364,26 +4381,26 @@ function initChart(){
     const draw = () => {
       try{
         if (!el('sheet').classList.contains('open') || !candle) return;
-        const aw = chart.priceScale('left').width() || 0, H = top.clientHeight - (chart.timeScale().height() || 0);
+        const aw = chart.priceScale('left').width() || 0, H = pxBoxH(top) - (chart.timeScale().height() || 0);
         const pT = candle.coordinateToPrice(0), pB = candle.coordinateToPrice(H); if (pT == null || pB == null || !(pT > pB)) return;
         // 2026-10-27 00:10 使用者錄影「切換股票 K 圖左邊的數字會先變黃色」:openChart 一開始把 CUR 清掉、新的 K 還沒畫好這段,昨收拿不到 → 刻度退回黃字、十字線那格也多寫一個數字疊在套件標籤上;
         //   改成這段沿用上一檔最後一次的昨收和十字線位置(圖本來就還是上一檔的),新的畫好自然換
         const y0 = (CUR && CUR.prevClose) || memoY0; if (CUR && CUR.prevClose) memoY0 = CUR.prevClose;
         let xc = null; try{ const x = window.getXLock && getXLock(); const tt = x && !x.follow ? x.time : (BARS.length ? BARS[BARS.length - 1].time : null);
-          const d = tt != null && CUR && CUR.byTime.get(tt); if (d) xc = candle.priceToCoordinate(RF_MODE && typeof rfXPrice === 'function' ? rfXPrice(BARS.findIndex(b => b.time === tt)) : d.bar.close); else if (!CUR) xc = memoXc; }catch(e){}
+          const d = tt != null && CUR && CUR.byTime.get(tt); if (d) xc = candle.priceToCoordinate(RF_MODE && typeof rfXPrice === 'function' ? rfXPrice(barIdx(tt)) : d.bar.close); else if (!CUR) xc = memoXc; }catch(e){}
         memoXc = xc;
         const key = [aw, H, pT.toFixed(4), pB.toFixed(4), y0, xc == null ? '' : Math.round(xc)].join('|'); if (key === memo) return; memo = key;
         const range = pT - pB; let step = STEPS[STEPS.length - 1]; for (const st of STEPS){ if (st / range * H >= 30){ step = st; break; } }
         const dec = step < 0.1 ? 2 : step < 1 ? (Math.round(step * 100) % 10 ? 2 : 1) : 0, dp = Math.max(2, dec);
-        let g = '', l = '';
+        const g = [], l = [];
         for (let p = Math.ceil(pB / step - 1e-9) * step; p <= pT + 1e-9; p += step){
           const y = candle.priceToCoordinate(p); if (y == null || y < 4 || y > H - 4) continue;
-          g += '<div style="position:absolute;left:' + aw + 'px;right:0;top:' + Math.round(y) + 'px;height:1px;background:' + CHART_THEME.grid + '"></div>';
+          g.push(Math.round(y));
           if (xc != null && Math.abs(y - xc) < 13) continue;
           const pv = +p.toFixed(4), col = PX_AXIS_COL;   // 2026-11-01 使用者「都改成 黃字 不再隨價格改變顏色」→「把 黃色 換 藍色」(原本高於昨收紅、平白、低綠)
-          l += '<div style="position:absolute;left:0;width:' + (aw - 6) + 'px;text-align:right;top:' + Math.round(y - 7) + 'px;color:' + col + '">' + pv.toFixed(dp) + '</div>';
+          l.push([Math.round(y - 7), pv.toFixed(dp), col]);
         }
-        gl.innerHTML = g; lb.style.width = aw + 'px'; lb.innerHTML = l;
+        pxPaint(gl, lb, aw, CHART_THEME.grid, g, l);
       }catch(e){}
     };
     const loop = () => { draw(); requestAnimationFrame(loop); }; requestAnimationFrame(loop);
@@ -4421,12 +4438,17 @@ function initChart(){
   const obvRangeEx = orig => { try{
       if (!YH.obvSkipClose) return orig();
       const r = chart.timeScale().getVisibleLogicalRange(); if (!r || !BARS || !BARS.length) return orig();
+      // 2026-11-02 23:05 捲動時同一格會被問好幾次,同一段範圍(和最後一根的值)沒變就直接用上次算的
+      let lastV = null; try{ const d = obvSeries && obvSeries.dataByIndex(BARS.length - 1); lastV = d ? d.value : null; }catch(e){}
+      const ck = Math.floor(r.from) + '|' + Math.ceil(r.to) + '|' + BARS.length + '|' + lastV + '|' + (obvMaLine ? 1 : 0) + (obvMa30Line ? 1 : 0);
+      const C = obvRangeEx.__c; if (C && C.k === ck) return C.v ? C.v : orig();
       let lo = Infinity, hi = -Infinity;
       for (let i = Math.max(0, Math.floor(r.from)); i <= Math.min(BARS.length - 1, Math.ceil(r.to)); i++){
         if (hmKey(BARS[i].time) === '13:30') continue;
         for (const x of [obvSeries, obvMaLine, obvMa30Line]){ if (!x) continue; const d = x.dataByIndex(i); if (d && d.value != null){ if (d.value < lo) lo = d.value; if (d.value > hi) hi = d.value; } }
       }
-      return (isFinite(lo) && hi > lo) ? {priceRange: {minValue: lo, maxValue: hi}} : orig(); }catch(e){ return orig(); } };
+      const out = (isFinite(lo) && hi > lo) ? {priceRange: {minValue: lo, maxValue: hi}} : null; obvRangeEx.__c = {k: ck, v: out};
+      return out || orig(); }catch(e){ return orig(); } };
   obvSeries = chartM.addLineSeries({priceScaleId:'left', color:CHART_THEME.obv, lineWidth:1.5, lineStyle: 2,   // 2026-10-21 使用者:「Oa 用虛線」(lineStyle 2 = 虛線)
                                     priceLineVisible:false, lastValueVisible:false,
                                     priceFormat: lotsFmt});
@@ -4701,7 +4723,7 @@ function initChart(){
   // 2026-10-27 19:00 使用者:「滑動就是捲動圖 要判別是點還是滑動」:自己捲圖用(長按後再滑、乖離試算圖上左右滑);dx 像素 → 移幾根
   window.__setRangeAll = r => { try{ bugAdd('fn', ['setAll', r ? +r.from.toFixed(1) : null, r ? +r.to.toFixed(1) : null]); }catch(e){} syncing = true; for (const c of charts) c.timeScale().setVisibleLogicalRange(r); syncing = false; keepXInView(r); };
   window.__panStart = () => { const r0 = chart.timeScale().getVisibleLogicalRange(); if (!r0) return null; const w = Math.max(1, top.clientWidth - (chart.priceScale('left').width() || 0)); return {r0, spb: (r0.to - r0.from) / w, sh: window.__histShift || 0}; };
-  window.__panBy = (z, dx) => { if (!z) return; const wd = z.r0.to - z.r0.from; let from = z.r0.from + ((window.__histShift || 0) - (z.sh || 0)) - dx * z.spb;   /* 慣性滑行中補上前幾天:位置跟著位移 */ const minF = -wd * 0.5, maxF = BARS.length - 1 - wd * 0.5;
+  window.__panBy = (z, dx) => { if (!z) return; window.__panAt = Date.now(); const wd = z.r0.to - z.r0.from; let from = z.r0.from + ((window.__histShift || 0) - (z.sh || 0)) - dx * z.spb;   /* 慣性滑行中補上前幾天:位置跟著位移 */ const minF = -wd * 0.5, maxF = BARS.length - 1 - wd * 0.5;
     if (from < minF) from = minF; if (from > maxF) from = maxF; pinchRange = {from, to: from + wd}; if (!pinchReq) pinchReq = requestAnimationFrame(applyPinch); };
   window.__zoomBy = (z, dy) => { const k = Math.pow(2, -dy / 120), w0 = z.r0.to - z.r0.from; let w = w0 / k; const maxW = BARS.length + 3; if (w < 12) w = 12; if (w > maxW) w = maxW;
     const from = z.anchor - (z.anchor - z.r0.from) * (w / w0); pinchRange = {from, to: from + w}; if (!pinchReq) pinchReq = requestAnimationFrame(applyPinch); };
