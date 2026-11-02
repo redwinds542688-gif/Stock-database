@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 02:00(實際時間)試算列紅箭頭沒出現時位置照樣佔著,「收 / 量」那段固定不左右移(使用者「這列 原灰字現白字這些 固定位置 不要因為沒有箭頭 而移動」)
   · 2026-11-03 01:58(實際時間)試算列「hh:mm 收 xx · 量 xx 張」改成和左邊「試算 … 這根」同字級(取代 01:39 的放大),整列字往上移、和紅箭頭上下對齊(使用者「改 與最左邊的字一樣大小 然後這一列字 上移 與箭頭平齊」)
   · 2026-11-03 01:52(實際時間)乖離圖 / 壓力圖試算列的紅箭頭對準指標二那顆在螢幕上的位置(左右、上下都一樣),長按價格切換時箭頭不跳(使用者「兩個箭頭 切換 位置不變」)
   · 2026-11-03 01:44(實際時間)K 圖下方記住上次看的:離開時是指標二、三,下次從清單 / 通知進來還是指標二、三;是乖離圖就還是乖離圖(使用者「開指標二三 離開再進來 又跳回乖離圖」→「改」;取代 10/30「每次進圖一律先乖離圖」)
@@ -159,7 +160,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611030158">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611030200">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -536,6 +537,7 @@
   .sheetbody{flex:1;position:relative;min-height:0}
   /* 兩指縮放只作用在 K 線圖 / OBV 圖(圖表套件自己處理),不讓瀏覽器放大整個頁面 */
   .sheet, #chartTop, #chartMid, #chartBot{touch-action:none}
+  #wiPanel .xgo.wiXgo.hidden{display:inline-block;visibility:hidden;pointer-events:none}   /* 2026-11-03 02:00 使用者「這列 原灰字現白字這些 固定位置 不要因為沒有箭頭 而移動」:箭頭沒出現時位置照樣佔著,收 / 量那段不左右跑 */
   .xgo{margin-left:auto;align-self:center;background:none;border:0;line-height:0;padding:0 0 0 12px;height:17px;touch-action:manipulation}   /* 2026-10-20 使用者給圖:紅色實心塊狀箭頭、白邊 → 內嵌 SVG */   /* 2026-10-20 使用者:「最新取消 改設一個向右實心箭頭 放在 OBV 那一列最右邊」:十字線不在最新一根時才顯示,點了回到最新 */
   #chart{position:absolute;inset:0;display:flex;flex-direction:column;background:#000}
   #chartTop{flex:11;min-height:0;position:relative;background:#000}
