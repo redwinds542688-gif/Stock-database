@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 22:32(實際時間)從明細(或訊息)左右滑到設定時,下面五顆按鍵(訊息/公式/當沖/明細/設定)會跟著滑動(使用者影片「五顆按鍵都會移動」)→ 只移動設定的轉盤區,按鍵列固定不動
   · 2026-11-02 22:14(實際時間)公式的六個鍵關不掉(使用者影片「怎麼都變成公式按鍵」):收起時樣式被蓋過,按訊息 / 當沖 / 明細 / 設定 / 再按公式都收不起來 → 修好
   · 2026-11-02 22:11(實際時間)公式的六個鍵(判一~四、鑰匙、說明)改成 3 × 2 平均放在通知欄裡(使用者「把公式下 六個按鍵 改 平均放在通知欄裡面」)
   · 2026-11-02 21:34(實際時間)鑰匙視窗不再顯示整串鑰匙(使用者「一進去就看到金鑰全部 改成只顯示最後五碼」):輸入框空白,提示寫「目前 ••••後五碼」;沒輸入新的按存 = 維持原本的
@@ -144,7 +145,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611022214">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611022232">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1596,7 +1597,7 @@ window.fitBands = fitBands;
     // 2026-11-02 13:21 使用者「在通知欄裡 左右滑動 要絲滑順暢」:手指一往左右拖,通知欄就跟著手指移動(變淡);放開時拖過 1/5 寬或甩得夠快 → 往那邊滑出、
     //   新的分頁從另一邊滑進來;不夠就彈回原位。認定是左右拖之後就不讓它上下捲(不會斜著晃),拖完那一下不會誤點到卡片
     let x0 = 0, y0 = 0, t0 = 0, multi = false, tab0 = 'msg', lock = 0, drag = false, lx = 0, lt = 0, vx = 0, swiped = 0, busy = false;
-    const boxOf = t => t === 'set' ? document.getElementById('panel') : document.getElementById('notifLog');
+    const boxOf = t => t === 'set' ? document.querySelector('#panel > .wheels') : document.getElementById('notifLog');   // 2026-11-02 22:40 使用者「從明細滑到設定 五顆按鍵都會移動」:設定頁只移動轉盤區,下面五顆按鍵不動
     const setX = (el, x, ms) => { if (!el) return; el.style.transition = ms ? `transform ${ms}ms cubic-bezier(.22,.8,.25,1), opacity ${ms}ms linear` : 'none';
       el.style.transform = x ? `translate3d(${x}px,0,0)` : ''; el.style.opacity = x ? String(Math.max(0.3, 1 - Math.abs(x) / (innerWidth || 400) * 0.9)) : ''; };
     const clearX = el => { if (el){ el.style.transition = ''; el.style.transform = ''; el.style.opacity = ''; el.style.willChange = ''; } };
