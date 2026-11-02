@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 01:58(實際時間)試算列「hh:mm 收 xx · 量 xx 張」改成和左邊「試算 … 這根」同字級(取代 01:39 的放大),整列字往上移、和紅箭頭上下對齊(使用者「改 與最左邊的字一樣大小 然後這一列字 上移 與箭頭平齊」)
   · 2026-11-03 01:52(實際時間)乖離圖 / 壓力圖試算列的紅箭頭對準指標二那顆在螢幕上的位置(左右、上下都一樣),長按價格切換時箭頭不跳(使用者「兩個箭頭 切換 位置不變」)
   · 2026-11-03 01:44(實際時間)K 圖下方記住上次看的:離開時是指標二、三,下次從清單 / 通知進來還是指標二、三;是乖離圖就還是乖離圖(使用者「開指標二三 離開再進來 又跳回乖離圖」→「改」;取代 10/30「每次進圖一律先乖離圖」)
   · 2026-11-03 01:39(實際時間)乖離圖 / 壓力圖試算列的「hh:mm 收 xx · 量 xx 張」改白字、字級放大到塞滿標題和紅箭頭中間(使用者「這些灰字最大化 白色」)
@@ -158,7 +159,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611030152">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611030158">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3590,18 +3591,18 @@ function wiRender(wp){
     put('tt', '試算 ' + hm + ' 這根' + (r.sig > 0 ? ' <span style="color:#FF4D5E">▲ 看漲</span>' : r.sig < 0 ? ' <span style="color:#2EE59D">▼ 看跌</span>' : ''), v => { U.tt.innerHTML = v; });
     // 2026-11-03 01:05 使用者「指標二最右邊有一個向右的箭頭 乖離圖 壓力圖上也設一個 … 設在這一列 最右邊 原數值 往左移動」:同一顆「十字線回到最新一根」,十字線不在最新一根時才出現
     { const xl = window.getXLock && getXLock(); put('xg', xl && !xl.follow ? 1 : 0, v => { if (U.xg) U.xg.classList.toggle('hidden', !v); }); }
-    // 2026-11-03 01:40 使用者「這些灰字最大化 白色」:「hh:mm 收 xx · 量 xx 張」改白字,字級放大到塞滿標題和箭頭中間的空位(高度不超過這列)
-    put('infFit', U.inf.textContent + '|' + (U.xg && !U.xg.classList.contains('hidden') ? 1 : 0) + '|' + wp.clientWidth + '|' + h, () => { try{
-      const inf = U.inf, row = inf.parentElement.parentElement, td = row.parentElement, xw = U.xg && !U.xg.classList.contains('hidden') ? U.xg.offsetWidth : 0;
-      inf.style.fontSize = '20px'; const w20 = inf.getBoundingClientRect().width; if (!w20) return;
-      const avail = row.clientWidth - U.tt.getBoundingClientRect().width - xw - 14, hMax = Math.max(10, (td.clientHeight || h) * 0.62);
-      inf.style.fontSize = Math.max(9, Math.min(hMax, Math.floor(20 * avail / w20 * 2) / 2)) + 'px'; }catch(e){} });
-    // 2026-11-03 01:52 使用者(兩張截圖:指標二 / 壓力圖各一顆紅箭頭)「兩個箭頭 切換 位置不變」:試算列這顆對準指標二那顆在螢幕上的位置(左右、上下都一樣),長按價格切換時箭頭不會跳
-    put('xgPos', (U.xg && !U.xg.classList.contains('hidden') ? 1 : 0) + '|' + innerWidth + 'x' + innerHeight + '|' + wp.style.top + '|' + h + '|' + U.inf.style.fontSize, () => { try{
-      const g = U.xg, xb = el('xhairClose'); if (!g || g.classList.contains('hidden')) return; g.style.transform = '';
+    // 2026-11-03 01:40 使用者「這些灰字最大化 白色」→ 01:56「改 與最左邊的字一樣大小 然後這一列字 上移 與箭頭平齊」:「hh:mm 收 xx · 量 xx 張」白字、和左邊「試算 … 這根」同字級
+    put('infFs', h, () => { try{ U.inf.style.fontSize = getComputedStyle(U.tt).fontSize; }catch(e){} });
+    // 2026-11-03 01:52 使用者「兩個箭頭 切換 位置不變」:試算列紅箭頭對準指標二那顆在螢幕上的位置;01:56 這一列的字也上下對準箭頭(= 指標二那列的正中間),箭頭有沒有出現都一樣高
+    put('xgPos', (U.xg && !U.xg.classList.contains('hidden') ? 1 : 0) + '|' + innerWidth + 'x' + innerHeight + '|' + wp.style.top + '|' + h, () => requestAnimationFrame(() => { try{   /* 等這次版面排好再量 */
+      const g = U.xg, xb = el('xhairClose'), lr = el('lblObvV') && el('lblObvV').closest('.yh-lbl'); const R = lr ? lr.getBoundingClientRect() : null;
+      let cy = R && R.height ? (R.top + R.bottom) / 2 : null;
+      if (xb && cy != null){ const hid = xb.classList.contains('hidden'); if (hid){ xb.style.visibility = 'hidden'; xb.classList.remove('hidden'); } const xr = xb.getBoundingClientRect(); if (hid){ xb.classList.add('hidden'); xb.style.visibility = ''; } if (xr.height) cy = (xr.top + xr.bottom) / 2; }   /* 對準箭頭本身的正中間(箭頭沒出現時先偷量一下它會在哪) */
+      if (cy != null){ for (const t of [U.tt, U.inf]){ t.style.transform = ''; t.style.display = 'inline-block'; const q = t.getBoundingClientRect(); const d = Math.round((cy - (q.top + q.bottom) / 2) * 2) / 2; t.style.transform = d ? 'translateY(' + d + 'px)' : ''; } }
+      if (!g || g.classList.contains('hidden')) return; g.style.transform = '';
       if (!xb || xb.classList.contains('hidden')) return; const a = xb.getBoundingClientRect(), b = g.getBoundingClientRect(); if (!a.width || !b.width) return;
       const dx = Math.round((a.right - b.right) * 2) / 2, dy = Math.round(((a.top + a.bottom) - (b.top + b.bottom)) / 2 * 2) / 2;
-      if (dx || dy) g.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; }catch(e){} });
+      if (dx || dy) g.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; }catch(e){} }));
     put('inf', hmKey(r.t - 60) + ' 收 ' + r.c0.toFixed(2) + ' · 量 ' + Math.round(r.v / 1000) + ' 張', v => { U.inf.textContent = v; });
     const pm = Math.max(1e-9, ...xs.filter(x => x.pc !== 0).map(x => x.p || 0));
     xs.forEach((x, k) => {
