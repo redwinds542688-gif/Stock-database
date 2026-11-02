@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 22:43(實際時間)通知欄左右滑換頁更順(使用者「下一個顯示有延遲現象 不順暢」):原本放手後要等舊頁滑出 0.14 秒才換新頁 → 放手當下就換,舊頁接著滑出、新頁同時從旁邊滑進來,快慢跟著手指
   · 2026-11-02 22:32(實際時間)從明細(或訊息)左右滑到設定時,下面五顆按鍵(訊息/公式/當沖/明細/設定)會跟著滑動(使用者影片「五顆按鍵都會移動」)→ 只移動設定的轉盤區,按鍵列固定不動
   · 2026-11-02 22:14(實際時間)公式的六個鍵關不掉(使用者影片「怎麼都變成公式按鍵」):收起時樣式被蓋過,按訊息 / 當沖 / 明細 / 設定 / 再按公式都收不起來 → 修好
   · 2026-11-02 22:11(實際時間)公式的六個鍵(判一~四、鑰匙、說明)改成 3 × 2 平均放在通知欄裡(使用者「把公式下 六個按鍵 改 平均放在通知欄裡面」)
@@ -145,7 +146,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611022232">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611022243">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1615,10 +1616,16 @@ window.fitBands = fitBands;
       if (!(Math.abs(dx) > W * 0.2 || (Math.abs(vx) > 0.45 && Math.abs(dx) > 30 && Math.sign(vx) === Math.sign(dx)))){ setX(el, 0, 200); setTimeout(() => clearX(el), 220); if (tab0 === 'rs') openMenu(); return; }
       const dir = dx < 0 ? 1 : -1, o = order(), i = o.indexOf(tab0), n = o[((i < 0 ? 0 : i) + dir + o.length) % o.length];
       busy = true; try{ navigator.vibrate && navigator.vibrate(12); }catch(e){}
-      setX(el, -dir * W, 140);
-      setTimeout(() => { clearX(boxOf('msg')); clearX(boxOf('set')); go(n);
-        const el2 = boxOf(n); if (el2 && n !== 'rs'){ setX(el2, dir * W * 0.35); el2.style.opacity = '0.3'; void el2.offsetWidth; setX(el2, 0, 220); setTimeout(() => clearX(el2), 240); }
-        setTimeout(() => { busy = false; }, 240); }, 140); };
+      // 2026-11-02 22:45 使用者「左滑右滑 下一個顯示有延遲現象 不順暢」:原本先等舊頁滑出 140ms 才換新頁 → 改成放手當下就換:舊頁複製一份接著往外滑,新頁同時從旁邊跟著滑進來(像翻頁),速度跟著手指甩的快慢
+      const ms = Math.max(170, Math.min(280, Math.round((W - Math.abs(dx)) / Math.max(1.3, Math.abs(vx)))));
+      let g = null;
+      if (el && tab0 !== 'set'){ try{ g = el.cloneNode(true); g.style.pointerEvents = 'none'; g.style.visibility = 'visible'; g.style.zIndex = '6'; g.style.transition = 'none'; el.parentNode.appendChild(g); g.scrollTop = el.scrollTop; }catch(e){ g = null; } }
+      clearX(boxOf('msg')); clearX(boxOf('set')); go(n);
+      const el2 = n === 'rs' ? document.getElementById('rsMenu') : boxOf(n);
+      if (el2){ setX(el2, dx + dir * W); el2.style.willChange = 'transform, opacity'; }
+      void (el2 || document.body).offsetWidth;
+      requestAnimationFrame(() => { if (g) setX(g, -dir * W, ms); if (el2) setX(el2, 0, ms); });
+      setTimeout(() => { if (g) g.remove(); if (el2) clearX(el2); busy = false; }, ms + 30); };
     document.addEventListener('click', ev => { if (Date.now() - swiped < 450){ ev.preventDefault(); ev.stopImmediatePropagation(); } }, true);   // 拖完那一下不算點
     // 2026-11-02 使用者「從螢幕最左邊或最右邊往內滑就等於按一次返回 這個不需要」:把通知欄的位置告訴 App(1.5.54 起),那段左右邊緣不當返回手勢
     { let lastZ = ''; const zone = () => { try{ if (!(window.Android && Android.gestureZone)) return; const c = document.getElementById('cover'); if (!c) return; const r = c.getBoundingClientRect();
