@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 04:07(實際時間)所有圖縮小最多看到 540 根(原本可以縮到全部載入的 K,約 1300 多根);放大最少 12 根照舊(使用者「改最多就是540」)
   · 2026-11-03 04:00(實際時間)乖離圖 / 壓力圖上方 7 個價格改黃字(原本依昨收紅 / 綠 / 白;中間那格底色照舊)(使用者「這七個綠色 價格 換成 黃色」)
   · 2026-11-03 02:08(實際時間)乖離圖 / 壓力圖上方的價格列從 9 個改成 7 個(+3 ~ −3 檔),每格平分整列寬、字放到最大,下面的高低條跟著變寬(使用者「這一列 原有九個數 改成 七個 最大化」)
   · 2026-11-03 02:04(實際時間)試算列的紅箭頭尖端被表格格子切掉一塊,和指標二那顆看起來不一樣 → 改放在表格外面、疊在指標二那顆同一位置,整顆完整顯示,切換時形狀、位置完全一樣(使用者「切換後 箭頭 好像不一樣」)
@@ -163,7 +164,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611030400">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611030407">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4587,6 +4588,7 @@ function initChart(){
     let fixed = null;
     if (r.to > maxTo) fixed = {from: r.from - (r.to - maxTo), to: maxTo};
     if ((fixed || r).to - (fixed || r).from < 12) { const t = (fixed || r).to; fixed = {from: t - 12, to: t}; }
+    if ((fixed || r).to - (fixed || r).from > 540) { const t = (fixed || r).to; fixed = {from: t - 540, to: t}; }   // 2026-11-03 04:06 使用者「改最多就是540」:縮小最多看到 540 根(兩天的一分 K),原本可以縮到全部載入的 K
     syncing = true;
     if (fixed) a.timeScale().setVisibleLogicalRange(fixed);                     // 夾好的範圍一起套到每一張,不等下一次事件
     for (const b of charts) if (b !== a) b.timeScale().setVisibleLogicalRange(fixed || r);
@@ -4774,7 +4776,7 @@ function initChart(){
   window.__panStart = () => { const r0 = chart.timeScale().getVisibleLogicalRange(); if (!r0) return null; const w = Math.max(1, top.clientWidth - (chart.priceScale('left').width() || 0)); return {r0, spb: (r0.to - r0.from) / w, sh: window.__histShift || 0}; };
   window.__panBy = (z, dx) => { if (!z) return; window.__panAt = Date.now(); const wd = z.r0.to - z.r0.from; let from = z.r0.from + ((window.__histShift || 0) - (z.sh || 0)) - dx * z.spb;   /* 慣性滑行中補上前幾天:位置跟著位移 */ const minF = -wd * 0.5, maxF = BARS.length - 1 - wd * 0.5;
     if (from < minF) from = minF; if (from > maxF) from = maxF; pinchRange = {from, to: from + wd}; if (!pinchReq) pinchReq = requestAnimationFrame(applyPinch); };
-  window.__zoomBy = (z, dy) => { const k = Math.pow(2, -dy / 120), w0 = z.r0.to - z.r0.from; let w = w0 / k; const maxW = BARS.length + 3; if (w < 12) w = 12; if (w > maxW) w = maxW;
+  window.__zoomBy = (z, dy) => {   /* 2026-11-03 04:06 縮小最多 540 根(使用者「改最多就是540」) */ const k = Math.pow(2, -dy / 120), w0 = z.r0.to - z.r0.from; let w = w0 / k; const maxW = Math.min(540, BARS.length + 3); if (w < 12) w = 12; if (w > maxW) w = maxW;
     const from = z.anchor - (z.anchor - z.r0.from) * (w / w0); pinchRange = {from, to: from + w}; if (!pinchReq) pinchReq = requestAnimationFrame(applyPinch); };
   [[top, chart], [mid, chartM], [bot, chartB]].filter(([e, c]) => c).forEach(([e, c]) => {
     e.addEventListener('touchstart', ev => {
@@ -4791,7 +4793,7 @@ function initChart(){
       if (ev.touches.length !== 2) return;
       const [a, b] = ev.touches; const k = Math.max(0.2, Math.min(8, Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) / pinch.d0));
       const w0 = pinch.r0.to - pinch.r0.from; let w = w0 / k;
-      const maxW = BARS.length + 3; if (w < 12) w = 12; if (w > maxW) w = maxW;
+      const maxW = Math.min(540, BARS.length + 3); if (w < 12) w = 12; if (w > maxW) w = maxW;
       const from = pinch.li0 - (pinch.li0 - pinch.r0.from) * (w / w0);
       pinchRange = {from, to: from + w};
       if (!pinchReq) pinchReq = requestAnimationFrame(applyPinch);
@@ -4832,7 +4834,7 @@ function initChart(){
       if (!vz) return;
       const k = Math.pow(2, -(t.clientY - vz.y0) / 120);
       const w0 = vz.r0.to - vz.r0.from; let w = w0 / k;
-      const maxW = BARS.length + 3; if (w < 12) w = 12; if (w > maxW) w = maxW;
+      const maxW = Math.min(540, BARS.length + 3); if (w < 12) w = 12; if (w > maxW) w = maxW;
       const from = vz.anchor - (vz.anchor - vz.r0.from) * (w / w0);
       pinchRange = {from, to: from + w};
       if (!pinchReq) pinchReq = requestAnimationFrame(applyPinch);
