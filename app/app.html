@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 00:00(實際時間)第一顆按鍵「訊息」改名「進場」(使用者「第一顆資訊改名 進場」)
   · 2026-11-02 23:57(實際時間)按鍵順序改成 訊息 / 當沖 / 明細 / 公式 / 設定(使用者「第一顆訊息 第二顆當沖 第三顆明細 第四顆公式 第五顆設定」);通知欄左右滑的順序也跟著按鍵走
   · 2026-11-02 23:44(實際時間)訊息 / 當沖 / 明細 通知欄上下滑動更順(使用者「訊息通知欄 當沖通知欄 明細通知欄 上下滑動也要順暢」):原本每 5 秒整欄重建 + 重新量字級(內容沒變也一樣),捲到一半碰到就頓一下 → 內容沒變就完全不動;手指在通知欄上或慣性捲動中先不重畫,停下 0.8 秒再補;捲動時標題日期 / 當日輸贏一格畫面只算一次、沒變不重寫
   · 2026-11-02 23:34(實際時間)十字虛線左右拖更順(使用者「十字虛線 左右滑動也要上下對齊 順暢 捲動畫面也要順暢」):拖動中圖框位置按下時量一次就好;乖離圖上拖十字線直接換算是第幾根(原本每動一下把 1300 多根全算一遍);資訊列內容一樣就不重寫;量的標籤寬度同字數只量一次。上下各圖十字線對齊照舊,畫面和原本一模一樣
@@ -151,7 +152,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611022357">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611030000">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -665,8 +666,8 @@
 <div class="panel" id="panel">
   <div class="cover" id="cover"><div id="notifLog"><div class="empty">今日監控紀錄會顯示在這裡</div></div><div id="infoView" class="hidden"></div></div>
   <div class="toolbar">
-    <button class="tool txt" id="refreshBtn" aria-label="訊息"
-            title="顯示監控訊息;長按重新讀取雲端資料">訊息</button>
+    <button class="tool txt" id="refreshBtn" aria-label="進場"
+            title="顯示監控訊息;長按重新讀取雲端資料">進場</button>   <!-- 2026-11-03 00:00 使用者「第一顆資訊改名 進場」(原「訊息」) -->
     <button class="tool txt" id="btnState" aria-label="當沖" title="目前已進場的股票:名稱 / 現價 / 最低攤平點位 / 張數 / 目前輸贏">當沖</button>   <!-- 2026-10-27 00:40 使用者:「原判二 改名為“當沖”」 -->
     <button class="tool txt" id="btnRules" aria-label="明細" title="今天已平倉的股票、每筆輸贏與總輸贏">明細</button>   <!-- 2026-10-27 00:40 使用者:「原判三 改名為“明細”」 -->
     <button class="tool txt" id="btnReload" aria-label="公式" title="單擊 / 雙擊 → 下面跳出判一 / 判二 / 判三,各自右邊燈號:綠 = 開盤監控中、紅 = 開盤中沒啟動、灰 = 收盤;點一份 = 通知欄只列那份的通知。右上角點:開盤時 綠 = 三份都開著、黃 = 有沒開的、紅 = 完全沒在跑">公式<i class="mdot"></i></button>   <!-- 2026-10-27 00:40 使用者:「把判一二三都放在第二顆按鍵 判一那邊 這按鍵改名為“公式”」;2026-10-18 原本第二顆是判一 -->   <!-- 2026-10-18 使用者:第二顆設「判一」;同日加判二(判三加了又刪);mdot = 背景監控燈(亮在正在用的那顆右上角) -->   <!-- 2026-11-02 23:58 使用者「第一顆訊息 第二顆當沖 第三顆明細 第四顆公式 第五顆設定」:公式移到第四顆 -->
