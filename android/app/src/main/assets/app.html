@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 11:19(實際時間)K 圖缺後段(使用者「K圖 也缺失」):雲端 K 回錯誤時原本連元大 K 都不抓 → 雲端失敗也照抓元大 K
   · 2026-11-02 11:16(實際時間)K 圖下方壓力圖 / 乖離圖缺後段(使用者「下面的壓力圖 缺失了」):雲端 K 停住(雲端 KV 額度用完)時改用畫面上的元大 K
   · 2026-11-02 10:55(實際時間)當沖 / 明細偶爾一次問不到電腦就整片換成系統模擬(使用者「真實只有四檔 怎麼七八檔」)→ 2 分鐘內(成交 5 分鐘)拿到過元大的就繼續顯示元大,連續問不到才換系統
   · 2026-11-02 10:53(實際時間)超額(一張就超過上限、沒交易)的股票不列進當沖 / 明細的系統模擬(使用者「廣達這種超額根本沒有交易的股票怎麼會出現在當沖裡面」);訊息欄照顯示超額通知
@@ -121,7 +122,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611021116">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611021119">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2624,7 +2625,9 @@ async function loadCloudBars(){
       const lastHm = CLOUD_BARS.last ? (+CLOUD_BARS.last.slice(0, 2)) * 60 + (+CLOUD_BARS.last.slice(3, 5)) : -1;
       if (nowHm - lastHm >= 2 && Date.now() - (CLOUD_BARS.snapAt || 0) > 50000){ CLOUD_BARS.snapAt = Date.now();
         fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?bars=snap&_=${Date.now()}`, {cache: 'no-store'}).then(r => r.json()).then(x => { CLOUD_BARS.snap = (x && (x.msg || x.error)) || ''; }).catch(() => {}); } }
-  }catch(e){ CLOUD_BARS.err = e.message; }
+  }catch(e){ CLOUD_BARS.err = e.message;
+    // 2026-11-02 11:18 使用者「K圖 也缺失」:雲端 K 壞掉(今天雲端 KV 讀取額度用完,?bars 回錯誤)時原本連元大 K 都不抓 → 雲端失敗也照抓元大 K
+    try{ await loadYuantaBars(d, Date.parse(d + 'T00:00:00+08:00') / 1000); }catch(e2){} }
   finally{ CLOUD_BARS.at = Date.now(); CLOUD_BARS.busy = false; }
   return CLOUD_BARS.ok;
 }
