@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 11:16(實際時間)K 圖下方壓力圖 / 乖離圖缺後段(使用者「下面的壓力圖 缺失了」):雲端 K 停住(雲端 KV 額度用完)時改用畫面上的元大 K
   · 2026-11-02 10:55(實際時間)當沖 / 明細偶爾一次問不到電腦就整片換成系統模擬(使用者「真實只有四檔 怎麼七八檔」)→ 2 分鐘內(成交 5 分鐘)拿到過元大的就繼續顯示元大,連續問不到才換系統
   · 2026-11-02 10:53(實際時間)超額(一張就超過上限、沒交易)的股票不列進當沖 / 明細的系統模擬(使用者「廣達這種超額根本沒有交易的股票怎麼會出現在當沖裡面」);訊息欄照顯示超額通知
   · 2026-11-02 10:26(實際時間)強平過的股票:訊息欄照顯示強平,之後這檔的進場 / 停利 / 停損 / 出場不再顯示(強制進場、元大手動照顯示),當沖也不再算它還開著;電腦引擎讀到強平就不再發這檔通知;判四強平也寫訊息
@@ -120,7 +121,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611021055">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611021116">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5425,6 +5426,8 @@ function drawBars0(bars, code, srcLabel, keepView){
   let sBars = bars, sMa = maJ, sOb = ob, sObma = obma;
   if (YH.signalsCloudOnly && code && HIST_BARS.has(code) && (LIVE_BARS.get(code) || []).length){
     sBars = mergeLive(code, HIST_BARS.get(code) || [], true);
+    // 2026-11-02 11:14 使用者「下面的壓力圖 缺失了」(大甲 10:50 以後沒有):雲端 K 停在 10:50(雲端 KV 今天讀取額度用完)→ 雲端那份比畫面上的 K 舊就改用畫面上的 K(元大)
+    if (sBars.length && bars.length && sBars[sBars.length - 1].time < bars[bars.length - 1].time) sBars = bars;
     if (sBars.length && sBars.length !== bars.length){ sMa = sma(sBars, BASE.maPeriod, 'close', YH.kaCrossJudge ? false : MA_RESET_DAILY); sOb = obv(sBars); sObma = sma(sOb, BASE.obvMaPeriod, 'value'); }
     else { sBars = bars; }
   }
