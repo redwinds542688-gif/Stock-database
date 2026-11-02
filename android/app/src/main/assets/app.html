@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 22:11(實際時間)公式的六個鍵(判一~四、鑰匙、說明)改成 3 × 2 平均放在通知欄裡(使用者「把公式下 六個按鍵 改 平均放在通知欄裡面」)
   · 2026-11-02 21:34(實際時間)鑰匙視窗不再顯示整串鑰匙(使用者「一進去就看到金鑰全部 改成只顯示最後五碼」):輸入框空白,提示寫「目前 ••••後五碼」;沒輸入新的按存 = 維持原本的
   · 2026-11-02 20:36(實際時間)電腦:中繼一直開著也會更新 —— 不在盤中時每 30 分鐘看 GitHub 的 VERSION,有新版就結束自己,工作排程重開時更新(原本只在開機 / 啟動時更新)
   · 2026-11-02 15:21(實際時間)清單沒有價 / 量的股票顯示「—」,不再顯示 0.00(使用者截圖大甲 0.00:那時那支手機鑰匙已刪、報價抓不到)
@@ -142,7 +143,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611022134">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611022211">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -333,6 +334,11 @@
   /* 2026-10-27 00:40 「公式」下拉視窗、通知欄日期分隔列、當沖 / 明細表 */
   .rsmenu{position:fixed;z-index:200;background:#1B2232;border:1px solid #FFD54F;   /* 2026-10-27 08:50 使用者:「公式下的視窗加黃色外框」 */border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.6);padding:4px;box-sizing:border-box}   /* 寬度 = 公式鍵(openMenu 設) */
   .rsmenu.hidden{display:none}
+  .rsmenu.grid{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:8px;padding:8px}   /* 2026-11-02 六個鍵平均放在通知欄裡 */
+  .rsmenu.grid{align-items:stretch;justify-items:stretch}
+  .rsmenu.grid .rsm{margin:0;justify-content:center;gap:12px;padding:4px;height:100%;box-sizing:border-box}
+  .rsmenu.grid .rsm.help .lamp{display:none}
+  .rsmenu.grid .rsm .lamp{width:14px;height:14px;flex:0 0 14px}
   .rsmenu .rsm{display:flex;align-items:center;justify-content:space-between;gap:4px;padding:8px 4px 8px 6px;margin:3px 0;border:1px solid #FFD54F;font-size:17px;font-weight:700;color:#D8DEE9;border-radius:8px;   /* 2026-10-27 08:50 使用者:「判一判二判三 也加黃色按鍵框」:每一項一個黃框按鍵,框之間隔 3px(padding 各減 1px 補框線) */touch-action:manipulation;user-select:none;white-space:nowrap;overflow:hidden}   /* 2026-10-27 01:12 視窗和公式鍵同寬,字縮到 17px 才不會折行 */
   .rsmenu .rsm:active{background:#2B3549}
   .rsmenu .rsm,.rsmenu .rsm.sel,.rsmenu .rsm.off{color:#FFFFFF}   /* 2026-10-27 11:05(實際時間)使用者:「判一二三 顏色不一樣 改一律白色」:選中 / 關掉都白字,狀態只看右邊燈號(原本選中綠字、關掉灰字) */
@@ -1569,8 +1575,13 @@ window.fitBands = fitBands;
   const menuOpen = () => !!menu && !menu.classList.contains('hidden');
   const closeMenu = () => { if (menu) menu.classList.add('hidden'); try{ refreshToolbar(); }catch(e){} };   // 2026-10-27 09:05 視窗收起來,燈號回到原本的那顆
   const openMenu = () => { if (!menu) return; const b = document.getElementById('btnReload'); const r = b.getBoundingClientRect();
-    menu.classList.remove('hidden'); menu.style.width = Math.round(r.width) + 'px'; menu.querySelectorAll('.rsm').forEach(x => { x.style.fontSize = Math.max(16, Math.min(28, Math.floor((r.width - 8 - 11 - 4 - 12) / 2))) + 'px'; });   /* 2026-10-27 04:20 鐵律 19:兩個字放大到塞滿視窗寬(扣掉邊距、燈、間隔) */
-    menu.style.left = Math.round(r.left) + 'px'; menu.style.top = (r.bottom + 4) + 'px'; rsLampUpd(); try{ refreshToolbar(); }catch(e){} };   // 2026-10-27 09:05 使用者:「公式亮燈 其他熄燈」:視窗打開時公式亮、訊息 / 當沖 / 明細 熄   // 2026-10-27 01:05 使用者:「該視窗要與公式鍵同寬度」
+    // 2026-11-02 22:10 使用者「把公式下 六個按鍵 改 平均放在通知欄裡面」:六個鍵(判一~四、鑰匙、說明)排成 3 × 2,蓋滿整個通知欄、平均分配
+    const cv = document.getElementById('cover'), cr = cv ? cv.getBoundingClientRect() : r;
+    menu.classList.remove('hidden'); menu.classList.add('grid');
+    menu.style.left = Math.round(cr.left) + 'px'; menu.style.top = Math.round(cr.top) + 'px'; menu.style.width = Math.round(cr.width) + 'px'; menu.style.height = Math.round(cr.height) + 'px';
+    { const cw = (cr.width - 8 * 2 - 8 * 2) / 3, ch = (cr.height - 8 * 2 - 8) / 2, fs = Math.max(16, Math.min(40, Math.floor(Math.min(ch * 0.38, (cw - 30) / 2.2))));
+      menu.querySelectorAll('.rsm').forEach(x => { x.style.fontSize = fs + 'px'; }); }
+    rsLampUpd(); try{ refreshToolbar(); }catch(e){} };   // 2026-10-27 09:05 使用者:「公式亮燈 其他熄燈」:視窗打開時公式亮、訊息 / 當沖 / 明細 熄
   window.closeRsMenu = closeMenu;
   // 2026-11-02 11:53 使用者「在訊息的通知欄位裡面左右滑動 往左滑 切換到公式 再往左滑 切換到當沖..因為開盤中設定是不能按的 所以明細左滑就會跳到訊息 往右滑也是反向來」:
   //   通知欄(和公式小視窗)左右滑 = 切分頁:訊息 → 公式 → 當沖 → 明細 →(收盤後才有 設定)→ 訊息;右滑反過來。上下滑(捲動)不受影響
