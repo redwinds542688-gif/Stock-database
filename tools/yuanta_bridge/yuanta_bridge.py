@@ -736,8 +736,19 @@ class Bridge:
            手機訊息右上角「資金」就顯示這個數字。QUOTA_PUSH=0 關掉。"""
         if not CFG.get("PUSH_KEY") or CFG.get("QUOTA_PUSH", "1") != "1": return
         fill = work = 0.0
+        # 2026-11-02 13:51 使用者「強平時程式掛漲停價買回,元大是用漲停價先扣額度 — 元大就是這樣做」:成交照「委託價」算額度(漲停買回 / 跌停賣出用委託價,
+        #   比成交價高的話用委託價;市價單 / 拿不到委託價照成交價),和元大的剩餘額度對齊(今天程式以為剩 44 萬、元大只剩 24 萬,台化 / 大甲被退單)
+        oprice = {}
+        for i in range(r.StkOrderList.Count):
+            try: oprice[str(r.StkOrderList[i].OrderNo).strip()] = float(r.StkOrderList[i].Price or 0)
+            except Exception: pass
         for i in range(r.StkTradeList.Count):
-            x = r.StkTradeList[i]; fill += float(x.SPrice) * int(x.OkQty)          # 成交:股數 × 成交價
+            x = r.StkTradeList[i]; dp = float(x.SPrice)
+            try: op = oprice.get(str(x.OrderNo).strip(), 0.0)
+            except Exception: op = 0.0
+            fill += max(dp, op) * int(x.OkQty)                                     # 成交:股數 × max(成交價, 委託價)
+        if self.trader and fill > getattr(self.trader, "amount_today", 0):         # 程式下單前檢查的「今天已用額度」也照這個(比它記的多就用這個)
+            self.trader.amount_today = fill
         for i in range(r.StkOrderList.Count):
             o = r.StkOrderList[i]
             try: cq = int(o.CancelQty)
