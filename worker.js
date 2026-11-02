@@ -185,8 +185,8 @@ async function snapshotBars(env, subs, at) {
   /* 2026-10-23 15:40 手機每分鐘 :01 會先叫 ?bars=snap 存這一分鐘的 bar: 鍵(上一根 K 剛收完就抓,通知快 40 秒)。
      KV 免費方案一天只能寫 1,000 次(Cron 一分鐘 bar + bas 2 次 = 540、狀態 56、通知、元大 ≈ 880),再加 270 次會爆。
      所以 Cron 醒來發現這一分鐘已經有 bar:(手機寫的)就不再寫一次,開頭那筆併進 bas: 和 :07 / :27 的子快照一起寫(還是 1 次)。快照點不少、寫入次數不變。 */
-  const had = subs ? await env.LOGS.get(`bar:${d}:${key}`) : null;
-  if (!had) await env.LOGS.put(`bar:${d}:${key}`, JSON.stringify(r0.s), { expirationTtl: 14 * 86400, metadata: tm });
+  const had = subs ? await snapHas(env, `bar:${d}:${key}`) : null;
+  if (!had) await snapPut(env, `bar:${d}:${key}`, JSON.stringify(r0.s), { expirationTtl: 14 * 86400, metadata: tm });
   if (!subs || hm > 13 * 60 + 30) return `bar ${d} ${key} ${r0.n} 檔`;
   const out = had ? [r0.s] : [];
   const sm = had ? { merged: "bar已有(手機snap),開頭併進bas" } : {};
@@ -206,7 +206,7 @@ async function snapshotBars(env, subs, at) {
     const b = sec();
     try { const r = buildSnap(await misFetch(list, n), ymd); if (r.n) out.push(r.s); sm["s" + at2] = b + "-" + sec() + (r.n ? "" : " 0檔"); } catch (e) { sm["s" + at2] = "err " + e; console.log("子快照失敗 " + e); }
   }
-  if (out.length) await env.LOGS.put(`bas:${d}:${key}`, JSON.stringify(out), { expirationTtl: 14 * 86400, metadata: sm });
+  if (out.length) await snapPut(env, `bas:${d}:${key}`, JSON.stringify(out), { expirationTtl: 14 * 86400, metadata: sm });
   return `bar ${d} ${key} ${r0.n} 檔 + 子快照 ${out.length}`;
 }
 /* 2026-10-22 12:05 error 1101:KV 免費方案一天只能 list 1,000 次,兩支手機每 55 秒問 ?bars(list 2 次)+ ?breadth(list 1 次)中午就用完,
@@ -219,11 +219,18 @@ function minuteKeys(d, pre, from) {
   for (let m = Math.max(hm2m(from || "09:00"), 9 * 60); m <= end; m++) out.push(`${pre}:${d}:${m2hm(m)}`);
   return out;
 }
+// 2026-11-02 快照 SNAP_SINCE 起存 Hub(不吃 KV 額度);之前的日子照舊讀 KV
+const SNAP_SINCE = "2026-11-02";
+const snapDay = k => k.slice(4, 14);
 async function kvGetMany(env, keys) {
-  const vals = [];
-  for (let i = 0; i < keys.length; i += 25) vals.push(...await Promise.all(keys.slice(i, i + 25).map(k => env.LOGS.get(k))));
+  const vals = new Array(keys.length).fill(null), hk = [], hi = [], kk = [], ki = [];
+  keys.forEach((k, i) => { if (env.HUB && snapDay(k) >= SNAP_SINCE) { hk.push(k); hi.push(i); } else { kk.push(k); ki.push(i); } });
+  if (hk.length) { const v = await hubOf(env).snapGet(hk); v.forEach((x, j) => { vals[hi[j]] = x; }); }
+  for (let i = 0; i < kk.length; i += 25) { const v = await Promise.all(kk.slice(i, i + 25).map(k => env.LOGS.get(k).catch(() => null))); v.forEach((x, j) => { vals[ki[i + j]] = x; }); }
   return vals;
 }
+async function snapPut(env, k, v, opt) { if (env.HUB && snapDay(k) >= SNAP_SINCE) return hubOf(env).snapPut(k, v); return env.LOGS.put(k, v, opt); }
+async function snapHas(env, k) { if (env.HUB && snapDay(k) >= SNAP_SINCE) return hubOf(env).snapHas(k); return !!(await env.LOGS.get(k).catch(() => null)); }
 /** 把一天的快照拼成每檔的 1 分K
  * 2026-10-22 19:26 使用者「改」(進 K 圖第一次要 8 秒):拼 K 的步驟拆成 feedBars(照順序吃快照、狀態留在 st),
  *   整天的查詢改走 dayBarsFull:已收完的分鐘拼好的狀態存 Cloudflare 邊緣快取(不算 KV 次數),下次只讀新的幾分鐘再接著拼。結果和整天重讀一樣 */
@@ -323,7 +330,7 @@ async function dayStateFull(env, ctx, origin, d) {
   let st = null;
   try { const h = await cache.match(sk); if (h) st = await h.json(); } catch (e) { st = null; }
   // 2026-10-22 19:33 使用者「改」(每天第一次進 K 圖還要 6 秒):邊緣快取沒有(每天第一次、換機房)→ 讀 KV 存的那份(每 5 分鐘存一次),只補之後的幾分鐘
-  if (!ok(st)) { try { const v = await env.LOGS.get(kk); st = v ? JSON.parse(v) : null; } catch (e) { st = null; } }
+  if (!ok(st)) { try { const v = d >= SNAP_SINCE && env.HUB ? await hubOf(env).kvGet("m:" + kk) : await env.LOGS.get(kk); st = v ? JSON.parse(v) : null; } catch (e) { st = null; } }
   if (!ok(st)) st = { ...barsState(), bl: {}, br: {} };
   const from = st.upto ? addM(st.upto, 1) : "09:00";
   const all = sortKeys([...minuteKeys(d, "bar", from), ...minuteKeys(d, "bas", from)]);
@@ -341,7 +348,7 @@ async function dayStateFull(env, ctx, origin, d) {
     if (toKv) st.kv = safe;
     const body = JSON.stringify(st);
     const put = cache.put(sk, new Response(body, { headers: { "Content-Type": "application/json", "Cache-Control": `public, max-age=${today ? 86400 : 7 * 86400}` } }));
-    const kvp = toKv ? env.LOGS.put(kk, body, { expirationTtl: 3 * 86400 }) : null;
+    const kvp = toKv ? (d >= SNAP_SINCE && env.HUB ? hubOf(env).kvPut("m:" + kk, body) : env.LOGS.put(kk, body, { expirationTtl: 3 * 86400 })) : null;
     if (ctx && ctx.waitUntil) { ctx.waitUntil(put); if (kvp) ctx.waitUntil(kvp); } else { await put; if (kvp) await kvp; }
   }
   if (tail.length) { const tv = vals.slice(done.length); feedBars(st, tail, tv, "", null); feedBreadth(st, tail, tv, pp); }   // 還沒收完的幾分鐘只拿來回這一次,不存
@@ -410,6 +417,7 @@ export class Hub extends DurableObject {
     this.sql.exec("CREATE TABLE IF NOT EXISTS exited (d TEXT, pos TEXT, PRIMARY KEY (d, pos))");
     this.sql.exec("CREATE TABLE IF NOT EXISTS ybars (d TEXT, m TEXT, bars TEXT, PRIMARY KEY (d, m))");
     this.sql.exec("CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT)");   // 2026-10-29 小東西(當沖額度)
+    this.sql.exec("CREATE TABLE IF NOT EXISTS snaps (k TEXT PRIMARY KEY, v TEXT)");   // 2026-11-02 雲端 K 快照 bar: / bas:(原本 KV,KV 每日讀取額度被它用完)
   }
   kvPut(k, v) { this.sql.exec("INSERT OR REPLACE INTO kv (k, v) VALUES (?, ?)", k, JSON.stringify(v)); return { ok: true }; }
   kvGet(k) { const r = this.sql.exec("SELECT v FROM kv WHERE k = ?", k).toArray(); return r.length ? JSON.parse(r[0].v) : null; }
@@ -462,6 +470,17 @@ export class Hub extends DurableObject {
       this.sql.exec("DELETE FROM exited WHERE d < ?", old(3));
     }
     return { ok: true };
+  }
+  // 2026-11-02 11:22 使用者「改」(KV 讀取額度用完 → 雲端 K、大盤寬度的快照搬到 Hub):一次讀一整串鍵(手機每 20 秒問一次只算 1 個 Hub 請求)
+  snapPut(k, v) { this.sql.exec("INSERT OR REPLACE INTO snaps (k, v) VALUES (?, ?)", k, v);
+    if (k.startsWith("bar:") && k.endsWith(":09:00")) this.sql.exec("DELETE FROM snaps WHERE substr(k, 5, 10) < ?", new Date(Date.parse(k.slice(4, 14) + "T00:00:00Z") - 14 * 86400e3).toISOString().slice(0, 10));   // 留 14 天
+    return true; }
+  snapHas(k) { return this.sql.exec("SELECT 1 FROM snaps WHERE k = ?", k).toArray().length > 0; }
+  snapGet(keys) {
+    const m = new Map();
+    for (let i = 0; i < keys.length; i += 90) { const part = keys.slice(i, i + 90);
+      for (const r of this.sql.exec(`SELECT k, v FROM snaps WHERE k IN (${part.map(() => "?").join(",")})`, ...part).toArray()) m.set(r.k, r.v); }
+    return keys.map(k => m.has(k) ? m.get(k) : null);
   }
   ybarDays() { return this.sql.exec("SELECT DISTINCT d FROM ybars ORDER BY d").toArray().map(r => r.d); }
   ybarGet(d, since) {
@@ -727,7 +746,7 @@ export default {
       if (!env || !env.LOGS) return J({ error: "Worker 還沒綁定 KV(LOGS)" }, 503);
       try {
         const t = twNow(); const k = `bar:${ymdOf(t)}:${hhmmOf(t)}`;
-        if (await env.LOGS.get(k)) return J({ ok: true, msg: "這一分鐘已有快照 " + k });
+        if (await snapHas(env, k)) return J({ ok: true, msg: "這一分鐘已有快照 " + k });
         const r = await snapshotBars(env, false);   // 手動補救只存開頭那一筆,不等 :30 / :56
         return J({ ok: true, msg: r });
       } catch (e) { return J({ ok: false, error: String(e && e.stack || e) }, 500); }
