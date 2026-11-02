@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 13:26(實際時間)通知欄左右滑改成跟手(使用者「左右滑動 要絲滑順暢」):拖動時跟著手指走、變淡;拖過 1/5 或甩得快 → 滑出、新分頁滑進來;不夠就彈回;拖動中不重畫、不會斜晃、不會誤點
   · 2026-11-02 12:24(實際時間)看盤版轉折圖有點了(使用者選 B):看盤版用 10/30 以前的舊轉折算法(不是判四那套),付費 + 免費 30 天內看得到;主程式照舊用私人庫的新轉折
   · 2026-11-02 12:15(實際時間)轉折圖改回原本自己的轉折 / 加碼點標記(使用者「轉折圖呢」;不再只標判四那一筆)
   · 2026-11-02 12:14(實際時間)漲跌圖改回原本自己的多空點標記(使用者「改回原漲跌圖的邏輯 一樣做標記」;不再標判二的進出場)
@@ -133,7 +134,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611021224">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611021326">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1568,21 +1569,41 @@ window.fitBands = fitBands;
   { const order = () => { let s = false; try{ s = inSession(); }catch(e){} return s ? ['msg', 'rs', 'pos', 'done'] : ['msg', 'rs', 'pos', 'done', 'set']; };
     const curTab = () => { const pnl = document.querySelector('.panel'); if (pnl && pnl.classList.contains('open')) return 'set'; if (menuOpen()) return 'rs'; const v = window.NL_VIEW || 'msg'; return v === 'msg' && window.LOG_RS ? 'rs' : v; };
     const go = t => { const pnl = document.querySelector('.panel');
-      if (t === 'set'){ closeMenu(); hideInfo(); if (pnl && !pnl.classList.contains('open')) document.getElementById('gear').click(); return; }
+      if (t === 'set'){ closeMenu(); hideInfo(); if (pnl && !pnl.classList.contains('open')){ swiped = 0; document.getElementById('gear').click(); } return; }
       if (pnl && pnl.classList.contains('open')){ pnl.classList.remove('open'); if (window.feeLock) feeLock(); }
       if (t === 'rs'){ if (window.NL_VIEW !== 'msg' || window.LOG_RS) setView('msg', ''); openMenu(); return; }
       setView(t, t === 'msg' ? '' : undefined); };
-    let x0 = 0, y0 = 0, t0 = 0, multi = false, tab0 = 'msg';
-    const st = ev => { multi = ev.touches.length > 1; x0 = ev.touches[0].clientX; y0 = ev.touches[0].clientY; t0 = Date.now(); tab0 = curTab(); };   // 起點的分頁先記住(按下去時公式小視窗會被收起來)
-    const en = ev => { if (multi || !t0) return; const t = ev.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0, dt = Date.now() - t0; t0 = 0;
-      if (dt > 900 || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-      const o = order(), i = o.indexOf(tab0); const n = o[((i < 0 ? 0 : i) + (dx < 0 ? 1 : -1) + o.length) % o.length];
-      try{ navigator.vibrate && navigator.vibrate(15); }catch(e){} go(n); };
+    // 2026-11-02 13:21 使用者「在通知欄裡 左右滑動 要絲滑順暢」:手指一往左右拖,通知欄就跟著手指移動(變淡);放開時拖過 1/5 寬或甩得夠快 → 往那邊滑出、
+    //   新的分頁從另一邊滑進來;不夠就彈回原位。認定是左右拖之後就不讓它上下捲(不會斜著晃),拖完那一下不會誤點到卡片
+    let x0 = 0, y0 = 0, t0 = 0, multi = false, tab0 = 'msg', lock = 0, drag = false, lx = 0, lt = 0, vx = 0, swiped = 0, busy = false;
+    const boxOf = t => t === 'set' ? document.getElementById('panel') : document.getElementById('notifLog');
+    const setX = (el, x, ms) => { if (!el) return; el.style.transition = ms ? `transform ${ms}ms cubic-bezier(.22,.8,.25,1), opacity ${ms}ms linear` : 'none';
+      el.style.transform = x ? `translate3d(${x}px,0,0)` : ''; el.style.opacity = x ? String(Math.max(0.3, 1 - Math.abs(x) / (innerWidth || 400) * 0.9)) : ''; };
+    const clearX = el => { if (el){ el.style.transition = ''; el.style.transform = ''; el.style.opacity = ''; el.style.willChange = ''; } };
+    const st = ev => { window.__nlTouch = Date.now(); if (busy) return; multi = ev.touches.length > 1; x0 = lx = ev.touches[0].clientX; y0 = ev.touches[0].clientY; t0 = lt = Date.now(); tab0 = curTab(); lock = 0; drag = false; vx = 0; };   // 起點的分頁先記住(按下去時公式小視窗會被收起來)
+    const mv = ev => { if (multi || !t0 || busy) return; const t = ev.touches[0], dx = t.clientX - x0, dy = t.clientY - y0;
+      if (!lock){ if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) lock = 1; else if (Math.abs(dy) > 10) lock = -1; }
+      if (lock !== 1) return;
+      if (ev.cancelable) ev.preventDefault();
+      if (!drag){ drag = true; const b = boxOf(tab0); if (b) b.style.willChange = 'transform, opacity'; if (tab0 === 'rs') closeMenu(); }
+      const now = Date.now(); if (now > lt){ vx = 0.6 * vx + 0.4 * (t.clientX - lx) / (now - lt); lx = t.clientX; lt = now; }
+      setX(boxOf(tab0), dx); };
+    const en = ev => { window.__nlTouch = 0; if (multi || !t0 || busy){ t0 = 0; return; } const t = ev.changedTouches[0], dx = t.clientX - x0; t0 = 0;
+      if (!drag) return; drag = false; swiped = Date.now();
+      const el = boxOf(tab0), W = (el && el.clientWidth) || innerWidth || 400;
+      if (!(Math.abs(dx) > W * 0.2 || (Math.abs(vx) > 0.45 && Math.abs(dx) > 30 && Math.sign(vx) === Math.sign(dx)))){ setX(el, 0, 200); setTimeout(() => clearX(el), 220); if (tab0 === 'rs') openMenu(); return; }
+      const dir = dx < 0 ? 1 : -1, o = order(), i = o.indexOf(tab0), n = o[((i < 0 ? 0 : i) + dir + o.length) % o.length];
+      busy = true; try{ navigator.vibrate && navigator.vibrate(12); }catch(e){}
+      setX(el, -dir * W, 140);
+      setTimeout(() => { clearX(boxOf('msg')); clearX(boxOf('set')); go(n);
+        const el2 = boxOf(n); if (el2 && n !== 'rs'){ setX(el2, dir * W * 0.35); el2.style.opacity = '0.3'; void el2.offsetWidth; setX(el2, 0, 220); setTimeout(() => clearX(el2), 240); }
+        setTimeout(() => { busy = false; }, 240); }, 140); };
+    document.addEventListener('click', ev => { if (Date.now() - swiped < 450){ ev.preventDefault(); ev.stopImmediatePropagation(); } }, true);   // 拖完那一下不算點
     // 2026-11-02 使用者「從螢幕最左邊或最右邊往內滑就等於按一次返回 這個不需要」:把通知欄的位置告訴 App(1.5.54 起),那段左右邊緣不當返回手勢
     { let lastZ = ''; const zone = () => { try{ if (!(window.Android && Android.gestureZone)) return; const c = document.getElementById('cover'); if (!c) return; const r = c.getBoundingClientRect();
         const z = Math.round(r.top) + '|' + Math.round(r.height); if (z !== lastZ){ lastZ = z; Android.gestureZone(Math.round(r.top), Math.round(r.height)); } }catch(e){} };
       setTimeout(zone, 800); setInterval(zone, 3000); addEventListener('resize', zone); }
-    for (const e0 of ['cover', 'rsMenu', 'panel']){ const e = document.getElementById(e0) || document.querySelector('.' + e0); if (e){ e.addEventListener('touchstart', st, {passive: true, capture: true}); e.addEventListener('touchend', en, {passive: true}); } } }
+    for (const e0 of ['cover', 'rsMenu', 'panel']){ const e = document.getElementById(e0) || document.querySelector('.' + e0); if (e){ e.addEventListener('touchstart', st, {passive: true, capture: true}); e.addEventListener('touchmove', mv, {passive: false}); e.addEventListener('touchend', en, {passive: true}); e.addEventListener('touchcancel', () => { window.__nlTouch = 0; if (drag){ drag = false; const b = boxOf(tab0); setX(b, 0, 200); setTimeout(() => clearX(b), 220); } t0 = 0; }, {passive: true}); } } }
   const setView = (v, rs) => { window.NL_VIEW = v; if (rs !== undefined) window.LOG_RS = rs; closeMenu();
     const pnl = document.querySelector('.panel'); if (pnl) pnl.classList.remove('open'); hideInfo(); if (window.nlRender) nlRender(); refreshToolbar(); };
   window.nlSetView = setView;
@@ -6136,6 +6157,8 @@ window.bgTick = bgTick; window.BG = BG;
   window.nlRender = () => render(true);
   function render(force){
     const box = el('notifLog'); if (!box) return;
+    // 2026-11-02 左右拖動中不重畫(重畫會換掉手指下面的元素,拖到一半就斷掉);放開後再補畫一次
+    if (window.__nlTouch && Date.now() - window.__nlTouch < 3000){ if (!render.__pend){ render.__pend = setTimeout(() => { render.__pend = 0; render(true); }, 350); } return; }
     const ds = days(); const today = todayStr(); if (!ds.includes(today)) ds.push(today); ds.sort();
     // 2026-10-19 使用者:「非開盤時間、也沒有當天紀錄,就顯示前一個工作日的通知」:沒有手動翻頁(cur 為空)、不在盤中、今天沒有買賣訊號 → 自動顯示最近一個有紀錄的日子
     // 2026-10-27 00:40 使用者:「最上面就是最新的通知 往上滑動 可以看到以往的資訊 如果不同天 … 就要空出一列顯示(10/21)這日期」:
