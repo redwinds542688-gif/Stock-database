@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 12:24(實際時間)看盤版轉折圖有點了(使用者選 B):看盤版用 10/30 以前的舊轉折算法(不是判四那套),付費 + 免費 30 天內看得到;主程式照舊用私人庫的新轉折
   · 2026-11-02 12:15(實際時間)轉折圖改回原本自己的轉折 / 加碼點標記(使用者「轉折圖呢」;不再只標判四那一筆)
   · 2026-11-02 12:14(實際時間)漲跌圖改回原本自己的多空點標記(使用者「改回原漲跌圖的邏輯 一樣做標記」;不再標判二的進出場)
   · 2026-11-02 12:09(實際時間)通知欄那段螢幕左右邊緣不再當返回手勢(使用者「從螢幕最左邊或最右邊往內滑就等於按一次返回 這個不需要」;App 1.5.54)
@@ -132,7 +133,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611021215">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611021224">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5187,8 +5188,8 @@ function turn4Marks(sBars){
 function turnDraw(bars, sBars, sMa, ma24, sOb){
   try{
     const sMa24 = sBars === bars ? ma24 : sma(sBars, YH.kbPeriod || 28, 'close', false);
-    const pts = turnPoints(sBars);
-    { const bias = turnBias(sBars); RF_LAMPS = {view: 2, map: rfLampMap(bars, pts, bias, kaSideMap(sMa, sMa24), trendMap(sBars, sMa)), bias}; }
+    const pts = turnPoints(sBars, sMa, sMa24, sOb);   // 2026-11-02 多帶 Ka / Kb / OBV:看盤版的舊轉折算法要用(主程式的新算法只看第一個參數)
+    { const bias = turnBias(sBars, sMa, sMa24, sOb); RF_LAMPS = {view: 2, map: rfLampMap(bars, pts, bias, kaSideMap(sMa, sMa24), trendMap(sBars, sMa)), bias}; }
     // 2026-10-31 11:55(實際時間)使用者「K線圖上 不用顯示任何來自於判1234的進場跟出場 K線圖本身就是乾淨清潔 所有的圖都不用標示來自判一二三四的邏輯」:
     // (判別式相關說明已移到私人庫)
     if (!YH.turnChartMarks){ rfLine.setData(bars.map(b => ({time: b.time, value: b.close}))); rfLine.setMarkers(turn4Marks(sBars)); if (rfChain) rfChain.setData([]); if (rfAll) rfAll.setData([]); return; }
@@ -5196,7 +5197,7 @@ function turnDraw(bars, sBars, sMa, ma24, sOb){
     const pAt = new Map(pts.map(p => [p.time, kaAt.has(p.time) ? kaAt.get(p.time) : p.price]));
     rfLine.setData(bars.map(b => ({time: b.time, value: pAt.has(b.time) ? pAt.get(b.time) : b.close})));
     rfLine.setMarkers(pts.map(p => { const up = p.side > 0;   // (判別式相關說明已移到私人庫)
-      const big = p.flip, real = p.flip && p.real;
+      const big = p.flip, real = p.flip && (p.real || p.old);   // old = 看盤版舊轉折(轉折點亮色,和以前一樣)
       return {time: p.time, position: 'inBar', shape: up ? 'arrowUp' : 'arrowDown', size: big ? 1.2 : p.add ? 1.0 : 0.5,
               color: up ? (real || p.add ? '#FF5C6C' : big ? 'rgba(255,92,108,.65)' : 'rgba(255,92,108,.35)') : (real || p.add ? '#3EE6A0' : big ? 'rgba(62,230,160,.65)' : 'rgba(62,230,160,.35)'),
               text: big ? (up ? '多 ' : '空 ') + hmKey(p.time) : p.add ? '加' : ''}; }));

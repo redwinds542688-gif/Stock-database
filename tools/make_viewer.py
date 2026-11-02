@@ -39,8 +39,56 @@ window.chopPoints = chopPoints;
     "OSTOP": """function originStop(){ return null; }
 window.originStop = originStop;
 """,
-    "TURN": """function turnPoints(){ return []; }
-function turnBias(){ return new Map(); }
+    # 2026-11-02 12:21 使用者選 B:看盤版(付費 + 免費 30 天內;過期的看盤版本來就整個畫面要鑰匙)轉折圖用 10/30 以前的舊轉折算法(不是判四那套),公開給看盤版
+    "TURN": r"""function turnPoints(bars, ma, ma24, ob){
+  const KN = YH.turnKaBars || 2, P = YH.turnPressPct || 0.15;
+  const mk = toTimeMap(ma), mb = toTimeMap(ma24), mOc = toTimeMap(sma(ob, YH.ocPeriod || 28, 'value'));
+  const n = bars.length, obc = new Array(n).fill(0);
+  for (let i = 1; i < n; i++){ const a = bars[i], b = bars[i - 1]; obc[i] = obc[i - 1] + (a.close > b.close ? a.volume / 1000 : a.close < b.close ? -a.volume / 1000 : 0); }
+  const roll = k => { const o = new Array(n).fill(null); let s = 0; for (let i = 0; i < n; i++){ s += obc[i]; if (i >= k) s -= obc[i - k]; if (i >= k - 1) o[i] = s / k; } return o; };
+  const oa = roll(10), o24 = roll(24);
+  const out = [], done = {'1': false, '-1': false}; let day = null, prev = 0;
+  for (let i = 1; i < n; i++){
+    const b = bars[i], dk = dayKey(b.time); if (dk !== day){ day = dk; prev = 0; done['1'] = done['-1'] = false; }
+    for (const d of [1, -1]){
+      let st = false;
+      if (i >= KN && dayKey(bars[i - KN].time) === dk && dayKey(bars[i - 1].time) === dk && oa[i - 1] != null){
+        const ka = mk.get(b.time), ka0 = mk.get(bars[i - KN].time), kbNow = mb.get(b.time);
+        // 2026-10-22 23:29 使用者(TPK 12:46「Ka又沒有超越Kb 怎能贖回」→「寫進轉折圖」):做多要 Ka 在 Kb 上面、做空要 Ka 在 Kb 下面
+        if (ka != null && ka0 != null && kbNow != null) st = d > 0 ? (ka > kbNow && ka > ka0 && obc[i] > oa[i] && obc[i] > obc[i - 1] && oa[i] > oa[i - 1])
+                                                                   : (ka < kbNow && ka < ka0 && obc[i] < oa[i] && obc[i] < obc[i - 1] && oa[i] < oa[i - 1]);
+      }
+      if (!st){ done[d] = false; continue; }
+      if (done[d]) continue;
+      done[d] = true;
+      const ka = mk.get(b.time), kb = mb.get(b.time), oc = mOc.get(b.time), oc1 = mOc.get(bars[i - 1].time);
+      if (kb == null || oc == null || oc1 == null || o24[i] == null || o24[i - 1] == null) continue;
+      if ((o24[i] - o24[i - 1]) * d <= 0 || (oc - oc1) * d <= 0) continue;
+      { const KB = YH.turnKbBars || 0;   // 2026-10-23 12:55 Kb 傾斜:做多 Kb 要向上、做空要向下(Kb 跨日連續,直接往前數)
+        if (KB > 0){ const kb0 = i >= KB ? mb.get(bars[i - KB].time) : null; if (kb0 == null || (kb - kb0) * d <= 0) continue; } }
+      const x = d > 0 ? Math.max(ka, kb) : Math.min(ka, kb);
+      const press = d > 0 ? ((b.low - x) / x * 100 <= P && (b.open - x) / x * 100 <= P) : ((x - b.high) / x * 100 <= P && (x - b.open) / x * 100 <= P);
+      if (!press) continue;
+      out.push({time: b.time, side: d, price: d > 0 ? b.low : b.high, press: true, flip: d !== prev, old: true}); prev = d;
+    }
+  }
+  return out;
+}
+
+function turnBias(bars, ma, ma24, ob){
+  const KN = YH.turnKaBars || 2, mk = toTimeMap(ma), mb = toTimeMap(ma24), mOc = toTimeMap(sma(ob, YH.ocPeriod || 28, 'value'));
+  const n = bars.length, obc = new Array(n).fill(0);
+  for (let i = 1; i < n; i++){ const a = bars[i], b = bars[i - 1]; obc[i] = obc[i - 1] + (a.close > b.close ? a.volume / 1000 : a.close < b.close ? -a.volume / 1000 : 0); }
+  const roll = k => { const o = new Array(n).fill(null); let s = 0; for (let i = 0; i < n; i++){ s += obc[i]; if (i >= k) s -= obc[i - k]; if (i >= k - 1) o[i] = s / k; } return o; };
+  const oa = roll(10), o24 = roll(24), out = new Map();
+  for (let i = 1; i < n; i++){
+    const b = bars[i], dk = dayKey(b.time), ka = mk.get(b.time), kb = mb.get(b.time), same = i >= KN && dayKey(bars[i - KN].time) === dk;
+    const ka0 = same ? mk.get(bars[i - KN].time) : null, oc = mOc.get(b.time), oc1 = mOc.get(bars[i - 1].time);
+    const v = [sgn(ka, kb), sgn(ka, ka0), sgn(obc[i], oa[i]), sgn(obc[i], obc[i - 1]), sgn(oa[i], oa[i - 1]), sgn(o24[i], o24[i - 1]), sgn(oc, oc1)];
+    out.set(b.time, +(v.reduce((a, x) => a + x, 0) / v.length).toFixed(3));
+  }
+  return out;
+}
 """,
     "RULETEXT": """  const rulesHtml = () => '看盤版沒有判別式規則(訊號由主程式提供)';
 """,
