@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 22:57(實際時間)下面監控股票上下滑動更順(使用者「下面監控股票上下滑動也要順暢」):手指在清單上或還在慣性捲動時,不重排、不重畫、不改價錢,停下 0.5 秒後一次補上;價錢沒變的格子不重寫;清單捲動區獨立一層
   · 2026-11-02 22:43(實際時間)通知欄左右滑換頁更順(使用者「下一個顯示有延遲現象 不順暢」):原本放手後要等舊頁滑出 0.14 秒才換新頁 → 放手當下就換,舊頁接著滑出、新頁同時從旁邊滑進來,快慢跟著手指
   · 2026-11-02 22:32(實際時間)從明細(或訊息)左右滑到設定時,下面五顆按鍵(訊息/公式/當沖/明細/設定)會跟著滑動(使用者影片「五顆按鍵都會移動」)→ 只移動設定的轉盤區,按鍵列固定不動
   · 2026-11-02 22:14(實際時間)公式的六個鍵關不掉(使用者影片「怎麼都變成公式按鍵」):收起時樣式被蓋過,按訊息 / 當沖 / 明細 / 設定 / 再按公式都收不起來 → 修好
@@ -146,7 +147,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611022243">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611022257">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -464,6 +465,7 @@
   #resultFrame{position:fixed;left:0;right:0;bottom:0;z-index:49;pointer-events:none;border:1px solid #FFD54F;box-sizing:border-box}   /* 2026-10-27 09:45 使用者:「股票監控區 一樣用黃色框起來」:與通知欄同色的黃框,top 由 sync 設 */
   #resultFrame.hidden{display:none}
   #result .grid.head{position:sticky;top:0;z-index:3;background:var(--ink);border-bottom-color:#FFD54F}   /* 2026-10-27 09:45 標題列底線也黃色,八列區四邊都是黃框 */
+  #result{will-change:scroll-position} #bands .row{contain:layout style}   /* 2026-11-02 22:58 清單捲動順暢:捲動區自己一層、每列重排不牽動整個清單 */
   #result.rows8{scroll-snap-type:y proximity}   /* 2026-10-27 18:30 使用者:「點進k圖再退出」清單自己一直往下跳換股票 → 強制吸附(mandatory)改成靠近才吸附,手機 WebView 不會再自己重新對齊、一頁一頁跳 */
   #result.rows8 .row{scroll-snap-align:start;box-sizing:border-box;padding-top:0;padding-bottom:0;overflow:hidden}
   #result.rows8 .row .nm{font-size:calc(var(--u) * 1.9 * var(--rk, 1))} #result.rows8 .row .posline{font-size:calc(var(--u) * 1.1 * var(--rk, 1))}   /* 列高不夠裝名稱 + 部位兩行時按比例縮(--rk ≤ 1) */
@@ -1425,8 +1427,20 @@ window.fmShow = fmShow;
    交易日 09:00~13:30 寫「監控中」,其他時間(收盤後、週末、休市,到下一個交易日 08:45 換成新的一天為止)寫「已交易」 */
 function sigTag(){ try{ const n = new Date(Date.now() + 8 * 3600000), hm = n.getUTCHours() * 60 + n.getUTCMinutes(), wd = n.getUTCDay(), hol = window.TW_HOL && TW_HOL.has(n.toISOString().slice(0, 10));
   return (wd >= 1 && wd <= 5 && !hol && hm >= 9 * 60 && hm <= 13 * 60 + 30) ? '監控中' : '已交易'; }catch(e){ return '監控中'; } }
+/* 2026-11-02 22:58 使用者「下面監控股票上下滑動也要順暢」:手指在清單上或清單還在慣性捲動時,不重排、不重畫、不更新價錢(會讓捲動卡一下或跳位);停下來 0.5 秒後再一次補上 */
+window.__ls = window.__ls || {t: 0, on: 0};
+function listBusy(){ return window.__ls.on || Date.now() - window.__ls.t < 500; }
+const LIST_WAIT = {};
+function listLater(key, fn){ if (!listBusy()) return false;
+  if (!LIST_WAIT[key]){ const again = () => { if (listBusy()){ LIST_WAIT[key] = setTimeout(again, 250); return; } LIST_WAIT[key] = 0; fn(); }; LIST_WAIT[key] = setTimeout(again, 250); }
+  return true; }
+(() => { const go = () => { const r = document.getElementById('result'); if (!r){ setTimeout(go, 300); return; } const L = window.__ls;
+  r.addEventListener('touchstart', () => { L.on = 1; L.t = Date.now(); }, {passive: true});
+  const up = () => { L.on = 0; L.t = Date.now(); }; r.addEventListener('touchend', up, {passive: true}); r.addEventListener('touchcancel', up, {passive: true});
+  r.addEventListener('scroll', () => { L.t = Date.now(); }, {passive: true}); }; go(); })();
 function render(list){
   LAST_LIST = list;
+  if (listLater('render', () => { render(LAST_LIST); applyLiveToList(); })) return;
   const rank = signalRank();                       // 有買賣訊號的排前面(最新在最上),其餘照原順序(成交量)
   const R = s => rank.has(s.code) ? rank.get(s.code) : 1e9;
   // 2026-10-21 使用者:「股票怎麼沒有按成交量排序」:原本照名單的成交量(昨天)排,右邊顯示的卻是今天即時累計量 → 有即時量就照今天的量排
@@ -2934,18 +2948,20 @@ function fillFlat(out){
 
 /* 把即時價寫回清單的每一列 */
 function applyLiveToList(){
+  if (listLater('live', applyLiveToList)) return;   // 2026-11-02 捲動中先不改,停下來再一次補上
+  const sT = (e, t) => { if (e.textContent !== t) e.textContent = t; }, sC = (e, c) => { if (e.className !== c) e.className = c; };   // 數值沒變就不碰(少重排)
   document.querySelectorAll('#bands .row').forEach(row => {
     const r = LIVE.get(row.dataset.code);
     if (!r || !r.z) return;
     const d = r.y ? Math.sign(r.z - r.y) : 0;
     const cls = d > 0 ? 'up' : d < 0 ? 'down' : 'flat';
     const px = row.querySelector('.px'), mv = row.querySelector('.mv');
-    if (px){ px.textContent = r.z.toFixed(2); px.className = 'px ' + cls; }
+    if (px){ sT(px, r.z.toFixed(2)); sC(px, 'px ' + cls); }
     { const nm = row.querySelector('.nm'); if (nm && r.n && nm.textContent.trim() === row.dataset.code) nm.textContent = r.n; }   // 2026-10-20 名字只有代號的(名單裡沒有),用證交所回的名稱
-    if (mv){ mv.textContent = d > 0 ? '▲' : d < 0 ? '▼' : '─'; mv.className = 'mv ' + cls; }
-    { const nd = row.querySelector('.rank svg'); if (nd) needleSet(nd, r.chgPct); }   // 2026-10-27 10:50 編號位置的指針:這檔的漲跌 %
+    if (mv){ sT(mv, d > 0 ? '▲' : d < 0 ? '▼' : '─'); sC(mv, 'mv ' + cls); }
+    { const nd = row.querySelector('.rank svg'); if (nd && nd.__p !== r.chgPct){ nd.__p = r.chgPct; needleSet(nd, r.chgPct); } }   // 2026-10-27 10:50 編號位置的指針:這檔的漲跌 %
     const vol = row.querySelector('.vol');            // 成交量改成今天到目前的累積張數
-    if (vol && isFinite(r.v)) vol.textContent = (r.v / 10000).toFixed(2);   // 萬張
+    if (vol && isFinite(r.v)) sT(vol, (r.v / 10000).toFixed(2));   // 萬張
   });
   // 2026-10-21 即時量的大小順序變了(訊號列以外)→ 重新排序,最多 1 分鐘一次(免得清單一直跳)
   try{
