@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 09:26(實際時間)設定全部由主導機(5861)節制(使用者「改 所有設定下的數值 皆由主導機節制」):高價/低價/振幅/檔數/上限/折扣/券商/證交所/證交稅 9 個滾輪,主導機轉完 1.5 秒送雲端,其他手機自動跟上、自己轉默默退回
   · 2026-11-02 09:08(實際時間)電腦盤中資格複檢:上櫃可當沖名單的資料日期本來就是前一個交易日,原本被當成「還沒更新」→ 09:05 推了假警報;改成上市要今天、上櫃 4 天內就算正常(中繼明天開機自動更新)。
   · 2026-11-02 08:34(實際時間)主導機調多空上限成功不再跳「其他手機和電腦 1 分鐘內跟上」(使用者「也不用顯示」);沒送成功才提示
   · 2026-11-02 02:51(實際時間)跟隨機轉多空上限不再跳「多空上限由主導機(5861)控制」(使用者「不用顯示」),只默默退回
@@ -113,7 +114,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611020908">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611020926">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1949,25 +1950,32 @@ const onHiChange = () => onFeeChange();
 /* 2026-11-02 多空上限主控(使用者:「我要5861 那支可以改 其他二隻跟電腦偵測到 都自動改成與5861這隻一樣的金額」「金鑰裡面有5861的為主導機」「可以 改」):
    主程式(非看盤版)鑰匙含 5861 = 主導機:滾輪改完跳「確定改成 XX 萬？」→ 確定才送 Worker ?cap=set,取消就退回原值;
    其他主程式手機 = 跟隨機:開啟 / 回到畫面 / 每 60 秒(畫面開著才問)讀 ?cap=get 自動跟上,自己轉滾輪會退回並提示;電腦中繼也每分鐘讀同一個值。看盤版不受影響 */
-let capSyncing = false, capLast = null, capSent = null; const capPost = {};
+let capSyncing = false;
 const capRole = () => { if (window.VIEWER) return ''; const k = (window.appKey && appKey.get()) || ''; return !k ? '' : k.includes('5861') ? 'master' : 'follow'; };
-const capSet = v => { capSyncing = true; try{ wCap.setValue(v); }finally{ capSyncing = false; } capLast = wCap.value; };
 const capUrl = q => BASE.liveUrl.replace(/\/$/, '') + '/?cap=' + q;
-const onCapChange = () => {
-  if (capSyncing) { onFeeChange(); return; }
-  const role = capRole(), old = capLast, v = wCap.value;
-  if (role === 'follow' && old != null && liveOn()) { capSet(old); return; }   // 2026-11-02 使用者「多空上限由.. 不用顯示」:默默退回
-  if (role === 'master' && liveOn()) {
-    capLast = v; onFeeChange(); clearTimeout(capPost.t); capPost.at = Date.now();   // 2026-11-02 使用者「主導機 更改多空 取消確定按鍵」:不再跳確認框,停 1.5 秒沒再轉就送(連轉幾格只寫一次雲端)
-    capPost.t = setTimeout(() => {
-      fetch(capUrl('set&v=' + Math.round(parseFloat(v) * 10000)), {method: 'POST', cache: 'no-store', signal: AbortSignal.timeout(9000)})
-        .then(r => r.json().catch(() => ({})).then(j => { if (!r.ok || !j.ok) throw new Error(j.error || r.status); capSent = v; }))   // 2026-11-02 使用者「也不用顯示什麼多空上限一分鐘..」:成功不提示
-        .catch(e => { if (capSent != null) { capSet(capSent); saveFees(); } fmToast('沒改成功:' + (e && e.message || '連不上'), 3000); });
-    }, 1500);
-    return;
-  }
-  capLast = v; onFeeChange();
+/* 2026-11-02 09:24 使用者「改 所有設定下的數值 皆由主導機節制」:不只多空上限,設定面板 9 個滾輪(高價/低價/振幅/檔數/上限/折扣/券商/證交所/證交稅)都跟主導機一樣 */
+const CFGW = () => ({hi: wHi, lo: wLo, amp: wAmp, cnt: wCnt, cap: wCap, disc: wFee, broker: wBroker, exch: wExch, tax: wTax});
+const cfgSnap = () => { const o = {}; for (const [k, w] of Object.entries(CFGW())) o[k] = String(w.value); return o; };
+let cfgLast = null, cfgSent = null; const capPost = {};
+const cfgApply = o => { let ch = false; capSyncing = true;
+  try{ for (const [k, w] of Object.entries(CFGW())) if (o[k] != null && String(w.value) !== String(o[k]) && w.setValue(String(o[k]))) ch = true; }finally{ capSyncing = false; }
+  cfgLast = cfgSnap(); return ch; };
+function cfgSend(){
+  clearTimeout(capPost.t); capPost.at = Date.now();   // 停 1.5 秒沒再轉才送(連轉幾格只寫一次雲端);不跳任何提示(使用者「不用顯示」)
+  capPost.t = setTimeout(() => { const o = cfgSnap();
+    fetch(capUrl('set&v=' + Math.round(parseFloat(o.cap) * 10000)), {method: 'POST', cache: 'no-store', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({set: o}), signal: AbortSignal.timeout(9000)})
+      .then(r => r.json().catch(() => ({})).then(j => { if (!r.ok || !j.ok) throw new Error(j.error || r.status); cfgSent = o; }))
+      .catch(e => { if (cfgSent) { cfgApply(cfgSent); saveFees(); queueScan(); } fmToast('沒改成功:' + (e && e.message || '連不上'), 3000); });
+  }, 1500);
+}
+const cfgGuard = (name, orig) => () => {
+  if (capSyncing) { orig(); return; }
+  const role = capRole();
+  if (role === 'follow' && cfgLast && liveOn()) { capSyncing = true; try{ CFGW()[name].setValue(cfgLast[name]); }finally{ capSyncing = false; } return; }   // 跟隨機:默默退回
+  orig(); cfgLast = cfgSnap();
+  if (role === 'master' && liveOn()) cfgSend();
 };
+const onCapChange = () => onFeeChange();
 function capPull(){
   const role = capRole(); if (!role || !liveOn() || document.hidden) return;
   if (capPull.first && inSession(new Date(Date.now() - 2 * 60000))) return;   // 2026-11-02 使用者「設定有開盤禁改」:09:00–13:30 設定改不了 → 盤中不問(開啟時問一次、09:02 前還會再跟一次)
@@ -1975,33 +1983,35 @@ function capPull(){
   if (Date.now() - (capPost.at || 0) < 15000) return;   // 主導機剛轉完、還在送 → 不要被雲端舊值蓋回去
   fetch(capUrl('get&_=' + Date.now()), {cache: 'no-store', signal: AbortSignal.timeout(9000)}).then(r => r.ok ? r.json() : null).then(j => {
     if (!j || !j.ok) return;
-    if (!j.cap) { if (role === 'master') fetch(capUrl('set&v=' + capFund()), {method: 'POST', cache: 'no-store'}).catch(() => {}); return; }   // 還沒設過 → 主導機把目前值送上去一次
-    const v = Math.round(j.cap / 10000) + '萬';
-    if (v !== wCap.value) { capSet(v); capSent = v; saveFees(); }
+    if (!j.cap) { if (role === 'master' && !inSession()) cfgSend(); return; }   // 還沒設過 → 主導機把目前值送上去一次(盤外)
+    const o = j.set ? {...j.set} : {}; o.cap = Math.round(j.cap / 10000) + '萬';
+    if (cfgApply(o)) { saveFees(); queueScan(); }
+    cfgSent = cfgSnap();
+    if (role === 'master' && !j.set && !inSession()) cfgSend();   // 雲端只有上限(舊版)→ 主導機補送整組設定
   }).catch(() => {});
 }
 const wHi  = makeWheel('wHi',  buildVals(CFG.hi   && CFG.hi.range),
-                       String(Math.min(500, Math.max(50, Math.round(+startVal('hi', 350) / 5) * 5))), onHiChange);   // 2026-10-24 存檔的舊值(例如 331)對齊到 5 的倍數
+                       String(Math.min(500, Math.max(50, Math.round(+startVal('hi', 350) / 5) * 5))), cfgGuard('hi', onHiChange));   // 2026-10-24 存檔的舊值(例如 331)對齊到 5 的倍數
 const wLo  = makeWheel('wLo',  buildVals(CFG.lo   && CFG.lo.range),
-                       startVal('lo', 10), onFeeChange);
+                       startVal('lo', 10), cfgGuard('lo', onFeeChange));
 const wAmp = makeWheel('wAmp', buildVals(CFG.amp  && CFG.amp.range),
-                       startVal('amp', '3.0%'), onFeeChange);
+                       startVal('amp', '3.0%'), cfgGuard('amp', onFeeChange));
 const wCnt = makeWheel('wCnt', buildVals(CFG.cnt  && CFG.cnt.range),
-                       startVal('cnt', 49), onFeeChange, {loop: true});   // 2026-10-18 使用者:最多 99,99/89/…/19 循環
+                       startVal('cnt', 49), cfgGuard('cnt', onFeeChange), {loop: true});   // 2026-10-18 使用者:最多 99,99/89/…/19 循環
 function capFund(){ const v = parseFloat((wCap && wCap.value) || '') * 10000; return v > 0 ? v : 350000; }   // (判別式相關說明已移到私人庫)
 const wCap = makeWheel('wCap', buildVals(CFG.cap  && CFG.cap.range),
-                       startVal('cap', '35萬'), onCapChange);
+                       startVal('cap', '35萬'), cfgGuard('cap', onCapChange));
 setTimeout(() => { try{ if (!localStorage.getItem('mysh.hi500')){ localStorage.setItem('mysh.hi500', '1'); if (+wHi.value < 500) wHi.setValue('500'); } }catch(e){} }, 800);   // 2026-10-31 02:58 原本開啟時把高價對齊到「上限 ÷ 1000」(上限 25 萬 → 高價 250);改成一次性把高價放回 500(之後使用者自己調的照存)   // 開啟時舊存檔不一致(高價 350、上限 20 萬)也先對齊一次
 
 const wFee = makeWheel('wFee', buildVals(CFG.disc && CFG.disc.range),
-                       startVal('disc', '25%'), onFeeChange);
+                       startVal('disc', '25%'), cfgGuard('disc', onFeeChange));
 
 
 const wBroker = makeWheel('wBroker', buildVals(CFG.broker && CFG.broker.range),
-                          startVal('broker', '0.1425%'), onFeeChange);
+                          startVal('broker', '0.1425%'), cfgGuard('broker', onFeeChange));
 
 const wExch = makeWheel('wExch', buildVals(CFG.exch && CFG.exch.range),
-                        startVal('exch', '0.00000%'), onFeeChange);
+                        startVal('exch', '0.00000%'), cfgGuard('exch', onFeeChange));
 
 /* 長按滾輪 → 在幾個常用值之間快速切換
    已在清單中 → 換下一個;不在清單中 → 換成最接近的
@@ -2053,8 +2063,6 @@ attachCycle('hiWheel',  wHi,  ['50','100','150','200','250','300',
 attachCycle('ampWheel', wAmp, ['3.0%', '4.0%', '5.0%', '8.0%'], 'high');
 attachCycle('capWheel', wCap, ['5萬','10萬','15萬','20萬','25萬',
                                '30萬','35萬','40萬','45萬','50萬']);
-capLast = capSent = wCap.value;
-setTimeout(capPull, 1500); setInterval(capPull, 60000); document.addEventListener('visibilitychange', () => { if (!document.hidden) capPull(); });
 
 /* 長按「手續費折扣」展開 / 收合券商與證交所費率 */
 window.feeLock = () => { const w = document.getElementById('feeWheel'), sub = document.getElementById('subFee'); if (sub) sub.classList.remove('show'); if (sub && sub.parentElement) sub.parentElement.classList.remove('subOn'); if (w) w.classList.add('locked'); };
@@ -2097,9 +2105,11 @@ window.feeLock = () => { const w = document.getElementById('feeWheel'), sub = do
 })();
 
 const wTax = makeWheel('wTax', buildVals(CFG.tax && CFG.tax.range),
-                       startVal('tax', '0.15%'), onFeeChange);
+                       startVal('tax', '0.15%'), cfgGuard('tax', onFeeChange));
 
 const WHEELS = [wHi, wLo, wAmp, wFee, wCnt, wCap, wBroker, wExch, wTax];
+cfgLast = cfgSent = cfgSnap();
+setTimeout(capPull, 1500); setInterval(capPull, 60000); document.addEventListener('visibilitychange', () => { if (!document.hidden) capPull(); });
 
 /* (判別式相關說明已移到私人庫) */
 const cost = () => {
