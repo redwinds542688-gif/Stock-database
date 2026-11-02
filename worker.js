@@ -605,6 +605,7 @@ export default {
       const out = {};
       try { const v = await env.LOGS.get("keys:owners"); out.kv = v ? "ok" : "空"; } catch (e) { out.kv = "錯誤:" + String(e && e.message || e).slice(0, 160); }
       try { const v = await env.LOGS.get("keys:owners", { cacheTtl: 300 }); out.kvCache = v ? "ok" : "空"; } catch (e) { out.kvCache = "錯誤:" + String(e && e.message || e).slice(0, 160); }
+      try { const v = env.HUB ? await hubOf(env).kvGet("m:cfg:cap") : null; const c = v ? JSON.parse(v) : null; out.cfg = c ? { cap: c.cap, at: new Date(c.at + 8 * 3600e3).toISOString().slice(5, 16), set: c.set || null } : "雲端備份還沒有(主導機還沒送過)"; } catch (e) { out.cfg = "讀不到"; }   // 2026-11-02 看主導機設定有沒有送上來(只有數值,沒有鑰匙)
       try { const r = await env.LOGS.list({ prefix: "key:", limit: 1000 }); out.keys = r.keys.length; out.meta = r.keys.filter(k => k.metadata).length; } catch (e) { out.keys = "錯誤:" + String(e && e.message || e).slice(0, 120); }
       return J(out);
     }
