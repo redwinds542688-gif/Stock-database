@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 11:56(實際時間)通知欄左右滑切分頁(使用者「往左滑 切換到公式 再往左滑 切換到當沖…往右滑也是反向」):訊息 → 公式 → 當沖 → 明細 →(收盤後才有 設定)→ 訊息,右滑反過來
   · 2026-11-02 11:50(實際時間)三支主程式手機同步強平清單(使用者「a手機強制平倉 a就看不到再次平倉訊息 b.c也同步一樣」):從電腦回的今天強平過的股票讀,訊息欄一樣藏之後的停利 / 停損 / 出場
   · 2026-11-02 11:48(實際時間)電腦:程式進場單還在送時的手動同方向成交也接管(使用者「不管是誰做的 只要有成交 程式一律接管」);進場單成交 → 合併重算,進場單沒成交 → 只用手動那幾張接成部位
   · 2026-11-02 11:45(實際時間)電腦:手動加碼併入後停利 / 停損從新均價重算(使用者「這邊需要重新再算過停利跟停損」;判一~四照原本離進場價的 %)
@@ -127,7 +128,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611021150">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611021156">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1557,6 +1558,22 @@ window.fitBands = fitBands;
     menu.classList.remove('hidden'); menu.style.width = Math.round(r.width) + 'px'; menu.querySelectorAll('.rsm').forEach(x => { x.style.fontSize = Math.max(16, Math.min(28, Math.floor((r.width - 8 - 11 - 4 - 12) / 2))) + 'px'; });   /* 2026-10-27 04:20 鐵律 19:兩個字放大到塞滿視窗寬(扣掉邊距、燈、間隔) */
     menu.style.left = Math.round(r.left) + 'px'; menu.style.top = (r.bottom + 4) + 'px'; rsLampUpd(); try{ refreshToolbar(); }catch(e){} };   // 2026-10-27 09:05 使用者:「公式亮燈 其他熄燈」:視窗打開時公式亮、訊息 / 當沖 / 明細 熄   // 2026-10-27 01:05 使用者:「該視窗要與公式鍵同寬度」
   window.closeRsMenu = closeMenu;
+  // 2026-11-02 11:53 使用者「在訊息的通知欄位裡面左右滑動 往左滑 切換到公式 再往左滑 切換到當沖..因為開盤中設定是不能按的 所以明細左滑就會跳到訊息 往右滑也是反向來」:
+  //   通知欄(和公式小視窗)左右滑 = 切分頁:訊息 → 公式 → 當沖 → 明細 →(收盤後才有 設定)→ 訊息;右滑反過來。上下滑(捲動)不受影響
+  { const order = () => { let s = false; try{ s = inSession(); }catch(e){} return s ? ['msg', 'rs', 'pos', 'done'] : ['msg', 'rs', 'pos', 'done', 'set']; };
+    const curTab = () => { const pnl = document.querySelector('.panel'); if (pnl && pnl.classList.contains('open')) return 'set'; if (menuOpen()) return 'rs'; const v = window.NL_VIEW || 'msg'; return v === 'msg' && window.LOG_RS ? 'rs' : v; };
+    const go = t => { const pnl = document.querySelector('.panel');
+      if (t === 'set'){ closeMenu(); hideInfo(); if (pnl && !pnl.classList.contains('open')) document.getElementById('gear').click(); return; }
+      if (pnl && pnl.classList.contains('open')){ pnl.classList.remove('open'); if (window.feeLock) feeLock(); }
+      if (t === 'rs'){ if (window.NL_VIEW !== 'msg' || window.LOG_RS) setView('msg', ''); openMenu(); return; }
+      setView(t, t === 'msg' ? '' : undefined); };
+    let x0 = 0, y0 = 0, t0 = 0, multi = false, tab0 = 'msg';
+    const st = ev => { multi = ev.touches.length > 1; x0 = ev.touches[0].clientX; y0 = ev.touches[0].clientY; t0 = Date.now(); tab0 = curTab(); };   // 起點的分頁先記住(按下去時公式小視窗會被收起來)
+    const en = ev => { if (multi || !t0) return; const t = ev.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0, dt = Date.now() - t0; t0 = 0;
+      if (dt > 900 || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      const o = order(), i = o.indexOf(tab0); const n = o[((i < 0 ? 0 : i) + (dx < 0 ? 1 : -1) + o.length) % o.length];
+      try{ navigator.vibrate && navigator.vibrate(15); }catch(e){} go(n); };
+    for (const e0 of ['cover', 'rsMenu', 'panel']){ const e = document.getElementById(e0) || document.querySelector('.' + e0); if (e){ e.addEventListener('touchstart', st, {passive: true, capture: true}); e.addEventListener('touchend', en, {passive: true}); } } }
   const setView = (v, rs) => { window.NL_VIEW = v; if (rs !== undefined) window.LOG_RS = rs; closeMenu();
     const pnl = document.querySelector('.panel'); if (pnl) pnl.classList.remove('open'); hideInfo(); if (window.nlRender) nlRender(); refreshToolbar(); };
   window.nlSetView = setView;
