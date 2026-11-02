@@ -782,7 +782,7 @@ export default {
       const cache = caches.default;
       const hit = await cache.match(ck);
       if (hit) { const h = new Headers(hit.headers); for (const [k, v] of Object.entries(CORS)) h.set(k, v); return new Response(hit.body, { status: 200, headers: h }); }
-      const out = since ? await dayBars(env, d, codes, since) : await dayBarsFull(env, ctx, url.origin, d, codes);
+      let out; try { out = since ? await dayBars(env, d, codes, since) : await dayBarsFull(env, ctx, url.origin, d, codes); } catch (e) { return J({ error: "雲端 K 讀取失敗:" + String(e && e.message || e).slice(0, 200) }, 503); }   // 2026-11-02 失敗回 503 + 原因(原本整個 Worker 例外 1101)
       const body = JSON.stringify(out);
       const resp = new Response(body, { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });
       const ttl = since ? 10 : 50;    // 全天的查詢要讀幾百個鍵,邊緣快取 50 秒;增量的 10 秒(2026-10-23 15:40 原 20 秒;手機每 10 秒問一次,快取 20 秒等於白問一半。KV get 一天約 2.5 萬次 / 支手機 < 10 萬)
@@ -945,7 +945,7 @@ export default {
       const ck = new Request(`${url.origin}/__breadth?d=${d}&since=${since}`), cache = caches.default;
       const hit = await cache.match(ck);
       if (hit) { const h = new Headers(hit.headers); for (const [k, v] of Object.entries(CORS)) h.set(k, v); return new Response(hit.body, { status: 200, headers: h }); }
-      const body = JSON.stringify(since ? await dayBreadth(env, d, since) : await dayBreadthFull(env, ctx, url.origin, d));
+      let body; try { body = JSON.stringify(since ? await dayBreadth(env, d, since) : await dayBreadthFull(env, ctx, url.origin, d)); } catch (e) { return J({ error: "大盤寬度讀取失敗:" + String(e && e.message || e).slice(0, 200) }, 503); }
       const cached = new Response(body, { status: 200, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=50" } });
       if (ctx && ctx.waitUntil) ctx.waitUntil(cache.put(ck, cached)); else await cache.put(ck, cached);
       return new Response(body, { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });
