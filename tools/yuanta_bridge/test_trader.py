@@ -256,6 +256,12 @@ tn.on_report(51, "A0001", 0, 1000, 86.1); ok(pn["state"] == HOLDING and pn["qty"
 to_, go_ = mk(TRADE_ENTRY_FALLBACK="0"); to_.name_of = lambda c: "台郡"; to_.on_tick("6269", 86.2); to_.step([ENT]); po_ = to_.positions["6269"]
 to_.on_report(51, "M902", 0, 2000, 86.4, basket="", code="6269", bs="S"); to_.on_report(50, "A0001", 25, 0, 0)
 ok("6269" in to_.positions and po_["state"] == HOLDING and po_["qty"] == 2 and po_["entry"] == 86.4 and po_["tp"] == round(86.4 * 84.05 / 86.2, 2), po_)
+# Y1e) 2026-11-02 未交易標記:超額 / 已有部位 / 進場沒成交 → skipped;有進場的同一訊號重送不算
+ts_, gs_ = mk(TRADE_ENTRY_FALLBACK="0"); ts_.on_tick("6269", 86.2); ts_.step([ENT]); ts_.on_report(51, "A0001", 0, 1000, 86.1)
+ts_.step([dict(ENT, _k="dup")]); ok(not ts_.skipped, ts_.skipped)                                         # 同一個訊號再來一次(雲端)→ 不算未交易
+ts_.step([sig("10:05:6269|台郡|判三", "short", "台郡 6269 做空進場 86.00", "10:05 空 · 停利 84.0 停損 88.0 · 判三")]); ok("6269|判三|10:05" in ts_.skipped, ts_.skipped)   # 已有部位
+ts_.step([sig("10:06:2330|台積|判一", "long", "台積 2330 做多進場 600", "10:06 多 · 停利 615 停損 590 · 超額 · 判一")]); ok("2330|判一|10:06" in ts_.skipped)
+ts2_, gs2_ = mk(TRADE_ENTRY_FALLBACK="0"); ts2_.on_tick("6269", 86.2); ts2_.step([ENT]); ts2_.on_report(50, "A0001", 25, 0, 0); ok("6269|判二|10:00" in ts2_.skipped, ts2_.skipped)   # 送了單沒成交
 # Y2) 元三你自己在元大平掉 → 程式結束這個部位;判三的平倉通知也會讓元三出場;元三不佔 5 檔名額
 tz2, gz2 = mk(); tz2.on_report(51, "M1", 0, 1000, 50.0, basket="", code="3001", bs="S"); ok(tz2.positions["3001"]["dir"] == -1 and tz2.positions["3001"]["sl"] == 52.25)
 tz2.on_report(51, "M2", 0, 1000, 49.0, basket="", code="3001", bs="B"); ok("3001" not in tz2.positions and not gz2.sent)
@@ -507,4 +513,4 @@ s22.on_report(51, "", 0, s22.positions["2401"]["order"]["want"], s22.positions["
 ok(s22.positions["2401"]["state"] == HOLDING and s22.positions["2402"]["state"] == ENTERING)
 ok(s22.close_all("手機緊急停止 + 全部平倉") == 2 and s22.positions["2401"]["state"] == EXITING and g22.sent[-1][:2] == ("2401", "B") and g22.sent[-1][-1] == "H"
    and s22.positions["2402"].get("exit_pending"), (g22.sent[-1], s22.positions["2402"]))
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3)")
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1)")

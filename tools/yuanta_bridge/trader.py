@@ -161,6 +161,8 @@ class Trader:
         self.journal = []
         self.flat_watch = {}       # code → 剛平倉的部位 {dir, typ, mkt, until}:這段時間又有同方向平倉成交(手動 / 條件單同時觸發)= 多平了,要補回來
         self.locked = set()        # 今天強平過的股票:判一 / 二 / 三不再自動進場
+        self.traded_keys = set()
+        self.skipped = set()       # 2026-11-02 今天沒變成部位的進場訊號(代碼|判別式|訊號那根),手機標「未交易」
         self.cmd_seen = {}         # 強制指令編號 → 結果(手機重送 / 滑兩次只做一次)
         self.oco_q = []
         # 2026-10-29 稽核 #1:啟動時要「成功」讀到一次手機通知(prime)才算準備好;沒準備好不自動進場、不理平倉通知
@@ -424,7 +426,7 @@ class Trader:
                                 and self.entry_fallback_send(p, o)):
                             self.log(f"[交易] 對帳:{c} 進場單等確認中,元大連續兩次都沒有這檔部位 → 確定 IOC 沒成交,已改掛補單"); continue
                         if self.man_only(p, "對帳:進場單確定沒成交"): continue
-                        self.log(f"[交易] 對帳:{c} 進場單等確認中,元大連續兩次都沒有這檔部位 → 確定沒成交,拿掉"); p["order"] = None; self.positions.pop(c, None); continue
+                        self.log(f"[交易] 對帳:{c} 進場單等確認中,元大連續兩次都沒有這檔部位 → 確定沒成交,拿掉"); p["order"] = None; self.positions.pop(c, None); self.mark_skip(p); continue
                     side = "B" if p["dir"] > 0 else "S"; ts = [t for t in trades if t["code"] == c and t["bs"] == side]
                     q = sum(t["lots"] for t in ts); avg = (sum(t["lots"] * t["price"] for t in ts) / q) if q else (self.last_px.get(c) or p["entry"])
                     np_ = abs(n) - ml; pc = avg * abs(n) * 1000 - mc; avg_p = pc / (np_ * 1000) if np_ > 0 and pc > 0 else avg
@@ -859,7 +861,7 @@ class Trader:
                     if not (oo and oo.get("filled")):
                         if not self.man_only(p, "進場單等確認逾時沒成交"):
                             self.log(f"[交易] {p['code']} 進場單等確認 {self.confirm_wait:.0f} 秒還是沒有成交回報 → 確定沒成交,放棄(對帳 / 13:22 複查仍以元大為準)")
-                            p["order"] = None; self.positions.pop(p["code"], None)
+                            p["order"] = None; self.positions.pop(p["code"], None); self.mark_skip(p)
             if signals is not None and not self.primed:               # 2026-10-29 稽核 #1:啟動時沒讀到通知 → 第一次讀成功的這批先當「啟動時已有」,不拿來進場
                 self.prime(signals); signals = None
             for it in (signals or []):
@@ -1018,6 +1020,29 @@ class Trader:
         n = self.now(); return n.hour * 60 + n.minute - ms
 
     def on_signal(self, it):
+        # 2026-11-02 13:53 使用者選「標未交易 不寫原因」:進場訊號沒變成程式的部位(太晚、超額、強平過、額度不夠、已有部位…)→ 記「代碼|判別式|訊號那根」,
+        #   手機問部位(?trade=pos)時一起給,訊息欄那張進場卡和之後同一筆的平倉卡標「未交易」;送了單但沒成交(放棄)也記
+        title, body, kind = it.get("title", ""), it.get("body", ""), it.get("kind", "")
+        code = code_of(title) if kind in ("long", "short") else None
+        before = self.positions.get(code) if code else None
+        seen0 = (it.get("_k") or (it.get("t", "") + title)) in self.seen
+        self._on_signal(it)
+        if code and self.primed and not seen0:
+            after = self.positions.get(code)
+            sk = self.sig_key(code, judge_of(body), body)
+            if after is not None and after is not before:
+                after["sigkey"] = sk; self.traded_keys.add(sk); self.skipped.discard(sk)
+            elif sk not in self.traded_keys:   # 同一個訊號(本機 + 雲端各來一次)已經進場過的不算未交易
+                self.skipped.add(sk)
+
+    def sig_key(self, code, judge, body):
+        mb = RE_BAR.search(body or "")
+        return f"{code}|{judge or ''}|{mb.group(1) if mb else ''}"
+
+    def mark_skip(self, p):
+        if p and p.get("sigkey"): self.traded_keys.discard(p["sigkey"]); self.skipped.add(p["sigkey"])
+
+    def _on_signal(self, it):
         if not self.primed:                                       # 2026-10-29 稽核 #1:還沒成功讀過一次通知 → 什麼都不做(也不標看過)
             return
         k = it.get("_k") or (it.get("t", "") + it.get("title", ""))
@@ -1227,7 +1252,7 @@ class Trader:
                         self.log(f"[交易] {p['code']} 進場 {self.fill_wait:.0f} 秒沒成交回報 → 等確認(再等 {self.confirm_wait:.0f} 秒,晚到的成交照樣接)")
                     return
                 if self.man_only(p, "進場單沒成交"): return
-                self.log(f"[交易] {p['code']} 進場沒成交,放棄"); self.positions.pop(p["code"], None)
+                self.log(f"[交易] {p['code']} 進場沒成交,放棄"); self.positions.pop(p["code"], None); self.mark_skip(p)
                 if p.get("forced"): self.alert(f"⚠ 強制進場 {p['code']} 沒有成交", "元大回報委託結束、沒有成交")
                 return
             if p.pop("wait_confirm", None):

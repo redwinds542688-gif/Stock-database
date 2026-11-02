@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 13:56(實際時間)訊息欄標「未交易」(使用者選「標未交易 不寫原因」「在我這邊長久會員才顯示未交易 其他正常顯示」):只有主程式(自己的三支)會標,電腦沒下單的進場訊號和同一筆的平倉卡張數欄改成灰色「未交易」;看盤版照常
   · 2026-11-02 13:51(實際時間)電腦:當沖額度照元大算法(漲停買回 / 跌停賣出用委託價扣額度),右上角資金和下單前的額度檢查都跟元大一致(今天差 21.9 萬,台化 / 大甲被退單)
   · 2026-11-02 13:48(實際時間)電腦:元大委託失敗時把回報裡的原因全記下來,並推一則「⚠ 元大退回委託」到手機(今天台化 / 大甲只記到狀態 1,看不到原因)
   · 2026-11-02 13:26(實際時間)通知欄左右滑改成跟手(使用者「左右滑動 要絲滑順暢」):拖動時跟著手指走、變淡;拖過 1/5 或甩得快 → 滑出、新分頁滑進來;不夠就彈回;拖動中不重畫、不會斜晃、不會誤點
@@ -136,7 +137,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611021351">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611021356">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6320,9 +6321,17 @@ window.bgTick = bgTick; window.BG = BG;
       const al = (o.type === 'entry' || o.type === 'turn') ? '' : o._alert, alT = o._alertT || '';
       const fresh = dd === today && alT && (() => { const [h, mi] = alT.split(':').map(Number); const n = new Date(Date.now() + 8 * 3600000); return (n.getUTCHours() * 60 + n.getUTCMinutes()) - (h * 60 + mi) < 10; })();
       const rs = al ? `<span class="rs al al-${al}">${al === 'exit' && o.fc ? '<b class="fz">強</b>平' : AL[al]}</span>` : '<span class="rs"></span>';   // 2026-10-28 強平:「強」紅色   // 2026-10-19 使用者:「反彈 / 平倉 / 注意一直閃太干擾,不要閃了」→ 拿掉 blink,只用顏色,不再閃爍(fresh 保留給之後可能用)
-      return `<div class="ln"><span class="nmblk"><span class="nm">${esc(o.name)}</span></span><span class="px${ud(+entP)}">${pxTop}</span><span class="sd${sideTxt ? (o.side === 'long' ? ' win' : ' lose') : ''}">${sideTxt}</span><span class="qt">${o.over ? '<b style="color:#FFD24D;font-weight:700">超額</b>' : lots ? lots + '張' : (o.type === 'turn' && (o.add || o.warnT) && o.side) ? `<b class="tsd ${o.side === 'long' ? 'win' : 'lose'}">${o.side === 'long' ? '做多' : '做空'}</b>` : ''}</span><span class="exm">${ex}</span>${rs}</div>`
+      return `<div class="ln"><span class="nmblk"><span class="nm">${esc(o.name)}</span></span><span class="px${ud(+entP)}">${pxTop}</span><span class="sd${sideTxt ? (o.side === 'long' ? ' win' : ' lose') : ''}">${sideTxt}</span><span class="qt">${o.over ? '<b style="color:#FFD24D;font-weight:700">超額</b>' : o.notrade ? '<b style="color:#8C96AB;font-weight:700">未交易</b>' : lots ? lots + '張' : (o.type === 'turn' && (o.add || o.warnT) && o.side) ? `<b class="tsd ${o.side === 'long' ? 'win' : 'lose'}">${o.side === 'long' ? '做多' : '做空'}</b>` : ''}</span><span class="exm">${ex}</span>${rs}</div>`
            + `<div class="ln sub"><span class="nmblk"><span class="cd">${esc(o.code)}</span></span><span class="px${ud(+o.price)}"><i class="s">${pxBot}</i></span><span class="sd"><i class="s rsb">${o.rs === '強三' ? '<b class="fz">強</b>三' : o.rs === '元三' ? '<b class="fz">元</b>三' : (o.rs || '')}</i></span><span class="qt">${o.t ? `<i class="s tm">${esc(o.t)}</i>` : ''}</span><span class="exm"></span><span class="rs">${al === 'exit' && o._win != null ? `<i class="s wl ${o._win ? 'win' : 'lose'}">${o._win ? '贏' : '輸'}</i>` : ''}</span></div>`;   // 2026-10-18 使用者:平倉下面顯示 輸 / 贏,加框
     };
+    // 2026-11-02 13:53 使用者選「標未交易 不寫原因」:電腦說沒變成部位的進場訊號(?trade=pos 的 skipped:代碼|判別式|訊號那根),進場卡和同一筆的平倉卡標「未交易」;
+    //   拿到的存在手機(電腦連不上時照樣標);看盤版沒有電腦、不標
+    if (!window.VIEWER && d === today){ let sk = null;
+      try{ const T = window.__tpos; if (T && T.ok && Array.isArray(T.skipped)){ sk = T.skipped; localStorage.setItem('mysh.skip.' + today, JSON.stringify(sk)); } else sk = JSON.parse(localStorage.getItem('mysh.skip.' + today) || 'null'); }catch(e){}
+      if (sk && sk.length){ const S = new Set(sk);
+        for (const o of cards){ if (!/^判[一二三四]$/.test(o.rs || '')) continue;
+          const bar = o.type === 'entry' ? (((o.x.body || '').match(/^\s*(\d{1,2}:\d\d)/) || [])[1] || '') : (o.entT || '');
+          if (bar && S.has(o.code + '|' + o.rs + '|' + bar)) o.notrade = true; } } }
     const info = o => '';   // 2026-10-17 使用者:每一則下面的灰字明細都不顯示,只留代碼
     // 2026-10-24 13:40 按判一 / 判二 / 判三 = 只列那份判別式發的通知
     const shown = cards.filter(o => !o._hide && (!window.LOG_RS || o.rs === window.LOG_RS)); n = shown.length;
