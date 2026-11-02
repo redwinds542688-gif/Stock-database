@@ -475,6 +475,7 @@ export class Hub extends DurableObject {
   snapPut(k, v) { this.sql.exec("INSERT OR REPLACE INTO snaps (k, v) VALUES (?, ?)", k, v);
     if (k.startsWith("bar:") && k.endsWith(":09:00")) this.sql.exec("DELETE FROM snaps WHERE substr(k, 5, 10) < ?", new Date(Date.parse(k.slice(4, 14) + "T00:00:00Z") - 14 * 86400e3).toISOString().slice(0, 10));   // 留 14 天
     return true; }
+  kvInc(k, d) { const o = this.kvGet(k) || {}; for (const x in d) o[x] = (o[x] || 0) + (d[x] || 0); this.kvPut(k, o); return o; }
   badLog(rec) { const a = (this.kvGet("badlog") || []); a.push(rec); this.kvPut("badlog", a.slice(-40)); return true; }
   snapHas(k) { return this.sql.exec("SELECT 1 FROM snaps WHERE k = ?", k).toArray().length > 0; }
   snapGet(keys) {
@@ -556,6 +557,18 @@ async function kvGetC(env, key, ttlMs) {
   MC.set(key, { v, at: Date.now() });
   return v;
 }
+// 2026-11-02 KV 用量計數:每個執行個體記在記憶體,滿 50 次或 2 分鐘才寫一次 Hub(一天幾百次 Hub 請求,不吃 KV)
+function kvCounted(env, ctx) {
+  if (!env || !env.LOGS || env.__kvc) return env;
+  const C = globalThis.__kvcnt || (globalThis.__kvcnt = { get: 0, list: 0, put: 0, del: 0, n: 0, at: Date.now() });
+  const bump = k => { C[k]++; C.n++;
+    if ((C.n >= 50 || Date.now() - C.at > 120e3) && env.HUB) { const d = { get: C.get, list: C.list, put: C.put, del: C.del }; C.get = C.list = C.put = C.del = C.n = 0; C.at = Date.now();
+      const p = hubOf(env).kvInc("kvcount:" + ymdOf(twNow()), d).catch(() => {}); if (ctx && ctx.waitUntil) ctx.waitUntil(p); } };
+  const L = env.LOGS, W = {
+    get: (...a) => { bump("get"); return L.get(...a); }, getWithMetadata: (...a) => { bump("get"); return L.getWithMetadata(...a); },
+    list: (...a) => { bump("list"); return L.list(...a); }, put: (...a) => { bump("put"); return L.put(...a); }, delete: (...a) => { bump("del"); return L.delete(...a); } };
+  return Object.assign(Object.create(env), { LOGS: W, __kvc: true });
+}
 const kvDown = () => globalThis.__kvDown && Date.now() - globalThis.__kvDown < 10 * 60000;
 async function keyInfo(env, k) {
   if (!env || !env.LOGS || !KEY_RE.test(k || "")) return null;
@@ -581,6 +594,7 @@ export default {
   //   5,20,30,45 0,1,6,8,12 * * MON-FRI  → 每天醒來 20 次,只在下面這幾個台灣時間真的去叫 GitHub,其他時候什麼都不做
   // 2026-10-19 起 Cron 改成每分鐘(* 0-6,8,12 * * MON-FRI):台灣 09:00~13:35 每分鐘存一次雲端 1 分K 快照;原本的六個時段照舊叫 GitHub
   async scheduled(event, env, ctx) {
+    env = kvCounted(env, ctx);
     const t = new Date(Date.now() + 8 * 3600e3);                      // 台灣時間
     const key = `${t.getUTCHours()}:${String(t.getUTCMinutes()).padStart(2, "0")}`;
     const SLOTS = { "8:20": "recheck", "8:45": "recheck", "9:05": "recheck", "14:30": "daily", "16:30": "daily", "20:30": "daily" };
@@ -590,6 +604,7 @@ export default {
   },
 
   async fetch(request, env, ctx) {
+    env = kvCounted(env, ctx);   // 2026-11-02 使用者「做1,2」:算每天 KV 讀 / 寫 / list 次數(?kvping 看得到)
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
 
     const url = new URL(request.url);
@@ -615,6 +630,7 @@ export default {
       try { const v = await env.LOGS.get("keys:owners"); out.kv = v ? "ok" : "空"; } catch (e) { out.kv = "錯誤:" + String(e && e.message || e).slice(0, 160); }
       try { const v = await env.LOGS.get("keys:owners", { cacheTtl: 300 }); out.kvCache = v ? "ok" : "空"; } catch (e) { out.kvCache = "錯誤:" + String(e && e.message || e).slice(0, 160); }
       try { const v = env.HUB ? await hubOf(env).kvGet("m:cfg:cap") : null; const c = v ? JSON.parse(v) : null; out.cfg = c ? { cap: c.cap, at: new Date(c.at + 8 * 3600e3).toISOString().slice(5, 16), set: c.set || null } : "雲端備份還沒有(主導機還沒送過)"; } catch (e) { out.cfg = "讀不到"; }   // 2026-11-02 看主導機設定有沒有送上來(只有數值,沒有鑰匙)
+      try { out.count = env.HUB ? await hubOf(env).kvGet("kvcount:" + ymdOf(twNow())) : null; } catch (e) {}   // 今天 KV 用量(大約,每個執行個體滿 50 次才記一次)
       try { out.bad = env.HUB ? (await hubOf(env).kvGet("badlog") || []).slice(-15) : []; } catch (e) {}
       try { const r = await env.LOGS.list({ prefix: "key:", limit: 1000 }); out.keys = r.keys.length; out.meta = r.keys.filter(k => k.metadata).length; } catch (e) { out.keys = "錯誤:" + String(e && e.message || e).slice(0, 120); }
       return J(out);
