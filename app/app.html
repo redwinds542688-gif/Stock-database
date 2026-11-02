@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 14:34(實際時間)右上角資金收盤後變負的(使用者「資金 怎麼會-500620」):電腦今天推過的額度一直用最後那份(原本超過 10 分鐘就改手機自己算,連沒交易的訊號都算);也不顯示負數
   · 2026-11-02 13:56(實際時間)訊息欄標「未交易」(使用者選「標未交易 不寫原因」「在我這邊長久會員才顯示未交易 其他正常顯示」):只有主程式(自己的三支)會標,電腦沒下單的進場訊號和同一筆的平倉卡張數欄改成灰色「未交易」;看盤版照常
   · 2026-11-02 13:51(實際時間)電腦:當沖額度照元大算法(漲停買回 / 跌停賣出用委託價扣額度),右上角資金和下單前的額度檢查都跟元大一致(今天差 21.9 萬,台化 / 大甲被退單)
   · 2026-11-02 13:48(實際時間)電腦:元大委託失敗時把回報裡的原因全記下來,並推一則「⚠ 元大退回委託」到手機(今天台化 / 大甲只記到狀態 1,看不到原因)
@@ -137,7 +138,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611021356">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611021434">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6586,13 +6587,14 @@ window.bgTick = bgTick; window.BG = BG;
         else if (o.type === 'exit' && o.price > 0) u += o.price * lt * 1000; } }catch(e){} return Math.round(u); };
     const used = usedOf(cards); const CAPD = 5000000;   // 2026-10-31 14:57 使用者「490萬 改成500萬」
     // 2026-10-29 使用者:「我說的可用資金是訊息右上那個」→ 有桌機推上來的當沖額度(今天、10 分鐘內)就用它:總額度 − 成交 − 掛著的(含手動);沒有就照上面 App 自己算的
-    let fundLeft = CAPD - used; try{ if (QUOTA.d === today && QUOTA.total > 0 && Date.now() - QUOTA.at < 10 * 60000) fundLeft = Math.round(QUOTA.total - QUOTA.fill - QUOTA.work); }catch(e){}
+    let fundLeft = CAPD - used; try{ if (QUOTA.d === today && QUOTA.total > 0) fundLeft = Math.round(QUOTA.total - QUOTA.fill - QUOTA.work); }catch(e){}   // 2026-11-02 14:34 使用者「資金 怎麼會-500620」:收盤後電腦不再推額度,超過 10 分鐘就改用手機自己算(連沒交易的訊號都算進去)→ 今天電腦推過的就一直用最後那份
     // 2026-10-30 03:39(實際時間)使用者「右上角 資金4900000 一樣確定開盤當日開盤前15分 才顯示 在此之前 都是顯示剩餘資金」:
     //   平日 08:45 以前(含週末、半夜)→ 顯示前一個交易日收盤時剩下的額度(桌機最後推的 ?quota 是那天的就用它:總額度 − 成交 − 掛著的;否則 490 萬 − 那天的成交),08:45 起才歸回 490 萬(和當沖頁換日的時間一樣)
     try{ const n_ = new Date(Date.now() + 8 * 3600000), hm_ = n_.getUTCHours() * 60 + n_.getUTCMinutes(), wd_ = n_.getUTCDay();
       if (!(wd_ >= 1 && wd_ <= 5 && hm_ >= 8 * 60 + 45)){ const prev = ds.filter(x => x < today).sort().reverse()[0];
         if (prev){ if (QUOTA.d === prev && QUOTA.total > 0) fundLeft = Math.round(QUOTA.total - QUOTA.fill - QUOTA.work);
           else { ensureCloud(prev); fundLeft = CAPD - usedOf(finish(prep(itemsFor(prev)))); } } } }catch(e){}
+    fundLeft = Math.max(0, fundLeft);   // 不顯示負的
     if (d === today) window.__fundLeft = fundLeft;   // 2026-10-28 強制進場:資金買不到 1 張 → 長按沒反應
     const ti = dayList.indexOf(window.NL_TOPDAY);
     const hdMsg = `<div class="hd msg"><span class="nav"><button id="nlPrev" ${ti >= dayList.length - 1 ? 'disabled' : ''}>◀</button><span class="lb"><span style="color:#1DD75B">${window.LOG_RS || ''}監控</span> <span class="dt" style="color:#FFFFFF">${(window.NL_TOPDAY || d).slice(5).replace('-', '/')}</span></span><button id="nlNext" ${ti <= 0 ? 'disabled' : ''}>▶</button></span><span class="cash"><span class="mlb" style="color:#FF4D5E;opacity:1">資金</span><b class="dnet" style="color:#FFD54F">${fundLeft}</b></span></div>`;   /* 2026-10-27 05:30 使用者「資金紅色 資金數字 黃色」 */   // 2026-10-27 05:25 使用者「進場與金額不用顯示」:只留 資金(2400000 − 進場中金額)   // 2026-10-27 05:15 使用者:「左鍵+“監控”+日期+右鍵 空1px “資金”+(…)空1px "進場"」
