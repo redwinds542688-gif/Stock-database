@@ -514,9 +514,39 @@ async function pushFanout(env, item) {
 const PWA_FILES = { "/app": "app/viewer.html", "/app/": "app/viewer.html", "/pool.js": "pool.js", "/sw.js": "app/pwa/sw.js", "/manifest.webmanifest": "app/pwa/manifest.webmanifest",
   "/icon-180.png": "app/pwa/icon-180.png", "/icon-192.png": "app/pwa/icon-192.png", "/icon-512.png": "app/pwa/icon-512.png" };
 
+// 2026-11-02 11:10 KV 每日讀取額度(10 萬次)用完 → 所有鑰匙被判無效、手機問不到電腦(使用者「怎麼一直出現這個輸入金鑰的畫面」「趕快接通元大」)。
+//   1) 常讀的值(鑰匙、通道網址、主導機設定)在這個執行個體記憶體裡留幾分鐘,不再每個請求都讀 KV(手機報價每幾秒一次,這是用完額度的主因)
+//   2) 讀到就備份到 Hub(Durable Object,和 KV 額度分開);KV 讀不到時改讀 Hub 的備份
+//   3) 還是沒有(額度用完前沒備份到的鑰匙):用 KV list(另一個額度)確認鑰匙存在;使用者的手機鑰匙(含 5861 或結尾在 EMER_OWN)當 owner,其他當 viewer;不寫回 KV
+const MC = globalThis.__mc || (globalThis.__mc = new Map());
+const EMER_OWN = ["d2a2"];
+const EMER_QURL = "https://refined-civilian-ones-prozac.trycloudflare.com";   // 2026-11-02 08:36 電腦登記的通道(KV 讀不到時用;電腦重開會重新登記)
+async function kvGetC(env, key, ttlMs) {
+  const c = MC.get(key); if (c && Date.now() - c.at < ttlMs) return c.v;
+  let v;
+  try { v = await env.LOGS.get(key); }
+  catch (e) {
+    globalThis.__kvDown = Date.now();
+    try { v = env.HUB ? await hubOf(env).kvGet("m:" + key) : null; } catch (e2) { v = null; }
+    if (v == null && c) v = c.v;
+    MC.set(key, { v, at: Date.now() - ttlMs + 60000 });   // 1 分鐘後再試 KV
+    return v;
+  }
+  if (env.HUB && v != null && (!c || c.v !== v)) { try { await hubOf(env).kvPut("m:" + key, v); } catch (e) {} }
+  MC.set(key, { v, at: Date.now() });
+  return v;
+}
+const kvDown = () => globalThis.__kvDown && Date.now() - globalThis.__kvDown < 10 * 60000;
 async function keyInfo(env, k) {
   if (!env || !env.LOGS || !KEY_RE.test(k || "")) return null;
-  try { const v = await env.LOGS.get("key:" + k, { cacheTtl: 300 }); return v ? JSON.parse(v) : null; } catch (e) { return null; }
+  const v = await kvGetC(env, "key:" + k, 300000);
+  if (v) { try { return JSON.parse(v); } catch (e) { return null; } }
+  if (!kvDown()) return null;
+  const ek = "ex:" + k; let ex = MC.get(ek);
+  if (!ex || Date.now() - ex.at > 3600e3) { let has = false; try { const r = await env.LOGS.list({ prefix: "key:" + k, limit: 5 }); has = r.keys.some(x => x.name === "key:" + k); } catch (e) {} ex = { v: has, at: Date.now() }; MC.set(ek, ex); }
+  if (!ex.v) return null;
+  const own = k.includes("5861") || EMER_OWN.some(s => k.endsWith(s));
+  return { role: own ? "owner" : "viewer", on: true, name: "緊急(KV 額度用完)", emer: true };
 }
 function newKey() { const a = new Uint8Array(12); crypto.getRandomValues(a); return [...a].map(b => b.toString(16).padStart(2, "0")).join(""); }
 
@@ -568,7 +598,7 @@ export default {
       const today = ymdOf(twNow());
       if (KI.exp && today > KI.exp) return J({ error: "鑰匙已到期(" + KI.exp + ")", badKey: true }, 403);
       if (KI.dev && dv && KI.dev !== dv) return J({ error: "這把鑰匙已綁在另一支手機", badKey: true }, 403);
-      if (dv && (!KI.dev || !KI.seen || Date.now() - KI.seen > 3600e3)) { try { if (!KI.dev) KI.dev = dv; KI.seen = Date.now(); await env.LOGS.put("key:" + kq, JSON.stringify(KI)); } catch (e) {} } }
+      if (dv && !KI.emer && (!KI.dev || !KI.seen || Date.now() - KI.seen > 3600e3)) { try { if (!KI.dev) KI.dev = dv; KI.seen = Date.now(); await env.LOGS.put("key:" + kq, JSON.stringify(KI)); } catch (e) {} } }
     // 2026-10-29 安全修補:owner 鑰匙做「寫入 / 下單 / 管鑰匙」時,鑰匙已綁手機就一定要帶 dv(手機 App 的 fetch 包裝每次都帶;不帶 dv 不能繞過一人一機去下單)。
     //   讀的端點(gh=raw 更新等)照舊不要求 dv,避免 Page.kt 偏好裡沒有 dev 時更新失敗
     const ownerKI = !!(KI && KI.role === "owner" && (!KI.dev || dv));
@@ -603,7 +633,7 @@ export default {
       const isOwner = !!(KI && KI.role === "owner");
       if (capQ === "get") {
         if (!pushOk && !isOwner) return J({ error: "要中繼金鑰或 owner 鑰匙" }, 403);
-        let v = null; try { v = JSON.parse((await env.LOGS.get("cfg:cap", { cacheTtl: 60 })) || "null"); } catch (e) {}
+        let v = null; try { v = JSON.parse((await kvGetC(env, "cfg:cap", 60000)) || "null"); } catch (e) {}
         return J({ ok: true, ...(v || { cap: null }) });
       }
       if (capQ === "set") {
@@ -617,6 +647,7 @@ export default {
           for (const k of ["hi", "lo", "amp", "cnt", "cap", "disc", "broker", "exch", "tax"]) if (b.set[k] != null) set[k] = String(b.set[k]).slice(0, 12); } } catch (e) {}
         const v = { cap: n, at: Date.now(), by: "5861", ...(set ? { set } : {}) };
         await env.LOGS.put("cfg:cap", JSON.stringify(v));
+        MC.set("cfg:cap", { v: JSON.stringify(v), at: Date.now() }); try { if (env.HUB) await hubOf(env).kvPut("m:cfg:cap", JSON.stringify(v)); } catch (e) {}
         return J({ ok: true, ...v });
       }
       return J({ error: "cap 只有 get / set" }, 400);
@@ -828,9 +859,10 @@ export default {
         let b; try { b = await request.json(); } catch (e) { return J({ error: "JSON 格式錯誤" }, 400); }
         if (!b || !/^https:\/\/[\w.-]+$/.test(b.url || "")) return J({ error: "url 要是 https://主機名" }, 400);
         await env.LOGS.put("yquote:url", b.url, { expirationTtl: 3 * 86400 });
+        MC.set("yquote:url", { v: b.url, at: Date.now() }); try { if (env.HUB) await hubOf(env).kvPut("m:yquote:url", b.url); } catch (e) {}
         return J({ ok: true, url: b.url });
       }
-      const u = await env.LOGS.get("yquote:url");
+      const u = (await kvGetC(env, "yquote:url", 60000)) || (kvDown() ? EMER_QURL : null);
       let health = null;
       if (u) { try { health = await (await fetch(u + "/health", { signal: AbortSignal.timeout(3000) })).json(); } catch (e) { health = { error: String(e) }; } }
       return J({ url: u || null, health });
@@ -866,7 +898,7 @@ export default {
     if (tq === "pos" || tq === "cmd" || tq === "fills") {   // 2026-10-29 fills:今天元大帳號的成交 + 每檔輸贏(含手動單;使用者「現在真實贏多少」)
       if (!env || !env.LOGS || !env.YT_PUSH_KEY) return J({ ok: false, msg: "Worker 沒有設定通道金鑰" }, 503);
       if (!(await ownerOk())) return J({ ok: false, msg: "下單 / 查部位要 owner 鑰匙(設定裡輸入)", badKey: true }, 403);   // 2026-10-29 鑰匙:看盤版不能下單
-      const qu = await env.LOGS.get("yquote:url", { cacheTtl: 60 });
+      const qu = (await kvGetC(env, "yquote:url", 60000)) || (kvDown() ? EMER_QURL : null);
       if (!qu) return J({ ok: false, msg: "電腦沒有連上(沒有登記通道,請確認電腦開機、元大中繼在跑)" }, 503);
       try {
         const init = { headers: { "X-Quote-Key": env.YT_PUSH_KEY }, signal: AbortSignal.timeout(8000) };
@@ -1085,7 +1117,7 @@ export default {
     //   有要的股票元大沒有、或盤中元大資料超過 60 秒沒更新 → 照舊問證交所。&src=mis 強制問證交所
     if (env && env.LOGS && env.YT_PUSH_KEY && url.searchParams.get("src") !== "mis") {
       try {
-        const qu = await env.LOGS.get("yquote:url", { cacheTtl: 60 });
+        const qu = (await kvGetC(env, "yquote:url", 60000)) || (kvDown() ? EMER_QURL : null);
         if (qu) {
           const r = await fetch(`${qu}/quotes?codes=${codes.join(",")}`, { headers: { "X-Quote-Key": env.YT_PUSH_KEY }, signal: AbortSignal.timeout(1500) });
           if (r.ok) {
