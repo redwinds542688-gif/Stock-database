@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 04:36(實際時間)十字線記住離最新一根幾根:原在最後一根 → 換股票 / 退出再進 / App 重開都在最後一根;在往前第 9 根 → 都在往前第 9 根(使用者「原在最後一根 切換就是在最後一根 改變成第9根 切換就是第9」);順便修:換股票時畫面範圍還在定,十字線被暫時的範圍推到往前 15 根
   · 2026-11-03 04:14(實際時間)記住目前看幾根:◀ ▶ 換股票、退出 K 圖再從清單進另一檔、App 重開,都沿用上次縮放的根數(例 270 根);沒有紀錄才用預設 40 根(使用者「這邊也270 上一個多少 下一個就是多少」)
   · 2026-11-03 04:07(實際時間)所有圖縮小最多看到 540 根(原本可以縮到全部載入的 K,約 1300 多根);放大最少 12 根照舊(使用者「改最多就是540」)
   · 2026-11-03 04:00(實際時間)乖離圖 / 壓力圖上方 7 個價格改黃字(原本依昨收紅 / 綠 / 白;中間那格底色照舊)(使用者「這七個綠色 價格 換成 黃色」)
@@ -165,7 +166,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611030414">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611030436">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4625,6 +4626,10 @@ function initChart(){
   // 十字線:上 K 下 OBV 共用一條直線;點一下圖就放一條固定的(拖動 / 縮放都跟著那根 K),
   // 再點別的地方就移過去,點右下角 ✕ 收掉。長按拖也可以(放開後停在最後位置)。
   let XLOCK = null, xApplying = false, longPress = false, lpTimer = 0;
+  // 2026-11-03 04:30 使用者「原在最後一根 切換就是在最後一根 改變成第9根 切換就是第9」:記住十字線離最新一根幾根(0 = 最新一根),換股票 / 退出再進 / App 重開都放回同樣的位置
+  const xBackSave = () => { try{ if (!XLOCK || XLOCK.fresh || !BARS.length) return; const i = idxOf(XLOCK.time); if (i < 0) return; const k = XLOCK.follow ? 0 : BARS.length - 1 - i;
+    if (k !== window.__xBack){ window.__xBack = k; localStorage.setItem('mysh.xBack', String(k)); } }catch(e){} };
+  const xBackGet = () => { let k = window.__xBack; if (k == null){ try{ k = +(localStorage.getItem('mysh.xBack') || 0); }catch(e){ k = 0; } } return k > 0 ? k : 0; };
   const idxOf = t => { let lo = 0, hi = BARS.length - 1; while (lo <= hi){ const m = (lo + hi) >> 1; if (BARS[m].time < t) lo = m + 1; else if (BARS[m].time > t) hi = m - 1; else return m; } return -1; };
   const obvAt = i => { try{ const d = obvSeries.dataByIndex(i); const v = d && d.value != null ? d.value : 0;
     window.__obvXv = v; window.__obvXp = (BARS[i] && BARS[i].close != null) ? BARS[i].close : null; return v; }catch(e){ return 0; } };   // 2026-10-26 記下十字線那根的 OBV / 收盤價(指標二價格刻度的十字線標籤用)
@@ -4695,20 +4700,20 @@ function initChart(){
   keepXInView = (r) => {
     try{ bugAdd('fn', ['keepX', r ? +r.from.toFixed(1) : null, r ? +r.to.toFixed(1) : null]); }catch(e){} 
     if (!XLOCK || !BARS.length || !r) return;
-    if (XLOCK.fresh) return;   // 2026-10-22 20:05 剛換股票:開圖設範圍時不要把上一檔的十字線推到邊緣(原本換股票十字線停在左邊,沒回最新一根),等 syncX 放到最新
+    if (XLOCK.fresh || Date.now() < (window.__xHold || 0)) return;   // 2026-11-03 04:35 開圖 / 換股票後 1.2 秒內畫面範圍還在定,不推十字線(原本會被暫時的範圍推到往前 15 根)   // 2026-10-22 20:05 剛換股票:開圖設範圍時不要把上一檔的十字線推到邊緣(原本換股票十字線停在左邊,沒回最新一根),等 syncX 放到最新
     let li = idxOf(XLOCK.time); if (li < 0) return;
     const from = Math.max(0, Math.ceil(r.from)), to = Math.min(BARS.length - 1, Math.floor(r.to));
     if (to < from) return;
     const ni = Math.min(Math.max(li, from), to);
     const changed = ni !== li;
-    if (changed){ XLOCK = {time: BARS[ni].time, follow: isLastT(BARS[ni].time)}; showBtn(); }
+    if (changed){ XLOCK = {time: BARS[ni].time, follow: isLastT(BARS[ni].time)}; showBtn(); xBackSave(); }
     applyX(XLOCK.time, changed);
   };
   // 十字線永遠存在(2026-10-18 使用者:「讓十字線一直存在」):開圖就固定在最新一根,新 K 進來跟著最新;
   // 點 / 長按拖到別根就停在那根,右下角「最新」按鈕把它帶回最新一根(停在最新一根時按鈕隱藏)。
   const isLastT = time => BARS.length > 0 && time === BARS[BARS.length - 1].time;
   const showBtn = () => { if (xBtn){ const h = !XLOCK || !!XLOCK.follow; if (xBtn.classList.contains('hidden') !== h){ xBtn.classList.toggle('hidden', h); fitObvRow(); } } };
-  const setX = time => { try{ bugAdd('fn', ['setX', hmKey(time)]); }catch(e){} XLOCK = {time, follow: isLastT(time)}; applyX(time); showBtn(); };
+  const setX = time => { try{ bugAdd('fn', ['setX', hmKey(time)]); }catch(e){} XLOCK = {time, follow: isLastT(time)}; applyX(time); showBtn(); xBackSave(); };
   // 回到最新一根(不再收掉)。2026-10-21 使用者:「那個按鍵按下去也沒有跑到最新的啊」→ 最新一根不在畫面裡就先把圖捲回最右邊(保留目前縮放寬度)
   const clearX = () => {
     if (!BARS.length) return;
@@ -4716,7 +4721,8 @@ function initChart(){
     if (r && (r.to < last || r.from > last)) chart.timeScale().scrollToPosition(3, false);   // 最右邊留 3 格(同 rightOffset),不用動畫
     setX(BARS[last].time);
   };
-  const syncX = () => { if (!BARS.length) return; if (!XLOCK || XLOCK.follow || idxOf(XLOCK.time) < 0) setX(BARS[BARS.length - 1].time); else applyX(XLOCK.time); };   // 重畫後(開圖 / 即時更新)補上十字線
+  const syncX = () => { if (!BARS.length) return; if (!XLOCK || XLOCK.fresh){ const k = Math.min(xBackGet(), BARS.length - 1); setX(BARS[BARS.length - 1 - k].time); return; }   /* 剛開圖 / 換股票:放回上次離最新一根的位置 */
+    if (XLOCK.follow || idxOf(XLOCK.time) < 0) setX(BARS[BARS.length - 1].time); else applyX(XLOCK.time); };   // 重畫後(開圖 / 即時更新)補上十字線
   window.setX = setX; window.clearX = clearX; window.syncX = syncX; window.getXLock = () => XLOCK;
   // 2026-10-22 20:05 使用者(TPK 截圖:「按上面 切換股票 十字虛線就上下分離了」):換股票後上圖和下面兩張的時間範圍沒對齊,同一根 K 的十字線不在同一條。
   //   重畫完兩格畫面後再以上圖為準把三張的範圍對齊一次、十字線重放
@@ -4740,7 +4746,7 @@ function initChart(){
       // · 手指還在圖上但沒有 sourceEvent = 拖圖 / 縮放,套件用舊像素位置重算十字線 → 先不理,放手(tEnd)再補回固定那根
       // · 放手後套件自己清掉或慣性捲動把它移到別根 → 拉回固定那根(原本放手後慣性捲動會讓資料列漂到隔壁那根)
       // 2026-10-27 19:05 觸控時不再讓套件的「手指位置」搬十字線(按下去就跳、按住滑會拖):十字線只由「點一下」和「按在十字線上拖」移動;滑鼠照舊
-      if (p.time && p.sourceEvent && !(Date.now() - (window.__lastTouch || 0) < 1500)){ XLOCK = {time: p.time, follow: isLastT(p.time)}; showBtn(); }
+      if (p.time && p.sourceEvent && !(Date.now() - (window.__lastTouch || 0) < 1500)){ XLOCK = {time: p.time, follow: isLastT(p.time)}; showBtn(); xBackSave(); }
       else if (p.sourceEvent && Date.now() - (window.__lastTouch || 0) < 1500){ if (!XLOCK || p.time !== XLOCK.time) reapplyX(); return; }   // 2026-10-28 01:20 使用者錄影「長按十字虛線 虛線會偏移」:手指按住時圖表套件自己的十字線會跑到手指那根(放手才回來)→ 按住中也立刻拉回固定那根
       else if (touching) return;
       else if (!p.time || p.time !== XLOCK.time){ reapplyX(); return; }
@@ -5500,10 +5506,11 @@ function drawBars0(bars, code, srcLabel, keepView){
   if (!keepView){
     // 元大風格:開圖只顯示最近 YH.defaultBars 根(K 棒才夠粗),往左滑可看更早的;其他兩張圖會同步
     // 2026-11-03 04:10 使用者「按 ◀ ▶ 換股票 / 退出 K 圖再從清單進另一檔 … 這邊也270 上一個多少 下一個就是多少」:記住上一檔最後看的根數(每支手機自己記),沒有紀錄才用預設
+    window.__xHold = Date.now() + 1200;
     let kw = 0; try{ kw = +(window.__kW || localStorage.getItem('mysh.kW') || 0); }catch(e){}
     const n = Math.min(kw > 0 ? Math.max(9, Math.min(537, Math.round(kw - 3))) : YH.defaultBars, bars.length);
     chart.timeScale().setVisibleLogicalRange({from: bars.length - n - 0.5, to: bars.length + 2.5});
-    if (kw > 0){ const want = n + 3, L = bars.length; let k = 0; const again = () => { try{ if (BARS.length !== L) return; const r = chart.timeScale().getVisibleLogicalRange(); if (r && Math.abs((r.to - r.from) - want) > 0.5 && window.__setRangeAll) __setRangeAll({from: r.to - want, to: r.to}); }catch(e){} if (++k < 6) setTimeout(again, 150); }; requestAnimationFrame(() => requestAnimationFrame(again)); }   // 圖剛開時畫面寬度還沒定,套件會把範圍改掉 → 開好後再補設幾次
+    if (kw > 0){ const want = n + 3, L = bars.length; let k = 0; const again = () => { try{ if (BARS.length !== L) return; const r = chart.timeScale().getVisibleLogicalRange(); if (r && (Math.abs((r.to - r.from) - want) > 0.5 || r.to < L + 1.5) && window.__setRangeAll) __setRangeAll({from: L + 2 - want, to: L + 2});   /* 右邊對齊最新一根(十字線在最新一根,不會被推到別根) */ }catch(e){} if (++k < 6) setTimeout(again, 150); }; requestAnimationFrame(() => requestAnimationFrame(again)); }   // 圖剛開時畫面寬度還沒定,套件會把範圍改掉 → 開好後再補設幾次
   }
 
   const last = bars[bars.length - 1];
