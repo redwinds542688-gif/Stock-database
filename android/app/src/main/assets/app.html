@@ -148,7 +148,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611022326">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611022329">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6583,9 +6583,11 @@ window.bgTick = bgTick; window.BG = BG;
         body = hdr + (c0 ? h0 : `<div class="empty" data-day="${d0}">${empty0}</div>`);   // 2026-10-27 11:45 使用者:「今日總輸贏不用顯示在這個最下面 上面已經有顯示了」:今天那段的「今日 N 筆 總輸贏」拿掉(標題列右邊已有);前幾天的每日合計照留
         const dayTot = {[d0]: t0};   // 2026-10-27 14:15 每天的總輸贏(捲到哪天,標題列右邊就顯示哪天的)
         let sessD = false;   // 2026-10-28 12:10 使用者「開盤中 明細無法滑動看昨天嗎」:開盤中也接前幾天,往上滑就看得到(原 10-27 11:40 開盤中只列今天)
-        for (const dd of (sessD ? [] : ds.filter(x => x < d0).sort().reverse().slice(0, 10))){
-          ensureCloud(dd);
-          const [h, t, c] = dayRows(dd, finish(prep(itemsFor(dd)))); if (!c) continue;
+        // 2026-11-02 23:27 使用者「我要的是你說重新這二份資料」:前幾天的虛擬交易改用現行判別式重算的(app/bt_fill.json,10/06 起 17 天元大 K 重跑),沒有重算的日子才用當天的雲端通知;最多往前 40 天
+        for (const dd of (sessD ? [] : [...new Set([...ds, ...Object.keys(BTF || {})])].filter(x => x < d0).sort().reverse().slice(0, 40))){
+          const btd = BTF && BTF[dd] && BTF[dd].length; if (!btd) ensureCloud(dd);
+          const pp = prep(btd ? BTF[dd] : itemsFor(dd)); if (btd) for (const o of pp){ const q = +((((o.x || {}).body || '').match(/· (\d+)張/) || [])[1]) || 0; if (q) o.lots = q; }   /* 重算的張數照回測(每筆 25 萬) */
+          const [h, t, c] = dayRows(dd, finish(pp)); if (!c) continue;
           body += `<div class="dsep" data-day="${dd}">${dd.slice(5).replace('-', '/')}</div>` + hdr + h + `<div class="tot" data-day="${dd}"><span>${c} 筆 總輸贏</span>${amt(t)}</div>`; dayTot[dd] = t;
         }
         // 2026-10-27 11:20 使用者:「最上面只顯示 明細 今日的總輸贏(靠右顯示)」:標題列左邊「明細」、最右邊今天已平倉的總輸贏(和當沖的合計同一個位置 .cash)
