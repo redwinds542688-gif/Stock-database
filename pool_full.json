@@ -25,7 +25,7 @@
 "code": "2303",
 "name": "聯電",
 "market": "twse",
-"lots": 131726
+"lots": 131924
 },
 {
 "code": "1815",
@@ -37,7 +37,7 @@
 "code": "1303",
 "name": "南亞",
 "market": "twse",
-"lots": 85511
+"lots": 85649
 },
 {
 "code": "1802",
@@ -61,7 +61,7 @@
 "code": "2317",
 "name": "鴻海",
 "market": "twse",
-"lots": 49834
+"lots": 49948
 },
 {
 "code": "1101",
@@ -85,13 +85,13 @@
 "code": "2408",
 "name": "南亞科",
 "market": "twse",
-"lots": 34897
+"lots": 34959
 },
 {
 "code": "2327",
 "name": "國巨*",
 "market": "twse",
-"lots": 33108
+"lots": 33131
 },
 {
 "code": "2337",
@@ -374,6 +374,12 @@
 "name": "金寶",
 "market": "twse",
 "lots": 8568
+},
+{
+"code": "1907",
+"name": "永豐餘",
+"market": "twse",
+"lots": 8516
 },
 {
 "code": "3702",
