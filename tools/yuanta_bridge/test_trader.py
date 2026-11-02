@@ -242,10 +242,10 @@ ty.on_report(51, "M100", 0, 1000, 40.2, basket="", code="2409", bs="B"); ok(py["
 ty.on_report(51, "M200", 0, 1000, 40.3, basket="", code="2409", bs="B"); ok(py["qty"] == 3 and abs(py["entry"] - 40.5 / 1 + 0.3333333) < 1e-3 or py["qty"] == 3, py)   # 2026-10-28 平倉檢查 #5:另一張同方向手動單也併進元三
 ty.on_tick("2409", 38.0); ok(py["state"] == EXITING and gy.sent[-1] == ("2409", "S", 3, 0, "0", "0", "L"), gy.sent)
 ty.on_report(51, "A0001", 0, 3000, 38.0); ok("2409" not in ty.positions and ty.posts[-1][1].endswith("· 3張 · 元三") and "停損" in ty.posts[-1][0], ty.posts[-1])
-# Y1b) 2026-11-02 判二部位(程式進場 1 張 @86.1)→ 元大手動再做空 2 張 @86.4 → 併進程式部位:3 張、均價 86.3、停利停損照判二原價;碰停利全部 3 張一起買回
+# Y1b) 2026-11-02 判二部位(程式進場 1 張 @86.1)→ 元大手動再做空 2 張 @86.4 → 併進程式部位:3 張、均價 86.3、停利停損照原本 % 從新均價重算(84.25 / 88.91);碰停利全部 3 張一起買回
 tm, gm = mk(); tm.name_of = lambda c: "台郡"; tm.on_tick("6269", 86.2); tm.step([ENT]); tm.on_report(51, "A0001", 0, 1000, 86.1); pm = tm.positions["6269"]
 tm.on_report(51, "M900", 0, 2000, 86.4, basket="", code="6269", bs="S")
-ok(pm["qty"] == 3 and abs(pm["entry"] - 86.3) < 1e-9 and pm["tp"] == 84.05 and pm["sl"] == 88.70 and pm["judge"] == "判二" and "手動加碼" in tm.alerts[-1], pm, tm.alerts)
+ok(pm["qty"] == 3 and abs(pm["entry"] - 86.3) < 1e-9 and pm["tp"] == round(86.3 * 84.05 / 86.1, 2) and pm["sl"] == round(86.3 * 88.70 / 86.1, 2) and pm["judge"] == "判二" and "手動加碼" in tm.alerts[-1], pm, tm.alerts)
 tm.on_tick("6269", 84.0); ok(pm["state"] == EXITING and gm.sent[-1][:3] == ("6269", "B", 3), gm.sent[-1])
 tm.on_report(51, "A0002", 0, 3000, 84.1); ok("6269" not in tm.positions)
 # Y2) 元三你自己在元大平掉 → 程式結束這個部位;判三的平倉通知也會讓元三出場;元三不佔 5 檔名額

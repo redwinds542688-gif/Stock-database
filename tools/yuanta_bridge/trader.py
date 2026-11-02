@@ -666,10 +666,13 @@ class Trader:
         if p and bs != close_side(p["dir"]) and p["state"] in (HOLDING, EXITING) and lots > 0:
             # 平倉檢查 #5:元三同方向再成交(同一張分批成交,或另外下一張加碼)→ 併進去、成本平均,停利 / 停損照新均價
             # 2026-11-02 11:43 使用者「新做空的股票我需要程式一併接手可以嗎」:判一~四 / 強三的部位,元大手動同方向加碼也併進去一起管
-            #   (張數加總、均價重算;判一~四的停利 / 停損照原訊號的價位不變,強三 / 元三照 % 從新均價重算;平倉時全部一起平)
-            tot = p["qty"] + lots
+            #   (張數加總、均價重算;停利 / 停損從新均價重算(判一~四照原本離進場價的 %,強三 / 元三照設定 %);平倉時全部一起平)
+            tot = p["qty"] + lots; e0 = p["entry"]
             p["entry"] = (p["entry"] * p["qty"] + price * lots) / tot; p["qty"] = tot; self.amount_today += price * lots * 1000
             if p.get("judge") in (MANUAL, FORCED) and (p.get("tp_pct") or p.get("sl_pct")): self.set_forced_tpsl(p, p["entry"])
+            elif e0 > 0:   # 2026-11-02 11:45 使用者「這邊需要重新再算過停利跟停損」:判一~四照原本停利 / 停損離進場價的 % 不變,從新均價重算
+                if p.get("tp"): p["tp"] = round(p["entry"] * p["tp"] / e0, 2)
+                if p.get("sl"): p["sl"] = round(p["entry"] * p["sl"] / e0, 2)
             self.log(f"[交易] {p['judge']} {code} 元大手動同方向成交 {lots} 張(委託 {order_no})→ 併進程式部位,共 {tot} 張 均價 {p['entry']:.2f} 停利 {p['tp']} 停損 {p['sl']}")
             if p.get("judge") != MANUAL:
                 self.alert(f"✅ {self.name_of(code)} {code} 手動加碼 {lots} 張已交給程式", f"共 {tot} 張 均價 {p['entry']:.2f}(停利 {p['tp']} / 停損 {p['sl']}),平倉時全部一起平")
