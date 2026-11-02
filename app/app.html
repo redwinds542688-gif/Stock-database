@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 22:14(實際時間)公式的六個鍵關不掉(使用者影片「怎麼都變成公式按鍵」):收起時樣式被蓋過,按訊息 / 當沖 / 明細 / 設定 / 再按公式都收不起來 → 修好
   · 2026-11-02 22:11(實際時間)公式的六個鍵(判一~四、鑰匙、說明)改成 3 × 2 平均放在通知欄裡(使用者「把公式下 六個按鍵 改 平均放在通知欄裡面」)
   · 2026-11-02 21:34(實際時間)鑰匙視窗不再顯示整串鑰匙(使用者「一進去就看到金鑰全部 改成只顯示最後五碼」):輸入框空白,提示寫「目前 ••••後五碼」;沒輸入新的按存 = 維持原本的
   · 2026-11-02 20:36(實際時間)電腦:中繼一直開著也會更新 —— 不在盤中時每 30 分鐘看 GitHub 的 VERSION,有新版就結束自己,工作排程重開時更新(原本只在開機 / 啟動時更新)
@@ -143,7 +144,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611022211">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611022214">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -334,7 +335,7 @@
   /* 2026-10-27 00:40 「公式」下拉視窗、通知欄日期分隔列、當沖 / 明細表 */
   .rsmenu{position:fixed;z-index:200;background:#1B2232;border:1px solid #FFD54F;   /* 2026-10-27 08:50 使用者:「公式下的視窗加黃色外框」 */border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.6);padding:4px;box-sizing:border-box}   /* 寬度 = 公式鍵(openMenu 設) */
   .rsmenu.hidden{display:none}
-  .rsmenu.grid{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:8px;padding:8px}   /* 2026-11-02 六個鍵平均放在通知欄裡 */
+  .rsmenu.grid:not(.hidden){display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:8px;padding:8px}   /* 2026-11-02 六個鍵平均放在通知欄裡 */
   .rsmenu.grid{align-items:stretch;justify-items:stretch}
   .rsmenu.grid .rsm{margin:0;justify-content:center;gap:12px;padding:4px;height:100%;box-sizing:border-box}
   .rsmenu.grid .rsm.help .lamp{display:none}
