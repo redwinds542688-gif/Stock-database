@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 10:55(實際時間)當沖 / 明細偶爾一次問不到電腦就整片換成系統模擬(使用者「真實只有四檔 怎麼七八檔」)→ 2 分鐘內(成交 5 分鐘)拿到過元大的就繼續顯示元大,連續問不到才換系統
   · 2026-11-02 10:53(實際時間)超額(一張就超過上限、沒交易)的股票不列進當沖 / 明細的系統模擬(使用者「廣達這種超額根本沒有交易的股票怎麼會出現在當沖裡面」);訊息欄照顯示超額通知
   · 2026-11-02 10:26(實際時間)強平過的股票:訊息欄照顯示強平,之後這檔的進場 / 停利 / 停損 / 出場不再顯示(強制進場、元大手動照顯示),當沖也不再算它還開著;電腦引擎讀到強平就不再發這檔通知;判四強平也寫訊息
   · 2026-11-02 10:20(實際時間)K 圖裡長按上方股票名稱 0.6 秒 = 強制交易(使用者「在k圖裡 長按股票名稱 一樣可以啟動 強制交易」;有部位 = 強制平倉,沒有 = 強制進場,和清單長按一樣)
@@ -119,7 +120,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611021053">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611021055">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1163,8 +1164,11 @@ function tposPoll(force){
     const now = Date.now(); if (!force && window.__tposAt && now - window.__tposAt < 15000) return;
     window.__tposAt = now;
     fetch(BASE.liveUrl.replace(/\/$/, '') + '/?trade=pos&_=' + now, {cache: 'no-store', signal: AbortSignal.timeout(9000)}).then(r => r.json())
-      .then(j => { window.__tpos = j && typeof j === 'object' ? j : {ok: false, msg: '回應不對'}; window.__tpos.at = Date.now(); if (typeof window.__tpos.halted === 'boolean') haltSet(window.__tpos.halted); })
-      .catch(e => { window.__tpos = {ok: false, msg: '電腦沒有回應', at: Date.now()}; });
+      .then(j => { const g = j && typeof j === 'object' ? j : {ok: false, msg: '回應不對'};
+        // 2026-11-02 10:54 使用者「現在當沖裡面真實只有四檔股票 怎麼七八檔」:偶爾一次問不到電腦(通道慢、8 秒逾時)就整片換成系統模擬(連沒交易的訊號都列)→ 2 分鐘內有拿到過元大的就繼續用那份
+        if (!g.ok && window.__tpos && window.__tpos.ok && Date.now() - (window.__tpos.at || 0) < 2 * 60000) return;
+        window.__tpos = g; window.__tpos.at = Date.now(); if (typeof window.__tpos.halted === 'boolean') haltSet(window.__tpos.halted); })
+      .catch(e => { if (window.__tpos && window.__tpos.ok && Date.now() - (window.__tpos.at || 0) < 2 * 60000) return; window.__tpos = {ok: false, msg: '電腦沒有回應', at: Date.now()}; });
   }catch(e){}
 }
 window.tposPoll = tposPoll;
@@ -1240,14 +1244,15 @@ function tfillsPoll(force){
     const now = Date.now(); if (!force && window.__tfillsAt && now - window.__tfillsAt < 30000) return;
     window.__tfillsAt = now; const d = fmToday();
     fetch(BASE.liveUrl.replace(/\/$/, '') + '/?trade=fills&_=' + now, {cache: 'no-store', signal: AbortSignal.timeout(9000)}).then(r => r.json())
-      .then(j => { window.__tfills = j && typeof j === 'object' ? j : {ok: false, msg: '回應不對'}; window.__tfills.at = Date.now(); window.__tfills.d = d;
+      .then(j => { const keep = window.__tfills && window.__tfills.ok && window.__tfills.d === d && Date.now() - (window.__tfills.at || 0) < 5 * 60000; if (!(j && j.ok) && keep) return;   // 2026-11-02 一次問不到不蓋掉剛拿到的元大成交
+        window.__tfills = j && typeof j === 'object' ? j : {ok: false, msg: '回應不對'}; window.__tfills.at = Date.now(); window.__tfills.d = d;
         try{ if (j && j.ok && Array.isArray(j.rows)){ const rows = j.rows.map(r => Object.assign({}, r, {prev: +(((LIVE.get(r.code) || {}).y) || 0) || +(r.prev || 0) || 0}));
             const legs = Array.isArray(j.legs) ? j.legs.map(g => Object.assign({}, g, {prev: +(((LIVE.get(g.code) || {}).y) || 0) || +(g.prev || 0) || 0})) : null;   // 2026-10-29 12:33(實際時間)每一趟一列(使用者「要改」)
             const dj = /^\d{4}-\d{2}-\d{2}$/.test(j.d || '') ? j.d : d;   // 2026-10-31 存在電腦回的那天(原本存在手機的今天)
             if (rows.length || j.n > 0) localStorage.setItem('mysh.yfills.' + dj, JSON.stringify({rows, legs, net: +j.net || 0, n: +j.n || 0, hm: j.at || ''}));
             const ks = Object.keys(localStorage).filter(k => k.startsWith('mysh.yfills.')).sort(); ks.slice(0, Math.max(0, ks.length - 12)).forEach(k => localStorage.removeItem(k)); } }catch(e){}
         try{ if ((window.NL_VIEW === 'done' || window.NL_VIEW === 'pos') && window.nlRender) nlRender(); }catch(e){} })
-      .catch(e => { window.__tfills = {ok: false, msg: '電腦沒有回應', at: Date.now(), d}; });
+      .catch(e => { if (window.__tfills && window.__tfills.ok && window.__tfills.d === d && Date.now() - (window.__tfills.at || 0) < 5 * 60000) return; window.__tfills = {ok: false, msg: '電腦沒有回應', at: Date.now(), d}; });
   }catch(e){}
 }
 window.tfillsPoll = tfillsPoll;
