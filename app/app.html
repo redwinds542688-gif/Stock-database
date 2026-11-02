@@ -134,7 +134,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611021326">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611021342">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6061,6 +6061,25 @@ function celebrate(title, n){
   requestAnimationFrame(tick);
 }
 window.celebrate = celebrate;
+/* 2026-11-02 13:05 使用者「永久會員 顯示的是真是的交易 已經沒有在當沖裡的股票 就不用顯示平倉訊息 除此以外的會員 便是照程式邏輯進行」:
+   自己的 App(不是看盤版)收到判一~四的平倉通知(停利 / 停損 / 出場 / 沒走…)→ 當場問電腦元大部位(?trade=pos);電腦的自動交易開著、問得到、
+   而且元大帳上已經沒有這檔(手動平倉 / 強制平倉 / 根本沒進場)→ 不跳通知,訊息欄也藏這則(記在 REALGONE,一天一份);問不到電腦 → 照舊發。看盤版(其他會員)不變 */
+const REALGONE = { d: '', keys: new Set() };
+function realGoneKey(o){ return (o.code || '') + '|' + (o.t || '') + '|' + (o.rs || ''); }
+function realGoneHas(d, o){ try{ if (REALGONE.d !== d){ const j = JSON.parse(localStorage.getItem('mysh.realgone') || 'null'); REALGONE.d = d; REALGONE.keys = new Set(j && j.d === d ? j.k : []); } return REALGONE.keys.has(realGoneKey(o)); }catch(e){ return false; } }
+async function realGone(x){
+  try{
+    if (window.VIEWER || !/^(exit|profit|loss)$/.test(x.kind || '')) return false;
+    const rs = ((x.body || '').match(/· (判[一二三四])\s*$/) || [])[1]; if (!rs) return false;
+    const code = ((x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?\S+ (\d{4,6}[A-Z]*)/) || [])[1]; if (!code) return false;
+    const r = await fetch(BASE.liveUrl.replace(/\/$/, '') + '/?trade=pos&_=' + Date.now(), {cache: 'no-store', signal: AbortSignal.timeout(6000)}); const g = await r.json();
+    if (!(g && g.ok && g.enabled && Array.isArray(g.pos))) return false;
+    if (g.pos.some(p => String(p.code) === code && p.qty > 0 && (p.state === '持倉中' || p.state === '平倉中'))) return false;
+    const d = x.d || new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10); realGoneHas(d, {});
+    REALGONE.keys.add(realGoneKey({code, t: x.t, rs})); try{ localStorage.setItem('mysh.realgone', JSON.stringify({d, k: [...REALGONE.keys]})); }catch(e){}
+    bgLog('[通知·元大已沒有 ' + code + ' 部位,不跳] ' + x.title + ' | ' + x.body); return true;
+  }catch(e){ return false; }
+}
 async function cloudNotifyNew(force){
   try{
     const now = Date.now(); if (!force && now - (BG.vAt || 0) < 15000) return 'ok ' + (BG.vN || 0);
@@ -6073,7 +6092,7 @@ async function cloudNotifyNew(force){
     CLOUD_LOG.items[d] = arr; CLOUD_LOG.at[d] = now;
     if (BG.vDay !== d){ BG.vDay = d; BG.vSeen = new Set(arr.map(cloudLogKey)); BG.vN = arr.length; return 'init ' + arr.length; }   // 第一輪(或換日):已有的不重發
     for (const x of arr.slice().reverse()){ const k = cloudLogKey(x); if (BG.vSeen.has(k)) continue; BG.vSeen.add(k);
-      if (x.kind && x.kind !== 'warn' && x.kind !== 'sys' && !freeRes){ try{ andNotify(x.title, x.body, x.kind); }catch(e){} }
+      if (x.kind && x.kind !== 'warn' && x.kind !== 'sys' && !freeRes){ if (await realGone(x)) continue; try{ andNotify(x.title, x.body, x.kind); }catch(e){} }
       { const mw = /^win(\d)$/.exec(x.kind || ''); if (mw) try{ celebrate(x.title, +mw[1]); }catch(e){} } }
     BG.vN = arr.length; try{ if (window.nlRender) nlRender(); }catch(e){}
     return 'ok ' + arr.length;
@@ -6219,6 +6238,7 @@ window.bgTick = bgTick; window.BG = BG;
     // 2026-11-02 11:39 使用者「金山電 早已經強制平倉 怎麼還出現停損訊息」:判四強平今天電腦還沒寫強平卡(明天更新後才寫)→ 這支手機自己強平過的股票(fclosed)也藏後面的停利 / 停損 / 出場
     if (d === today){ let fl = []; try{ fl = fcList(); if (!window.VIEWER) tposPoll(); }catch(e){}
       if (fl.length) for (let k = _pc.length - 1; k >= 0; k--){ const o = _pc[k]; if (fl.includes(o.code) && !_pc.some(x => x.fc && x.code === o.code) && o.type === 'exit' && !o.fc && /^判[一二三四]$/.test(o.rs || '')) _pc.splice(k, 1); } }
+    if (d === today && !window.VIEWER) for (let k = _pc.length - 1; k >= 0; k--){ const o = _pc[k]; if (o.type === 'exit' && !o.fc && /^判[一二三四]$/.test(o.rs || '') && realGoneHas(d, o)) _pc.splice(k, 1); }   // 2026-11-02 13:05 元大已沒有這檔部位時收到的平倉通知(realGone)也藏
     const cards = _pc.filter(o => !(o.type === 'turn' && !o.add && !o.warnT && YH.turnLogFirst === false))   // (判別式相關說明已移到私人庫)
       // (判別式相關說明已移到私人庫)
       //   (量只會增加,現在都不到,當時一定不到 = 照規則本來就不該發;舊版背景發的也一併藏起來),清單也就不會因為它標「監控中」
