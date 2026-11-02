@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 01:06(實際時間)乖離圖 / 壓力圖的「試算 … 這根」那列最右邊加一顆和指標二一樣的紅箭頭(十字線回到最新一根,十字線不在最新一根時才出現),原本的「收 / 量」往左移(使用者「指標二最右邊有一個向右的箭頭 乖離圖 壓力圖上也設一個」)
   · 2026-11-03 01:01(實際時間)乖離圖 / 壓力圖:紫線改虛線、黃線改實線(使用者「乖離圖 紫色改虛線 黃色改實線」「壓力圖也一樣」)
   · 2026-11-03 00:00(實際時間)第一顆按鍵「訊息」改名「進場」(使用者「第一顆資訊改名 進場」)
   · 2026-11-02 23:57(實際時間)按鍵順序改成 訊息 / 當沖 / 明細 / 公式 / 設定(使用者「第一顆訊息 第二顆當沖 第三顆明細 第四顆公式 第五顆設定」);通知欄左右滑的順序也跟著按鍵走
@@ -153,7 +154,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611030101">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611030106">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3575,14 +3576,16 @@ function wiRender(wp){
     let U = tab.__ui;
     if (!U || U.key !== key || !tab.contains(U.cv)){
       const mid = Math.round(h / 2);
-      tab.innerHTML = '<table style="font-size:' + Math.max(10, Math.floor(h * 0.5)) + 'px"><tr class="ttl"><td colspan="' + (2 + BG_RS.length) + '"><div style="display:flex;justify-content:space-between;align-items:baseline"><b class="wiTt" style="color:#E6EAF2;font-size:1em"></b><span class="wiInf" style="color:#8C96AB;font-size:0.8em"></span></div></td></tr></table>'
+      tab.innerHTML = '<table style="font-size:' + Math.max(10, Math.floor(h * 0.5)) + 'px"><tr class="ttl"><td colspan="' + (2 + BG_RS.length) + '"><div style="display:flex;justify-content:space-between;align-items:baseline"><b class="wiTt" style="color:#E6EAF2;font-size:1em"></b><span style="display:inline-flex;align-items:center"><span class="wiInf" style="color:#8C96AB;font-size:0.8em"></span><button class="xgo wiXgo hidden" aria-label="十字線回到最新一根" onclick="event.stopPropagation(); if (window.clearX) clearX();"><svg viewBox="0 0 30 18" width="28" height="17" aria-hidden="true"><path d="M1.5 5.5 H16 V1.5 L28.5 9 L16 16.5 V12.5 H1.5 Z" fill="#E53935" stroke="#FFFFFF" stroke-width="1.6" stroke-linejoin="round"/></svg></button></span></div></td></tr></table>'
         + '<div class="dvg" style="height:' + h + 'px;font-size:' + fs + 'px">' + xs.map(() => '<div class="wiPx" style="width:36px;text-align:center;white-space:nowrap;overflow:hidden"></div>').join('') + '</div>'
         + '<div class="dvg dvp" style="height:' + h + 'px"><i class="dvl" style="top:' + mid + 'px"></i>' + xs.map(() => '<div style="width:36px;height:100%;position:relative"><i class="wiBar" style="position:absolute;left:6px;width:24px"></i></div>').join('') + '</div>'
         + '<div class="dvH" style="height:' + (h * 8) + 'px"><div id="dvHd"></div><button id="dvMode" class="rfbtn on" onclick="wiPressToggle(event)" style="position:absolute;top:2px;right:8px;z-index:2;margin:0">' + (wiPressOn() ? '壓力圖' : '乖離圖') + '</button><canvas id="dvCv"></canvas></div>';   /* 2026-11-01 20:44 乖離圖 / 壓力圖 切換鍵(和 K 圖「切換」同樣式、靠最右) */
-      U = tab.__ui = {key, mid, up: mid - 1, dn: h - mid - 2, tt: tab.querySelector('.wiTt'), inf: tab.querySelector('.wiInf'), px: [...tab.querySelectorAll('.wiPx')], bar: [...tab.querySelectorAll('.wiBar')], cv: tab.querySelector('#dvCv'), last: {}};
+      U = tab.__ui = {key, mid, up: mid - 1, dn: h - mid - 2, tt: tab.querySelector('.wiTt'), inf: tab.querySelector('.wiInf'), xg: tab.querySelector('.wiXgo'), px: [...tab.querySelectorAll('.wiPx')], bar: [...tab.querySelectorAll('.wiBar')], cv: tab.querySelector('#dvCv'), last: {}};
     }
     const put = (k, v, f) => { if (U.last[k] !== v){ U.last[k] = v; f(v); } };   /* 跟上一次一樣就不碰畫面 */
     put('tt', '試算 ' + hm + ' 這根' + (r.sig > 0 ? ' <span style="color:#FF4D5E">▲ 看漲</span>' : r.sig < 0 ? ' <span style="color:#2EE59D">▼ 看跌</span>' : ''), v => { U.tt.innerHTML = v; });
+    // 2026-11-03 01:05 使用者「指標二最右邊有一個向右的箭頭 乖離圖 壓力圖上也設一個 … 設在這一列 最右邊 原數值 往左移動」:同一顆「十字線回到最新一根」,十字線不在最新一根時才出現
+    { const xl = window.getXLock && getXLock(); put('xg', xl && !xl.follow ? 1 : 0, v => { if (U.xg) U.xg.classList.toggle('hidden', !v); }); }
     put('inf', hmKey(r.t - 60) + ' 收 ' + r.c0.toFixed(2) + ' · 量 ' + Math.round(r.v / 1000) + ' 張', v => { U.inf.textContent = v; });
     const pm = Math.max(1e-9, ...xs.filter(x => x.pc !== 0).map(x => x.p || 0));
     xs.forEach((x, k) => {
