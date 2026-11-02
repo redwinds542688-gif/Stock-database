@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 23:44(實際時間)訊息 / 當沖 / 明細 通知欄上下滑動更順(使用者「訊息通知欄 當沖通知欄 明細通知欄 上下滑動也要順暢」):原本每 5 秒整欄重建 + 重新量字級(內容沒變也一樣),捲到一半碰到就頓一下 → 內容沒變就完全不動;手指在通知欄上或慣性捲動中先不重畫,停下 0.8 秒再補;捲動時標題日期 / 當日輸贏一格畫面只算一次、沒變不重寫
   · 2026-11-02 23:34(實際時間)十字虛線左右拖更順(使用者「十字虛線 左右滑動也要上下對齊 順暢 捲動畫面也要順暢」):拖動中圖框位置按下時量一次就好;乖離圖上拖十字線直接換算是第幾根(原本每動一下把 1300 多根全算一遍);資訊列內容一樣就不重寫;量的標籤寬度同字數只量一次。上下各圖十字線對齊照舊,畫面和原本一模一樣
   · 2026-11-02 23:09(實際時間)所有圖左右捲動更順(使用者「所有圖的左右滑動也要順暢」「捲動要順暢」):圖上的價格刻度 / 橫格線不再每格整段重建,只移動位置、改數字;指標二上下範圍同一段不重算;手指捲圖 / 慣性滑行中乖離試算停下 0.15 秒再算。畫面和原本一模一樣,程式每格花的時間約少一半
   · 2026-11-02 22:57(實際時間)下面監控股票上下滑動更順(使用者「下面監控股票上下滑動也要順暢」):手指在清單上或還在慣性捲動時,不重排、不重畫、不改價錢,停下 0.5 秒後一次補上;價錢沒變的格子不重寫;清單捲動區獨立一層
@@ -149,7 +150,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611022334">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611022344">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6258,6 +6259,15 @@ window.bgTick = bgTick; window.BG = BG;
     const box = el('notifLog'); if (!box) return;
     // 2026-11-02 左右拖動中不重畫(重畫會換掉手指下面的元素,拖到一半就斷掉);放開後再補畫一次
     if (window.__nlTouch && Date.now() - window.__nlTouch < 3000){ if (!render.__pend){ render.__pend = setTimeout(() => { render.__pend = 0; render(true); }, 350); } return; }
+    // 2026-11-02 23:40 使用者「訊息 / 當沖 / 明細 通知欄 上下滑動也要順暢」:原本每 5 秒整欄重建 + 重新量字級(就算內容沒變),捲到一半剛好碰到就頓一下 →
+    //   手指在通知欄上、或放手後還在慣性捲動(0.8 秒內)先不重畫,停下再補;內容和上次一模一樣就整個不動(不重建、不重量)
+    if (!box.__scrollWatch){ box.__scrollWatch = true; const mark = () => { window.__nlScrollAt = Date.now(); };
+      box.addEventListener('scroll', mark, {passive: true}); box.addEventListener('touchstart', () => { window.__nlFinger = 1; mark(); }, {passive: true});
+      ['touchend', 'touchcancel'].forEach(t => box.addEventListener(t, () => { window.__nlFinger = 0; mark(); }, {passive: true})); }
+    if (!force && (window.__nlFinger || Date.now() - (window.__nlScrollAt || 0) < 800)){ if (!render.__pend2){ render.__pend2 = setTimeout(function again(){ if (window.__nlFinger || Date.now() - (window.__nlScrollAt || 0) < 800){ render.__pend2 = setTimeout(again, 300); return; } render.__pend2 = 0; render(false); }, 300); } return; }
+    const nlKey = () => (window.NL_VIEW || 'msg') + (window.NL_SHOW30 ? '|30' : '') + '|' + (box.parentElement ? box.parentElement.clientWidth + 'x' + box.parentElement.clientHeight : '') + '|' + innerWidth + 'x' + innerHeight;   // 視窗大小變了照樣重排
+    const nlSame = H => !cur && !window.NL_GOTO && box.__h === H && box.__hv === nlKey() && box.__hf === box.firstChild && box.__hl === box.lastChild && box.firstChild;
+    const nlPut = H => { box.innerHTML = H; box.__h = H; box.__hv = nlKey(); box.__hf = box.firstChild; box.__hl = box.lastChild; };
     const ds = days(); const today = todayStr(); if (!ds.includes(today)) ds.push(today); ds.sort();
     // 2026-10-19 使用者:「非開盤時間、也沒有當天紀錄,就顯示前一個工作日的通知」:沒有手動翻頁(cur 為空)、不在盤中、今天沒有買賣訊號 → 自動顯示最近一個有紀錄的日子
     // 2026-10-27 00:40 使用者:「最上面就是最新的通知 往上滑動 可以看到以往的資訊 如果不同天 … 就要空出一列顯示(10/21)這日期」:
@@ -6481,7 +6491,7 @@ window.bgTick = bgTick; window.BG = BG;
     box.__fitL = null;   // 2026-10-29 10:55 當沖 / 明細的列高要等標題列放大(fitAll)後再排一次
     if (window.NL_SHOW30){
       const rows = per30.filter(r => r[2] > 0).sort((a, b) => b[0].localeCompare(a[0]));
-      box.innerHTML = hd2 + (rows.length ? `<div class="d30">` + rows.map(r => `<div class="d30r"><span>${r[0].slice(5).replace('-', '/')}</span><span>${r[2]} 筆平倉${r[3] ? '(含回測)' : ''}</span>${money(r[1])}</div>`).join('') + `</div>` : `<div class="empty">這 30 個開盤日沒有平倉紀錄</div>`);
+      { const __H = hd2 + (rows.length ? `<div class="d30">` + rows.map(r => `<div class="d30r"><span>${r[0].slice(5).replace('-', '/')}</span><span>${r[2]} 筆平倉${r[3] ? '(含回測)' : ''}</span>${money(r[1])}</div>`).join('') + `</div>` : `<div class="empty">這 30 個開盤日沒有平倉紀錄</div>`); if (nlSame(__H)) return; nlPut(__H); }
     } else if (window.NL_VIEW === 'pos' || window.NL_VIEW === 'done'){
       if (window.__nlV && window.__nlV !== window.NL_VIEW) window.__nlV = '';
       // 2026-11-02 09:41 使用者「當沖顯示超過三筆 我上滑看第一筆 卻一下子就又變成最後一筆交易」:每次重畫(報價每幾秒更新)整張表換新,一列一列停(scroll-snap)找不到原本停的那列就跳回最上面
@@ -6548,7 +6558,7 @@ window.bgTick = bgTick; window.BG = BG;
         // 2026-10-27 10:30(實際時間)使用者:「當沖 通知欄 最下面的資訊 改在上面顯示 這邊不用」:「N 檔 未平倉 + 合計輸贏」改放標題列(取代 當日),最下面那列拿掉
         const hdPos = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(tot))}</span>`).replace('<span>當沖</span>', `<span>當沖${TP ? ' 元大' : ' 系統'}</span>`);   // 13:21 連得上電腦(元大真實部位)標「元大」,模擬標「系統」(看盤版標題本來就是「當沖 系統」)   // 2026-10-27 10:40(實際時間)使用者:「輸贏金額 顯示在最右邊」:合計放標題列最右邊(.cash);10:45「幾檔也不用顯示」:左邊只剩 當沖
         if (window.__nlV !== 'pos'){ box.scrollTop = 0; window.__nlV = 'pos'; }   // 2026-10-27 11:20 切到當沖也從最上面開始
-        box.innerHTML = hdPos + `<div class="tb pos">` + body + (cnt ? (late ? `<div class="late-note">⚠ 已過 13:20,這 ${cnt} 檔還沒收到平倉通知,請到投資先生確認已贖回</div>` : '') : `<div class="empty">${over || !TP || !TP.ok ? '目前沒有進場中的股票' : '目前沒有已成交的部位'}</div>`) + `</div>`;
+        { const __H = hdPos + `<div class="tb pos">` + body + (cnt ? (late ? `<div class="late-note">⚠ 已過 13:20,這 ${cnt} 檔還沒收到平倉通知,請到投資先生確認已贖回</div>` : '') : `<div class="empty">${over || !TP || !TP.ok ? '目前沒有進場中的股票' : '目前沒有已成交的部位'}</div>`) + `</div>`; if (nlSame(__H)) return; nlPut(__H); }
         try{ const tb = box.querySelector('.tb.pos'); const u = (tb.clientWidth || box.clientWidth) / 40; tb.style.fontSize = Math.max(12, Math.floor(u * 2 * 0.96)) + 'px'; }catch(e){}
         // 2026-10-27 11:10 使用者(當沖 4 檔,「和桐下面切到」):整張表放不下 → 先把每列上下留白縮小,還放不下再整張表一起把字縮小(最小 12px,整表同字級,欄位照樣對齊);再多才用捲的
         { const fitPos = () => { try{ const tb = box.querySelector('.tb.pos'), fit = () => box.scrollHeight <= box.clientHeight + 1;
@@ -6605,17 +6615,17 @@ window.bgTick = bgTick; window.BG = BG;
         }
         // 2026-10-27 11:20 使用者:「最上面只顯示 明細 今日的總輸贏(靠右顯示)」:標題列左邊「明細」、最右邊今天已平倉的總輸贏(和當沖的合計同一個位置 .cash)
         const hdDone = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(t0))}</span>`).replace('<span>明細</span>', `<span>明細${ySrc[d0] ? ' 元大' : (window.VIEWER ? '' : ' 系統')}</span>`);   // 2026-10-29 12:25(實際時間)元大真實成交的日子標題寫「明細 元大」
-        box.innerHTML = hdDone + `<div class="tb done">` + body + `</div>`;
+        { const __H = hdDone + `<div class="tb done">` + body + `</div>`; if (nlSame(__H)) return; nlPut(__H); }
         window.__doneY = ySrc;
         // 2026-10-27 14:15 使用者:「明細 畫面捲動到10/22 就要顯示10/22的總輸贏」:捲動時看欄名列下面第一列是哪一天,標題列右邊換成那天的總輸贏,左邊「明細」後面加日期(今天不加)
         window.__doneTot = dayTot; window.__doneToday = d0;
         if (!box.__doneScroll){ box.__doneScroll = true;
-          box.addEventListener('scroll', () => { try{ if (window.NL_VIEW !== 'done') return;
+          box.addEventListener('scroll', () => { if (box.__dsR) return; box.__dsR = requestAnimationFrame(() => { box.__dsR = 0; try{ if (window.NL_VIEW !== 'done') return;   // 2026-11-02 23:40 捲動中一格畫面只算一次
             const h = box.querySelector('.tb.done > .r.h') || box.querySelector('.hd'); if (!h) return; const hb = h.getBoundingClientRect().bottom;
             let day = window.__doneToday; for (const x of box.querySelectorAll('.tb.done > [data-day]')){ if (x.getBoundingClientRect().bottom > hb + 2){ day = x.dataset.day; break; } }
             const v = Math.round((window.__doneTot || {})[day] || 0), c = box.querySelector('.hd .cash'), lb = box.querySelector('.hd .nav > span');
-            if (c) c.innerHTML = `<span class="dnet ${v > 0 ? 'up' : v < 0 ? 'dn' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}</span>`;
-            if (lb) lb.textContent = '明細 ' + day.slice(5).replace('-', '/') + ((window.__doneY || {})[day] ? ' 元大' : ' 系統'); }catch(e){} }, {passive: true}); }   // 2026-10-28 00:30 標題一律寫日期(明細 10/28)
+            if (c) __wH(c, `<span class="dnet ${v > 0 ? 'up' : v < 0 ? 'dn' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}</span>`);
+            if (lb) __wT(lb, '明細 ' + day.slice(5).replace('-', '/') + ((window.__doneY || {})[day] ? ' 元大' : ' 系統')); }catch(e){} }); }, {passive: true}); }   // 2026-10-28 00:30 標題一律寫日期(明細 10/28)
         const jsD = window.__nlV !== 'done'; if (jsD){ box.scrollTop = 0; window.__nlV = 'done'; }
         try{ const tb = box.querySelector('.tb.done'); const u = (tb.clientWidth || box.clientWidth) / 37; tb.style.fontSize = Math.max(12, Math.floor(u * 2 * 0.96)) + 'px'; 
           // 2026-10-27 13:00 對齊:有任何一格(進→出、輸贏…)放不下就整張表一起縮 1px,直到每格都放得下(最小 12px),欄位永遠對齊
@@ -6676,15 +6686,15 @@ window.bgTick = bgTick; window.BG = BG;
     if (d === today) window.__fundLeft = fundLeft;   // 2026-10-28 強制進場:資金買不到 1 張 → 長按沒反應
     const ti = dayList.indexOf(window.NL_TOPDAY);
     const hdMsg = `<div class="hd msg"><span class="nav"><button id="nlPrev" ${ti >= dayList.length - 1 ? 'disabled' : ''}>◀</button><span class="lb"><span style="color:#1DD75B">${window.LOG_RS || ''}監控</span> <span class="dt" style="color:#FFFFFF">${(window.NL_TOPDAY || d).slice(5).replace('-', '/')}</span></span><button id="nlNext" ${ti <= 0 ? 'disabled' : ''}>▶</button></span><span class="cash"><span class="mlb" style="color:#FF4D5E;opacity:1">資金</span><b class="dnet" style="color:#FFD54F">${fundLeft}</b></span></div>`;   /* 2026-10-27 05:30 使用者「資金紅色 資金數字 黃色」 */   // 2026-10-27 05:25 使用者「進場與金額不用顯示」:只留 資金(2400000 − 進場中金額)   // 2026-10-27 05:15 使用者:「左鍵+“監控”+日期+右鍵 空1px “資金”+(…)空1px "進場"」
-    box.innerHTML = hdMsg + html;
+    { const __H = hdMsg + html; if (nlSame(__H)) return; nlPut(__H); }
     // 捲動時:畫面最上面那則(卡片)是哪一天,標題就顯示那天;◀ ▶ 捲到上一天 / 下一天的第一則
     if (!box.__dayScroll){ box.__dayScroll = true;
-      box.addEventListener('scroll', () => { try{ if (window.NL_VIEW && window.NL_VIEW !== 'msg') return;
+      box.addEventListener('scroll', () => { if (box.__msR) return; box.__msR = requestAnimationFrame(() => { box.__msR = 0; try{ if (window.NL_VIEW && window.NL_VIEW !== 'msg') return;   // 2026-11-02 23:40 捲動中一格畫面只算一次
         const h = box.querySelector('.hd'); const hb = h ? h.getBoundingClientRect().bottom : box.getBoundingClientRect().top;
         let top = null; for (const c of box.querySelectorAll('.card[data-day], .dsep[data-day]')){   // 2026-10-27 14:40 日期列也算(開盤前最上面 10/28 那列 → 標題 10/28)
         if (c.getBoundingClientRect().bottom > hb + 2){ top = c.dataset.day; break; } }
         if (top && top !== window.NL_TOPDAY){ window.NL_TOPDAY = top; const dt = box.querySelector('.hd .dt'); if (dt) dt.textContent = top.slice(5).replace('-', '/'); }
-        if (top){ const L = window.NL_DAYS || [], k = L.indexOf(top), pv = el('nlPrev'), nx = el('nlNext'); if (pv) pv.disabled = k >= L.length - 1; if (nx) nx.disabled = k <= 0; } }catch(e){} }, {passive: true}); }
+        if (top){ const L = window.NL_DAYS || [], k = L.indexOf(top), pv = el('nlPrev'), nx = el('nlNext'); if (pv) pv.disabled = k >= L.length - 1; if (nx) nx.disabled = k <= 0; } }catch(e){} }); }, {passive: true}); }
     if (cur){ window.NL_GOTO = cur; cur = null; }   // 等下面 fitAll 把列高定好再捲(不然高度一變位置就跑掉)
     }
     // 2026-10-17 自動縮字:真機系統字體放大時整列會超出卡片,量一下塞不下就縮,直到塞下為止(最小 11px)
