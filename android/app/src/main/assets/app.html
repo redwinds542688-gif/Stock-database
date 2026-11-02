@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 23:34(實際時間)十字虛線左右拖更順(使用者「十字虛線 左右滑動也要上下對齊 順暢 捲動畫面也要順暢」):拖動中圖框位置按下時量一次就好;乖離圖上拖十字線直接換算是第幾根(原本每動一下把 1300 多根全算一遍);資訊列內容一樣就不重寫;量的標籤寬度同字數只量一次。上下各圖十字線對齊照舊,畫面和原本一模一樣
   · 2026-11-02 23:09(實際時間)所有圖左右捲動更順(使用者「所有圖的左右滑動也要順暢」「捲動要順暢」):圖上的價格刻度 / 橫格線不再每格整段重建,只移動位置、改數字;指標二上下範圍同一段不重算;手指捲圖 / 慣性滑行中乖離試算停下 0.15 秒再算。畫面和原本一模一樣,程式每格花的時間約少一半
   · 2026-11-02 22:57(實際時間)下面監控股票上下滑動更順(使用者「下面監控股票上下滑動也要順暢」):手指在清單上或還在慣性捲動時,不重排、不重畫、不改價錢,停下 0.5 秒後一次補上;價錢沒變的格子不重寫;清單捲動區獨立一層
   · 2026-11-02 22:43(實際時間)通知欄左右滑換頁更順(使用者「下一個顯示有延遲現象 不順暢」):原本放手後要等舊頁滑出 0.14 秒才換新頁 → 放手當下就換,舊頁接著滑出、新頁同時從旁邊滑進來,快慢跟著手指
@@ -148,7 +149,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611022329">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611022334">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3385,9 +3386,13 @@ function wiDevTap(wp){
   let st = null;
   const go = (ev, off) => { try{
     const cv = wp.querySelector('#dvCv'), A = window.WI_ARGS; if (!cv || !A || !A.bars || !chart) return;
-    const ts = chart.timeScale(), aw = chart.priceScale('left').width() || 0, x0 = el('chartTop').getBoundingClientRect().left + aw, fx = ev.clientX + (off || 0) - x0;
-    let best = null, bd = 1e9; for (const b of A.bars){ const x = ts.timeToCoordinate(b.time); if (x == null) continue; const d = Math.abs(x - fx); if (d < bd){ bd = d; best = b; } }
-    if (best && bd < 40) setX(best.time); }catch(e){} };
+    const ts = chart.timeScale(), aw = chart.priceScale('left').width() || 0, x0 = (st && st.rcL != null ? st.rcL : (st ? (st.rcL = el('chartTop').getBoundingClientRect().left) : el('chartTop').getBoundingClientRect().left)) + aw, fx = ev.clientX + (off || 0) - x0;
+    // 2026-11-02 23:30 拖十字線順暢:原本每動一下把 1300 多根 K 的位置全部算一遍找最近的 → 直接用位置換算是第幾根(和 K 圖上拖一樣),那根已經是十字線就不重設
+    let best = null, bd = 1e9; const li = ts.coordinateToLogical(fx);
+    if (!A.__ts || A.__tsN !== A.bars.length){ A.__ts = new Set(A.bars.map(b => b.time)); A.__tsN = A.bars.length; }
+    if (li != null && BARS.length){ const i = Math.max(0, Math.min(BARS.length - 1, Math.round(li))), x = ts.timeToCoordinate(BARS[i].time); if (x != null && A.__ts.has(BARS[i].time)){ best = BARS[i]; bd = Math.abs(x - fx); } }
+    if (!best){ for (const b of A.bars){ const x = ts.timeToCoordinate(b.time); if (x == null) continue; const d = Math.abs(x - fx); if (d < bd){ bd = d; best = b; } } }
+    if (best && bd < 40){ const xl = window.getXLock && getXLock(); if (!xl || xl.time !== best.time || xl.follow) setX(best.time); } }catch(e){} };
   // 2026-10-27 20:00 使用者:「按住十字線可以捲動畫面 但乖離圖那邊不行」:乖離圖也一樣,按在十字直線上(左右 28px)= 拖十字線,拖到最左 / 最右 44px 內三張圖一起捲
   const lineX = () => { try{ const xl = window.getXLock && getXLock(); if (!xl || !BARS.length) return null; const tt = xl.follow ? BARS[BARS.length - 1].time : xl.time; const xc = chart.timeScale().timeToCoordinate(tt); if (xc == null) return null;
       return el('chartTop').getBoundingClientRect().left + (chart.priceScale('left').width() || 0) + xc; }catch(e){ return null; } };
@@ -3611,6 +3616,10 @@ function axDate(t){ try{
   const w = (cB.priceScale('left').width() || 0) + 'px', h = (cB.timeScale().height() || 0) + 'px';   /* 2026-10-28 00:55 捲動變慢:尺寸 / 文字沒變就不碰畫面 */
   if (e.__w !== w){ e.__w = w; e.style.width = w; } if (e.__h !== h){ e.__h = h; e.style.height = h; }
   const k = Math.floor((t + 28800) / 86400); if (e.__d !== k){ e.__d = k; e.textContent = TPE_DATE(t); } }catch(err){} }
+/* 2026-11-02 23:30 使用者「十字虛線 左右滑動 … 順暢」:十字線每換一根,資訊列幾十格都重寫(含箭頭圖示);改成內容一樣就不碰,少重排 */
+function __wH(e, v){ if (!e || (e.__wh === v && e.__wf === e.firstChild && e.__wl === e.lastChild)) return; e.innerHTML = v; e.__wh = v; e.__wf = e.firstChild; e.__wl = e.lastChild; }   // 別處改過內容(第一 / 最後節點換了)就照寫
+function __wT(e, v){ v = String(v); if (e && e.textContent !== v) e.textContent = v; }
+function __wC(e, v){ if (e && e.className !== v) e.className = v; }
 function showBarInfo(t){
   axDate(t);
   // 2026-10-25 13:20 使用者「畫面 十字虛線 … 下面試算沒有跟上」:試算視窗開著時,十字線移動就重算(停 0.3 秒才算,拖動中不卡)
@@ -3627,29 +3636,29 @@ function showBarInfo(t){
   const y = CUR.prevClose;
   const arrow = v => (!y || !isFinite(v)) ? '' : v > y ? '<span class="up">↑</span>' : v < y ? '<span class="down">↓</span>' : '<span style="color:#D8DDE6">─</span>';   // 2026-10-29 00:32 使用者「其他圖指標也一樣」:等於昨收 = 白色橫槓(原本不畫)
   const colr  = v => (!y || !isFinite(v)) ? '' : v > y ? 'up' : v < y ? 'down' : 'flat';
-  const setPx = (id, v) => { const e = el(id); e.innerHTML = isFinite(v) ? v.toFixed(2) + arrow(v) : '—'; e.className = colr(v); };
+  const setPx = (id, v) => { const e = el(id); __wH(e, isFinite(v) ? v.toFixed(2) + arrow(v) : '—'); __wC(e, colr(v)); };
   // 時間只顯示 時:分:秒(不要月/日);最後一根用即時行情的成交時間(有秒),歷史 K 秒數為 00
   const isLast = d === CUR.last;
   const lr = LIVE.get(BARS_CODE);
   const dt_ = new Date(d.bar.time * 1000), p2_ = v => (v < 10 ? '0' : '') + v;   // 2026-11-01 「讀K圖顯示要快」:不用 toLocaleTimeString(手機上一次要幾十毫秒)
   let ts = p2_(dt_.getHours()) + ':' + p2_(dt_.getMinutes()) + ':' + p2_(dt_.getSeconds());
   if (isLast && lr && /^\d\d:\d\d:\d\d$/.test(lr.t || '')) ts = lr.t;
-  el('iTime').textContent = ts;
+  __wT(el('iTime'), ts);
   setPx('iH', d.bar.high); setPx('iL', d.bar.low);
   // 2026-10-25 14:35 使用者「股價比昨日收盤 高則紅 低則綠 平則白」:十字線價格標籤底色(K 線圖)跟著那根收盤對昨收變;試算的價格欄同樣上色
   try{ const c = d.bar.close, bg = !(y > 0) ? '#FFE14D' : c > y ? '#E0303F' : c < y ? '#08A060' : '#FFFFFF';
     if (chart && window.__xlblBg !== bg){ window.__xlblBg = bg; chart.applyOptions({crosshair: {horzLine: {labelBackgroundColor: bg}}}); } }catch(e){}
   // 2026-10-25 13:35 使用者「此圖 此時價格應該50.00」:最上面的大價格 / 漲跌跟著十字線那根的收盤(十字線回到最新就是最新價)
   { const c = d.bar.close; if (isFinite(c)){ const ch = y ? c - y : 0, k = ch > 0 ? 'up' : ch < 0 ? 'down' : 'flat';
-    el('shPx').textContent = c.toFixed(2); el('shPx').className = 'yh-px ' + k;
-    el('shChg').textContent = (ch > 0 ? '▲' : ch < 0 ? '▼' : '') + Math.abs(ch).toFixed(2); el('shChg').className = k;
-    el('shChgPct').textContent = y ? `(${Math.abs(ch / y * 100).toFixed(2)}%)` : ''; el('shChgPct').className = k; } }   // 開、收欄位已取消(2026-10-15),收盤價在標題列大字
+    __wT(el('shPx'), c.toFixed(2)); __wC(el('shPx'), 'yh-px ' + k);
+    __wT(el('shChg'), (ch > 0 ? '▲' : ch < 0 ? '▼' : '') + Math.abs(ch).toFixed(2)); __wC(el('shChg'), k);
+    __wT(el('shChgPct'), y ? `(${Math.abs(ch / y * 100).toFixed(2)}%)` : ''); __wC(el('shChgPct'), k); } }   // 開、收欄位已取消(2026-10-15),收盤價在標題列大字
   // 量 = 今天到現在的總累積量(張),不跟十字線那根變(2026-10-21 使用者「App 才 3 萬多 元大已經 7-8 萬了」→「選 1」:
   //   原本是「到十字線那一分鐘的累積量」,點在早上的 K 就只有幾萬,看起來像量不對);優先用即時行情的累積量 v。那根自己的量顯示在 K 圖虛線旁(placeXVol)
   let cumLots = (CUR.last ? CUR.last.cumVol : d.cumVol) / 1000;
   if (lr && isFinite(lr.v) && lr.v > 0) cumLots = lr.v;
-  el('iV').textContent = (cumLots / 10000).toFixed(2);         // 以萬張為單位:337131 張 → 33.71(「萬」字固定在 HTML 裡)
-  el('iV').className = '';                                    // 不上色、不加箭頭
+  __wT(el('iV'), (cumLots / 10000).toFixed(2));         // 以萬張為單位:337131 張 → 33.71(「萬」字固定在 HTML 裡)
+  __wC(el('iV'), '');                                    // 不上色、不加箭頭
   placeXVol(d.bar.time);
   // 箭頭和元大一樣上色:比前一根高 ↑ 紅、低 ↓ 綠
   // 2026-10-23 20:20 使用者:「指標二那列 跟指標一 那邊也一樣」:Ka / Kb、Oa / Ob / Oc / Od 後面的 ↑↓ 也換成粗箭頭(紅上綠下)
@@ -3657,17 +3666,17 @@ function showBarInfo(t){
   // 2026-10-29 00:30 使用者「Ka kb 怎麼有時候有箭頭 有時候沒有」→「找個代表持平的符號放上去」:和前一根一樣 = 白色粗橫槓(原本不畫)
   const flatBar = () => `<svg viewBox="0 0 16 18" width="11" height="13" style="vertical-align:-1px;margin-left:1px"><rect x="1" y="7" width="14" height="4" rx="1" fill="#D8DDE6"/></svg>`;
   const trend = (v, prev) => (prev == null || !isFinite(v) || !isFinite(prev)) ? '' : v > prev ? thickArrow(true, '#FF3B3B') : v < prev ? thickArrow(false, '#3EE6A0') : flatBar();
-  el('lblMaN').textContent = BASE.maPeriod;
-  el('lblMaV').innerHTML = isFinite(d.ma) ? d.ma.toFixed(2) + trend(d.ma, d.maPrev) : '—';   // 2026-10-23 20:50 小數點後二位(原三位)
-  { const e = el('lblMa24V'); if (e) e.innerHTML = isFinite(d.ma24) ? d.ma24.toFixed(2) + trend(d.ma24, d.ma24Prev) : '—'; }   // 2026-10-21 K24
+  __wT(el('lblMaN'), BASE.maPeriod);
+  __wH(el('lblMaV'), isFinite(d.ma) ? d.ma.toFixed(2) + trend(d.ma, d.maPrev) : '—');   // 2026-10-23 20:50 小數點後二位(原三位)
+  { const e = el('lblMa24V'); if (e) __wH(e, isFinite(d.ma24) ? d.ma24.toFixed(2) + trend(d.ma24, d.ma24Prev) : '—'); }   // 2026-10-21 K24
   { const e = el('lblMaBox'); if (e && d.maColor) e.style.color = (RF_MODE && typeof KA_RF_COLOR !== 'undefined') ? KA_RF_COLOR : d.maColor; }   // 2026-10-23 20:50 漲跌 / 轉折圖的 Ka 線是紅的,字也跟著紅   // 2026-10-21 使用者:「Ka、Kb 顏色跟著線走」:Ka 文字 = 十字線那根 Ka 線的顏色(紅 / 綠 / 白);Kb 線固定藍,文字也藍
   // (判別式相關說明已移到私人庫)
-  el('lblVwapV').innerHTML = isFinite(d.vw) ? d.vw.toFixed(2) + trend(d.vw, d.vwPrev) : '—';   // 2026-10-23 21:05 箭頭 = Ap 自己的方向(粗箭頭,和 Ka / Kb 一樣;原本是收盤在 Ap 上 / 下)
-  el('lblObvMaN').textContent = BASE.obvMaPeriod;
-  el('lblObvV').innerHTML = isFinite(d.ob) ? d.ob.toFixed(2) + trend(d.ob, d.obPrev) : '—';
-  el('lblObvMaV').innerHTML = isFinite(d.obma) ? d.obma.toFixed(2) + trend(d.obma, d.obmaPrev) : '—';
-  { const e = el('lblObvMa30V'); if (e) e.innerHTML = isFinite(d.obma30) ? d.obma30.toFixed(3) + trend(d.obma30, d.obma30Prev) : '—'; }
-  { const e = el('lblObvMa16V'); if (e) e.innerHTML = isFinite(d.obma16) ? d.obma16.toFixed(3) + trend(d.obma16, d.obma16Prev) : '—'; }   // (判別式相關說明已移到私人庫)
+  __wH(el('lblVwapV'), isFinite(d.vw) ? d.vw.toFixed(2) + trend(d.vw, d.vwPrev) : '—');   // 2026-10-23 21:05 箭頭 = Ap 自己的方向(粗箭頭,和 Ka / Kb 一樣;原本是收盤在 Ap 上 / 下)
+  __wT(el('lblObvMaN'), BASE.obvMaPeriod);
+  __wH(el('lblObvV'), isFinite(d.ob) ? d.ob.toFixed(2) + trend(d.ob, d.obPrev) : '—');
+  __wH(el('lblObvMaV'), isFinite(d.obma) ? d.obma.toFixed(2) + trend(d.obma, d.obmaPrev) : '—');
+  { const e = el('lblObvMa30V'); if (e) __wH(e, isFinite(d.obma30) ? d.obma30.toFixed(3) + trend(d.obma30, d.obma30Prev) : '—'); }
+  { const e = el('lblObvMa16V'); if (e) __wH(e, isFinite(d.obma16) ? d.obma16.toFixed(3) + trend(d.obma16, d.obma16Prev) : '—'); }   // (判別式相關說明已移到私人庫)
   // 2026-10-25 18:25 數字照元大格式變長(43708.00 / 43862.429),一行放不下時字縮小(最小 8px),不截掉 Od
   { const row = el('lblObvV').closest('.yh-lbl'); if (row){ const L = row.textContent.replace(/\s+/g, '').length; if (row.__fitL !== L){ row.__fitL = L; let fs = 11; row.style.fontSize = fs + 'px';
       while (fs > 8 && row.scrollWidth > row.clientWidth + 1){ fs -= 0.5; row.style.fontSize = fs + 'px'; } } } }
@@ -3676,8 +3685,8 @@ function showBarInfo(t){
   // 2026-10-23 20:35 使用者:「加回來 價格部分 白色」:「看多▲ 84.34」「看空▼ 84.50」,字照原色、箭頭紅上綠下、價格白色
   // 2026-10-23 21:10 使用者:「指標三 改 看空 價格 箭頭」:順序改成 看空 84.50▼(和指標一、二一樣,箭頭在價格後面)
   const i3html = t => !t ? '—' : t.replace(/^看多↑ (.+)$/, (m, px) => '看多 <span style="color:#FFFFFF">' + px + '</span>' + thickArrow(true, '#FF3B3B')).replace(/^看空↓ (.+)$/, (m, px) => '看空 <span style="color:#FFFFFF">' + px + '</span>' + thickArrow(false, '#3EE6A0'));
-  { const e = el('lblOrgV'); if (e) e.innerHTML = i3html(d.org); }
-  { const e = el('lblKxV'); if (e) e.innerHTML = i3html(d.kx); }   // (判別式相關說明已移到私人庫)
+  { const e = el('lblOrgV'); if (e) __wH(e, i3html(d.org)); }
+  { const e = el('lblKxV'); if (e) __wH(e, i3html(d.kx)); }   // (判別式相關說明已移到私人庫)
   // 燈號 + 多空天秤跟著十字線走(2026-10-17):十字線在某根 K 上 → 顯示那根處理完當下的循環狀態(做多 / 做空 / 監控)與偏向;
   // 最後一根或沒有十字線 → 回到最新狀態。沒開平倉規則(stateAt 為空)時燈號不動,只動多空天秤。
   if (CUR.lampLast){
@@ -4808,7 +4817,11 @@ function initChart(){
   //   其他地方照舊:左右滑捲圖、上下滑縮放、點一下放十字線、長按拖十字線
   [[top, chart], [mid, chartM], [bot, chartB]].filter(([e, c]) => c).forEach(([e, c]) => {
     let drag = null, hold = null, holdTm = 0, pan = null, g0 = null, kin = 0;
-    const xIdx = clientX => { const r = e.getBoundingClientRect(); const li = c.timeScale().coordinateToLogical(clientX - r.left - (c.priceScale('left').width() || 0)); return li == null ? -1 : Math.max(0, Math.min(BARS.length - 1, Math.round(li))); };
+    // 2026-11-02 23:30 使用者「十字虛線 左右滑動也要上下對齊 順暢」:拖動中圖框位置不會變,按下時量一次記住(原本每動一下都量 2 次,剛改完十字線資訊又量 → 每格強迫整頁重排)
+    let rcC = null; const rcOf = () => rcC || e.getBoundingClientRect();
+    e.addEventListener('touchstart', () => { rcC = e.getBoundingClientRect(); }, {passive: true, capture: true});
+    ['touchend', 'touchcancel'].forEach(t => e.addEventListener(t, () => { rcC = null; }, {passive: true, capture: true}));
+    const xIdx = clientX => { const r = rcOf(); const li = c.timeScale().coordinateToLogical(clientX - r.left - (c.priceScale('left').width() || 0)); return li == null ? -1 : Math.max(0, Math.min(BARS.length - 1, Math.round(li))); };
     e.addEventListener('touchstart', ev => {
       drag = null; pan = null; clearTimeout(holdTm); hold = null; cancelAnimationFrame(kin); kin = 0; g0 = null;
       if (ev.touches.length === 1) g0 = {x: ev.touches[0].clientX, y: ev.touches[0].clientY, t: Date.now()};
@@ -4833,7 +4846,7 @@ function initChart(){
         clearTimeout(holdTm); pan = {z: window.__panStart(), x0: x, s: [[Date.now(), x]]}; longPress = false; ev.stopPropagation(); return; }
       ev.stopPropagation();                                        // 拖十字線時圖不捲、不縮放
       // 2026-10-27 19:55 使用者:「十字虛線到最左或左右 已經無法捲動k圖」:拖十字線拖到最左(右)44px 內 → 三張圖一起往前(後)捲,十字線停在邊緣那根(和原本長按拖的一樣)
-      { const rc = e.getBoundingClientRect(), aw = c.priceScale('left').width() || 0, x = ev.touches[0].clientX, L = rc.left + aw, Rr = rc.right, Z = 44;
+      { const rc = rcOf(), aw = c.priceScale('left').width() || 0, x = ev.touches[0].clientX, L = rc.left + aw, Rr = rc.right, Z = 44;
         // 2026-10-29 10:04 使用者「K在最後一根 按住左滑 不是一分一分 是直接跳-4根之後才一分分」:十字線在最後一根時手指本來就在右邊 44px 內,
         //   往左拖的前幾格被當成「拖到邊緣捲圖」吃掉,出了邊緣區才一次跳 4 根 → 只有手指往邊緣方向移動時才捲圖,往回拖照常一根一根移十字線
         const mv = x - (drag.lastX != null ? drag.lastX : drag.x0); drag.lastX = x;
@@ -4927,7 +4940,7 @@ function placeXVol(t){
   const x = (chart && d) ? chart.timeScale().timeToCoordinate(d.bar.time) : null;
   if (x == null) return e.classList.add('hidden');
   const tx = Math.round((d.bar.volume || 0) / 1000).toLocaleString('en-US') + '張';
-  if (e.__tx !== tx || e.classList.contains('hidden')){ e.textContent = tx; e.classList.remove('hidden'); e.__tx = tx; e.__w = e.offsetWidth; }   /* 18:55 字沒變就不重量寬度(少一次整頁重排) */
+  if (e.__tx !== tx || e.classList.contains('hidden')){ e.textContent = tx; e.classList.remove('hidden'); e.__tx = tx; const W0 = e.__wlen || (e.__wlen = {}); e.__w = W0[tx.length] || (W0[tx.length] = e.offsetWidth); }   /* 2026-11-02 23:30 同樣字數的寬度只量一次(原本每換一根量一次 → 拖十字線每格強迫重排) */   /* 18:55 字沒變就不重量寬度(少一次整頁重排) */
   const aw = chart.priceScale('left').width() || 0, px = aw + x, w = e.__w || e.offsetWidth, W = window.__ctW || (window.__ctW = el('chartTop').clientWidth);
   if (px < aw || px > W) return e.classList.add('hidden');   // 那根不在畫面裡
   e.style.left = (px + 4 + w > W ? px - 4 - w : px + 4) + 'px';
