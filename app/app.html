@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 04:14(實際時間)記住目前看幾根:◀ ▶ 換股票、退出 K 圖再從清單進另一檔、App 重開,都沿用上次縮放的根數(例 270 根);沒有紀錄才用預設 40 根(使用者「這邊也270 上一個多少 下一個就是多少」)
   · 2026-11-03 04:07(實際時間)所有圖縮小最多看到 540 根(原本可以縮到全部載入的 K,約 1300 多根);放大最少 12 根照舊(使用者「改最多就是540」)
   · 2026-11-03 04:00(實際時間)乖離圖 / 壓力圖上方 7 個價格改黃字(原本依昨收紅 / 綠 / 白;中間那格底色照舊)(使用者「這七個綠色 價格 換成 黃色」)
   · 2026-11-03 02:08(實際時間)乖離圖 / 壓力圖上方的價格列從 9 個改成 7 個(+3 ~ −3 檔),每格平分整列寬、字放到最大,下面的高低條跟著變寬(使用者「這一列 原有九個數 改成 七個 最大化」)
@@ -164,7 +165,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611030407">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611030414">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4588,7 +4589,8 @@ function initChart(){
     let fixed = null;
     if (r.to > maxTo) fixed = {from: r.from - (r.to - maxTo), to: maxTo};
     if ((fixed || r).to - (fixed || r).from < 12) { const t = (fixed || r).to; fixed = {from: t - 12, to: t}; }
-    if ((fixed || r).to - (fixed || r).from > 540) { const t = (fixed || r).to; fixed = {from: t - 540, to: t}; }   // 2026-11-03 04:06 使用者「改最多就是540」:縮小最多看到 540 根(兩天的一分 K),原本可以縮到全部載入的 K
+    if ((fixed || r).to - (fixed || r).from > 540) { const t = (fixed || r).to; fixed = {from: t - 540, to: t}; }
+    try{ const R = fixed || r, w = R.to - R.from; if ((touching || Date.now() - (window.__panAt || 0) < 1500) && BARS.length > 30 && el('sheet').classList.contains('open') && w >= 12 && Math.abs(w - (window.__kW || 0)) > 0.05){ window.__kW = w; clearTimeout(window.__kWT); window.__kWT = setTimeout(() => { try{ localStorage.setItem('mysh.kW', String(Math.round(window.__kW * 10) / 10)); }catch(e){} }, 600); } }catch(e){}   // 2026-11-03 04:10 記住目前看幾根(換股票 / 下次進圖照這個)   // 2026-11-03 04:06 使用者「改最多就是540」:縮小最多看到 540 根(兩天的一分 K),原本可以縮到全部載入的 K
     syncing = true;
     if (fixed) a.timeScale().setVisibleLogicalRange(fixed);                     // 夾好的範圍一起套到每一張,不等下一次事件
     for (const b of charts) if (b !== a) b.timeScale().setVisibleLogicalRange(fixed || r);
@@ -4767,7 +4769,7 @@ function initChart(){
   // 兩指縮放(自己做,1:1 跟手指距離):以兩指中點那根 K 為中心,可見範圍寬度 = 起始寬度 ÷ (目前距離 ÷ 起始距離)。
   // 在 capture 階段擋住兩指期間(到全部放開為止)的 touchmove,不讓套件拿第一指去捲圖;touchstart / touchend 照常給套件。
   let pinch = null, pinchReq = 0, pinchRange = null;
-  const applyPinch = () => { pinchReq = 0; if (!pinchRange) return; const r = pinchRange; pinchRange = null; try{ bugAdd('fn', ['pinch', +r.from.toFixed(1), +r.to.toFixed(1)]); }catch(e){} 
+  const applyPinch = () => { pinchReq = 0; window.__panAt = Date.now();   /* 2026-11-03 04:12 手指縮放 / 捲動才記根數 */ if (!pinchRange) return; const r = pinchRange; pinchRange = null; try{ bugAdd('fn', ['pinch', +r.from.toFixed(1), +r.to.toFixed(1)]); }catch(e){} 
     syncing = true; for (const c of charts) c.timeScale().setVisibleLogicalRange(r); syncing = false; keepXInView(r); };
   // 2026-10-25 19:12 給試算乖離圖用(使用者「乖離圖上也一樣」):同一套縮放(三張圖一起、以十字線那根為中心)
   window.__zoomStart = () => { const r0 = chart.timeScale().getVisibleLogicalRange(); if (!r0) return null; let anchor = (r0.from + r0.to) / 2; if (XLOCK){ const li = idxOf(XLOCK.time); if (li >= r0.from && li <= r0.to) anchor = li; } return {r0, anchor}; };
@@ -5497,8 +5499,11 @@ function drawBars0(bars, code, srcLabel, keepView){
   if (window.alignScales) requestAnimationFrame(() => alignScales());   // 左刻度寬度對齊,十字線才會上下同一條
   if (!keepView){
     // 元大風格:開圖只顯示最近 YH.defaultBars 根(K 棒才夠粗),往左滑可看更早的;其他兩張圖會同步
-    const n = Math.min(YH.defaultBars, bars.length);
+    // 2026-11-03 04:10 使用者「按 ◀ ▶ 換股票 / 退出 K 圖再從清單進另一檔 … 這邊也270 上一個多少 下一個就是多少」:記住上一檔最後看的根數(每支手機自己記),沒有紀錄才用預設
+    let kw = 0; try{ kw = +(window.__kW || localStorage.getItem('mysh.kW') || 0); }catch(e){}
+    const n = Math.min(kw > 0 ? Math.max(9, Math.min(537, Math.round(kw - 3))) : YH.defaultBars, bars.length);
     chart.timeScale().setVisibleLogicalRange({from: bars.length - n - 0.5, to: bars.length + 2.5});
+    if (kw > 0){ const want = n + 3, L = bars.length; let k = 0; const again = () => { try{ if (BARS.length !== L) return; const r = chart.timeScale().getVisibleLogicalRange(); if (r && Math.abs((r.to - r.from) - want) > 0.5 && window.__setRangeAll) __setRangeAll({from: r.to - want, to: r.to}); }catch(e){} if (++k < 6) setTimeout(again, 150); }; requestAnimationFrame(() => requestAnimationFrame(again)); }   // 圖剛開時畫面寬度還沒定,套件會把範圍改掉 → 開好後再補設幾次
   }
 
   const last = bars[bars.length - 1];
