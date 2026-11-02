@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 09:46(實際時間)當沖 / 明細超過三筆往上滑,報價更新重畫時會跳回最上面(使用者「上滑看第一筆 卻一下子就又變成最後一筆」)→ 重畫後放回原本捲到的位置
   · 2026-11-02 09:26(實際時間)設定全部由主導機(5861)節制(使用者「改 所有設定下的數值 皆由主導機節制」):高價/低價/振幅/檔數/上限/折扣/券商/證交所/證交稅 9 個滾輪,主導機轉完 1.5 秒送雲端,其他手機自動跟上、自己轉默默退回
   · 2026-11-02 09:08(實際時間)電腦盤中資格複檢:上櫃可當沖名單的資料日期本來就是前一個交易日,原本被當成「還沒更新」→ 09:05 推了假警報;改成上市要今天、上櫃 4 天內就算正常(中繼明天開機自動更新)。
   · 2026-11-02 08:34(實際時間)主導機調多空上限成功不再跳「其他手機和電腦 1 分鐘內跟上」(使用者「也不用顯示」);沒送成功才提示
@@ -114,7 +115,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611020926">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611020946">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6281,6 +6282,12 @@ window.bgTick = bgTick; window.BG = BG;
       box.innerHTML = hd2 + (rows.length ? `<div class="d30">` + rows.map(r => `<div class="d30r"><span>${r[0].slice(5).replace('-', '/')}</span><span>${r[2]} 筆平倉${r[3] ? '(含回測)' : ''}</span>${money(r[1])}</div>`).join('') + `</div>` : `<div class="empty">這 30 個開盤日沒有平倉紀錄</div>`);
     } else if (window.NL_VIEW === 'pos' || window.NL_VIEW === 'done'){
       if (window.__nlV && window.__nlV !== window.NL_VIEW) window.__nlV = '';
+      // 2026-11-02 09:41 使用者「當沖顯示超過三筆 我上滑看第一筆 卻一下子就又變成最後一筆交易」:每次重畫(報價每幾秒更新)整張表換新,一列一列停(scroll-snap)找不到原本停的那列就跳回最上面
+      //   → 同一個分頁重畫時記住捲到哪,重畫完放回原位(切分頁進來照舊從最上面開始)
+      //   只在重畫後 0.4 秒內、手指沒按著時放回(之後使用者自己滑的不會被拉回去)
+      const keepY = window.__nlV === window.NL_VIEW ? box.scrollTop : 0, keepT = Date.now();
+      if (!box.__tch){ box.__tch = 1; box.addEventListener('touchstart', () => { box.__touch = true; }, {passive: true}); box.addEventListener('touchend', () => { box.__touch = false; }, {passive: true}); box.addEventListener('touchcancel', () => { box.__touch = false; }, {passive: true}); }
+      const keepBack = () => { try{ if (keepY > 0 && !box.__touch && Date.now() - keepT < 400 && window.__nlV === window.NL_VIEW && Math.abs(box.scrollTop - keepY) > 2) box.scrollTop = keepY; }catch(e){} };
       box.classList.remove('snap'); box.classList.remove('snapdt'); box.style.scrollPaddingTop = '';   // 2026-10-27 11:30 訊息欄的一列一列停(只停在卡片 / 日期分隔)在明細會被強制拉到第一個日期分隔(前幾天),今天那段看不到 → 關掉,改用下面自己的
       // 2026-10-27 11:30 使用者:「顯示的資訊不可以切到」:表放不下要捲的時候,每一行(欄名、每筆、合計、日期分隔)改成同一個高 = 可見高度 ÷ 整數列,
       //   捲動一列一列停(scroll-snap,扣掉釘住的標題列),畫面上永遠是整列,最下面那列不會切一半
@@ -6345,7 +6352,7 @@ window.bgTick = bgTick; window.BG = BG;
         { const fitPos = () => { try{ const tb = box.querySelector('.tb.pos'), fit = () => box.scrollHeight <= box.clientHeight + 1;
             if (!tb || !box.clientHeight || fit()) return; tb.querySelectorAll('.r').forEach(r => { r.style.paddingTop = r.style.paddingBottom = '1px'; });
             let fs = parseFloat(tb.style.fontSize) || 17; while (!fit() && fs > 12){ fs -= 1; tb.style.fontSize = fs + 'px'; } }catch(e){} };
-          box.__fitL = () => fitLines('.tb.pos'); fitLines('.tb.pos'); requestAnimationFrame(() => requestAnimationFrame(() => fitLines('.tb.pos'))); }   // 2026-10-27 12:05 改成四列制(標題 + 3 筆),不再縮字塞滿   // 切到當沖那一刻框可能還沒顯示(高度 0),畫面出來後再量一次   // 整張表(含欄名、合計)同一個字級   // 字級 = 2 個欄位寬(一列 40 欄):5 個中文字 = 10 欄、6 位數字 ≈ 8 欄、2 位張數 = 2 欄
+          box.__fitL = () => { fitLines('.tb.pos'); keepBack(); }; fitLines('.tb.pos'); keepBack(); requestAnimationFrame(() => requestAnimationFrame(() => { fitLines('.tb.pos'); keepBack(); })); }   // 2026-10-27 12:05 改成四列制(標題 + 3 筆),不再縮字塞滿   // 切到當沖那一刻框可能還沒顯示(高度 0),畫面出來後再量一次   // 整張表(含欄名、合計)同一個字級   // 字級 = 2 個欄位寬(一列 40 欄):5 個中文字 = 10 欄、6 位數字 ≈ 8 欄、2 位張數 = 2 欄
       } else {
         // 2026-10-27 01:30 使用者:「明細顯示一直保留 最新的在最上面 往上滑動可以看到以往的資料」:今天在最上面,往下接前幾天(最多 10 天),每天一列日期分隔 + 那天的總輸贏
         const hdr = `<div class="r h"><span>股票</span><span class="num io"><span>進</span><span>→</span><span>出</span></span><span class="num">張</span><span class="num">輸贏</span></div>`;
@@ -6410,8 +6417,8 @@ window.bgTick = bgTick; window.BG = BG;
           // 2026-10-27 13:00 對齊:有任何一格(進→出、輸贏…)放不下就整張表一起縮 1px,直到每格都放得下(最小 12px),欄位永遠對齊
           const over = () => [...tb.querySelectorAll('.r:not(.h) > .num, .r:not(.h) .io > span')].some(x => x.scrollWidth > x.clientWidth + 1);
           let fs = parseFloat(tb.style.fontSize) || 17; while (over() && fs > 12){ fs -= 1; tb.style.fontSize = fs + 'px'; } }catch(e){}
-        box.__fitL = () => { fitLines('.tb.done'); if (jsD && window.__nlV === 'done' && box.__jsD) box.scrollTop = 0; }; box.__jsD = jsD; setTimeout(() => { box.__jsD = false; }, 500);
-        fitLines('.tb.done'); requestAnimationFrame(() => requestAnimationFrame(() => { fitLines('.tb.done'); if (jsD) box.scrollTop = 0; try{ box.dispatchEvent(new Event('scroll')); }catch(e){} }));   /* 11:45 排好列高後再回最上面,欄名那列不會被捲掉 */   // 2026-10-27 11:20 切到明細從最上面(今天)開始看;原本留著訊息欄的捲動位置,一打開就跳到前幾天(10/22)
+        box.__fitL = () => { fitLines('.tb.done'); if (jsD && window.__nlV === 'done' && box.__jsD) box.scrollTop = 0; if (!jsD) keepBack(); }; box.__jsD = jsD; setTimeout(() => { box.__jsD = false; }, 500);
+        fitLines('.tb.done'); if (!jsD) keepBack(); requestAnimationFrame(() => requestAnimationFrame(() => { fitLines('.tb.done'); if (jsD) box.scrollTop = 0; else keepBack(); try{ box.dispatchEvent(new Event('scroll')); }catch(e){} }));   /* 11:45 排好列高後再回最上面,欄名那列不會被捲掉 */   // 2026-10-27 11:20 切到明細從最上面(今天)開始看;原本留著訊息欄的捲動位置,一打開就跳到前幾天(10/22)
    // 2026-10-27 04:20 明細字級 = 2 欄寬(一列 38 欄)
       }
       box.querySelectorAll('.tb .r[data-code]').forEach(r => { r.addEventListener('click', () => openChart(r.dataset.code, r.dataset.name));
