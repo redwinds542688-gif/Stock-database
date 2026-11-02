@@ -145,7 +145,9 @@ def refresh(cfg=None, log=print, pool=None):
            "disposed": sorted(disposed & set(codes)), "attention": sorted(attention & set(codes)), "nodt": nodt, "noshort": noshort,
            "all_disposed": sorted(disposed), "src": src, "err": errs,
            "dt_date": min(lds.values()) if lds else "",          # 2026-10-31 可當沖名單的日期(兩市場取舊的);不是今天 = 證交所 / 櫃買還沒換,盤中會再抓
-           "stale": (not lds) or any(v != d for v in lds.values())}
+           # 2026-11-02 上櫃可當沖名單(OpenAPI)的「資料日期」是前一個交易日(11/02 早上還是 1151030),不會變成今天 → 原本當成「還沒更新」,09:05 推了假警報、盤中一直重查。
+           #   改成:上市要是今天;上櫃只要不超過 4 天(和雲端 recheck.py 一樣)
+           "stale": (not lds) or lds.get("twse", d) != d or any((now_tw().date() - dt.date.fromisoformat(v)).days > 4 for v in lds.values() if v)}
     # 2026-10-31 使用者「增加一個開盤後檢查股票是否真能當沖的機制」:和今天上一次複檢比,新多出來不能做的股票(盤中複檢用來推手機)
     prev = load_today() if (HERE / "engine_data" / f"elig_{d}.json").exists() else None
     if prev:
