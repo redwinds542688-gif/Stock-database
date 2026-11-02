@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 04:00(實際時間)乖離圖 / 壓力圖上方 7 個價格改黃字(原本依昨收紅 / 綠 / 白;中間那格底色照舊)(使用者「這七個綠色 價格 換成 黃色」)
   · 2026-11-03 02:08(實際時間)乖離圖 / 壓力圖上方的價格列從 9 個改成 7 個(+3 ~ −3 檔),每格平分整列寬、字放到最大,下面的高低條跟著變寬(使用者「這一列 原有九個數 改成 七個 最大化」)
   · 2026-11-03 02:04(實際時間)試算列的紅箭頭尖端被表格格子切掉一塊,和指標二那顆看起來不一樣 → 改放在表格外面、疊在指標二那顆同一位置,整顆完整顯示,切換時形狀、位置完全一樣(使用者「切換後 箭頭 好像不一樣」)
   · 2026-11-03 02:00(實際時間)試算列紅箭頭沒出現時位置照樣佔著,「收 / 量」那段固定不左右移(使用者「這列 原灰字現白字這些 固定位置 不要因為沒有箭頭 而移動」)
@@ -162,7 +163,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611030208">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611030400">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3577,7 +3578,7 @@ function wiRender(wp){
     //   第 1 列標題、第 2 列 9 個價格橫排(左 +2% 高 → 右 −2% 低,每個 36px、間隔 6px)、第 3 列機率對齊價格、第 4~11 列乖離率柱狀圖(每根 6px)、第 12 列滑軌
     const h = Math.floor(wp.clientHeight / 11), xs = r.rows.filter(x => Math.abs(x.pc) <= 3);   /* 2026-11-03 02:08 使用者「這一列 原有九個數 改成 七個 最大化」:只列 +3 ~ −3 檔(7 個),每格平分整列寬、字放到最大 */
     const CW = Math.max(36, Math.floor((wp.clientWidth - 16 - 6 * (xs.length - 1) - 4) / xs.length)), BW = Math.round(CW * 0.67), BL = Math.round((CW - BW) / 2);   /* 15:35 使用者「價格高在左邊 低在右邊」 */
-    const pc = x => r.y > 0 ? (x.c > r.y ? '#FF4D5E' : x.c < r.y ? '#2EE59D' : '#FFFFFF') : '#E6EAF2';
+    const pc = x => '#FFE14D';   /* 2026-11-03 03:59 使用者「這七個綠色 價格 換成 黃色」(原本依昨收紅 / 綠 / 白);中間那格底色照舊 */
     const bgc = x => r.y > 0 ? (x.c > r.y ? '#E0303F' : x.c < r.y ? '#08A060' : '#FFFFFF') : '#FFE14D';
     const maxLen = Math.max(...xs.map(x => x.c.toFixed(2).length), 5), fs = Math.max(9, Math.floor(Math.min(h / 1.6, CW / (maxLen * 0.6))));
     const cell = (x, inner, extra) => '<div style="width:' + CW + 'px;text-align:center;white-space:nowrap;overflow:hidden;' + (extra || '') + '">' + inner + '</div>';
