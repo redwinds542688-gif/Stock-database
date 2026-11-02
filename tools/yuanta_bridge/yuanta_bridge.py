@@ -338,6 +338,22 @@ class Bridge:
                     r = objValue; rt = int(r.RptType)
                     if rt in (50, 51):
                         log(f"回報 {'成交' if rt == 51 else '委託'} {r.CompanyNo} {r.BS} 數量 {r.OrderQty} 價 {r.Price} 狀態 {r.OrderStatus} 書號 {r.OrderNo} 編號 {r.BasketNo}")
+                        if rt == 50 and int(r.OrderStatus) == 1:   # 2026-11-02 使用者「還沒解決 一個一個來」(台化 / 大甲委託失敗只記到「狀態 1」):把元大回報裡的原因欄位全記下來,並推到手機
+                            why = ""
+                            try:
+                                fs = {}
+                                for k in dir(r):
+                                    if k.startswith("_"): continue
+                                    try: v = getattr(r, k)
+                                    except Exception: continue
+                                    if callable(v): continue
+                                    sv = str(v).strip()
+                                    if sv and sv not in ("0", "None"): fs[k] = sv[:80]
+                                log("!! 委託失敗 回報全部欄位:", fs)
+                                why = next((fs[k] for k in fs if re.search(r"err|msg|reason|note|memo|desc", k, re.I) and not re.fullmatch(r"[\d.\s]+", fs[k])), "")
+                            except Exception as e: log("委託失敗欄位讀取失敗", e)
+                            cn = str(r.CompanyNo).strip()   # 推手機在另一條執行緒做(不能卡住元大的事件)
+                            threading.Thread(target=lambda: self.phone_alert(f"⚠ 元大退回委託 {cn}", why or "元大回報委託失敗(原因見電腦紀錄)", "pc"), daemon=True).start()
                         typ = str(getattr(r, "OrderType", "") or "").strip()   # 2026-10-28 平倉檢查 #6:委託種類(有的話元三平倉用同一種)
                         if self.trader: self.trader.on_report(rt, str(r.OrderNo), int(r.OrderStatus), int(r.OrderQty), float(r.Price), str(r.BasketNo), str(r.CompanyNo), str(r.BS).strip(), typ)
                     return

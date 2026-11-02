@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-02 13:48(實際時間)電腦:元大委託失敗時把回報裡的原因全記下來,並推一則「⚠ 元大退回委託」到手機(今天台化 / 大甲只記到狀態 1,看不到原因)
   · 2026-11-02 13:26(實際時間)通知欄左右滑改成跟手(使用者「左右滑動 要絲滑順暢」):拖動時跟著手指走、變淡;拖過 1/5 或甩得快 → 滑出、新分頁滑進來;不夠就彈回;拖動中不重畫、不會斜晃、不會誤點
   · 2026-11-02 12:24(實際時間)看盤版轉折圖有點了(使用者選 B):看盤版用 10/30 以前的舊轉折算法(不是判四那套),付費 + 免費 30 天內看得到;主程式照舊用私人庫的新轉折
   · 2026-11-02 12:15(實際時間)轉折圖改回原本自己的轉折 / 加碼點標記(使用者「轉折圖呢」;不再只標判四那一筆)
@@ -134,7 +135,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611021342">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611021348">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
