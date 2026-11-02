@@ -1006,7 +1006,10 @@ export default {
       const full = pushOk || (KI && KI.role === "owner");
       const logic = url.searchParams.get("repo") === "logic";   // 私人庫 Stock-logic:判一二三的程式、模擬器、說明
       const viewerOk = !logic && (path === "app/viewer.html" || path.startsWith("app/apk/viewer/"));
-      if (!full && !(KI && viewerOk)) return J({ error: KI ? "這把鑰匙不能讀這個檔" : "要鑰匙", badKey: !KI }, 403);
+      // 2026-11-02 kvping 的「被拒」紀錄:沒鑰匙的手機(免費 / iPhone 網頁版)、看盤鑰匙讀 pool.json / prob_model.json / log_backfill.json 一直被 403(名單、機率表、舊紀錄出不來)。
+      //   這三個檔本來就放在公開庫(任何人都能從 GitHub 直接讀),不算機密 → 不用鑰匙也給讀
+      const publicOk = !logic && /^(pool\.json|app\/prob_model\.json|app\/log_backfill\.json)$/.test(path);
+      if (!full && !publicOk && !(KI && viewerOk)) return J({ error: KI ? "這把鑰匙不能讀這個檔" : "要鑰匙", badKey: !KI }, 403);
       if (!env || !env.GH_TOKEN) return J({ error: "Worker 沒有 GH_TOKEN" }, 503);
       // 2026-10-30 10:34(實際時間)使用者「東台 今天是處置股 為何還會被挑選進來」:pool.json 早上 08:20 起每 15~20 分鐘會被資格複檢改寫(新處置股 / 不能當沖),
       //   這裡原本快取 30 分鐘,手機 08:15~09:50 每 5 分鐘來抓也可能拿到舊的 → pool.json 和 html / js 一樣只快取 60 秒
