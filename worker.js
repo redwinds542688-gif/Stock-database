@@ -570,6 +570,7 @@ function kvCounted(env, ctx) {
   return Object.assign(Object.create(env), { LOGS: W, __kvc: true });
 }
 const kvDown = () => globalThis.__kvDown && Date.now() - globalThis.__kvDown < 10 * 60000;
+const SEENW = new Map();   // 2026-11-03 鑰匙「最後使用時間」這個執行個體上次試著寫 KV 的時間
 async function keyInfo(env, k) {
   if (!env || !env.LOGS || !KEY_RE.test(k || "")) return null;
   const v = await kvGetC(env, "key:" + k, 300000);
@@ -656,7 +657,10 @@ export default {
       const today = ymdOf(twNow());
       if (KI.exp && today > KI.exp) return J({ error: "鑰匙已到期(" + KI.exp + ")", badKey: true }, 403);
       if (KI.dev && dv && KI.dev !== dv) return J({ error: "這把鑰匙已綁在另一支手機", badKey: true }, 403);
-      if (dv && !KI.emer && (!KI.dev || !KI.seen || Date.now() - KI.seen > 3600e3)) { try { if (!KI.dev) KI.dev = dv; KI.seen = Date.now(); await env.LOGS.put("key:" + kq, JSON.stringify(KI)); } catch (e) {} } }
+      // 2026-11-03 11:55 查到 KV 寫入一天爆到 1.5 萬次(上限 1,000):keyInfo 讀的是快取 5 分鐘的舊字串,seen 永遠是舊的 → 每個請求都寫一次「最後使用時間」;
+      //   額度用完後寫入失敗,seen 更寫不進去,更是每個請求都試 → 改成:同一個執行個體同一把鑰匙一小時最多試一次(成功失敗都算),寫完把快取也換成新的
+      if (dv && !KI.emer && (!KI.dev || !KI.seen || Date.now() - KI.seen > 3600e3)) { const sw = SEENW.get(kq) || 0;
+        if (!KI.dev || Date.now() - sw > 3600e3) { SEENW.set(kq, Date.now()); try { if (!KI.dev) KI.dev = dv; KI.seen = Date.now(); const js = JSON.stringify(KI); await env.LOGS.put("key:" + kq, js); MC.set("key:" + kq, { v: js, at: Date.now() }); } catch (e) {} } } }
     // 2026-10-29 安全修補:owner 鑰匙做「寫入 / 下單 / 管鑰匙」時,鑰匙已綁手機就一定要帶 dv(手機 App 的 fetch 包裝每次都帶;不帶 dv 不能繞過一人一機去下單)。
     //   讀的端點(gh=raw 更新等)照舊不要求 dv,避免 Page.kt 偏好裡沒有 dev 時更新失敗
     if (KI && KI.emer && KI.role !== "owner" && (url.searchParams.get("cap") === "get" || ["pos", "fills"].includes(url.searchParams.get("trade") || "") || url.searchParams.get("repo") === "logic" || (url.searchParams.get("gh") === "raw" && /^app\/app\.html/.test(url.searchParams.get("path") || ""))) && dv && env.HUB) {   // 主程式的手機 → 記成 owner(緊急模式才有)
@@ -696,6 +700,9 @@ export default {
       if (capQ === "get") {
         if (!pushOk && !isOwner) return J({ error: "要中繼金鑰或 owner 鑰匙" }, 403);
         let v = null; try { v = JSON.parse((await kvGetC(env, "cfg:cap", 60000)) || "null"); } catch (e) {}
+        // 2026-11-03 KV 寫入額度用完那天主導機改的設定只存在 Hub → 兩邊比 at,拿新的(Hub 的 1 分鐘問一次)
+        try { if (env.HUB){ let h = MC.get("hubcap"); if (!h || Date.now() - h.at > 60000){ h = { v: await hubOf(env).kvGet("m:cfg:cap"), at: Date.now() }; MC.set("hubcap", h); }
+          const hv = h.v ? JSON.parse(h.v) : null; if (hv && (!v || (hv.at || 0) > (v.at || 0))) v = hv; } } catch (e) {}
         return J({ ok: true, ...(v || { cap: null }) });
       }
       if (capQ === "set") {
@@ -708,8 +715,8 @@ export default {
         let set = null; try { const b = await request.json(); if (b && b.set && typeof b.set === "object") { set = {};
           for (const k of ["hi", "lo", "amp", "cnt", "cap", "disc", "broker", "exch", "tax"]) if (b.set[k] != null) set[k] = String(b.set[k]).slice(0, 12); } } catch (e) {}
         const v = { cap: n, at: Date.now(), by: "5861", ...(set ? { set } : {}) };
-        await env.LOGS.put("cfg:cap", JSON.stringify(v));
-        MC.set("cfg:cap", { v: JSON.stringify(v), at: Date.now() }); try { if (env.HUB) await hubOf(env).kvPut("m:cfg:cap", JSON.stringify(v)); } catch (e) {}
+        let kvOk = true; try { await env.LOGS.put("cfg:cap", JSON.stringify(v)); } catch (e) { kvOk = false; }   // 2026-11-03 KV 寫入額度用完時照樣存 Hub(get 會拿兩邊比較新的)
+        MC.set("cfg:cap", { v: JSON.stringify(v), at: Date.now() }); try { if (env.HUB) await hubOf(env).kvPut("m:cfg:cap", JSON.stringify(v)); } catch (e) { if (!kvOk) return J({ error: "雲端存不進去,請稍後再試" }, 503); }
         return J({ ok: true, ...v });
       }
       return J({ error: "cap 只有 get / set" }, 400);
@@ -967,8 +974,9 @@ export default {
         const body = await request.text();
         if (body.length > 1500000) return J({ error: "太大" }, 413);
         const k = "bug:" + new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 19).replace(/[-:T]/g, "");
-        await env.LOGS.put(k, body, { expirationTtl: 7 * 86400, metadata: { size: body.length } });
-        await env.LOGS.put("buglast", k, { expirationTtl: 7 * 86400 });   // 最新一份的鍵(讀的時候不用 list,不吃 KV list 額度)
+        try { await env.LOGS.put(k, body, { expirationTtl: 7 * 86400, metadata: { size: body.length } });
+          await env.LOGS.put("buglast", k, { expirationTtl: 7 * 86400 }); }
+        catch (e) { return J({ error: "今天雲端寫入額度用完,明天 08:00 以後再上傳" }, 503); }   // 2026-11-03 原本丟例外 → 手機看到 <!DOCTYPE 解析錯誤   // 最新一份的鍵(讀的時候不用 list,不吃 KV list 額度)
         return J({ ok: true, key: k });
       }
       if (bq0 === "list") { const l = await env.LOGS.list({ prefix: "bug:" }); return J(l.keys.map(x => ({ k: x.name, size: x.metadata && x.metadata.size }))); }

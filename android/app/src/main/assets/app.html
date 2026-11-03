@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 11:52(實際時間)① 指標二又壓成平線(使用者截圖聯電)→ 11/02 23:05 加的「上下範圍沿用上次」整個拿掉,恢復原本每次重算;② 雲端 KV 寫入今天爆到 1.5 萬次(上限 1,000,抓 bug 上傳因此失敗):鑰匙「最後使用時間」每個請求都寫一次 → 改成一小時最多一次;主導機改設定、上傳 bug 在額度用完時改存 Hub / 回清楚的訊息
   · 2026-11-03 11:45(實際時間)「只全部平倉」遇到還在掛的進場單:沒成交的部分撤銷,已成交的那幾張馬上平(原本是等全部成交再平)(使用者「應該是還沒成交撤銷吧」)
   · 2026-11-03 11:40(實際時間)緊急停止視窗加「只全部平倉」:所有未平倉部位馬上漲停買回 / 跌停賣出,但不停止進場、訊息照常、標題不變灰;平掉的那幾檔今天不再自動進(和強平一樣);要按兩次才送(使用者「加一個只全部平倉 訊息正常」)。電腦要更新到這版才有作用,舊版會提示
   · 2026-11-03 11:23(實際時間)強制進場視窗加「委託價」:▲▼ 一次一檔,最高漲停、最低跌停,另有「漲停 / 跌停」直接設;沒動過價格 = 照原本(做多漲停、做空跌停,一定成交),指定別的價格 = 限價 ROD,成交後程式照樣接手停利停損;強制平倉不變(使用者「需要加上下調整價格的功能 漲停價跟跌停價」「強制進場才需要」)。進場單還掛著時長按也能開視窗取消(已成交的馬上平倉)。電腦要更新到這版才會出現調價格(舊版照原本)
@@ -174,7 +175,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031145">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031152">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4551,20 +4552,13 @@ function initChart(){
   const obvRangeEx = orig => { try{
       if (!YH.obvSkipClose) return orig();
       const r = chart.timeScale().getVisibleLogicalRange(); if (!r || !BARS || !BARS.length) return orig();
-      // 2026-11-02 23:05 捲動時同一格會被問好幾次,同一段範圍(和最後一根的值)沒變就直接用上次算的
-      // 2026-11-03 01:15 使用者截圖「指標二 出問題」(佳世達:三條線壓成一條平線、左邊刻度變成 -1000~-6500):最後一根沒值時兩種資料(原始 OBV / 換算成價格)的記號一樣 → 拿到舊的範圍。
-      //   改成記號裡放「目前線上是哪一份資料」(原始資料那份的編號 + 換算用的對照),資料一換就重算
-      const RW = window.__obvRaw, PX = window.__obvPx, W = obvRangeEx.__ids || (obvRangeEx.__ids = new WeakMap());
-      const rid = RW ? (W.get(RW) || (W.set(RW, (obvRangeEx.__n = (obvRangeEx.__n || 0) + 1)), obvRangeEx.__n)) : 0;
-      const ck = Math.floor(r.from) + '|' + Math.ceil(r.to) + '|' + BARS.length + '|' + rid + '|' + (PX && PX.raw === RW ? [PX.oLo, PX.oHi, PX.pLo, PX.pHi].join(',') : 'raw') + '|' + (obvMaLine ? 1 : 0) + (obvMa30Line ? 1 : 0);
-      const C = obvRangeEx.__c; if (C && C.k === ck) return C.v ? C.v : orig();
+      // 2026-11-03 11:50 使用者截圖(聯電)指標二又壓成平線 → 11/02 23:05 加的「同一段範圍沿用上次」整個拿掉,恢復每次重算(原本的做法)
       let lo = Infinity, hi = -Infinity;
       for (let i = Math.max(0, Math.floor(r.from)); i <= Math.min(BARS.length - 1, Math.ceil(r.to)); i++){
         if (hmKey(BARS[i].time) === '13:30') continue;
         for (const x of [obvSeries, obvMaLine, obvMa30Line]){ if (!x) continue; const d = x.dataByIndex(i); if (d && d.value != null){ if (d.value < lo) lo = d.value; if (d.value > hi) hi = d.value; } }
       }
-      const out = (isFinite(lo) && hi > lo) ? {priceRange: {minValue: lo, maxValue: hi}} : null; obvRangeEx.__c = {k: ck, v: out};
-      return out || orig(); }catch(e){ return orig(); } };
+      return (isFinite(lo) && hi > lo) ? {priceRange: {minValue: lo, maxValue: hi}} : orig(); }catch(e){ return orig(); } };
   obvSeries = chartM.addLineSeries({priceScaleId:'left', color:CHART_THEME.obv, lineWidth:1.5, lineStyle: 2,   // 2026-10-21 使用者:「Oa 用虛線」(lineStyle 2 = 虛線)
                                     priceLineVisible:false, lastValueVisible:false,
                                     priceFormat: lotsFmt});
