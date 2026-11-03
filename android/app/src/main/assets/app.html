@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 19:16(實際時間)進場的「資金」框、明細和當沖的「元大」框一律固定在日期格右邊同一個位置,數字變長變短都不會移動(使用者「資金 固定在這位置 不隨數字減少移動 明細裡元大 跟當沖裡的元大 也固定在 與資金相同的位置」)
   · 2026-11-03 19:10(實際時間)進場頁的日期滾輪字和明細一樣大(一律 30px;原本跟著標題列縮成 23px)(使用者「進場日期字太小 要跟圖二的一致」)
   · 2026-11-03 17:27(實際時間)當沖頁的「元大」改成和明細「元大」按鍵同樣子(黃底黑字、外框),只是標示、按了沒作用(使用者「當沖這裡的 元大 與 明細的按鍵 元大 一致 只不過當沖這邊的元大 按鍵沒作用」)
   · 2026-11-03 17:24(實際時間)當沖頁連得上電腦(元大真實部位)時標題寫回「當沖 元大」(元大黃色);連不上照舊只寫「當沖」(使用者「連得上電腦時 當沖 元大。把 元大 放上去」)
@@ -215,7 +216,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031910">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031916">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -292,6 +293,8 @@
   #notifLog .hd.msg .dlb,#notifLog .hd.msg .cash .mlb.rlb{font-size:min(25.5px,6.2vw)!important}   /* 2026-11-03 17:45 進場列的綠框/紅框固定和當沖、明細的框一樣大(不跟著整列字縮放) */
   #notifLog .hd.msg .cash .mlb.rlb{display:inline-block;-webkit-appearance:none;box-sizing:border-box;height:1.7em;line-height:calc(1.7em - 4px);padding:0 10px;margin:0 .45em 0 4px;border-radius:7px;border:2px solid #FF4D5E;box-shadow:0 0 0 2px #000,0 0 0 3.5px #8C96AB;background:#000;color:#FF4D5E;opacity:1;font-weight:700;font-size:1em;vertical-align:middle}   /* 2026-11-03 17:42 使用者「進場裡的 資金 也改成一樣的 只不過是 紅色」:和進場/當沖/明細綠框同樣子,紅色 */
   #notifLog .hd .dlb,#notifLog .hd .vbtn{-webkit-appearance:none;appearance:none;box-sizing:border-box;height:1.7em;line-height:calc(1.7em - 4px);padding:0 10px;min-height:0;margin-top:0;margin-bottom:0;font-family:inherit;letter-spacing:normal}   /* 2026-11-03 17:40 使用者「這元大的太大 與左邊的明細框一致即可」:手機上按鍵(button)和標籤(span)預設高度不同,兩個都定死同高同行距 */   /* 進場標題列整列字小一號(.85),綠框字就不再縮,三個一樣大 */
+  #notifLog .hd.msg .cash{flex:1;display:flex;align-items:center;min-width:0} #notifLog .hd.msg .cash .dnet{margin-left:auto}   /* 2026-11-03 19:16 資金框固定在日期右邊,數字靠右 */
+  #notifLog .hd .vbtn,#notifLog .hd .cash .rlb{font-size:min(25.5px,6.2vw)!important}   /* 元大 / 虛擬 / 資金 框一樣大 */
   #notifLog .hd .dwh{color:#C9D1DC;flex:none;width:3.3em;box-sizing:content-box;font-variant-numeric:tabular-nums}
   #notifLog .tb.done .r.nolive{opacity:.42} #notifLog .tb.done .r.nolive .nlv{margin-left:4px;font-size:.62em;font-weight:700;color:#C9D1DC;border:1px solid #8C96AB;border-radius:4px;padding:0 3px;vertical-align:middle}   /* 2026-11-03 15:35 重算有、盤中沒發進場訊息 */
   #notifLog .hd .dwh::-webkit-scrollbar{display:none} #notifLog .hd .dwh .dwi{display:block;height:1.3em;scroll-snap-align:start;text-align:center}
@@ -7074,7 +7077,11 @@ window.bgTick = bgTick; window.BG = BG;
     window.__nlScrollToDay = day => { box.__mwT = 0; scrollToDay(day); };
     // 2026-10-29 10:55 使用者影片 13749「明細 通知欄 會抖動」:切到明細 / 當沖時列高先用「標題列還沒放大」的高度排(一列 53px),
     //   下一格標題列放大後才重排成 45px → 每列往上縮一下;改成標題列放大完馬上再排一次(同一格內完成,畫面不會先出現舊列高)
-    const fitAll = () => { fit(); fitHd(); alignM30(); fitHdShrink(); alignM30(); try{ if (box.__fitL) box.__fitL(); }catch(e){} if (window.NL_GOTO) scrollToDay(window.NL_GOTO); };
+    // 2026-11-03 19:16 使用者「資金 固定在這位置 不隨數字減少移動 明細裡元大 跟當沖裡的元大 也固定在 與資金相同的位置」:
+    //   資金框 / 元大(虛擬)框一律放在日期格右邊固定距離(14px),數字只在右邊剩下的空間裡靠右,怎麼變都不會推動框
+    const alignKey = () => { try{ const h = box.querySelector('.hd'), w = h && h.querySelector('.dwh'), k = h && h.querySelector('.cash .rlb, .vbtn'); if (!w || !k) return;
+        k.style.marginLeft = '0px'; const x = w.getBoundingClientRect().right + 14 - k.getBoundingClientRect().left; k.style.marginLeft = Math.round(x) + 'px'; }catch(e){} };
+    const fitAll = () => { fit(); fitHd(); alignM30(); fitHdShrink(); alignM30(); alignKey(); try{ if (box.__fitL) box.__fitL(); }catch(e){} if (window.NL_GOTO) scrollToDay(window.NL_GOTO); };
     fitAll(); try{ if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll); }catch(e){} setTimeout(fitAll, 300); setTimeout(() => { window.NL_GOTO = null; }, 400);
     const prev = el('nlPrev'), next = el('nlNext');
     { const pn = box.querySelector('.hd .pnl'); if (pn) pn.onclick = () => { window.NL_SHOW30 = !window.NL_SHOW30; render(true); }; }
