@@ -546,4 +546,12 @@ s26, g26 = mk(TRADE_Y3_POST_DELAY="0.3"); s26.on_tick("3481", 41.75)
 for q in (1000, 1000, 1000, 2000): s26.on_report(51, "i00QX", 0, q, 41.75, basket="", code="3481", bs="B")
 ok(s26.positions["3481"]["qty"] == 5 and not s26.posts, (s26.positions.get("3481"), s26.posts))
 time.sleep(0.6); ok(len(s26.posts) == 1 and "· 5張 · 元三" in s26.posts[0][1] and "41.75" in s26.posts[0][0], s26.posts)
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2)")
+# S27) 2026-11-03 手動單進場時已跌超過 5%(群創 −6.4%,做多)→ 不套 ±6.5%;離得遠的照舊
+s27, _ = mk(); s27.ref_of = lambda c: 44.6; s27.on_tick("3481", 41.75)
+s27.on_report(51, "i00QX", 0, 5000, 41.75, basket="", code="3481", bs="B"); p27 = s27.positions["3481"]
+ok(p27.get("no_max_move") and p27["judge"] == "元三", p27)
+s27.on_tick("3481", 41.65); ok(s27.positions["3481"]["state"] == HOLDING, s27.positions["3481"])          # 原本這裡就被平掉
+s27b, _ = mk(); s27b.ref_of = lambda c: 44.6; s27b.on_tick("3481", 43.0)
+s27b.on_report(51, "i00QY", 0, 1000, 43.0, basket="", code="3481", bs="B")   # −3.6% 進場:照舊保護; ok(not s27b.positions["3481"].get("no_max_move"))
+s27b.on_tick("3481", 41.65); ok(s27b.positions["3481"]["state"] == EXITING)                               # 進場時沒超過:照舊保護
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 手動單已超6.5%不套 4)")

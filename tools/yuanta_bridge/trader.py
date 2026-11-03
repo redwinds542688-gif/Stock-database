@@ -125,7 +125,8 @@ class Trader:
         #   這份判別式還沒發平倉通知、沒過最後進場時間 → 補進場一次(照當下價格,停利 / 停損照原訊號);0 = 關
         #   12:10 使用者「這種股票要加上 確認按鍵」:條件到了不自動下單,手機跳「確認補進場」(?trade=pos 的 redo),按了才進(act=redo)
         self.over_redo = cfg.get("TRADE_OVER_REDO", "1") == "1"
-        self.y3_post_delay = float(cfg.get("TRADE_Y3_POST_DELAY", "3"))   # 2026-11-03 元三進場卡等分批成交併完再發(秒)
+        self.y3_post_delay = float(cfg.get("TRADE_Y3_POST_DELAY", "3"))
+        self.y3_near = float(cfg.get("TRADE_Y3_NEAR_PCT", "1.5"))   # 2026-11-03 手動單進場時離 ±6.5% 不到這麼多(%)= 已經接近 → 不套 ±6.5%   # 2026-11-03 元三進場卡等分批成交併完再發(秒)
         self.over_wait = {}
         self.fill_wait = float(cfg.get("TRADE_FILL_WAIT", "8"))    # 自動進場(限價 IOC)送單後等成交回報幾秒
         # 2026-10-29 稽核 #5:IOC 等 fill_wait 秒沒回報 → 不馬上拿掉部位,改「等確認」再等 TRADE_CONFIRM_WAIT 秒(晚到的 T 成交照樣接成持倉)
@@ -737,6 +738,12 @@ class Trader:
                 p = self.new_pos(code, d, MANUAL, f"元大手動{'做多' if d > 0 else '做空'} {code}", forced=True)
                 if str(typ or "").strip(): p["typ"] = str(typ).strip()      # 平倉用跟開倉同一種委託種類
                 p.update({"qty": lots, "entry": price, "state": HOLDING, "t0": self.hm(), "tp_pct": self.y3_tp, "sl_pct": self.y3_sl, "y3_no": order_no})
+                # 2026-11-03 13:03 使用者(群創跌超過 6.5% 才手動做多,程式一接手就被 ±6.5% 平掉)選 1:手動單進場時已經超過 ±6.5%(做多跌超過、做空漲超過)→ 這筆不套 ±6.5%,只用停利 / 停損管
+                ref0 = self.ref_of(code) or 0
+                #   群創實際是 −6.4% 進場(還差一點才到 −6.5%)、20 秒後跌到 −6.6% 被平 → 「已經接近」也算:進場時往不利方向已經超過 ±(6.5 − 1.5)= ±5%(TRADE_Y3_NEAR_PCT)就不套
+                mv0 = self.max_move - self.y3_near
+                if ref0 > 0 and self.max_move > 0 and ((price <= ref0 * (1 - mv0 / 100)) if d > 0 else (price >= ref0 * (1 + mv0 / 100))):
+                    p["no_max_move"] = True; self.log(f"[交易] 元三 {code} 進場時已經離昨收 {(price / ref0 - 1) * 100:+.1f}%(超過 ±{mv0:g}%)→ 這筆不套 ±{self.max_move:g}%,只用停利 / 停損")
                 self.set_forced_tpsl(p, price); self.amount_today += price * lots * 1000; self.save_state()
                 self.sub(p)
                 self.log(f"[交易] 元三:元大手動{'買進' if d > 0 else '賣出'} {code} {lots} 張 @ {price}(委託種類 {typ or '?'})→ 交給判三管(停利 {p['tp']} 停損 {p['sl']})")
