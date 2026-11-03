@@ -600,6 +600,13 @@ class Trader:
             for p in list(self.positions.values()):
                 if p["state"] in (HOLDING, ENTERING) and lock: self.locked.add(p["code"])   # 2026-11-03「只全部平倉」:自動進場照常,但平掉的這幾檔今天不再自動進(和強平一樣)
                 if p["state"] == HOLDING: self.exit_pos(p, why, self.last_px.get(p["code"]) or p["entry"], force_limit=True); n += 1
+                elif p["state"] == ENTERING and lock:
+                    # 2026-11-03 11:45 使用者「進場單還沒成交完 … 應該是還沒成交撤銷吧」:只全部平倉 → 進場單沒成交的部分撤銷;已經成交的那幾張馬上平(和強平進場中一樣)
+                    p["forced_close"] = True; p["close_after_entry"] = True; n += 1
+                    o = p.get("order")
+                    if o and not o.get("dead"):
+                        if o.get("no") and not o.get("cancel_sent"): o["cancel_sent"] = True; self.gw.cancel(o["no"], p["code"], o["side"], o["typ"])
+                        else: o["cancel_after"] = True
                 elif p["state"] == ENTERING: p["exit_pending"] = why; n += 1   # 進場單還沒成交:成交轉持倉後馬上平
             if lock and n: self.save_state()
         return n

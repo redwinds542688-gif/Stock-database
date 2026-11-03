@@ -524,4 +524,6 @@ s24, g24 = mk(TRADE_CAP="250000", TRADE_MAX_MOVE_PCT="99"); s24.on_tick("2401", 
 s24.step([sig("k24", "short", "股2401 2401 做空進場 50.0", "10:00 空 · 停利 45.50 停損 60.00 · 5張 · 判四")])
 s24.on_report(51, "", 0, s24.positions["2401"]["order"]["want"], 50.0, basket=s24.positions["2401"]["order"]["tag"])
 ok(s24.close_all("手機全部平倉", lock=True) == 1 and "2401" in s24.locked and s24.positions["2401"]["state"] == EXITING and not s24.stop_file.exists())
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 1)")
+s24.on_tick("2402", 60.0); s24.step([sig("k24b", "long", "股2402 2402 做多進場 60.0", "10:01 多 · 停利 65.0 停損 50.0 · 3張 · 判四")]); oo = s24.positions["2402"]["order"]
+ok(s24.close_all("手機全部平倉", lock=True) >= 1 and g24.sent[-1][0] == "cancel" and s24.positions["2402"].get("close_after_entry") and "2402" in s24.locked, g24.sent[-1])
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2)")
