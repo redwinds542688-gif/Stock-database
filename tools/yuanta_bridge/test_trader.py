@@ -1,3 +1,4 @@
+import time
 """python3 test_trader.py:自動交易邏輯測試(假的下單通道,不需要元大元件)
 2026-10-28 改版:同時最多 5 檔、強制進場 / 強制平倉、不預掛條件單、±6.5% 強制平倉、30 秒查元大"""
 import datetime as dt, tempfile, os, time
@@ -18,7 +19,7 @@ class GWN(GW):
 tmp = Path(tempfile.mkdtemp()); stop = tmp / "STOP"; NMK = [0]
 def mk(gw=GW, prime=True, **kw):
     NMK[0] += 1   # 2026-10-29 每個測試自己的狀態檔(今天進場過的訊號會存檔,不要互相影響)
-    cfg = {"TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json")}; cfg.update(kw)
+    cfg = {"TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0"}; cfg.update(kw)
     g = gw(); t = Trader(cfg, g, logs.append, lambda: NOW[0]); t.posts = []; t.alerts = []
     t.post = lambda a, b, k: t.posts.append((a, b, k)); t.akinds = []; t.alert = lambda a, b="", k="pc": (t.alerts.append(a), t.akinds.append(k))
     if prime: t.prime([])   # 2026-10-29 稽核 #1:跟 bridge 一樣,啟動時讀到通知(這裡是空的)才算準備好
@@ -540,4 +541,9 @@ s25b, g25b = mk(TRADE_CAP="250000", TRADE_MAX_MOVE_PCT="99"); s25b.on_tick("3006
 s25b.step([sig("x25b", "exit", "晶豪科 3006 停利 +5% 立即平倉", "11:00 · 判四")]); ok("3006" not in s25b.over_wait)   # 判四先平倉 → 取消
 s25c, _ = mk(TRADE_CAP="250000", TRADE_MAX_MOVE_PCT="99"); s25c.on_tick("3006", 257.5); s25c.step([OV("k25c")]); s25c.on_tick("3006", 233.0); s25c.step([]); ok("3006" not in s25c.over_wait)   # 已過停利取消
 s25d, _ = mk(TRADE_CAP="250000", TRADE_MAX_MOVE_PCT="99"); s25d.on_tick("3006", 257.5); s25d.step([OV("k25d")]); s25d.on_tick("3006", 249.0); s25d.step([]); s25d.over_drop("3006"); ok(not s25d.over_list() and "3006" not in s25d.positions)
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9)")
+# S26) 2026-11-03 元三分批成交(1+1+1+2):進場卡等 3 秒(測試 0.3 秒)併完才發,寫 5 張、均價
+s26, g26 = mk(TRADE_Y3_POST_DELAY="0.3"); s26.on_tick("3481", 41.75)
+for q in (1000, 1000, 1000, 2000): s26.on_report(51, "i00QX", 0, q, 41.75, basket="", code="3481", bs="B")
+ok(s26.positions["3481"]["qty"] == 5 and not s26.posts, (s26.positions.get("3481"), s26.posts))
+time.sleep(0.6); ok(len(s26.posts) == 1 and "· 5張 · 元三" in s26.posts[0][1] and "41.75" in s26.posts[0][0], s26.posts)
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2)")

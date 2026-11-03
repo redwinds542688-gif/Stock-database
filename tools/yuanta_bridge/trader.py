@@ -125,6 +125,7 @@ class Trader:
         #   這份判別式還沒發平倉通知、沒過最後進場時間 → 補進場一次(照當下價格,停利 / 停損照原訊號);0 = 關
         #   12:10 使用者「這種股票要加上 確認按鍵」:條件到了不自動下單,手機跳「確認補進場」(?trade=pos 的 redo),按了才進(act=redo)
         self.over_redo = cfg.get("TRADE_OVER_REDO", "1") == "1"
+        self.y3_post_delay = float(cfg.get("TRADE_Y3_POST_DELAY", "3"))   # 2026-11-03 元三進場卡等分批成交併完再發(秒)
         self.over_wait = {}
         self.fill_wait = float(cfg.get("TRADE_FILL_WAIT", "8"))    # 自動進場(限價 IOC)送單後等成交回報幾秒
         # 2026-10-29 稽核 #5:IOC 等 fill_wait 秒沒回報 → 不馬上拿掉部位,改「等確認」再等 TRADE_CONFIRM_WAIT 秒(晚到的 T 成交照樣接成持倉)
@@ -702,6 +703,7 @@ class Trader:
             #   (張數加總、均價重算;停利 / 停損從新均價重算(判一~四照原本離進場價的 %,強三 / 元三照設定 %);平倉時全部一起平)
             tot = p["qty"] + lots; e0 = p["entry"]
             p["entry"] = (p["entry"] * p["qty"] + price * lots) / tot; p["qty"] = tot; self.amount_today += price * lots * 1000
+            p["y3_lots"] = max(p.get("y3_lots") or 0, tot); p["y3_px"] = p["entry"]
             if p.get("judge") in (MANUAL, FORCED) and (p.get("tp_pct") or p.get("sl_pct")): self.set_forced_tpsl(p, p["entry"])
             elif e0 > 0:   # 2026-11-02 11:45 使用者「這邊需要重新再算過停利跟停損」:判一~四照原本停利 / 停損離進場價的 % 不變,從新均價重算
                 if p.get("tp"): p["tp"] = round(p["entry"] * p["tp"] / e0, 2)
@@ -738,8 +740,17 @@ class Trader:
                 self.set_forced_tpsl(p, price); self.amount_today += price * lots * 1000; self.save_state()
                 self.sub(p)
                 self.log(f"[交易] 元三:元大手動{'買進' if d > 0 else '賣出'} {code} {lots} 張 @ {price}(委託種類 {typ or '?'})→ 交給判三管(停利 {p['tp']} 停損 {p['sl']})")
-                self.post(f"{self.name_of(code)} {code} {'做多' if d > 0 else '做空'}進場 {price:.2f}",
-                          f"{p['t0']} 元大 · 停利 {p['tp']:.2f} 停損 {p['sl']:.2f} · {lots}張 · {MANUAL}", "long" if d > 0 else "short")
+                # 2026-11-03 13:00 使用者「我做多是5張 訊息寫一張」:同一張委託分批成交(1+1+1+2)時,原本第一筆成交就發卡(寫 1 張)→ 等 3 秒把分批成交併完再發,寫總張數 / 均價
+                p["y3_lots"], p["y3_px"] = lots, price
+                def _post_y3(p=p, code=code, d=d):
+                    with self.lock:
+                        if p.get("y3_posted"): return
+                        p["y3_posted"] = True; n = p.get("y3_lots") or p.get("qty") or lots; px = p.get("y3_px") or price
+                        tp, sl, t0 = p.get("tp") or 0, p.get("sl") or 0, p.get("t0", "")
+                    self.post(f"{self.name_of(code)} {code} {'做多' if d > 0 else '做空'}進場 {px:.2f}",
+                              f"{t0} 元大 · 停利 {tp:.2f} 停損 {sl:.2f} · {n}張 · {MANUAL}", "long" if d > 0 else "short")
+                if self.y3_post_delay > 0: threading.Timer(self.y3_post_delay, _post_y3).start()
+                else: _post_y3()
                 return
         if p and p["state"] in (HOLDING, EXITING) and bs == close_side(p["dir"]):
             take = min(lots, max(p["qty"], 0)); extra = lots - take
