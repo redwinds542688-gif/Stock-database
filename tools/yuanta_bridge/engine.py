@@ -538,7 +538,7 @@ class Engine:
         if "rs_env" in sys.modules: rs_env = importlib.reload(sys.modules["rs_env"])
         else: rs_env = importlib.import_module("rs_env")
         self.envs = {}
-        for rs in RS_ALL: self.envs[rs] = rs_env.env_of(rs, str(DATA / "breadth.json") if rs == "二" else None)
+        for rs in RS_ALL: self.envs[rs] = rs_env.env_of(rs, str(DATA / "breadth.json") if rs in ("一", "二") else None)
         self.envs["二"]["BRMISSING"] = "block"   # 2026-10-29 稽核 #1:今天沒有寬度資料 → 判二不進(sim_day.py 已支援)
 
     def save(self):
