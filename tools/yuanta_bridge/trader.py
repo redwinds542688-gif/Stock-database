@@ -127,7 +127,8 @@ class Trader:
         self.over_redo = cfg.get("TRADE_OVER_REDO", "1") == "1"
         self.y3_post_delay = float(cfg.get("TRADE_Y3_POST_DELAY", "3"))
         self.y3_near = float(cfg.get("TRADE_Y3_NEAR_PCT", "1.5"))
-        self.y3_free_mv = cfg.get("TRADE_MANUAL_NO_MAXMOVE", "1") == "1"   # 2026-11-03 元三 / 強三不套 ±6.5%(0 = 照舊套)   # 2026-11-03 手動單進場時離 ±6.5% 不到這麼多(%)= 已經接近 → 不套 ±6.5%   # 2026-11-03 元三進場卡等分批成交併完再發(秒)
+        self.man_move = float(cfg.get("TRADE_MANUAL_MAX_MOVE_PCT", "8.5"))   # 2026-11-03 13:17 元三 / 強三離昨收 ±8.5% 強制平倉(判一~四照舊 ±6.5%);設成跟 TRADE_MAX_MOVE_PCT 一樣 = 回到原本
+        self.y3_free_mv = self.man_move > 0   # 2026-11-03 手動單進場時離 ±6.5% 不到這麼多(%)= 已經接近 → 不套 ±6.5%   # 2026-11-03 元三進場卡等分批成交併完再發(秒)
         self.over_wait = {}
         self.fill_wait = float(cfg.get("TRADE_FILL_WAIT", "8"))    # 自動進場(限價 IOC)送單後等成交回報幾秒
         # 2026-10-29 稽核 #5:IOC 等 fill_wait 秒沒回報 → 不馬上拿掉部位,改「等確認」再等 TRADE_CONFIRM_WAIT 秒(晚到的 T 成交照樣接成持倉)
@@ -632,22 +633,24 @@ class Trader:
             hit_tp = p["tp"] > 0 and ((price >= p["tp"]) if d > 0 else (price <= p["tp"]))
             hit_sl = p["sl"] > 0 and ((price <= p["sl"]) if d > 0 else (price >= p["sl"]))
             ref = p.get("ref") or self.ref_of(code) or 0             # 平倉檢查 #10:強三先用手機帶來的昨收(電腦的可能是前幾天留下的)
-            if not ref and not p.get("ref_warned") and not (p.get("judge") in (MANUAL, FORCED) and self.y3_free_mv):   # 元三 / 強三不套 ±6.5%,沒昨收也不用提醒
+            if not ref and not p.get("ref_warned"):
                 p["ref_warned"] = True; self.log(f"[交易] !! {code} 沒有昨收,±{self.max_move:g}% 保護這檔暫時沒作用")
                 if p.get("forced"): self.alert(f"⚠ {code} 沒有昨收", f"±{self.max_move:g}% 保護暫時沒作用,停利 / 停損 / 13:20 照常")
             # 2026-11-03 13:11 使用者「以後如果下跌6.5 不管元買 或是元賣 強買或賣 都不受6.5%管束」:元三(元大手動)、強三(手機強制進場)做多做空都不套 ±6.5%,只用停利 / 停損 / 13:20;判一~四照舊
-            free_mv = p.get("judge") in (MANUAL, FORCED) and self.y3_free_mv
-            hit_mv = not free_mv and not p.get("no_max_move") and ref > 0 and self.max_move > 0 and ((price <= ref * (1 - self.max_move / 100)) if d > 0 else (price >= ref * (1 + self.max_move / 100)))
+            #   13:17 使用者「那就改 該股票+-8.5% 為停損」:元三 / 強三改用離昨收 ±8.5%(做多跌到 −8.5%、做空漲到 +8.5%)強制平倉,不是完全不管
+            man = p.get("judge") in (MANUAL, FORCED) and self.man_move > 0
+            mm = self.man_move if man else self.max_move
+            hit_mv = (man or not p.get("no_max_move")) and ref > 0 and mm > 0 and ((price <= ref * (1 - mm / 100)) if d > 0 else (price >= ref * (1 + mm / 100)))
             if not (hit_tp or hit_sl or hit_mv):
                 return
-            why = f"超{self.max_move:g}%" if hit_mv else "停利" if hit_tp else "停損"
+            why = f"超{mm:g}%" if hit_mv else "停利" if hit_tp else "停損"
             if p.get("oco_live") and not hit_mv:
                 if not p.get("oco_noted"):
                     p["oco_noted"] = True; self.log(f"[交易] {code} 價格 {price} 碰到{why},由元大條件單(OCO)平倉")
                 return
             self.exit_pos(p, why, price, force_limit=True)
             if hit_mv:
-                self.alert(f"⚠ {code} 離昨收 {'−' if d > 0 else '+'}{self.max_move:g}% 系統強制平倉", f"{'做多跌停賣出' if d > 0 else '做空漲停買回'} {p['qty']} 張")
+                self.alert(f"⚠ {code} 離昨收 {'−' if d > 0 else '+'}{mm:g}% 系統強制平倉", f"{'做多跌停賣出' if d > 0 else '做空漲停買回'} {p['qty']} 張")
 
     def find_order(self, order_no, basket):
         b, n = str(basket or "").strip(), str(order_no or "").strip()
