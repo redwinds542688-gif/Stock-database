@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 17:16(實際時間)進場頁標題「監控 11/03」改成「進場 11/03」(使用者「進場裡 上面“監控”改成“進場”」)
   · 2026-11-03 17:12(實際時間)明細滾輪轉到某天(例 10/28)再按元大 / 虛擬切換,畫面留在那天,不再跳回今天(使用者「滾到10/28 按元大切換到虛擬 日期又跳回11/3」)
   · 2026-11-03 16:12(實際時間)明細的虛擬交易改回非額度版(每個訊號都照 25 萬一筆做),只扣盤中沒發進場訊息的;盤中有沒有發改讀 live_entries.json(收盤後 GitHub 排程存),手機沒有才用自己的紀錄;永久版 11/03 以前也是這份,11/04 起「元大」接元大真實成交(使用者「那虛擬改這個 永久版的也改這個 明天之後永久版再接上元大」)
   · 2026-11-03 15:45(實際時間)明細的虛擬交易改成額度版、而且只留盤中真的有發進場訊息的股票(使用者「我要的是額度版的明細 且要進場裡面確實有進場的股票」):先刪掉沒發過進場訊息的,再照額度版排(一天 500 萬含漲停預留、同時最多 10 檔、每筆 25 萬,額度不夠少買或不做)
@@ -209,7 +210,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031712">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031716">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -737,7 +738,7 @@
 </div>
 
 <div class="panel" id="panel">
-  <div class="cover" id="cover"><div id="notifLog"><div class="empty">今日監控紀錄會顯示在這裡</div></div><div id="infoView" class="hidden"></div></div>
+  <div class="cover" id="cover"><div id="notifLog"><div class="empty">今日進場紀錄會顯示在這裡</div></div><div id="infoView" class="hidden"></div></div>
   <div class="toolbar">
     <button class="tool txt" id="refreshBtn" aria-label="進場"
             title="顯示監控訊息;長按重新讀取雲端資料">進場</button>   <!-- 2026-11-03 00:00 使用者「第一顆資訊改名 進場」(原「訊息」) -->
@@ -6539,7 +6540,7 @@ window.bgTick = bgTick; window.BG = BG;
     if (!force && key === lastKey) return; const changed = key !== lastKey; lastKey = key;
     if (changed && d === today) { try{ resortList(); }catch(e){} }   // 新訊號進來 → 清單重新排序
     let n = items.length;   // 2026-10-20 下面算完要顯示的卡片數再覆蓋(一進一出)
-    const label = (window.NL_VIEW === 'pos') ? (window.VIEWER ? '當沖 系統' : '當沖') : (window.NL_VIEW === 'done') ? (window.VIEWER ? '明細 系統' : '明細') : (window.LOG_RS || '') + '監控紀錄';   // 2026-10-29 16:00 看盤版的當沖 / 明細是系統模擬、不是真實交易(使用者:「只不過是系統的 不是真實的」)   // 2026-10-27 10:35(實際時間)使用者:「上面(未平倉)不用顯示」:當沖標題只寫 當沖   // 2026-10-27 不再翻頁
+    const label = (window.NL_VIEW === 'pos') ? (window.VIEWER ? '當沖 系統' : '當沖') : (window.NL_VIEW === 'done') ? (window.VIEWER ? '明細 系統' : '明細') : (window.LOG_RS || '') + '進場紀錄';   // 2026-10-29 16:00 看盤版的當沖 / 明細是系統模擬、不是真實交易(使用者:「只不過是系統的 不是真實的」)   // 2026-10-27 10:35(實際時間)使用者:「上面(未平倉)不用顯示」:當沖標題只寫 當沖   // 2026-10-27 不再翻頁
     const hd = `<div class="hd"><span class="nav"><span>${label}</span></span><span>${n} 則</span></div>`;
     // 2026-10-17 標題改成使用者指定的樣式:進場「名 代碼 做多進場 ↑ 價」紅底 / 做空 ↓ 綠底;平倉「⚠ 名 代碼 ±x.x% 立即平倉」賺淡藍底 / 賠淡紅底,不顯示停損停利字樣
     // ── 2026-10-17 18:30 使用者指定的排版:一筆交易一張卡,三列 ──
@@ -6964,7 +6965,7 @@ window.bgTick = bgTick; window.BG = BG;
     fundLeft = Math.max(0, fundLeft);   // 不顯示負的
     if (d === today) window.__fundLeft = fundLeft;   // 2026-10-28 強制進場:資金買不到 1 張 → 長按沒反應
     const ti = dayList.indexOf(window.NL_TOPDAY);
-    const hdMsg = `<div class="hd msg"><span class="nav"><button id="nlPrev" ${ti >= dayList.length - 1 ? 'disabled' : ''}>◀</button><span class="lb"><span style="color:#1DD75B">${window.LOG_RS || ''}監控</span> <span class="dt" style="color:#FFFFFF">${(window.NL_TOPDAY || d).slice(5).replace('-', '/')}</span></span><button id="nlNext" ${ti <= 0 ? 'disabled' : ''}>▶</button></span><span class="cash"><span class="mlb" style="color:#FF4D5E;opacity:1">資金</span><b class="dnet" style="color:#FFD54F">${fundLeft}</b></span></div>`;   /* 2026-10-27 05:30 使用者「資金紅色 資金數字 黃色」 */   // 2026-10-27 05:25 使用者「進場與金額不用顯示」:只留 資金(2400000 − 進場中金額)   // 2026-10-27 05:15 使用者:「左鍵+“監控”+日期+右鍵 空1px “資金”+(…)空1px "進場"」
+    const hdMsg = `<div class="hd msg"><span class="nav"><button id="nlPrev" ${ti >= dayList.length - 1 ? 'disabled' : ''}>◀</button><span class="lb"><span style="color:#1DD75B">${window.LOG_RS || ''}進場</span> <span class="dt" style="color:#FFFFFF">${(window.NL_TOPDAY || d).slice(5).replace('-', '/')}</span></span><button id="nlNext" ${ti <= 0 ? 'disabled' : ''}>▶</button></span><span class="cash"><span class="mlb" style="color:#FF4D5E;opacity:1">資金</span><b class="dnet" style="color:#FFD54F">${fundLeft}</b></span></div>`;   /* 2026-10-27 05:30 使用者「資金紅色 資金數字 黃色」 */   // 2026-10-27 05:25 使用者「進場與金額不用顯示」:只留 資金(2400000 − 進場中金額)   // 2026-10-27 05:15 使用者:「左鍵+“監控”+日期+右鍵 空1px “資金”+(…)空1px "進場"」
     { const __H = hdMsg + html; if (nlSame(__H)) return; nlPut(__H); }
     // 捲動時:畫面最上面那則(卡片)是哪一天,標題就顯示那天;◀ ▶ 捲到上一天 / 下一天的第一則
     if (!box.__dayScroll){ box.__dayScroll = true;
