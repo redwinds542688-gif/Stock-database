@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 15:25(實際時間)明細標題的日期改成滾輪(使用者「把按鍵左邊的日期時間 改成滾輪式的」):上下轉日期,下面清單直接跳到那天;往下捲清單,滾輪也跟著轉到那天
   · 2026-11-03 15:20(實際時間)明細按元大 / 虛擬時按鍵忽大忽小(使用者錄影):重畫那一下標題先只寫「明細」、日期晚一格才補上,按鍵就往左跳再跳回來 → 重畫時就直接寫「明細 11/03」,按鍵不再移動
   · 2026-11-03 15:14(實際時間)明細切到虛擬沒接上虛擬資料(使用者「虛擬的資料沒有接上來」):按虛擬當下重抓重算的虛擬交易;虛擬不列元大手動單(元三)和強制進場(強三);Worker 的虛擬交易檔快取 30 分鐘改 60 秒
   · 2026-11-03 15:06(實際時間)明細改成一顆按鍵:寫目前顯示的資料,按元大 → 切到虛擬(紫色),再按虛擬 → 切回元大(使用者「改成一個按鍵就好…」)
@@ -201,7 +202,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031520">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031525">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -269,6 +270,8 @@
   #notifLog .hd .vbtn.on{background:#FFD54F;color:#000;border-color:#FFFFFF;box-shadow:0 0 0 2px #000,0 0 0 3.5px #FFD54F}
   #notifLog .hd .vbtn.on.virt{background:#B15CFF;color:#fff;box-shadow:0 0 0 2px #000,0 0 0 3.5px #B15CFF}   /* 虛擬:紫色,一眼分得出來 */   /* 2026-11-03 13:54 使用者「按鍵加外框」:兩種狀態都多一圈外框 */   /* 2026-11-03 明細「虛擬 / 元大」切換(只有自己的 App、非開盤時間) */
   #notifLog .hd .nav{display:flex;gap:6px;align-items:center}
+  #notifLog .hd .dwh{display:inline-block;height:1.3em;line-height:1.3em;overflow-y:scroll;scroll-snap-type:y mandatory;overscroll-behavior:contain;touch-action:pan-y;scrollbar-width:none;padding:0 4px;border-radius:6px;border:1px solid #3A4252;-webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,.35),#000 22%,#000 78%,rgba(0,0,0,.35));mask-image:linear-gradient(180deg,rgba(0,0,0,.35),#000 22%,#000 78%,rgba(0,0,0,.35))}   /* 2026-11-03 15:25 明細日期滾輪 */
+  #notifLog .hd .dwh::-webkit-scrollbar{display:none} #notifLog .hd .dwh .dwi{display:block;height:1.3em;scroll-snap-align:start;text-align:center}
   #notifLog .hd button{background:#222C3C;color:#D8DEE9;border:0;border-radius:6px;padding:2px 10px;font-size:13px}
   #notifLog .hd.msg button{font-size:1em;padding:0 .4em;line-height:1.3}   /* 2026-10-27 05:00 訊息標題列:◀ 監控訊息 日期 ▶ 10px 可用資金 10px 已動資金,字跟著整列放大 */
   #notifLog .hd.msg .nav{gap:.3em} #notifLog .hd.msg .cash{margin-left:1px;white-space:nowrap} #notifLog .hd.msg .cash .mlb{margin:0 .3em 0 0;opacity:.7} #notifLog .hd.msg .cash .m2{margin-left:1px}   /* 2026-10-27 05:15 間隔 10px → 1px */
@@ -1583,6 +1586,14 @@ function sigTag(){ try{ const n = new Date(Date.now() + 8 * 3600000), hm = n.get
   return (wd >= 1 && wd <= 5 && !hol && hm >= 9 * 60 && hm <= 13 * 60 + 30) ? '監控中' : '已交易'; }catch(e){ return '監控中'; } }
 /* 2026-11-02 22:58 使用者「下面監控股票上下滑動也要順暢」:手指在清單上或清單還在慣性捲動時,不重排、不重畫、不更新價錢(會讓捲動卡一下或跳位);停下來 0.5 秒後再一次補上 */
 window.__ls = window.__ls || {t: 0, on: 0};
+/* 2026-11-03 15:25 使用者「把按鍵左邊的日期時間 改成滾輪式的」:明細標題的日期改成上下轉的滾輪,轉到哪天,下面清單就跳到哪天;清單捲動,滾輪也跟著轉 */
+function dwSet(box, day){ try{ const w = box.querySelector('.hd .dwh'); if (!w || Date.now() - (box.__dwT || 0) < 900) return; const it = [...w.children], i = Math.max(0, it.findIndex(x => x.dataset.day === day)); const y = i * (it[0] ? it[0].offsetHeight : 0); if (Math.abs(w.scrollTop - y) > 1){ w.__set = Date.now(); w.scrollTop = y; } }catch(e){} }
+function dwGo(box, day){ try{ box.__dwDay = day; if (day === window.__doneToday){ box.scrollTop = 0; return; }
+  const el = box.querySelector(`.tb.done > .dsep[data-day="${day}"]`); if (!el) return; const h = box.querySelector('.tb.done > .r.h') || box.querySelector('.hd');
+  const hd = box.querySelector('.hd'), hb = Math.max(hd ? hd.getBoundingClientRect().bottom : 0, 0); box.scrollTop += el.getBoundingClientRect().top - hb; void h; }catch(e){} }
+function dwWire(box){ const w = box.querySelector('.hd .dwh'); if (!w) return; dwSet(box, box.__dwDay || window.__doneToday);
+  const touch = () => { box.__dwT = Date.now(); }; w.addEventListener('touchstart', touch, {passive: true}); w.addEventListener('touchmove', touch, {passive: true}); w.addEventListener('wheel', touch, {passive: true});
+  w.addEventListener('scroll', () => { if (Date.now() - (w.__set || 0) < 150) return; box.__dwT = Date.now(); clearTimeout(w.__end); w.__end = setTimeout(() => { const it = [...w.children], hh = it[0] ? it[0].offsetHeight : 1, i = Math.min(it.length - 1, Math.max(0, Math.round(w.scrollTop / hh))); if (it[i]) dwGo(box, it[i].dataset.day); }, 140); }, {passive: true}); }
 function listBusy(){ return window.__ls.on || Date.now() - window.__ls.t < 500; }
 const LIST_WAIT = {};
 function listLater(key, fn){ if (!listBusy()) return false;
@@ -6853,8 +6864,10 @@ window.bgTick = bgTick; window.BG = BG;
           body += `<div class="dsep" data-day="${dd}">${dd.slice(5).replace('-', '/')}</div>` + hdr + h + `<div class="tot" data-day="${dd}"><span>${c} 筆 總輸贏</span>${amt(t)}</div>`; dayTot[dd] = t;
         }
         // 2026-10-27 11:20 使用者:「最上面只顯示 明細 今日的總輸贏(靠右顯示)」:標題列左邊「明細」、最右邊今天已平倉的總輸贏(和當沖的合計同一個位置 .cash)
-        const hdDone = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(t0))}</span>`).replace('<span>明細</span>', `<span>明細 ${d0.slice(5).replace('-', '/')}${virtOk ? '' : ySrc[d0] ? ' 元大' : (window.VIEWER ? '' : ' 系統')}</span>${virtOk ? `<button class="vbtn on${doneVirt ? ' virt' : ''}" type="button">${doneVirt ? '虛擬' : '元大'}</button>` : ''}`);   // 2026-10-29 12:25(實際時間)元大真實成交的日子標題寫「明細 元大」
-        { const __H = hdDone + `<div class="tb done">` + body + `</div>`; if (nlSame(__H)) return; nlPut(__H); }
+        const hdDone = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(t0))}</span>`).replace('<span>明細</span>', `<span>明細</span><span class="dwh">${Object.keys(dayTot).sort().reverse().map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span><span class="dsrc">${virtOk ? '' : ySrc[d0] ? ' 元大' : (window.VIEWER ? '' : ' 系統')}</span>${virtOk ? `<button class="vbtn on${doneVirt ? ' virt' : ''}" type="button">${doneVirt ? '虛擬' : '元大'}</button>` : ''}`);   // 2026-10-29 12:25(實際時間)元大真實成交的日子標題寫「明細 元大」
+        { const __H = hdDone + `<div class="tb done">` + body + `</div>`; if (nlSame(__H)) return;
+          if (Date.now() - (box.__dwT || 0) < 900){ clearTimeout(box.__dwLater); box.__dwLater = setTimeout(() => render(true), 500); return; }   /* 2026-11-03 15:25 滾輪轉動中先不重畫,停下來再補 */
+          nlPut(__H); dwWire(box); }
         { const vb = box.querySelector('.hd .vbtn'); if (vb) vb.onclick = ev => { ev.stopPropagation(); window.DONE_VIRT = !window.DONE_VIRT; box.scrollTop = 0; render(true); if (window.DONE_VIRT) btfLoad(true); };   /* 2026-11-03 15:12 使用者「虛擬的資料沒有接上來」:切到虛擬當下重抓一次重算的虛擬交易(不等整點) */ }   // 15:04 使用者「改成一個按鍵就好 按元大 就切換到虛擬 … 再按一次虛擬 就切換回元大」:一顆,寫的是目前顯示的資料
         window.__doneY = ySrc; window.__doneVirt = doneVirt; window.__doneVirtOk = virtOk;   // 有「元大 / 虛擬」按鍵時標題不再寫來源(按鍵亮哪顆就是哪個)
         // 2026-10-27 14:15 使用者:「明細 畫面捲動到10/22 就要顯示10/22的總輸贏」:捲動時看欄名列下面第一列是哪一天,標題列右邊換成那天的總輸贏,左邊「明細」後面加日期(今天不加)
@@ -6865,7 +6878,7 @@ window.bgTick = bgTick; window.BG = BG;
             let day = window.__doneToday; for (const x of box.querySelectorAll('.tb.done > [data-day]')){ if (x.getBoundingClientRect().bottom > hb + 2){ day = x.dataset.day; break; } }
             const v = Math.round((window.__doneTot || {})[day] || 0), c = box.querySelector('.hd .cash'), lb = box.querySelector('.hd .nav > span');
             if (c) __wH(c, `<span class="dnet ${v > 0 ? 'up' : v < 0 ? 'dn' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}</span>`);
-            if (lb) __wT(lb, '明細 ' + day.slice(5).replace('-', '/') + (window.__doneVirtOk ? '' : (window.__doneY || {})[day] ? ' 元大' : ' 系統')); }catch(e){} }); }, {passive: true}); }   // 2026-10-28 00:30 標題一律寫日期(明細 10/28)
+            if (lb) __wT(lb, '明細'); const sr = box.querySelector('.hd .dsrc'); if (sr) __wT(sr, window.__doneVirtOk ? '' : (window.__doneY || {})[day] ? ' 元大' : (window.VIEWER ? '' : ' 系統')); box.__dwDay = day; dwSet(box, day); }catch(e){} }); }, {passive: true}); }   // 2026-10-28 00:30 標題一律寫日期(明細 10/28)
         const jsD = window.__nlV !== 'done'; if (jsD){ box.scrollTop = 0; window.__nlV = 'done'; }
         try{ const tb = box.querySelector('.tb.done'); const u = (tb.clientWidth || box.clientWidth) / 37; tb.style.fontSize = Math.max(12, Math.floor(u * 2 * 0.96)) + 'px'; 
           // 2026-10-27 13:00 對齊:有任何一格(進→出、輸贏…)放不下就整張表一起縮 1px,直到每格都放得下(最小 12px),欄位永遠對齊
