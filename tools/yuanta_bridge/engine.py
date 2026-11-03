@@ -449,8 +449,9 @@ def build_universe(j, day, cap, held=(), noted=(), old_src=None):
     carried = [c for c in list(held) + list(noted) if c in src]
     carried = list(dict.fromkeys(carried))
     stage1 = sorted([s for s in pool if str(s.get("code")) not in carried and re.fullmatch(r"[1-9]\d{3}", str(s.get("code", ""))) and s.get("market") in ("twse", "tpex")
-                     and str(s.get("code")) not in set(map(str, j.get("disposed", []))) and 15 <= _f(s.get("close"), 0) <= 500 and s.get("amp") is not None and _f(s.get("amp"), 0) >= 3.0],
+                     and str(s.get("code")) not in set(map(str, j.get("disposed", []))) and R["lo"] <= _f(s.get("close"), 0) <= R["hi"] and s.get("amp") is not None and _f(s.get("amp"), 0) >= R["amp"]],
                     key=lambda s: -_f(s.get("lots"), 0))[: R["size"]]   # buildPool:成交張數大到小,前 size 名
+    # 2026-11-03 20:50 使用者「查 味全」:11/02 最低價改 10 元時這裡還寫死 15 元 → 味全 13.65、彩晶 13.45 在名單裡卻沒算(電腦只算 60 檔),改成和手機 buildPool 一樣用 BASE.lo / hi / amp
     why = {}; rest = []
     for s in stage1:
         w = stock_ok(s, j, R)
