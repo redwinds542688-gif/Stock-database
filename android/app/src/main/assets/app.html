@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 14:04(實際時間)左邊價格刻度固定至少 60 寬(500 元以下都放得下),換股票不再忽寬忽窄、刻度旁的豎線不再往右跑;換股票時寬度先歸零再量(原本只會變寬不會變窄)(使用者「你看兩張有一樣嗎」「價格刻度旁邊那一條豎線似乎有往右偏移的現象 按切換股票才發生」)
   · 2026-11-03 13:57(實際時間)明細改成「元大」「虛擬」兩顆按鍵都有外框,按哪顆哪顆亮(黃底);有按鍵時標題不再寫來源(使用者「直接都加上外框 按元大亮燈按虛擬虛擬亮燈」)
   · 2026-11-03 13:55(實際時間)明細「虛擬 / 元大」按鍵加外框(使用者「按鍵加外框」)
   · 2026-11-03 13:49(實際時間)明細標題列加「虛擬 / 元大」切換鍵:只有自己的 App(永久版)、非開盤時間才出現;按「虛擬」= 每天都列程式照判別式算的虛擬交易(含今天),再按「元大」切回真實成交;一開盤自動切回元大、按鍵消失;看盤版沒有(使用者「永久板在明細那邊 增加一個可以看虛擬交易的結果的按鍵 只有在非開盤時間的時候 按鍵才會出現 其他版本沒有這個功能」)
@@ -194,7 +195,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031357">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031404">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4690,11 +4691,13 @@ function initChart(){
   let scaleW = 0;
   const alignScales = () => {
     try{
-      const w = Math.max(chart.priceScale('left').width() || 0, chartM.priceScale('left').width() || 0, chartB ? (chartB.priceScale('left').width() || 0) : 0);
+      const w = Math.max(60, chart.priceScale('left').width() || 0, chartM.priceScale('left').width() || 0, chartB ? (chartB.priceScale('left').width() || 0) : 0);   // 2026-11-03 14:02 使用者「價格刻度旁邊那一條豎線 … 切換股票才發生 往右偏移」:刻度寬度至少 60(500 元以下的股票都放得下)→ 換哪檔都一樣寬,豎線不再跑
       if (w && w !== scaleW){ try{ bugAdd('fn', ['alignW', scaleW, w]); }catch(e){} scaleW = w; [chart, chartM, chartB].filter(Boolean).forEach(c => c.applyOptions({leftPriceScale:{minimumWidth: w}})); }
     }catch(e){}
   };
   window.alignScales = alignScales;
+  // 2026-11-03 14:01 使用者(群創兩張截圖)「你看兩張有一樣嗎」:左邊刻度寬度只會變寬不會變窄 → 看過價位較高(數字較長)的股票再回來,同一檔左邊刻度變寬、整張圖往右擠;換股票時先歸零再重量
+  window.alignReset = () => { try{ scaleW = 0; [chart, chartM, chartB].filter(Boolean).forEach(c => c.applyOptions({leftPriceScale:{minimumWidth: 0}})); requestAnimationFrame(() => requestAnimationFrame(alignScales)); }catch(e){} };
   // 2026-10-21 使用者錄影「這數字亂跑」:手指拖圖時最高 / 最低價數字停在原地不跟 K 走,放手後又用「還沒自動縮放完」的刻度算位置,數字離 K 棒很遠。
   //   改:手指按著圖時先把兩個數字藏起來;放手 / 慣性停下後等兩格畫面(刻度自動縮放套用完)再算位置顯示。
   const hideHiLo = () => { const a = el('hiLbl'), b = el('loLbl'); if (a) a.classList.add('hidden'); if (b) b.classList.add('hidden'); };
@@ -5654,7 +5657,7 @@ function drawBars0(bars, code, srcLabel, keepView){
   if (!keepView){
     // 元大風格:開圖只顯示最近 YH.defaultBars 根(K 棒才夠粗),往左滑可看更早的;其他兩張圖會同步
     // 2026-11-03 04:10 使用者「按 ◀ ▶ 換股票 / 退出 K 圖再從清單進另一檔 … 這邊也270 上一個多少 下一個就是多少」:記住上一檔最後看的根數(每支手機自己記),沒有紀錄才用預設
-    window.__xHold = Date.now() + 1200;
+    window.__xHold = Date.now() + 1200; try{ if (window.alignReset) alignReset(); }catch(e){}
     let kw = 0; try{ kw = +(window.__kW || localStorage.getItem('mysh.kW') || 0); }catch(e){}
     const n = Math.min(kw > 0 ? Math.max(9, Math.min(537, Math.round(kw - 3))) : YH.defaultBars, bars.length);
     chart.timeScale().setVisibleLogicalRange({from: bars.length - n - 0.5, to: bars.length + 2.5});
