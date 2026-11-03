@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 15:35(實際時間)圖上的日期(十字線那格、時間刻度)月、日是個位數前面補 0:9/30 → 09/30、11/3 → 11/03(使用者「個位數的月份前面加個0」)
   · 2026-11-03 15:30(實際時間)明細標題:「明細」綠色、日期滾輪銀色,兩個和右邊按鍵的位置固定(日期固定寬度、數字等寬,換哪天都不動)(使用者「明細 綠色 日期 銀色 顯示位置都固定」)
   · 2026-11-03 15:25(實際時間)明細標題的日期改成滾輪(使用者「把按鍵左邊的日期時間 改成滾輪式的」):上下轉日期,下面清單直接跳到那天;往下捲清單,滾輪也跟著轉到那天
   · 2026-11-03 15:20(實際時間)明細按元大 / 虛擬時按鍵忽大忽小(使用者錄影):重畫那一下標題先只寫「明細」、日期晚一格才補上,按鍵就往左跳再跳回來 → 重畫時就直接寫「明細 11/03」,按鍵不再移動
@@ -203,7 +204,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031530">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031535">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4419,7 +4420,7 @@ function vwapDeviation(bars, vw){
 /* 圖表的時間軸一律以台北時間顯示(套件預設用 UTC,會差 8 小時) */
 // 2026-10-28 00:58 使用者「現在k圖捲動 很慢 不順暢」:時間軸每格都呼叫 Intl(手機上很慢)→ 改成直接算(台北 UTC+8,沒有日光節約)
 const TPE_TIME = t => { const m = Math.floor((t + 28800) / 60) % 1440, h = Math.floor(m / 60), n = m % 60; return (h < 10 ? '0' : '') + h + ':' + (n < 10 ? '0' : '') + n; };
-const TPE_DATE = t => { const d = new Date((t + 28800) * 1000); return (d.getUTCMonth() + 1) + '/' + d.getUTCDate(); };
+const TPE_DATE = t => { const d = new Date((t + 28800) * 1000); return String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + String(d.getUTCDate()).padStart(2, '0'); };   // 2026-11-03 15:35 使用者「個位數的月份前面加個0」:9/30 → 09/30、11/3 → 11/03
 const TPE_LBL = new Map();                                 // 時間軸刻度文字快取:拖動時每一格都重算 Intl 太慢(2026-10-17)
 const tpeLabel = t => { let s = TPE_LBL.get(t); if (s === undefined){ if (TPE_LBL.size > 8000) TPE_LBL.clear(); s = `${TPE_DATE(t)} ${TPE_TIME(t)}`; TPE_LBL.set(t, s); } return s; };
 
