@@ -214,7 +214,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031741">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031744">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -287,7 +287,8 @@
   #notifLog .hd .dwh.dstat{overflow:hidden;pointer-events:none}   /* 2026-11-03 17:28 當沖的日期格:和明細滾輪同寬同樣子,但不能捲 */   /* 2026-11-03 17:27 當沖的「元大」:和明細按鍵同樣子,但只是標示、按了沒作用 */
   #notifLog .hd .lb .dwh{margin-left:6px;vertical-align:middle}   /* 2026-11-03 17:20 進場頁日期滾輪 */
   #notifLog .hd .dlb{color:#1DD75B;font-weight:700;flex:none;display:inline-block;margin-left:4px;padding:1px 10px;border-radius:7px;border:2px solid #1DD75B;box-shadow:0 0 0 2px #000,0 0 0 3.5px #8C96AB;background:#000;font-size:.85em;line-height:normal;vertical-align:middle}   /* 2026-11-03 15:30 使用者「明細 綠色 日期 銀色 顯示位置都固定」;17:35「進場 當沖 明細 也跟元大的按鍵一樣大小加框 只是這三個是綠色」 */
-  #notifLog .hd.msg .dlb{font-size:1em}
+  #notifLog .hd.msg .dlb,#notifLog .hd.msg .cash .mlb.rlb{font-size:min(25.5px,6.2vw)!important}   /* 2026-11-03 17:45 進場列的綠框/紅框固定和當沖、明細的框一樣大(不跟著整列字縮放) */
+  #notifLog .hd.msg .cash .mlb.rlb{display:inline-block;-webkit-appearance:none;box-sizing:border-box;height:1.7em;line-height:calc(1.7em - 4px);padding:0 10px;margin:0 .45em 0 4px;border-radius:7px;border:2px solid #FF4D5E;box-shadow:0 0 0 2px #000,0 0 0 3.5px #8C96AB;background:#000;color:#FF4D5E;opacity:1;font-weight:700;font-size:1em;vertical-align:middle}   /* 2026-11-03 17:42 使用者「進場裡的 資金 也改成一樣的 只不過是 紅色」:和進場/當沖/明細綠框同樣子,紅色 */
   #notifLog .hd .dlb,#notifLog .hd .vbtn{-webkit-appearance:none;appearance:none;box-sizing:border-box;height:1.7em;line-height:calc(1.7em - 4px);padding:0 10px;min-height:0;margin-top:0;margin-bottom:0;font-family:inherit;letter-spacing:normal}   /* 2026-11-03 17:40 使用者「這元大的太大 與左邊的明細框一致即可」:手機上按鍵(button)和標籤(span)預設高度不同,兩個都定死同高同行距 */   /* 進場標題列整列字小一號(.85),綠框字就不再縮,三個一樣大 */
   #notifLog .hd .dwh{color:#C9D1DC;flex:none;width:3.3em;box-sizing:content-box;font-variant-numeric:tabular-nums}
   #notifLog .tb.done .r.nolive{opacity:.42} #notifLog .tb.done .r.nolive .nlv{margin-left:4px;font-size:.62em;font-weight:700;color:#C9D1DC;border:1px solid #8C96AB;border-radius:4px;padding:0 3px;vertical-align:middle}   /* 2026-11-03 15:35 重算有、盤中沒發進場訊息 */
@@ -6975,7 +6976,7 @@ window.bgTick = bgTick; window.BG = BG;
     fundLeft = Math.max(0, fundLeft);   // 不顯示負的
     if (d === today) window.__fundLeft = fundLeft;   // 2026-10-28 強制進場:資金買不到 1 張 → 長按沒反應
     const ti = dayList.indexOf(window.NL_TOPDAY);
-    const hdMsg = `<div class="hd msg"><span class="nav"><span class="lb"><span class="dlb">${window.LOG_RS || ''}進場</span><span class="dwh mwh">${dayList.map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span></span></span><span class="cash"><span class="mlb" style="color:#FF4D5E;opacity:1">資金</span><b class="dnet" style="color:#FFD54F">${fundLeft}</b></span></div>`;   /* 2026-10-27 05:30 使用者「資金紅色 資金數字 黃色」 */   // 2026-10-27 05:25 使用者「進場與金額不用顯示」:只留 資金(2400000 − 進場中金額)   // 2026-10-27 05:15 使用者:「左鍵+“監控”+日期+右鍵 空1px “資金”+(…)空1px "進場"」
+    const hdMsg = `<div class="hd msg"><span class="nav"><span class="lb"><span class="dlb">${window.LOG_RS || ''}進場</span><span class="dwh mwh">${dayList.map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span></span></span><span class="cash"><span class="mlb rlb">資金</span><b class="dnet" style="color:#FFD54F">${fundLeft}</b></span></div>`;   /* 2026-10-27 05:30 使用者「資金紅色 資金數字 黃色」 */   // 2026-10-27 05:25 使用者「進場與金額不用顯示」:只留 資金(2400000 − 進場中金額)   // 2026-10-27 05:15 使用者:「左鍵+“監控”+日期+右鍵 空1px “資金”+(…)空1px "進場"」
     { const __H = hdMsg + html; if (nlSame(__H)) return; nlPut(__H); }
     // 2026-11-03 17:20 使用者「把 進場 日期 這 改成 與 明細那邊一樣 變成 進場+日期滾輪」:◀ ▶ 拿掉,日期改成滾輪(和明細同一種);轉到哪天清單跳到那天,捲清單滾輪跟著轉
     { const w = box.querySelector('.hd .mwh'); if (w){ mwSet(box, window.NL_TOPDAY || d);
@@ -7045,7 +7046,9 @@ window.bgTick = bgTick; window.BG = BG;
       h.style.fontSize = '12px'; if (m) m.style.marginLeft = '4px';
       if (h.classList.contains('msg')){   // 2026-10-27 05:00 訊息標題列:整列(◀ 監控訊息 日期 ▶ + 可用 / 已動資金)放大到塞滿寬度
         const cash = h.querySelector('.cash'); const need = nav.getBoundingClientRect().width + 1 + (cash ? cash.getBoundingClientRect().width : 0);
-        h.style.fontSize = Math.max(12, Math.min(30, Math.floor(12 * (h.clientWidth - 4) / need * 2) / 2)) + 'px'; return; }
+        // 2026-11-03 17:45 綠框「進場」紅框「資金」是固定大小,不跟著放大 → 先扣掉再算其他字能放多大
+        const fx = [...h.querySelectorAll('.dlb,.rlb')].reduce((a, e) => a + e.getBoundingClientRect().width, 0);
+        h.style.fontSize = Math.max(12, Math.min(30, Math.floor(12 * (h.clientWidth - 4 - fx) / Math.max(1, need - fx) * 2) / 2)) + 'px'; return; }
       const hb = h.getBoundingClientRect(), hw = h.clientWidth - 2;
       const lbl = nav && nav.firstElementChild, navW = lbl ? lbl.getBoundingClientRect().width : 0, pnb = pn ? pn.getBoundingClientRect() : null;   // .pnl 在 .nav 裡面,只量「監控紀錄」那段
       let fs = 12;
