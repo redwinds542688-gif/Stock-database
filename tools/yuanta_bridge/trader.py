@@ -128,7 +128,8 @@ class Trader:
         self.y3_post_delay = float(cfg.get("TRADE_Y3_POST_DELAY", "3"))
         self.y3_near = float(cfg.get("TRADE_Y3_NEAR_PCT", "1.5"))
         self.man_move = float(cfg.get("TRADE_MANUAL_MAX_MOVE_PCT", "8.5"))   # 2026-11-03 13:17 元三 / 強三離昨收 ±8.5% 強制平倉(判一~四照舊 ±6.5%);設成跟 TRADE_MAX_MOVE_PCT 一樣 = 回到原本
-        self.y3_free_mv = self.man_move > 0   # 2026-11-03 手動單進場時離 ±6.5% 不到這麼多(%)= 已經接近 → 不套 ±6.5%   # 2026-11-03 元三進場卡等分批成交併完再發(秒)
+        self.y3_free_mv = self.man_move > 0
+        self.force_block_pct = float(cfg.get("TRADE_FORCE_BLOCK_PCT", "6.5"))   # 2026-11-03 強制進場:跌超過這麼多 % 不給做多、漲超過不給做空(0 = 不擋)   # 2026-11-03 手動單進場時離 ±6.5% 不到這麼多(%)= 已經接近 → 不套 ±6.5%   # 2026-11-03 元三進場卡等分批成交併完再發(秒)
         self.over_wait = {}
         self.fill_wait = float(cfg.get("TRADE_FILL_WAIT", "8"))    # 自動進場(限價 IOC)送單後等成交回報幾秒
         # 2026-10-29 稽核 #5:IOC 等 fill_wait 秒沒回報 → 不馬上拿掉部位,改「等確認」再等 TRADE_CONFIRM_WAIT 秒(晚到的 T 成交照樣接成持倉)
@@ -1063,6 +1064,8 @@ class Trader:
                 r = (False, "這檔已經有部位(只能強制平倉)")
             elif d not in (1, -1) or lots < 1:
                 r = (False, "方向或張數不對")
+            elif self.force_block(code, d, ref):
+                r = (False, self.force_block(code, d, ref))
             else:
                 if mkt: self.mkt_of[code] = mkt
                 p = self.new_pos(code, d, FORCED, f"強制{'做多' if d > 0 else '做空'} {code}", forced=True)
@@ -1083,6 +1086,17 @@ class Trader:
                 r = (True, f"已送出強制{'做多' if d > 0 else '做空'} {lots} 張({how})")
             if cmd_id: self.cmd_seen[cmd_id] = r
             return r
+
+    def force_block(self, code, d, ref=None):
+        """2026-11-03 13:21 使用者「加 強制進場 該股票-6.5%不做多 反之亦然」:現價離昨收 ≤ −6.5% 不給強制做多、≥ +6.5% 不給強制做空;回擋下的原因(沒擋回空字串)"""
+        try: y = float(ref) if ref else 0.0
+        except Exception: y = 0.0
+        y = y or (self.ref_of(code) or 0); last = self.last_px.get(code) or 0; lim = self.force_block_pct
+        if not (y > 0 and last > 0 and lim > 0): return ""
+        ch = (last / y - 1) * 100
+        if d > 0 and ch <= -lim: return f"現價 {last} 已跌 {ch:.1f}%(超過 −{lim:g}%),不能強制做多"
+        if d < 0 and ch >= lim: return f"現價 {last} 已漲 {ch:+.1f}%(超過 +{lim:g}%),不能強制做空"
+        return ""
 
     def force_close(self, code, cmd_id=None):
         """2026-10-28 強制平倉:全部平倉,做多跌停賣、做空漲停買;之後今天這檔判一 / 二 / 三不再自動進場"""

@@ -558,4 +558,9 @@ s27c, g27c = mk(); s27c.ref_of = lambda c: 100.0; s27c.force_enter("3002", -1, 1
 s27c.on_tick("3002", 108.5); ok(s27c.positions["3002"]["state"] == EXITING and s27c.positions["3002"]["exit_why"] == "超8.5%", s27c.positions["3002"])   # 13:17 強三做空 +8.5% 平倉
 s27.on_tick("3481", 40.80); ok(s27.positions["3481"]["state"] == EXITING and s27.positions["3481"]["exit_why"] == "超8.5%", s27.positions["3481"])   # 元三做多 44.6 × 0.915 = 40.81 以下平倉
 s27d, _ = mk(TRADE_MANUAL_MAX_MOVE_PCT="6.5"); s27d.ref_of = lambda c: 44.6; s27d.on_tick("3481", 43.0); s27d.on_report(51, "i00QZ", 0, 1000, 43.0, basket="", code="3481", bs="B"); s27d.on_tick("3481", 41.65); ok(s27d.positions["3481"]["state"] == EXITING)   # 開關關掉照舊
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9)")
+# S28) 2026-11-03 強制進場:離昨收 −6.5% 以下不給做多、+6.5% 以上不給做空(反方向可以)
+s28, g28 = mk(); s28.ref_of = lambda c: 100.0; s28.on_tick("2330", 93.4)
+r = s28.force_enter("2330", 1, 1); ok(not r[0] and "不能強制做多" in r[1] and "2330" not in s28.positions, r)
+ok(s28.force_enter("2330", -1, 1)[0])
+s28b, _ = mk(); s28b.ref_of = lambda c: 100.0; s28b.on_tick("2331", 106.6); ok(not s28b.force_enter("2331", -1, 1)[0] and s28b.force_enter("2331", 1, 1)[0])
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3)")
