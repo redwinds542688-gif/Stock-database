@@ -421,6 +421,8 @@ export class Hub extends DurableObject {
   }
   kvPut(k, v) { this.sql.exec("INSERT OR REPLACE INTO kv (k, v) VALUES (?, ?)", k, JSON.stringify(v)); return { ok: true }; }
   kvGet(k) { const r = this.sql.exec("SELECT v FROM kv WHERE k = ?", k).toArray(); return r.length ? JSON.parse(r[0].v) : null; }
+  bugList() { return this.sql.exec("SELECT k, length(v) AS n FROM kv WHERE k LIKE 'bug:%' ORDER BY k").toArray().map(r => ({ k: r.k, size: r.n })); }   // 2026-11-03 抓 bug 紀錄改存 Hub
+  bugTrim(keep) { const r = this.sql.exec("SELECT k FROM kv WHERE k LIKE 'bug:%' ORDER BY k DESC").toArray(); for (const x of r.slice(keep)) this.sql.exec("DELETE FROM kv WHERE k = ?", x.k); return { ok: true }; }
   kvSetIfAbsent(k, v) { const o = this.kvGet(k); if (o != null) return o; this.kvPut(k, v); return v; }   // 2026-11-01 VAPID 金鑰只產生一次(兩個請求同時產生也只留第一把)
   // 2026-11-01 iPhone 網頁版 App 的推播訂閱(使用者「先做A」):[{id, endpoint, k, dv, made}]
   pushSubPut(rec) { const a = (this.kvGet("pushsubs") || []).filter(x => x.id !== rec.id); a.push(rec); this.kvPut("pushsubs", a.slice(-500)); return { ok: true, n: a.length }; }
@@ -974,14 +976,18 @@ export default {
         const body = await request.text();
         if (body.length > 1500000) return J({ error: "太大" }, 413);
         const k = "bug:" + new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 19).replace(/[-:T]/g, "");
-        try { await env.LOGS.put(k, body, { expirationTtl: 7 * 86400, metadata: { size: body.length } });
-          await env.LOGS.put("buglast", k, { expirationTtl: 7 * 86400 }); }
-        catch (e) { return J({ error: "今天雲端寫入額度用完,明天 08:00 以後再上傳" }, 503); }   // 2026-11-03 原本丟例外 → 手機看到 <!DOCTYPE 解析錯誤   // 最新一份的鍵(讀的時候不用 list,不吃 KV list 額度)
+        // 2026-11-03 11:56 使用者「抓bug也出現失敗」:改存 Hub(不吃 KV 每天 1,000 次寫入),最多留 20 份;沒有 Hub 才用 KV
+        try { if (env.HUB){ const h = hubOf(env); await h.kvPut(k, body); await h.kvPut("buglast", k); await h.bugTrim(20); }
+          else { await env.LOGS.put(k, body, { expirationTtl: 7 * 86400, metadata: { size: body.length } }); await env.LOGS.put("buglast", k, { expirationTtl: 7 * 86400 }); } }
+        catch (e) { return J({ error: "雲端存不進去:" + String(e && e.message || e).slice(0, 80) }, 503); }   // 最新一份的鍵(讀的時候不用 list,不吃 KV list 額度)
         return J({ ok: true, key: k });
       }
-      if (bq0 === "list") { const l = await env.LOGS.list({ prefix: "bug:" }); return J(l.keys.map(x => ({ k: x.name, size: x.metadata && x.metadata.size }))); }
+      if (bq0 === "list") { let out = []; try { if (env.HUB) out = await hubOf(env).bugList(); } catch (e) {} try { const l = await env.LOGS.list({ prefix: "bug:" }); out = out.concat(l.keys.map(x => ({ k: x.name, size: x.metadata && x.metadata.size }))); } catch (e) {} return J(out); }
       // 2026-10-29 安全修補:只准讀 bug: 開頭的鍵(原本 k 可指任何 KV 鍵,例如 pick:取件碼);k 不是 bug: 開頭就讀最新一份
-      if (bq0 === "get") { const bk = url.searchParams.get("k") || ""; const v = await env.LOGS.get(bk.startsWith("bug:") ? bk : ((await env.LOGS.get("buglast")) || "bug:none")); return v ? new Response(v, { headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } }) : J({ error: "沒有" }, 404); }
+      if (bq0 === "get") { const bk0 = url.searchParams.get("k") || ""; let v = null;
+        try { if (env.HUB){ const h = hubOf(env); const bk = bk0.startsWith("bug:") ? bk0 : (await h.kvGet("buglast")); if (bk) v = await h.kvGet(bk); } } catch (e) {}   // 2026-11-03 先找 Hub(新的存那裡)
+        if (v == null) v = await env.LOGS.get(bk0.startsWith("bug:") ? bk0 : ((await env.LOGS.get("buglast")) || "bug:none"));
+        return v ? new Response(v, { headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } }) : J({ error: "沒有" }, 404); }
       return J({ error: "bug=put / list / get" }, 400);
     }
 
