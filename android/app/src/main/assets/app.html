@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 12:53(實際時間)長按上傳 bug 不再跳任何文字(使用者「按bug 前後都不用顯示完成訊息」):只看紅點,傳完恢復灰點;萬一失敗紅點多留 4 秒
   · 2026-11-03 12:53(實際時間)上傳 bug 時的紅點放大一圈(約 1.9 倍),比監控綠燈大,開盤中也看得到(使用者「紅點啟動時 大綠點一圈 就可以看到」)
   · 2026-11-03 12:51(實際時間)長按左上角燈上傳 bug 時那顆點變紅,傳完恢復灰色(使用者「長按啟動抓bug時 改成紅點 抓完存檔後再恢復為灰點」)
   · 2026-11-03 12:48(實際時間)長按左上角燈上傳 bug:不再顯示「上傳中…」,只在傳完跳一行結果(使用者「上傳中也不用」)
@@ -7057,7 +7058,7 @@ function bugPanel(){
   pn.querySelector('#bpUp').onclick = async () => { msg.textContent = '上傳中…'; const r = await bugUploadNow('手動'); msg.textContent = r; };
 }
 (() => { const d = el('bugDot'); if (!d) return; let tm = 0;
-  const start = () => { clearTimeout(tm); tm = setTimeout(async () => { tm = 0; try{ navigator.vibrate && navigator.vibrate(40); }catch(e){} d.classList.add('up'); const r = await bugUploadNow('手動'); d.classList.remove('up'); fmToast(r.replace(',跟 Claude 說「看 bug 紀錄」', ''), 3500); }, 800); };   // 2026-11-03 12:47 使用者「抓 bug 直接上傳 不用這些按鍵 什麼清除 關閉 這些都不用」:長按左上角燈 = 直接上傳(不開面板)
+  const start = () => { clearTimeout(tm); tm = setTimeout(async () => { tm = 0; try{ navigator.vibrate && navigator.vibrate(40); }catch(e){} d.classList.add('up'); const r = await bugUploadNow('手動'); if (/^已上傳/.test(r)) d.classList.remove('up'); else setTimeout(() => d.classList.remove('up'), 4000); }, 800); };   // 12:53 使用者「按bug 前後都不用顯示完成訊息」:不跳任何文字;成功紅點馬上恢復灰色,失敗紅點多留 4 秒   // 2026-11-03 12:47 使用者「抓 bug 直接上傳 不用這些按鍵 什麼清除 關閉 這些都不用」:長按左上角燈 = 直接上傳(不開面板)
   d.addEventListener('touchstart', start, {passive: true}); d.addEventListener('mousedown', start);
   ['touchend', 'touchcancel', 'touchmove', 'mouseup', 'mouseleave'].forEach(t => d.addEventListener(t, () => { clearTimeout(tm); }, {passive: true})); })();
 /* 監控燈:每 3 秒問 App 服務在不在,亮在「正在用的那顆判鍵」右上角(2026-10-18 使用者;之前在螢幕角落的 #bgDot 不再用) */
