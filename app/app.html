@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 15:38(實際時間)明細日期滾輪轉到某天,那天第一筆直接貼齊欄名列下面,不再多露出日期分隔列(使用者「滾輪捲動 台玻應該要再上去一點」)
   · 2026-11-03 15:35(實際時間)明細的虛擬交易逐筆對照那天盤中真的發過的進場訊息(同一檔、同方向):重算有、盤中沒發的(例:11/03 味全)標「無訊息」、變暗,不算進那天的總輸贏和筆數(使用者「所以事後算 也要對照 進場訊息是否有」)
   · 2026-11-03 15:35(實際時間)圖上的日期(十字線那格、時間刻度)月、日是個位數前面補 0:9/30 → 09/30、11/3 → 11/03(使用者「個位數的月份前面加個0」)
   · 2026-11-03 15:30(實際時間)明細標題:「明細」綠色、日期滾輪銀色,兩個和右邊按鍵的位置固定(日期固定寬度、數字等寬,換哪天都不動)(使用者「明細 綠色 日期 銀色 顯示位置都固定」)
@@ -205,7 +206,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031540">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031538">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1595,8 +1596,8 @@ window.__ls = window.__ls || {t: 0, on: 0};
 /* 2026-11-03 15:25 使用者「把按鍵左邊的日期時間 改成滾輪式的」:明細標題的日期改成上下轉的滾輪,轉到哪天,下面清單就跳到哪天;清單捲動,滾輪也跟著轉 */
 function dwSet(box, day){ try{ const w = box.querySelector('.hd .dwh'); if (!w || Date.now() - (box.__dwT || 0) < 900) return; const it = [...w.children], i = Math.max(0, it.findIndex(x => x.dataset.day === day)); const y = i * (it[0] ? it[0].offsetHeight : 0); if (Math.abs(w.scrollTop - y) > 1){ w.__set = Date.now(); w.scrollTop = y; } }catch(e){} }
 function dwGo(box, day){ try{ box.__dwDay = day; if (day === window.__doneToday){ box.scrollTop = 0; return; }
-  const el = box.querySelector(`.tb.done > .dsep[data-day="${day}"]`); if (!el) return; const h = box.querySelector('.tb.done > .r.h') || box.querySelector('.hd');
-  const hd = box.querySelector('.hd'), hb = Math.max(hd ? hd.getBoundingClientRect().bottom : 0, 0); box.scrollTop += el.getBoundingClientRect().top - hb; void h; }catch(e){} }
+  const el = box.querySelector(`.tb.done > .r[data-day="${day}"]:not(.h)`) || box.querySelector(`.tb.done > .dsep[data-day="${day}"]`); if (!el) return; const h = box.querySelector('.tb.done > .r.h');
+  const hd = box.querySelector('.hd'), hb = (hd ? hd.getBoundingClientRect().bottom : 0) + (h ? h.getBoundingClientRect().height : 0); box.scrollTop += el.getBoundingClientRect().top - hb; }catch(e){} }   // 2026-11-03 15:38 使用者「滾輪捲動 台玻應該要再上去一點」:那天第一筆貼齊欄名列下面(日期分隔列和那天的欄名列捲到上面去)
 function dwWire(box){ const w = box.querySelector('.hd .dwh'); if (!w) return; dwSet(box, box.__dwDay || window.__doneToday);
   const touch = () => { box.__dwT = Date.now(); }; w.addEventListener('touchstart', touch, {passive: true}); w.addEventListener('touchmove', touch, {passive: true}); w.addEventListener('wheel', touch, {passive: true});
   w.addEventListener('scroll', () => { if (Date.now() - (w.__set || 0) < 150) return; box.__dwT = Date.now(); clearTimeout(w.__end); w.__end = setTimeout(() => { const it = [...w.children], hh = it[0] ? it[0].offsetHeight : 1, i = Math.min(it.length - 1, Math.max(0, Math.round(w.scrollTop / hh))); if (it[i]) dwGo(box, it[i].dataset.day); }, 140); }, {passive: true}); }
