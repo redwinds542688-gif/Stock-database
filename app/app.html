@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-04 03:02(實際時間)後台監控在非盤中把名單上每一檔的 K 線先讀好存進手機,回到畫面點圖直接從手機讀、不用等網路;只抓 GitHub 公開檔、不吃雲端額度,同一份名單只做一輪(使用者「程式雖然離開畫面 也是後台還在 … 這時間不就是讀取圖最好的時機嗎」→「改」)
   · 2026-11-03 22:45(實際時間)換到進場時卡片字不會在 0.3 秒後再稍微放大:標題列定好大小後馬上再量一次卡片,第一次畫出來就是最終大小(使用者影片 13928「只是稍微變大」)
   · 2026-11-03 22:43(實際時間)按下面的按鍵換頁(進場 / 當沖 / 明細)立刻換,不再先停在舊頁約半秒(使用者影片 9~11 秒「從別的按鍵下點進 進場」)
   · 2026-11-03 22:16(實際時間)公式(或設定)打開時按當沖 / 明細,直接打開那一頁,不會再跳到進場(使用者「按公式 再按明細 結果會跳到 進場」)
@@ -226,7 +227,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611040247">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611040303">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2540,7 +2541,25 @@ async function kPrefetchAll(){
     await Promise.all([worker(), worker(), worker(), worker()]);
   }finally{ KPRE.busy = false; }
 }
-setTimeout(() => { try{ kPrefetchAll(); }catch(e){} setInterval(() => { try{ kPrefetchAll(); }catch(e){} }, 120000); }, 1500);   // 2026-11-01 4 秒 → 1.5 秒開始(清單還沒好時 LIST_CODES 是空的,2 分鐘後那輪會補)
+setTimeout(() => { try{ kPrefetchAll(); }catch(e){} setInterval(() => { try{ kPrefetchAll(); }catch(e){} }, 120000); }, 1500);
+// 2026-11-03 03:02 使用者「程式雖然離開畫面 也是後台還在 監控還在 這時間不就是讀取圖最好的時機嗎」→「改」:
+//   後台監控那份網頁(服務)在非盤中把名單上每一檔的歷史 1 分 K 週檔讀好存進手機(IndexedDB,和畫面那份共用),回到畫面點圖直接從手機讀、不用等網路。
+//   只抓 GitHub 公開的 K 線檔(不經 Worker、不吃額度);同一份名單 + 資料日期只做一輪(收盤後名單換新、資料日期變了才再做);一次 2 檔、讀完就從記憶體丟掉(服務那份不留)
+async function kWarmBg(){
+  try{ if (!(window.Android && Android.isService && Android.isService())) return; }catch(e){ return; }
+  if (KPRE.busy || !LIST_CODES.length) return;
+  try{ if (inSession()) return; }catch(e){}
+  const n = new Date(), hm = n.getHours() * 60 + n.getMinutes(); if (hm >= 8 * 60 + 30 && hm < 9 * 60) return;   // 開盤前半小時讓給準備工作
+  const ver = SRC_DATE || hourKey(), tag = ver + '|' + LIST_CODES.length + '|' + LIST_CODES.slice(0, 5).join(',');
+  try{ if (localStorage.getItem('mysh.kwarm') === tag) return; }catch(e){}
+  KPRE.busy = true; let ok = 0;
+  try{ const q = LIST_CODES.slice();
+    const w = async () => { for (;;){ const c = q.shift(); if (c == null) return; try{ await loadMinuteBars(c, null, {noStore: true}); ok++; }catch(e){} BARS_MEM.delete(c); await new Promise(r => setTimeout(r, 120)); } };
+    await Promise.all([w(), w()]);
+    try{ localStorage.setItem('mysh.kwarm', tag); }catch(e){}   /* 整輪跑完就記下(少數檔 GitHub 本來就沒有,點開時再抓),不一直重跑 */ void ok;
+  }finally{ KPRE.busy = false; }
+}
+setTimeout(() => { try{ kWarmBg(); }catch(e){} setInterval(() => { try{ kWarmBg(); }catch(e){} }, 600000); }, 20000);   // 服務開起來 20 秒後第一輪,之後每 10 分鐘看一次(做過就跳過)   // 2026-11-01 4 秒 → 1.5 秒開始(清單還沒好時 LIST_CODES 是空的,2 分鐘後那輪會補)
 
 async function loadMinuteBars(code, onProgress, opts){   // opts.noStore:背景預抓只放記憶體,不寫手機快取(2026-10-30 01:12)
   const ver = SRC_DATE || hourKey();   // 資料日期 = 快取版本;日期一變自動失效
