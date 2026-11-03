@@ -574,12 +574,18 @@ function kvCounted(env, ctx) {
 const kvDown = () => globalThis.__kvDown && Date.now() - globalThis.__kvDown < 10 * 60000;
 const SEENW = new Map();
 const BUGIP = new Map();   // 2026-11-03 抓 bug 上傳不要鑰匙後,每個 IP 每分鐘最多 6 次   // 2026-11-03 鑰匙「最後使用時間」這個執行個體上次試著寫 KV 的時間
+// 2026-11-03 20:10 使用者「改」(KV 寫入一天上限 1,000 次,上午爆到 1.6 萬):鑰匙的「綁定手機 / 最後使用時間」改存 Hub(Durable Object,一天 10 萬筆寫入),KV 只留鑰匙本身的設定。
+//   讀:每個執行個體每把鑰匙 5 分鐘讀一次 Hub;寫:第一次綁手機馬上寫,最後使用時間每個執行個體每把鑰匙一小時最多一次。舊的 KV 裡已有的 dev 照樣認(Hub 沒有時)
+async function ksGet(env, k) { const c = MC.get("ks:" + k); if (c && Date.now() - c.at < 300000) return c.v; let v = null; try { v = env.HUB ? await hubOf(env).kvGet("ks:" + k) : null; } catch (e) { if (c) return c.v; return { err: 1 }; } MC.set("ks:" + k, { v, at: Date.now() }); return v; }   // 讀 Hub 失敗 → {err}:不改綁定、也不寫新綁定(安全:不會因為 Hub 讀不到就讓第二支手機綁上)
+async function ksPut(env, k, o) { if (!env.HUB) return; await hubOf(env).kvPut("ks:" + k, o); MC.set("ks:" + k, { v: o, at: Date.now() }); }
 async function keyInfo(env, k) {
   if (!env || !env.LOGS || !KEY_RE.test(k || "")) return null;
   const v = await kvGetC(env, "key:" + k, 300000);
   // 2026-11-03 使用者「主導鑰匙 失效 主導機變成看盤機效果」:KV 恢復後改讀鑰匙真正的設定,含 5861 的那把在 KV 裡不是 owner(昨天全靠緊急模式才當 owner)。
   //   使用者定的規則是「金鑰裡面有5861的為主導機」→ 含 5861 的鑰匙一律當 owner(新建的鑰匙不會含 5861,見 newKey)
-  if (v) { try { const r = JSON.parse(v); if (k.includes("5861") && r && r.role !== "owner") r.role = "owner"; return r; } catch (e) { return null; } }
+  if (v) { let r; try { r = JSON.parse(v); } catch (e) { return null; } if (k.includes("5861") && r && r.role !== "owner") r.role = "owner";
+    try { const s2 = await ksGet(env, k); if (s2 && s2.err && r) r.ksErr = 1; else if (s2 && r){ if ("dev" in s2){ if (s2.dev) r.dev = s2.dev; else delete r.dev; } if (s2.seen && !(r.seen > s2.seen)) r.seen = s2.seen; } } catch (e) {}
+    return r; }
   if (!kvDown()) return null;
   const ek = "ex:" + k; let ex = MC.get(ek);
   if (!ex || Date.now() - ex.at > (ex.v ? 3600e3 : 30e3)) {   // 2026-11-02 14:54 剛建的鑰匙 KV list 要幾十秒才看得到 → 「沒有這把」只記 30 秒(原本 1 小時,新鑰匙一直被說無效)
@@ -662,8 +668,8 @@ export default {
       if (KI.dev && dv && KI.dev !== dv) return J({ error: "這把鑰匙已綁在另一支手機", badKey: true }, 403);
       // 2026-11-03 11:55 查到 KV 寫入一天爆到 1.5 萬次(上限 1,000):keyInfo 讀的是快取 5 分鐘的舊字串,seen 永遠是舊的 → 每個請求都寫一次「最後使用時間」;
       //   額度用完後寫入失敗,seen 更寫不進去,更是每個請求都試 → 改成:同一個執行個體同一把鑰匙一小時最多試一次(成功失敗都算),寫完把快取也換成新的
-      if (dv && !KI.emer && (!KI.dev || !KI.seen || Date.now() - KI.seen > 3600e3)) { const sw = SEENW.get(kq) || 0;
-        if (!KI.dev || Date.now() - sw > 3600e3) { SEENW.set(kq, Date.now()); try { if (!KI.dev) KI.dev = dv; KI.seen = Date.now(); const js = JSON.stringify(KI); await env.LOGS.put("key:" + kq, js); MC.set("key:" + kq, { v: js, at: Date.now() }); } catch (e) {} } } }
+      if (dv && !KI.emer && !KI.ksErr && (!KI.dev || !KI.seen || Date.now() - KI.seen > 3600e3)) { const sw = SEENW.get(kq) || 0;
+        if (!KI.dev || Date.now() - sw > 3600e3) { SEENW.set(kq, Date.now()); try { if (!KI.dev) KI.dev = dv; KI.seen = Date.now(); await ksPut(env, kq, { dev: KI.dev, seen: KI.seen }); } catch (e) {} } } }   // 2026-11-03 20:10 改寫 Hub(不寫 KV)
     // 2026-10-29 安全修補:owner 鑰匙做「寫入 / 下單 / 管鑰匙」時,鑰匙已綁手機就一定要帶 dv(手機 App 的 fetch 包裝每次都帶;不帶 dv 不能繞過一人一機去下單)。
     //   讀的端點(gh=raw 更新等)照舊不要求 dv,避免 Page.kt 偏好裡沒有 dev 時更新失敗
     if (KI && KI.emer && KI.role !== "owner" && (url.searchParams.get("cap") === "get" || ["pos", "fills"].includes(url.searchParams.get("trade") || "") || url.searchParams.get("repo") === "logic" || (url.searchParams.get("gh") === "raw" && /^app\/app\.html/.test(url.searchParams.get("path") || ""))) && dv && env.HUB) {   // 主程式的手機 → 記成 owner(緊急模式才有)
@@ -770,7 +776,7 @@ export default {
         const hit = names.filter(k => keysQ === "unbindsfx" ? k.endsWith(part) : keysQ === "unbindpfx" ? k.startsWith(part) : k.includes(part)), mask = k => k.slice(0, 4) + "…" + k.slice(-4);
         if (hit.length !== 1) return J({ error: hit.length ? `有 ${hit.length} 把符合,請多給幾碼` : "沒有符合的鑰匙", match: hit.map(mask) }, hit.length ? 409 : 404);
         const cur2 = await keyInfo(env, hit[0]); if (!cur2 || cur2.emer) return J({ error: "讀不到這把鑰匙(KV 額度?)" }, 503);
-        delete cur2.dev; await env.LOGS.put("key:" + hit[0], JSON.stringify(cur2)); MC.delete("key:" + hit[0]);
+        delete cur2.dev; await env.LOGS.put("key:" + hit[0], JSON.stringify(cur2)); MC.delete("key:" + hit[0]); try { await ksPut(env, hit[0], { dev: null, seen: cur2.seen || 0 }); } catch (e) {}   // Hub 的綁定也清掉
         return J({ ok: true, unbound: true, k: mask(hit[0]), role: cur2.role, name: cur2.name || "" });
       }
       if (keysQ === "delsfx" || keysQ === "delpfx") {
@@ -786,7 +792,7 @@ export default {
       const k2 = url.searchParams.get("k2") || ""; const cur = await keyInfo(env, k2);
       if (!cur) return J({ error: "沒有這把鑰匙" }, 404);
       if (keysQ === "del") { await env.LOGS.delete("key:" + k2); return J({ ok: true, k: k2, deleted: true }); }
-      if (keysQ === "unbind") { delete cur.dev; await env.LOGS.put("key:" + k2, JSON.stringify(cur)); return J({ ok: true, k: k2, ...cur }); }   // 換手機:解綁,下一支用的手機重新綁
+      if (keysQ === "unbind") { delete cur.dev; await env.LOGS.put("key:" + k2, JSON.stringify(cur)); MC.delete("key:" + k2); try { await ksPut(env, k2, { dev: null, seen: cur.seen || 0 }); } catch (e) {} return J({ ok: true, k: k2, ...cur }); }   // 換手機:解綁,下一支用的手機重新綁
       if (keysQ === "off" || keysQ === "on") { cur.on = keysQ === "on"; await env.LOGS.put("key:" + k2, JSON.stringify(cur)); return J({ ok: true, k: k2, ...cur }); }
       return J({ error: "keys=list / add / off / on / del / unbind / me / stash / pick" }, 400);
     }
