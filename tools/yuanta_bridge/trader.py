@@ -592,14 +592,16 @@ class Trader:
             self.alert("🚨🚨🚨🚨🚨 當天虧損到上限,全部平倉", f"已平倉 {self.pnl:+,.0f}、持倉帳面 {unreal:+,.0f},合計 {total:+,.0f};今天不再自動進場", "lv5")
             self.close_all(why)
 
-    def close_all(self, why):
+    def close_all(self, why, lock=False):
         """全部平倉(漲停買回 / 跌停賣出);進場單還沒成交的,成交轉持倉後馬上平。回傳處理的檔數。
            2026-10-31 虧到 TRADE_KILL_LOSS 和手機「緊急停止 + 全部平倉」共用"""
         n = 0
         with self.lock:
             for p in list(self.positions.values()):
+                if p["state"] in (HOLDING, ENTERING) and lock: self.locked.add(p["code"])   # 2026-11-03「只全部平倉」:自動進場照常,但平掉的這幾檔今天不再自動進(和強平一樣)
                 if p["state"] == HOLDING: self.exit_pos(p, why, self.last_px.get(p["code"]) or p["entry"], force_limit=True); n += 1
                 elif p["state"] == ENTERING: p["exit_pending"] = why; n += 1   # 進場單還沒成交:成交轉持倉後馬上平
+            if lock and n: self.save_state()
         return n
 
     def on_tick(self, code, price):

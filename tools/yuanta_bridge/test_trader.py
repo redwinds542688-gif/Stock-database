@@ -519,4 +519,9 @@ ok(s23.force_enter("2401", 1, 2, 2.5, 1.5, px=49.85)[0] and g23.sent[-1] == ("24
 ok(s23.positions["2401"]["state"] == ENTERING)
 s23.on_tick("2402", 60.0); ok(s23.force_enter("2402", -1, 1, 2.5, 1.5, px=None)[0] and g23.sent[-1][-1] == "L" and g23.sent[-1][3] == 0, g23.sent[-1])
 s23.on_report(51, "", 0, 2000, 49.85, basket=g23.tags[0]); ok(s23.positions["2401"]["state"] == HOLDING and s23.positions["2401"]["entry"] == 49.85, s23.positions["2401"])
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4)")
+# S24) 2026-11-03 只全部平倉:平掉、鎖住那幾檔,不建緊急停止檔
+s24, g24 = mk(TRADE_CAP="250000", TRADE_MAX_MOVE_PCT="99"); s24.on_tick("2401", 50.0)
+s24.step([sig("k24", "short", "股2401 2401 做空進場 50.0", "10:00 空 · 停利 45.50 停損 60.00 · 5張 · 判四")])
+s24.on_report(51, "", 0, s24.positions["2401"]["order"]["want"], 50.0, basket=s24.positions["2401"]["order"]["tag"])
+ok(s24.close_all("手機全部平倉", lock=True) == 1 and "2401" in s24.locked and s24.positions["2401"]["state"] == EXITING and not s24.stop_file.exists())
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 1)")

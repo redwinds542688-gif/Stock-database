@@ -578,6 +578,14 @@ class Bridge:
             log("[交易] 強制指令:交易密碼不對"); return {"ok": False, "msg": "交易密碼不對", "badPin": True}
         t = self.trader
         act = cmd.get("act")
+        if act == "close_only":
+            # 2026-11-03 11:39 使用者「加一個只全部平倉 訊息正常」:所有未平倉部位馬上漲停買回 / 跌停賣出,但不建緊急停止檔(自動進場、通知照常,標題不變灰);平掉的那幾檔今天不再自動進
+            from trader import stop_path
+            sp = t.stop_file if t else stop_path(CFG)
+            n = t.close_all("手機全部平倉", lock=True) if t else 0
+            log(f"[交易] 手機只全部平倉(不停止進場):{n} 檔")
+            threading.Thread(target=self.phone_alert, daemon=True, args=("🔻 全部平倉", (f"{n} 檔未平倉部位正在用漲停買回 / 跌停賣出平倉" if n else "目前沒有未平倉部位") + ";自動進場照常(平掉的這幾檔今天不再進)")).start()
+            return {"ok": True, "halted": sp.exists(), "closed": n, "msg": f"{n} 檔全部平倉中,自動進場照常" if n else "目前沒有未平倉部位"}
         if act in ("halt", "resume", "halt_close"):
             # 2026-10-31 使用者「在 名揚四海。自動當沖 這 設下 長按 即啟動緊急停止功能」:建立 / 刪除緊急停止檔(交易程式沒在跑也能設,開盤時照樣生效)
             from trader import stop_path
