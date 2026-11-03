@@ -751,6 +751,18 @@ export default {
       }
       // 2026-11-02 14:29 使用者刪鑰匙打錯(整串鑰匙要手打):?keys=delsfx&sfx=結尾幾碼 / ?keys=delpfx&pfx=開頭幾碼(至少 4 碼,只用 KV list、不讀內容,KV 讀取額度用完也能刪);
       //   剛好一把符合才刪,回傳只露頭尾 4 碼
+      // 2026-11-03 使用者「不知道KEY放哪」(主導機要解綁,手上只有結尾 859cf):用結尾 / 開頭幾碼解除綁定(中繼金鑰或 owner 鑰匙才能做,同 del 的權限),剛好一把符合才做
+      if (keysQ === "unbindsfx" || keysQ === "unbindpfx") {
+        const part = String(url.searchParams.get(keysQ === "unbindsfx" ? "sfx" : "pfx") || "").trim().toLowerCase();
+        if (!/^[a-f0-9]{4,40}$/.test(part)) return J({ error: "要給至少 4 碼(0-9 a-f)" }, 400);
+        const names = []; let cursor;
+        do { const r = await env.LOGS.list({ prefix: "key:", cursor, limit: 1000 }); for (const x of r.keys) names.push(x.name.slice(4)); cursor = r.list_complete ? null : r.cursor; } while (cursor);
+        const hit = names.filter(k => keysQ === "unbindsfx" ? k.endsWith(part) : k.startsWith(part)), mask = k => k.slice(0, 4) + "…" + k.slice(-4);
+        if (hit.length !== 1) return J({ error: hit.length ? `有 ${hit.length} 把符合,請多給幾碼` : "沒有符合的鑰匙", match: hit.map(mask) }, hit.length ? 409 : 404);
+        const cur2 = await keyInfo(env, hit[0]); if (!cur2 || cur2.emer) return J({ error: "讀不到這把鑰匙(KV 額度?)" }, 503);
+        delete cur2.dev; await env.LOGS.put("key:" + hit[0], JSON.stringify(cur2)); MC.delete("key:" + hit[0]);
+        return J({ ok: true, unbound: true, k: mask(hit[0]), role: cur2.role, name: cur2.name || "" });
+      }
       if (keysQ === "delsfx" || keysQ === "delpfx") {
         const part = String(url.searchParams.get(keysQ === "delsfx" ? "sfx" : "pfx") || "").trim().toLowerCase();
         if (!/^[a-f0-9]{4,40}$/.test(part)) return J({ error: "要給至少 4 碼(0-9 a-f)" }, 400);

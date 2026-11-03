@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 10:06(實際時間)鑰匙可以用「結尾幾碼」解除綁定:電腦 win_keys.py unbindend <結尾>(換手機 / 出現「這把鑰匙已綁在另一支手機」時用,不用知道整把鑰匙)。
   · 2026-11-03 04:36(實際時間)十字線記住離最新一根幾根:原在最後一根 → 換股票 / 退出再進 / App 重開都在最後一根;在往前第 9 根 → 都在往前第 9 根(使用者「原在最後一根 切換就是在最後一根 改變成第9根 切換就是第9」);順便修:換股票時畫面範圍還在定,十字線被暫時的範圍推到往前 15 根
   · 2026-11-03 04:14(實際時間)記住目前看幾根:◀ ▶ 換股票、退出 K 圖再從清單進另一檔、App 重開,都沿用上次縮放的根數(例 270 根);沒有紀錄才用預設 40 根(使用者「這邊也270 上一個多少 下一個就是多少」)
   · 2026-11-03 04:07(實際時間)所有圖縮小最多看到 540 根(原本可以縮到全部載入的 K,約 1300 多根);放大最少 12 根照舊(使用者「改最多就是540」)
@@ -166,7 +167,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611030436">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031006">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
