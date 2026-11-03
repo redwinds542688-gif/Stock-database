@@ -1032,6 +1032,12 @@ class Bridge:
         # 2026-10-30 11:08(實際時間)使用者「該如何避免再次出現這問題」→「2道都做」第 1 道:電腦自己做開盤前資格複檢(elig.py),
         #   啟動時先做一次(08:45 前),08:30、08:44 再各做一次(證交所 / 櫃買早上才換今天的名單);結果存本機 + 推 Worker,手機、引擎、trader 都照它排除
         self.elig_done = set(); self.elig_run("啟動")
+        # 2026-11-03 使用者「讓QR CODE 自動存進 電腦 KEY目錄裡面」:啟動時另開執行緒,把每把鑰匙的 QR Code 圖存進 keys 資料夾(已有的不重做)
+        def _qr():
+            try:
+                import win_keys; win_keys.sync_qr(log=log)
+            except Exception as e: log("[鑰匙] 存 QR Code 失敗", e)
+        threading.Thread(target=_qr, daemon=True, name="keyqr").start()
         while now_tw().strftime("%H:%M") < "13:36":
             try:
                 if self.login_fail:

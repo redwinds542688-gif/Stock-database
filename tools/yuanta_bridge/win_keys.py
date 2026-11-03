@@ -14,6 +14,7 @@
   python win_keys.py add 小王 m3           # 三個月 1700 元(90 天)
   python win_keys.py add 小王 y1           # 一年   6000 元(365 天)
   python win_keys.py unbind <鑰匙>         # 2026-10-29 一人一機:鑰匙綁在第一支用它的手機;換手機先解綁
+  python win_keys.py qrall                 # 2026-11-03 把每一把(啟用中)鑰匙的 QR Code 都存進 keys 資料夾(中繼每次啟動也會自動做)
   python win_keys.py qr <鑰匙> [名字]       # 2026-11-01 產生 QR Code 圖(下面印鑰匙),手機 公式 → 鑰匙 → 掃描 就能存;add 建好鑰匙時也會自動產生
   python win_keys.py send <鑰匙>           # 2026-10-29 取件碼:印 6 位數,手機 公式 → 鑰匙 輸入 6 位數就拿到(10 分鐘內、用一次),不用抄 24 碼
   python win_keys.py off <鑰匙>            # 停用
@@ -41,7 +42,7 @@ def call(q, body=None):
         return {"error": f"HTTP {e.code}: {e.read().decode('utf-8', 'replace')[:200]}"}
 
 
-def make_qr(key, name="", note=""):
+def make_qr(key, name="", note="", open_img=True):
     """2026-11-01 使用者「金鑰產生器必須要可以產生一個QR Code的圖形底下才打著金鑰的密碼」:QR Code(內容 = 鑰匙)+ 下面印鑰匙,存 keys 資料夾(名字_鑰匙前 6 碼.png) 並打開。
        第一次用會自動安裝 qrcode / pillow 兩個套件"""
     import subprocess, os
@@ -78,9 +79,30 @@ def make_qr(key, name="", note=""):
     safe = "".join(ch for ch in (name or "key") if ch.isalnum() or ch in "-_") or "key"
     path = folder / f"{safe}_{key[:6]}.png"; out.save(path)
     print(f"QR Code 圖:{path}")
-    try: os.startfile(str(path))   # Windows:直接打開圖
-    except Exception: pass
+    if open_img:
+        try: os.startfile(str(path))   # Windows:直接打開圖
+        except Exception: pass
     return path
+
+
+def sync_qr(log=print):
+    """2026-11-03 使用者「讓QR CODE 自動存進 電腦 KEY目錄裡面」:把雲端每一把(啟用中、沒到期)鑰匙的 QR Code 圖都存進 keys 資料夾,
+       已經有的(檔名結尾 _<鑰匙前 6 碼>.png)就不重做;不打開圖。中繼每次啟動自動做一次,也可以手動 python win_keys.py qrall"""
+    import datetime
+    r = call("list")
+    if not isinstance(r, list): log("[鑰匙] 存 QR Code:讀不到鑰匙清單", r); return 0
+    folder = yb.HERE / "keys"; folder.mkdir(exist_ok=True)
+    have = {p.stem.rsplit("_", 1)[-1] for p in folder.glob("*.png")}
+    today = datetime.datetime.now(yb.TW).strftime("%Y-%m-%d"); n = 0
+    for k in r:
+        key = str(k.get("k", ""))
+        if not key or not k.get("on") or (k.get("exp") and k["exp"] < today) or key[:6] in have: continue
+        role = k.get("plan") or k.get("role") or ""
+        note = {"owner": "永久", "viewer": "看盤", "m1": "一個月", "m3": "三個月", "y1": "一年"}.get(role, role) + (f" 到期 {k['exp']}" if k.get("exp") else "")
+        try: make_qr(key, k.get("name", ""), note, open_img=False); n += 1
+        except Exception as e: log("[鑰匙] 存 QR Code 失敗", k.get("name", ""), e)
+    log(f"[鑰匙] QR Code 存進 {folder}:新增 {n} 張(共 {len(r)} 把鑰匙)")
+    return n
 
 
 def main(a):
@@ -111,6 +133,8 @@ def main(a):
         print(call("unbindsfx&sfx=" + a[1].strip().lower(), {})); return
     if a[0] in ("delend", "delstart") and len(a) > 1:
         print(call(("delsfx&sfx=" if a[0] == "delend" else "delpfx&pfx=") + a[1].strip().lower(), {})); return
+    if a[0] == "qrall":
+        sync_qr(); return
     if a[0] == "qr" and len(a) > 1:
         make_qr(a[1], a[2] if len(a) > 2 else ""); return
     if a[0] == "send" and len(a) > 1:
