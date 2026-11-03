@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 17:12(實際時間)明細滾輪轉到某天(例 10/28)再按元大 / 虛擬切換,畫面留在那天,不再跳回今天(使用者「滾到10/28 按元大切換到虛擬 日期又跳回11/3」)
   · 2026-11-03 16:12(實際時間)明細的虛擬交易改回非額度版(每個訊號都照 25 萬一筆做),只扣盤中沒發進場訊息的;盤中有沒有發改讀 live_entries.json(收盤後 GitHub 排程存),手機沒有才用自己的紀錄;永久版 11/03 以前也是這份,11/04 起「元大」接元大真實成交(使用者「那虛擬改這個 永久版的也改這個 明天之後永久版再接上元大」)
   · 2026-11-03 15:45(實際時間)明細的虛擬交易改成額度版、而且只留盤中真的有發進場訊息的股票(使用者「我要的是額度版的明細 且要進場裡面確實有進場的股票」):先刪掉沒發過進場訊息的,再照額度版排(一天 500 萬含漲停預留、同時最多 10 檔、每筆 25 萬,額度不夠少買或不做)
   · 2026-11-03 15:38(實際時間)明細日期滾輪轉到某天,那天第一筆直接貼齊欄名列下面,不再多露出日期分隔列(使用者「滾輪捲動 台玻應該要再上去一點」)
@@ -208,7 +209,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031652">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031712">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6893,7 +6894,7 @@ window.bgTick = bgTick; window.BG = BG;
         { const __H = hdDone + `<div class="tb done">` + body + `</div>`; if (nlSame(__H)) return;
           if (Date.now() - (box.__dwT || 0) < 900){ clearTimeout(box.__dwLater); box.__dwLater = setTimeout(() => render(true), 500); return; }   /* 2026-11-03 15:25 滾輪轉動中先不重畫,停下來再補 */
           nlPut(__H); dwWire(box); }
-        { const vb = box.querySelector('.hd .vbtn'); if (vb) vb.onclick = ev => { ev.stopPropagation(); window.DONE_VIRT = !window.DONE_VIRT; box.scrollTop = 0; render(true); if (window.DONE_VIRT){ btfLoad(true); lveLoad(true); } };   /* 2026-11-03 15:12 使用者「虛擬的資料沒有接上來」:切到虛擬當下重抓一次重算的虛擬交易(不等整點) */ }   // 15:04 使用者「改成一個按鍵就好 按元大 就切換到虛擬 … 再按一次虛擬 就切換回元大」:一顆,寫的是目前顯示的資料
+        { const vb = box.querySelector('.hd .vbtn'); if (vb) vb.onclick = ev => { ev.stopPropagation(); const day = box.__dwDay || window.__doneToday; window.DONE_VIRT = !window.DONE_VIRT; box.__dwT = 0; box.scrollTop = 0; render(true); box.__dwDay = day; requestAnimationFrame(() => { dwGo(box, day); box.__dwT = 0; dwSet(box, day); });   /* 2026-11-03 17:12 使用者「滾到10/28 按元大切換到虛擬 日期又跳回11/3」:切換後留在原本那天 */ if (window.DONE_VIRT){ btfLoad(true); lveLoad(true); } };   /* 2026-11-03 15:12 使用者「虛擬的資料沒有接上來」:切到虛擬當下重抓一次重算的虛擬交易(不等整點) */ }   // 15:04 使用者「改成一個按鍵就好 按元大 就切換到虛擬 … 再按一次虛擬 就切換回元大」:一顆,寫的是目前顯示的資料
         window.__doneY = ySrc; window.__doneVirt = doneVirt; window.__doneVirtOk = virtOk;   // 有「元大 / 虛擬」按鍵時標題不再寫來源(按鍵亮哪顆就是哪個)
         // 2026-10-27 14:15 使用者:「明細 畫面捲動到10/22 就要顯示10/22的總輸贏」:捲動時看欄名列下面第一列是哪一天,標題列右邊換成那天的總輸贏,左邊「明細」後面加日期(今天不加)
         window.__doneTot = dayTot; window.__doneToday = d0;
