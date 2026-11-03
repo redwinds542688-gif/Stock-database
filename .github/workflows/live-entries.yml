@@ -1,0 +1,42 @@
+name: 盤中進場訊息存檔
+
+# 2026-11-03 使用者「那就放在開放的空間」:收盤後把當天盤中發過的進場訊息(只有 代號|多空|判別式)存到 live_entries.json,
+#   事後重算的虛擬交易(額度版)對照用。金鑰 YT_PUSH_KEY 只在這裡從 GitHub Secrets 帶給程式,不印出來
+on:
+  schedule:
+    # 台灣 14:05 / 16:05 / 20:05(GitHub 排程常延遲,多排幾次;同一天重抓沒副作用)
+    - cron: "5 6 * * 1-5"
+    - cron: "5 8 * * 1-5"
+    - cron: "5 12 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily
+  cancel-in-progress: false
+
+jobs:
+  save:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 取出 repo
+        uses: actions/checkout@v4
+      - name: 存盤中進場訊息
+        run: python3 tools/live_entries.py
+        env:
+          YT_PUSH_KEY: ${{ secrets.YT_PUSH_KEY }}
+      - name: Commit 回 repo
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add live_entries.json 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "沒有變動,不 commit"
+          else
+            git commit -m "盤中進場訊息存檔 $(TZ=Asia/Taipei date '+%Y-%m-%d %H:%M')"
+            git pull --rebase
+            git push
+          fi
