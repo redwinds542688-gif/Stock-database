@@ -572,7 +572,8 @@ function kvCounted(env, ctx) {
   return Object.assign(Object.create(env), { LOGS: W, __kvc: true });
 }
 const kvDown = () => globalThis.__kvDown && Date.now() - globalThis.__kvDown < 10 * 60000;
-const SEENW = new Map();   // 2026-11-03 鑰匙「最後使用時間」這個執行個體上次試著寫 KV 的時間
+const SEENW = new Map();
+const BUGIP = new Map();   // 2026-11-03 抓 bug 上傳不要鑰匙後,每個 IP 每分鐘最多 6 次   // 2026-11-03 鑰匙「最後使用時間」這個執行個體上次試著寫 KV 的時間
 async function keyInfo(env, k) {
   if (!env || !env.LOGS || !KEY_RE.test(k || "")) return null;
   const v = await kvGetC(env, "key:" + k, 300000);
@@ -971,7 +972,9 @@ export default {
         if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
         // 2026-10-29 安全修補:上傳要 owner 鑰匙或中繼金鑰(外人狂傳會吃光 KV 一天 1,000 次寫入,分K 快照 / 寬度跟著停);手機 fetch 包裝會自動帶 k= / dv=
         //   大小上限照舊 1.5MB(snaps 異常前 10 秒完整紀錄大小不定,改小怕手機傳不上去)
-        if (!(await ownerOk())) return J({ error: "上傳 bug 紀錄要 owner 鑰匙", badKey: true }, 403);
+        // 2026-11-03 12:56 使用者「上傳不需要 鑰匙」:不再要 owner 鑰匙(現在存 Hub、最多留 20 份,不吃 KV 額度);防亂傳:同一個 IP 每分鐘最多 6 次
+        { const ip = request.headers.get("CF-Connecting-IP") || "?", now = Date.now(), q = (BUGIP.get(ip) || []).filter(t => now - t < 60000);
+          if (q.length >= 6) return J({ error: "上傳太頻繁,等一分鐘" }, 429); q.push(now); BUGIP.set(ip, q); if (BUGIP.size > 500) BUGIP.clear(); }
         const cl = +request.headers.get("Content-Length") || 0; if (cl > 1500000) return J({ error: "太大" }, 413);
         const body = await request.text();
         if (body.length > 1500000) return J({ error: "太大" }, 413);
