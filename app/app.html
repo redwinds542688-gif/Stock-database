@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 21:22(實際時間)長按左上角抓 bug 灰點不會再誤跳「緊急停止」:灰點可按範圍放大到 44×44(看起來一樣大),標題左上角那一塊不算長按標題(使用者「按 抓bug 會誤觸這個」)
   · 2026-11-03 20:01(實際時間)所有圖鎖定(使用者「現在所有圖完善 鎖定 不可修改」):程式不變,只在標頭和交接說明記下鎖定
   · 2026-11-03 19:36(實際時間)左右滑卡在半路修正(使用者「還是會卡住」):拖動時手指按著的那張卡被換掉,放開收不到 → 改成把原本內容整個搬進舊頁殼,不會被換掉;系統取消觸控時也會彈回原頁;萬一還卡住,下次一碰就解開
   · 2026-11-03 19:32(實際時間)左右滑再修:下一頁在手指一拖時就畫好(原本手指按著時延後重畫,拖到一半內容才換);翻頁只移動不變淡,不會閃(使用者「你自己慢慢滑看看 畫面不順暢 滑到一半顯示的也會變化」)
@@ -221,7 +222,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611032121">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611032122">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -738,6 +739,7 @@
 #bgDot.on{display:block;background:#1DD75B}
 #bgDot.off{display:block;background:#FF3B3B}
 /* 2026-10-28 11:00 使用者「設一個抓bug 程式 隱藏在長按左上角監控燈那邊 監控開盤綠色 平時灰色」:左上角燈(App 的閃爍綠點疊在它上面);長按 0.8 秒開抓 bug 面板 */
+#bugDot::after{content:'';position:absolute;left:-6px;top:-3px;width:44px;height:44px;border-radius:0}   /* 2026-11-03 21:22 使用者「按 抓bug 會誤觸這個(緊急停止)」:灰點的可按範圍放大到 44×44(看起來一樣大),手指按在灰點附近就算按灰點 */
 #bugDot{position:fixed;top:3px;left:6px;width:12px;height:12px;border-radius:50%;background:#5C667A;z-index:2000;box-shadow:0 0 0 1px rgba(0,0,0,.6)}
 #bugDot.on{background:transparent;box-shadow:none}
 #bugDot.up,#bugDot.on.up{background:#FF3B3B;box-shadow:0 0 6px rgba(255,59,59,.9);transform:scale(1.9);transform-origin:center}   /* 12:52 使用者「紅點啟動時 大綠點一圈 就可以看到」:放大一圈蓋過監控綠燈 */   /* 2026-11-03 12:51 使用者「長按啟動抓bug時 改成紅點 抓完存檔後再恢復為灰點」:上傳中紅點(監控中也蓋在綠燈上面),傳完恢復 */   /* 2026-11-02 10:08 使用者「左上角 監控點 出現重影」:監控中 App 自己的閃爍綠點(疊在所有畫面上)位置和這顆差幾 px(各手機狀態列高度不同)→ 監控中這顆不畫,只留閃爍那顆(長按開抓 bug 照舊) */ #bugDot.off{background:#FF3B3B} #bugDot.hit{box-shadow:0 0 0 2px #FF3B3B}
@@ -1403,7 +1405,7 @@ function haltAsk(){
     haltPaint();
     const h = document.querySelector('h1'); if (!h || h.__halt) return; h.__halt = 1;
     let tm = null, x0 = 0, y0 = 0;
-    const start = (x, y) => { if (window.VIEWER) return; x0 = x; y0 = y; clearTimeout(tm); tm = setTimeout(() => { tm = null; try{ navigator.vibrate && navigator.vibrate(40); }catch(e){} haltAsk(); }, 800); };
+    const start = (x, y) => { if (window.VIEWER) return; if (x < 56 && y < 50) return;   /* 2026-11-03 21:22 左上角抓 bug 灰點附近不算按標題(不會跳緊急停止) */ x0 = x; y0 = y; clearTimeout(tm); tm = setTimeout(() => { tm = null; try{ navigator.vibrate && navigator.vibrate(40); }catch(e){} haltAsk(); }, 800); };
     const stop = () => { clearTimeout(tm); tm = null; };
     h.addEventListener('touchstart', e => start(e.touches[0].clientX, e.touches[0].clientY), {passive: true});
     h.addEventListener('touchmove', e => { const t = e.touches[0]; if (Math.abs(t.clientX - x0) > 12 || Math.abs(t.clientY - y0) > 12) stop(); }, {passive: true});
