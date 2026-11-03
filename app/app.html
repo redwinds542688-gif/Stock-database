@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 22:45(實際時間)換到進場時卡片字不會在 0.3 秒後再稍微放大:標題列定好大小後馬上再量一次卡片,第一次畫出來就是最終大小(使用者影片 13928「只是稍微變大」)
   · 2026-11-03 22:43(實際時間)按下面的按鍵換頁(進場 / 當沖 / 明細)立刻換,不再先停在舊頁約半秒(使用者影片 9~11 秒「從別的按鍵下點進 進場」)
   · 2026-11-03 22:16(實際時間)公式(或設定)打開時按當沖 / 明細,直接打開那一頁,不會再跳到進場(使用者「按公式 再按明細 結果會跳到 進場」)
   · 2026-11-03 21:36(實際時間)指標二那列的紅箭頭(十字線回到最新一根):按下去那一下不再被圖當成點圖,而且箭頭四周 14px 內按下去都算按箭頭(箭頭小、手指常壓到旁邊的圖),十字線直接回到最新一根(使用者「點箭頭 十字虛線還以為是點他」→「改」;只改箭頭,圖照舊鎖定)
@@ -225,7 +226,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611032242">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611032245">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1733,7 +1734,7 @@ window.fitBands = fitBands;
     try{ await scan(); } finally { FORCE_FRESH = false; }
   };
   let hold, held = false, lastTap = 0;
-  const showMsg = e => { if (held){ held = false; return; } e.preventDefault(); if (window.closeRsMenu) closeRsMenu(); if (window.LOG_RS || (window.NL_VIEW && window.NL_VIEW !== 'msg')){ window.LOG_RS = ''; window.NL_VIEW = 'msg'; if (window.nlRender) nlRender(); } const pnl = document.querySelector('.panel'); if (pnl) pnl.classList.remove('open'); if (window.hideInfo) hideInfo(); if (window.refreshToolbar) refreshToolbar(); };
+  const showMsg = e => { if (held){ held = false; return; } e.preventDefault(); if (window.closeRsMenu) closeRsMenu(); if (window.LOG_RS || (window.NL_VIEW && window.NL_VIEW !== 'msg')){ window.LOG_RS = ''; window.NL_VIEW = 'msg'; window.__nlTouch = 0; if (window.nlRender) nlRender(); } const pnl = document.querySelector('.panel'); if (pnl) pnl.classList.remove('open'); if (window.hideInfo) hideInfo(); if (window.refreshToolbar) refreshToolbar(); };
   btn.addEventListener('touchstart', () => { hold = setTimeout(() => { held = true; btn.style.opacity = '.3'; setTimeout(() => { btn.style.opacity = ''; }, 200); reload(); }, 700); }, {passive:true});
   btn.addEventListener('mousedown', () => { hold = setTimeout(() => { held = true; reload(); }, 700); });
   ['touchend','touchmove','touchcancel','mouseup','mouseleave'].forEach(ev => btn.addEventListener(ev, () => clearTimeout(hold), {passive:true}));
@@ -7128,7 +7129,7 @@ window.bgTick = bgTick; window.BG = BG;
     //   資金框 / 元大(虛擬)框一律放在日期格右邊固定距離(14px),數字只在右邊剩下的空間裡靠右,怎麼變都不會推動框
     const alignKey = () => { try{ const h = box.querySelector('.hd'), w = h && h.querySelector('.dwh'), k = h && h.querySelector('.cash .rlb, .vbtn'); if (!w || !k) return;
         k.style.marginLeft = '0px'; const x = w.getBoundingClientRect().right + 14 - k.getBoundingClientRect().left; k.style.marginLeft = Math.round(x) + 'px'; }catch(e){} };
-    const fitAll = () => { fit(); fitHd(); alignM30(); fitHdShrink(); alignM30(); alignKey(); try{ if (box.__fitL) box.__fitL(); }catch(e){} if (window.NL_GOTO) scrollToDay(window.NL_GOTO); };
+    const fitAll = () => { fit(); fitHd(); alignM30(); fitHdShrink(); alignM30(); fit(); fitHd(); alignM30(); fitHdShrink(); alignM30(); alignKey();   /* 2026-11-03 22:45 使用者「只是稍微變大」(影片 13928:換到進場 0.33 秒後卡片字放大一點):卡片列高 = (通知欄高 − 標題列高) ÷ 3,第一次量時標題列還沒縮到最終大小、比較高 → 卡片字偏小,0.3 秒後重量才放大。改成標題列定好後馬上再量一次卡片,第一次畫出來就是最終大小 */ try{ if (box.__fitL) box.__fitL(); }catch(e){} if (window.NL_GOTO) scrollToDay(window.NL_GOTO); };
     fitAll(); try{ if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll); }catch(e){} setTimeout(fitAll, 300); setTimeout(() => { window.NL_GOTO = null; }, 400);
     const prev = el('nlPrev'), next = el('nlNext');
     { const pn = box.querySelector('.hd .pnl'); if (pn) pn.onclick = () => { window.NL_SHOW30 = !window.NL_SHOW30; render(true); }; }
