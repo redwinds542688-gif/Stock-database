@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 12:21(實際時間)放大縮小更順(使用者「圖 上滑下滑 不順暢」「就是放大縮小不順暢」):縮放時指標二的上下範圍每一格被三條線各算一次、每次掃 300~540 根(縮放時程式最花時間的地方)→ 同一格畫面內、資料沒換過才共用(每次換資料都重算,不會再出現平線),這段時間約少 4 分之 3
   · 2026-11-03 12:12(實際時間)超額訊號補進場改成要確認(使用者「這種股票要加上 確認按鍵」):現價回到一張 ≤ 多空上限時電腦不自動下單,手機收到「↩ 可以補進場」提醒並跳視窗(原訊號 / 現價 / 張數 / 停利停損),按「確認補進場」才進、「不要」= 這筆不補;價格又超過上限就收回
   · 2026-11-03 12:09(實際時間)電腦:超額沒進場的訊號先記著,現價回到一張 ≤ 多空上限、還在停利 / 停損之間、那份判別式還沒發平倉通知、沒過最後進場時間 → 補進場一次(張數照現價算,停利 / 停損照原訊號),手機會收到「↩ 補進場」(使用者:晶豪科 257.50 超額,跌到 250 以下也沒進 →「改」)
   · 2026-11-03 11:52(實際時間)① 指標二又壓成平線(使用者截圖聯電)→ 11/02 23:05 加的「上下範圍沿用上次」整個拿掉,恢復原本每次重算;② 雲端 KV 寫入今天爆到 1.5 萬次(上限 1,000,抓 bug 上傳因此失敗):鑰匙「最後使用時間」每個請求都寫一次 → 改成一小時最多一次;主導機改設定、上傳 bug 在額度用完時改存 Hub / 回清楚的訊息
@@ -177,7 +178,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031212">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031221">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4590,12 +4591,17 @@ function initChart(){
       if (!YH.obvSkipClose) return orig();
       const r = chart.timeScale().getVisibleLogicalRange(); if (!r || !BARS || !BARS.length) return orig();
       // 2026-11-03 11:50 使用者截圖(聯電)指標二又壓成平線 → 11/02 23:05 加的「同一段範圍沿用上次」整個拿掉,恢復每次重算(原本的做法)
+      // 2026-11-03 12:17 使用者「圖 上滑下滑 不順暢」:縮放時這段每一格被三條線各問一次、每次掃 300~540 根(量起來是縮放時最花時間的地方)→
+      //   只在「同一格畫面內(40 毫秒)、範圍一樣、線的資料沒換過(每次 setData 版本 +1)」才用剛算的,資料一換一定重算(不會再拿到舊範圍)
+      const ck = Math.floor(r.from) + '|' + Math.ceil(r.to) + '|' + BARS.length + '|' + (window.__obvVer || 0), C = obvRangeEx.__f;
+      if (C && C.k === ck && performance.now() - C.t < 40) return C.v || orig();
       let lo = Infinity, hi = -Infinity;
       for (let i = Math.max(0, Math.floor(r.from)); i <= Math.min(BARS.length - 1, Math.ceil(r.to)); i++){
         if (hmKey(BARS[i].time) === '13:30') continue;
         for (const x of [obvSeries, obvMaLine, obvMa30Line]){ if (!x) continue; const d = x.dataByIndex(i); if (d && d.value != null){ if (d.value < lo) lo = d.value; if (d.value > hi) hi = d.value; } }
       }
-      return (isFinite(lo) && hi > lo) ? {priceRange: {minValue: lo, maxValue: hi}} : orig(); }catch(e){ return orig(); } };
+      const out = (isFinite(lo) && hi > lo) ? {priceRange: {minValue: lo, maxValue: hi}} : null; obvRangeEx.__f = {k: ck, v: out, t: performance.now()};
+      return out || orig(); }catch(e){ return orig(); } };
   obvSeries = chartM.addLineSeries({priceScaleId:'left', color:CHART_THEME.obv, lineWidth:1.5, lineStyle: 2,   // 2026-10-21 使用者:「Oa 用虛線」(lineStyle 2 = 虛線)
                                     priceLineVisible:false, lastValueVisible:false,
                                     priceFormat: lotsFmt});
@@ -5030,7 +5036,7 @@ function obvPxMapUpdate(){
     const RAW = window.__obvRaw;
     if (!chart || !chartM || !BARS.length || !RAW || !obvSeries) return;
     const fm = window.__obvFmt;
-    if (!YH.obvPriceAxis){ if (window.__obvPx){ window.__obvPx = null; obvSeries.setData(RAW.a); obvMaLine.setData(RAW.b); obvMa30Line.setData(RAW.c); if (fm) for (const x of [obvSeries, obvMaLine, obvMa30Line]) x.applyOptions({priceFormat: {...fm, minMove: 1}}); } return; }
+    if (!YH.obvPriceAxis){ if (window.__obvPx){ window.__obvPx = null; window.__obvVer = (window.__obvVer || 0) + 1; obvSeries.setData(RAW.a); obvMaLine.setData(RAW.b); obvMa30Line.setData(RAW.c); if (fm) for (const x of [obvSeries, obvMaLine, obvMa30Line]) x.applyOptions({priceFormat: {...fm, minMove: 1}}); } return; }
     if (!RAW.m) RAW.m = [RAW.a, RAW.b, RAW.c].map(arr => new Map(arr.filter(x => x.value != null).map(x => [x.time, x.value])));
     const r = chart.timeScale().getVisibleLogicalRange(); if (!r) return;
     const i0 = Math.max(0, Math.floor(r.from)), i1 = Math.min(BARS.length - 1, Math.ceil(r.to));
@@ -5046,7 +5052,7 @@ function obvPxMapUpdate(){
     if (P && P.raw === RAW && P.oLo === oLo && P.oHi === oHi && P.pLo === pLo && P.pHi === pHi) return;   // 對照沒變不重畫
     window.__obvPx = {oLo, oHi, pLo, pHi, raw: RAW};
     const kk = (pHi - pLo) / (oHi - oLo), conv = arr => arr.map(x => x.value == null ? x : Object.assign({}, x, {value: pLo + (x.value - oLo) * kk}));
-    obvSeries.setData(conv(RAW.a)); obvMaLine.setData(conv(RAW.b)); obvMa30Line.setData(conv(RAW.c));
+    window.__obvVer = (window.__obvVer || 0) + 1; obvSeries.setData(conv(RAW.a)); obvMaLine.setData(conv(RAW.b)); obvMa30Line.setData(conv(RAW.c));
     const tk = tickOf((pLo + pHi) / 2);
     if (fm) for (const x of [obvSeries, obvMaLine, obvMa30Line]) x.applyOptions({priceFormat: {...fm, minMove: tk}});
   }catch(e){}
@@ -5552,18 +5558,18 @@ function drawBars0(bars, code, srcLabel, keepView){
     obD = obvX(bars);
     obmaD = sma(obD, BASE.obvMaPeriod, 'value', false); obma30D = sma(obD, YH.ocPeriod || 30, 'value', false); obma16D = sma(obD, YH.odPeriod || 16, 'value', false);
   }
-  const __oa = dayCut(obD); obvSeries.setData(__oa);   // 2026-10-26 21:30 原始 OBV 留一份(指標二價格刻度要換算)
+  const __oa = dayCut(obD); window.__obvVer = (window.__obvVer || 0) + 1; obvSeries.setData(__oa);   // 2026-10-26 21:30 原始 OBV 留一份(指標二價格刻度要換算)
   // 2026-10-23 16:30 使用者(「其他 有這問題嗎」):Ob / Oc / Od 每天前 n−1 根沒有值,線會從昨天 13:30 直接拉到今天第 n 根;畫圖時用「有幾根算幾根」的平均補上(同 Ka),
   //   只是畫面,判別式 / 燈號 / 轉折算的 Ob / Oc / Od 不動(上方文字前幾根仍是「–」)
   const headFill = (arr, n) => { const m = new Map(arr.map(x => [x.time, x])); const out = []; let dk = null, sum = 0, cnt = 0;
     for (const o of ob){ const d = dayKey(o.time); if (d !== dk){ dk = d; sum = 0; cnt = 0; } sum += o.value; cnt++;
       const x = m.get(o.time); if (x) out.push(x); else if (cnt < n) out.push({time: o.time, value: +(sum / cnt).toFixed(3)}); }
     return out; };
-  const __ob = dayCut(YH.obvDisplayCross ? obmaD : headFill(obma, BASE.obvMaPeriod)); obvMaLine.setData(__ob);
+  const __ob = dayCut(YH.obvDisplayCross ? obmaD : headFill(obma, BASE.obvMaPeriod)); window.__obvVer = (window.__obvVer || 0) + 1; obvMaLine.setData(__ob);
   // 2026-10-21 22:55 使用者(「oc 多少可以增加燈號準確率」→「改 28」):Oc 30 → YH.ocPeriod(28)。七天 1,405 股票日(Y3+W6 燈號):
   //   30 根 對 1,609 錯 1,163 58.0% → 28 根 對 1,696 錯 1,201 58.5%(16 根淨對最多 528 但 57.7%;35 以上變差)。判別式的 OBV 30 均線在 replaySignals 裡自己算,不受影響
   const obma30 = sma(ob, YH.ocPeriod || 30, 'value');
-  const __oc = dayCut(YH.obvDisplayCross ? obma30D : headFill(obma30, YH.ocPeriod || 30)); obvMa30Line.setData(__oc);
+  const __oc = dayCut(YH.obvDisplayCross ? obma30D : headFill(obma30, YH.ocPeriod || 30)); window.__obvVer = (window.__obvVer || 0) + 1; obvMa30Line.setData(__oc);
   window.__obvRaw = {a: __oa, b: __ob, c: __oc}; window.__obvPx = null; obvPxMapUpdate();   // 2026-10-26 21:30 指標二價格刻度:三條線換算成價格再畫
   const obma16 = sma(ob, YH.odPeriod || 16, 'value');   // 2026-10-21 Od
   if (!obma16D) obma16D = obma16; if (!obma30D) obma30D = obma30;
