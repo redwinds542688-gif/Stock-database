@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 22:16(實際時間)公式(或設定)打開時按當沖 / 明細,直接打開那一頁,不會再跳到進場(使用者「按公式 再按明細 結果會跳到 進場」)
   · 2026-11-03 21:36(實際時間)指標二那列的紅箭頭(十字線回到最新一根):按下去那一下不再被圖當成點圖,而且箭頭四周 14px 內按下去都算按箭頭(箭頭小、手指常壓到旁邊的圖),十字線直接回到最新一根(使用者「點箭頭 十字虛線還以為是點他」→「改」;只改箭頭,圖照舊鎖定)
   · 2026-11-03 21:22(實際時間)長按左上角抓 bug 灰點不會再誤跳「緊急停止」:灰點可按範圍放大到 44×44(看起來一樣大),標題左上角那一塊不算長按標題(使用者「按 抓bug 會誤觸這個」)
   · 2026-11-03 20:01(實際時間)所有圖鎖定(使用者「現在所有圖完善 鎖定 不可修改」):程式不變,只在標頭和交接說明記下鎖定
@@ -223,7 +224,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611032138">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611032216">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1879,9 +1880,12 @@ window.fitBands = fitBands;
     e.addEventListener('touchend', ev => { at = Date.now(); ev.preventDefault(); fn(); }, {passive: false});
     e.addEventListener('click', () => { if (Date.now() - at < 800) return; fn(); }); };
   tapOn(document.getElementById('btnReload'), () => { if (menuOpen()) closeMenu(); else openMenu(); });
-  tapOn(document.getElementById('btnState'), () => setView(window.NL_VIEW === 'pos' ? 'msg' : 'pos'));
-  tapOn(document.getElementById('btnRules'), () => setView(window.NL_VIEW === 'done' ? 'msg' : 'done'));
-  document.addEventListener('touchstart', ev => { if (menuOpen() && !menu.contains(ev.target) && ev.target.id !== 'btnReload') closeMenu(); }, {passive: true});
+  // 2026-11-03 22:16 使用者「按公式 再按明細 結果會跳到 進場」:原本「已經在明細再按一次 = 回進場」,但公式 / 設定蓋在上面時畫面上看到的不是明細,還是照「在明細」算 → 跳到進場。
+  //   改成:公式 / 設定開著時按當沖 / 明細,一律打開那一頁;只有畫面上真的正在看那一頁才切回進場
+  const shownView = () => { const pnl = document.querySelector('.panel'); if (Date.now() - (window.__menuShutAt || 0) < 800){ window.__menuShutAt = 0; return ''; } if (menuOpen() || (pnl && pnl.classList.contains('open'))) return '';   /* 手指按下時公式剛被收起來,也算公式開著 */ return window.NL_VIEW; };
+  tapOn(document.getElementById('btnState'), () => setView(shownView() === 'pos' ? 'msg' : 'pos'));
+  tapOn(document.getElementById('btnRules'), () => setView(shownView() === 'done' ? 'msg' : 'done'));
+  document.addEventListener('touchstart', ev => { if (menuOpen() && !menu.contains(ev.target) && ev.target.id !== 'btnReload'){ window.__menuShutAt = Date.now(); closeMenu(); } }, {passive: true});
   // 燈號:綠 = 開盤時段(週一~五 08:45~13:35)+ 這份有開 + App 背景監控在跑;紅 = 開盤時段但這份沒開或監控沒在跑;灰 = 收盤
   const rsLampUpd = () => { try{
     if (!menu) return;
