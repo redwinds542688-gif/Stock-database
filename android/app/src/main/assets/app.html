@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 12:25(實際時間)上下滑縮放不再要「放下 0.24 秒內就開始滑」(使用者影片「還是很卡」:慢一點開始滑,手勢被當成按住 → 圖沒反應,看起來像卡住):往上下為主就是縮放,不管按了多久才滑;左右滑捲圖、按在十字線上拖照舊。K 圖 / 乖離 / 壓力圖 / 指標二三都一樣
   · 2026-11-03 12:21(實際時間)放大縮小更順(使用者「圖 上滑下滑 不順暢」「就是放大縮小不順暢」):縮放時指標二的上下範圍每一格被三條線各算一次、每次掃 300~540 根(縮放時程式最花時間的地方)→ 同一格畫面內、資料沒換過才共用(每次換資料都重算,不會再出現平線),這段時間約少 4 分之 3
   · 2026-11-03 12:12(實際時間)超額訊號補進場改成要確認(使用者「這種股票要加上 確認按鍵」):現價回到一張 ≤ 多空上限時電腦不自動下單,手機收到「↩ 可以補進場」提醒並跳視窗(原訊號 / 現價 / 張數 / 停利停損),按「確認補進場」才進、「不要」= 這筆不補;價格又超過上限就收回
   · 2026-11-03 12:09(實際時間)電腦:超額沒進場的訊號先記著,現價回到一張 ≤ 多空上限、還在停利 / 停損之間、那份判別式還沒發平倉通知、沒過最後進場時間 → 補進場一次(張數照現價算,停利 / 停損照原訊號),手機會收到「↩ 補進場」(使用者:晶豪科 257.50 超額,跌到 250 以下也沒進 →「改」)
@@ -178,7 +179,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031221">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031225">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3536,7 +3537,7 @@ function wiDevTap(wp){
   wp.addEventListener('pointermove', ev => { if (!st) return;
     const dx = ev.clientX - st.x0, dy = ev.clientY - st.y0;
     if (st.mode === null && Math.hypot(dx, dy) > 10){
-      if (Date.now() - st.t0 < 240 && Math.abs(dy) >= Math.abs(dx) * 0.5 && window.__zoomStart){ const z = __zoomStart(); st.mode = z ? 'zoom' : 'x'; st.z = z; }
+      if (Math.abs(dy) >= Math.abs(dx) * (Date.now() - st.t0 < 240 ? 0.5 : 1) && window.__zoomStart){   /* 2026-11-03 12:25 使用者影片「還是很卡」:慢慢上下滑也算縮放(原本要放下 0.24 秒內就開始滑,慢一點就變成沒反應) */ const z = __zoomStart(); st.mode = z ? 'zoom' : 'x'; st.z = z; }
       else { st.mode = 'pan'; st.p = window.__panStart ? __panStart() : null; } }   // 2026-10-27 19:00 使用者:「滑動就是捲動圖」:左右滑 = 捲圖(原本是拖十字線)
     if (st.mode === 'zoom') __zoomBy(st.z, ev.clientY - st.y0);
     else if (st.mode === 'pan') { if (window.__panBy) __panBy(st.p, ev.clientX - st.x0); }
@@ -4933,7 +4934,7 @@ function initChart(){
       // 單指上下滑 = 縮放(2026-10-18):手勢一開始(放下 0.24 秒內、移動超過 10px)往上下走就算;以十字線那根為中心,
       // 上滑放大(每 120px 放大一倍)、下滑縮小。往左右走的交給套件拖圖;按住超過 0.24 秒再動是套件的長按拖十字線,不縮放
       if (vz === null && Math.hypot(dx, dy) > 10){
-        if (Date.now() - t0 < 240 && Math.abs(dy) >= Math.abs(dx) * 0.5 && !longPress){
+        if (Math.abs(dy) >= Math.abs(dx) * (Date.now() - t0 < 240 ? 0.5 : 1)){   // 2026-11-03 12:25 使用者影片「還是很卡」:不管放下多久才開始滑,往上下為主就是縮放(原本 0.24 秒後才滑 = 沒反應)
           const r0 = c.timeScale().getVisibleLogicalRange();
           if (r0){ let anchor = (r0.from + r0.to) / 2; if (XLOCK){ const li = idxOf(XLOCK.time); if (li >= r0.from && li <= r0.to) anchor = li; }
             vz = {r0, anchor, y0: t.clientY}; }
@@ -4990,10 +4991,11 @@ function initChart(){
         // 2026-10-27 20:25 使用者:「指標二 十字虛線 滑動時有時候會跟上下虛線沒有對齊」:圖表套件自己捲時只捲被拖的那張,另外兩張下一格才跟上(快滑時差 12px)
         //   → 左右滑一律自己捲(三張圖同一格一起設範圍),放手照手指速度慣性滑一段;上下快滑 = 縮放照舊交給下面那段
         if (pan){ ev.stopPropagation(); window.__panBy(pan.z, x - pan.x0); const n = Date.now(); pan.s.push([n, x]); while (pan.s.length > 2 && n - pan.s[0][0] > 100) pan.s.shift(); return; }
-        if (hold) ev.stopPropagation();                            // 按住後的移動都不給套件(不然它會拖十字線)
-        if (!g0) return;
-        const dx = x - g0.x, dy = ev.touches[0].clientY - g0.y; if (Math.hypot(dx, dy) <= 10) return;
-        if (!hold && Date.now() - g0.t < 240 && Math.abs(dy) >= Math.abs(dx) * 0.5) { clearTimeout(holdTm); return; }   // 上下快滑 = 縮放(下面那段處理)
+        if (!g0){ if (hold) ev.stopPropagation(); return; }
+        if (g0.zoom) return;                                       // 這次手勢已經是縮放:交給下面那段
+        const dx = x - g0.x, dy = ev.touches[0].clientY - g0.y; if (Math.hypot(dx, dy) <= 10){ if (hold) ev.stopPropagation(); return; }   // 按住後的小移動不給套件(不然它會拖十字線)
+        if (Math.abs(dy) >= Math.abs(dx) * (Date.now() - g0.t < 240 ? 0.5 : 1)) { clearTimeout(holdTm); hold = null; g0.zoom = true; return; }   // 上下為主 = 縮放(下面那段處理);2026-11-03 12:25 不再限放下 0.24 秒內
+        if (hold) ev.stopPropagation();
         clearTimeout(holdTm); pan = {z: window.__panStart(), x0: x, s: [[Date.now(), x]]}; longPress = false; ev.stopPropagation(); return; }
       ev.stopPropagation();                                        // 拖十字線時圖不捲、不縮放
       // 2026-10-27 19:55 使用者:「十字虛線到最左或左右 已經無法捲動k圖」:拖十字線拖到最左(右)44px 內 → 三張圖一起往前(後)捲,十字線停在邊緣那根(和原本長按拖的一樣)
