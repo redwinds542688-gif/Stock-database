@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 17:27(實際時間)當沖頁的「元大」改成和明細「元大」按鍵同樣子(黃底黑字、外框),只是標示、按了沒作用(使用者「當沖這裡的 元大 與 明細的按鍵 元大 一致 只不過當沖這邊的元大 按鍵沒作用」)
   · 2026-11-03 17:24(實際時間)當沖頁連得上電腦(元大真實部位)時標題寫回「當沖 元大」(元大黃色);連不上照舊只寫「當沖」(使用者「連得上電腦時 當沖 元大。把 元大 放上去」)
   · 2026-11-03 17:22(實際時間)當沖頁標題「當沖」改綠色(和進場、明細一樣),後面不再寫「系統」/「元大」(使用者「把 當沖 改 綠色 後面的系統不顯示」;看盤版照舊)
   · 2026-11-03 17:20(實際時間)進場頁標題改成和明細一樣:「進場」綠色 + 日期滾輪(銀色、固定位置),◀ ▶ 拿掉;轉日期清單跳到那天,捲清單滾輪跟著轉(使用者「把 進場 日期 這 改成 與 明細那邊一樣 變成 進場+日期滾輪」)
@@ -213,7 +214,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031724">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031727">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -282,6 +283,7 @@
   #notifLog .hd .vbtn.on.virt{background:#B15CFF;color:#fff;box-shadow:0 0 0 2px #000,0 0 0 3.5px #B15CFF}   /* 虛擬:紫色,一眼分得出來 */   /* 2026-11-03 13:54 使用者「按鍵加外框」:兩種狀態都多一圈外框 */   /* 2026-11-03 明細「虛擬 / 元大」切換(只有自己的 App、非開盤時間) */
   #notifLog .hd .nav{display:flex;gap:6px;align-items:center}
   #notifLog .hd .dwh{display:inline-block;height:1.3em;line-height:1.3em;overflow-y:scroll;scroll-snap-type:y mandatory;overscroll-behavior:contain;touch-action:pan-y;scrollbar-width:none;padding:0 4px;border-radius:6px;border:1px solid #3A4252;-webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,.35),#000 22%,#000 78%,rgba(0,0,0,.35));mask-image:linear-gradient(180deg,rgba(0,0,0,.35),#000 22%,#000 78%,rgba(0,0,0,.35))}   /* 2026-11-03 15:25 明細日期滾輪 */
+  #notifLog .hd .vtag{display:inline-block;pointer-events:none}   /* 2026-11-03 17:27 當沖的「元大」:和明細按鍵同樣子,但只是標示、按了沒作用 */
   #notifLog .hd .lb .dwh{margin-left:6px;vertical-align:middle}   /* 2026-11-03 17:20 進場頁日期滾輪 */
   #notifLog .hd .dlb{color:#1DD75B;font-weight:700;flex:none}   /* 2026-11-03 15:30 使用者「明細 綠色 日期 銀色 顯示位置都固定」 */
   #notifLog .hd .dwh{color:#C9D1DC;flex:none;width:3.3em;box-sizing:content-box;font-variant-numeric:tabular-nums}
@@ -6819,7 +6821,7 @@ window.bgTick = bgTick; window.BG = BG;
         }
         // (判別式相關說明已移到私人庫)
         // 2026-10-27 10:30(實際時間)使用者:「當沖 通知欄 最下面的資訊 改在上面顯示 這邊不用」:「N 檔 未平倉 + 合計輸贏」改放標題列(取代 當日),最下面那列拿掉
-        const hdPos = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(tot))}</span>`).replace('<span>當沖</span>', `<span class="dlb">當沖${TP ? '<span style="color:#FFD54F"> 元大</span>' : ''}</span>`);   /* 17:24 使用者「連得上電腦時 當沖 元大。把 元大 放上去」 */   /* 2026-11-03 17:22 使用者「把 當沖 改 綠色 後面的系統不顯示」:綠色、不寫元大 / 系統(看盤版照舊「當沖 系統」) */   // 13:21 連得上電腦(元大真實部位)標「元大」,模擬標「系統」(看盤版標題本來就是「當沖 系統」)   // 2026-10-27 10:40(實際時間)使用者:「輸贏金額 顯示在最右邊」:合計放標題列最右邊(.cash);10:45「幾檔也不用顯示」:左邊只剩 當沖
+        const hdPos = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(tot))}</span>`).replace('<span>當沖</span>', `<span class="dlb">當沖</span>${TP ? '<span class="vbtn on vtag">元大</span>' : ''}`);   /* 17:24 使用者「連得上電腦時 當沖 元大。把 元大 放上去」 */   /* 2026-11-03 17:22 使用者「把 當沖 改 綠色 後面的系統不顯示」:綠色、不寫元大 / 系統(看盤版照舊「當沖 系統」) */   // 13:21 連得上電腦(元大真實部位)標「元大」,模擬標「系統」(看盤版標題本來就是「當沖 系統」)   // 2026-10-27 10:40(實際時間)使用者:「輸贏金額 顯示在最右邊」:合計放標題列最右邊(.cash);10:45「幾檔也不用顯示」:左邊只剩 當沖
         if (window.__nlV !== 'pos'){ box.scrollTop = 0; window.__nlV = 'pos'; }   // 2026-10-27 11:20 切到當沖也從最上面開始
         { const __H = hdPos + `<div class="tb pos">` + body + (cnt ? (late ? `<div class="late-note">⚠ 已過 13:20,這 ${cnt} 檔還沒收到平倉通知,請到投資先生確認已贖回</div>` : '') : `<div class="empty">${over || !TP || !TP.ok ? '目前沒有進場中的股票' : '目前沒有已成交的部位'}</div>`) + `</div>`; if (nlSame(__H)) return; nlPut(__H); }
         try{ const tb = box.querySelector('.tb.pos'); const u = (tb.clientWidth || box.clientWidth) / 40; tb.style.fontSize = Math.max(12, Math.floor(u * 2 * 0.96)) + 'px'; }catch(e){}
