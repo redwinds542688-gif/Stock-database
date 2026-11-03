@@ -576,7 +576,7 @@ const SEENW = new Map();
 const BUGIP = new Map();   // 2026-11-03 抓 bug 上傳不要鑰匙後,每個 IP 每分鐘最多 6 次   // 2026-11-03 鑰匙「最後使用時間」這個執行個體上次試著寫 KV 的時間
 // 2026-11-03 20:10 使用者「改」(KV 寫入一天上限 1,000 次,上午爆到 1.6 萬):鑰匙的「綁定手機 / 最後使用時間」改存 Hub(Durable Object,一天 10 萬筆寫入),KV 只留鑰匙本身的設定。
 //   讀:每個執行個體每把鑰匙 5 分鐘讀一次 Hub;寫:第一次綁手機馬上寫,最後使用時間每個執行個體每把鑰匙一小時最多一次。舊的 KV 裡已有的 dev 照樣認(Hub 沒有時)
-async function ksGet(env, k) { const c = MC.get("ks:" + k); if (c && Date.now() - c.at < 300000) return c.v; let v = null; try { v = env.HUB ? await hubOf(env).kvGet("ks:" + k) : null; } catch (e) { if (c) return c.v; return { err: 1 }; } MC.set("ks:" + k, { v, at: Date.now() }); return v; }   // 讀 Hub 失敗 → {err}:不改綁定、也不寫新綁定(安全:不會因為 Hub 讀不到就讓第二支手機綁上)
+async function ksGet(env, k, fresh) { const c = MC.get("ks:" + k); if (!fresh && c && Date.now() - c.at < (c.v && c.v.dev ? 86400e3 : 60e3)) return c.v;   /* 20:38 使用者「這一天一次就可以了吧」:已綁定的一天讀一次;還沒綁定的 1 分鐘(別台剛綁好要很快知道,不然第二支手機會趁空綁上) */ let v = null; try { v = env.HUB ? await hubOf(env).kvGet("ks:" + k) : null; } catch (e) { if (c) return c.v; return { err: 1 }; } MC.set("ks:" + k, { v, at: Date.now() }); return v; }   // 讀 Hub 失敗 → {err}:不改綁定、也不寫新綁定(安全:不會因為 Hub 讀不到就讓第二支手機綁上)
 async function ksPut(env, k, o) { if (!env.HUB) return; await hubOf(env).kvPut("ks:" + k, o); MC.set("ks:" + k, { v: o, at: Date.now() }); }
 async function keyInfo(env, k) {
   if (!env || !env.LOGS || !KEY_RE.test(k || "")) return null;
@@ -665,11 +665,12 @@ export default {
       //   到期日(exp)過了也拒絕;最後使用時間每小時最多寫一次 KV(免費額度一天 1,000 次寫入)
       const today = ymdOf(twNow());
       if (KI.exp && today > KI.exp) return J({ error: "鑰匙已到期(" + KI.exp + ")", badKey: true }, 403);
+      if (KI.dev && dv && KI.dev !== dv && !KI.emer){ try { const s3 = await ksGet(env, kq, true); if (s3 && !s3.err && "dev" in s3){ if (s3.dev) KI.dev = s3.dev; else delete KI.dev; } } catch (e) {} }   // 不符時才重讀一次 Hub(剛解綁換手機,不用等快取一天)
       if (KI.dev && dv && KI.dev !== dv) return J({ error: "這把鑰匙已綁在另一支手機", badKey: true }, 403);
       // 2026-11-03 11:55 查到 KV 寫入一天爆到 1.5 萬次(上限 1,000):keyInfo 讀的是快取 5 分鐘的舊字串,seen 永遠是舊的 → 每個請求都寫一次「最後使用時間」;
       //   額度用完後寫入失敗,seen 更寫不進去,更是每個請求都試 → 改成:同一個執行個體同一把鑰匙一小時最多試一次(成功失敗都算),寫完把快取也換成新的
-      if (dv && !KI.emer && !KI.ksErr && (!KI.dev || !KI.seen || Date.now() - KI.seen > 3600e3)) { const sw = SEENW.get(kq) || 0;
-        if (!KI.dev || Date.now() - sw > 3600e3) { SEENW.set(kq, Date.now()); try { if (!KI.dev) KI.dev = dv; KI.seen = Date.now(); await ksPut(env, kq, { dev: KI.dev, seen: KI.seen }); } catch (e) {} } } }   // 2026-11-03 20:10 改寫 Hub(不寫 KV)
+      if (dv && !KI.emer && !KI.ksErr && (!KI.dev || !KI.seen || Date.now() - KI.seen > 86400e3)) { const sw = SEENW.get(kq) || 0;   // 最後使用時間一天記一次就好
+        if (!KI.dev || Date.now() - sw > 86400e3) { SEENW.set(kq, Date.now()); try { if (!KI.dev) KI.dev = dv; KI.seen = Date.now(); await ksPut(env, kq, { dev: KI.dev, seen: KI.seen }); } catch (e) {} } } }   // 2026-11-03 20:10 改寫 Hub(不寫 KV)
     // 2026-10-29 安全修補:owner 鑰匙做「寫入 / 下單 / 管鑰匙」時,鑰匙已綁手機就一定要帶 dv(手機 App 的 fetch 包裝每次都帶;不帶 dv 不能繞過一人一機去下單)。
     //   讀的端點(gh=raw 更新等)照舊不要求 dv,避免 Page.kt 偏好裡沒有 dev 時更新失敗
     if (KI && KI.emer && KI.role !== "owner" && (url.searchParams.get("cap") === "get" || ["pos", "fills"].includes(url.searchParams.get("trade") || "") || url.searchParams.get("repo") === "logic" || (url.searchParams.get("gh") === "raw" && /^app\/app\.html/.test(url.searchParams.get("path") || ""))) && dv && env.HUB) {   // 主程式的手機 → 記成 owner(緊急模式才有)
