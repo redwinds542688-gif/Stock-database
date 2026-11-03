@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 16:12(實際時間)明細的虛擬交易改回非額度版(每個訊號都照 25 萬一筆做),只扣盤中沒發進場訊息的;盤中有沒有發改讀 live_entries.json(收盤後 GitHub 排程存),手機沒有才用自己的紀錄;永久版 11/03 以前也是這份,11/04 起「元大」接元大真實成交(使用者「那虛擬改這個 永久版的也改這個 明天之後永久版再接上元大」)
   · 2026-11-03 15:45(實際時間)明細的虛擬交易改成額度版、而且只留盤中真的有發進場訊息的股票(使用者「我要的是額度版的明細 且要進場裡面確實有進場的股票」):先刪掉沒發過進場訊息的,再照額度版排(一天 500 萬含漲停預留、同時最多 10 檔、每筆 25 萬,額度不夠少買或不做)
   · 2026-11-03 15:38(實際時間)明細日期滾輪轉到某天,那天第一筆直接貼齊欄名列下面,不再多露出日期分隔列(使用者「滾輪捲動 台玻應該要再上去一點」)
   · 2026-11-03 15:35(實際時間)明細的虛擬交易逐筆對照那天盤中真的發過的進場訊息(同一檔、同方向):重算有、盤中沒發的(例:11/03 味全)標「無訊息」、變暗,不算進那天的總輸贏和筆數(使用者「所以事後算 也要對照 進場訊息是否有」)
@@ -207,7 +208,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031545">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031612">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6504,6 +6505,8 @@ window.bgTick = bgTick; window.BG = BG;
   let BTF = {}; try{ BTF = JSON.parse(localStorage.getItem('mysh.btfill') || '{}'); }catch(e){}
   try{ window.PROB_MODEL = JSON.parse(localStorage.getItem('mysh.probModel') || 'null'); }catch(e){}   // 2026-10-25 試算機率的修正表(先用上次存的,再抓新的)
   (async () => { try{ const r = await fetch(`${REPO_RAW}/app/prob_model.json?v=${Math.floor(Date.now() / 3600000)}`); if (r.ok){ window.PROB_MODEL = await r.json(); try{ localStorage.setItem('mysh.probModel', JSON.stringify(window.PROB_MODEL)); }catch(e){} } }catch(e){} })();
+  let LVE = {}; try{ LVE = JSON.parse(localStorage.getItem('mysh.lve') || '{}'); }catch(e){}   // 2026-11-03 16:12 盤中真的發過的進場訊息(收盤後 GitHub 排程存,代號|多空|判別式),虛擬交易對照用
+  window.lveLoad = async fresh => { try{ const r = await fetch(`${REPO_RAW}/live_entries.json?v=${fresh ? Date.now() : Math.floor(Date.now() / 3600000)}`, fresh ? {cache: 'no-store'} : undefined); if (r.ok){ const j = await r.json(); if (JSON.stringify(j) === JSON.stringify(LVE)) return; LVE = j; try{ localStorage.setItem('mysh.lve', JSON.stringify(LVE)); }catch(e){} render(true); } }catch(e){} }; lveLoad(false);
   window.btfLoad = async fresh => { try{ const r = await fetch(`${REPO_RAW}/app/bt_fill.json?v=${fresh ? Date.now() : Math.floor(Date.now() / 3600000)}`, fresh ? {cache: 'no-store'} : undefined); if (r.ok){ const j = await r.json(); if (fresh && JSON.stringify(j) === JSON.stringify(BTF)) return; BTF = j; try{ localStorage.setItem('mysh.btfill', JSON.stringify(BTF)); }catch(e){} render(true); } }catch(e){} }; btfLoad(false);
   let PNLC = {}; try{ PNLC = JSON.parse(localStorage.getItem('mysh.pnlc') || '{}'); }catch(e){}   // 2026-10-24 16:36 每天輸贏的紀錄(切換日期不用重算)
   let pnlcT = 0; const pnlcSave = () => { clearTimeout(pnlcT); pnlcT = setTimeout(() => { try{ const ks = Object.keys(PNLC).sort(); while (ks.length > 80) delete PNLC[ks.shift()]; localStorage.setItem('mysh.pnlc', JSON.stringify(PNLC)); }catch(e){} }, 500); };
@@ -6697,7 +6700,7 @@ window.bgTick = bgTick; window.BG = BG;
       const keep = []; const seenExit = new Map();
       for (let k = a.length - 1; k >= 0; k--){ const o = a[k]; const kk = o.code + '|' + (o.rs || '');
         if (o.type === 'entry'){ seenExit.delete(kk); keep.push(o); continue; }
-        if (o.type === 'exit'){ if (seenExit.has(kk)) continue; seenExit.set(kk, true); }
+        if (o.type === 'exit' && !(o.x && o.x.bt)){ if (seenExit.has(kk)) continue; seenExit.set(kk, true); }   /* 2026-11-03 16:15 重算的虛擬交易每筆都是獨立一趟(10/13 台塑判二做了兩趟),不併 */
         keep.push(o); }
       return fillEnt(keep.reverse()); };
     const RSL = window.LOG_RS ? [window.LOG_RS] : ['判一', '判二', '判三', '判四'];
@@ -6822,21 +6825,16 @@ window.bgTick = bgTick; window.BG = BG;
         // 2026-10-27 01:30 使用者:「明細顯示一直保留 最新的在最上面 往上滑動可以看到以往的資料」:今天在最上面,往下接前幾天(最多 10 天),每天一列日期分隔 + 那天的總輸贏
         const hdr = `<div class="r h"><span>股票</span><span class="num io"><span>進</span><span>→</span><span>出</span></span><span class="num">張</span><span class="num">輸贏</span></div>`;
         // 2026-11-03 15:35 使用者「所以事後算 也要對照 進場訊息是否有」:重算的虛擬交易逐筆對照那天盤中真的發過的進場訊息(同一檔、同方向);沒有的標「無訊息」、變暗,不算進那天的總輸贏
-        const liveSet = dd => { const st = new Set(); try{ let src = dd === today ? itemsFor(dd) : (CLOUD_LOG.items[dd] || []); if (dd !== today && !src.length) try{ if (window.Android && Android.logFor) src = JSON.parse(Android.logFor(dd) || '[]'); }catch(e){}   /* 只認真的盤中訊息(雲端 / 手機紀錄),不用判一重跑的舊補檔 */
+        const liveSet = dd => { const st = new Set(); if (LVE && Array.isArray(LVE[dd]) && LVE[dd].length){ for (const k of LVE[dd]){ const a = String(k).split('|'); st.add(a[0] + '|' + a[1]); } return st; } try{ let src = dd === today ? itemsFor(dd) : (CLOUD_LOG.items[dd] || []); if (dd !== today && !src.length) try{ if (window.Android && Android.logFor) src = JSON.parse(Android.logFor(dd) || '[]'); }catch(e){}   /* 只認真的盤中訊息(雲端 / 手機紀錄),不用判一重跑的舊補檔 */
           for (const x of (src || [])){ if (x.kind !== 'long' && x.kind !== 'short') continue; const m = String(x.title || '').match(/\b(\d{4,6}[A-Z]?)\b/); if (m) st.add(m[1] + '|' + x.kind); } }catch(e){} return st; };
+        // 2026-11-03 16:12 改成非額度版(使用者「如果是18天非額度版的呢」→「那虛擬改這個 永久版的也改這個 明天之後永久版再接上元大」);以下 15:45 額度版說明留作紀錄
         // 2026-11-03 15:45 使用者「我要的是額度版的明細 且要進場裡面確實有進場的股票」:重算的虛擬交易 → ① 只留那天盤中真的有發進場訊息(同一檔、同方向)的 ② 照額度版重排:
         //   判一~四照進場時間排隊,一天 500 萬(已成交買 + 賣 + 持倉 × 1.1 漲停預留)、同時最多 10 檔,每筆 25 萬(一張超過 25 萬不做),額度不夠就少買幾張、一張都買不起就不做(和 studies/all18_1103/sum18.py 同一套)
         const btfCap = dd => { const L = (BTF && BTF[dd]) || [], LS = liveSet(dd), R = [];
           for (const x of L){ const m = String(x.body || '').match(/^(\d\d:\d\d) 做(多|空) (\d\d:\d\d) 進 ([\d.]+) → 現價 ([\d.]+) · (\d+)張 · 判(.)/), c = (String(x.title || '').match(/\b(\d{4,6}[A-Z]?)\b/) || [])[1];
             if (!m || !c) continue; const side = m[2] === '多' ? 'long' : 'short'; if (LS.size && !LS.has(c + '|' + side)) continue;
             R.push({x, xt: m[1], t: m[3], e: +m[4], xp: +m[5], rs: m[7], code: c}); }
-          R.sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : a.rs < b.rs ? -1 : a.rs > b.rs ? 1 : a.code < b.code ? -1 : a.code > b.code ? 1 : 0);
-          let used = 0, open = []; const out = [];
-          for (const r of R){ const still = []; for (const q of open){ if (q.xt <= r.t) used += q.sv; else still.push(q); } open = still;
-            const hold = open.reduce((s, q) => s + q.hv, 0); let lots = Math.floor(250000 / (r.e * 1000)); if (!lots || open.length >= 10) continue;
-            const fit = Math.floor((5e6 - used - hold) / (r.e * 2.1 * 1000)); if (fit < 1) continue; lots = Math.min(lots, fit);
-            used += r.e * lots * 1000; open.push({xt: r.xt, sv: r.xp * lots * 1000, hv: r.e * 1.1 * lots * 1000});
-            out.push(Object.assign({}, r.x, {body: String(r.x.body).replace(/· \d+張 ·/, `· ${lots}張 ·`)})); }
+          const out = R.map(r => r.x);   /* 2026-11-03 16:12 使用者「那虛擬改這個 永久版的也改這個」:不套額度(每個訊號都照 25 萬一筆做),只扣盤中沒發進場訊息的 */
           return out.sort((a, b) => a.t < b.t ? 1 : a.t > b.t ? -1 : 0); };
         const rowsOf = (arr, dd) => { let h = '', t = 0, c = 0, cm = 0, LS = null;
           // 2026-10-27 13:20 使用者:「股價照股價的顏色顯示」:進、出價和清單一樣比昨收,高紅、低綠、平白(昨收:紀錄自帶 prev;今天用即時報價的昨收,沒有用清單昨收)
@@ -6895,7 +6893,7 @@ window.bgTick = bgTick; window.BG = BG;
         { const __H = hdDone + `<div class="tb done">` + body + `</div>`; if (nlSame(__H)) return;
           if (Date.now() - (box.__dwT || 0) < 900){ clearTimeout(box.__dwLater); box.__dwLater = setTimeout(() => render(true), 500); return; }   /* 2026-11-03 15:25 滾輪轉動中先不重畫,停下來再補 */
           nlPut(__H); dwWire(box); }
-        { const vb = box.querySelector('.hd .vbtn'); if (vb) vb.onclick = ev => { ev.stopPropagation(); window.DONE_VIRT = !window.DONE_VIRT; box.scrollTop = 0; render(true); if (window.DONE_VIRT) btfLoad(true); };   /* 2026-11-03 15:12 使用者「虛擬的資料沒有接上來」:切到虛擬當下重抓一次重算的虛擬交易(不等整點) */ }   // 15:04 使用者「改成一個按鍵就好 按元大 就切換到虛擬 … 再按一次虛擬 就切換回元大」:一顆,寫的是目前顯示的資料
+        { const vb = box.querySelector('.hd .vbtn'); if (vb) vb.onclick = ev => { ev.stopPropagation(); window.DONE_VIRT = !window.DONE_VIRT; box.scrollTop = 0; render(true); if (window.DONE_VIRT){ btfLoad(true); lveLoad(true); } };   /* 2026-11-03 15:12 使用者「虛擬的資料沒有接上來」:切到虛擬當下重抓一次重算的虛擬交易(不等整點) */ }   // 15:04 使用者「改成一個按鍵就好 按元大 就切換到虛擬 … 再按一次虛擬 就切換回元大」:一顆,寫的是目前顯示的資料
         window.__doneY = ySrc; window.__doneVirt = doneVirt; window.__doneVirtOk = virtOk;   // 有「元大 / 虛擬」按鍵時標題不再寫來源(按鍵亮哪顆就是哪個)
         // 2026-10-27 14:15 使用者:「明細 畫面捲動到10/22 就要顯示10/22的總輸贏」:捲動時看欄名列下面第一列是哪一天,標題列右邊換成那天的總輸贏,左邊「明細」後面加日期(今天不加)
         window.__doneTot = dayTot; window.__doneToday = d0;
