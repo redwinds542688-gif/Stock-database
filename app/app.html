@@ -221,7 +221,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611032054">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611032121">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -991,7 +991,7 @@ window.MONITOR_SETTINGS = {
    否則使用者調整後會找不到本來應該出現的股票。
    ══════════════════════════════════════════════════════ */
 window.MONITOR_BASE = {
-  lo  : 15,      // 最低價下限(要和 make_pool.py 的 LO 一致)
+  lo  : 10,      // 最低價下限(要和 make_pool.py 的 LO 一致)   // 2026-11-03 21:19 使用者「只有60」:11/02 改 10 元時這裡漏改,手機名單還是 15 元起 → 味全、彩晶沒上清單
   hi  : 500,     // 最高價上限(要和 make_pool.py 的 HI 一致)
   amp : 3.0,     // 振幅下限 %(要和 make_pool.py 的 MIN_AMP 一致;2026-10-21 4.0 → 3.0)
   size: 130,     // 原始池最多存幾檔(前一交易日成交張數排行前 130 名;2026-10-17 100→130,雲端 pool.json 的 rules.size 讀到時會覆蓋)
@@ -1128,6 +1128,9 @@ async function loadRemotePool(){
   ELIG_CHECKED_AT = j.elig_checked_at || '';
   if (j.date) kcacheEvict(j.date);                // 資料日期變了 → 清掉舊的分K 本機快取
   if (j.rules){                                   // 雲端規則為準,兩邊才會一致
+    if (j.rules.lo != null)           BASE.lo          = Number(j.rules.lo);    // 2026-11-03 價格 / 振幅門檻也以雲端規則為準(避免再漏改)
+    if (j.rules.hi != null)           BASE.hi          = Number(j.rules.hi);
+    if (j.rules.min_amp != null)      BASE.amp         = Number(j.rules.min_amp);
     if (j.rules.size != null)         BASE.size        = j.rules.size;          // 2026-10-17 以前沒覆蓋,池永遠被切成 100
     if (j.rules.tick_max_pct != null) BASE.tickMaxPct  = j.rules.tick_max_pct;
     if (Array.isArray(j.rules.exclude_industry)) BASE.excludeIndustry = j.rules.exclude_industry;
