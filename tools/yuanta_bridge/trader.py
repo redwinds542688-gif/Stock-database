@@ -171,6 +171,11 @@ class Trader:
         self.locked = set()        # 今天強平過的股票:判一 / 二 / 三不再自動進場
         self.traded_keys = set()
         self.skipped = set()       # 2026-11-02 今天沒變成部位的進場訊號(代碼|判別式|訊號那根),手機標「未交易」
+        # 2026-11-03 和益 1709 判三 OBV 停利平倉卡在主程式訊息欄不見(使用者「和益 已經平倉 進場資訊欄 沒顯示平倉」):
+        #   手機收到平倉通知才問 ?trade=pos,電腦已經照同一則通知平完 → 手機以為元大根本沒這檔、把平倉卡藏了。
+        #   這裡記「程式自己平掉的部位」(代碼|判別式;強平、元大條件單 / 手動平的不算),?trade=pos 帶給手機,手機看到就照常顯示平倉卡
+        try: self.closed_ok = set(self.load_state().get("closed_ok") or []) if getattr(self, "state_file", None) else set()
+        except Exception: self.closed_ok = set()
         self.cmd_seen = {}         # 強制指令編號 → 結果(手機重送 / 滑兩次只做一次)
         self.oco_q = []
         # 2026-10-29 稽核 #1:啟動時要「成功」讀到一次手機通知(prime)才算準備好;沒準備好不自動進場、不理平倉通知
@@ -219,6 +224,7 @@ class Trader:
             js["killed"] = bool(getattr(self, "killed", False) or old.get("killed"))
             js["win_hit"] = sorted({float(x) for x in (old.get("win_hit") or [])} | getattr(self, "win_hit", set()))      # 2026-10-31 賺錢慶祝
             js["loss_hit"] = sorted({float(x) for x in (old.get("loss_hit") or [])} | getattr(self, "loss_hit", set()))   # 2026-10-31 虧損級距通知
+            js["closed_ok"] = sorted(set(old.get("closed_ok") or []) | getattr(self, "closed_ok", set()))   # 2026-11-03 程式自己平掉的部位(手機照常顯示平倉卡)
             js["brk_block"] = {**(old.get("brk_block") or {}), **getattr(self, "brk_block", {})}   # 2026-10-31 元大拒絕(資格)的股票
             self.state_file.write_text(json.dumps(js, ensure_ascii=False), encoding="utf-8")
         except Exception as e:
@@ -783,6 +789,8 @@ class Trader:
         self.journal.append({"code": p["code"], "dir": p["dir"], "entry": p["entry"], "exit": avg, "lots": lots, "net": round(net),
                              "why": p.get("exit_why"), "judge": p.get("judge"), "forced_close": bool(p.get("forced_close"))})
         self.log(f"[交易] 平倉 {p['code']} {lots} 張 @ {avg:.2f} 淨 {net:+,.0f}(今天累計 {self.pnl:+,.0f})")
+        if not p.get("forced_close") and p.get("exit_why") != "元大條件單 / 手動" and p.get("judge"):   # 2026-11-03 程式自己平掉的 → 手機照常顯示平倉卡
+            self.closed_ok.add(f"{p['code']}|{p['judge']}"); self.save_state()
 
     def finish_pos(self, p):
         c = p["code"]

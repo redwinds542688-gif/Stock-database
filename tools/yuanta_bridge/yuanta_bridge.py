@@ -569,7 +569,7 @@ class Bridge:
         halted = (t.stop_file if t else stop_path(CFG)).exists()   # 2026-10-31 緊急停止狀態(手機標題變灰色)
         if not t:
             return {"ok": False, "msg": "電腦的交易程式還沒啟動(盤前 / 收盤後)", "halted": halted}
-        return {"ok": True, "enabled": t.enabled, "pos": t.positions_view(), "locked": sorted(t.locked), "skipped": sorted(getattr(t, "skipped", set()))[-300:], "at": now_tw().strftime("%H:%M:%S"), "halted": halted}
+        return {"ok": True, "enabled": t.enabled, "pos": t.positions_view(), "locked": sorted(t.locked), "skipped": sorted(getattr(t, "skipped", set()))[-300:], "closed": sorted(getattr(t, "closed_ok", set()))[-300:], "at": now_tw().strftime("%H:%M:%S"), "halted": halted}
 
     def trade_cmd(self, cmd):
         pin = CFG.get("TRADE_CMD_PIN", "")
