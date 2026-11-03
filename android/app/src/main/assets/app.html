@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 15:20(實際時間)明細按元大 / 虛擬時按鍵忽大忽小(使用者錄影):重畫那一下標題先只寫「明細」、日期晚一格才補上,按鍵就往左跳再跳回來 → 重畫時就直接寫「明細 11/03」,按鍵不再移動
   · 2026-11-03 15:14(實際時間)明細切到虛擬沒接上虛擬資料(使用者「虛擬的資料沒有接上來」):按虛擬當下重抓重算的虛擬交易;虛擬不列元大手動單(元三)和強制進場(強三);Worker 的虛擬交易檔快取 30 分鐘改 60 秒
   · 2026-11-03 15:06(實際時間)明細改成一顆按鍵:寫目前顯示的資料,按元大 → 切到虛擬(紫色),再按虛擬 → 切回元大(使用者「改成一個按鍵就好…」)
   · 2026-11-03 14:26(實際時間)價格刻度 50 寬、字縮到最小(8)還放不下時,數字從小數點裁掉(1035.00 → 1035;刻度數字和十字線那格都是),換股票恢復(使用者「太長的就從小數點那裡開始裁掉」)
@@ -200,7 +201,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031514">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031520">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6852,7 +6853,7 @@ window.bgTick = bgTick; window.BG = BG;
           body += `<div class="dsep" data-day="${dd}">${dd.slice(5).replace('-', '/')}</div>` + hdr + h + `<div class="tot" data-day="${dd}"><span>${c} 筆 總輸贏</span>${amt(t)}</div>`; dayTot[dd] = t;
         }
         // 2026-10-27 11:20 使用者:「最上面只顯示 明細 今日的總輸贏(靠右顯示)」:標題列左邊「明細」、最右邊今天已平倉的總輸贏(和當沖的合計同一個位置 .cash)
-        const hdDone = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(t0))}</span>`).replace('<span>明細</span>', `<span>明細${virtOk ? '' : ySrc[d0] ? ' 元大' : (window.VIEWER ? '' : ' 系統')}</span>${virtOk ? `<button class="vbtn on${doneVirt ? ' virt' : ''}" type="button">${doneVirt ? '虛擬' : '元大'}</button>` : ''}`);   // 2026-10-29 12:25(實際時間)元大真實成交的日子標題寫「明細 元大」
+        const hdDone = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(t0))}</span>`).replace('<span>明細</span>', `<span>明細 ${d0.slice(5).replace('-', '/')}${virtOk ? '' : ySrc[d0] ? ' 元大' : (window.VIEWER ? '' : ' 系統')}</span>${virtOk ? `<button class="vbtn on${doneVirt ? ' virt' : ''}" type="button">${doneVirt ? '虛擬' : '元大'}</button>` : ''}`);   // 2026-10-29 12:25(實際時間)元大真實成交的日子標題寫「明細 元大」
         { const __H = hdDone + `<div class="tb done">` + body + `</div>`; if (nlSame(__H)) return; nlPut(__H); }
         { const vb = box.querySelector('.hd .vbtn'); if (vb) vb.onclick = ev => { ev.stopPropagation(); window.DONE_VIRT = !window.DONE_VIRT; box.scrollTop = 0; render(true); if (window.DONE_VIRT) btfLoad(true); };   /* 2026-11-03 15:12 使用者「虛擬的資料沒有接上來」:切到虛擬當下重抓一次重算的虛擬交易(不等整點) */ }   // 15:04 使用者「改成一個按鍵就好 按元大 就切換到虛擬 … 再按一次虛擬 就切換回元大」:一顆,寫的是目前顯示的資料
         window.__doneY = ySrc; window.__doneVirt = doneVirt; window.__doneVirtOk = virtOk;   // 有「元大 / 虛擬」按鍵時標題不再寫來源(按鍵亮哪顆就是哪個)
