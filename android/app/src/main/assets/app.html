@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 19:32(實際時間)左右滑再修:下一頁在手指一拖時就畫好(原本手指按著時延後重畫,拖到一半內容才換);翻頁只移動不變淡,不會閃(使用者「你自己慢慢滑看看 畫面不順暢 滑到一半顯示的也會變化」)
   · 2026-11-03 19:24(實際時間)通知欄 / 設定左右滑:手指一拖,下一頁就從旁邊跟著滑進來(像翻頁),不再露出空的一大片;拖不夠放開就整個彈回原頁(使用者「通知欄 右滑 左邊出現一大片黑色 不好看」)
   · 2026-11-03 19:16(實際時間)進場的「資金」框、明細和當沖的「元大」框一律固定在日期格右邊同一個位置,數字變長變短都不會移動(使用者「資金 固定在這位置 不隨數字減少移動 明細裡元大 跟當沖裡的元大 也固定在 與資金相同的位置」)
   · 2026-11-03 19:10(實際時間)進場頁的日期滾輪字和明細一樣大(一律 30px;原本跟著標題列縮成 23px)(使用者「進場日期字太小 要跟圖二的一致」)
@@ -217,7 +218,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031924">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031932">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1810,11 +1811,12 @@ window.fitBands = fitBands;
       try{ const a = el.querySelectorAll('.scroller, .dwh'), b = g.querySelectorAll('.scroller, .dwh'); a.forEach((x, i) => { if (b[i]) b[i].scrollTop = x.scrollTop; }); }catch(e){} return g; };
     const pvStart = dx => { const el = tab0 === 'rs' ? document.getElementById('rsMenu') : boxOf(tab0), W = (el && el.clientWidth) || innerWidth || 400, dir = dx < 0 ? 1 : -1, o = order(), i = o.indexOf(tab0), n = o[((i < 0 ? 0 : i) + dir + o.length) % o.length];
       let g = null; if (el){ try{ g = ghostOf(el); g.classList.remove('hidden'); }catch(e){ g = null; } }
-      clearX(boxOf('msg')); clearX(boxOf('set')); go(n);
-      const el2 = n === 'rs' ? document.getElementById('rsMenu') : boxOf(n); if (el2) el2.style.willChange = 'transform, opacity';
+      clearX(boxOf('msg')); clearX(boxOf('set')); window.__nlTouch = 0; go(n); window.__nlTouch = Date.now();   /* 下一頁要馬上畫好(手指按著時通知欄本來會延後重畫,拖到一半內容才換 → 使用者「滑到一半顯示的也會變化」) */
+      const el2 = n === 'rs' ? document.getElementById('rsMenu') : boxOf(n); if (el2) el2.style.willChange = 'transform';
       const nl = document.getElementById('notifLog'), hideNl = n === 'rs' && nl; if (hideNl) nl.style.visibility = 'hidden';   /* 滑向公式:後面的通知欄先藏起來,只看到公式滑進來 */
       pv = {n, dir, g, el2, W, nl: hideNl ? nl : null}; };
-    const pvMove = dx => { if (!pv) return; const d = pv.dir === 1 ? Math.min(0, dx) : Math.max(0, dx); if (pv.g) setX(pv.g, d); if (pv.el2) setX(pv.el2, d + pv.dir * pv.W); };
+    const setT = (el, x, ms) => { if (!el) return; el.style.transition = ms ? `transform ${ms}ms cubic-bezier(.22,.8,.25,1)` : 'none'; el.style.transform = `translate3d(${x}px,0,0)`; el.style.opacity = ''; };   /* 翻頁只移動不變淡(不閃) */
+    const pvMove = dx => { if (!pv) return; const d = pv.dir === 1 ? Math.min(0, dx) : Math.max(0, dx); if (pv.g) setT(pv.g, d); if (pv.el2) setT(pv.el2, d + pv.dir * pv.W); };
     const boxOf = t => t === 'set' ? document.querySelector('#panel > .wheels') : document.getElementById('notifLog');   // 2026-11-02 22:40 使用者「從明細滑到設定 五顆按鍵都會移動」:設定頁只移動轉盤區,下面五顆按鍵不動
     const setX = (el, x, ms) => { if (!el) return; el.style.transition = ms ? `transform ${ms}ms cubic-bezier(.22,.8,.25,1), opacity ${ms}ms linear` : 'none';
       el.style.transform = x ? `translate3d(${x}px,0,0)` : ''; el.style.opacity = x ? String(Math.max(0.3, 1 - Math.abs(x) / (innerWidth || 400) * 0.9)) : ''; };
@@ -1831,9 +1833,9 @@ window.fitBands = fitBands;
       if (!drag) return; drag = false; swiped = Date.now();
       if (pv){ const P = pv; pv = null; const d = P.dir === 1 ? Math.min(0, dx) : Math.max(0, dx), ok = Math.abs(d) > P.W * 0.2 || (Math.abs(vx) > 0.45 && Math.abs(d) > 30 && Math.sign(vx) === Math.sign(d));
         busy = true; const ms = ok ? Math.max(170, Math.min(280, Math.round((P.W - Math.abs(d)) / Math.max(1.3, Math.abs(vx))))) : 200;
-        if (ok){ try{ navigator.vibrate && navigator.vibrate(12); }catch(e){} requestAnimationFrame(() => { if (P.g) setX(P.g, -P.dir * P.W, ms); if (P.el2) setX(P.el2, 0, ms); });
+        if (ok){ try{ navigator.vibrate && navigator.vibrate(12); }catch(e){} requestAnimationFrame(() => { if (P.g) setT(P.g, -P.dir * P.W, ms); if (P.el2) setT(P.el2, 0, ms); });
           setTimeout(() => { if (P.g) P.g.remove(); if (P.el2) clearX(P.el2); if (P.nl) P.nl.style.visibility = ''; busy = false; }, ms + 30); }
-        else { requestAnimationFrame(() => { if (P.g) setX(P.g, 0, ms); if (P.el2) setX(P.el2, P.dir * P.W, ms); });
+        else { requestAnimationFrame(() => { if (P.g) setT(P.g, 0, ms); if (P.el2) setT(P.el2, P.dir * P.W, ms); });
           setTimeout(() => { if (P.el2) clearX(P.el2); if (P.nl) P.nl.style.visibility = ''; go(tab0); requestAnimationFrame(() => { if (P.g) P.g.remove(); busy = false; }); }, ms + 30); }
         return; }
       const el = boxOf(tab0), W = (el && el.clientWidth) || innerWidth || 400;
