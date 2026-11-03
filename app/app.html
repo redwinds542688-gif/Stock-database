@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 21:36(實際時間)指標二那列的紅箭頭(十字線回到最新一根):按下去那一下不再被圖當成點圖,而且箭頭四周 14px 內按下去都算按箭頭(箭頭小、手指常壓到旁邊的圖),十字線直接回到最新一根(使用者「點箭頭 十字虛線還以為是點他」→「改」;只改箭頭,圖照舊鎖定)
   · 2026-11-03 21:22(實際時間)長按左上角抓 bug 灰點不會再誤跳「緊急停止」:灰點可按範圍放大到 44×44(看起來一樣大),標題左上角那一塊不算長按標題(使用者「按 抓bug 會誤觸這個」)
   · 2026-11-03 20:01(實際時間)所有圖鎖定(使用者「現在所有圖完善 鎖定 不可修改」):程式不變,只在標頭和交接說明記下鎖定
   · 2026-11-03 19:36(實際時間)左右滑卡在半路修正(使用者「還是會卡住」):拖動時手指按著的那張卡被換掉,放開收不到 → 改成把原本內容整個搬進舊頁殼,不會被換掉;系統取消觸控時也會彈回原頁;萬一還卡住,下次一碰就解開
@@ -222,7 +223,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611032122">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611032138">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4945,7 +4946,11 @@ function initChart(){
   window.syncAll = () => { try{ const r = chart.timeScale().getVisibleLogicalRange(); if (!r) return;
     syncing = true; for (const b of charts) if (b !== chart && !sameRange(r, b.timeScale().getVisibleLogicalRange())) b.timeScale().setVisibleLogicalRange(r); syncing = false;
     if (XLOCK && !XLOCK.fresh) applyX(XLOCK.time, false); }catch(e){ syncing = false; } };
-  if (xBtn){ xBtn.addEventListener('click', e => { e.preventDefault(); clearX(); }); xBtn.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); clearX(); }); }
+  // 2026-11-03 21:36 使用者「點箭頭 十字虛線還以為是點他」→「改」:按箭頭的那一下(按下 / 放開 / 點)全部攔住不給圖,圖的點擊 0.6 秒內不理;回到最新一根後再補一次,避免圖晚一步把十字線移到手指那裡
+  if (xBtn){ const tapX = e => { window.__btnTapAt = Date.now(); window.__lastTouch = Date.now(); e.stopPropagation(); };
+    ['touchstart', 'pointerdown', 'mousedown'].forEach(t => xBtn.addEventListener(t, tapX, {passive: true}));
+    const goX = e => { e.preventDefault(); tapX(e); clearX(); setTimeout(() => { try{ clearX(); }catch(e2){} }, 60); };
+    xBtn.addEventListener('click', goX); xBtn.addEventListener('touchend', goX); }
   let xPend = false;
   const reapplyX = () => { if (xPend) return; xPend = true; setTimeout(() => { xPend = false; if (XLOCK) applyX(XLOCK.time); }, 0); };
   if (!window.__lastTouchHook){ window.__lastTouchHook = true; ['touchstart', 'touchmove', 'touchend'].forEach(t => document.addEventListener(t, () => { window.__lastTouch = Date.now(); }, {passive: true, capture: true})); }
@@ -4985,6 +4990,11 @@ function initChart(){
   [chart, chartM, chartB].filter(Boolean).forEach(c => c.subscribeClick(p => { if (Date.now() - (window.__btnTapAt || 0) < 600) return; if (p && p.time && idxOf(p.time) >= 0) setTimeout(() => setX(p.time), 0); }));
   // 2026-10-23 22:45 按鍵 / 標題列被點時記下時間,0.6 秒內圖庫的 click 不放十字線
   document.addEventListener('pointerdown', ev => { if (ev.target && ev.target.closest && ev.target.closest('button, .yh-lbl, .xgo')) window.__btnTapAt = Date.now(); }, true);
+  // 2026-11-03 21:40 使用者「點箭頭 十字虛線還以為是點他」→「改」:箭頭很小、手指常壓到旁邊的圖 → 箭頭四周 14px 內按下去都算按箭頭(圖不理這一下,放開時十字線回到最新一根)
+  { let nearAt = 0; const near = ev => { const x = el('xhairClose'); if (!x || x.classList.contains('hidden')) return false; const r = x.getBoundingClientRect(); if (!r.width) return false; const M = 14;
+      return ev.clientX >= r.left - M && ev.clientX <= r.right + M && ev.clientY >= r.top - M && ev.clientY <= r.bottom + M; };
+    document.addEventListener('pointerdown', ev => { if (near(ev)){ nearAt = Date.now(); window.__btnTapAt = nearAt; window.__lastTouch = nearAt; } }, true);
+    document.addEventListener('pointerup', ev => { if (nearAt && Date.now() - nearAt < 800){ nearAt = 0; window.__btnTapAt = Date.now(); try{ window.clearX && clearX(); setTimeout(() => { try{ clearX(); }catch(e){} }, 80); }catch(e){} } }, true); }
   chart.subscribeCrosshairMove(p => onMove(chart, p));
   chartM.subscribeCrosshairMove(p => onMove(chartM, p));
   if (chartB) chartB.subscribeCrosshairMove(p => onMove(chartB, p));
