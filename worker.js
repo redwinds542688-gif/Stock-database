@@ -573,7 +573,9 @@ const kvDown = () => globalThis.__kvDown && Date.now() - globalThis.__kvDown < 1
 async function keyInfo(env, k) {
   if (!env || !env.LOGS || !KEY_RE.test(k || "")) return null;
   const v = await kvGetC(env, "key:" + k, 300000);
-  if (v) { try { return JSON.parse(v); } catch (e) { return null; } }
+  // 2026-11-03 使用者「主導鑰匙 失效 主導機變成看盤機效果」:KV 恢復後改讀鑰匙真正的設定,含 5861 的那把在 KV 裡不是 owner(昨天全靠緊急模式才當 owner)。
+  //   使用者定的規則是「金鑰裡面有5861的為主導機」→ 含 5861 的鑰匙一律當 owner(新建的鑰匙不會含 5861,見 newKey)
+  if (v) { try { const r = JSON.parse(v); if (k.includes("5861") && r && r.role !== "owner") r.role = "owner"; return r; } catch (e) { return null; } }
   if (!kvDown()) return null;
   const ek = "ex:" + k; let ex = MC.get(ek);
   if (!ex || Date.now() - ex.at > (ex.v ? 3600e3 : 30e3)) {   // 2026-11-02 14:54 剛建的鑰匙 KV list 要幾十秒才看得到 → 「沒有這把」只記 30 秒(原本 1 小時,新鑰匙一直被說無效)
@@ -586,7 +588,10 @@ async function keyInfo(env, k) {
   const own = k.includes("5861") || EMER_OWN.some(s => k.endsWith(s)) || emo.v;
   return { role: own ? "owner" : "viewer", on: true, name: "緊急(KV 額度用完)", emer: true };
 }
-function newKey() { const a = new Uint8Array(12); crypto.getRandomValues(a); return [...a].map(b => b.toString(16).padStart(2, "0")).join(""); }
+function newKey() {   // 2026-11-03 新鑰匙不會剛好含 5861(含 5861 = 主導機)或結尾是緊急模式的 owner 尾碼
+  for (;;) { const a = new Uint8Array(12); crypto.getRandomValues(a); const k = [...a].map(b => b.toString(16).padStart(2, "0")).join("");
+    if (!k.includes("5861") && !EMER_OWN.some(x => k.endsWith(x))) return k; }
+}
 
 export default {
   // ── Cloudflare Cron Trigger 到點 → 叫 GitHub 跑對應的 workflow ──
