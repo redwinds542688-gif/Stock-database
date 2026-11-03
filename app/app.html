@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 12:44(實際時間)指標二平線找到真正原因並修好(使用者「Bug 指標二」「又變成平線」):12:21 的「同一格共用上下範圍」在三條線換資料換到一半時,把「一條價格、兩條原始 OBV」的寬範圍存起來,換完還拿來用 → 每條線換資料後都讓暫存失效;另外 ① 指標二每 1.5 秒自己檢查,真的又變平線就馬上修好並記錄;② 抓到異常(三張圖對不上、指標二平線)自動上傳 bug 紀錄,不用再按(使用者「抓Bug 直接上傳 不用再按上傳」);③ 左邊價格刻度不再給手指拖(拖了會把價格軸壓扁)
   · 2026-11-03 12:35(實際時間)選股「最近 5 個交易日平均振幅 ≥ 3%」改成「最近 3 個交易日」(使用者「這裡5天改成3天」;make_pool.py AVG_DAYS 5 → 3,今天 14:30 產生明天的名單起生效);說明頁跟著改
   · 2026-11-03 12:25(實際時間)上下滑縮放不再要「放下 0.24 秒內就開始滑」(使用者影片「還是很卡」:慢一點開始滑,手勢被當成按住 → 圖沒反應,看起來像卡住):往上下為主就是縮放,不管按了多久才滑;左右滑捲圖、按在十字線上拖照舊。K 圖 / 乖離 / 壓力圖 / 指標二三都一樣
   · 2026-11-03 12:21(實際時間)放大縮小更順(使用者「圖 上滑下滑 不順暢」「就是放大縮小不順暢」):縮放時指標二的上下範圍每一格被三條線各算一次、每次掃 300~540 根(縮放時程式最花時間的地方)→ 同一格畫面內、資料沒換過才共用(每次換資料都重算,不會再出現平線),這段時間約少 4 分之 3
@@ -180,7 +181,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031235">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031244">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4415,7 +4416,7 @@ const chartOpts = () => ({
   // 兩指縮放改自己做(2026-10-18 使用者:「縮放還是很慢」):套件內建的縮放每一步只跟手指距離的一半
   // (barSpacing × (1 + Δ/2),手指拉開 2 倍圖只放大約 1.65 倍),而且第一指先動了再放第二指就整個不縮放;
   // 自己算 1:1、兩張圖同一格一起套,見 initChart 的 pinch 區塊
-  handleScale:{pinch:false, mouseWheel:true, axisPressedMouseMove:true, axisDoubleClickReset:true},
+  handleScale:{pinch:false, mouseWheel:true, axisPressedMouseMove:{time: true, price: false}, axisDoubleClickReset:true},   // 2026-11-03 12:40 指標二平線的原因:手指從左邊價格刻度那塊上下滑,套件把價格軸壓扁 / 拉長(自動縮放關掉)→ 三條線壓成一條、刻度擠成一堆;價格軸不給手指拖,上下滑一律是縮放
   // 單指上下滑改成縮放(2026-10-18 使用者:「K 圖上滑放大、下滑縮小」):關掉套件的上下拖動(原本是拖價格軸),
   // 套件就把「一開始往上下走」的手勢當成頁面捲動不處理,由 initChart 的 vz 區塊接手;左右走的仍由套件拖圖
   handleScroll:{horzTouchDrag:true, vertTouchDrag:false, mouseWheel:true, pressedMouseMove:true},
@@ -4615,7 +4616,8 @@ function initChart(){
                                       priceFormat: lotsFmt});
   // 2026-10-21 23:10 使用者:「增加 Od = obv16」:OBV 的 16 根平均(粉紅),只畫線、顯示數值,燈號 / 判別式不用它
   obvMa16Line = chartM.addLineSeries({priceScaleId:'left', color:'#FF6FB5', lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, visible:false, priceFormat: lotsFmt});   // 2026-10-22 19:00 使用者:「先把od 線取消 只留下上面od 就好」→ 線不畫,指標二上方 Od 數字照舊
-  for (const x of [obvSeries, obvMaLine, obvMa30Line]) if (x) x.applyOptions({autoscaleInfoProvider: obvRangeEx});   // 2026-10-26 21:10 13:30 收盤撮合不算進上下範圍(要在三條線建好之後掛)
+  for (const x of [obvSeries, obvMaLine, obvMa30Line]) if (x) x.applyOptions({autoscaleInfoProvider: obvRangeEx});
+  window.__obvRangeEx = obvRangeEx;   // 2026-11-03 指標二自我修復要清它的暫存   // 2026-10-26 21:10 13:30 收盤撮合不算進上下範圍(要在三條線建好之後掛)
 
   // 下圖:均線乖離率(2026-10-20 使用者看元大的三段版面:「版面改成與元大同 最下增加一個均線乖離率 設 10/30/132」):
   //   柱狀 = 乖離率 10 = (收盤 − 均價 10)÷ 均價 10 ×100(正紅、負青,和元大一樣);橘線 = 乖離率 30(對均價 30);黃線 = 乖離率 10 的 132 根平均(跨日算,開盤就有)。
@@ -5034,12 +5036,35 @@ function initChart(){
 /* 2026-10-26 指標二價格刻度(YH.obvPriceAxis):畫面上看得到的這一段,Oa / Ob / Oc 的最低 ~ 最高(不算 13:30 收盤撮合)對到 K 的最低價 ~ 最高價(線性)。
    21:30 改成把三條線的值直接換算成價格再畫(原本只換刻度文字,刻度位置照 OBV 排,會出現 37.14 這種價、或兩個 37.20);
    刻度間距由套件照這檔的跳動單位排(minMove = 跳動單位)。線的形狀、上方 Oa~Od 數字(另外算的)都不變;捲動 / 縮放停下後重算 */
+/* 2026-11-03 12:45 指標二平線真正原因:12:21 的「同一格共用上下範圍」只在三條線換資料前加一次版本號,換到一半(一條是價格、兩條還是原始 OBV)時算出的寬範圍被存起來,換完還拿來用 →
+   改成每一條線 setData 之後都加版本號,一條換了就不再用舊的 */
+function obvVerUp(){ window.__obvVer = (window.__obvVer || 0) + 1; }
+/* 2026-11-03 12:36 使用者「Bug 指標二」→ 又變成平線(三條線壓成一條、左邊刻度變 -1000~-6500 那種):原因還沒抓到 →
+   ① 每 1.5 秒自己檢查:指標二是「價格刻度」模式,但畫面上下範圍比這段價格大 8 倍以上(= 刻度用到原始 OBV 的範圍)→ 記一筆 obvHeal(連同當下狀態,抓 bug 上傳看得到)並馬上重算修好;
+   ② 不管原因是哪個,使用者看到的不會再是平線 */
+setInterval(() => { try{
+  if (!chartM || !obvSeries || !window.__obvPx || !YH.obvPriceAxis || !el('sheet').classList.contains('open')) return;
+  const wp = document.getElementById('wiPanel'); if (wp && wp.classList.contains('on')) return;
+  if (typeof isChartTouching === 'function' && isChartTouching()) return;
+  const box = el('chartMid'), H = (box && box.clientHeight || 0) - (chartM.timeScale().height() || 0); if (H < 30) return;
+  const pT = obvSeries.coordinateToPrice(0), pB = obvSeries.coordinateToPrice(H), P = window.__obvPx; if (pT == null || pB == null) return;
+  const span = Math.abs(pT - pB), want = Math.max(1e-6, P.pHi - P.pLo);
+  if (span < want * 8){ window.__obvBad = 0; return; }
+  if ((window.__obvBad = (window.__obvBad || 0) + 1) < 2) return;   // 連續兩次(3 秒)都不對才修,剛換資料那一下不算
+  window.__obvBad = 0;
+  const last = (() => { try{ const d = obvSeries.dataByIndex(BARS.length - 1); return d ? d.value : null; }catch(e){ return 'x'; } })();
+  try{ bugAdd('obvHeal', {span: +span.toFixed(2), want: +want.toFixed(2), pT: +(+pT).toFixed(2), pB: +(+pB).toFixed(2), last, ver: window.__obvVer || 0, n: BARS.length, rawN: window.__obvRaw ? window.__obvRaw.a.length : 0, code: window.BARS_CODE || ''}); bugFreeze('指標二平線'); }catch(e){}
+  try{ window.__obvRangeEx.__f = null; }catch(e){}
+  window.__obvPx = null;
+  try{ chartM.priceScale('left').applyOptions({autoScale: true}); }catch(e){}
+  obvPxMapUpdate(); try{ if (window.pxAxisRedraw) pxAxisRedraw(); }catch(e){}
+}catch(e){} }, 1500);
 function obvPxMapUpdate(){
   try{
     const RAW = window.__obvRaw;
     if (!chart || !chartM || !BARS.length || !RAW || !obvSeries) return;
     const fm = window.__obvFmt;
-    if (!YH.obvPriceAxis){ if (window.__obvPx){ window.__obvPx = null; window.__obvVer = (window.__obvVer || 0) + 1; obvSeries.setData(RAW.a); obvMaLine.setData(RAW.b); obvMa30Line.setData(RAW.c); if (fm) for (const x of [obvSeries, obvMaLine, obvMa30Line]) x.applyOptions({priceFormat: {...fm, minMove: 1}}); } return; }
+    if (!YH.obvPriceAxis){ if (window.__obvPx){ window.__obvPx = null; obvSeries.setData(RAW.a); obvVerUp(); obvMaLine.setData(RAW.b); obvVerUp(); obvMa30Line.setData(RAW.c); obvVerUp(); if (fm) for (const x of [obvSeries, obvMaLine, obvMa30Line]) x.applyOptions({priceFormat: {...fm, minMove: 1}}); } return; }
     if (!RAW.m) RAW.m = [RAW.a, RAW.b, RAW.c].map(arr => new Map(arr.filter(x => x.value != null).map(x => [x.time, x.value])));
     const r = chart.timeScale().getVisibleLogicalRange(); if (!r) return;
     const i0 = Math.max(0, Math.floor(r.from)), i1 = Math.min(BARS.length - 1, Math.ceil(r.to));
@@ -5055,7 +5080,7 @@ function obvPxMapUpdate(){
     if (P && P.raw === RAW && P.oLo === oLo && P.oHi === oHi && P.pLo === pLo && P.pHi === pHi) return;   // 對照沒變不重畫
     window.__obvPx = {oLo, oHi, pLo, pHi, raw: RAW};
     const kk = (pHi - pLo) / (oHi - oLo), conv = arr => arr.map(x => x.value == null ? x : Object.assign({}, x, {value: pLo + (x.value - oLo) * kk}));
-    window.__obvVer = (window.__obvVer || 0) + 1; obvSeries.setData(conv(RAW.a)); obvMaLine.setData(conv(RAW.b)); obvMa30Line.setData(conv(RAW.c));
+    obvSeries.setData(conv(RAW.a)); obvVerUp(); obvMaLine.setData(conv(RAW.b)); obvVerUp(); obvMa30Line.setData(conv(RAW.c)); obvVerUp();
     const tk = tickOf((pLo + pHi) / 2);
     if (fm) for (const x of [obvSeries, obvMaLine, obvMa30Line]) x.applyOptions({priceFormat: {...fm, minMove: tk}});
   }catch(e){}
@@ -5561,18 +5586,18 @@ function drawBars0(bars, code, srcLabel, keepView){
     obD = obvX(bars);
     obmaD = sma(obD, BASE.obvMaPeriod, 'value', false); obma30D = sma(obD, YH.ocPeriod || 30, 'value', false); obma16D = sma(obD, YH.odPeriod || 16, 'value', false);
   }
-  const __oa = dayCut(obD); window.__obvVer = (window.__obvVer || 0) + 1; obvSeries.setData(__oa);   // 2026-10-26 21:30 原始 OBV 留一份(指標二價格刻度要換算)
+  const __oa = dayCut(obD); obvSeries.setData(__oa); obvVerUp();   // 2026-10-26 21:30 原始 OBV 留一份(指標二價格刻度要換算)
   // 2026-10-23 16:30 使用者(「其他 有這問題嗎」):Ob / Oc / Od 每天前 n−1 根沒有值,線會從昨天 13:30 直接拉到今天第 n 根;畫圖時用「有幾根算幾根」的平均補上(同 Ka),
   //   只是畫面,判別式 / 燈號 / 轉折算的 Ob / Oc / Od 不動(上方文字前幾根仍是「–」)
   const headFill = (arr, n) => { const m = new Map(arr.map(x => [x.time, x])); const out = []; let dk = null, sum = 0, cnt = 0;
     for (const o of ob){ const d = dayKey(o.time); if (d !== dk){ dk = d; sum = 0; cnt = 0; } sum += o.value; cnt++;
       const x = m.get(o.time); if (x) out.push(x); else if (cnt < n) out.push({time: o.time, value: +(sum / cnt).toFixed(3)}); }
     return out; };
-  const __ob = dayCut(YH.obvDisplayCross ? obmaD : headFill(obma, BASE.obvMaPeriod)); window.__obvVer = (window.__obvVer || 0) + 1; obvMaLine.setData(__ob);
+  const __ob = dayCut(YH.obvDisplayCross ? obmaD : headFill(obma, BASE.obvMaPeriod)); obvMaLine.setData(__ob); obvVerUp();
   // 2026-10-21 22:55 使用者(「oc 多少可以增加燈號準確率」→「改 28」):Oc 30 → YH.ocPeriod(28)。七天 1,405 股票日(Y3+W6 燈號):
   //   30 根 對 1,609 錯 1,163 58.0% → 28 根 對 1,696 錯 1,201 58.5%(16 根淨對最多 528 但 57.7%;35 以上變差)。判別式的 OBV 30 均線在 replaySignals 裡自己算,不受影響
   const obma30 = sma(ob, YH.ocPeriod || 30, 'value');
-  const __oc = dayCut(YH.obvDisplayCross ? obma30D : headFill(obma30, YH.ocPeriod || 30)); window.__obvVer = (window.__obvVer || 0) + 1; obvMa30Line.setData(__oc);
+  const __oc = dayCut(YH.obvDisplayCross ? obma30D : headFill(obma30, YH.ocPeriod || 30)); obvMa30Line.setData(__oc); obvVerUp();
   window.__obvRaw = {a: __oa, b: __ob, c: __oc}; window.__obvPx = null; obvPxMapUpdate();   // 2026-10-26 21:30 指標二價格刻度:三條線換算成價格再畫
   const obma16 = sma(ob, YH.odPeriod || 16, 'value');   // 2026-10-21 Od
   if (!obma16D) obma16D = obma16; if (!obma30D) obma30D = obma30;
@@ -6969,7 +6994,19 @@ const bugT = () => { const n = new Date(Date.now() + 8 * 3600000); return n.toIS
 function bugAdd(k, d){ try{ BUG.ev.push([bugT(), k, d, Date.now()]); BUG.n++; if (BUG.ev.length > 8000) BUG.ev.splice(0, 1000); }catch(e){} }
 /* 2026-10-28 11:10 使用者「應該還要紀錄前10秒跑過的程式碼吧」:主要函式(重畫、十字線、捲動 / 縮放、對齊、補前幾天、元大 K 進來…)每次執行都記一筆(fn);
    抓到異常時把「前 10 秒」的全部紀錄另存一份(最多留 5 份),之後的紀錄再多也不會把它擠掉 */
-function bugFreeze(why){ try{ const t0 = Date.now() - 10000; BUG.snaps = BUG.snaps || []; BUG.snaps.push({at: bugT(), why, ev: BUG.ev.filter(e => e[3] >= t0)}); if (BUG.snaps.length > 5) BUG.snaps.shift(); }catch(e){} }
+/* 2026-11-03 12:38 使用者「抓Bug 直接上傳 不用再按上傳」:抓到異常(三張圖對不上、指標二平線…)就自己上傳(3 秒後,把異常後一點點也帶上;每支手機 3 分鐘最多一次);
+   手動按鈕照樣可用。存在雲端 Worker(Hub),Claude 直接讀;不放 GitHub(手機上不能放 GitHub 金鑰) */
+async function bugUploadNow(why){ try{
+  if (!liveOn()) return '沒有雲端網址'; if (window.VIEWER) return '看盤版不上傳';
+  const body = JSON.stringify({at: new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 19), why: why || '', build: (document.querySelector('meta[name="app-build"]') || {}).content || '', ua: navigator.userAgent,
+    scr: [innerWidth, innerHeight, devicePixelRatio], now: bugState(), hits: BUG.hits, snaps: BUG.snaps || [], ev: BUG.ev.slice(-6000)});
+  const r = await fetch(BASE.liveUrl.replace(/\/$/, '') + '/?bug=put', {method: 'POST', headers: {'Content-Type': 'application/json'}, body}); const j = await r.json();
+  BUG.lastUp = {at: bugT(), ok: !!j.ok, why};
+  return j.ok ? `已上傳(${Math.round(body.length / 1024)} KB),跟 Claude 說「看 bug 紀錄」` : ('上傳失敗:' + (j.error || r.status));
+}catch(e){ return '上傳失敗:' + e.message; } }
+window.bugUploadNow = bugUploadNow;
+function bugAutoUp(why){ try{ if (window.VIEWER) return; const now = Date.now(); if (BUG.autoAt && now - BUG.autoAt < 180000) return; BUG.autoAt = now; setTimeout(() => { bugUploadNow('自動:' + why); }, 3000); }catch(e){} }
+function bugFreeze(why){ bugAutoUp(why); try{ const t0 = Date.now() - 10000; BUG.snaps = BUG.snaps || []; BUG.snaps.push({at: bugT(), why, ev: BUG.ev.filter(e => e[3] >= t0)}); if (BUG.snaps.length > 5) BUG.snaps.shift(); }catch(e){} }
 window.bugAdd = bugAdd;
 try{ addEventListener('error', e => bugAdd('err', String(e.message || e.error || '') + ' @' + (e.lineno || ''))); addEventListener('unhandledrejection', e => bugAdd('rej', String(e.reason && (e.reason.message || e.reason) || ''))); }catch(e){}
 function bugState(){
@@ -7012,12 +7049,7 @@ function bugPanel(){
   const msg = pn.querySelector('.bp-msg');
   pn.querySelector('#bpX').onclick = () => pn.classList.remove('on');
   pn.querySelector('#bpClr').onclick = () => { BUG.ev = []; BUG.n = 0; BUG.hits = 0; BUG.firstHit = ''; BUG.snaps = []; const d = el('bugDot'); if (d) d.classList.remove('hit'); bugPanel(); };
-  pn.querySelector('#bpUp').onclick = async () => { if (!liveOn()){ msg.textContent = '沒有雲端網址'; return; }
-    msg.textContent = '上傳中…';
-    const body = JSON.stringify({at: new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 19), build: (document.querySelector('meta[name="app-build"]') || {}).content || '', ua: navigator.userAgent,
-      scr: [innerWidth, innerHeight, devicePixelRatio], now: bugState(), hits: BUG.hits, snaps: BUG.snaps || [], ev: BUG.ev.slice(-6000)});
-    try{ const r = await fetch(BASE.liveUrl.replace(/\/$/, '') + '/?bug=put', {method: 'POST', headers: {'Content-Type': 'application/json'}, body}); const j = await r.json();
-      msg.textContent = j.ok ? `已上傳(${Math.round(body.length / 1024)} KB),跟 Claude 說「看 bug 紀錄」` : ('上傳失敗:' + (j.error || r.status)); }catch(e){ msg.textContent = '上傳失敗:' + e.message; } };
+  pn.querySelector('#bpUp').onclick = async () => { msg.textContent = '上傳中…'; const r = await bugUploadNow('手動'); msg.textContent = r; };
 }
 (() => { const d = el('bugDot'); if (!d) return; let tm = 0;
   const start = () => { clearTimeout(tm); tm = setTimeout(() => { tm = 0; try{ navigator.vibrate && navigator.vibrate(40); }catch(e){} bugPanel(); }, 800); };
