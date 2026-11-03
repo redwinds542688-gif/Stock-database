@@ -526,4 +526,15 @@ s24.on_report(51, "", 0, s24.positions["2401"]["order"]["want"], 50.0, basket=s2
 ok(s24.close_all("手機全部平倉", lock=True) == 1 and "2401" in s24.locked and s24.positions["2401"]["state"] == EXITING and not s24.stop_file.exists())
 s24.on_tick("2402", 60.0); s24.step([sig("k24b", "long", "股2402 2402 做多進場 60.0", "10:01 多 · 停利 65.0 停損 50.0 · 3張 · 判四")]); oo = s24.positions["2402"]["order"]
 ok(s24.close_all("手機全部平倉", lock=True) >= 1 and g24.sent[-1][0] == "cancel" and s24.positions["2402"].get("close_after_entry") and "2402" in s24.locked, g24.sent[-1])
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2)")
+# S25) 2026-11-03 超額訊號:價格回到一張 ≤ 多空上限才補進場一次;判別式先平倉 / 過停利就不補
+s25, g25 = mk(TRADE_CAP="250000", TRADE_MAX_MOVE_PCT="99"); s25.on_tick("3006", 257.5)
+OV = lambda k, t="10:24": sig(k, "short", "晶豪科 3006 做空進場 257.50", f"{t} 空 · 停利 234.30 停損 266.44 · 1張 · 超額 · 判四")
+s25.step([OV("k25")]); ok("3006" not in s25.positions and "3006" in s25.over_wait, s25.over_wait)
+s25.on_tick("3006", 252.0); s25.step([]); ok("3006" not in s25.positions)                       # 一張 252,000 還超過
+s25.on_tick("3006", 249.0); s25.step([]); ok("3006" in s25.positions and s25.positions["3006"]["dir"] == -1 and s25.positions["3006"]["tp"] == 234.3 and s25.positions["3006"]["sl"] == 266.44 and "3006" not in s25.over_wait, s25.positions.get("3006"))
+s25.on_tick("3006", 248.0); s25.step([]); ok(sum(1 for x in g25.sent if x[0] == "3006") == 1)        # 只補一次
+s25b, g25b = mk(TRADE_CAP="250000", TRADE_MAX_MOVE_PCT="99"); s25b.on_tick("3006", 257.5); s25b.step([OV("k25b")])
+s25b.step([sig("x25b", "exit", "晶豪科 3006 停利 +5% 立即平倉", "11:00 · 判四")]); ok("3006" not in s25b.over_wait)   # 判四先平倉 → 不補
+s25b.on_tick("3006", 249.0); s25b.step([]); ok("3006" not in s25b.positions)
+s25c, _ = mk(TRADE_CAP="250000", TRADE_MAX_MOVE_PCT="99"); s25c.on_tick("3006", 257.5); s25c.step([OV("k25c")]); s25c.on_tick("3006", 233.0); s25c.step([]); ok("3006" not in s25c.positions and "3006" not in s25c.over_wait)   # 已過停利不補
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額補進場 6)")
