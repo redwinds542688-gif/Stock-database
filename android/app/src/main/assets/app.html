@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 10:42(實際時間)接上一筆:電腦盤中不能更新,手機先自己判斷 —— 電腦還是舊版時,只有強平過或電腦說「未交易」的平倉卡才藏,其他(程式自己停利 / 停損平掉的)照常顯示;今天被藏的和益平倉卡會自己跑回來(使用者「進場資訊欄 還是沒有 和益平倉消息」)(中繼 VERSION 202611031042)。
   · 2026-11-03 10:37(實際時間)修:程式自己停利 / 停損平掉的股票,主程式訊息欄的平倉卡被藏起來(使用者「和益 已經平倉 進場資訊欄 沒顯示平倉」;和益 1709 判三 10:27 OBV 停利):手機收到平倉通知才去問電腦元大部位,電腦已經照同一則通知平完 → 被當成「元大根本沒這檔」藏掉。電腦現在會告訴手機哪些是程式自己平掉的,這些平倉卡照常顯示,之前被藏的也會自己跑回來;手動 / 強平 / 沒進場的照舊藏(中繼 VERSION 202611031037)。
   · 2026-11-03 10:23(實際時間)鑰匙 QR Code 自動存進電腦 keys 資料夾(使用者「讓QR CODE 自動存進 電腦 KEY目錄裡面」):中繼每次啟動把每把啟用中、沒到期的鑰匙都存一張 QR Code 圖(檔名 = 名字_鑰匙前 6 碼,已有的不重做);也可以手動 python win_keys.py qrall。
   · 2026-11-03 10:06(實際時間)鑰匙可以用「結尾幾碼」解除綁定:電腦 win_keys.py unbindend <結尾>(換手機 / 出現「這把鑰匙已綁在另一支手機」時用,不用知道整把鑰匙)。
@@ -169,7 +170,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031037">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031042">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1227,9 +1228,9 @@ function tposPoll(force){
         window.__tpos = g; window.__tpos.at = Date.now(); if (typeof window.__tpos.halted === 'boolean') haltSet(window.__tpos.halted);
         // 2026-11-02 11:49 使用者「a手機強制平倉 a就看不到再次平倉訊息 b.c也同步一樣」:電腦回的「今天強平過的股票」(locked)記進這支手機的強平清單 →
         //   三支手機一樣:訊息欄藏之後的停利 / 停損 / 出場,背景也不再發這檔判一~三的通知
-        // 2026-11-03 先前被誤藏的平倉卡(電腦已經照通知平完才問到)→ 電腦說是程式自己平的(closed:代碼|判別式),從藏起來的清單拿掉
-        try{ if (g.ok && Array.isArray(g.closed) && g.closed.length){ const d = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10); realGoneHas(d, {}); let rm = 0;
-          for (const k of [...REALGONE.keys]){ const f = k.split('|'); if (g.closed.includes(f[0] + '|' + f[2])){ REALGONE.keys.delete(k); rm++; } }
+        // 2026-11-03 先前被誤藏的平倉卡(電腦已經照通知平完才問到)→ 是程式自己平的(realGoneOk)就從藏起來的清單拿掉
+        try{ if (g.ok){ const d = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10); realGoneHas(d, {}); let rm = 0;
+          for (const k of [...REALGONE.keys]){ const f = k.split('|'); if (!realGoneOk(g, f[0], f[2], '')){ REALGONE.keys.delete(k); rm++; } }
           if (rm){ try{ localStorage.setItem('mysh.realgone', JSON.stringify({d, k: [...REALGONE.keys]})); }catch(e){} if (window.nlRender) nlRender(); } } }catch(e){}
         try{ if (g.ok && Array.isArray(g.locked)){ let add = 0; for (const c of g.locked) if (c && !fcList().includes(String(c))){ fcAdd(String(c)); add++; } if (add && window.nlRender) nlRender(); } }catch(e){} })
       .catch(e => { if (window.__tpos && window.__tpos.ok && Date.now() - (window.__tpos.at || 0) < 2 * 60000) return; window.__tpos = {ok: false, msg: '電腦沒有回應', at: Date.now()}; });
@@ -6209,6 +6210,15 @@ window.celebrate = celebrate;
 const REALGONE = { d: '', keys: new Set() };
 function realGoneKey(o){ return (o.code || '') + '|' + (o.t || '') + '|' + (o.rs || ''); }
 function realGoneHas(d, o){ try{ if (REALGONE.d !== d){ const j = JSON.parse(localStorage.getItem('mysh.realgone') || 'null'); REALGONE.d = d; REALGONE.keys = new Set(j && j.d === d ? j.k : []); } return REALGONE.keys.has(realGoneKey(o)); }catch(e){ return false; } }
+/* 2026-11-03 使用者「和益 已經平倉 進場資訊欄 沒顯示平倉」:手機問部位時電腦已經照同一則通知平完 → 不能只看「元大現在沒這檔」。
+   回傳 true = 真的該藏(元大手動平 / 強平 / 根本沒進場)。新版電腦(?trade=pos 有 closed:程式自己平掉的 代碼|判別式)→ 不在 closed 才藏;
+   舊版電腦(沒有 closed)→ 只有強平過(locked)或電腦說沒變成部位(skipped:代碼|判別式|訊號那根)才藏 */
+function realGoneOk(g, code, rs, entT){
+  if (Array.isArray(g.closed)) return !g.closed.map(String).includes(code + '|' + rs);
+  if (Array.isArray(g.locked) && g.locked.map(String).includes(code)) return true;
+  const sk = Array.isArray(g.skipped) ? g.skipped.map(String) : [];
+  return entT ? sk.includes(code + '|' + rs + '|' + entT) : sk.some(k => k.startsWith(code + '|' + rs + '|'));
+}
 async function realGone(x){
   try{
     if (window.VIEWER || !/^(exit|profit|loss)$/.test(x.kind || '')) return false;
@@ -6217,7 +6227,7 @@ async function realGone(x){
     const r = await fetch(BASE.liveUrl.replace(/\/$/, '') + '/?trade=pos&_=' + Date.now(), {cache: 'no-store', signal: AbortSignal.timeout(6000)}); const g = await r.json();
     if (!(g && g.ok && g.enabled && Array.isArray(g.pos))) return false;
     if (g.pos.some(p => String(p.code) === code && p.qty > 0 && (p.state === '持倉中' || p.state === '平倉中'))) return false;
-    if (Array.isArray(g.closed) && g.closed.includes(code + '|' + rs)) return false;   // 2026-11-03 電腦照這則通知已經平完(和益 1709 判三 OBV 停利卡被藏)→ 是程式自己平的,照常顯示
+    if (!realGoneOk(g, code, rs, ((x.body || '').match(/(\d{2}:\d{2}) 進/) || [])[1] || '')) return false;   // 2026-11-03 是程式自己平的(和益 1709 判三 OBV 停利卡被藏)→ 照常顯示
     const d = x.d || new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10); realGoneHas(d, {});
     REALGONE.keys.add(realGoneKey({code, t: x.t, rs})); try{ localStorage.setItem('mysh.realgone', JSON.stringify({d, k: [...REALGONE.keys]})); }catch(e){}
     bgLog('[通知·元大已沒有 ' + code + ' 部位,不跳] ' + x.title + ' | ' + x.body); return true;
