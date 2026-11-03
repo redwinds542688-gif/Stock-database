@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 22:43(實際時間)按下面的按鍵換頁(進場 / 當沖 / 明細)立刻換,不再先停在舊頁約半秒(使用者影片 9~11 秒「從別的按鍵下點進 進場」)
   · 2026-11-03 22:16(實際時間)公式(或設定)打開時按當沖 / 明細,直接打開那一頁,不會再跳到進場(使用者「按公式 再按明細 結果會跳到 進場」)
   · 2026-11-03 21:36(實際時間)指標二那列的紅箭頭(十字線回到最新一根):按下去那一下不再被圖當成點圖,而且箭頭四周 14px 內按下去都算按箭頭(箭頭小、手指常壓到旁邊的圖),十字線直接回到最新一根(使用者「點箭頭 十字虛線還以為是點他」→「改」;只改箭頭,圖照舊鎖定)
   · 2026-11-03 21:22(實際時間)長按左上角抓 bug 灰點不會再誤跳「緊急停止」:灰點可按範圍放大到 44×44(看起來一樣大),標題左上角那一塊不算長按標題(使用者「按 抓bug 會誤觸這個」)
@@ -224,7 +225,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611032216">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611032242">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1872,7 +1873,7 @@ window.fitBands = fitBands;
         const z = Math.round(r.top) + '|' + Math.round(r.height); if (z !== lastZ){ lastZ = z; Android.gestureZone(Math.round(r.top), Math.round(r.height)); } }catch(e){} };
       setTimeout(zone, 800); setInterval(zone, 3000); addEventListener('resize', zone); }
     for (const e0 of ['cover', 'rsMenu', 'panel']){ const e = document.getElementById(e0) || document.querySelector('.' + e0); if (e){ e.addEventListener('touchstart', st, {passive: true, capture: true}); e.addEventListener('touchmove', mv, {passive: false}); e.addEventListener('touchend', en, {passive: true}); e.addEventListener('touchcancel', () => { window.__nlTouch = 0; if (pv){ const P = pv; pv = null; drag = false; t0 = 0; swiped = Date.now(); busy = true; requestAnimationFrame(() => { if (P.g) setT(P.g, 0, 200); if (P.el2) setT(P.el2, P.dir * P.W, 200); }); setTimeout(() => { if (P.el2) clearX(P.el2); if (P.nl) P.nl.style.visibility = ''; go(tab0); requestAnimationFrame(() => { if (P.g) P.g.remove(); busy = false; }); }, 230); return; } if (drag){ drag = false; const b = boxOf(tab0); setX(b, 0, 200); setTimeout(() => clearX(b), 220); } t0 = 0; }, {passive: true}); } } }
-  const setView = (v, rs) => { window.NL_VIEW = v; if (rs !== undefined) window.LOG_RS = rs; closeMenu();
+  const setView = (v, rs) => { window.NL_VIEW = v; if (rs !== undefined) window.LOG_RS = rs; closeMenu(); window.__nlTouch = 0;   /* 2026-11-03 22:43 使用者影片 13928(9~11 秒):按進場後還停在當沖約半秒才換 → 按鍵也算「手指在通知欄上」,重畫被延後 0.35 秒;換頁時立刻畫 */
     const pnl = document.querySelector('.panel'); if (pnl) pnl.classList.remove('open'); hideInfo(); if (window.nlRender) nlRender(); refreshToolbar(); };
   window.nlSetView = setView;
   // 放開手指就動作(touchend),不等 click;同一次觸控的 click 擋掉(2026-10-18 的做法)
