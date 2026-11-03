@@ -569,7 +569,7 @@ class Bridge:
         halted = (t.stop_file if t else stop_path(CFG)).exists()   # 2026-10-31 緊急停止狀態(手機標題變灰色)
         if not t:
             return {"ok": False, "msg": "電腦的交易程式還沒啟動(盤前 / 收盤後)", "halted": halted}
-        return {"ok": True, "enabled": t.enabled, "pos": t.positions_view(), "locked": sorted(t.locked), "skipped": sorted(getattr(t, "skipped", set()))[-300:], "closed": sorted(getattr(t, "closed_ok", set()))[-300:], "at": now_tw().strftime("%H:%M:%S"), "halted": halted, "pxOk": True}   # pxOk:2026-11-03 起強制進場可指定委託價(舊版電腦沒有這個 → 手機不顯示調價格)
+        return {"ok": True, "enabled": t.enabled, "pos": t.positions_view(), "locked": sorted(t.locked), "skipped": sorted(getattr(t, "skipped", set()))[-300:], "closed": sorted(getattr(t, "closed_ok", set()))[-300:], "at": now_tw().strftime("%H:%M:%S"), "halted": halted, "pxOk": True, "redo": t.over_list() if hasattr(t, "over_list") else []}   # redo:2026-11-03 超額訊號回到上限內、等手機確認補進場的   # pxOk:2026-11-03 起強制進場可指定委託價(舊版電腦沒有這個 → 手機不顯示調價格)
 
     def trade_cmd(self, cmd):
         pin = CFG.get("TRADE_CMD_PIN", "")
@@ -617,6 +617,10 @@ class Bridge:
         log(f"[交易] 手機強制指令 {act} {code} {cmd.get('dir', '')} {cmd.get('lots', '')} 張(編號 {cid})")
         if act == "close":
             ok, msg = t.force_close(code, cid)
+        elif act == "redo":                                          # 2026-11-03 手機「確認補進場」(超額訊號回到多空上限內)
+            ok, msg = t.over_confirm(code, cid)
+        elif act == "redo_no":
+            ok, msg = t.over_drop(code)
         elif act == "enter":
             mkt = self.mkt_of_code(code)
             if code not in [c for c, _ in self.codes]:               # 不在名單上:主迴圈補訂閱逐筆,才盯得到停利停損

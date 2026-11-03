@@ -123,6 +123,7 @@ class Trader:
         self.max_dev = float(cfg.get("TRADE_MAX_DEV_PCT", "0.5"))  # 現價離訊號價超過 % 就不追
         # 2026-11-03 12:08 使用者(晶豪科 257.50 超額沒進,跌到 250 以下也沒補)「改」:超額的進場訊號先記著,現價回到一張 ≤ 多空上限、還在停利 / 停損之間、
         #   這份判別式還沒發平倉通知、沒過最後進場時間 → 補進場一次(照當下價格,停利 / 停損照原訊號);0 = 關
+        #   12:10 使用者「這種股票要加上 確認按鍵」:條件到了不自動下單,手機跳「確認補進場」(?trade=pos 的 redo),按了才進(act=redo)
         self.over_redo = cfg.get("TRADE_OVER_REDO", "1") == "1"
         self.over_wait = {}
         self.fill_wait = float(cfg.get("TRADE_FILL_WAIT", "8"))    # 自動進場(限價 IOC)送單後等成交回報幾秒
@@ -897,22 +898,63 @@ class Trader:
                 self.on_signal(it)
             self.over_check()
 
+    def over_ok(self, code, w):
+        """超額訊號現在能不能補進(回 (能?, 現價, 取消原因))"""
+        if code in self.positions: return False, None, "已經有部位"
+        if self.hm() >= self.last_entry: return False, None, f"已過最後進場時間 {self.last_entry}"
+        last = self.last_px.get(code)
+        if not last or self.cap <= 0: return False, last, ""
+        if not ((w["sl"] < last < w["tp"]) if w["kind"] == "long" else (w["tp"] < last < w["sl"])):
+            return False, last, f"現價 {last} 已不在停利 {w['tp']} / 停損 {w['sl']} 之間"
+        return last * 1000 <= self.cap, last, ""
+
     def over_check(self):
-        """超額訊號補進場(見 over_redo):每一輪 step 看一次"""
+        """超額訊號(見 over_redo):每一輪 step 看一次;條件到了標 ready、發提醒到手機,等手機按「確認補進場」"""
         for code, w in list(self.over_wait.items()):
-            if code in self.positions: self.over_wait.pop(code, None); continue
-            if self.hm() >= self.last_entry:
-                self.over_wait.pop(code, None); self.log(f"[交易] {code} 超額等補進場取消:已過最後進場時間 {self.last_entry}"); continue
-            last = self.last_px.get(code)
-            if not last or self.cap <= 0 or last * 1000 > self.cap: continue
-            if not ((w["sl"] < last < w["tp"]) if w["kind"] == "long" else (w["tp"] < last < w["sl"])):
-                self.over_wait.pop(code, None); self.log(f"[交易] {code} 超額等補進場取消:現價 {last} 已不在停利 {w['tp']} / 停損 {w['sl']} 之間"); continue
-            self.over_wait.pop(code, None)
-            it = w["it"]; it2 = dict(it); it2["body"] = re.sub(r"·\s*超額\s*·", "·", it.get("body", "")); it2["_over"] = True
-            it2["_k"] = (it.get("_k") or (it.get("t", "") + it.get("title", ""))) + "|補"; it2["t"] = self.now().strftime("%H:%M")
-            self.log(f"[交易] {code} 現價 {last} 一張 {last * 1000:,.0f} ≤ 多空上限,補進場(原訊號 {w['px']},超額沒進)")
-            n0 = len(self.positions); self.on_signal(it2)
-            if len(self.positions) > n0: self.alert(f"↩ {self.name_of(code)} {code} 補進場", f"原訊號 {w['px']} 超額沒進,現價 {last} 回到多空上限內")
+            ok, last, why = self.over_ok(code, w)
+            if why:
+                self.over_wait.pop(code, None); self.log(f"[交易] {code} 超額等補進場取消:{why}"); continue
+            if ok and not w.get("ready"):
+                w["ready"] = time.time(); self.log(f"[交易] {code} 現價 {last} 一張 ≤ 多空上限,等手機確認補進場(原訊號 {w['px']})")
+                self.alert(f"↩ {self.name_of(code)} {code} 可以補進場", f"原訊號 {'做多' if w['kind'] == 'long' else '做空'} {w['px']} 超額沒進,現價 {last} 回到多空上限內,打開 App 按確認")
+            elif not ok and w.get("ready"):
+                w["ready"] = None                                  # 又超過上限:收回確認
+
+    def over_list(self):
+        with self.lock:
+            out = []
+            for code, w in self.over_wait.items():
+                if not w.get("ready"): continue
+                last = self.last_px.get(code) or 0
+                out.append({"code": code, "name": self.name_of(code), "dir": 1 if w["kind"] == "long" else -1, "px": w["px"], "tp": w["tp"], "sl": w["sl"], "judge": w["judge"],
+                            "last": last, "lots": max(1, int(self.cap // (last * 1000))) if last and self.cap > 0 else 1})
+            return out
+
+    def over_confirm(self, code, cmd_id=None):
+        """手機按「確認補進場」"""
+        with self.lock:
+            if cmd_id and cmd_id in self.cmd_seen: return self.cmd_seen[cmd_id]
+            w = self.over_wait.get(code)
+            if not w: r = (False, "這檔已經不能補進場(判別式平倉了 / 過了停利停損 / 時間過了)")
+            elif not self.enabled: r = (False, "電腦的自動交易沒有開")
+            else:
+                ok, last, why = self.over_ok(code, w)
+                if not ok: r = (False, why or f"現價 {last} 一張又超過多空上限了")
+                else:
+                    self.over_wait.pop(code, None)
+                    it = w["it"]; it2 = dict(it); it2["body"] = re.sub(r"·\s*超額\s*·", "·", it.get("body", "")); it2["_over"] = True
+                    it2["_k"] = (it.get("_k") or (it.get("t", "") + it.get("title", ""))) + "|補"; it2["t"] = self.now().strftime("%H:%M")
+                    self.log(f"[交易] {code} 手機確認補進場:現價 {last}(原訊號 {w['px']},超額沒進)")
+                    self.on_signal(it2)
+                    r = (True, "已送出補進場") if code in self.positions else (False, "沒有進場(可能額度 / 檔數上限 / 緊急停止,看電腦紀錄)")
+            if cmd_id: self.cmd_seen[cmd_id] = r
+            return r
+
+    def over_drop(self, code):
+        with self.lock:
+            w = self.over_wait.pop(code, None)
+            if w: self.log(f"[交易] {code} 手機按「不要」:不補進場")
+            return (True, "不補進場")
 
     def need_verify(self):
         """有漲停 / 跌停單(ROD)送出超過 30 秒還沒成交完 → bridge 要查元大(查詢有次數限制,同一張單 30 秒最多查一次)"""
