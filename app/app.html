@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 13:55(實際時間)明細「虛擬 / 元大」按鍵加外框(使用者「按鍵加外框」)
   · 2026-11-03 13:49(實際時間)明細標題列加「虛擬 / 元大」切換鍵:只有自己的 App(永久版)、非開盤時間才出現;按「虛擬」= 每天都列程式照判別式算的虛擬交易(含今天),再按「元大」切回真實成交;一開盤自動切回元大、按鍵消失;看盤版沒有(使用者「永久板在明細那邊 增加一個可以看虛擬交易的結果的按鍵 只有在非開盤時間的時候 按鍵才會出現 其他版本沒有這個功能」)
   · 2026-11-03 13:22(實際時間)強制進場:股票離昨收跌超過 6.5% 不能強制做多、漲超過 6.5% 不能強制做空(反方向照常);手機那顆按鈕變暗、按了說明原因,電腦端也會擋(使用者「加 強制進場 該股票-6.5%不做多 反之亦然」)
   · 2026-11-03 13:18(實際時間)電腦:元三 / 強三改成離昨收 ±8.5% 強制平倉(做多跌到 −8.5%、做空漲到 +8.5%;取代 13:12 的完全不套),停利 / 停損 / 13:20 照常;判一~四照舊 ±6.5%(使用者「那就改 該股票+-8.5% 為停損」)
@@ -192,7 +193,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031349">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031355">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -256,8 +257,8 @@
   /* 今日監控紀錄(背景監控發過的通知,新的在上面;2026-10-16) */
   #notifLog{position:absolute;inset:0 3px 3px 0;overflow-y:auto;padding:0 0 6px;font-size:13px;line-height:1.35;-webkit-overflow-scrolling:touch;touch-action:pan-y}   /* 2026-10-27 03:30 使用者:「平倉藍色的外框 捲動時有時候會壓住通知欄右下角外框」:捲動內容的右邊、下邊各留 3px 底色,卡片被切的邊不再貼著黃框 */
   #notifLog .hd{color:var(--dim);font-size:12px;margin:0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:3;background:var(--panel);padding:6px 0 7px;white-space:nowrap}   /* 2026-10-27 14:20 z-index 2 → 3:明細 / 當沖欄名列往上蓋縫的底色(z 2)會蓋到標題字的上半(使用者:「上面切到了」) */   /* 2026-10-27 07:35 下方 4px 空隙改成標題自己的底(padding),捲到某天第一則時上一列(日期分隔列)不會從空隙露出來 */   /* 2026-10-27 04:20 nowrap:字放大後不折行(鐵律 19 巡檢) */   /* 上方不留 padding,捲動的列才不會從標題上面露出來 */
-  #notifLog .hd .vbtn{margin-left:8px;padding:1px 10px;border-radius:7px;border:1.5px solid #FFD54F;background:#000;color:#FFD54F;font:inherit;font-size:.85em;font-weight:700;vertical-align:middle}
-  #notifLog .hd .vbtn.on{background:#FFD54F;color:#000}   /* 2026-11-03 明細「虛擬 / 元大」切換(只有自己的 App、非開盤時間) */
+  #notifLog .hd .vbtn{margin-left:10px;padding:1px 10px;border-radius:7px;border:2px solid #FFD54F;box-shadow:0 0 0 2px #000,0 0 0 3.5px #8C96AB;background:#000;color:#FFD54F;font:inherit;font-size:.85em;font-weight:700;vertical-align:middle}
+  #notifLog .hd .vbtn.on{background:#FFD54F;color:#000;border-color:#FFFFFF;box-shadow:0 0 0 2px #000,0 0 0 3.5px #FFD54F}   /* 2026-11-03 13:54 使用者「按鍵加外框」:兩種狀態都多一圈外框 */   /* 2026-11-03 明細「虛擬 / 元大」切換(只有自己的 App、非開盤時間) */
   #notifLog .hd .nav{display:flex;gap:6px;align-items:center}
   #notifLog .hd button{background:#222C3C;color:#D8DEE9;border:0;border-radius:6px;padding:2px 10px;font-size:13px}
   #notifLog .hd.msg button{font-size:1em;padding:0 .4em;line-height:1.3}   /* 2026-10-27 05:00 訊息標題列:◀ 監控訊息 日期 ▶ 10px 可用資金 10px 已動資金,字跟著整列放大 */
