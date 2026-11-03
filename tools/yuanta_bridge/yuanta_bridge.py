@@ -569,7 +569,7 @@ class Bridge:
         halted = (t.stop_file if t else stop_path(CFG)).exists()   # 2026-10-31 緊急停止狀態(手機標題變灰色)
         if not t:
             return {"ok": False, "msg": "電腦的交易程式還沒啟動(盤前 / 收盤後)", "halted": halted}
-        return {"ok": True, "enabled": t.enabled, "pos": t.positions_view(), "locked": sorted(t.locked), "skipped": sorted(getattr(t, "skipped", set()))[-300:], "closed": sorted(getattr(t, "closed_ok", set()))[-300:], "at": now_tw().strftime("%H:%M:%S"), "halted": halted}
+        return {"ok": True, "enabled": t.enabled, "pos": t.positions_view(), "locked": sorted(t.locked), "skipped": sorted(getattr(t, "skipped", set()))[-300:], "closed": sorted(getattr(t, "closed_ok", set()))[-300:], "at": now_tw().strftime("%H:%M:%S"), "halted": halted, "pxOk": True}   # pxOk:2026-11-03 起強制進場可指定委託價(舊版電腦沒有這個 → 手機不顯示調價格)
 
     def trade_cmd(self, cmd):
         pin = CFG.get("TRADE_CMD_PIN", "")
@@ -617,7 +617,7 @@ class Bridge:
             if ref and not (self.quotes.meta.get(code) or {}).get("y"):
                 try: self.quotes.meta.setdefault(code, {"n": cmd.get("name", "") or code, "ex": "tse", "y": None})["y"] = float(ref)   # 手機帶來的昨收
                 except Exception: pass
-            ok, msg = t.force_enter(code, int(cmd.get("dir", 0)), int(cmd.get("lots", 0)), cmd.get("tpPct"), cmd.get("slPct"), str(mkt), cid, ref)
+            ok, msg = t.force_enter(code, int(cmd.get("dir", 0)), int(cmd.get("lots", 0)), cmd.get("tpPct"), cmd.get("slPct"), str(mkt), cid, ref, cmd.get("px"))   # 2026-11-03 px = 手機指定的委託價
         else:
             return {"ok": False, "msg": "不認得的指令"}
         return {"ok": ok, "msg": msg, "pos": t.positions_view()}

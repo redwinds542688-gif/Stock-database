@@ -952,7 +952,7 @@ class Trader:
         p["tp"] = round(avg * (1 + float(tpp) / 100 * d), 2) if tpp else 0.0
         p["sl"] = round(avg * (1 - float(slp) / 100 * d), 2) if slp else 0.0
 
-    def force_enter(self, code, d, lots, tp_pct=None, sl_pct=None, mkt=None, cmd_id=None, ref=None):
+    def force_enter(self, code, d, lots, tp_pct=None, sl_pct=None, mkt=None, cmd_id=None, ref=None, px=None):
         """2026-10-28 強制進場:做多掛漲停買、做空掛跌停賣(ROD,一定成交);不佔 5 檔名額、不受虧損上限 / STOP 檔限制。回傳 (成功?, 訊息)"""
         with self.lock:
             if cmd_id and cmd_id in self.cmd_seen:
@@ -972,10 +972,18 @@ class Trader:
                 p["tp_pct"], p["sl_pct"] = tp_pct, sl_pct
                 try: p["ref"] = float(ref) if ref else None          # 手機帶來的昨收(電腦這檔沒有昨收時 ±6.5% 用)
                 except Exception: p["ref"] = None
-                self.send(p, "進場", "B" if d > 0 else "S", lots, 0, p["typ"], "H" if d > 0 else "L", "0")
+                # 2026-11-03 11:20 使用者「需要加上下調整價格的功能 漲停價跟跌停價」:手機指定委託價(px)→ 限價 ROD(沒到價不成交,成交後照樣接手);沒指定 = 原本的漲停買 / 跌停賣
+                try: lp = round(float(px), 2) if px not in (None, "") else 0.0
+                except Exception: lp = 0.0
+                if lp > 0:
+                    self.send(p, "進場", "B" if d > 0 else "S", lots, lp, p["typ"], " ", "0")
+                    how = f"限價 {lp:.2f}"
+                else:
+                    self.send(p, "進場", "B" if d > 0 else "S", lots, 0, p["typ"], "H" if d > 0 else "L", "0")
+                    how = "漲停買" if d > 0 else "跌停賣"
                 self.save_state()
-                self.log(f"[交易] 強制進場 {code} {'做多(漲停買)' if d > 0 else '做空(跌停賣)'} {lots} 張")
-                r = (True, f"已送出強制{'做多' if d > 0 else '做空'} {lots} 張")
+                self.log(f"[交易] 強制進場 {code} {'做多' if d > 0 else '做空'}({how}){lots} 張")
+                r = (True, f"已送出強制{'做多' if d > 0 else '做空'} {lots} 張({how})")
             if cmd_id: self.cmd_seen[cmd_id] = r
             return r
 

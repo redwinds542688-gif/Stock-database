@@ -513,4 +513,10 @@ s22.on_report(51, "", 0, s22.positions["2401"]["order"]["want"], s22.positions["
 ok(s22.positions["2401"]["state"] == HOLDING and s22.positions["2402"]["state"] == ENTERING)
 ok(s22.close_all("手機緊急停止 + 全部平倉") == 2 and s22.positions["2401"]["state"] == EXITING and g22.sent[-1][:2] == ("2401", "B") and g22.sent[-1][-1] == "H"
    and s22.positions["2402"].get("exit_pending"), (g22.sent[-1], s22.positions["2402"]))
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1)")
+# S23) 2026-11-03 強制進場指定委託價:限價 ROD;沒指定照舊漲停買 / 跌停賣
+s23, g23 = mk(); s23.on_tick("2401", 50.0)
+ok(s23.force_enter("2401", 1, 2, 2.5, 1.5, px=49.85)[0] and g23.sent[-1] == ("2401", "B", 2, 49.85, g23.sent[-1][4], "0", " "), g23.sent[-1])
+ok(s23.positions["2401"]["state"] == ENTERING)
+s23.on_tick("2402", 60.0); ok(s23.force_enter("2402", -1, 1, 2.5, 1.5, px=None)[0] and g23.sent[-1][-1] == "L" and g23.sent[-1][3] == 0, g23.sent[-1])
+s23.on_report(51, "", 0, 2000, 49.85, basket=g23.tags[0]); ok(s23.positions["2401"]["state"] == HOLDING and s23.positions["2401"]["entry"] == 49.85, s23.positions["2401"])
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4)")
