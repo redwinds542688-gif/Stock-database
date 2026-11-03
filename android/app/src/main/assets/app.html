@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 17:20(實際時間)進場頁標題改成和明細一樣:「進場」綠色 + 日期滾輪(銀色、固定位置),◀ ▶ 拿掉;轉日期清單跳到那天,捲清單滾輪跟著轉(使用者「把 進場 日期 這 改成 與 明細那邊一樣 變成 進場+日期滾輪」)
   · 2026-11-03 17:16(實際時間)進場頁標題「監控 11/03」改成「進場 11/03」(使用者「進場裡 上面“監控”改成“進場”」)
   · 2026-11-03 17:12(實際時間)明細滾輪轉到某天(例 10/28)再按元大 / 虛擬切換,畫面留在那天,不再跳回今天(使用者「滾到10/28 按元大切換到虛擬 日期又跳回11/3」)
   · 2026-11-03 16:12(實際時間)明細的虛擬交易改回非額度版(每個訊號都照 25 萬一筆做),只扣盤中沒發進場訊息的;盤中有沒有發改讀 live_entries.json(收盤後 GitHub 排程存),手機沒有才用自己的紀錄;永久版 11/03 以前也是這份,11/04 起「元大」接元大真實成交(使用者「那虛擬改這個 永久版的也改這個 明天之後永久版再接上元大」)
@@ -210,7 +211,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031716">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031720">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -279,6 +280,7 @@
   #notifLog .hd .vbtn.on.virt{background:#B15CFF;color:#fff;box-shadow:0 0 0 2px #000,0 0 0 3.5px #B15CFF}   /* 虛擬:紫色,一眼分得出來 */   /* 2026-11-03 13:54 使用者「按鍵加外框」:兩種狀態都多一圈外框 */   /* 2026-11-03 明細「虛擬 / 元大」切換(只有自己的 App、非開盤時間) */
   #notifLog .hd .nav{display:flex;gap:6px;align-items:center}
   #notifLog .hd .dwh{display:inline-block;height:1.3em;line-height:1.3em;overflow-y:scroll;scroll-snap-type:y mandatory;overscroll-behavior:contain;touch-action:pan-y;scrollbar-width:none;padding:0 4px;border-radius:6px;border:1px solid #3A4252;-webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,.35),#000 22%,#000 78%,rgba(0,0,0,.35));mask-image:linear-gradient(180deg,rgba(0,0,0,.35),#000 22%,#000 78%,rgba(0,0,0,.35))}   /* 2026-11-03 15:25 明細日期滾輪 */
+  #notifLog .hd .lb .dwh{margin-left:6px;vertical-align:middle}   /* 2026-11-03 17:20 進場頁日期滾輪 */
   #notifLog .hd .dlb{color:#1DD75B;font-weight:700;flex:none}   /* 2026-11-03 15:30 使用者「明細 綠色 日期 銀色 顯示位置都固定」 */
   #notifLog .hd .dwh{color:#C9D1DC;flex:none;width:3.3em;box-sizing:content-box;font-variant-numeric:tabular-nums}
   #notifLog .tb.done .r.nolive{opacity:.42} #notifLog .tb.done .r.nolive .nlv{margin-left:4px;font-size:.62em;font-weight:700;color:#C9D1DC;border:1px solid #8C96AB;border-radius:4px;padding:0 3px;vertical-align:middle}   /* 2026-11-03 15:35 重算有、盤中沒發進場訊息 */
@@ -1599,6 +1601,7 @@ function sigTag(){ try{ const n = new Date(Date.now() + 8 * 3600000), hm = n.get
 window.__ls = window.__ls || {t: 0, on: 0};
 /* 2026-11-03 15:25 使用者「把按鍵左邊的日期時間 改成滾輪式的」:明細標題的日期改成上下轉的滾輪,轉到哪天,下面清單就跳到哪天;清單捲動,滾輪也跟著轉 */
 function dwSet(box, day){ try{ const w = box.querySelector('.hd .dwh'); if (!w || Date.now() - (box.__dwT || 0) < 900) return; const it = [...w.children], i = Math.max(0, it.findIndex(x => x.dataset.day === day)); const y = i * (it[0] ? it[0].offsetHeight : 0); if (Math.abs(w.scrollTop - y) > 1){ w.__set = Date.now(); w.scrollTop = y; } }catch(e){} }
+function mwSet(box, day){ try{ const w = box.querySelector('.hd .mwh'); if (!w || Date.now() - (box.__mwT || 0) < 900) return; const it = [...w.children], i = Math.max(0, it.findIndex(x => x.dataset.day === day)); const y = i * (it[0] ? it[0].offsetHeight : 0); if (Math.abs(w.scrollTop - y) > 1){ w.__set = Date.now(); w.scrollTop = y; } }catch(e){} }   // 2026-11-03 17:20 進場頁日期滾輪
 function dwGo(box, day){ try{ box.__dwDay = day; if (day === window.__doneToday){ box.scrollTop = 0; return; }
   const el = box.querySelector(`.tb.done > .r[data-day="${day}"]:not(.h)`) || box.querySelector(`.tb.done > .dsep[data-day="${day}"]`); if (!el) return; const h = box.querySelector('.tb.done > .r.h');
   const hd = box.querySelector('.hd'), hb = (hd ? hd.getBoundingClientRect().bottom : 0) + (h ? h.getBoundingClientRect().height : 0); box.scrollTop += el.getBoundingClientRect().top - hb; }catch(e){} }   // 2026-11-03 15:38 使用者「滾輪捲動 台玻應該要再上去一點」:那天第一筆貼齊欄名列下面(日期分隔列和那天的欄名列捲到上面去)
@@ -6965,15 +6968,19 @@ window.bgTick = bgTick; window.BG = BG;
     fundLeft = Math.max(0, fundLeft);   // 不顯示負的
     if (d === today) window.__fundLeft = fundLeft;   // 2026-10-28 強制進場:資金買不到 1 張 → 長按沒反應
     const ti = dayList.indexOf(window.NL_TOPDAY);
-    const hdMsg = `<div class="hd msg"><span class="nav"><button id="nlPrev" ${ti >= dayList.length - 1 ? 'disabled' : ''}>◀</button><span class="lb"><span style="color:#1DD75B">${window.LOG_RS || ''}進場</span> <span class="dt" style="color:#FFFFFF">${(window.NL_TOPDAY || d).slice(5).replace('-', '/')}</span></span><button id="nlNext" ${ti <= 0 ? 'disabled' : ''}>▶</button></span><span class="cash"><span class="mlb" style="color:#FF4D5E;opacity:1">資金</span><b class="dnet" style="color:#FFD54F">${fundLeft}</b></span></div>`;   /* 2026-10-27 05:30 使用者「資金紅色 資金數字 黃色」 */   // 2026-10-27 05:25 使用者「進場與金額不用顯示」:只留 資金(2400000 − 進場中金額)   // 2026-10-27 05:15 使用者:「左鍵+“監控”+日期+右鍵 空1px “資金”+(…)空1px "進場"」
+    const hdMsg = `<div class="hd msg"><span class="nav"><span class="lb"><span class="dlb">${window.LOG_RS || ''}進場</span><span class="dwh mwh">${dayList.map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span></span></span><span class="cash"><span class="mlb" style="color:#FF4D5E;opacity:1">資金</span><b class="dnet" style="color:#FFD54F">${fundLeft}</b></span></div>`;   /* 2026-10-27 05:30 使用者「資金紅色 資金數字 黃色」 */   // 2026-10-27 05:25 使用者「進場與金額不用顯示」:只留 資金(2400000 − 進場中金額)   // 2026-10-27 05:15 使用者:「左鍵+“監控”+日期+右鍵 空1px “資金”+(…)空1px "進場"」
     { const __H = hdMsg + html; if (nlSame(__H)) return; nlPut(__H); }
+    // 2026-11-03 17:20 使用者「把 進場 日期 這 改成 與 明細那邊一樣 變成 進場+日期滾輪」:◀ ▶ 拿掉,日期改成滾輪(和明細同一種);轉到哪天清單跳到那天,捲清單滾輪跟著轉
+    { const w = box.querySelector('.hd .mwh'); if (w){ mwSet(box, window.NL_TOPDAY || d);
+        const touch = () => { box.__mwT = Date.now(); }; w.addEventListener('touchstart', touch, {passive: true}); w.addEventListener('touchmove', touch, {passive: true}); w.addEventListener('wheel', touch, {passive: true});
+        w.addEventListener('scroll', () => { if (Date.now() - (w.__set || 0) < 150) return; box.__mwT = Date.now(); clearTimeout(w.__end); w.__end = setTimeout(() => { const it = [...w.children], hh = it[0] ? it[0].offsetHeight : 1, i = Math.min(it.length - 1, Math.max(0, Math.round(w.scrollTop / hh))); const dd = it[i] && it[i].dataset.day; if (dd && typeof window.__nlScrollToDay === 'function') window.__nlScrollToDay(dd); }, 140); }, {passive: true}); } }
     // 捲動時:畫面最上面那則(卡片)是哪一天,標題就顯示那天;◀ ▶ 捲到上一天 / 下一天的第一則
     if (!box.__dayScroll){ box.__dayScroll = true;
       box.addEventListener('scroll', () => { if (box.__msR) return; box.__msR = requestAnimationFrame(() => { box.__msR = 0; try{ if (window.NL_VIEW && window.NL_VIEW !== 'msg') return;   // 2026-11-02 23:40 捲動中一格畫面只算一次
         const h = box.querySelector('.hd'); const hb = h ? h.getBoundingClientRect().bottom : box.getBoundingClientRect().top;
         let top = null; for (const c of box.querySelectorAll('.card[data-day], .dsep[data-day]')){   // 2026-10-27 14:40 日期列也算(開盤前最上面 10/28 那列 → 標題 10/28)
         if (c.getBoundingClientRect().bottom > hb + 2){ top = c.dataset.day; break; } }
-        if (top && top !== window.NL_TOPDAY){ window.NL_TOPDAY = top; const dt = box.querySelector('.hd .dt'); if (dt) dt.textContent = top.slice(5).replace('-', '/'); }
+        if (top && top !== window.NL_TOPDAY){ window.NL_TOPDAY = top; const dt = box.querySelector('.hd .dt'); if (dt) dt.textContent = top.slice(5).replace('-', '/'); } if (top) mwSet(box, top);
         if (top){ const L = window.NL_DAYS || [], k = L.indexOf(top), pv = el('nlPrev'), nx = el('nlNext'); if (pv) pv.disabled = k >= L.length - 1; if (nx) nx.disabled = k <= 0; } }catch(e){} }); }, {passive: true}); }
     if (cur){ window.NL_GOTO = cur; cur = null; }   // 等下面 fitAll 把列高定好再捲(不然高度一變位置就跑掉)
     }
@@ -7050,7 +7057,8 @@ window.bgTick = bgTick; window.BG = BG;
     const navBtns = day => { const L = window.NL_DAYS || [], k = L.indexOf(day), pv = el('nlPrev'), nx = el('nlNext'); if (pv) pv.disabled = k >= L.length - 1; if (nx) nx.disabled = k <= 0; };
     // 2026-10-27 10:30 使用者(截圖:「剛剛10/22 按左鍵 變成10/21 應該是要顯示圖一這樣才對」):◀ ▶ 捲到那天的「日期分隔列」,第一列永遠是日期分隔列(07:20 誤解成捲到第一則,改回)
     const scrollToDay = day => { try{ const h = box.querySelector('.hd'), hh = h ? h.offsetHeight : 0; const t = box.querySelector(`.dsep[data-day="${day}"]`) || box.querySelector(`.card[data-day="${day}"]`);
-        box.scrollTop = t ? Math.max(0, t.offsetTop - hh) : 0; window.NL_TOPDAY = day; const dt = box.querySelector('.hd .dt'); if (dt) dt.textContent = day.slice(5).replace('-', '/'); navBtns(day); }catch(e){} };
+        box.scrollTop = t ? Math.max(0, t.offsetTop - hh) : 0; window.NL_TOPDAY = day; const dt = box.querySelector('.hd .dt'); if (dt) dt.textContent = day.slice(5).replace('-', '/'); navBtns(day); mwSet(box, day); }catch(e){} };
+    window.__nlScrollToDay = day => { box.__mwT = 0; scrollToDay(day); };
     // 2026-10-29 10:55 使用者影片 13749「明細 通知欄 會抖動」:切到明細 / 當沖時列高先用「標題列還沒放大」的高度排(一列 53px),
     //   下一格標題列放大後才重排成 45px → 每列往上縮一下;改成標題列放大完馬上再排一次(同一格內完成,畫面不會先出現舊列高)
     const fitAll = () => { fit(); fitHd(); alignM30(); fitHdShrink(); alignM30(); try{ if (box.__fitL) box.__fitL(); }catch(e){} if (window.NL_GOTO) scrollToDay(window.NL_GOTO); };
