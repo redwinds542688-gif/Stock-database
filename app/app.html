@@ -4,6 +4,7 @@
   2026-10-29 判一二三的程式碼、規格與變更紀錄全文搬到私人庫 Stock-logic(judge.js、app_header.md、判別式*.md、backtest/);
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-03 12:51(實際時間)長按左上角燈上傳 bug 時那顆點變紅,傳完恢復灰色(使用者「長按啟動抓bug時 改成紅點 抓完存檔後再恢復為灰點」)
   · 2026-11-03 12:48(實際時間)長按左上角燈上傳 bug:不再顯示「上傳中…」,只在傳完跳一行結果(使用者「上傳中也不用」)
   · 2026-11-03 12:47(實際時間)抓 bug 不再開面板(使用者「抓 bug 直接上傳 不用這些按鍵 什麼清除 關閉 這些都不用」「這視窗不用顯示了」):長按左上角燈 = 直接上傳,只跳一行提示;異常時照樣自動上傳
   · 2026-11-03 12:44(實際時間)指標二平線找到真正原因並修好(使用者「Bug 指標二」「又變成平線」):12:21 的「同一格共用上下範圍」在三條線換資料換到一半時,把「一條價格、兩條原始 OBV」的寬範圍存起來,換完還拿來用 → 每條線換資料後都讓暫存失效;另外 ① 指標二每 1.5 秒自己檢查,真的又變平線就馬上修好並記錄;② 抓到異常(三張圖對不上、指標二平線)自動上傳 bug 紀錄,不用再按(使用者「抓Bug 直接上傳 不用再按上傳」);③ 左邊價格刻度不再給手指拖(拖了會把價格軸壓扁)
@@ -183,7 +184,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611031248">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611031251">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -684,7 +685,8 @@
 #bgDot.off{display:block;background:#FF3B3B}
 /* 2026-10-28 11:00 使用者「設一個抓bug 程式 隱藏在長按左上角監控燈那邊 監控開盤綠色 平時灰色」:左上角燈(App 的閃爍綠點疊在它上面);長按 0.8 秒開抓 bug 面板 */
 #bugDot{position:fixed;top:3px;left:6px;width:12px;height:12px;border-radius:50%;background:#5C667A;z-index:2000;box-shadow:0 0 0 1px rgba(0,0,0,.6)}
-#bugDot.on{background:transparent;box-shadow:none}   /* 2026-11-02 10:08 使用者「左上角 監控點 出現重影」:監控中 App 自己的閃爍綠點(疊在所有畫面上)位置和這顆差幾 px(各手機狀態列高度不同)→ 監控中這顆不畫,只留閃爍那顆(長按開抓 bug 照舊) */ #bugDot.off{background:#FF3B3B} #bugDot.hit{box-shadow:0 0 0 2px #FF3B3B}
+#bugDot.on{background:transparent;box-shadow:none}
+#bugDot.up,#bugDot.on.up{background:#FF3B3B;box-shadow:0 0 6px rgba(255,59,59,.9)}   /* 2026-11-03 12:51 使用者「長按啟動抓bug時 改成紅點 抓完存檔後再恢復為灰點」:上傳中紅點(監控中也蓋在綠燈上面),傳完恢復 */   /* 2026-11-02 10:08 使用者「左上角 監控點 出現重影」:監控中 App 自己的閃爍綠點(疊在所有畫面上)位置和這顆差幾 px(各手機狀態列高度不同)→ 監控中這顆不畫,只留閃爍那顆(長按開抓 bug 照舊) */ #bugDot.off{background:#FF3B3B} #bugDot.hit{box-shadow:0 0 0 2px #FF3B3B}
 #bugDot::before{content:'';position:absolute;left:-6px;top:-3px;width:28px;height:21px}
 #bugPanel{position:fixed;left:8px;right:8px;top:30px;z-index:2001;background:#0B0F17;border:1.5px solid #4A5570;border-radius:12px;padding:12px;color:#E6EAF2;font-size:15px;display:none}
 #bugPanel.on{display:block} #bugPanel .bp-r{display:flex;justify-content:space-between;padding:3px 0;color:#8C96AB} #bugPanel .bp-r b{color:#E6EAF2;font-weight:600}
@@ -7054,7 +7056,7 @@ function bugPanel(){
   pn.querySelector('#bpUp').onclick = async () => { msg.textContent = '上傳中…'; const r = await bugUploadNow('手動'); msg.textContent = r; };
 }
 (() => { const d = el('bugDot'); if (!d) return; let tm = 0;
-  const start = () => { clearTimeout(tm); tm = setTimeout(async () => { tm = 0; try{ navigator.vibrate && navigator.vibrate(40); }catch(e){} const r = await bugUploadNow('手動'); fmToast(r.replace(',跟 Claude 說「看 bug 紀錄」', ''), 3500); }, 800); };   // 2026-11-03 12:47 使用者「抓 bug 直接上傳 不用這些按鍵 什麼清除 關閉 這些都不用」:長按左上角燈 = 直接上傳(不開面板)
+  const start = () => { clearTimeout(tm); tm = setTimeout(async () => { tm = 0; try{ navigator.vibrate && navigator.vibrate(40); }catch(e){} d.classList.add('up'); const r = await bugUploadNow('手動'); d.classList.remove('up'); fmToast(r.replace(',跟 Claude 說「看 bug 紀錄」', ''), 3500); }, 800); };   // 2026-11-03 12:47 使用者「抓 bug 直接上傳 不用這些按鍵 什麼清除 關閉 這些都不用」:長按左上角燈 = 直接上傳(不開面板)
   d.addEventListener('touchstart', start, {passive: true}); d.addEventListener('mousedown', start);
   ['touchend', 'touchcancel', 'touchmove', 'mouseup', 'mouseleave'].forEach(t => d.addEventListener(t, () => { clearTimeout(tm); }, {passive: true})); })();
 /* 監控燈:每 3 秒問 App 服務在不在,亮在「正在用的那顆判鍵」右上角(2026-10-18 使用者;之前在螢幕角落的 #bgDot 不再用) */
