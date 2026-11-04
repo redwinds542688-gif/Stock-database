@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-04 16:58(實際時間)贏% 清單的平倉價顏色改成對照昨收(使用者「價格是對照昨收顯示顏色」):比昨收高紅、低綠、一樣白(原本照多空上色)(中繼 VERSION 202611041658)。
   · 2026-11-04 16:34(實際時間)贏% 清單平倉價往右、每一筆對齊(使用者「我喜歡排列整整齊齊 股票的平倉價可以往後移動且每一筆也要對齊」):% / 平倉價 / 贏 都靠右、數字等寬,小數點上下對齊(中繼 VERSION 202611041635)。
   · 2026-11-04 16:34(實際時間)贏% 清單的 +x% 自己一欄、上下對齊(使用者「+3.1%這些 在固定位置 整齊 不要隨著股票名稱的長度 有些前有些後」)(中繼 VERSION 202611041634)。
   · 2026-11-04 16:31(實際時間)當沖長按「當沖」的 贏3% / 贏2% / 贏1% / 全平倉 改成先看清單再滑(使用者示意圖「改」):按了那顆亮燈,右邊跳出清單(股票 +x% | 平倉價 = 現價 | 扣完費用的贏,最多看 3 檔、多的上下捲,標題寫幾檔、總贏),每 2 秒更新;往右滑到底才平(照強平送電腦),滑下去那一刻再算一次,已經不到門檻的不平並提示;元大手動單標「自己平」不送;電腦連不上(紫色虛擬)時長按直接提示、不開選單(中繼 VERSION 202611041631)。
@@ -243,7 +244,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611041635">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611041658">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1670,7 +1671,7 @@ window.fmShow = fmShow;
     const fs = Math.max(12, Math.min(17, rh * 0.62)), tot = rows.reduce((a, r) => a + r.net, 0);
     const grid = 'display:grid;grid-template-columns:minmax(0,1fr) 0.6fr 0.95fr 0.95fr;column-gap:4px;align-items:center;white-space:nowrap;font-variant-numeric:tabular-nums';   /* 2026-11-04 使用者「平倉價可以往後移動且每一筆也要對齊」:平倉價 / 贏 / % 都靠右對齊、數字等寬,小數點上下對齊 */   /* 2026-11-04 使用者「+3.1%這些 在固定位置 整齊」:% 自己一欄,不跟著名稱長短跑 */
     p.__codes = rows.map(r => r.code);
-    const list = rows.length ? rows.map(r => `<div style="${grid};height:${rh}px;border-bottom:1px solid #2a2a2a;font-size:${fs}px;font-weight:700"><span style="overflow:hidden;text-overflow:ellipsis">${esc(r.name || r.code)}</span><span style="text-align:right;font-size:${Math.round(fs * 0.8)}px;color:#FF6B6B">${r.manual ? '自己平' : '+' + r.pct.toFixed(1) + '%'}</span><span style="text-align:right;color:${r.side > 0 ? '#FF3B3B' : '#2EE59D'};font-size:${Math.round(fs * 1.06)}px">${(+r.px || 0).toFixed(2)}</span><span style="text-align:right;color:#FF3B3B">${fmtN(r.net)}</span></div>`).join('')
+    const list = rows.length ? rows.map(r => `<div style="${grid};height:${rh}px;border-bottom:1px solid #2a2a2a;font-size:${fs}px;font-weight:700"><span style="overflow:hidden;text-overflow:ellipsis">${esc(r.name || r.code)}</span><span style="text-align:right;font-size:${Math.round(fs * 0.8)}px;color:#FF6B6B">${r.manual ? '自己平' : '+' + r.pct.toFixed(1) + '%'}</span><span style="text-align:right;color:${!(r.y > 0) || +r.px === r.y ? '#E6EAF2' : +r.px > r.y ? '#FF3B3B' : '#2EE59D'};font-size:${Math.round(fs * 1.06)}px">${(+r.px || 0).toFixed(2)}</span><span style="text-align:right;color:#FF3B3B">${fmtN(r.net)}</span></div>`).join('')
       : `<div style="display:flex;align-items:center;justify-content:center;height:${rh * 3}px;color:#8C96AB;font-size:${fs}px;text-align:center">${th > 0 ? `現在沒有扣完手續費後<br>贏 ${th}% 以上的股票` : '現在沒有扣完手續費後<br>還贏的股票'}</div>`;
     const keep = p.querySelector('.wl') ? p.querySelector('.wl').scrollTop : 0;
     p.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;height:${hdH}px;font-weight:800;font-size:${Math.round(hdH * 0.62)}px;color:${th > 0 ? '#FF4D5E' : '#FFD54F'};border-bottom:1px solid #333;white-space:nowrap"><span>${th > 0 ? `贏 ${th}% 以上` : '全平倉(還贏的)'} · ${rows.length} 檔</span><span><b style="color:#fff">總贏</b> <span style="color:#FF3B3B">${fmtN(tot)}</span></span></div>
@@ -6994,7 +6995,7 @@ window.bgTick = bgTick; window.BG = BG;
           // 最低攤平點位 = 扣掉手續費、證交稅後剛好不賠的價(做多往上取到跳動單位、做空往下)
           const be = dr > 0 ? roundTick(ent * (1 + C.fee) / (1 - C.fee - C.tax), true) : roundTick(ent * (1 - C.fee - C.tax) / (1 + C.fee), false);
           const v = (cur_ - ent) * dr * lt * 1000 - (dr > 0 ? costAmt(ent * lt * 1000, cur_ * lt * 1000, C) : costAmt(cur_ * lt * 1000, ent * lt * 1000, C));
-          try{ (window.__posWinTmp || (window.__posWinTmp = [])).push({code: o.code, name: o.name, net: v, pct: ent > 0 && lt > 0 ? v / (ent * lt * 1000) * 100 : 0, manual: !!o.manual, exiting: !!o.exiting, px: cur_, side: dr}); }catch(e){}   /* 2026-11-04 贏幾%平倉用:扣手續費 / 稅後的淨輸贏、對進場金額的 % */
+          try{ (window.__posWinTmp || (window.__posWinTmp = [])).push({code: o.code, name: o.name, net: v, pct: ent > 0 && lt > 0 ? v / (ent * lt * 1000) * 100 : 0, manual: !!o.manual, exiting: !!o.exiting, px: cur_, side: dr, y: +(((LIVE.get(o.code) || {}).y) || 0)}); }catch(e){}   /* 2026-11-04 贏幾%平倉用:扣手續費 / 稅後的淨輸贏、對進場金額的 % */
           tot += v; cnt++;
           body += `<div class="r${late ? ' late' : ''}" data-code="${esc(o.code)}" data-name="${esc(o.name)}"><span class="nm"><span class="sd ${dr > 0 ? 'long' : 'short'}">${dr > 0 ? '多' : '空'}</span>${esc(o.name)}</span><span></span><span class="num ${cur_ > ent ? 'up' : cur_ < ent ? 'dn' : ''}">${cur_.toFixed(2)}</span><span></span><span class="num">${be.toFixed(2)}</span><span></span><span class="num">${lt}</span><span></span>${amt(v)}</div>`;
         }
