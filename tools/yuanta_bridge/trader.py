@@ -1193,6 +1193,8 @@ class Trader:
         judge = judge_of(body)
         # 平倉通知:同一檔、同一份判別式(強三跟判三)、持倉中 → 出場
         if kind in EXIT_KINDS:
+            if re.search(r"·\s*已強平\s*·", body):   # 2026-11-04 強平過的部位,引擎照算的虛擬出場(只給看盤版看)→ 不理(強平後又強制進場 / 元大手動的部位不能被它平掉)
+                return
             w = self.over_wait.get(code)
             if w and (judge is None or judge == w["judge"] or (w["judge"] in ("強三", "元三") and judge == "判三")):
                 self.over_wait.pop(code, None); self.log(f"[交易] {code} 超額等補進場取消:{w['judge']} 已發平倉通知")

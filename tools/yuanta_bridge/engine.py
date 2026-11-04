@@ -606,7 +606,7 @@ class Engine:
             elif text == "停利": title, kind = f"✅ {nm} {code} 停利{plTxt}", "profit"
             elif text == "OBV": title, kind = f"✅ {nm} {code} OBV 反轉提早停利{plTxt} 立即平倉", "profit"
             else: title, kind = f"{nm} {code} 出場{plTxt}:{text}", "exit"
-        body = f"{tm} {frm}現價 {ex:.2f} · {'超額' if p.get('over') else str(p['lots']) + '張'} · {j}"   # 2026-10-30 超額的部位平倉也標「超額」
+        body = f"{tm} {frm}現價 {ex:.2f} · {'超額' if p.get('over') else str(p['lots']) + '張'}{' · 已強平' if p.get('fc') and not p.get('over') else ''} · {j}"   # 2026-10-30 超額的部位平倉也標「超額」
         it = {"d": self.day, "t": at, "title": title, "body": body, "kind": kind, "key": self.key_of(code, title, rs), "pos": f"{j}|{code}|{p['t']}"}
         y = self.prev.get(code)
         if y: it["prev"] = y
@@ -651,10 +651,15 @@ class Engine:
             if err: log(f"模擬器錯誤 {JUDGE[rs]} {code}: {err[:160]}"); continue
             ev = parse_events(out); n_ev += sum(1 for tm, _, _ in ev if tm < upto)
             trades, open_tm = sim_trades(ev, upto); k = (rs, code)
-            if code in self.fclosed:   # 2026-11-02 強平過:部位已由中繼平掉,不再發這檔的停利 / 停損 / 出場,也不發新進場
-                if self.pos.pop(k, None): log(f"{JUDGE[rs]} {code} 已強平 → 結束部位(不推平倉)")
-                if open_tm: self.emitted.add((rs, code, open_tm))
-                continue
+            fc = code in self.fclosed   # 2026-11-02 強平過:部位已由中繼平掉,不發新進場
+            # 2026-11-04 使用者「我強平過的 當沖最後就不用顯示未平倉的訊息 看盤版就是照程式設定來 該怎麼平倉就怎麼平倉」(一進一出):
+            #   還開著的虛擬部位照算到程式自己的出場(停利 / 停損 / 13:20…),平倉卡內容加「· 已強平」—— 永久版 App 藏、不響,中繼不理;Worker 給看盤版時拿掉這個字
+            if fc:
+                p = self.pos.get(k)
+                if not p:
+                    if open_tm: self.emitted.add((rs, code, open_tm))
+                    continue
+                if not p.get("fc"): p["fc"] = 1; log(f"{JUDGE[rs]} {code} 已強平 → 虛擬部位照算到程式出場(只給看盤版)")
             p = self.pos.get(k)
             if p and (rs, code, p["t"]) in self.cloud_out:   # 雲端已有這個部位的平倉(手機發的 / 重開前發的)
                 log(f"{JUDGE[rs]} {code} {p['t']} 雲端已有平倉通知 → 結束部位"); self.pos.pop(k); p = None
@@ -669,6 +674,9 @@ class Engine:
                         self.held_note.add((k, p["t"])); log(f"{JUDGE[rs]} {code} {p['t']} 這輪重算看不到它,但 K 不完整 → 先不判定")
                 elif tr[1] is not None:   # 2026-10-29 已推的部位不管多舊都要推平倉(原本出場時間早於 10 分鐘就默默丟掉,中繼的部位沒人平)
                     if self.push_exit(rs, code, p, tr[1][0], tr[1][1]["px"], tr[1][1]["why"], upto): self.pos.pop(k)
+            if fc:   # 強平過的股票不發新進場(和原本一樣)
+                if open_tm and k not in self.pos: self.emitted.add((rs, code, open_tm))
+                continue
             if k in self.pos or open_tm is None: continue
             ek = (rs, code, open_tm); d = trades[open_tm][0]
             if ek in self.emitted: continue
