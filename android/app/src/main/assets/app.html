@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-04 15:17(實際時間)開盤中明細的「元大」改成有框的黃色鍵(使用者「你說的是 開盤中 明細裡 元大 並沒有框嗎?」→「要 改」):和當沖同位置、同大小、同樣子(原本灰色字);開盤中照舊不能切換虛擬,收盤後照舊可按(中繼 VERSION 202611041517)。
   · 2026-11-04 15:03(實際時間)修:明細捲到下面再按「元大 / 虛擬」會跳回開頭(使用者「在明細裡 上滑到比較下面的股票 然後按 元大或虛擬 會跳回開頭」):切換前記下畫面最上面那一檔,切換後捲回同一檔(另一邊沒有這檔就停在同一天的同一列)(中繼 VERSION 202611041503)。
   · 2026-11-04 14:58(實際時間)看盤版明細標題也加紫色「虛擬」(使用者「好」):明細 | 日期 | 虛擬,和看盤版當沖一樣(中繼 VERSION 202611041458)。
   · 2026-11-04 14:57(實際時間)看盤版當沖標題(使用者「開盤版 當沖裡也是只能顯示 虛擬」):原本「當沖 系統」改成和永久版同一個樣子(當沖 | 日期 | 紫色「虛擬」),看盤版永遠不會出現「元大」(中繼 VERSION 202611041457)。
@@ -239,7 +240,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611041503">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611041517">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7040,7 +7041,7 @@ window.bgTick = bgTick; window.BG = BG;
           body += `<div class="dsep" data-day="${dd}">${dd.slice(5).replace('-', '/')}</div>` + hdr + h + `<div class="tot" data-day="${dd}"><span>${cm == null ? c : cm} 筆 總輸贏</span>${amt(t)}</div>`; dayTot[dd] = t;
         }
         // 2026-10-27 11:20 使用者:「最上面只顯示 明細 今日的總輸贏(靠右顯示)」:標題列左邊「明細」、最右邊今天已平倉的總輸贏(和當沖的合計同一個位置 .cash)
-        const hdDone = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(t0))}</span>`).replace('<span>明細</span>', `<span class="dlb">明細</span><span class="dwh">${Object.keys(dayTot).sort().reverse().map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span><span class="dsrc">${virtOk ? '' : ySrc[d0] ? ' 元大' : (window.VIEWER ? '' : ' 系統')}</span>${virtOk ? `<button class="vbtn on${doneVirt ? ' virt' : ''}" type="button">${doneVirt ? '虛擬' : '元大'}</button>` : window.VIEWER ? '<span class="vbtn on virt vtag">虛擬</span>' : ''}`);   /* 2026-11-04 使用者「好」(看盤版明細也加紫色「虛擬」,和當沖一樣) */   // 2026-10-29 12:25(實際時間)元大真實成交的日子標題寫「明細 元大」
+        const hdDone = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(t0))}</span>`).replace('<span>明細</span>', `<span class="dlb">明細</span><span class="dwh">${Object.keys(dayTot).sort().reverse().map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span><span class="dsrc">${virtOk || ySrc[d0] ? '' : (window.VIEWER ? '' : ' 系統')}</span>${virtOk ? `<button class="vbtn on${doneVirt ? ' virt' : ''}" type="button">${doneVirt ? '虛擬' : '元大'}</button>` : window.VIEWER ? '<span class="vbtn on virt vtag">虛擬</span>' : `<span class="vbtn on vtag ytag"${ySrc[d0] ? '' : ' style="display:none"'}>元大</span>`}`);   /* 2026-11-04 使用者「要 改」:開盤中明細的「元大」也是有框的黃色鍵(和當沖一樣;開盤中不能切換) */   /* 2026-11-04 使用者「好」(看盤版明細也加紫色「虛擬」,和當沖一樣) */   // 2026-10-29 12:25(實際時間)元大真實成交的日子標題寫「明細 元大」
         { const __H = hdDone + `<div class="tb done">` + body + `</div>`; if (nlSame(__H)){ if (__snapPrev[0]) box.classList.add('snapdt'); box.style.scrollPaddingTop = __snapPrev[1]; return; }
           if (Date.now() - (box.__dwT || 0) < 900){ clearTimeout(box.__dwLater); box.__dwLater = setTimeout(() => render(true), 500); return; }   /* 2026-11-03 15:25 滾輪轉動中先不重畫,停下來再補 */
           nlPut(__H); dwWire(box); }
@@ -7063,7 +7064,7 @@ window.bgTick = bgTick; window.BG = BG;
             let day = window.__doneToday; for (const x of box.querySelectorAll('.tb.done > [data-day]')){ if (x.getBoundingClientRect().bottom > hb + 2){ day = x.dataset.day; break; } }
             const v = Math.round((window.__doneTot || {})[day] || 0), c = box.querySelector('.hd .cash'), lb = box.querySelector('.hd .nav > span');
             if (c) __wH(c, `<span class="dnet ${v > 0 ? 'up' : v < 0 ? 'dn' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}</span>`);
-            if (lb) __wT(lb, '明細'); const sr = box.querySelector('.hd .dsrc'); if (sr) __wT(sr, window.__doneVirtOk ? '' : (window.__doneY || {})[day] ? ' 元大' : (window.VIEWER ? '' : ' 系統')); box.__dwDay = day; dwSet(box, day); }catch(e){} }); }, {passive: true}); }   // 2026-10-28 00:30 標題一律寫日期(明細 10/28)
+            if (lb) __wT(lb, '明細'); const sr = box.querySelector('.hd .dsrc'); if (sr) __wT(sr, window.__doneVirtOk || (window.__doneY || {})[day] ? '' : (window.VIEWER ? '' : ' 系統')); { const yt = box.querySelector('.hd .ytag'); if (yt) yt.style.display = !window.__doneVirtOk && (window.__doneY || {})[day] ? '' : 'none'; } box.__dwDay = day; dwSet(box, day); }catch(e){} }); }, {passive: true}); }   // 2026-10-28 00:30 標題一律寫日期(明細 10/28)
         const jsD = window.__nlV !== 'done'; if (jsD){ box.scrollTop = 0; window.__nlV = 'done'; }
         try{ const tb = box.querySelector('.tb.done'); const u = (tb.clientWidth || box.clientWidth) / 37; tb.style.fontSize = Math.max(12, Math.floor(u * 2 * 0.96)) + 'px'; 
           // 2026-10-27 13:00 對齊:有任何一格(進→出、輸贏…)放不下就整張表一起縮 1px,直到每格都放得下(最小 12px),欄位永遠對齊
