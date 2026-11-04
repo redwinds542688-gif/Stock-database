@@ -245,7 +245,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611041832">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611041857">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7026,7 +7026,7 @@ window.bgTick = bgTick; window.BG = BG;
           for (const x of L){ const m = String(x.body || '').match(/^(\d\d:\d\d) 做(多|空) (\d\d:\d\d) 進 ([\d.]+) → 現價 ([\d.]+) · (\d+)張 · 判(.)/), c = (String(x.title || '').match(/\b(\d{4,6}[A-Z]?)\b/) || [])[1];
             if (!m || !c) continue; const side = m[2] === '多' ? 'long' : 'short'; if (LS.size && !LS.has(c + '|' + side + (LS.j3 ? '|判' + m[7] : ''))) continue;   /* 2026-11-03 16:50 使用者「只要 進場裡面有的 不管是不是限額的 一律統計」:超額的也在 bt_fill 裡(照 1 張算) */
             R.push({x, xt: m[1], t: m[3], e: +m[4], xp: +m[5], rs: m[7], code: c}); }
-          const out = R.map(r => r.x);   /* 2026-11-03 16:12 使用者「那虛擬改這個 永久版的也改這個」:不套額度(每個訊號都照 25 萬一筆做),只扣盤中沒發進場訊息的 */
+          const out = R.map(r => r.x);   /* 2026-11-04 18:54 使用者「在500萬內 有交易者 才計入筆數」:app/bt_fill.json 改存 500 萬額度內電腦會下單的(10 檔、超額、已成交 + 漲停預留,張數照額度),這裡照單全收 */   /* 2026-11-03 16:12 使用者「那虛擬改這個 永久版的也改這個」:不套額度(每個訊號都照 25 萬一筆做),只扣盤中沒發進場訊息的 */
           return out.sort((a, b) => a.t < b.t ? 1 : a.t > b.t ? -1 : 0); };
         const rowsOf = (arr, dd) => { let h = '', t = 0, c = 0, cm = 0, LS = null;
           // 2026-10-27 13:20 使用者:「股價照股價的顏色顯示」:進、出價和清單一樣比昨收,高紅、低綠、平白(昨收:紀錄自帶 prev;今天用即時報價的昨收,沒有用清單昨收)
