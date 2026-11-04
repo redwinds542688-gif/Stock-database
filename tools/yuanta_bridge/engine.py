@@ -339,12 +339,22 @@ RE_FB = re.compile(r"^\s*(\d\d:\d\d) 假突破跌破 Ka.*→ 進場空 ([\d.]+) 
 RE_T4 = re.compile(r"^\s*(\d\d:\d\d) 判四 .*→ 進場空 ([\d.]+) ×(\d+)張,停損 ([\d.]+)")   # 2026-10-31 判四(新轉折做空)進場,停損價由模擬器算好
 RE_EXIT = re.compile(r"^\s*(\d\d:\d\d) (.+?) 出 ([\d.]+)\s*$")
 RE_REV = re.compile(r"^\s*(\d\d:\d\d) .*→ (反向確認點|逆勢單遇反向點) 平倉 ([\d.]+)")
+# 2026-11-04 22:40 漏洞修正(使用者「找 判一二三四 漏洞」):判二 11/04 起晚 2 根進場(ENTRYDELAY=2),模擬器的訊號那行改成「→ 2 分鐘後進場(模擬通知延遲)」、
+#   真正進場是後面另一行「延遲進場 35.30 ×9張(訊號 11:30)」,RE_ENTRY 兩行都對不上 → 11/04 電腦判二一筆進場都沒發。訊號行記下方向,延遲進場那行才算進場(時間 = 進場那根,和手機「空進」同一根)
+RE_DSIG = re.compile(r"^\s*(\d\d:\d\d) (強)?(多|空)(✓)?[✓✕]* 價 ([\d.]+) .*→ \d+ 分鐘後進場")
+RE_DLY = re.compile(r"^\s*(\d\d:\d\d) 延遲進場 ([\d.]+) ×(\d+)張")
 
 
 def parse_events(out):
     """模擬器輸出 → [(tm, 'entry'|'exit', dict)] 依時間順序"""
-    ev = []
+    ev = []; dsig = None
     for line in out.splitlines():
+        m = RE_DSIG.match(line)
+        if m: dsig = {"side": 1 if m.group(3) == "多" else -1, "strong": bool(m.group(2)), "sig": float(m.group(5))}; continue
+        m = RE_DLY.match(line)
+        if m:
+            if dsig: ev.append((m.group(1), "entry", {"side": dsig["side"], "strong": dsig["strong"], "sig": dsig["sig"], "px": float(m.group(2)), "lots": int(m.group(3)), "text": ("多" if dsig["side"] > 0 else "空") + "進"}))
+            dsig = None; continue
         m = RE_ENTRY.match(line)
         if m:
             ev.append((m.group(1), "entry", {"side": 1 if m.group(3) == "多" else -1, "strong": bool(m.group(2)), "sig": float(m.group(5)), "px": float(m.group(6)), "lots": int(m.group(7)), "text": ("強" if m.group(2) else "") + m.group(3) + (m.group(4) or "")})); continue   # text 和手機 m.text 一樣:空✓ / 多✓ / 強空…
