@@ -97,10 +97,12 @@ class Trader:
         # 2026-10-30 10:16 使用者「和桐 是程式自己下單的 … 照25萬上限 應該成交14張 可是卻只交易一張」:自動進場張數 = 多空上限 ÷ 一張(和手機 / 通知同一套),
         #   TRADE_CAP 沒設就用 ENGINE_CAP(25 萬);TRADE_CAP=0 才回到固定 TRADE_QTY 張
         self.cap = int(float(cfg.get("TRADE_CAP", cfg.get("ENGINE_CAP", "250000")) or 0))
-        self.max_pos = int(cfg.get("TRADE_MAX_POS", "10"))          # 2026-10-28 使用者「開放同時可以五檔股票在線 強制進場不在受限範圍內」
+        self.max_pos = int(cfg.get("TRADE_MAX_POS", "0"))          # 2026-10-28 使用者「開放同時可以五檔股票在線 強制進場不在受限範圍內」
         # 2026-10-31 03:55 使用者「改 10」(16 天回測:同時 2 檔 +72,395、5 檔 +212,220、10 檔 +338,404、不限 +371,487;超過 10 檔是一天 490 萬先用完):
         #   預設 10;bridge.env 還是以前設的 2 或 5(10/29 開自動交易時 2、10/28 的 5)也當 10,不用動桌機檔案;要別的數字就寫成 2、5 以外的值
-        if self.max_pos in (2, 5): self.max_pos = 10
+        # 2026-11-04 22:20 使用者「不用固定這10檔 反正買到不能買為止就好」:預設 0 = 不限檔數,只看 500 萬額度(已成交 + 漲停預留);bridge.env 舊的 2 / 5 / 10 也當不限
+        #   19 天額度版(判一~四、判四 OBV40 2.5%):10 檔 +529,419 → 不限 +543,756(判四 115 → 122 筆),輸的日子一樣只有 10/28
+        if self.max_pos in (2, 5, 10): self.max_pos = 0
         self.max_loss = float(cfg.get("TRADE_MAX_LOSS", "20000"))
         # 2026-10-31 使用者「加一道虧到多少就全部平倉」→「改 5 萬」:當天 已平倉 + 持倉帳面 虧到 TRADE_KILL_LOSS 就全部平倉、今天不再自動進場(強制進場照收);0 = 關
         #   16 天回測(判一二三四、同時 10 檔):5 萬一次都沒觸發;3 萬會在 10/20 09:31 帳面 −30,378 鎖死(收盤本來 +36,265),所以只當意外保險
@@ -264,7 +266,7 @@ class Trader:
             self.seen.add(it.get("_k") or (it.get("t", "") + it.get("title", "")))
         self.primed = True
         self.log(f"[交易] 啟動:略過今天已有的 {len(signals) - len(later)} 則通知;{('開啟' + ('' if self.auto else '(自動進場關,只管元三 / 強制模式)')) if self.enabled else '關閉(TRADE_ENABLE=0)'},"
-                 f"每筆 {"多空上限 " + format(self.cap, ",") + " ÷ 一張" if self.cap > 0 else str(self.qty) + " 張"}、同時最多 {self.max_pos} 檔、虧損上限 {self.max_loss:,.0f}、±{self.max_move}% 強制平倉、"
+                 f"每筆 {"多空上限 " + format(self.cap, ",") + " ÷ 一張" if self.cap > 0 else str(self.qty) + " 張"}、同時最多 {self.max_pos if self.max_pos > 0 else '不限'} 檔、虧損上限 {self.max_loss:,.0f}、±{self.max_move}% 強制平倉、"
                  f"{'預掛元大條件單' if self.broker_stop else '不預掛條件單(程式盯價)'}")
         for it in later:
             self.on_signal(it)
@@ -1278,7 +1280,7 @@ class Trader:
             return "今天強平過這檔,判一 / 二 / 三不再自動進場"
         if code in getattr(self, "brk_block", {}):
             return f"元大今天拒絕過這檔({self.brk_block[code]})"
-        if self.auto_count() >= self.max_pos:
+        if self.max_pos > 0 and self.auto_count() >= self.max_pos:
             return f"已經有 {self.auto_count()} 檔部位(上限 {self.max_pos})"
         if getattr(self, "killed", False):
             return f"今天已虧到 {self.kill_loss:,.0f} 全部平倉過,不再自動進場"

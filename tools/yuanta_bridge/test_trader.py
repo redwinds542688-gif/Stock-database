@@ -56,14 +56,14 @@ t3.on_report(51, "A0003", 0, 1000, 89.0); ok("6269" not in t3.positions and t3.p
 t4, g4 = mk(); t4.on_tick("6269", 86.2); t4.step([ENT]); t4.on_report(51, "A0001", 0, 1000, 86.2)
 t4.step([sig("10:20:6269|台郡出|判一", "exit", "台郡 6269 出場 +0.3%:出", "… · 判一")]); ok(t4.positions["6269"]["state"] == HOLDING)
 t4.step([sig("10:21:6269|台郡出|判二", "exit", "台郡 6269 出場 +0.3%:出", "… · 判二")]); ok(t4.positions["6269"]["state"] == EXITING)
-# 5) 同時最多 10 檔(2026-10-31 使用者「改 10」;原 5 檔);第 11 檔不進;強制進場不佔名額
-t5, g5 = mk()
+# 5) TRADE_MAX_POS=4 時第 5 檔起不進(預設 2026-11-04 起不限檔數,只看額度);強制進場不佔名額
+t5, g5 = mk(TRADE_MAX_POS="4")
 codes = ["2401", "2402", "2403", "2404", "2405", "2407", "2408", "2409", "2410", "2411", "2406"]
 for c in codes: t5.on_tick(c, 50.0)
 for i, c in enumerate(codes):
     t5.step([ENTX(c, 50.0, k=f"k{c}")])
     if c in t5.positions: t5.on_report(51, "", 0, 1000, 50.0, basket=g5.tags[-1])
-ok(len(t5.positions) == 10 and "2406" not in t5.positions and "上限 10" in logs[-1], logs[-1])
+ok(len(t5.positions) == 4 and "2406" not in t5.positions and "上限 4" in logs[-1], logs[-1])
 t5.on_tick("2330", 600.0); r = t5.force_enter("2330", 1, 1, 2.5, 1.5); ok(r[0] and "2330" in t5.positions, r)
 # 6) 緊急停止檔:自動不進;強制照樣進
 stop.write_text("1"); t6, g6 = mk(); t6.on_tick("6269", 86.2); t6.step([ENT]); ok("6269" not in t6.positions and "緊急停止" in logs[-1])
@@ -439,8 +439,8 @@ s12, gs12 = mk(TRADE_CAP="250000", TRADE_JUDGES="判一,判二,判三"); s12.on_
 s12.step([sig("k121", "short", "和桐 1714 做空進場 17.45", "10:00 空 · 停利 15.88 停損 18.04 · 14張 · 判四")])
 ok(gs12.sent and gs12.sent[-1][1] == "S" and gs12.sent[-1][2] == 14 and s12.positions["1714"]["judge"] == "判四" and s12.positions["1714"]["sl"] == 18.04, (gs12.sent, s12.positions))
 s12.on_report(51, "A0001", 0, 14000, 17.45); s12.on_tick("1714", 18.05); ok(s12.positions["1714"]["state"] == EXITING, s12.positions["1714"])
-# S13) 2026-10-31 同時持倉:預設 10;bridge.env 舊的 2 / 5 也當 10;其他數字照用
-ok(mk()[0].max_pos == 10 and mk(TRADE_MAX_POS="2")[0].max_pos == 10 and mk(TRADE_MAX_POS="5")[0].max_pos == 10 and mk(TRADE_MAX_POS="3")[0].max_pos == 3)
+# S13) 2026-11-04 同時持倉:預設不限(0);bridge.env 舊的 2 / 5 / 10 也當不限;其他數字照用
+ok(mk()[0].max_pos == 0 and mk(TRADE_MAX_POS="2")[0].max_pos == 0 and mk(TRADE_MAX_POS="5")[0].max_pos == 0 and mk(TRADE_MAX_POS="10")[0].max_pos == 0 and mk(TRADE_MAX_POS="3")[0].max_pos == 3)
 # S14) 2026-10-31 當天虧損保險(TRADE_KILL_LOSS):已平倉 + 持倉帳面虧到上限 → 全部平倉(漲停買回)、不再自動進場;重開還記得
 s14, g14 = mk(TRADE_CAP="250000", TRADE_KILL_LOSS="10000", TRADE_MAX_MOVE_PCT="99")
 ok(mk()[0].kill_loss == 50000)
