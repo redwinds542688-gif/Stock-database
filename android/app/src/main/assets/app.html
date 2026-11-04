@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-04 13:55(實際時間)當沖:13:20 後電腦沒在交易(收盤後中繼更新重開)不再改列模擬,用今天最後一次的元大部位;模擬時「未交易」的訊號也不列(使用者「當沖那邊還是顯示著有五檔未平倉」)
   · 2026-11-04 11:28(實際時間)進場頁右上角「資金」今天先改用元大成交明細的實際成交價算(強平成交後回補),不用等電腦明天更新(使用者「還沒回補回來」)
   · 2026-11-04 11:26(實際時間)電腦:右上角「資金」的已成交金額改照實際成交價算(強平掛漲停 / 跌停,成交後元大把多扣的補回);還掛著的單照委託價、沒平倉的照漲停預留不變;電腦明天開盤生效(使用者「應該是平倉後 資金額度會回補回來」→「改」)
   · 2026-11-04 11:18(實際時間)明細 / 當沖上下滑動一定停在整列,不會停在切到一半的位置:原本每 5 秒檢查一次內容,沒變也會把「一列一列停」關掉(使用者「通知欄 上下滑動 不要停留在這種切到的位置」)
@@ -233,7 +234,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611041204">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611041353">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1316,6 +1317,9 @@ function tposPoll(force){
         // 2026-11-02 10:54 使用者「現在當沖裡面真實只有四檔股票 怎麼七八檔」:偶爾一次問不到電腦(通道慢、8 秒逾時)就整片換成系統模擬(連沒交易的訊號都列)→ 2 分鐘內有拿到過元大的就繼續用那份
         if (!g.ok && window.__tpos && window.__tpos.ok && Date.now() - (window.__tpos.at || 0) < 2 * 60000) return;
         window.__tpos = g; window.__tpos.at = Date.now(); if (typeof window.__tpos.halted === 'boolean') haltSet(window.__tpos.halted);
+        // 2026-11-04 13:51 使用者「已經更新 當沖那邊還是顯示著有五檔未平倉」:收盤後電腦中繼自動更新重開、交易程式不再啟動(回 ok:false)→ 手機改列模擬、把沒交易的訊號當未平倉;
+        //   拿到的元大部位存在手機(當天),13:20 以後問不到電腦就用最後一次的(13:20 已全部平倉 → 空的)
+        try{ if (g.ok && g.enabled) localStorage.setItem('mysh.tpos.last', JSON.stringify({d: new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10), at: Date.now(), pos: g.pos || []})); }catch(e){}
         // 2026-11-02 11:49 使用者「a手機強制平倉 a就看不到再次平倉訊息 b.c也同步一樣」:電腦回的「今天強平過的股票」(locked)記進這支手機的強平清單 →
         //   三支手機一樣:訊息欄藏之後的停利 / 停損 / 出場,背景也不再發這檔判一~三的通知
         // 2026-11-03 先前被誤藏的平倉卡(電腦已經照通知平完才問到)→ 是程式自己平的(realGoneOk)就從藏起來的清單拿掉
@@ -6926,10 +6930,12 @@ window.bgTick = bgTick; window.BG = BG;
         tposPoll();
         const TP0 = window.__tpos || null;
         // 2026-10-29 09:47 使用者「在還沒有真實開通之前 這些有訊息的還是必須顯示在當沖裡面」:電腦的自動交易還沒開(enabled false)→ 當沖照通知列(模擬);開了才只列元大真的成交
-        const TP = TP0 && TP0.ok && TP0.enabled && Date.now() - (TP0.at || 0) < 2 * 60000 ? TP0 : null;   // 2026-10-30 13:21 使用者「如果沒有連線主機 這裡跟明細一樣 顯示程式自己做的模擬交易」:2 分鐘沒問到電腦也算連不上 → 列模擬(標「當沖 系統」)
+        const TP = TP0 && TP0.ok && TP0.enabled && Date.now() - (TP0.at || 0) < 2 * 60000 ? TP0 : null;
+        const TPL = (() => { if (TP) return TP; try{ const n = new Date(Date.now() + 8 * 3600000), hm = n.getUTCHours() * 60 + n.getUTCMinutes(); if (hm < 13 * 60 + 20) return null;
+          const L = JSON.parse(localStorage.getItem('mysh.tpos.last') || 'null'); return L && L.d === today && Array.isArray(L.pos) ? {ok: true, pos: L.pos} : null; }catch(e){ return null; } })();   // 2026-11-04 13:20 後電腦沒在交易 → 用今天最後一次的元大部位   // 2026-10-30 13:21 使用者「如果沒有連線主機 這裡跟明細一樣 顯示程式自己做的模擬交易」:2 分鐘沒問到電腦也算連不上 → 列模擬(標「當沖 系統」)
         const nmOf = c => SIG_NAMES.get(c) || ((SRC || []).find(x => x.code === c) || {}).name || ((cards.find(o => o.code === c) || {}).name) || c;
         // 12:37 使用者「電腦那邊沒辦法連線也不要影響這邊的顯示」:電腦連不上(或還沒問到)→ 照原本用手機通知列(和改之前一樣)
-        const open = over ? [] : (!TP || !TP.ok) ? cards.filter(o => o.type === 'entry' && !o.over && !o._hide && o._alert !== 'exit' && o.entP > 0 && !cards.some(x => x.fc && x.code === o.code && x.t >= o.t)) : (TP.pos || []).filter(p => p.qty > 0 && p.entry > 0 && (p.state === '持倉中' || p.state === '平倉中'))
+        const open = over ? [] : (!TPL || !TPL.ok) ? cards.filter(o => o.type === 'entry' && !o.over && !o.notrade && !o._hide && o._alert !== 'exit' && o.entP > 0 && !cards.some(x => x.fc && x.code === o.code && x.t >= o.t)) : (TPL.pos || []).filter(p => p.qty > 0 && p.entry > 0 && (p.state === '持倉中' || p.state === '平倉中'))
           .map(p => ({code: p.code, name: nmOf(p.code), side: p.dir > 0 ? 'long' : 'short', entP: +p.entry, lots: +p.qty, rs: p.judge, exiting: p.state === '平倉中'}));
         // 2026-10-29 12:25(實際時間)使用者「既然真實接通 … 顯示元大裡的真實的交易」:元大帳號裡手動進場、還沒沖掉的張數(成交回報 open ≠ 0)也列進當沖(程式的部位已在上面,不重複)
         if (TP && !over){ tfillsPoll(); try{ const F = window.__tfills; if (F && F.ok && F.d === today && Array.isArray(F.rows)) for (const r of F.rows){ const q = +r.open || 0; if (!q || open.some(o => o.code === r.code)) continue;
