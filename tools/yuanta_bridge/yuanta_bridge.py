@@ -756,9 +756,7 @@ class Bridge:
             except Exception: pass
         for i in range(r.StkTradeList.Count):
             x = r.StkTradeList[i]; dp = float(x.SPrice)
-            try: op = oprice.get(str(x.OrderNo).strip(), 0.0)
-            except Exception: op = 0.0
-            fill += max(dp, op) * int(x.OkQty)                                     # 成交:股數 × max(成交價, 委託價)
+            fill += dp * int(x.OkQty)   # 2026-11-04 11:24 使用者「應該是平倉後 資金額度會回補回來」→「改」:已成交的照實際成交價算(強平掛漲停 / 跌停,成交後元大把多扣的補回);還掛著的單照委託價(work)、沒平倉的部位照漲停預留(hold)不變  # 原 11/02 版:成交照 max(成交價, 委託價)
         if self.trader and fill > getattr(self.trader, "amount_today", 0):         # 程式下單前檢查的「今天已用額度」也照這個(比它記的多就用這個)
             self.trader.amount_today = fill
         for i in range(r.StkOrderList.Count):
