@@ -18,7 +18,8 @@ except Exception: DB = {}
 DB = {d: [k for k in v if re.search(r"\|判[一二三四]$", str(k))] for d, v in DB.items()}   # 2026-11-04 舊紀錄裡的強三 / 元三拿掉
 now = datetime.datetime.utcnow() + datetime.timedelta(hours=8); today = now.strftime("%Y-%m-%d")
 days = [(now - datetime.timedelta(days=k)).strftime("%Y-%m-%d") for k in range(45)]
-days = [d for d in days if datetime.date.fromisoformat(d).weekday() < 5 and (d not in DB or d == today) and d >= "2026-10-01"]
+# 2026-11-05 00:28 存過的日子(含今天)不再覆蓋:收盤後第一次存的就定案,之後改用現行判別式重算的(手動放進來的)不會被下一次排程用盤中舊通知蓋掉
+days = [d for d in days if datetime.date.fromisoformat(d).weekday() < 5 and d not in DB and d >= "2026-10-01"]
 if now.hour < 13 or (now.hour == 13 and now.minute < 35): days = [d for d in days if d != today]   # 收盤後才存今天
 for d in sorted(days):
     try: items = get(d)
