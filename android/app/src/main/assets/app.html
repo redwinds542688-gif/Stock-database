@@ -245,7 +245,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611041701">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611041717">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6676,8 +6676,9 @@ window.bgTick = bgTick; window.BG = BG;
     if (window.VIEWER && d === todayStr()) return (CLOUD_LOG.items[d] || []).slice();   // 2026-10-29 看盤版:今天只看雲端(Worker)的通知,手機自己不算
     // 2026-10-18 使用者:「資料不同」(兩支手機的 10/16 紀錄不一樣,因為各自當天跑的版本不同)→ 過去的日子一律以雲端為準,兩支手機看到的一樣
     // 2026-10-19 起過去的日子優先用雲端通知紀錄(手機當天真的發過的,判一 / 判二 都有);沒有才用 app/log_backfill.json(判別式一重跑);今天 = 手機本機 + 雲端合併
+    // 2026-11-04 17:15 使用者「重寫進場與明細 用新的 判一到四 包含永久跟開盤 都用虛擬」「包含今天」:有重算紀錄(app/log_backfill.json)的日子一律用它(現行判一~四重算,含超額);今天收盤後也用
+    if (HIST && HIST[d] && (d !== todayStr() || !inSession())) return HIST[d];
     if (d !== todayStr() && (CLOUD_LOG.items[d] || []).length) return CLOUD_LOG.items[d];
-    if (HIST && HIST[d] && d !== todayStr()) return HIST[d];
     try{ if (window.Android && Android.logFor){ const a = JSON.parse(Android.logFor(d) || '[]'); if (a.length || !(HIST && HIST[d])) return mergeCloud(a, d); } }catch(e){}
     if (d !== todayStr()) return mergeCloud([], d);
     return BG.log.filter(l => l.includes('[通知]')).slice().reverse().map(l => { const m = l.match(/^(\d\d:\d\d):\d\d \[通知\] (.*?) \| (.*)$/); return m ? {t: m[1], title: m[2], body: m[3], kind: ''} : {t: '', title: l, body: '', kind: ''}; });
