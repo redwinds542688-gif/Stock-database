@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-04 14:57(實際時間)看盤版當沖標題(使用者「開盤版 當沖裡也是只能顯示 虛擬」):原本「當沖 系統」改成和永久版同一個樣子(當沖 | 日期 | 紫色「虛擬」),看盤版永遠不會出現「元大」(中繼 VERSION 202611041457)。
   · 2026-11-04 14:55(實際時間)當沖標題的「元大」鍵(使用者「開盤中 會顯示 元大 如果真連不上線 一樣顯示虛擬 原來顯示元大的那個鍵 改顯示 虛擬」):連得上電腦 = 黃色「元大」(元大真實部位);電腦連不上 / 自動交易沒開、改列程式訊號時,同一格改紫色「虛擬」(看盤版不變)(中繼 VERSION 202611041455)。
   · 2026-11-04 14:43(實際時間)強平後一進一出(使用者「我強平過的 當沖最後就不用顯示未平倉的訊息 看盤版就是照程式設定來 該怎麼平倉就怎麼平倉」):電腦強平之後,這筆的虛擬部位照算到程式自己的出場(停利 / 停損 / 13:20…)照樣推上雲端(內容標「已強平」);永久版 App 藏起來、不響,你看到的照舊是「進場 → 強平」;看盤版 / 免費看到「進場 → 程式出場」(Worker 拿掉「已強平」);中繼收到這種平倉卡不理(不會平掉強平後又強制進場 / 元大手動的部位);強平過的股票照舊不發新進場(中繼 VERSION 202611041443)。
   · 2026-11-04 13:55(實際時間)當沖:13:20 後電腦沒在交易(收盤後中繼更新重開)不再改列模擬,用今天最後一次的元大部位;模擬時「未交易」的訊號也不列(使用者「當沖那邊還是顯示著有五檔未平倉」)
@@ -236,7 +237,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611041455">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611041457">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6679,7 +6680,7 @@ window.bgTick = bgTick; window.BG = BG;
     if (!force && key === lastKey) return; const changed = key !== lastKey; lastKey = key;
     if (changed && d === today) { try{ resortList(); }catch(e){} }   // 新訊號進來 → 清單重新排序
     let n = items.length;   // 2026-10-20 下面算完要顯示的卡片數再覆蓋(一進一出)
-    const label = (window.NL_VIEW === 'pos') ? (window.VIEWER ? '當沖 系統' : '當沖') : (window.NL_VIEW === 'done') ? (window.VIEWER ? '明細 系統' : '明細') : (window.LOG_RS || '') + '進場紀錄';   // 2026-10-29 16:00 看盤版的當沖 / 明細是系統模擬、不是真實交易(使用者:「只不過是系統的 不是真實的」)   // 2026-10-27 10:35(實際時間)使用者:「上面(未平倉)不用顯示」:當沖標題只寫 當沖   // 2026-10-27 不再翻頁
+    const label = (window.NL_VIEW === 'pos') ? '當沖' : (window.NL_VIEW === 'done') ? (window.VIEWER ? '明細 系統' : '明細') : (window.LOG_RS || '') + '進場紀錄';   // 2026-10-29 16:00 看盤版的當沖 / 明細是系統模擬、不是真實交易(使用者:「只不過是系統的 不是真實的」)   // 2026-10-27 10:35(實際時間)使用者:「上面(未平倉)不用顯示」:當沖標題只寫 當沖   // 2026-10-27 不再翻頁
     const hd = `<div class="hd"><span class="nav"><span>${label}</span></span><span>${n} 則</span></div>`;
     // 2026-10-17 標題改成使用者指定的樣式:進場「名 代碼 做多進場 ↑ 價」紅底 / 做空 ↓ 綠底;平倉「⚠ 名 代碼 ±x.x% 立即平倉」賺淡藍底 / 賠淡紅底,不顯示停損停利字樣
     // ── 2026-10-17 18:30 使用者指定的排版:一筆交易一張卡,三列 ──
@@ -6959,7 +6960,7 @@ window.bgTick = bgTick; window.BG = BG;
         }
         // (判別式相關說明已移到私人庫)
         // 2026-10-27 10:30(實際時間)使用者:「當沖 通知欄 最下面的資訊 改在上面顯示 這邊不用」:「N 檔 未平倉 + 合計輸贏」改放標題列(取代 當日),最下面那列拿掉
-        const hdPos = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(tot))}</span>`).replace('<span>當沖</span>', `<span class="dlb">當沖</span><span class="dwh dstat"${inSession() ? '' : ' style="visibility:hidden"'}><span class="dwi">${today.slice(5).replace('-', '/')}</span></span><span class="dsrc"></span>${(TP || (!over && TPL && TPL.ok)) ? '<span class="vbtn on vtag">元大</span>' : (!over && !window.VIEWER) ? '<span class="vbtn on virt vtag">虛擬</span>' : ''}`);   /* 2026-11-04 使用者「開盤中 會顯示 元大 如果真連不上線 一樣顯示虛擬 原來顯示元大的那個鍵 改顯示 虛擬」:列的是程式訊號(虛擬部位)時,同一格改紫色「虛擬」 */   /* 2026-11-03 17:28 使用者「當沖啟動時 也就是盤中 元大按鍵位置 與 明細裡的位置一致」:當沖也放一格同寬的日期(不能捲),元大就和明細的按鍵對齊;17:32「(非開盤時間)就不用 顯示 日期」:非盤中日期格隱藏(位置留著,元大照樣對齊) */   /* 17:24 使用者「連得上電腦時 當沖 元大。把 元大 放上去」 */   /* 2026-11-03 17:22 使用者「把 當沖 改 綠色 後面的系統不顯示」:綠色、不寫元大 / 系統(看盤版照舊「當沖 系統」) */   // 13:21 連得上電腦(元大真實部位)標「元大」,模擬標「系統」(看盤版標題本來就是「當沖 系統」)   // 2026-10-27 10:40(實際時間)使用者:「輸贏金額 顯示在最右邊」:合計放標題列最右邊(.cash);10:45「幾檔也不用顯示」:左邊只剩 當沖
+        const hdPos = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(tot))}</span>`).replace('<span>當沖</span>', `<span class="dlb">當沖</span><span class="dwh dstat"${inSession() ? '' : ' style="visibility:hidden"'}><span class="dwi">${today.slice(5).replace('-', '/')}</span></span><span class="dsrc"></span>${(!window.VIEWER && (TP || (!over && TPL && TPL.ok))) ? '<span class="vbtn on vtag">元大</span>' : !over ? '<span class="vbtn on virt vtag">虛擬</span>' : ''}`);   /* 2026-11-04 使用者「開盤版 當沖裡也是只能顯示 虛擬」:看盤版當沖標題和永久版同一個樣子,那格固定紫色「虛擬」(原「當沖 系統」) */   /* 2026-11-04 使用者「開盤中 會顯示 元大 如果真連不上線 一樣顯示虛擬 原來顯示元大的那個鍵 改顯示 虛擬」:列的是程式訊號(虛擬部位)時,同一格改紫色「虛擬」 */   /* 2026-11-03 17:28 使用者「當沖啟動時 也就是盤中 元大按鍵位置 與 明細裡的位置一致」:當沖也放一格同寬的日期(不能捲),元大就和明細的按鍵對齊;17:32「(非開盤時間)就不用 顯示 日期」:非盤中日期格隱藏(位置留著,元大照樣對齊) */   /* 17:24 使用者「連得上電腦時 當沖 元大。把 元大 放上去」 */   /* 2026-11-03 17:22 使用者「把 當沖 改 綠色 後面的系統不顯示」:綠色、不寫元大 / 系統(看盤版照舊「當沖 系統」) */   // 13:21 連得上電腦(元大真實部位)標「元大」,模擬標「系統」(看盤版標題本來就是「當沖 系統」)   // 2026-10-27 10:40(實際時間)使用者:「輸贏金額 顯示在最右邊」:合計放標題列最右邊(.cash);10:45「幾檔也不用顯示」:左邊只剩 當沖
         if (window.__nlV !== 'pos'){ box.scrollTop = 0; window.__nlV = 'pos'; }   // 2026-10-27 11:20 切到當沖也從最上面開始
         window.__posWin = window.__posWinTmp || []; window.__posWinTP = !!TP;
         { const __H = hdPos + `<div class="tb pos">` + body + (cnt ? (late ? `<div class="late-note">⚠ 已過 13:20,這 ${cnt} 檔還沒收到平倉通知,請到投資先生確認已贖回</div>` : '') : `<div class="empty">${over || !TP || !TP.ok ? '目前沒有進場中的股票' : '目前沒有已成交的部位'}</div>`) + `</div>`; if (nlSame(__H)){ if (__snapPrev[0]) box.classList.add('snapdt'); box.style.scrollPaddingTop = __snapPrev[1]; return; } nlPut(__H); }
