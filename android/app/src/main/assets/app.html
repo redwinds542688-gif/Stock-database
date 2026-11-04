@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-04 09:35(實際時間)盤中後台每 30 秒把所有股票今天的新 K 補進手機(沒開圖、App 在背景也補),點哪一檔都是最新的;回到畫面馬上補一次(使用者「圖在開盤時 後台要隨著每一根的開出 一直補畫」)
   · 2026-11-04 03:02(實際時間)後台監控在非盤中把名單上每一檔的 K 線先讀好存進手機,回到畫面點圖直接從手機讀、不用等網路;只抓 GitHub 公開檔、不吃雲端額度,同一份名單只做一輪(使用者「程式雖然離開畫面 也是後台還在 … 這時間不就是讀取圖最好的時機嗎」→「改」)
   · 2026-11-03 22:45(實際時間)換到進場時卡片字不會在 0.3 秒後再稍微放大:標題列定好大小後馬上再量一次卡片,第一次畫出來就是最終大小(使用者影片 13928「只是稍微變大」)
   · 2026-11-03 22:43(實際時間)按下面的按鍵換頁(進場 / 當沖 / 明細)立刻換,不再先停在舊頁約半秒(使用者影片 9~11 秒「從別的按鍵下點進 進場」)
@@ -227,7 +228,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611040303">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611040936">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2980,6 +2981,13 @@ async function loadCloudBars(){
   return CLOUD_BARS.ok;
 }
 window.CLOUD_BARS = CLOUD_BARS;
+// 2026-11-04 09:35 使用者「圖在開盤時 後台要隨著每一根的開出 一直補畫」:盤中就算沒開圖、App 在背景,也每 30 秒把所有股票今天的新 K 補進來(一次一個請求、只拿 since 之後的),
+//   點哪一檔都已經是最新的;圖開著的那檔順便重畫最右邊。回到畫面時馬上補一次。服務那份網頁不做(它不開圖)
+(function(){ const tick = force => { try{ if (window.Android && Android.isService && Android.isService()) return; if (!inSession()) return;
+    if (force) CLOUD_BARS.at = 0;
+    loadCloudBars().then(() => { try{ if (BARS_CODE && el('sheet').classList.contains('open')) redrawLive(); }catch(e){} }).catch(() => {}); }catch(e){} };
+  setInterval(() => tick(false), 30000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') tick(true); }); })();
 /* 2026-10-24 23:34 使用者:「現在 開始 把元大資料作為使用第一首選」:桌機中繼程式把元大 1 分 K 推到 Worker(?ybars,存在 Durable Object,不用 KV),
    手機跟雲端 K 一起問(只問 since 之後的);某檔今天有元大 K、而且元大最後一分鐘沒有落後雲端 K 超過 1 分鐘 → 那檔整天用元大的 K(券商直接給、不缺根、09:00 含開盤撮合量);
    桌機沒開 / 還沒推 / 落後 → 自動退回雲端 K。今天沒有任何元大 K 時改成每 60 秒才問一次,省 Worker 請求。 */
