@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-04 11:18(實際時間)明細 / 當沖上下滑動一定停在整列,不會停在切到一半的位置:原本每 5 秒檢查一次內容,沒變也會把「一列一列停」關掉(使用者「通知欄 上下滑動 不要停留在這種切到的位置」)
   · 2026-11-04 11:05(實際時間)當沖頁開盤中長按左上角「當沖」:正下方跳出 贏3% / 贏2% / 贏1% / 全平倉(同寬、高度平均分);贏 x% = 扣手續費 / 稅後淨輸贏對進場金額 ≥ x% 的全部平倉,全平倉 = 扣完費用還贏的全部平倉,賠的不動;不用再確認,照強制平倉送電腦(使用者「開盤中 長按 當沖裡 左上角的 當沖 …」)
   · 2026-11-04 10:26(實際時間)強平要通知(使用者「強平 還是要通知比較好吧」→「直接 富喬 1815 強平 +1.1%」):電腦強平完寫的平倉卡標題改成「富喬 1815 強平 +1.1%」,三支主程式手機收到都會跳通知(原本手機問到元大已經沒這檔就不跳,強平那張也被擋掉;11/03 六檔被強平沒人知道);之後這檔的停利 / 停損 / 13:20 照舊不發;看盤版照舊看不到強平(中繼 VERSION 202611041026)。
   · 2026-11-04 09:35(實際時間)盤中後台每 30 秒把所有股票今天的新 K 補進手機(沒開圖、App 在背景也補),點哪一檔都是最新的;回到畫面馬上補一次(使用者「圖在開盤時 後台要隨著每一根的開出 一直補畫」)
@@ -230,7 +231,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611041101">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611041120">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6887,6 +6888,7 @@ window.bgTick = bgTick; window.BG = BG;
       const keepY = window.__nlV === window.NL_VIEW ? box.scrollTop : 0, keepT = Date.now();
       if (!box.__tch){ box.__tch = 1; box.addEventListener('touchstart', () => { box.__touch = true; }, {passive: true}); box.addEventListener('touchend', () => { box.__touch = false; }, {passive: true}); box.addEventListener('touchcancel', () => { box.__touch = false; }, {passive: true}); }
       const keepBack = () => { try{ if (keepY > 0 && !box.__touch && Date.now() - keepT < 400 && window.__nlV === window.NL_VIEW && Math.abs(box.scrollTop - keepY) > 2) box.scrollTop = keepY; }catch(e){} };
+      const __snapPrev = [box.classList.contains('snapdt'), box.style.scrollPaddingTop];   /* 2026-11-04 11:18 內容沒變就不重畫時,把一列一列停的設定放回去 */
       box.classList.remove('snap'); box.classList.remove('snapdt'); box.style.scrollPaddingTop = '';   // 2026-10-27 11:30 訊息欄的一列一列停(只停在卡片 / 日期分隔)在明細會被強制拉到第一個日期分隔(前幾天),今天那段看不到 → 關掉,改用下面自己的
       // 2026-10-27 11:30 使用者:「顯示的資訊不可以切到」:表放不下要捲的時候,每一行(欄名、每筆、合計、日期分隔)改成同一個高 = 可見高度 ÷ 整數列,
       //   捲動一列一列停(scroll-snap,扣掉釘住的標題列),畫面上永遠是整列,最下面那列不會切一半
@@ -6948,7 +6950,7 @@ window.bgTick = bgTick; window.BG = BG;
         const hdPos = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(tot))}</span>`).replace('<span>當沖</span>', `<span class="dlb">當沖</span><span class="dwh dstat"${inSession() ? '' : ' style="visibility:hidden"'}><span class="dwi">${today.slice(5).replace('-', '/')}</span></span><span class="dsrc"></span>${TP ? '<span class="vbtn on vtag">元大</span>' : ''}`);   /* 2026-11-03 17:28 使用者「當沖啟動時 也就是盤中 元大按鍵位置 與 明細裡的位置一致」:當沖也放一格同寬的日期(不能捲),元大就和明細的按鍵對齊;17:32「(非開盤時間)就不用 顯示 日期」:非盤中日期格隱藏(位置留著,元大照樣對齊) */   /* 17:24 使用者「連得上電腦時 當沖 元大。把 元大 放上去」 */   /* 2026-11-03 17:22 使用者「把 當沖 改 綠色 後面的系統不顯示」:綠色、不寫元大 / 系統(看盤版照舊「當沖 系統」) */   // 13:21 連得上電腦(元大真實部位)標「元大」,模擬標「系統」(看盤版標題本來就是「當沖 系統」)   // 2026-10-27 10:40(實際時間)使用者:「輸贏金額 顯示在最右邊」:合計放標題列最右邊(.cash);10:45「幾檔也不用顯示」:左邊只剩 當沖
         if (window.__nlV !== 'pos'){ box.scrollTop = 0; window.__nlV = 'pos'; }   // 2026-10-27 11:20 切到當沖也從最上面開始
         window.__posWin = window.__posWinTmp || []; window.__posWinTP = !!TP;
-        { const __H = hdPos + `<div class="tb pos">` + body + (cnt ? (late ? `<div class="late-note">⚠ 已過 13:20,這 ${cnt} 檔還沒收到平倉通知,請到投資先生確認已贖回</div>` : '') : `<div class="empty">${over || !TP || !TP.ok ? '目前沒有進場中的股票' : '目前沒有已成交的部位'}</div>`) + `</div>`; if (nlSame(__H)) return; nlPut(__H); }
+        { const __H = hdPos + `<div class="tb pos">` + body + (cnt ? (late ? `<div class="late-note">⚠ 已過 13:20,這 ${cnt} 檔還沒收到平倉通知,請到投資先生確認已贖回</div>` : '') : `<div class="empty">${over || !TP || !TP.ok ? '目前沒有進場中的股票' : '目前沒有已成交的部位'}</div>`) + `</div>`; if (nlSame(__H)){ if (__snapPrev[0]) box.classList.add('snapdt'); box.style.scrollPaddingTop = __snapPrev[1]; return; } nlPut(__H); }
         try{ const tb = box.querySelector('.tb.pos'); const u = (tb.clientWidth || box.clientWidth) / 40; tb.style.fontSize = Math.max(12, Math.floor(u * 2 * 0.96)) + 'px'; }catch(e){}
         // 2026-10-27 11:10 使用者(當沖 4 檔,「和桐下面切到」):整張表放不下 → 先把每列上下留白縮小,還放不下再整張表一起把字縮小(最小 12px,整表同字級,欄位照樣對齊);再多才用捲的
         { const fitPos = () => { try{ const tb = box.querySelector('.tb.pos'), fit = () => box.scrollHeight <= box.clientHeight + 1;
@@ -7024,7 +7026,7 @@ window.bgTick = bgTick; window.BG = BG;
         }
         // 2026-10-27 11:20 使用者:「最上面只顯示 明細 今日的總輸贏(靠右顯示)」:標題列左邊「明細」、最右邊今天已平倉的總輸贏(和當沖的合計同一個位置 .cash)
         const hdDone = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(t0))}</span>`).replace('<span>明細</span>', `<span class="dlb">明細</span><span class="dwh">${Object.keys(dayTot).sort().reverse().map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span><span class="dsrc">${virtOk ? '' : ySrc[d0] ? ' 元大' : (window.VIEWER ? '' : ' 系統')}</span>${virtOk ? `<button class="vbtn on${doneVirt ? ' virt' : ''}" type="button">${doneVirt ? '虛擬' : '元大'}</button>` : ''}`);   // 2026-10-29 12:25(實際時間)元大真實成交的日子標題寫「明細 元大」
-        { const __H = hdDone + `<div class="tb done">` + body + `</div>`; if (nlSame(__H)) return;
+        { const __H = hdDone + `<div class="tb done">` + body + `</div>`; if (nlSame(__H)){ if (__snapPrev[0]) box.classList.add('snapdt'); box.style.scrollPaddingTop = __snapPrev[1]; return; }
           if (Date.now() - (box.__dwT || 0) < 900){ clearTimeout(box.__dwLater); box.__dwLater = setTimeout(() => render(true), 500); return; }   /* 2026-11-03 15:25 滾輪轉動中先不重畫,停下來再補 */
           nlPut(__H); dwWire(box); }
         { const vb = box.querySelector('.hd .vbtn'); if (vb) vb.onclick = ev => { ev.stopPropagation(); const day = box.__dwDay || window.__doneToday; window.DONE_VIRT = !window.DONE_VIRT; box.__dwT = 0; box.scrollTop = 0; render(true); box.__dwDay = day; requestAnimationFrame(() => { dwGo(box, day); box.__dwT = 0; dwSet(box, day); });   /* 2026-11-03 17:12 使用者「滾到10/28 按元大切換到虛擬 日期又跳回11/3」:切換後留在原本那天 */ if (window.DONE_VIRT){ btfLoad(true); lveLoad(true); } };   /* 2026-11-03 15:12 使用者「虛擬的資料沒有接上來」:切到虛擬當下重抓一次重算的虛擬交易(不等整點) */ }   // 15:04 使用者「改成一個按鍵就好 按元大 就切換到虛擬 … 再按一次虛擬 就切換回元大」:一顆,寫的是目前顯示的資料
