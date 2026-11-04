@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-04 23:10(實際時間)監控清單「成交價」「成交量」右邊加上下兩個三角形排序鍵(使用者「改」):按一次上亮、高→低;再按下亮、低→高;再按熄燈、恢復原本排序;兩欄一次只亮一邊,排序中數字變了 10 秒內跟著重排,程式重開回原本排序
   · 2026-11-04 19:20(實際時間)進場頁「資金」:收盤後問不到電腦的成交明細時,改用手機存的今天最後一份元大成交明細照實際成交價算(原本跳回電腦舊算法 52,500);隔天 08:45 前顯示的前一天剩餘額度也一樣(使用者「現在有跑掉了 照最新資料庫 重新計算過」)
   · 2026-11-04 17:01(實際時間)贏% 清單股票名稱前面加「多」紅框 /「空」綠框(使用者「多單還是空單 如明細 股票名稱前那個」,和明細同一個樣子)(中繼 VERSION 202611041701)。
   · 2026-11-04 16:58(實際時間)贏% 清單的平倉價顏色改成對照昨收(使用者「價格是對照昨收顯示顏色」):比昨收高紅、低綠、一樣白(原本照多空上色)(中繼 VERSION 202611041658)。
@@ -246,7 +247,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611042245">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611042305">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -595,6 +596,12 @@
   .head .h-nm{text-align:left}
   .head .h-dot{display:flex;align-items:center;justify-content:flex-start;overflow:visible} .head .h-dot svg{display:block;width:calc(var(--u) * 2);height:calc(var(--u) * 2 * 24 / 28);color:#8A93A3;overflow:visible;transition:color .6s}   /* 2026-10-27 10:55 軸心貼左邊框線 */   /* 2026-10-27 12:30 指針:寬 2 格(軸心在左、針尖到最右),轉動用 SVG rotate(軸心為圓心) */   /* 2026-10-27 11:00 使用者:「用這種箭頭顯示大盤的漲跌」:大盤箭頭(idxArrow 設角度與顏色;還沒拿到資料灰色);10:45 原本是紅點 */
   .head .h-px{text-align:center}
+  /* 2026-11-04 成交價 / 成交量排序鍵:兩個三角形,平常灰、排序中那顆亮黃 */
+  .head .lsrt{cursor:pointer;-webkit-tap-highlight-color:transparent;white-space:nowrap}
+  .srtA{display:inline-flex;flex-direction:column;justify-content:center;gap:.12em;margin-left:.3em;vertical-align:middle}
+  .srtA i{width:0;height:0;border-left:.32em solid transparent;border-right:.32em solid transparent;display:block}
+  .srtA .u{border-bottom:.42em solid #4A5266}.srtA .d{border-top:.42em solid #4A5266}
+  .srtA .u.on{border-bottom-color:#FFD54F;filter:drop-shadow(0 0 3px #FFD54F)}.srtA .d.on{border-top-color:#FFD54F;filter:drop-shadow(0 0 3px #FFD54F)}
 
   .row{border-bottom:1px solid #1E242F;text-decoration:none;color:inherit}
   #bands .row:nth-child(even),#result .row:nth-child(even){background:rgba(255,255,255,.04)}   /* 2026-10-30 03:16(實際時間)使用者「下面監控股票 每檔股票有底色間隔」→「改 1」:斑馬紋,一列深一列淺 */
@@ -908,10 +915,10 @@
     <div></div>
     <div class="h-nm">股票<span id="listCnt" style="margin-left:.35em;opacity:.7"></span></div>   <!-- 2026-10-30 00:00 使用者「在監控股票區最上面 股票的後面 顯示監控的股票數量」 -->
     <div></div>
-    <div class="h-px">成交價</div>
+    <div class="h-px lsrt" data-k="px">成交價<span class="srtA"><i class="u"></i><i class="d"></i></span></div>   <!-- 2026-11-04 23:03 使用者「成交價 右邊出現上下箭頭…」「成交量旁邊也是這樣的邏輯」:按一次高→低(上亮)、再按低→高(下亮)、再按恢復 -->
     <div></div>
     <div></div>
-    <div>成交量</div>
+    <div class="lsrt" data-k="vol">成交量<span class="srtA"><i class="u"></i><i class="d"></i></span></div>
     <div></div>
   </div>
   <div id="bands"></div>
@@ -1309,6 +1316,12 @@ function signalRank(){
   }
   return rank;
 }
+const lsrtPx = s => { const r = LIVE.get(s.code); return r && r.z > 0 ? +r.z : (+s.close || 0); };
+window.LSORT = {k: '', d: 0};   // 不存,程式重開回到原本排序
+function lsrtPaint(){ try{ const S = window.LSORT; document.querySelectorAll('#result .head .lsrt').forEach(h => { const on = S.k === h.dataset.k; h.querySelector('.u').classList.toggle('on', on && S.d > 0); h.querySelector('.d').classList.toggle('on', on && S.d < 0); }); }catch(e){} }
+document.addEventListener('click', e => { const h = e.target && e.target.closest && e.target.closest('#result .head .lsrt'); if (!h) return; e.preventDefault(); e.stopPropagation();
+  const S = window.LSORT, k = h.dataset.k; if (S.k !== k){ S.k = k; S.d = 1; } else if (S.d > 0) S.d = -1; else { S.k = ''; S.d = 0; }
+  lsrtPaint(); window.LSORT_AT = Date.now(); try{ if (window.__ls){ window.__ls.on = 0; window.__ls.t = 0; } }catch(e3){} try{ if (LAST_LIST){ render(LAST_LIST); applyLiveToList(); } el('result').scrollTop = 0; }catch(e2){} }, true);
 function resortList(){ if (LAST_LIST && !el('bands').classList.contains('hidden')) { render(LAST_LIST); applyLiveToList(); } }
 window.resortList = resortList;
 
@@ -1745,6 +1758,8 @@ function render(list){
   // 2026-10-21 使用者:「股票怎麼沒有按成交量排序」:原本照名單的成交量(昨天)排,右邊顯示的卻是今天即時累計量 → 有即時量就照今天的量排
   const LV = s => { const r = LIVE.get(s.code); return r && isFinite(r.v) && r.v > 0 ? r.v * 1000 : (s.vol || 0); };
   list = list.map((s, i) => [s, i]).sort((a, b) => (R(a[0]) - R(b[0])) || (LV(b[0]) - LV(a[0])) || (a[1] - b[1])).map(x => x[0]);
+  // 2026-11-04 23:03 使用者按成交價 / 成交量排序(LSORT.d 1 = 高→低、-1 = 低→高;沒按 = 原本的排序)
+  { const S = window.LSORT || {}; if (S.k){ const f = S.k === 'px' ? lsrtPx : LV; list = list.map((s, i) => [s, i]).sort((a, b) => ((f(b[0]) - f(a[0])) * S.d) || (a[1] - b[1])).map(x => x[0]); } }
 
   const bands = el('bands');
   const keepY = (() => { try{ return el('result').scrollTop; }catch(e){ return 0; } })();   // 2026-10-27 18:30 清單重排時位置不變(清空再填會先被拉回頂端)
@@ -3316,8 +3331,11 @@ function applyLiveToList(){
   try{
     const vs = [...document.querySelectorAll('#bands .row:not(.sig)')].map(row => { const r = LIVE.get(row.dataset.code); return r && isFinite(r.v) ? r.v : null; }).filter(v => v != null);
     const unsorted = vs.some((v, k) => k > 0 && v > vs[k - 1]);
-    if (unsorted && Date.now() - (window.LIST_RESORT_AT || 0) > 60000){ window.LIST_RESORT_AT = Date.now(); setTimeout(resortList, 0); }
+    if (unsorted && !(window.LSORT || {}).k && Date.now() - (window.LIST_RESORT_AT || 0) > 60000){ window.LIST_RESORT_AT = Date.now(); setTimeout(resortList, 0); }
   }catch(e){}
+  // 2026-11-04 照成交價 / 成交量排序中:數字變了順序不對 → 重排(最多 10 秒一次)
+  try{ const S = window.LSORT || {}; if (S.k){ const vs = [...document.querySelectorAll('#bands .row')].map(row => { const r = LIVE.get(row.dataset.code); return r ? (S.k === 'px' ? +r.z || 0 : +r.v || 0) : null; }).filter(v => v != null);
+    if (vs.some((v, k) => k > 0 && (v - vs[k - 1]) * S.d > 0) && Date.now() - (window.LSORT_AT || 0) > 10000){ window.LSORT_AT = Date.now(); setTimeout(resortList, 0); } } }catch(e){}
 }
 
 /* 向 Worker 要這些代號的即時行情,寫進 LIVE / LIVE_BARS */
