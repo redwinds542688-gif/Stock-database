@@ -841,7 +841,9 @@ class Trader:
             pl = (ex - p["entry"]) / p["entry"] * 100 * d if p["entry"] else 0
             why = "強平" if p.get("forced_close") else (p.get("exit_why") or "出")
             body = f"{self.hm()} {'做多' if d > 0 else '做空'} {p.get('t0') or self.hm()} 進 {p['entry']:.2f} → 現價 {ex:.2f} · {p['closed_lots']}張" + (" · 強平" if p.get("forced_close") else "") + f" · {p['judge']}"
-            self.post(f"{self.name_of(c)} {c} 出場 {'+' if pl >= 0 else '−'}{abs(pl):.1f}%:{why}", body, "exit")
+            # 2026-11-04 使用者「強平 還是要通知比較好吧」→「直接 富喬 1815 強平 +1.1%」:強平的標題改成「名稱 代碼 強平 ±x.x%」(手機收到會跳通知)
+            ttl = f"{self.name_of(c)} {c} 強平 {'+' if pl >= 0 else '−'}{abs(pl):.1f}%" if p.get("forced_close") else f"{self.name_of(c)} {c} 出場 {'+' if pl >= 0 else '−'}{abs(pl):.1f}%:{why}"
+            self.post(ttl, body, "exit")
 
     def on_strategy_reply(self, strategy_no, ok, msg):
         """元大新增條件單回應(只有 TRADE_BROKER_STOP=1 才會掛)"""
