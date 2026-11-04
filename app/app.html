@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-04 11:05(實際時間)當沖頁開盤中長按左上角「當沖」:正下方跳出 贏3% / 贏2% / 贏1% / 全平倉(同寬、高度平均分);贏 x% = 扣手續費 / 稅後淨輸贏對進場金額 ≥ x% 的全部平倉,全平倉 = 扣完費用還贏的全部平倉,賠的不動;不用再確認,照強制平倉送電腦(使用者「開盤中 長按 當沖裡 左上角的 當沖 …」)
   · 2026-11-04 10:26(實際時間)強平要通知(使用者「強平 還是要通知比較好吧」→「直接 富喬 1815 強平 +1.1%」):電腦強平完寫的平倉卡標題改成「富喬 1815 強平 +1.1%」,三支主程式手機收到都會跳通知(原本手機問到元大已經沒這檔就不跳,強平那張也被擋掉;11/03 六檔被強平沒人知道);之後這檔的停利 / 停損 / 13:20 照舊不發;看盤版照舊看不到強平(中繼 VERSION 202611041026)。
   · 2026-11-04 09:35(實際時間)盤中後台每 30 秒把所有股票今天的新 K 補進手機(沒開圖、App 在背景也補),點哪一檔都是最新的;回到畫面馬上補一次(使用者「圖在開盤時 後台要隨著每一根的開出 一直補畫」)
   · 2026-11-04 03:02(實際時間)後台監控在非盤中把名單上每一檔的 K 線先讀好存進手機,回到畫面點圖直接從手機讀、不用等網路;只抓 GitHub 公開檔、不吃雲端額度,同一份名單只做一輪(使用者「程式雖然離開畫面 也是後台還在 … 這時間不就是讀取圖最好的時機嗎」→「改」)
@@ -229,7 +230,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611041026">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611041101">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1622,6 +1623,41 @@ function fmShow(o){
   kn.addEventListener('touchend', end); kn.addEventListener('touchcancel', () => { drag = null; kn.style.transform = ''; });
 }
 window.fmShow = fmShow;
+/* 2026-11-04 11:00 使用者「開盤中 長按 當沖裡 左上角的 當沖 會出現 贏3% 贏2% 贏1% 全平倉 這四個選項 …」:
+   位置在左上角「當沖」框正下方、同寬,高度 = 標題列下面到通知欄底部平均分 4 格;贏 x% = 扣手續費 / 稅後的淨輸贏對進場金額 ≥ x% 的全部平倉,
+   全平倉 = 扣完手續費還是贏的全部平倉(賠的不動);按了不用再確認;平倉照強制平倉(做多跌停賣、做空漲停買)。只有連得上電腦(元大真實部位)才送;元大手動單電腦平不了,跳過並提示 */
+(function winMenuInit(){
+  const box = el('notifLog'); if (!box || box.__winMenu) return; box.__winMenu = true;
+  let tm = null, x0 = 0, y0 = 0;
+  const closeM = () => { const m = el('winMenu'); if (m) m.remove(); document.removeEventListener('pointerdown', outside, true); };
+  const outside = ev => { const m = el('winMenu'); if (m && !m.contains(ev.target)) closeM(); };
+  const send = async th => { closeM();
+    const rows = (window.__posWin || []).filter(r => !r.exiting && r.net > 0 && (th > 0 ? r.pct >= th : true));
+    const prog = rows.filter(r => !r.manual), man = rows.filter(r => r.manual);
+    if (!window.__posWinTP){ fmToast('電腦沒連上,沒有送出', 3500); return; }
+    if (!rows.length){ fmToast(th > 0 ? `沒有扣完手續費後贏 ${th}% 以上的股票` : '沒有扣完手續費後還贏的股票', 3500); return; }
+    const pin = fmPin.get(); let ok = 0; const bad = [];
+    for (const r of prog){ const cmd = {act: 'close', code: r.code, id: 'win-' + r.code + '-' + Date.now(), name: r.name || ''}; if (pin) cmd.pin = pin;
+      let j = null; try{ const q = await fetch(fmApi() + 'cmd', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cmd), signal: AbortSignal.timeout(12000)}); j = await q.json(); }catch(e){ j = {ok: false}; }
+      if (j && j.ok){ ok++; try{ fcAdd(r.code); }catch(e){} } else bad.push(r.name || r.code); }
+    try{ tposPoll(true); }catch(e){}
+    fmToast(`${th > 0 ? '贏' + th + '%' : '全平倉'}:${ok} 檔平倉中` + (bad.length ? `;沒送出:${bad.join('、')}` : '') + (man.length ? `;元大手動單請自己平:${man.map(r => r.name || r.code).join('、')}` : ''), 5000); };
+  const openM = () => { if (window.NL_VIEW !== 'pos') return; let s = false; try{ s = inSession(); }catch(e){} if (!s) return;
+    closeM(); const lb = box.querySelector('.hd .dlb'), hd = box.querySelector('.hd'); if (!lb || !hd) return;
+    try{ navigator.vibrate && navigator.vibrate(30); }catch(e){}
+    const R = lb.getBoundingClientRect(), H = hd.getBoundingClientRect(), B = box.getBoundingClientRect(), top = H.bottom + 4, h = B.bottom - 4 - top, gap = 6, ih = (h - gap * 3) / 4;
+    const m = document.createElement('div'); m.id = 'winMenu';
+    m.style.cssText = `position:fixed;left:${R.left}px;top:${top}px;width:${R.width}px;z-index:900;display:flex;flex-direction:column;gap:${gap}px`;
+    [[3, '贏3%', '#FF4D5E'], [2, '贏2%', '#FF4D5E'], [1, '贏1%', '#FF4D5E'], [0, '全平倉', '#FFD54F']].forEach(([th, t, c]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t;
+      b.style.cssText = `height:${ih}px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:7px;border:2px solid ${c};box-shadow:0 0 0 2px #000,0 0 0 3.5px #8C96AB;background:#000;color:${c};font-weight:700;font-size:${Math.min(24, Math.max(13, ih * 0.42))}px;white-space:nowrap;padding:0;font-family:inherit`;
+      b.addEventListener('click', ev => { ev.stopPropagation(); send(th); }); m.appendChild(b); });
+    document.body.appendChild(m); setTimeout(() => document.addEventListener('pointerdown', outside, true), 0); };
+  const isLb = t => t && t.closest && t.closest('#notifLog .hd .dlb');
+  box.addEventListener('pointerdown', ev => { if (!isLb(ev.target)) return; x0 = ev.clientX; y0 = ev.clientY; clearTimeout(tm); tm = setTimeout(() => { tm = null; openM(); }, 600); }, true);
+  box.addEventListener('pointermove', ev => { if (tm && (Math.abs(ev.clientX - x0) > 10 || Math.abs(ev.clientY - y0) > 10)){ clearTimeout(tm); tm = null; } }, true);
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => box.addEventListener(t, () => { clearTimeout(tm); tm = null; }, true));
+  box.addEventListener('contextmenu', ev => { if (isLb(ev.target)) ev.preventDefault(); });
+})();
 
 /* 2026-10-30 00:26 使用者「開盤時 顯示監控中 關盤後一直到下一個有交易當天開盤前15分鐘 再消失」「關盤後顯示 已交易」:
    交易日 09:00~13:30 寫「監控中」,其他時間(收盤後、週末、休市,到下一個交易日 08:45 換成新的一天為止)寫「已交易」 */
@@ -6896,12 +6932,14 @@ window.bgTick = bgTick; window.BG = BG;
               open.push({code: r.code, name: r.name || nmOf(r.code), side: q > 0 ? 'long' : 'short', entP: q > 0 ? +r.buy : +r.sell, lots: Math.abs(q), manual: true}); } }catch(e){} }
         const late = (() => { const n = new Date(Date.now() + 8 * 3600000); const hm = n.getUTCHours() * 60 + n.getUTCMinutes(); return hm >= 13 * 60 + 20 && hm <= 14 * 60; })();   // 台灣時間 13:20~14:00
         body = `<div class="r h"><span>股票</span><span></span><span class="num">現價</span><span></span><span class="num">攤平</span><span></span><span class="num">張</span><span></span><span class="num">輸贏</span></div>`;   // 2026-10-27 02:45 欄位 10|1|8|1|8|1|3|1|7 = 40
+        window.__posWinTmp = [];
         for (const o of open){
           const lt = lotsOf(o), dr = o.side === 'long' ? 1 : -1, ent = +o.entP;
           const cur_ = +(((LIVE.get(o.code) || {}).z) || 0) || ent;
           // 最低攤平點位 = 扣掉手續費、證交稅後剛好不賠的價(做多往上取到跳動單位、做空往下)
           const be = dr > 0 ? roundTick(ent * (1 + C.fee) / (1 - C.fee - C.tax), true) : roundTick(ent * (1 - C.fee - C.tax) / (1 + C.fee), false);
           const v = (cur_ - ent) * dr * lt * 1000 - (dr > 0 ? costAmt(ent * lt * 1000, cur_ * lt * 1000, C) : costAmt(cur_ * lt * 1000, ent * lt * 1000, C));
+          try{ (window.__posWinTmp || (window.__posWinTmp = [])).push({code: o.code, name: o.name, net: v, pct: ent > 0 && lt > 0 ? v / (ent * lt * 1000) * 100 : 0, manual: !!o.manual, exiting: !!o.exiting}); }catch(e){}   /* 2026-11-04 贏幾%平倉用:扣手續費 / 稅後的淨輸贏、對進場金額的 % */
           tot += v; cnt++;
           body += `<div class="r${late ? ' late' : ''}" data-code="${esc(o.code)}" data-name="${esc(o.name)}"><span class="nm"><span class="sd ${dr > 0 ? 'long' : 'short'}">${dr > 0 ? '多' : '空'}</span>${esc(o.name)}</span><span></span><span class="num ${cur_ > ent ? 'up' : cur_ < ent ? 'dn' : ''}">${cur_.toFixed(2)}</span><span></span><span class="num">${be.toFixed(2)}</span><span></span><span class="num">${lt}</span><span></span>${amt(v)}</div>`;
         }
@@ -6909,6 +6947,7 @@ window.bgTick = bgTick; window.BG = BG;
         // 2026-10-27 10:30(實際時間)使用者:「當沖 通知欄 最下面的資訊 改在上面顯示 這邊不用」:「N 檔 未平倉 + 合計輸贏」改放標題列(取代 當日),最下面那列拿掉
         const hdPos = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(tot))}</span>`).replace('<span>當沖</span>', `<span class="dlb">當沖</span><span class="dwh dstat"${inSession() ? '' : ' style="visibility:hidden"'}><span class="dwi">${today.slice(5).replace('-', '/')}</span></span><span class="dsrc"></span>${TP ? '<span class="vbtn on vtag">元大</span>' : ''}`);   /* 2026-11-03 17:28 使用者「當沖啟動時 也就是盤中 元大按鍵位置 與 明細裡的位置一致」:當沖也放一格同寬的日期(不能捲),元大就和明細的按鍵對齊;17:32「(非開盤時間)就不用 顯示 日期」:非盤中日期格隱藏(位置留著,元大照樣對齊) */   /* 17:24 使用者「連得上電腦時 當沖 元大。把 元大 放上去」 */   /* 2026-11-03 17:22 使用者「把 當沖 改 綠色 後面的系統不顯示」:綠色、不寫元大 / 系統(看盤版照舊「當沖 系統」) */   // 13:21 連得上電腦(元大真實部位)標「元大」,模擬標「系統」(看盤版標題本來就是「當沖 系統」)   // 2026-10-27 10:40(實際時間)使用者:「輸贏金額 顯示在最右邊」:合計放標題列最右邊(.cash);10:45「幾檔也不用顯示」:左邊只剩 當沖
         if (window.__nlV !== 'pos'){ box.scrollTop = 0; window.__nlV = 'pos'; }   // 2026-10-27 11:20 切到當沖也從最上面開始
+        window.__posWin = window.__posWinTmp || []; window.__posWinTP = !!TP;
         { const __H = hdPos + `<div class="tb pos">` + body + (cnt ? (late ? `<div class="late-note">⚠ 已過 13:20,這 ${cnt} 檔還沒收到平倉通知,請到投資先生確認已贖回</div>` : '') : `<div class="empty">${over || !TP || !TP.ok ? '目前沒有進場中的股票' : '目前沒有已成交的部位'}</div>`) + `</div>`; if (nlSame(__H)) return; nlPut(__H); }
         try{ const tb = box.querySelector('.tb.pos'); const u = (tb.clientWidth || box.clientWidth) / 40; tb.style.fontSize = Math.max(12, Math.floor(u * 2 * 0.96)) + 'px'; }catch(e){}
         // 2026-10-27 11:10 使用者(當沖 4 檔,「和桐下面切到」):整張表放不下 → 先把每列上下留白縮小,還放不下再整張表一起把字縮小(最小 12px,整表同字級,欄位照樣對齊);再多才用捲的
