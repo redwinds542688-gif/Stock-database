@@ -15,6 +15,7 @@ def get(d):
 
 try: DB = json.load(open(OUT, encoding="utf-8"))
 except Exception: DB = {}
+DB = {d: [k for k in v if re.search(r"\|判[一二三四]$", str(k))] for d, v in DB.items()}   # 2026-11-04 舊紀錄裡的強三 / 元三拿掉
 now = datetime.datetime.utcnow() + datetime.timedelta(hours=8); today = now.strftime("%Y-%m-%d")
 days = [(now - datetime.timedelta(days=k)).strftime("%Y-%m-%d") for k in range(45)]
 days = [d for d in days if datetime.date.fromisoformat(d).weekday() < 5 and (d not in DB or d == today) and d >= "2026-10-01"]
@@ -29,7 +30,9 @@ for d in sorted(days):
         if not isinstance(x, dict) or x.get("kind") not in ("long", "short"): continue
         m = re.search(r"\b(\d{4,6}[A-Z]?)\b", str(x.get("title", "")))
         if not m: continue
-        rs = (re.search(r"· (判[一二三四]|元三|強三)\s*$", str(x.get("body", ""))) or [None, ""])[1]
+        # 2026-11-04 使用者「開盤版只能看到虛擬進場跟虛擬平倉 不可以看強三跟元三的資訊」:這個檔在公開庫,只存判一~四的訊號,強三 / 元三(元大真實交易)不存
+        rs = (re.search(r"· (判[一二三四])\s*$", str(x.get("body", ""))) or [None, ""])[1]
+        if not rs: continue
         s.add(f"{m.group(1)}|{x['kind']}|{rs}")
     if not s and not items: print(d, "沒有通知(休市或沒存),不寫"); continue
     DB[d] = sorted(s); print(d, len(s), "筆進場")
