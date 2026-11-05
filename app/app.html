@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-05 22:05(實際時間)開機追蹤(使用者「平板開機卡 7 秒 這要如何解決」):開機 60 秒內記下主要函式(判別式計算、K 線讀取、清單、通知欄…)的進入 / 離開時間,畫面卡住 8 秒自動回報時帶最後 40 筆,看得出卡在哪一段;只記錄,不改任何功能
   · 2026-11-05 21:45(實際時間)切換 進場 / 當沖 / 明細 加速(使用者「進 進場,跟明細 最慢」):① 切頁不再整張股票清單重排(只有通知內容變了才重排);② 標題列字級改二分搜尋(原本最多 60 次排版 → 約 6 次),字級結果一樣;慢 6 倍的模擬平板上切到進場 250 → 約 20 毫秒、明細 110 → 約 25 毫秒
   · 2026-11-05 20:12(實際時間)修 K 圖和下面兩張圖時間錯開 1 小時(使用者「改」,抓 bug 自動紅圈:友達 / 聯電):進圖先畫兩週的 K,1 秒後進新 K 重畫時改用 3 天版、根數突然變少,K 圖錯開 60 根 → 畫面上已經是兩週的就照樣用兩週的重畫,不縮回 3 天
   · 2026-11-05 19:58(實際時間)鎖漲停橫條中間留空(使用者「十字虛線不見了」):原本整條實心橫條蓋住 66.60 的十字橫線和價格線 → 改成上下兩條細條、中間透空;標籤往上移,不蓋到最高價數字
@@ -242,6 +243,8 @@
 (function(){ try{
   var E = window.__EARLY = {t0: Date.now(), errs: [], stage: 'head', sent: false};
   window.__stg = function(s){ E.stage = s; try{ if (E.w && E.info) E.w.postMessage({u: E.url, b: E.info('start')}); }catch(e){} };
+  // 2026-11-05 21:49 使用者「平板開機卡 7 秒 這要如何解決」:開機 60 秒內記下哪些函式進入 / 離開(名稱 > / <、毫秒),卡住偵測的回報帶最後 40 筆 → 看得出卡在哪一段
+  E.trk = []; window.__mk = function(s){ try{ if (!E.w || Date.now() - E.t0 > 60000) return; E.trk.push(s + '@' + (Date.now() - E.t0)); if (E.trk.length > 40) E.trk.shift(); E.w.postMessage({stage: E.stage + ' | ' + E.trk.join(' ')}); }catch(e){} };
   addEventListener('error', function(e){ try{ E.errs.push([Date.now() - E.t0, String(e.message || (e.target && e.target.src ? '載入失敗 ' + e.target.src : '')), e.filename || '', e.lineno || 0, e.colno || 0]); }catch(_){} }, true);
   addEventListener('unhandledrejection', function(e){ try{ E.errs.push([Date.now() - E.t0, 'rej ' + String(e.reason && (e.reason.message || e.reason) || '')]); }catch(_){} });
   var key = '', dev = ''; try{ key = localStorage.getItem('mysh.key') || (window.Android && Android.getPref ? (Android.getPref('key') || '') : ''); dev = localStorage.getItem('mysh.dev') || (window.Android && Android.getPref ? (Android.getPref('dev') || '') : ''); }catch(_){}
@@ -265,7 +268,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611052138">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611052154">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7531,6 +7534,12 @@ function bugPanel(){
   const log = []; const mark = n => { log.push([Date.now(), n]); if (log.length > 60) log.shift(); };
   const wrap = name => { const f = window[name]; if (typeof f !== 'function') return; window[name] = function(){ mark(name); return f.apply(this, arguments); }; };
   ['scan', 'render', 'resortList', 'calibrateFont', 'applyLiveToList', 'liveSnapshot'].forEach(wrap);
+  // 2026-11-05 開機追蹤(平板卡 7 秒):開機 60 秒內把這些函式包起來,進入 / 離開都記給卡住偵測(判別式載入後才有的 bgTick / replaySignals 每 2 秒補包一次)
+  { const T = ['scan', 'render', 'resortList', 'applyLiveToList', 'bgTick', 'replaySignals', 'loadMinuteBars', 'loadTodayBars', 'loadCloudBars', 'loadYuantaBars', 'logicLoad', 'logicApply', 'nlRender', 'drawBars', 'kWarmBg', 'liveFetch', 'buildPool', 'fitBands', 'calibrateFont', 'openChart', 'cloudNotifyNew', 'redrawLive'];
+    const tw = () => { if (!window.__mk) return; for (const n of T){ const f = window[n]; if (typeof f !== 'function' || f.__mkW) continue;
+        const g = function(){ window.__mk(n + '>'); let r; try{ r = f.apply(this, arguments); }finally{ if (r && typeof r.then === 'function') r.then(() => window.__mk(n + '<'), () => window.__mk(n + '!')); else window.__mk(n + '<'); } return r; };
+        g.__mkW = true; try{ window[n] = g; }catch(e){} } };
+    tw(); const iv = setInterval(tw, 2000); setTimeout(() => clearInterval(iv), 60000); }
   let resizes = 0; addEventListener('resize', () => { resizes++; mark('resize'); });
   try{ new MutationObserver(() => mark('spacer')).observe(document.getElementById('topSpacer'), {attributes: true}); }catch(e){}
   let lastY = 0; const sc = document.getElementById('result');
