@@ -113,8 +113,11 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
                 .build()
             nm.notify(id, n)
             // 2026-11-05 14:30 使用者「2改N8」:停利 / 賺錢平倉用收銀叮(mysh_profit)
-            val profit = kind == "profit" || (kind == "exit" && (title ?: "").startsWith("✅"))
-            if (lv > 0) Alert.buzzLevel(ctx, lv) else if (win > 0) Alert.cheer(ctx, win) else if (profit) Alert.buzzProfit(ctx) else if (kind == "pc") Alert.buzzPc(ctx) else if ((kind == "long" || kind == "short") && Regex("·\\s*超額\\s*·").containsMatchIn(body ?: "")) Alert.buzzOver(ctx) else Alert.buzz(ctx, danger)   // 2026-11-05 14:34 使用者「6改A3」:電腦提醒用三連嗶
+            // 2026-11-05 14:37 使用者「A 照你說的做」:收盤出場 / 強平(kind exit,標題沒有 ✅ ⚠)照標題的 ±% 選聲音:賺 → 收銀叮、賠 → 下滑音、平盤 → 低音叮
+            val xp = if (kind == "exit") Regex("([+\\-−])\\s*(\\d+(?:\\.\\d+)?)%").find(title ?: "")?.let { mm -> val v = mm.groupValues[2].toDoubleOrNull() ?: 0.0; if (v == 0.0) 0 else if (mm.groupValues[1] == "+") 1 else -1 } ?: 0 else 0
+            val profit = kind == "profit" || (kind == "exit" && ((title ?: "").startsWith("✅") || ((title ?: "").let { !it.startsWith("⚠") } && xp > 0)))
+            val exitLoss = kind == "exit" && ((title ?: "").startsWith("⚠") || xp < 0)
+            if (lv > 0) Alert.buzzLevel(ctx, lv) else if (win > 0) Alert.cheer(ctx, win) else if (profit) Alert.buzzProfit(ctx) else if (exitLoss) Alert.buzz(ctx, true) else if (kind == "pc") Alert.buzzPc(ctx) else if ((kind == "long" || kind == "short") && Regex("·\\s*超額\\s*·").containsMatchIn(body ?: "")) Alert.buzzOver(ctx) else Alert.buzz(ctx, danger)   // 2026-11-05 14:34 使用者「6改A3」:電腦提醒用三連嗶
             NotifLog.add(ctx, title ?: "", body ?: "", kind ?: "")
             Log.i("mysh", "[$tag] notify $title | $body")
         } catch (e: Exception) { Log.e("mysh", "notify failed", e) }
