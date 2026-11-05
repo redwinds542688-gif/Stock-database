@@ -556,6 +556,7 @@ class Engine:
         if "rs_env" in sys.modules: rs_env = importlib.reload(sys.modules["rs_env"])
         else: rs_env = importlib.import_module("rs_env")
         self.envs = {}
+        self.j5max = int(getattr(rs_env, "J5MAX", J5MAX))   # 2026-11-05 判五一天上限(私人庫 rs_env.J5MAX;apply 裡沒有 rs_env 這個名字)
         for rs in RS_ALL: self.envs[rs] = rs_env.env_of(rs, str(DATA / "breadth.json") if rs in ("一", "二", "五") else None)   # 判五:名單平均檔 DATA/mktavg.json(write_breadth 寫)
         if self.envs.get("五", {}).get("MODE") != "fail5":   # 私人庫的 rs_env.py 還是舊版(沒有 J5)→ 判五先不跑(不然會拿判二的參數亂算)
             self.envs.pop("五", None); log("!! 私人庫 rs_env.py 還沒有判五(J5),判五今天先不跑")
@@ -717,7 +718,7 @@ class Engine:
             elif rs in rs_block: why = rs_block[rs]
             elif rs == "四" and code not in self.j4 and len(self.j4) >= int(_f(self.envs.get("四", {}).get("T4MAX"), T4MAX)):   # 2026-10-31 判四一天最多 T4MAX 檔(到了就不再發,記 emitted)
                 self.emitted.add(ek); log(f"判四 {code} {open_tm} 今天判四已 {len(self.j4)} 檔(到上限)→ 不發"); continue
-            elif rs == "五" and code not in self.j5 and len(self.j5) >= int(getattr(rs_env, "J5MAX", J5MAX)):   # 2026-11-05 判五一天最多 5 筆
+            elif rs == "五" and code not in self.j5 and len(self.j5) >= getattr(self, "j5max", J5MAX):   # 2026-11-05 判五一天最多 5 筆
                 self.emitted.add(ek); log(f"判五 {code} {open_tm} 今天判五已 {len(self.j5)} 檔(到上限)→ 不發"); continue
             else: why = None
             if why:
