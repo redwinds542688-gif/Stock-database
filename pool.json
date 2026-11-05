@@ -24,6 +24,7 @@
   "3691",
   "4526",
   "4577",
+  "6213",
   "8099",
   "8272",
   "8291"
@@ -1971,7 +1972,7 @@
    "amp_days": 15,
    "amp_hits": 3,
    "bars": 263,
-   "daytrade": 1,
+   "daytrade": 0,
    "short_first": 0
   },
   {
@@ -2593,7 +2594,7 @@
    "amp_hits": 3,
    "bars": 258,
    "daytrade": 1,
-   "short_first": 0
+   "short_first": 1
   },
   {
    "code": "8112",
@@ -2710,5 +2711,11 @@
    "daytrade": 1,
    "short_first": 1
   }
- ]
+ ],
+ "elig_checked_at": "2026-11-05 08:21",
+ "elig_source_today": [
+  "上市",
+  "上櫃"
+ ],
+ "elig_checked": "2026-11-05"
 }
