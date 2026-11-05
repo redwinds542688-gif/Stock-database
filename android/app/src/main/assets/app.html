@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-06 05:53(實際時間)進場日期滾輪 / 從明細聯動跳到某天:那天第一則卡片貼齊標題列下面,不再先露出日期分隔列(使用者截圖圖一)
   · 2026-11-06 05:45(實際時間)進場和明細日期聯動:進場轉到哪天,切到明細就是那天;明細轉到哪天,切回進場就是那天(使用者「明細與進場日期聯動」)
   · 2026-11-06 05:40(實際時間)明細:前幾天每天最下面的「N 筆 總輸贏」列拿掉(標題列右邊已顯示捲到那天的總輸贏)
   · 2026-11-06 03:13(實際時間)說明視窗也拿掉右上「✕」,用手機返回鍵離開(點視窗外面也可以)
@@ -281,7 +282,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611060545">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611060553">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7445,7 +7446,7 @@ window.bgTick = bgTick; window.BG = BG;
         for (let k = 0; k < 40 && fs > 12 && h.scrollWidth > h.clientWidth + 1; k++){ fs -= 0.5; h.style.fontSize = fs + 'px'; } }catch(e){} };
     const navBtns = day => { const L = window.NL_DAYS || [], k = L.indexOf(day), pv = el('nlPrev'), nx = el('nlNext'); if (pv) pv.disabled = k >= L.length - 1; if (nx) nx.disabled = k <= 0; };
     // 2026-10-27 10:30 使用者(截圖:「剛剛10/22 按左鍵 變成10/21 應該是要顯示圖一這樣才對」):◀ ▶ 捲到那天的「日期分隔列」,第一列永遠是日期分隔列(07:20 誤解成捲到第一則,改回)
-    const scrollToDay = day => { try{ const h = box.querySelector('.hd'), hh = h ? h.offsetHeight : 0; const t = box.querySelector(`.dsep[data-day="${day}"]`) || box.querySelector(`.card[data-day="${day}"]`);
+    const scrollToDay = day => { try{ const h = box.querySelector('.hd'), hh = h ? h.offsetHeight : 0; const t = box.querySelector(`.card[data-day="${day}"]`) || box.querySelector(`.dsep[data-day="${day}"]`);   /* 2026-11-06 05:53 使用者截圖「應該要圖一的樣子」:滾輪 / 聯動跳到那天時,那天第一則卡片貼齊標題列下面(日期分隔列捲到上面去),跟明細一樣 */
         box.scrollTop = t ? Math.max(0, t.offsetTop - hh) : 0; window.NL_TOPDAY = day; const dt = box.querySelector('.hd .dt'); if (dt) dt.textContent = day.slice(5).replace('-', '/'); navBtns(day); mwSet(box, day); }catch(e){} };
     window.__nlScrollToDay = day => { box.__mwT = 0; scrollToDay(day); };
     // 2026-10-29 10:55 使用者影片 13749「明細 通知欄 會抖動」:切到明細 / 當沖時列高先用「標題列還沒放大」的高度排(一列 53px),
