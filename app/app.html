@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-05 19:20(實際時間)修康霈 K 圖刻度全寫 66(使用者「就是 康霈 這檔有問題」):鎖漲停那段價格和 OBV 都不動,指標二的價格對照算不出來 → 刻度變回原始 OBV 大數字、太寬,程式把所有圖的小數都裁掉(K 圖每格變 66)。改:價格 / OBV 沒變動時也上下撐開,刻度照常 66.30 ~ 66.90 兩位小數
   · 2026-11-05 19:05(實際時間)K 線圖價格刻度(使用者康霈鎖漲停「改」):畫面內的 K 高低差不到 2 個跳動單位(例如整段鎖漲停)→ 以中間價上下各撐開 2 個跳動單位,刻度照常顯示兩位小數(66.40 / 66.50 / … / 66.80),不再每格都寫 66;其他情況不變
   · 2026-11-05 13:45(實際時間)修下排燈號停住不動(使用者「現在進場那邊 進場燈號照理說應該要等於0 為什麼還是顯示那麼多」):通知欄沒有新內容就不重畫,燈停在舊的樣子 → 每 10 秒自己更新一次;13:30 收盤後自動熄掉
   · 2026-11-05 13:35(實際時間)電腦 13:24 手動預掛到期(使用者「程式需要先幫我取消預掛 再啟動平倉」):先取消、再查到確定取消掉(最多 3 次)才平倉,取消前剛好成交的照成交回報算、不會多平;取消不掉跳手機提醒
@@ -260,7 +261,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611051900">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611051907">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5391,6 +5392,9 @@ function obvPxMapUpdate(){
       if (YH.obvSkipClose && hmKey(k.time) === '13:30') continue;   // 13:30 收盤撮合那根不算
       for (const mp of RAW.m){ const v = mp.get(k.time); if (v != null){ if (v < oLo) oLo = v; if (v > oHi) oHi = v; } }
     }
+    // 2026-11-05 康霈鎖漲停:畫面內價格完全沒變(pHi = pLo)時原本直接不換算 → 指標二刻度變回原始 OBV 大數字、刻度太寬,連 K 圖都被裁成整數「66」→ 和 K 圖一樣上下撐開 2 個跳動單位
+    if (isFinite(pLo) && isFinite(pHi) && pHi - pLo < tickOf((pLo + pHi) / 2) * 2){ const md = (pLo + pHi) / 2, tk0 = tickOf(md); pLo = Math.min(pLo, md - tk0 * 2); pHi = Math.max(pHi, md + tk0 * 2); }
+    if (isFinite(oLo) && isFinite(oHi) && oHi <= oLo){ oLo -= 1; oHi += 1; }   // 鎖漲停時 OBV 也不動(價格沒變 → OBV 不加不減)
     if (!(isFinite(oLo) && isFinite(pLo) && oHi > oLo && pHi > pLo)) return;
     const P = window.__obvPx;
     if (P && P.raw === RAW && P.oLo === oLo && P.oHi === oHi && P.pLo === pLo && P.pHi === pHi) return;   // 對照沒變不重畫
