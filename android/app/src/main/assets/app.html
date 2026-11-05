@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-05 21:45(實際時間)切換 進場 / 當沖 / 明細 加速(使用者「進 進場,跟明細 最慢」):① 切頁不再整張股票清單重排(只有通知內容變了才重排);② 標題列字級改二分搜尋(原本最多 60 次排版 → 約 6 次),字級結果一樣;慢 6 倍的模擬平板上切到進場 250 → 約 20 毫秒、明細 110 → 約 25 毫秒
   · 2026-11-05 20:12(實際時間)修 K 圖和下面兩張圖時間錯開 1 小時(使用者「改」,抓 bug 自動紅圈:友達 / 聯電):進圖先畫兩週的 K,1 秒後進新 K 重畫時改用 3 天版、根數突然變少,K 圖錯開 60 根 → 畫面上已經是兩週的就照樣用兩週的重畫,不縮回 3 天
   · 2026-11-05 19:58(實際時間)鎖漲停橫條中間留空(使用者「十字虛線不見了」):原本整條實心橫條蓋住 66.60 的十字橫線和價格線 → 改成上下兩條細條、中間透空;標籤往上移,不蓋到最高價數字
   · 2026-11-05 19:40(實際時間)鎖漲停 / 跌停顯示(使用者康霈「改」):① K 圖最後一段連續開高低收都 = 漲停 / 跌停價(離昨收 ±9.4% 以上、至少 3 根)→ 每根畫粗短橫條(漲停紅、跌停綠),上方標「鎖漲停 66.60 09:08~13:30」;② 乖離圖 Ka / Kb 幾乎相等時範圍至少上下各 2 個跳動單位,不再整片假紅柱(實際乖離 0%)
@@ -264,7 +265,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611052008">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611052138">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6845,7 +6846,8 @@ window.bgTick = bgTick; window.BG = BG;
     const items = itemsFor(d).filter(x => x.kind !== 'sys');   // 視窗只列買賣訊號,啟動 / 停止這類系統訊息不顯示
     const key = d + '|' + items.length + '|' + (items[0] ? items[0].t + items[0].title : '') + '|' + capFund() + '|' + (window.NL_VIEW || 'msg') + '|' + (window.LOG_RS || '') + '|' + (window.NL_VIEW === 'pos' ? Math.floor(Date.now() / 5000) : '') + '|' + (window.NL_VIEW !== 'msg' && window.__tfills ? window.__tfills.at : '') + '|' + Object.keys(CLOUD_LOG.items).length;   // 2026-10-29 12:25(實際時間)元大成交資料到了也重畫   // 2026-10-27 視窗(通知 / 當沖 / 明細)、篩選、當沖的現價(5 秒)、雲端抓到新的一天都要重畫   // 2026-10-19 上限改了也要重畫(超過上限的卡片要藏 / 露)
     if (!force && key === lastKey) return; const changed = key !== lastKey; lastKey = key;
-    if (changed && d === today) { try{ resortList(); }catch(e){} }   // 新訊號進來 → 清單重新排序
+    // 2026-11-05 21:34 使用者「進 進場,跟明細 最慢」:原本切頁(key 含頁面)也整張股票清單重排一次(平板上約 0.1~0.2 秒)→ 只有通知內容真的變了才重排
+    { const dk_ = d + '|' + items.length + '|' + (items[0] ? items[0].t + items[0].title : ''); if (changed && d === today && dk_ !== (render.__resortKey || '')){ render.__resortKey = dk_; try{ resortList(); }catch(e){} } }   // 新訊號進來 → 清單重新排序
     let n = items.length;   // 2026-10-20 下面算完要顯示的卡片數再覆蓋(一進一出)
     const label = (window.NL_VIEW === 'pos') ? '當沖' : (window.NL_VIEW === 'done') ? '明細' : (window.LOG_RS || '') + '進場紀錄';   // 2026-10-29 16:00 看盤版的當沖 / 明細是系統模擬、不是真實交易(使用者:「只不過是系統的 不是真實的」)   // 2026-10-27 10:35(實際時間)使用者:「上面(未平倉)不用顯示」:當沖標題只寫 當沖   // 2026-10-27 不再翻頁
     const hd = `<div class="hd"><span class="nav"><span>${label}</span></span><span>${n} 則</span></div>`;
@@ -7403,7 +7405,9 @@ window.bgTick = bgTick; window.BG = BG;
       h.style.fontSize = Math.max(12, Math.min(30, Math.floor(fs * 2) / 2)) + 'px'; }catch(e){} };
     // 放大後再保險縮一次:塞不下就往下縮到不折行
     const fitHdShrink = () => { try{ const h = box.querySelector('.hd'); if (!h) return; let fs = parseFloat(h.style.fontSize) || 12;
-        if (h.querySelector('.dwh')){ for (let k = 0; k < 60 && fs < 30; k++){ fs += 0.5; h.style.fontSize = fs + 'px'; if (h.scrollWidth > h.clientWidth + 1){ fs -= 0.5; h.style.fontSize = fs + 'px'; break; } } }   /* 2026-11-03 19:12 日期滾輪固定 30px 後,上面的估算會把其他字縮太小 → 有空位就再放大到剛好塞滿 */
+        if (h.querySelector('.dwh')){ /* 2026-11-05 21:34 「進場 / 明細 最慢」:原本 0.5 一步往上試(最多 60 次排版)→ 二分搜尋找最大不超出的字級(約 6 次),結果一樣 */
+          const ov = f => { h.style.fontSize = f + 'px'; return h.scrollWidth > h.clientWidth + 1; };
+          let lo = fs, hi = 30; if (ov(lo)){ fs = lo; } else { if (!ov(hi)) lo = hi; else { while (hi - lo > 0.5){ const m = Math.round((lo + hi)) / 2; if (ov(m)) hi = m; else lo = m; } } fs = lo; } h.style.fontSize = fs + 'px'; }   /* 2026-11-03 19:12 日期滾輪固定 30px 後,上面的估算會把其他字縮太小 → 有空位就再放大到剛好塞滿 */
         for (let k = 0; k < 40 && fs > 12 && h.scrollWidth > h.clientWidth + 1; k++){ fs -= 0.5; h.style.fontSize = fs + 'px'; } }catch(e){} };
     const navBtns = day => { const L = window.NL_DAYS || [], k = L.indexOf(day), pv = el('nlPrev'), nx = el('nlNext'); if (pv) pv.disabled = k >= L.length - 1; if (nx) nx.disabled = k <= 0; };
     // 2026-10-27 10:30 使用者(截圖:「剛剛10/22 按左鍵 變成10/21 應該是要顯示圖一這樣才對」):◀ ▶ 捲到那天的「日期分隔列」,第一列永遠是日期分隔列(07:20 誤解成捲到第一則,改回)
