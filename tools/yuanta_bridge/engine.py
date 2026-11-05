@@ -395,6 +395,7 @@ def exit_text(why):
     if why.startswith("停利"): return "停利"
     if "停損" in why: return "停損"
     if why.startswith("OBV"): return "OBV"
+    if "量縮轉折" in why: return "量縮轉折"   # 2026-11-06 判四第十九次修改:反向量縮轉折出場
     if why.startswith("超過"): return "超" + why.replace("超過", "").strip()
     if why.endswith("強制平倉"): return "出"
     if "反向" in why: return "反向"
