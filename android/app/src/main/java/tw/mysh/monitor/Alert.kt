@@ -22,9 +22,9 @@ object Alert {
 
     /** 2026-11-05 14:16 使用者「通知的音效有辦法統一嗎」→「第一個 只做一般通知 一聲 叮」「輸錢平倉 一次 低 高」→「改」:
      *  不再用各手機系統預設的通知 / 鬧鐘聲,改播 App 內建的 res/raw/mysh_notify(叮)、mysh_alarm(低→高);每支手機一樣。讀不到才退回系統預設 */
-    private fun own(ctx: Context, alarm: Boolean): Uri? = try {
-        Uri.parse("android.resource://" + ctx.packageName + "/" + (if (alarm) R.raw.mysh_alarm else R.raw.mysh_notify))
-    } catch (e: Exception) { null }
+    private fun own(ctx: Context, alarm: Boolean, win: Boolean = false): Uri? = try {
+        Uri.parse("android.resource://" + ctx.packageName + "/" + (if (alarm) R.raw.mysh_alarm else if (win) R.raw.mysh_win else R.raw.mysh_notify))
+    } catch (e: Exception) { null }   // 2026-11-05 14:25 使用者「贏錢W3」:賺錢慶祝用雙金幣(mysh_win)
 
     fun buzz(ctx: Context, danger: Boolean) {
         h.post { vibrate(ctx, danger); sound(ctx, danger) }
@@ -47,7 +47,7 @@ object Alert {
             for (i in 0 until n) { p[1 + i * 2] = 70L; p[2 + i * 2] = 90L }
             p[n * 2 + 1] = 120L; p[n * 2 + 2] = 350L
         }
-        h.post { vibratePattern(ctx, pattern); soundFor(ctx, false, 1500L + lv * 700L) }
+        h.post { vibratePattern(ctx, pattern); soundFor(ctx, false, 1500L + lv * 700L, win = true) }
     }
     private fun vibratePattern(ctx: Context, pattern: LongArray) {
         try {
@@ -57,10 +57,10 @@ object Alert {
             else @Suppress("DEPRECATION") vib.vibrate(pattern, -1)
         } catch (e: Exception) { Log.e("mysh", "vibrate failed", e) }
     }
-    private fun soundFor(ctx: Context, alarm: Boolean, ms: Long) {
+    private fun soundFor(ctx: Context, alarm: Boolean, ms: Long, win: Boolean = false) {
         try {
             try { rt?.stop() } catch (e: Exception) {}
-            val uri = own(ctx, alarm) ?: RingtoneManager.getDefaultUri(if (alarm) RingtoneManager.TYPE_ALARM else RingtoneManager.TYPE_NOTIFICATION)
+            val uri = own(ctx, alarm, win) ?: RingtoneManager.getDefaultUri(if (alarm) RingtoneManager.TYPE_ALARM else RingtoneManager.TYPE_NOTIFICATION)
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE) ?: return
             val r = RingtoneManager.getRingtone(ctx, uri) ?: return
             r.audioAttributes = attrs
