@@ -1,4 +1,4 @@
-// note: 通知聲音統一:一般「叮」一聲、輸錢平倉「低→高」一次(每支手機一樣)
+// note: 一般通知改成「低音叮」(N2);輸錢平倉「低→高」
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -10,8 +10,8 @@ android {
         applicationId = "tw.mysh.monitor"
         minSdk = 26
         targetSdk = 34
-        versionCode = 61
-        versionName = "1.5.55"
+        versionCode = 62
+        versionName = "1.5.56"
     }
     // 2026-10-29 看盤版(使用者:「如果 程式給別人用 但我要控制判123在手上」→「先做1.2.3」第 1 項):同一份程式兩個口味,
     //   owner = 自己用的(app.html 含判一二三)、viewer = 給別人的看盤版(內建 / 更新都抓 viewer.html,沒有判一二三;套件名多 .viewer,兩個可以同時裝)
