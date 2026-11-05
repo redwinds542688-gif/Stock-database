@@ -259,7 +259,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611051700">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611051710">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6748,7 +6748,7 @@ window.bgTick = bgTick; window.BG = BG;
     // 2026-10-18 使用者:「資料不同」(兩支手機的 10/16 紀錄不一樣,因為各自當天跑的版本不同)→ 過去的日子一律以雲端為準,兩支手機看到的一樣
     // 2026-10-19 起過去的日子優先用雲端通知紀錄(手機當天真的發過的,判一 / 判二 都有);沒有才用 app/log_backfill.json(判別式一重跑);今天 = 手機本機 + 雲端合併
     // 2026-11-04 17:15 使用者「重寫進場與明細 用新的 判一到四 包含永久跟開盤 都用虛擬」「包含今天」:有重算紀錄(app/log_backfill.json)的日子一律用它(現行判一~四重算,含超額);今天收盤後也用
-    if (HIST && HIST[d] && (d !== todayStr() || !inSession()) && (window.VIEWER || d < '2026-11-05')) return HIST[d];   // 2026-11-04 19:16 永久版 11/05 起進場欄看真的通知(雲端紀錄),看盤版一律看重算的
+    if (HIST && HIST[d] && (d !== todayStr() || !inSession()) && (window.VIEWER || d < '2026-11-06')) return HIST[d];   // 2026-11-05 16:50 使用者「重寫紀錄 進場 跟 明細 永久會員跟非永久會員都寫到今日11月5號 20天」:永久版 11/05 也看重算的,元大真實從 11/06 起   // 2026-11-04 19:16 永久版 11/05 起進場欄看真的通知(雲端紀錄),看盤版一律看重算的
     if (d !== todayStr() && (CLOUD_LOG.items[d] || []).length) return CLOUD_LOG.items[d];
     try{ if (window.Android && Android.logFor){ const a = JSON.parse(Android.logFor(d) || '[]'); if (a.length || !(HIST && HIST[d])) return mergeCloud(a, d); } }catch(e){}
     if (d !== todayStr()) return mergeCloud([], d);
@@ -7153,9 +7153,9 @@ window.bgTick = bgTick; window.BG = BG;
         { const n_ = new Date(Date.now() + 8 * 3600000), hm_ = n_.getUTCHours() * 60 + n_.getUTCMinutes(), wd_ = n_.getUTCDay();
           if (!(wd_ >= 1 && wd_ <= 5 && hm_ >= 8 * 60 + 45)){ const prev = ds.filter(x => x < today).sort().reverse()[0];
             if (prev){ d0 = prev; ensureCloud(prev); src0 = finish(prep(itemsFor(prev))); } } }
-        const dayRows = (dd, src) => { if (dd !== today) yfillsFix(dd); const yf = dd === today ? (TF || (inSession() ? null : yFillsOf(dd))) : yFillsOf(dd);   /* 2026-11-02 14:49 收盤後問不到電腦 → 今天用手機存的最後一份元大成交(盤中照舊只認剛問到的) */   /* 2026-10-30 12:20 使用者「當無法連上主機 明細就顯示程式做的股票明細」:今天連不上電腦(沒有新的元大成交)→ 列程式的模擬交易(標「系統」) */ if (yf && !window.VIEWER && dd >= '2026-11-05' && !doneVirt){   /* 2026-11-04 19:16 使用者「明天永久會員 接入元大真實資料 其他會員看虛擬版」(11/04 以前永久版也用重算的虛擬):元大真實成交從 11/05 起 */   /* 2026-11-03 14:30 使用者「元大這邊今天暫時先用虛擬交易資料 明天才開始正式用元大資料」:元大真實成交從 11/04 起 */ ySrc[dd] = true; return yRowsOf(yf, dd); }
+        const dayRows = (dd, src) => { if (dd !== today) yfillsFix(dd); const yf = dd === today ? (TF || (inSession() ? null : yFillsOf(dd))) : yFillsOf(dd);   /* 2026-11-02 14:49 收盤後問不到電腦 → 今天用手機存的最後一份元大成交(盤中照舊只認剛問到的) */   /* 2026-10-30 12:20 使用者「當無法連上主機 明細就顯示程式做的股票明細」:今天連不上電腦(沒有新的元大成交)→ 列程式的模擬交易(標「系統」) */ if (yf && !window.VIEWER && dd >= '2026-11-06' && !doneVirt){   /* 2026-11-04 19:16 使用者「明天永久會員 接入元大真實資料 其他會員看虛擬版」(11/04 以前永久版也用重算的虛擬):元大真實成交從 11/05 起 */   /* 2026-11-03 14:30 使用者「元大這邊今天暫時先用虛擬交易資料 明天才開始正式用元大資料」:元大真實成交從 11/04 起 */ ySrc[dd] = true; return yRowsOf(yf, dd); }
           // 2026-11-05 00:31 使用者「這個虛擬 是可以切換 元大的 因為我是永久會員」:收盤後切在「元大」、這天手機還沒拿到元大成交 → 不拿虛擬交易冒充,寫「元大成交還沒拿到」(電腦連上會自動補)
-          if (!yf && virtOk && !doneVirt && !window.VIEWER && dd >= '2026-11-05') return [`<div class="r" data-day="${dd}"><span class="nm" style="color:#8C96AB;grid-column:1/-1">這天的元大成交還沒拿到(電腦連上會自動補)</span></div>`, 0, 1];
+          if (!yf && virtOk && !doneVirt && !window.VIEWER && dd >= '2026-11-06') return [`<div class="r" data-day="${dd}"><span class="nm" style="color:#8C96AB;grid-column:1/-1">這天的元大成交還沒拿到(電腦連上會自動補)</span></div>`, 0, 1];
           return rowsOf(src, dd); };   /* 2026-11-02 23:25 使用者「永久會員 今天之前 全部都用虛擬的資料 填滿明細 今天之後包含今天 都用真實的元大資料 其他會員 一律用虛擬資料」:自己的 App 11/02 起用元大真實成交、11/01 以前一律用程式的虛擬交易;看盤版一律虛擬 */
         const TPe = window.__tpos && window.__tpos.ok && window.__tpos.enabled;   // 電腦的自動交易開著
         if (BTF && BTF[d0] && BTF[d0].length){ src0 = prep(btfCap(d0)); for (const o of src0){ const q = +((((o.x || {}).body || '').match(/· (\d+)張/) || [])[1]) || 0; if (q) o.lots = q; } src0 = finish(src0); }   // 2026-11-03 14:30 這一天有重算的虛擬交易(收盤後補進 bt_fill)→ 用重算的
