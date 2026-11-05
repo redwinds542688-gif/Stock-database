@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-05 13:45(實際時間)修下排燈號停住不動(使用者「現在進場那邊 進場燈號照理說應該要等於0 為什麼還是顯示那麼多」):通知欄沒有新內容就不重畫,燈停在舊的樣子 → 每 10 秒自己更新一次;13:30 收盤後自動熄掉
   · 2026-11-05 13:35(實際時間)電腦 13:24 手動預掛到期(使用者「程式需要先幫我取消預掛 再啟動平倉」):先取消、再查到確定取消掉(最多 3 次)才平倉,取消前剛好成交的照成交回報算、不會多平;取消不掉跳手機提醒
   · 2026-11-05 13:40(實際時間)電腦 13:20 平倉檢查手動預掛(使用者「程式要檢查 我是否預掛」→「改」):手動預掛的平倉單方向對、張數剛好等於未沖銷張數 → 保留,程式不另外平(手機跳「保留手動預掛平倉」);13:24 還沒成交 → 取消那張、程式照舊漲停 / 跌停平倉;張數不一樣照舊全部取消由程式平;電腦收盤後自動更新,明天生效
   · 2026-11-05 13:05(實際時間)進場按鍵的燈(使用者「進場如果已經平倉 進場這邊就要退一個燈號」):黃燈改成還在場上的檔數(進場 − 已平倉),平倉一檔黃燈退一格、藍燈加一格
@@ -258,7 +259,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611051333">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611051340">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1347,6 +1348,9 @@ const lampBtn = (id, txt, kind, a, b) => { try{ const e = document.getElementByI
       else { const [k, k2] = lampAmt(a), w = Math.round(a || 0) > 0, l = Math.round(a || 0) < 0; H = lampSeg(w ? k : 0, w ? k2 : 0, 'r') + `<b>${txt}</b>` + lampSeg(l ? k : 0, l ? k2 : 0, 'g'); } }
     if (!H){ if (e.classList.contains('lmb')){ e.classList.remove('lmb'); e.textContent = txt; } return; }
     if (e.__lm !== H){ e.__lm = H; e.innerHTML = H; e.classList.add('lmb'); } }catch(err){} };
+// 2026-11-05 13:39 使用者「現在進場那邊 進場燈號照理說應該要等於0 為什麼還是顯示那麼多」:收盤後通知欄沒有新東西就不重畫,燈停在收盤前的樣子 →
+//   每 10 秒自己檢查一次:非開盤時間把三顆燈拿掉;開盤中重畫一次(內容沒變不動畫面),燈跟著元大部位 / 成交更新
+setInterval(() => { try{ if (document.visibilityState === 'hidden') return; if (!inSession()){ lampBtn('refreshBtn', '進場'); lampBtn('btnState', '當沖'); lampBtn('btnRules', '明細'); } else if (window.nlRender) nlRender(); }catch(e){} }, 10000);
 const lsrtPx = s => { const r = LIVE.get(s.code); return r && r.z > 0 ? +r.z : (+s.close || 0); };
 window.LSORT = {k: '', d: 0};   // 不存,程式重開回到原本排序
 function lsrtPaint(){ try{ const S = window.LSORT; document.querySelectorAll('#result .head .lsrt').forEach(h => { const on = S.k === h.dataset.k; h.querySelector('.u').classList.toggle('on', on && S.d > 0); h.querySelector('.d').classList.toggle('on', on && S.d < 0); }); }catch(e){} }
