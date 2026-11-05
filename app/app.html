@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-05 19:40(實際時間)鎖漲停 / 跌停顯示(使用者康霈「改」):① K 圖最後一段連續開高低收都 = 漲停 / 跌停價(離昨收 ±9.4% 以上、至少 3 根)→ 每根畫粗短橫條(漲停紅、跌停綠),上方標「鎖漲停 66.60 09:08~13:30」;② 乖離圖 Ka / Kb 幾乎相等時範圍至少上下各 2 個跳動單位,不再整片假紅柱(實際乖離 0%)
   · 2026-11-05 19:20(實際時間)修康霈 K 圖刻度全寫 66(使用者「就是 康霈 這檔有問題」):鎖漲停那段價格和 OBV 都不動,指標二的價格對照算不出來 → 刻度變回原始 OBV 大數字、太寬,程式把所有圖的小數都裁掉(K 圖每格變 66)。改:價格 / OBV 沒變動時也上下撐開,刻度照常 66.30 ~ 66.90 兩位小數
   · 2026-11-05 19:05(實際時間)K 線圖價格刻度(使用者康霈鎖漲停「改」):畫面內的 K 高低差不到 2 個跳動單位(例如整段鎖漲停)→ 以中間價上下各撐開 2 個跳動單位,刻度照常顯示兩位小數(66.40 / 66.50 / … / 66.80),不再每格都寫 66;其他情況不變
   · 2026-11-05 13:45(實際時間)修下排燈號停住不動(使用者「現在進場那邊 進場燈號照理說應該要等於0 為什麼還是顯示那麼多」):通知欄沒有新內容就不重畫,燈停在舊的樣子 → 每 10 秒自己更新一次;13:30 收盤後自動熄掉
@@ -261,7 +262,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611051907">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611051932">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3889,6 +3890,8 @@ function wiDevDraw(wp, r){
   const PY = i => avg[i] == null || KBa[i] == null ? null : KBa[i] * (1 + avg[i] / 100);
   let lo = 1e18, hi = -1e18; for (const [i] of pts){ for (const v of (PRESS ? [KAa[i], PTOP(i), PAVG(i), B[i].close] : [KAa[i], KBa[i], PY(i)])) if (v != null){ if (v < lo) lo = v; if (v > hi) hi = v; } }
   if (!(hi > lo)){ const m = isFinite(lo) ? lo : B[n - 1].close; lo = m * 0.999; hi = m * 1.001; }
+  // 2026-11-05 19:28 使用者(康霈鎖漲停,乖離圖整片紅柱)「下面呢？」:Ka / Kb 幾乎相等(只差小數點後很多位)時範圍趨近 0,一點點誤差就畫成滿格柱 → 範圍至少上下各 2 個跳動單位(和 K 圖一樣)
+  { const md = (lo + hi) / 2, tk = tickOf(md); if (hi - lo < tk * 4){ lo = Math.min(lo, md - tk * 2); hi = Math.max(hi, md + tk * 2); } }
   { const pad = (hi - lo) * 0.08; lo -= pad; hi += pad; }
   const sy = (H - 8) / (hi - lo), yOf = v => 4 + (hi - v) * sy, pc = A.prevClose;
   // 左邊價格刻度(和 K 圖一樣:比昨收高紅、低綠、平白),刻度間距取好讀的檔位
@@ -4988,6 +4991,8 @@ function initChart(){
   //   改:手指按著圖時先把兩個數字藏起來;放手 / 慣性停下後等兩格畫面(刻度自動縮放套用完)再算位置顯示。
   const hideHiLo = () => { const a = el('hiLbl'), b = el('loLbl'); if (a) a.classList.add('hidden'); if (b) b.classList.add('hidden'); };
   const scheduleHiLo = () => { if (touching){ hideHiLo(); return; } if (hiloReq) return; hiloReq = requestAnimationFrame(() => requestAnimationFrame(() => { hiloReq = 0; obvPxMapUpdate(); alignScales(); updateHiLo(); })); };
+  // 2026-11-05 19:31 使用者「改」(康霈鎖漲停,K 全疊在 66.60 價格線下看不到):最後一段連續開高低收都 = 漲停 / 跌停價 → 每根畫一條粗短橫條(漲停紅、跌停綠),上方標「鎖漲停 66.60 09:08~13:30」
+  chart.timeScale().subscribeVisibleLogicalRangeChange(() => { try{ lockPaintReq(); }catch(e){} });
   for (const a of charts) a.timeScale().subscribeVisibleLogicalRangeChange(r => {
     try{ if (window.bugAdd && r){ const nm = a === chart ? 'K' : a === chartM ? 'M' : 'B', L = window.__bugRg || (window.__bugRg = {}), o = L[nm];
       if (!o || Math.abs(o[0] - r.from) > 0.5 || Math.abs(o[1] - r.to) > 0.5){ L[nm] = [r.from, r.to]; bugAdd('rg', [nm, +r.from.toFixed(2), +r.to.toFixed(2), syncing ? 1 : 0]); } } }catch(e){}   // 抓 bug:範圍變超過半根才記
@@ -5376,6 +5381,40 @@ setInterval(() => { try{
   try{ chartM.priceScale('left').applyOptions({autoScale: true}); }catch(e){}
   obvPxMapUpdate(); try{ if (window.pxAxisRedraw) pxAxisRedraw(); }catch(e){}
 }catch(e){} }, 1500);
+let __lockRaf = 0;
+function lockPaintReq(){ if (__lockRaf) return; __lockRaf = requestAnimationFrame(() => requestAnimationFrame(() => { __lockRaf = 0; try{ lockPaint(); }catch(e){} })); }
+function lockPaint(){
+  if (!chart || !candle) return;
+  const ce = chart.chartElement(), host = ce && ce.parentElement; if (!host) return;
+  let cv = host.querySelector(':scope > canvas.lockcv'), tg = host.querySelector(':scope > .locktag');
+  const hide = () => { if (cv) cv.style.display = 'none'; if (tg) tg.style.display = 'none'; };
+  const n = BARS ? BARS.length : 0; if (n < 3) return hide();
+  const L = BARS[n - 1].close, y0 = CUR && CUR.prevClose;
+  if (!(y0 > 0)) return hide();
+  const up = L >= y0 * 1.094, dn = L <= y0 * 0.906; if (!up && !dn) return hide();   // 離昨收 ±9.4% 以上才算漲停 / 跌停(跳動單位取整後實際約 9.9%)
+  const day = Math.floor((BARS[n - 1].time + 28800) / 86400);
+  let s0 = n - 1; while (s0 > 0 && BARS[s0 - 1].high === L && BARS[s0 - 1].low === L && Math.floor((BARS[s0 - 1].time + 28800) / 86400) === day) s0--;
+  if (!(BARS[n - 1].high === L && BARS[n - 1].low === L) || n - s0 < 3) return hide();
+  if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+  if (!cv){ cv = document.createElement('canvas'); cv.className = 'lockcv'; cv.style.cssText = 'position:absolute;pointer-events:none;z-index:3'; host.appendChild(cv); }
+  if (!tg){ tg = document.createElement('div'); tg.className = 'locktag'; tg.style.cssText = 'position:absolute;pointer-events:none;z-index:4;color:#fff;font:bold 13px sans-serif;padding:2px 8px;border-radius:6px;white-space:nowrap'; host.appendChild(tg); }
+  const W = ce.clientWidth, H = ce.clientHeight, dpr = window.devicePixelRatio || 1;
+  cv.style.left = ce.offsetLeft + 'px'; cv.style.top = ce.offsetTop + 'px'; cv.style.width = W + 'px'; cv.style.height = H + 'px'; cv.style.display = '';
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)){ cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const ts = chart.timeScale(), rg = ts.getVisibleLogicalRange(), pw = chart.priceScale('left').width() || 0, y = candle.priceToCoordinate(L);
+  if (!rg || y == null){ tg.style.display = 'none'; return; }
+  const col = up ? '#FF3B3B' : '#2EE59D', bw = Math.max(2, (ts.options().barSpacing || 6) * 0.7);
+  g.fillStyle = col; let fx = null;
+  for (let k = Math.max(s0, Math.floor(rg.from)); k <= Math.min(n - 1, Math.ceil(rg.to)); k++){ const x = ts.logicalToCoordinate(k); if (x == null) continue; if (fx == null) fx = x; g.fillRect(pw + x - bw / 2, y - 3, bw, 6); }
+  if (fx == null){ tg.style.display = 'none'; return; }
+  const hm = t => new Date((t + 28800) * 1000).toISOString().slice(11, 16);
+  const txt = `鎖${up ? '漲' : '跌'}停 ${L.toFixed(2)} ${hm(BARS[s0].time)}~${hm(BARS[n - 1].time)}`;
+  if (tg.textContent !== txt) tg.textContent = txt; tg.style.background = up ? '#FF3B3B' : '#08A060'; tg.style.display = '';
+  const tx = Math.min(Math.max(pw + fx, pw + 4), W - (tg.offsetWidth || 180) - 4);
+  tg.style.left = (ce.offsetLeft + tx) + 'px'; tg.style.top = (ce.offsetTop + (up ? Math.max(2, y - 30) : Math.min(H - 24, y + 10))) + 'px';
+}
+window.lockPaintReq = lockPaintReq;
 function obvPxMapUpdate(){
   try{
     const RAW = window.__obvRaw;
@@ -5839,6 +5878,7 @@ function __mbFlush(){ const q = __mbQ; __mbQ = null; if (!q) return; cancelAnima
   q.ops.forEach((op, i) => { const [sr, fn, d] = op; if (fn === 'setData' && lastOp.get(sr) !== i) return; try{ sr[fn](d); }catch(e){} });
   try{ obvPxMapUpdate(); }catch(e){} try{ window.alignScales && alignScales(); }catch(e){} try{ window.pxAxisRedraw && pxAxisRedraw(); }catch(e){} }
 function drawBars(bars, code, srcLabel, keepView){
+  try{ lockPaintReq(); }catch(e){}
   try{ const z = bars && bars.length ? bars[bars.length - 1] : null; bugAdd('draw', [code || '', bars ? bars.length : 0, z ? hmKey(z.time) : '', srcLabel || '', keepView ? 1 : 0]); }catch(e){}
   __mbFlush();
   const ss = [typeof obvSeries !== 'undefined' && obvSeries, typeof obvMaLine !== 'undefined' && obvMaLine, typeof obvMa30Line !== 'undefined' && obvMa30Line, typeof obvMa16Line !== 'undefined' && obvMa16Line,
