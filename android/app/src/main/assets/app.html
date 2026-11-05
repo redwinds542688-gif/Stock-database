@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-06 03:13(實際時間)說明視窗也拿掉右上「✕」,用手機返回鍵離開(點視窗外面也可以)
   · 2026-11-06 03:12(實際時間)鑰匙視窗拿掉右上「✕」,用手機返回鍵離開(點視窗外面也可以);沒存的字丟掉、鑰匙不變(使用者「按「✕」離開 這取消 手機返回即離開」)
   · 2026-11-06 03:06(實際時間)鑰匙視窗:輸入格有打字時「掃描」鍵變綠色「存檔」,按了就存;清空又變回「掃描」(使用者「當輸入key裡有打上字時 “掃描”就變成“存檔”」)
   · 2026-11-06 03:03(實際時間)鑰匙視窗拿掉「存」「清除」兩個鍵:掃描完直接存;手動輸入按鍵盤完成(Enter)存;目前鑰匙只露最後 4 碼(使用者「存 與 清除 都不需要 掃描完直接存檔」)
@@ -278,7 +279,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611060312">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611060313">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2979,7 +2980,7 @@ function helpShow(){
   w.innerHTML = `<div class="fmbg"></div><div class="fmp0">${html}</div>`;
   document.body.appendChild(w);
   const close = () => { try{ w.remove(); }catch(e){} };
-  w.querySelector('.fmx').addEventListener('click', close); w.querySelector('.fmbg').addEventListener('click', close);
+  w.querySelector('.fmx').style.display = 'none'; w.querySelector('.fmbg').addEventListener('click', close);   // 2026-11-06 03:12 使用者「說明 按「✕」離開 這取消 手機返回即離開」
 }
 window.helpShow = helpShow;
 /* 2026-10-29 18:19(實際時間)判一二三搬到私人庫 Stock-logic(使用者:「只要判別式改成私人」):這份公開的 app.html 只留空殼,
