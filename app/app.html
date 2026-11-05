@@ -274,7 +274,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611060227">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611060245">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -843,6 +843,8 @@
     <div class="rsm" data-rs="三">判三<i class="lamp"></i></div>
     <div class="rsm" data-rs="四">判四<i class="lamp"></i></div>
     <div class="rsm" data-rs="五">判五<i class="lamp"></i></div>   <!-- 2026-11-05 判五(使用者「先加 在公式 增加判五」) -->   <!-- (判別式相關說明已移到私人庫) -->
+    <div class="rsm stub" data-rs="六">判六<i class="lamp"></i></div>   <!-- 2026-11-06 02:39 使用者「先加 盤中關閉 之後研究好再開」:判六(判三鏡像做多)研究中,只有按鍵、燈不亮、不監控不下單 -->
+    <div class="rsm stub" data-rs="七">判七<i class="lamp"></i></div>   <!-- 2026-11-06 判七(量縮轉折 ①②③ + 4 特徵;原研究編號判八)研究中,同上 -->
     <div class="rsm key" data-rs="key">鑰匙<i class="lamp"></i></div>   <!-- 2026-10-29 14:45(實際時間)鑰匙:綠燈 = 這支手機已有鑰匙;點 = 輸入 / 清除 -->
     <div class="rsm help" data-rs="help">說明<i class="lamp" style="visibility:hidden"></i></div>   <!-- 2026-10-30 03:25(實際時間)使用者:「增加一鍵 “說明” 然後把本程式選擇當沖股票的邏輯說明 最下面顯示版本號」 -->
   </div>
@@ -2056,7 +2058,8 @@ window.fitBands = fitBands;
     let run = false; try{ run = !!(window.Android && Android.monitorRunning && Android.monitorRunning()); }catch(e){}
     menu.querySelectorAll('.rsm').forEach(x => { const k = x.dataset.rs, on = rsOn(k);
       if (k === 'key'){ x.classList.toggle('g', !!appKey.get()); x.classList.remove('r'); x.classList.remove('off'); x.classList.remove('sel'); return; }   // 2026-10-29 鑰匙列:有鑰匙綠燈
-      if (k === 'help'){ x.classList.remove('g'); x.classList.remove('r'); x.classList.remove('off'); x.classList.remove('sel'); return; }   // 2026-10-30 說明列沒有燈
+      if (k === 'help'){ x.classList.remove('g'); x.classList.remove('r'); x.classList.remove('off'); x.classList.remove('sel'); return; }
+      if (x.classList.contains('stub')){ x.classList.remove('g'); x.classList.remove('r'); x.classList.add('off'); x.classList.toggle('sel', window.NL_VIEW === 'msg' && window.LOG_RS === x.textContent.trim()); return; }   // 2026-11-06 判六 / 判七 研究中:燈不亮(不在 BG_RS,不監控、不下單)   // 2026-10-30 說明列沒有燈
       // 2026-10-29 23:12 使用者「免費的使用者 判一二三都不會亮燈 但在一個月的使用期間 還是可以看到 主機發送過來的模擬交易訊息 當沖 明細」:試用鑰匙 → 判一二三的燈不亮(訊息 / 當沖 / 明細照常顯示)
       // 23:41 使用者「改」:沒鑰匙的(免費)也不亮 → 看盤版只有付費(viewer)/ owner 鑰匙才亮;自己的 App(不是看盤版)照舊
       const trial = !!window.VIEWER && !(window.KEYME && (KEYME.role === 'viewer' || KEYME.role === 'owner'));
@@ -2081,6 +2084,7 @@ window.fitBands = fitBands;
     const k = b.dataset.rs, lb = b.textContent.trim();
     if (k === 'key'){ b.addEventListener('click', ev => { ev.preventDefault(); closeMenu(); keyShow(''); }); return; }   // 2026-10-29 鑰匙列:點 = 鑰匙視窗(沒有長按)
     if (k === 'help'){ b.addEventListener('click', ev => { ev.preventDefault(); closeMenu(); helpShow(); }); return; }   // 2026-10-30 說明列:點 = 選股邏輯說明
+    if (b.classList.contains('stub')){ b.addEventListener('click', ev => { ev.preventDefault(); closeMenu(); setStatus(lb + ' 研究中,尚未開放(盤中關閉、不監控、不下單)'); }); return; }   // 2026-11-06 判六 / 判七 只有按鍵
     const act = () => setView('msg', lb);   // 單擊 / 雙擊 = 通知欄只列這份,公式鍵亮燈,視窗收起;回全部按「訊息」
     const st = () => { rsLong = false; rsMoved = false; clearTimeout(rsHold); rsHold = setTimeout(() => {
       rsLong = true; try{ navigator.vibrate && navigator.vibrate(30); }catch(e){}
