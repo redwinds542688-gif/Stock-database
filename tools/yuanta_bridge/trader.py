@@ -45,7 +45,7 @@ RE_CODE = re.compile(r"\b(\d{4,6})\b")
 RE_TPSL = re.compile(r"停利\s*([\d,]+(?:\.\d+)?)\s*停損\s*([\d,]+(?:\.\d+)?)")
 RE_PX_END = re.compile(r"([\d,]+(?:\.\d+)?)\s*$")      # 標題最後的進場價
 RE_BAR = re.compile(r"^\s*(\d{1,2}:\d{2})")            # 2026-10-29 稽核 #3:通知內容開頭的 K 棒時間(例如「09:05 多✓ · …」)
-RE_JUDGE = re.compile(r"判[一二三四]")
+RE_JUDGE = re.compile(r"判[一二三四五]")   # 2026-11-05 加判五
 EXIT_KINDS = ("loss", "profit", "exit")
 
 
@@ -119,8 +119,9 @@ class Trader:
         self.max_amount = float(cfg.get("TRADE_MAX_AMOUNT", "5000000"))
         # 2026-10-31 14:57 使用者「490萬 改成500萬」:預設 500 萬;bridge.env 還是以前寫的 4900000 也當 500 萬(不用動桌機檔案)
         if self.max_amount == 4900000: self.max_amount = 5000000
-        self.judges = set(x.strip() for x in cfg.get("TRADE_JUDGES", "判一,判二,判三,判四").split(",") if x.strip())   # 2026-10-31 預設加判四(使用者「判四 … 真正的下單也啟動 自動平倉機制也啟動」);bridge.env 有寫 TRADE_JUDGES 的要自己加
-        if self.judges == {"判一", "判二", "判三"}: self.judges.add("判四")   # bridge.env 還是舊範本那行(判一,判二,判三)= 沒特別排除 → 一樣加判四;要排除就寫成別的(例如 判一,判二,判三,-)
+        self.judges = set(x.strip() for x in cfg.get("TRADE_JUDGES", "判一,判二,判三,判四,判五").split(",") if x.strip())   # 2026-10-31 預設加判四(使用者「判四 … 真正的下單也啟動 自動平倉機制也啟動」);bridge.env 有寫 TRADE_JUDGES 的要自己加
+        if self.judges == {"判一", "判二", "判三"}: self.judges.add("判四")
+        if self.judges == {"判一", "判二", "判三", "判四"}: self.judges.add("判五")   # 2026-11-05 使用者「完整上線」判五:bridge.env 寫的是判一~四(舊預設)= 沒特別排除 → 一樣加判五   # bridge.env 還是舊範本那行(判一,判二,判三)= 沒特別排除 → 一樣加判四;要排除就寫成別的(例如 判一,判二,判三,-)
         self.slip = int(cfg.get("TRADE_SLIP_TICKS", "2"))          # 讓價檔數(確保成交)
         self.max_dev = float(cfg.get("TRADE_MAX_DEV_PCT", "0.5"))  # 現價離訊號價超過 % 就不追
         # 2026-11-03 12:08 使用者(晶豪科 257.50 超額沒進,跌到 250 以下也沒補)「改」:超額的進場訊號先記著,現價回到一張 ≤ 多空上限、還在停利 / 停損之間、
@@ -860,7 +861,7 @@ class Trader:
         self.flat_watch[c] = {"mkt": p["mkt"], "dir": p["dir"], "typ": p["typ"], "until": time.time() + 120}
         self.positions.pop(c, None)
         # 2026-10-28 強三的出場、任何部位的強平 → 寫一則平倉訊息到手機訊息欄(判一 / 二 / 三自己的平倉訊息照舊由手機發)
-        if (p.get("forced") or p.get("forced_close")) and p.get("judge") in ("判一", "判二", "判三", "判四", FORCED, MANUAL) and p["closed_lots"]:   # 2026-11-02 判四強平也要寫訊息(使用者「強制平倉 訊息欄要顯示」;欣銓 3264 判四強平沒出現)
+        if (p.get("forced") or p.get("forced_close")) and p.get("judge") in ("判一", "判二", "判三", "判四", "判五", FORCED, MANUAL) and p["closed_lots"]:   # 2026-11-02 判四強平也要寫訊息(使用者「強制平倉 訊息欄要顯示」;欣銓 3264 判四強平沒出現)
             ex = p["closed_cost"] / p["closed_lots"]; d = p["dir"]
             pl = (ex - p["entry"]) / p["entry"] * 100 * d if p["entry"] else 0
             why = "強平" if p.get("forced_close") else (p.get("exit_why") or "出")

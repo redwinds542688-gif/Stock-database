@@ -39,8 +39,10 @@ now_tw = lambda: dt.datetime.now(TW)
 RAW = "https://raw.githubusercontent.com/redwinds542688-gif/Stock-database/main/"
 DATA = Path(os.environ.get("ENGINE_DIR", HERE / "engine_data"))
 SIMD = DATA / "sim"
-RS_ALL = ["一", "二", "三", "四"]   # 2026-10-31 使用者「現在把新轉折 直接改名為 判四 加在公式 裡面 燈號啟動 真正的下單也啟動 自動平倉機制也啟動」:判四 = 新轉折做空(模擬器 MODE=turn4)
-JUDGE = {"一": "判一", "二": "判二", "三": "判三", "四": "判四"}
+RS_ALL = ["一", "二", "三", "四", "五"]   # 2026-11-05 加判五(使用者「先加 在公式 增加判五」→「完整上線」;模擬器 MODE=fail5)
+_RS_ALL_OLD = ["一", "二", "三", "四"]   # 2026-10-31 使用者「現在把新轉折 直接改名為 判四 加在公式 裡面 燈號啟動 真正的下單也啟動 自動平倉機制也啟動」:判四 = 新轉折做空(模擬器 MODE=turn4)
+JUDGE = {"一": "判一", "二": "判二", "三": "判三", "四": "判四", "五": "判五"}
+J5MAX = 5   # 2026-11-05 判五一天最多 5 筆(全部股票合計、照出現先後;超額的不算);實際用私人庫 rs_env.J5MAX
 T4MAX = 10   # 判四一天最多幾筆的預設;實際用私人庫 rs_env.py 的 T4MAX(全部股票合計、照出現先後;超額的不算)
 RS_OF = {v: k for k, v in JUDGE.items()}
 TAKE = 2.5
@@ -302,6 +304,9 @@ def write_breadth(day):
     f = DATA / "breadth.json"
     try:
         j = http(worker_url(f"breadth={day}"), timeout=30); br = j.get("br") or {}
+        av = j.get("av") or {}
+        if av: write_atomic(DATA / "mktavg.json", json.dumps({day: av}))   # 2026-11-05 判五:名單平均(Worker ?breadth 的 av)
+        elif not (DATA / "mktavg.json").exists(): write_atomic(DATA / "mktavg.json", "{}")
         if br:
             write_atomic(f, json.dumps({day: br})); return True, len(br), max(br)
         if not f.exists(): write_atomic(f, "{}")
@@ -336,7 +341,8 @@ def _sim_one(args):
 
 RE_ENTRY = re.compile(r"^\s*(\d\d:\d\d) (強)?(多|空)(✓)?[✓✕]* 價 ([\d.]+) .*→ 進場 ([\d.]+) ×(\d+)張")
 RE_FB = re.compile(r"^\s*(\d\d:\d\d) 假突破跌破 Ka.*→ 進場空 ([\d.]+) ×(\d+)張,停損 ([\d.]+)")
-RE_T4 = re.compile(r"^\s*(\d\d:\d\d) 判四 .*→ 進場空 ([\d.]+) ×(\d+)張,停損 ([\d.]+)")   # 2026-10-31 判四(新轉折做空)進場,停損價由模擬器算好
+RE_T4 = re.compile(r"^\s*(\d\d:\d\d) 判四 .*→ 進場空 ([\d.]+) ×(\d+)張,停損 ([\d.]+)")
+RE_T5 = re.compile(r"^\s*(\d\d:\d\d) 判五 .*→ 進場空 ([\d.]+) ×(\d+)張,停損 ([\d.]+)")   # 2026-11-05 判五(衝高失敗、回頭跌破做空)進場   # 2026-10-31 判四(新轉折做空)進場,停損價由模擬器算好
 RE_EXIT = re.compile(r"^\s*(\d\d:\d\d) (.+?) 出 ([\d.]+)\s*$")
 RE_REV = re.compile(r"^\s*(\d\d:\d\d) .*→ (反向確認點|逆勢單遇反向點) 平倉 ([\d.]+)")
 # 2026-11-04 22:40 漏洞修正(使用者「找 判一二三四 漏洞」):判二 11/04 起晚 2 根進場(ENTRYDELAY=2),模擬器的訊號那行改成「→ 2 分鐘後進場(模擬通知延遲)」、
@@ -361,7 +367,7 @@ def parse_events(out):
         m = RE_FB.match(line)
         if m:
             ev.append((m.group(1), "entry", {"side": -1, "strong": False, "sig": float(m.group(2)), "px": float(m.group(2)), "lots": int(m.group(3)), "text": "空✓破", "sl": float(m.group(4))})); continue
-        m = RE_T4.match(line)
+        m = RE_T4.match(line) or RE_T5.match(line)
         if m:
             ev.append((m.group(1), "entry", {"side": -1, "strong": False, "sig": float(m.group(2)), "px": float(m.group(2)), "lots": int(m.group(3)), "text": "空", "sl": float(m.group(4))})); continue
         m = RE_REV.match(line)
@@ -517,6 +523,7 @@ class Engine:
         self.cloud_in = {}    # (rs, code, tm) → item:雲端今天的進場通知(手機 / 上一個 engine 發的)
         self.cloud_out = set()  # (rs, code, tm):雲端已經有平倉通知的部位
         self.fclosed = set()    # 2026-11-02 今天手機強平過的股票(雲端有「· 強平 ·」的平倉):這檔不再發任何判一~四的進場 / 平倉通知
+        self.j5 = set()       # 2026-11-05 判五今天已進場的股票:一天最多 J5MAX 檔
         self.j4 = set()       # 2026-10-31 判四今天已進場(推了、或雲端已有,超額的不算)的股票:一天最多 T4MAX 檔
         self.sent = []; self.px = {}; self.last_hm = {}; self.held_note = set()   # px / last_hm:每檔最新價、今天 K 到哪一分鐘(判定「訊號消失」前要確認這檔的 K 有到)
         self.state_f = DATA / f"engine_state_{day}.json" if state else None
@@ -525,7 +532,7 @@ class Engine:
                 j = json.loads(self.state_f.read_text(encoding="utf-8"))
                 self.pos = {tuple(k.split("|")): v for k, v in j.get("pos", {}).items()}
                 self.emitted = set(tuple(x) for x in j.get("emitted", []))
-                self.j4 = set(j.get("j4", []))
+                self.j4 = set(j.get("j4", [])); self.j5 = set(j.get("j5", []))
                 self.emitted |= {(x[0], x[1], x[2]) for x in j.get("seen", []) if len(x) == 4 and x[3] == "entry"}   # 舊版狀態檔
                 if self.pos or self.emitted: log(f"接回狀態:開著 {len(self.pos)} 筆、處理過的進場 {len(self.emitted)} 個")
             except FileNotFoundError: pass
@@ -549,12 +556,14 @@ class Engine:
         if "rs_env" in sys.modules: rs_env = importlib.reload(sys.modules["rs_env"])
         else: rs_env = importlib.import_module("rs_env")
         self.envs = {}
-        for rs in RS_ALL: self.envs[rs] = rs_env.env_of(rs, str(DATA / "breadth.json") if rs in ("一", "二") else None)
+        for rs in RS_ALL: self.envs[rs] = rs_env.env_of(rs, str(DATA / "breadth.json") if rs in ("一", "二", "五") else None)   # 判五:名單平均檔 DATA/mktavg.json(write_breadth 寫)
+        if self.envs.get("五", {}).get("MODE") != "fail5":   # 私人庫的 rs_env.py 還是舊版(沒有 J5)→ 判五先不跑(不然會拿判二的參數亂算)
+            self.envs.pop("五", None); log("!! 私人庫 rs_env.py 還沒有判五(J5),判五今天先不跑")
         self.envs["二"]["BRMISSING"] = "block"   # 2026-10-29 稽核 #1:今天沒有寬度資料 → 判二不進(sim_day.py 已支援)
 
     def save(self):
         if not self.state_f: return
-        try: write_atomic(self.state_f, json.dumps({"emitted": sorted(self.emitted), "j4": sorted(self.j4), "pos": {"|".join(k): v for k, v in self.pos.items()}, "ver": RULES["ver"]}, ensure_ascii=False))
+        try: write_atomic(self.state_f, json.dumps({"emitted": sorted(self.emitted), "j4": sorted(self.j4), "j5": sorted(self.j5), "pos": {"|".join(k): v for k, v in self.pos.items()}, "ver": RULES["ver"]}, ensure_ascii=False))
         except Exception as e: log("!! 狀態檔寫不進去", e)
 
     def push(self, it):
@@ -593,12 +602,13 @@ class Engine:
             if re.search(r"·\s*強平\s*·", it.get("body", "")):   # 2026-11-02 10:23 使用者「這檔已經平倉者 就不用再通知顯示停利或其他了」
                 mf = re.search(r"\b(\d{4,6})\b", it.get("title", ""))
                 if mf and mf.group(1) not in self.fclosed: self.fclosed.add(mf.group(1)); log(f"{mf.group(1)} 手機強平過 → 今天這檔不再發通知")
-            mj = re.search(r"判[一二三四]", it.get("body", "")); rs = RS_OF.get(mj.group(0)) if mj else None
+            mj = re.search(r"判[一二三四五]", it.get("body", "")); rs = RS_OF.get(mj.group(0)) if mj else None
             if not rs: continue
             if it.get("kind") in ("long", "short"):
                 mc = re.search(r"\b(\d{4,6})\b", it.get("title", "")); mt = re.match(r"\s*(\d\d:\d\d)", it.get("body", ""))
                 if mc and mt: self.cloud_in[(rs, mc.group(1), mt.group(1))] = it
-                if mc and rs == "四" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j4.add(mc.group(1))   # 2026-10-31 手機 / 上一個 engine 發過的判四也算進一天上限
+                if mc and rs == "四" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j4.add(mc.group(1))
+                if mc and rs == "五" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j5.add(mc.group(1))   # 2026-10-31 手機 / 上一個 engine 發過的判四也算進一天上限
             elif it.get("pos"):
                 p = str(it["pos"]).split("|")
                 if len(p) == 3 and p[0] in RS_OF: self.cloud_out.add((RS_OF[p[0]], p[1], p[2]))
@@ -625,7 +635,7 @@ class Engine:
     def push_entry(self, rs, code, tm, d, at):
         nm = self.names.get(code, code); j = JUDGE[rs]
         side = "做多" if d["side"] > 0 else "做空"; px = d["px"]
-        tp = px * (1 + (float(self.envs[rs].get("T4TAKE", "9")) if rs == "四" else _f(self.envs[rs].get("TAKE"), TAKE)) / 100 * d["side"])   # 2026-10-31 22:48 停利 % 改讀私人庫參數(判三改 3%;原本寫死 2.5)   # 2026-10-31 判四不停利(9% 才停,通知要有停利價中繼才收)
+        tp = px * (1 + (float(self.envs[rs].get("T4TAKE", "9")) if rs == "四" else float(self.envs[rs].get("T5TAKE", "3")) if rs == "五" else _f(self.envs[rs].get("TAKE"), TAKE)) / 100 * d["side"])   # 2026-10-31 22:48 停利 % 改讀私人庫參數(判三改 3%;原本寫死 2.5)   # 2026-10-31 判四不停利(9% 才停,通知要有停利價中繼才收)
         sl = d.get("sl") or (px * (1 - (float(self.envs[rs].get("STOPCAP", self.envs[rs].get("STOP", "4.5"))) / 100) * d["side"]))   # 判一 pts 停損價模擬器沒印,用上限 3% 當外圍(真正的停損由平倉通知來)
         qty = max(1, int(self.cap // (px * 1000)))
         # 2026-10-30 01:55 使用者「超過限額的股票 也要出現在訊息通知欄裡 只是註記“超額”不交易 給強制進場提供一個發揮的平台」:一張就超過多空上限 → 照推、張數改寫「超額」(中繼看到不自動進場)
@@ -638,6 +648,7 @@ class Engine:
         if self.push(it):
             self.pos[(rs, code)] = {"side": d["side"], "t": tm, "px": px, "lots": qty, "text": d["text"], "over": over}
             if rs == "四" and not over: self.j4.add(code)
+            if rs == "五" and not over: self.j5.add(code)
             return True
         return False
 
@@ -645,6 +656,7 @@ class Engine:
         """only = {(判別式, 代碼)}:只算這些(2026-10-30 預判收盤確認用)"""
         jobs = []
         for rs in RS_ALL:
+            if rs not in self.envs: continue   # 2026-11-05 判五規則還沒到
             for c in self.codes:
                 if only is not None and (rs, c) not in only: continue
                 env = dict(self.envs[rs])
@@ -705,6 +717,8 @@ class Engine:
             elif rs in rs_block: why = rs_block[rs]
             elif rs == "四" and code not in self.j4 and len(self.j4) >= int(_f(self.envs.get("四", {}).get("T4MAX"), T4MAX)):   # 2026-10-31 判四一天最多 T4MAX 檔(到了就不再發,記 emitted)
                 self.emitted.add(ek); log(f"判四 {code} {open_tm} 今天判四已 {len(self.j4)} 檔(到上限)→ 不發"); continue
+            elif rs == "五" and code not in self.j5 and len(self.j5) >= int(getattr(rs_env, "J5MAX", J5MAX)):   # 2026-11-05 判五一天最多 5 筆
+                self.emitted.add(ek); log(f"判五 {code} {open_tm} 今天判五已 {len(self.j5)} 檔(到上限)→ 不發"); continue
             else: why = None
             if why:
                 log(f"{JUDGE[rs]} {code} {open_tm} 進場先不發:{why}"); continue   # 不記 emitted:10 分鐘內恢復就照發

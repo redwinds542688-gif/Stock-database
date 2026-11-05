@@ -308,7 +308,7 @@ async function poolPrev(d) {
   return pp;
 }
 function feedBreadth(st, keys, vals, pp) {
-  const last = st.bl, br = st.br;
+  const last = st.bl, br = st.br, av = st.av || (st.av = {});   // 2026-11-05 判五:av = 名單上每檔對昨收漲跌 % 的平均(同一批股票、同一個標籤)
   keys.forEach((k, j) => {
     if (!k.startsWith("bar:") || !vals[j]) return; let s; try { s = JSON.parse(vals[j]); } catch (e) { return; }
     for (const c in s) {
@@ -319,19 +319,21 @@ function feedBreadth(st, keys, vals, pp) {
     let u = 0, dn = 0;
     for (const c in last) { const [z, , y] = last[c]; if (!(y > 0)) continue; if (z > y) u++; else if (z < y) dn++; }
     if (u + dn) br[brLbl(k.slice(-5))] = Math.round(u / (u + dn) * 1000) / 1000;
+    let sp = 0, np = 0; for (const c in last) { const [z, , y] = last[c]; if (y > 0 && z > 0){ sp += (z / y - 1) * 100; np++; } }
+    if (np) av[brLbl(k.slice(-5))] = Math.round(sp / np * 1000) / 1000;
   });
 }
 /** 整天的查詢(雲端 K、大盤寬度共用):收完的分鐘(現在往前 2 分鐘以前,子快照 :56 也寫好了)拼好的狀態存邊緣快取 + 每 5 分鐘一份 KV,下次只讀之後的鍵 */
 async function dayStateFull(env, ctx, origin, d) {
   const today = d === ymdOf(twNow());
   const safe = today ? m2hm(Math.min(hm2m(hhmmOf(twNow())) - 2, 13 * 60 + 35)) : "13:35";
-  const sk = new Request(`${origin}/__barsst?d=${d}&v=2`), cache = caches.default, kk = `bst2:${d}`;
-  const ok = x => x && x.prev && x.bl && x.br;
+  const sk = new Request(`${origin}/__barsst?d=${d}&v=3`), cache = caches.default, kk = `bst3:${d}`;   // 2026-11-05 v=3 / bst3:多存 av
+  const ok = x => x && x.prev && x.bl && x.br && x.av;   // 2026-11-05 加 av(判五名單平均),舊版存檔沒有 av 的重算
   let st = null;
   try { const h = await cache.match(sk); if (h) st = await h.json(); } catch (e) { st = null; }
   // 2026-10-22 19:33 使用者「改」(每天第一次進 K 圖還要 6 秒):邊緣快取沒有(每天第一次、換機房)→ 讀 KV 存的那份(每 5 分鐘存一次),只補之後的幾分鐘
   if (!ok(st)) { try { const v = d >= SNAP_SINCE && env.HUB ? await hubOf(env).kvGet("m:" + kk) : await env.LOGS.get(kk); st = v ? JSON.parse(v) : null; } catch (e) { st = null; } }
-  if (!ok(st)) st = { ...barsState(), bl: {}, br: {} };
+  if (!ok(st)) st = { ...barsState(), bl: {}, br: {}, av: {} };
   const from = st.upto ? addM(st.upto, 1) : "09:00";
   const all = sortKeys([...minuteKeys(d, "bar", from), ...minuteKeys(d, "bas", from)]);
   if (!all.length) return st;
@@ -360,7 +362,7 @@ async function dayBarsFull(env, ctx, origin, d, codes) {
 }
 async function dayBreadthFull(env, ctx, origin, d) {
   const st = await dayStateFull(env, ctx, origin, d);
-  return { d, n: Object.keys(st.bl).length, br: st.br };
+  return { d, n: Object.keys(st.bl).length, br: st.br, av: st.av || {} };
 }
 
 /* 2026-10-21 使用者「改 判二 大盤偏多只做黑盤空」:大盤寬度 = 名單上每檔最新價 > 昨收的比例(上漲 /(上漲 + 下跌),平盤不算),每分鐘一個值。
@@ -376,7 +378,7 @@ async function dayBreadth(env, d, since) {
     for (const s of pool) { const y = (s.date || j.date) === d ? +s.prev : (s.date || j.date) < d ? +s.close : NaN; if (y > 0) pp[String(s.code)] = y; }
   } catch (e) {}
   const lbl = hm => { if (hm <= "09:00") return "09:00"; const m = +hm.slice(0, 2) * 60 + +hm.slice(3, 5) - 1; return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
-  const last = {}, br = {};
+  const last = {}, br = {}, av = {};
   {
     const part = keys, vals = await kvGetMany(env, keys);
     part.forEach((k, j) => {
@@ -389,10 +391,12 @@ async function dayBreadth(env, d, since) {
       let u = 0, dn = 0;
       for (const c in last) { const [z, , y] = last[c]; if (!(y > 0)) continue; if (z > y) u++; else if (z < y) dn++; }
       if (u + dn) br[lbl(k.slice(-5))] = Math.round(u / (u + dn) * 1000) / 1000;
+      let sp = 0, np = 0; for (const c in last) { const [z, , y] = last[c]; if (y > 0 && z > 0){ sp += (z / y - 1) * 100; np++; } }
+      if (np) av[lbl(k.slice(-5))] = Math.round(sp / np * 1000) / 1000;
     });
   }
-  if (since) for (const k of Object.keys(br)) if (k < since) delete br[k];
-  return { d, n: Object.keys(last).length, br };
+  if (since) for (const m of [br, av]) for (const k of Object.keys(m)) if (k < since) delete m[k];
+  return { d, n: Object.keys(last).length, br, av };
 }
 
 const CORS = {
