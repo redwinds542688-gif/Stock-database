@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-06 06:00(實際時間)通知欄(進場 / 明細)上下滑動更順:捲動時找「最上面是哪天」改成只量日期分隔列,不再每格畫面掃全部卡片
   · 2026-11-06 05:53(實際時間)進場日期滾輪 / 從明細聯動跳到某天:那天第一則卡片貼齊標題列下面,不再先露出日期分隔列(使用者截圖圖一)
   · 2026-11-06 05:45(實際時間)進場和明細日期聯動:進場轉到哪天,切到明細就是那天;明細轉到哪天,切回進場就是那天(使用者「明細與進場日期聯動」)
   · 2026-11-06 05:40(實際時間)明細:前幾天每天最下面的「N 筆 總輸贏」列拿掉(標題列右邊已顯示捲到那天的總輸贏)
@@ -282,7 +283,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611060553">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611060600">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1803,6 +1804,13 @@ function dwGo(box, day){ try{ box.__dwDay = day; if (day === window.__doneToday)
 function dwWire(box){ const w = box.querySelector('.hd .dwh'); if (!w) return; dwSet(box, box.__dwDay || window.__doneToday);
   const touch = () => { box.__dwT = Date.now(); }; w.addEventListener('touchstart', touch, {passive: true}); w.addEventListener('touchmove', touch, {passive: true}); w.addEventListener('wheel', touch, {passive: true});
   w.addEventListener('scroll', () => { if (Date.now() - (w.__set || 0) < 150) return; box.__dwT = Date.now(); clearTimeout(w.__end); w.__end = setTimeout(() => { const it = [...w.children], hh = it[0] ? it[0].offsetHeight : 1, i = Math.min(it.length - 1, Math.max(0, Math.round(w.scrollTop / hh))); if (it[i]) dwGo(box, it[i].dataset.day); }, 140); }, {passive: true}); }
+/* 2026-11-06 05:56 使用者「通知欄裡進場跟明細 上下滑動要順暢」:捲動時每一格畫面原本把 444 張卡片全部 querySelectorAll + 一張張量位置找「最上面是哪天」
+   (CPU 慢 6 倍時捲動有 35 格超過 33ms)→ 日期分隔列清單先存起來(內容換了才重抓),每格只量十幾條日期列:最後一條頂端已到標題列下緣的就是那天,都還沒到 = 最上面那則的日子 */
+function nlTopDay(box, hb, dsSel, firstSel){ try{
+  if (box.__tdFc !== box.firstChild || box.__tdSel !== dsSel || box.__tdSh !== box.scrollHeight || box.__tdN !== box.childElementCount){
+    box.__tdFc = box.firstChild; box.__tdSel = dsSel; box.__tdSh = box.scrollHeight; box.__tdN = box.childElementCount;
+    box.__tdDs = [...box.querySelectorAll(dsSel)]; const f = box.querySelector(firstSel); box.__tdF = f ? f.dataset.day : null; }
+  let day = box.__tdF; for (const d of box.__tdDs){ if (d.getBoundingClientRect().top <= hb + 2) day = d.dataset.day; else break; } return day; }catch(e){ return null; } }
 function listBusy(){ return window.__ls.on || Date.now() - window.__ls.t < 500; }
 const LIST_WAIT = {};
 function listLater(key, fn){ if (!listBusy()) return false;
@@ -7282,7 +7290,7 @@ window.bgTick = bgTick; window.BG = BG;
         if (!box.__doneScroll){ box.__doneScroll = true;
           box.addEventListener('scroll', () => { if (box.__dsR) return; box.__dsR = requestAnimationFrame(() => { box.__dsR = 0; try{ if (window.NL_VIEW !== 'done') return;   // 2026-11-02 23:40 捲動中一格畫面只算一次
             const h = box.querySelector('.tb.done > .r.h') || box.querySelector('.hd'); if (!h) return; const hb = h.getBoundingClientRect().bottom;
-            let day = window.__doneToday; for (const x of box.querySelectorAll('.tb.done > [data-day]')){ if (x.getBoundingClientRect().bottom > hb + 2){ day = x.dataset.day; break; } }
+            let day = nlTopDay(box, hb, '.tb.done > .dsep[data-day]', '.tb.done > [data-day]') || window.__doneToday; if (day === box.__dDay && box.__dDayFc === box.firstChild && box.__dDayTot === window.__doneTot) return; box.__dDay = day; box.__dDayFc = box.firstChild; box.__dDayTot = window.__doneTot;   /* 2026-11-06 同一天就不再改標題 / 滾輪(捲動中每格畫面省掉 5 次查找) */
             const v = Math.round((window.__doneTot || {})[day] || 0), c = box.querySelector('.hd .cash'), lb = box.querySelector('.hd .nav > span');
             if (c) __wH(c, `<span class="dnet ${v > 0 ? 'up' : v < 0 ? 'dn' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}</span>`);
             if (lb) __wT(lb, '明細'); const sr = box.querySelector('.hd .dsrc'); if (sr) __wT(sr, window.__doneVirtOk || (window.__doneY || {})[day] ? '' : (window.VIEWER ? '' : ' 系統')); { const yt = box.querySelector('.hd .ytag'); if (yt) yt.style.display = !window.__doneVirtOk && (window.__doneY || {})[day] ? '' : 'none'; } box.__dwDay = day; if (!box.__jsD) window.__linkDay = day; dwSet(box, day); }catch(e){} }); }, {passive: true}); }   // 2026-10-28 00:30 標題一律寫日期(明細 10/28)
@@ -7363,9 +7371,8 @@ window.bgTick = bgTick; window.BG = BG;
     if (!box.__dayScroll){ box.__dayScroll = true;
       box.addEventListener('scroll', () => { if (box.__msR) return; box.__msR = requestAnimationFrame(() => { box.__msR = 0; try{ if (window.NL_VIEW && window.NL_VIEW !== 'msg') return;   // 2026-11-02 23:40 捲動中一格畫面只算一次
         const h = box.querySelector('.hd'); const hb = h ? h.getBoundingClientRect().bottom : box.getBoundingClientRect().top;
-        let top = null; for (const c of box.querySelectorAll('.card[data-day], .dsep[data-day]')){   // 2026-10-27 14:40 日期列也算(開盤前最上面 10/28 那列 → 標題 10/28)
-        if (c.getBoundingClientRect().bottom > hb + 2){ top = c.dataset.day; break; } }
-        if (top && top !== window.NL_TOPDAY){ window.NL_TOPDAY = top; const dt = box.querySelector('.hd .dt'); if (dt) dt.textContent = top.slice(5).replace('-', '/'); } if (top) mwSet(box, top); if (top && !window.NL_GOTO) window.__linkDay = top;   // 2026-11-06 日期聯動:記住進場正在看的那天
+        let top = nlTopDay(box, hb, '.dsep[data-day]', '.card[data-day], .dsep[data-day]');   // 2026-10-27 14:40 日期列也算(開盤前最上面 10/28 那列 → 標題 10/28);2026-11-06 改只量日期列(見 nlTopDay)
+        if (top && top !== window.NL_TOPDAY){ window.NL_TOPDAY = top; const dt = box.querySelector('.hd .dt'); if (dt) dt.textContent = top.slice(5).replace('-', '/'); } if (top && (top !== box.__mwDay || box.__mwFc !== box.firstChild)){ box.__mwDay = top; box.__mwFc = box.firstChild; mwSet(box, top); } if (top && !window.NL_GOTO) window.__linkDay = top;   // 2026-11-06 日期聯動:記住進場正在看的那天
         if (top){ const L = window.NL_DAYS || [], k = L.indexOf(top), pv = el('nlPrev'), nx = el('nlNext'); if (pv) pv.disabled = k >= L.length - 1; if (nx) nx.disabled = k <= 0; } }catch(e){} }); }, {passive: true}); }
     if (cur){ window.NL_GOTO = cur; cur = null; }   // 等下面 fitAll 把列高定好再捲(不然高度一變位置就跑掉)
     }
