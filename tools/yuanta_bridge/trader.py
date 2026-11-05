@@ -158,6 +158,10 @@ class Trader:
         self.recheck_times = [x.strip() for x in cfg.get("TRADE_RECHECK", "13:22,13:23,13:24").split(",") if x.strip()]
         self.recheck_at = self.recheck_times[0] if self.recheck_times else "13:23"
         self.recheck_close = cfg.get("TRADE_RECHECK_CLOSE", "all")
+        # 2026-11-05 13:29 使用者「程式要檢查 我是否預掛」→「改」:13:20 時手動預掛的平倉單(方向對、張數剛好等於未沖銷張數)保留,程式不另外平;
+        #   到 TRADE_PREHANG_DEADLINE(13:24)還沒成交 → 取消那張、程式照舊漲停 / 跌停平倉。0 = 關(照舊 13:20 全部取消)
+        self.prehang_deadline = cfg.get("TRADE_PREHANG_DEADLINE", "13:24").strip()
+        self.prehang = {}   # code → 保留的手動預掛委託書號 [no, …]
         self.alert = lambda title, body="", kind="pc": None      # bridge 會換成「發提醒到手機」(kind:pc = 一般、lv1~lv5 = 虧損分級)
         self.post = lambda title, body, kind: None    # bridge 會換成「寫一則交易訊息到手機的訊息欄」(強三進出場、強平)
         self.ref_of = lambda code: None                # bridge 會換成「這檔的昨收」(±6.5% 用)
@@ -1336,8 +1340,15 @@ class Trader:
         if no:
             o["no"] = str(no).strip()
 
+    def prehang_wait(self, code):
+        """這檔有保留的手動預掛平倉單、還沒到期限 → True(程式先不平)"""
+        return bool(self.prehang.get(code)) and self.prehang_deadline not in ("", "0") and self.hm() < self.prehang_deadline
+
     def exit_pos(self, p, why, px, force_limit=False):
         if not p or p["state"] != HOLDING:
+            return
+        if self.prehang_wait(p["code"]):
+            if not p.get("_ph_log"): p["_ph_log"] = True; self.log(f"[交易] 出場 {p['code']}:{why} → 有手動預掛的平倉單,{self.prehang_deadline} 前先等它成交")
             return
         self.log(f"[交易] 出場 {p['code']}:{why}(現價 {px})")
         p["exit_why"] = why

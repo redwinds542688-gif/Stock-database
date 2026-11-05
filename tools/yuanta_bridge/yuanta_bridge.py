@@ -836,12 +836,14 @@ class Bridge:
            4. 用最新的成交回報算還沒沖銷的部位 → 漲停買回 / 跌停賣出 ROD(trader.recheck)"""
         log(f"[交易] {at} 取消全部掛單 → 再平倉")
         self.trader.prepare_close_all()
+        keep = self.prehang_pick(at)   # 2026-11-05 使用者「程式要檢查 我是否預掛」→「改」:手動預掛、剛好平掉未沖銷張數的平倉單保留(書號)
         for k in range(3):
             r = self.query_today(with_oco=False) or {"working": [], "trades": []}
             st = self.query_strategies()
-            if not r["working"] and not st:
-                log(f"[交易] {at} 確認:沒有掛著的委託和條件單"); break
-            for w in r["working"]:
+            wk = [w for w in r["working"] if w.get("no") not in keep]
+            if not wk and not st:
+                log(f"[交易] {at} 確認:沒有掛著的委託和條件單" + (f"(保留手動預掛 {len(keep)} 張委託)" if keep else "")); break
+            for w in wk:
                 log(f"[交易] {at} 取消委託 {w['code']} {w['bs']} {w['lots']} 張 書號 {w['no']}")
                 self.cancel_order(w["no"], w["code"], w["bs"], w["typ"]); time.sleep(0.15)   # 交易類一秒最多 10 次
             for x in st:
@@ -855,7 +857,44 @@ class Bridge:
             log(f"!! {at} 查不到成交回報,改用程式記的部位平倉")
             with self.trader.lock:
                 r = {"trades": [{"code": p["code"], "bs": "B" if p["dir"] > 0 else "S", "lots": p["qty"]} for p in list(self.trader.positions.values()) if p["qty"]], "working": []}
-        self.trader.recheck(r["trades"], r["working"], at)
+        self.trader.recheck(r["trades"], [w for w in r["working"] if w.get("no") in keep], at)
+
+    def prehang_pick(self, at):
+        """13:20 查元大還掛著的委託:手動下的(沒有程式的自訂編號)、方向是平倉、同一檔加起來剛好等於未沖銷張數 → 保留,回傳書號集合;
+           張數不夠 / 太多 / 期限設 0 → 不保留(照舊取消,程式全部平)"""
+        t = self.trader; t.prehang = {}
+        if t.prehang_deadline in ("", "0"): return set()
+        r = self.query_today(with_oco=False)
+        if not r: return set()
+        net = {}
+        for x in r["trades"]: net[x["code"]] = net.get(x["code"], 0) + x["lots"] * (1 if x["bs"] == "B" else -1)
+        keep = set()
+        for c, n in net.items():
+            if n == 0: continue
+            cs = "S" if n > 0 else "B"
+            man = [w for w in r["working"] if w["code"] == c and w["bs"] == cs and not str(w.get("tag") or "").strip()]
+            q = sum(w["lots"] for w in man)
+            if not man: continue
+            if q == abs(n):
+                keep |= {w["no"] for w in man}; t.prehang[c] = [w["no"] for w in man]
+                log(f"[交易] {at} {c} 有手動預掛平倉 {q} 張(未沖銷 {abs(n)} 張)→ 保留,{t.prehang_deadline} 前沒成交才由程式平")
+            else:
+                log(f"[交易] {at} {c} 手動預掛 {q} 張和未沖銷 {abs(n)} 張不一樣 → 照舊取消,程式全部平")
+        if keep: self.phone_alert(f"✅ {at} 保留手動預掛平倉 {len(t.prehang)} 檔", f"{', '.join(t.prehang)};{t.prehang_deadline} 前沒成交會改由程式平倉")
+        return keep
+
+    def prehang_expire(self, at):
+        """期限到了:保留的手動預掛還掛著 → 取消,讓複查照舊平倉"""
+        t = self.trader
+        if not t.prehang: return set()
+        nos = {n for v in t.prehang.values() for n in v}; t.prehang = {}
+        r = self.query_today(with_oco=False) or {"working": []}
+        for w in r["working"]:
+            if w.get("no") in nos:
+                log(f"[交易] {at} 手動預掛 {w['code']} {w['bs']} {w['lots']} 張到期限沒成交 → 取消,改由程式平倉")
+                self.cancel_order(w["no"], w["code"], w["bs"], w["typ"]); time.sleep(0.15)
+        time.sleep(1.5)
+        return nos
 
     def cap_sync(self):
         """2026-11-02 多空上限主控(使用者:「其他二隻跟電腦偵測到 都自動改成與5861這隻一樣的金額」):讀雲端主導機的值改 trader.cap(之後新進場的張數照它算);
@@ -882,10 +921,12 @@ class Bridge:
         if not self.trader or not self.trader.enabled:
             return
         try:
+            gone = set()
+            if self.trader.prehang and self.trader.prehang_deadline not in ("", "0") and at >= self.trader.prehang_deadline: gone = self.prehang_expire(at) or set()
             r = self.query_today(with_oco=False)
             if not r:
                 log(f"!! {at} 複查:查不到成交回報"); self.trader.alert(f"⚠ {at} 複查失敗", "查不到元大成交回報,請在投資先生確認有沒有未沖銷的股票"); return
-            self.trader.recheck(r["trades"], r["working"], at)
+            self.trader.recheck(r["trades"], [w for w in r["working"] if w.get("no") not in gone], at)   # 剛取消的手動預掛不算掛著(取消回報可能還沒到)
         except Exception as e:
             log("複查失敗", e)
 
