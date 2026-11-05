@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-06 01:15(實際時間)下排燈號改成一直顯示「最近一個交易日」的結果(使用者「開盤前15分 歸零 像六日 就一直顯示星期五的 … 星期二休市 一直顯示星期一的燈號到隔天星期三8.45才歸零」):交易日 08:45 起換成今天(從 0 開始);收盤後、晚上、六日、休市日照樣顯示最近一個交易日的 進場 / 明細(永久版用元大成交明細),當沖收盤後不亮
   · 2026-11-05 22:05(實際時間)開機追蹤(使用者「平板開機卡 7 秒 這要如何解決」):開機 60 秒內記下主要函式(判別式計算、K 線讀取、清單、通知欄…)的進入 / 離開時間,畫面卡住 8 秒自動回報時帶最後 40 筆,看得出卡在哪一段;只記錄,不改任何功能
   · 2026-11-05 21:45(實際時間)切換 進場 / 當沖 / 明細 加速(使用者「進 進場,跟明細 最慢」):① 切頁不再整張股票清單重排(只有通知內容變了才重排);② 標題列字級改二分搜尋(原本最多 60 次排版 → 約 6 次),字級結果一樣;慢 6 倍的模擬平板上切到進場 250 → 約 20 毫秒、明細 110 → 約 25 毫秒
   · 2026-11-05 20:12(實際時間)修 K 圖和下面兩張圖時間錯開 1 小時(使用者「改」,抓 bug 自動紅圈:友達 / 聯電):進圖先畫兩週的 K,1 秒後進新 K 重畫時改用 3 天版、根數突然變少,K 圖錯開 60 根 → 畫面上已經是兩週的就照樣用兩週的重畫,不縮回 3 天
@@ -268,7 +269,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611052154">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611060111">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1354,13 +1355,14 @@ const lampSeg = (k, k2, c) => `<span class="lmp ${c}">` + Array.from({length: 10
 const lampAmt = v => { const n = Math.ceil(Math.abs(Math.round(v || 0)) / 5000); return [Math.min(10, n), Math.max(0, Math.min(10, n - 10))]; };   // 5,000 一格,滿 10 格後第二圈
 // 2026-11-05 00:17 使用者「進場燈號在進場按鍵上 當沖燈號在當沖按鍵上 明細燈號在明細按鍵上」:改放下排三顆按鍵(三顆同時看得到),通知欄左上角綠框不放
 const lampBtn = (id, txt, kind, a, b) => { try{ const e = document.getElementById(id); if (!e) return; let H = '';
-    if (inSession()){ if (kind === 'cnt') H = lampSeg(Math.min(10, a | 0), 0, 'y') + `<b>${txt}</b>` + lampSeg(Math.min(10, b | 0), 0, 'b');
+    if (kind){ if (kind === 'cnt') H = lampSeg(Math.min(10, a | 0), 0, 'y') + `<b>${txt}</b>` + lampSeg(Math.min(10, b | 0), 0, 'b');
       else { const [k, k2] = lampAmt(a), w = Math.round(a || 0) > 0, l = Math.round(a || 0) < 0; H = lampSeg(w ? k : 0, w ? k2 : 0, 'r') + `<b>${txt}</b>` + lampSeg(l ? k : 0, l ? k2 : 0, 'g'); } }
     if (!H){ if (e.classList.contains('lmb')){ e.classList.remove('lmb'); e.textContent = txt; } return; }
     if (e.__lm !== H){ e.__lm = H; e.innerHTML = H; e.classList.add('lmb'); } }catch(err){} };
 // 2026-11-05 13:39 使用者「現在進場那邊 進場燈號照理說應該要等於0 為什麼還是顯示那麼多」:收盤後通知欄沒有新東西就不重畫,燈停在收盤前的樣子 →
 //   每 10 秒自己檢查一次:非開盤時間把三顆燈拿掉;開盤中重畫一次(內容沒變不動畫面),燈跟著元大部位 / 成交更新
-setInterval(() => { try{ if (document.visibilityState === 'hidden') return; if (!inSession()){ lampBtn('refreshBtn', '進場'); lampBtn('btnState', '當沖'); lampBtn('btnRules', '明細'); } else if (window.nlRender) nlRender(); }catch(e){} }, 10000);
+// 2026-11-06 01:09 使用者「開盤前15分 歸零 … 六日一直顯示星期五的」:燈不再收盤後熄掉,改成每 10 秒(盤中)/ 30 秒(盤後)重算一次,顯示「最近一個交易日」的結果
+setInterval(() => { try{ if (document.visibilityState === 'hidden') return; if (!inSession() && Date.now() - (window.__lampOffAt || 0) < 30000) return; window.__lampOffAt = Date.now(); if (window.nlRender) nlRender(); }catch(e){} }, 10000);
 const lsrtPx = s => { const r = LIVE.get(s.code); return r && r.z > 0 ? +r.z : (+s.close || 0); };
 window.LSORT = {k: '', d: 0};   // 不存,程式重開回到原本排序
 function lsrtPaint(){ try{ const S = window.LSORT; document.querySelectorAll('#result .head .lsrt').forEach(h => { const on = S.k === h.dataset.k; h.querySelector('.u').classList.toggle('on', on && S.d > 0); h.querySelector('.d').classList.toggle('on', on && S.d < 0); }); }catch(e){} }
@@ -7078,7 +7080,17 @@ window.bgTick = bgTick; window.BG = BG;
               open.push({code: r.code, name: r.name || nmOf(r.code), side: q > 0 ? 'long' : 'short', entP: q > 0 ? +r.buy : +r.sell, lots: Math.abs(q), manual: true}); } }catch(e){} }
         return {over, TP, TPL, open}; };
       // 2026-11-05 下排 進場 / 當沖 / 明細 按鍵的燈(開盤中):進場 = 今天真的進場幾檔 / 已平倉幾檔;當沖 = 持倉輸贏;明細 = 今天平倉後輸贏(永久版有元大成交用元大)
-      try{ if (inSession()){ if (window.NL_VIEW !== 'pos'){ const tA = window.__tposAt || 0; if (Date.now() - tA > 30000) tposPoll(); }
+      // 2026-11-06 01:09 使用者:燈一直顯示「最近一個交易日」的結果,交易日 08:45 才歸零換成今天(六日 / 休市日照舊顯示前一個交易日)
+      const lampDay = (() => { const tw = new Date(Date.now() + 8 * 3600000), hm = tw.getUTCHours() * 60 + tw.getUTCMinutes(); const isT = ds_ => { const w = new Date(ds_ + 'T00:00:00Z').getUTCDay(); return w >= 1 && w <= 5 && !(window.TW_HOL && TW_HOL.has(ds_)); };
+        if (isT(today) && hm >= 8 * 60 + 45) return today; const t = new Date(today + 'T00:00:00Z'); for (let k = 0; k < 15; k++){ t.setUTCDate(t.getUTCDate() - 1); const x = t.toISOString().slice(0, 10); if (isT(x)) return x; } return today; })();
+      try{ if (lampDay !== today){
+          // 前一個交易日:那天的通知(進場 / 平倉)和元大成交明細;當沖收盤後都平掉了 → 不亮
+          let pc = []; try{ const k_ = lampDay + '|' + itemsFor(lampDay).length; if (render.__lampPc && render.__lampPc.k === k_) pc = render.__lampPc.v; else { pc = finish(prep(itemsFor(lampDay))); render.__lampPc = {k: k_, v: pc}; } }catch(e){}
+          const en = pc.filter(o => o.type === 'entry' && !o._hide && !o.over && !o.notrade && !o.madd);
+          let nE = en.length, nX = en.filter(o => o._alert === 'exit').length, dt = netOf(pc.filter(o => o.type === 'exit' && !o._hide && !o.over && !(o.rs === '元三' || o.rs === '強三')))[0];
+          try{ const Y = !window.VIEWER && lampDay >= '2026-11-05' ? yFillsOf(lampDay) : null; if (Y && Array.isArray(Y.rows) && Y.rows.length){ const R = Y.rows.filter(r => (+r.lots || 0) > 0 || (+r.open || 0) !== 0); nE = R.length; nX = R.filter(r => (+r.lots || 0) > 0 && !(+r.open || 0)).length; dt = Y.rows.reduce((a, r) => a + (r.lots > 0 ? +r.net || 0 : 0), 0); } }catch(e){}
+          lampBtn('refreshBtn', '進場', 'cnt', Math.max(0, nE - nX), nX); lampBtn('btnState', '當沖', 'amt', 0); lampBtn('btnRules', '明細', 'amt', dt);
+        } else { if (inSession() && window.NL_VIEW !== 'pos'){ const tA = window.__tposAt || 0; if (Date.now() - tA > 30000) tposPoll(); }
           const en = cards.filter(o => o.type === 'entry' && !o._hide && !o.over && !o.notrade && !o.madd);
           let pt = 0; try{ let C = {fee: 0, tax: 0}; try{ C = cost(); }catch(e){} const {open} = posOpen(); for (const o of open){ const lt = lotsOf(o), dr = o.side === 'long' ? 1 : -1, ent = +o.entP, cu = +(((LIVE.get(o.code) || {}).z) || 0) || ent;
             pt += (cu - ent) * dr * lt * 1000 - (dr > 0 ? costAmt(ent * lt * 1000, cu * lt * 1000, C) : costAmt(cu * lt * 1000, ent * lt * 1000, C)); } }catch(e){}
@@ -7087,9 +7099,9 @@ window.bgTick = bgTick; window.BG = BG;
             if (yf && Array.isArray(yf.rows) && (yf === F || yf.rows.some(r => r.lots > 0))) dt = yf.rows.reduce((a, r) => a + (r.lots > 0 ? +r.net || 0 : 0), 0); } }catch(e){}
           let nE = en.length, nX = en.filter(o => o._alert === 'exit').length;
           // 2026-11-05 01:56 使用者「我是永久會員 明天訊號燈接通元大」:永久版問得到元大成交明細 → 進場 = 今天元大有成交的檔數、平倉 = 已經沖銷完(沒有未平倉張數)的檔數
-          try{ const F = window.__tfills; if (!window.VIEWER && F && F.ok && F.d === today && Array.isArray(F.rows) && Date.now() - (F.at || 0) < 10 * 60000){ const R = F.rows.filter(r => (+r.lots || 0) > 0 || (+r.open || 0) !== 0); if (R.length || !en.length){ nE = R.length; nX = R.filter(r => (+r.lots || 0) > 0 && !(+r.open || 0)).length; } } }catch(e){}
+          try{ const F0 = window.__tfills, F = F0 && F0.ok && F0.d === today && Array.isArray(F0.rows) && Date.now() - (F0.at || 0) < 10 * 60000 ? F0 : (!inSession() && today >= '2026-11-05' ? yFillsOf(today) : null); if (!window.VIEWER && F && Array.isArray(F.rows)){ const R = F.rows.filter(r => (+r.lots || 0) > 0 || (+r.open || 0) !== 0); if (R.length || !en.length){ nE = R.length; nX = R.filter(r => (+r.lots || 0) > 0 && !(+r.open || 0)).length; } } }catch(e){}
           lampBtn('refreshBtn', '進場', 'cnt', Math.max(0, nE - nX), nX);   /* 2026-11-05 13:03 使用者「進場如果已經平倉 進場這邊就要退一個燈號」:黃 = 還在場上的檔數(進場 − 已平倉),藍 = 已平倉 */ lampBtn('btnState', '當沖', 'amt', pt); lampBtn('btnRules', '明細', 'amt', dt);
-        } else { lampBtn('refreshBtn', '進場'); lampBtn('btnState', '當沖'); lampBtn('btnRules', '明細'); } }catch(e){}
+        } }catch(e){}
     if (window.NL_VIEW !== 'pos' && window.NL_VIEW !== 'done') window.__nlV = '';   // 回到訊息欄 → 下次切明細 / 當沖再從最上面開始
     box.__fitL = null;   // 2026-10-29 10:55 當沖 / 明細的列高要等標題列放大(fitAll)後再排一次
     if (window.NL_SHOW30){
