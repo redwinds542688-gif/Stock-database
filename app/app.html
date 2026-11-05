@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-06 05:40(實際時間)明細:前幾天每天最下面的「N 筆 總輸贏」列拿掉(標題列右邊已顯示捲到那天的總輸贏)
   · 2026-11-06 03:13(實際時間)說明視窗也拿掉右上「✕」,用手機返回鍵離開(點視窗外面也可以)
   · 2026-11-06 03:12(實際時間)鑰匙視窗拿掉右上「✕」,用手機返回鍵離開(點視窗外面也可以);沒存的字丟掉、鑰匙不變(使用者「按「✕」離開 這取消 手機返回即離開」)
   · 2026-11-06 03:06(實際時間)鑰匙視窗:輸入格有打字時「掃描」鍵變綠色「存檔」,按了就存;清空又變回「掃描」(使用者「當輸入key裡有打上字時 “掃描”就變成“存檔”」)
@@ -279,7 +280,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611060530">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611060540">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7256,7 +7257,7 @@ window.bgTick = bgTick; window.BG = BG;
           const btd = BTF && BTF[dd] && BTF[dd].length; ensureCloud(dd);   /* 虛擬交易也要那天的盤中訊息來對照 */
           const pp = prep(btd ? btfCap(dd) : itemsFor(dd)); if (btd) for (const o of pp){ const q = +((((o.x || {}).body || '').match(/· (\d+)張/) || [])[1]) || 0; if (q) o.lots = q; }   /* 重算的張數照回測(每筆 25 萬) */
           const [h, t, c, cm] = dayRows(dd, finish(pp)); if (!c) continue;
-          body += `<div class="dsep" data-day="${dd}">${dd.slice(5).replace('-', '/')}</div>` + hdr + h + `<div class="tot" data-day="${dd}"><span>${cm == null ? c : cm} 筆 總輸贏</span>${amt(t)}</div>`; dayTot[dd] = t;
+          body += `<div class="dsep" data-day="${dd}">${dd.slice(5).replace('-', '/')}</div>` + hdr + h; dayTot[dd] = t;   /* 2026-11-06 05:40 使用者「怎麼還有這14筆總輸贏 這個不用 上面已經有顯示了」:前幾天的「N 筆 總輸贏」列也拿掉(標題列右邊跟著捲到的那天顯示) */
         }
         // 2026-10-27 11:20 使用者:「最上面只顯示 明細 今日的總輸贏(靠右顯示)」:標題列左邊「明細」、最右邊今天已平倉的總輸贏(和當沖的合計同一個位置 .cash)
         const hdDone = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(t0))}</span>`).replace('<span>明細</span>', `<span class="dlb">明細</span><span class="dwh">${Object.keys(dayTot).sort().reverse().map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span><span class="dsrc">${virtOk || ySrc[d0] ? '' : (window.VIEWER ? '' : ' 系統')}</span>${virtOk ? `<button class="vbtn on${doneVirt ? ' virt' : ''}" type="button">${doneVirt ? '虛擬' : '元大'}</button>` : window.VIEWER ? '<span class="vbtn on virt vtag">虛擬</span>' : `<span class="vbtn on vtag ytag"${ySrc[d0] ? '' : ' style="display:none"'}>元大</span>`}`);   /* 2026-11-04 使用者「要 改」:開盤中明細的「元大」也是有框的黃色鍵(和當沖一樣;開盤中不能切換) */   /* 2026-11-04 使用者「好」(看盤版明細也加紫色「虛擬」,和當沖一樣) */   // 2026-10-29 12:25(實際時間)元大真實成交的日子標題寫「明細 元大」
