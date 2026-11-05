@@ -114,7 +114,7 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
             nm.notify(id, n)
             // 2026-11-05 14:30 使用者「2改N8」:停利 / 賺錢平倉用收銀叮(mysh_profit)
             val profit = kind == "profit" || (kind == "exit" && (title ?: "").startsWith("✅"))
-            if (lv > 0) Alert.buzzLevel(ctx, lv) else if (win > 0) Alert.cheer(ctx, win) else if (profit) Alert.buzzProfit(ctx) else Alert.buzz(ctx, danger)
+            if (lv > 0) Alert.buzzLevel(ctx, lv) else if (win > 0) Alert.cheer(ctx, win) else if (profit) Alert.buzzProfit(ctx) else if (kind == "pc") Alert.buzzPc(ctx) else Alert.buzz(ctx, danger)   // 2026-11-05 14:34 使用者「6改A3」:電腦提醒用三連嗶
             NotifLog.add(ctx, title ?: "", body ?: "", kind ?: "")
             Log.i("mysh", "[$tag] notify $title | $body")
         } catch (e: Exception) { Log.e("mysh", "notify failed", e) }

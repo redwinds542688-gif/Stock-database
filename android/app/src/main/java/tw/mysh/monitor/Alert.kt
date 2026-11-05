@@ -28,6 +28,8 @@ object Alert {
 
     /** 2026-11-05 停利 / 賺錢平倉:一般震動 + 收銀叮一次 */
     fun buzzProfit(ctx: Context) { h.post { vibrate(ctx, false); soundTimes(ctx, R.raw.mysh_profit, 1) } }
+    /** 2026-11-05 電腦提醒(額度、對帳、13:20 未沖銷、保留預掛…):一般震動 + 三連嗶一次 */
+    fun buzzPc(ctx: Context) { h.post { vibrate(ctx, false); soundTimes(ctx, R.raw.mysh_pc, 1) } }
 
     fun buzz(ctx: Context, danger: Boolean) {
         h.post { vibrate(ctx, danger); sound(ctx, danger) }
