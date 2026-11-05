@@ -1,4 +1,4 @@
-// note: 通知聲音:一般「低音叮」、輸錢平倉「低→高」、當沖浮輸 1~5 萬「水滴」1~5 次、浮贏 1~5 萬「雙金幣」1~5 次
+// note: 通知聲音:進場「低音叮」、賺錢平倉「收銀叮」、輸錢平倉「低→高」、浮輸 1~5 萬「水滴」1~5 次、浮贏 1~5 萬「雙金幣」1~5 次
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -10,8 +10,8 @@ android {
         applicationId = "tw.mysh.monitor"
         minSdk = 26
         targetSdk = 34
-        versionCode = 65
-        versionName = "1.5.59"
+        versionCode = 66
+        versionName = "1.5.60"
     }
     // 2026-10-29 看盤版(使用者:「如果 程式給別人用 但我要控制判123在手上」→「先做1.2.3」第 1 項):同一份程式兩個口味,
     //   owner = 自己用的(app.html 含判一二三)、viewer = 給別人的看盤版(內建 / 更新都抓 viewer.html,沒有判一二三;套件名多 .viewer,兩個可以同時裝)

@@ -112,7 +112,9 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
                 .setAutoCancel(true).setContentIntent(pi).setWhen(System.currentTimeMillis()).setShowWhen(true)
                 .build()
             nm.notify(id, n)
-            if (lv > 0) Alert.buzzLevel(ctx, lv) else if (win > 0) Alert.cheer(ctx, win) else Alert.buzz(ctx, danger)
+            // 2026-11-05 14:30 使用者「2改N8」:停利 / 賺錢平倉用收銀叮(mysh_profit)
+            val profit = kind == "profit" || (kind == "exit" && (title ?: "").startsWith("✅"))
+            if (lv > 0) Alert.buzzLevel(ctx, lv) else if (win > 0) Alert.cheer(ctx, win) else if (profit) Alert.buzzProfit(ctx) else Alert.buzz(ctx, danger)
             NotifLog.add(ctx, title ?: "", body ?: "", kind ?: "")
             Log.i("mysh", "[$tag] notify $title | $body")
         } catch (e: Exception) { Log.e("mysh", "notify failed", e) }

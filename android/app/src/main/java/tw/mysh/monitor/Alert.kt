@@ -26,6 +26,9 @@ object Alert {
         Uri.parse("android.resource://" + ctx.packageName + "/" + (if (alarm) R.raw.mysh_alarm else if (win) R.raw.mysh_win else R.raw.mysh_notify))
     } catch (e: Exception) { null }   // 2026-11-05 14:25 使用者「贏錢W3」:賺錢慶祝用雙金幣(mysh_win)
 
+    /** 2026-11-05 停利 / 賺錢平倉:一般震動 + 收銀叮一次 */
+    fun buzzProfit(ctx: Context) { h.post { vibrate(ctx, false); soundTimes(ctx, R.raw.mysh_profit, 1) } }
+
     fun buzz(ctx: Context, danger: Boolean) {
         h.post { vibrate(ctx, danger); sound(ctx, danger) }
     }
