@@ -30,6 +30,8 @@ object Alert {
     fun buzzProfit(ctx: Context) { h.post { vibrate(ctx, false); soundTimes(ctx, R.raw.mysh_profit, 1) } }
     /** 2026-11-05 電腦提醒(額度、對帳、13:20 未沖銷、保留預掛…):一般震動 + 三連嗶一次 */
     fun buzzPc(ctx: Context) { h.post { vibrate(ctx, false); soundTimes(ctx, R.raw.mysh_pc, 1) } }
+    /** 2026-11-05 14:36 使用者「B改A5」:超額訊號(程式沒下單)用低沉嗡 */
+    fun buzzOver(ctx: Context) { h.post { vibrate(ctx, false); soundTimes(ctx, R.raw.mysh_over, 1) } }
 
     fun buzz(ctx: Context, danger: Boolean) {
         h.post { vibrate(ctx, danger); sound(ctx, danger) }
