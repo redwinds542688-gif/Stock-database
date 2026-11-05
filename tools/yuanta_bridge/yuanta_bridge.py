@@ -888,12 +888,19 @@ class Bridge:
         t = self.trader
         if not t.prehang: return set()
         nos = {n for v in t.prehang.values() for n in v}; t.prehang = {}
-        r = self.query_today(with_oco=False) or {"working": []}
-        for w in r["working"]:
-            if w.get("no") in nos:
-                log(f"[交易] {at} 手動預掛 {w['code']} {w['bs']} {w['lots']} 張到期限沒成交 → 取消,改由程式平倉")
+        # 2026-11-05 13:33 使用者「13.24還沒成交 程式需要先幫我取消預掛 再啟動平倉」:先取消、再查到確定取消掉(最多 3 次),之後的複查才用最新成交回報平倉
+        #   (取消前剛好成交的,成交回報會算進去,不會多平)
+        for k in range(3):
+            r = self.query_today(with_oco=False) or {"working": []}
+            left = [w for w in r["working"] if w.get("no") in nos]
+            if not left:
+                log(f"[交易] {at} 手動預掛已確認取消 / 成交,開始平倉"); break
+            for w in left:
+                log(f"[交易] {at} 手動預掛 {w['code']} {w['bs']} {w['lots']} 張到期限沒成交 → 先取消(第 {k + 1} 次),確認後由程式平倉")
                 self.cancel_order(w["no"], w["code"], w["bs"], w["typ"]); time.sleep(0.15)
-        time.sleep(1.5)
+            time.sleep(2)
+        else:
+            self.phone_alert(f"⚠ {at} 手動預掛取消不掉", "程式照樣平倉,請在投資先生確認有沒有多平")
         return nos
 
     def cap_sync(self):
