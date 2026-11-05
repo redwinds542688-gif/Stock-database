@@ -37,7 +37,8 @@ object Alert {
         val on = if (lv <= 1) 400L else 900L
         val pattern = LongArray(n * 2 + 1).also { p -> p[0] = 0L; for (i in 0 until n) { p[1 + i * 2] = on; p[2 + i * 2] = 250L } }
         val ms = when (lv) { 1 -> 3000L; 2 -> 6000L; 3 -> 12000L; 4 -> 20000L; else -> 30000L }
-        h.post { vibratePattern(ctx, pattern); soundFor(ctx, lv >= 2, ms) }
+        // 2026-11-05 14:27 使用者「當沖 輸錢 N5 1到5萬對應一次到五次」:浮輸分級的聲音改「水滴」(mysh_loss),1 萬響 1 次 … 5 萬響 5 次
+        h.post { vibratePattern(ctx, pattern); soundTimes(ctx, R.raw.mysh_loss, lv.coerceIn(1, 5)) }
     }
     /** 2026-10-31 賺錢慶祝 1~5:輕快的短震(像拍手)+ 一般提示音,級數越高拍越多下、響越久;不用鬧鐘聲 */
     fun cheer(ctx: Context, lv: Int) {
@@ -48,6 +49,15 @@ object Alert {
             p[n * 2 + 1] = 120L; p[n * 2 + 2] = 350L
         }
         h.post { vibratePattern(ctx, pattern); soundFor(ctx, false, 1500L + lv * 700L, win = true) }
+    }
+    /** 同一個內建聲音連響 n 次(每次間隔 0.7 秒) */
+    private fun soundTimes(ctx: Context, res: Int, n: Int) {
+        try { rt?.stop() } catch (e: Exception) {}
+        val uri = try { Uri.parse("android.resource://" + ctx.packageName + "/" + res) } catch (e: Exception) { null } ?: return
+        for (i in 0 until n) h.postDelayed({
+            try { val r = RingtoneManager.getRingtone(ctx, uri) ?: return@postDelayed; r.audioAttributes = attrs
+                  if (Build.VERSION.SDK_INT >= 28) r.isLooping = false; r.play(); rt = r } catch (e: Exception) { Log.e("mysh", "sound failed", e) }
+        }, i * 700L)
     }
     private fun vibratePattern(ctx: Context, pattern: LongArray) {
         try {
