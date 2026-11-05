@@ -42,7 +42,7 @@ SIMD = DATA / "sim"
 RS_ALL = ["一", "二", "三", "四", "五"]   # 2026-11-05 加判五(使用者「先加 在公式 增加判五」→「完整上線」;模擬器 MODE=fail5)
 _RS_ALL_OLD = ["一", "二", "三", "四"]   # 2026-10-31 使用者「現在把新轉折 直接改名為 判四 加在公式 裡面 燈號啟動 真正的下單也啟動 自動平倉機制也啟動」:判四 = 新轉折做空(模擬器 MODE=turn4)
 JUDGE = {"一": "判一", "二": "判二", "三": "判三", "四": "判四", "五": "判五"}
-J5MAX = 5   # 2026-11-05 判五一天最多 5 筆(全部股票合計、照出現先後;超額的不算);實際用私人庫 rs_env.J5MAX
+J5MAX = 6   # 2026-11-05 判五一天最多 6 筆(17:15 使用者「改限6筆」)(全部股票合計、照出現先後;超額的不算);實際用私人庫 rs_env.J5MAX
 T4MAX = 10   # 判四一天最多幾筆的預設;實際用私人庫 rs_env.py 的 T4MAX(全部股票合計、照出現先後;超額的不算)
 RS_OF = {v: k for k, v in JUDGE.items()}
 TAKE = 2.5
@@ -718,7 +718,7 @@ class Engine:
             elif rs in rs_block: why = rs_block[rs]
             elif rs == "四" and code not in self.j4 and len(self.j4) >= int(_f(self.envs.get("四", {}).get("T4MAX"), T4MAX)):   # 2026-10-31 判四一天最多 T4MAX 檔(到了就不再發,記 emitted)
                 self.emitted.add(ek); log(f"判四 {code} {open_tm} 今天判四已 {len(self.j4)} 檔(到上限)→ 不發"); continue
-            elif rs == "五" and code not in self.j5 and len(self.j5) >= getattr(self, "j5max", J5MAX):   # 2026-11-05 判五一天最多 5 筆
+            elif rs == "五" and code not in self.j5 and len(self.j5) >= getattr(self, "j5max", J5MAX):   # 2026-11-05 判五一天最多 J5MAX 筆
                 self.emitted.add(ek); log(f"判五 {code} {open_tm} 今天判五已 {len(self.j5)} 檔(到上限)→ 不發"); continue
             else: why = None
             if why:
