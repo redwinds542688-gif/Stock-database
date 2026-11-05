@@ -247,6 +247,7 @@ ty.on_report(51, "A0001", 0, 3000, 38.0); ok("2409" not in ty.positions and ty.p
 tm, gm = mk(); tm.name_of = lambda c: "台郡"; tm.on_tick("6269", 86.2); tm.step([ENT]); tm.on_report(51, "A0001", 0, 1000, 86.1); pm = tm.positions["6269"]
 tm.on_report(51, "M900", 0, 2000, 86.4, basket="", code="6269", bs="S")
 ok(pm["qty"] == 3 and abs(pm["entry"] - 86.3) < 1e-9 and pm["tp"] == round(86.3 * 84.05 / 86.1, 2) and pm["sl"] == round(86.3 * 88.70 / 86.1, 2) and pm["judge"] == "判二" and "手動加碼" in tm.alerts[-1], pm, tm.alerts)
+import time as _tt; _tt.sleep(0.05 + max(0.0, tm.y3_post_delay)); ok(any("· 加碼 · 共 3 張 均價 86.30 · 2張 · 元三" in b and t.startswith("台郡 6269 做空進場 86.40") for t, b, k in tm.posts), tm.posts)   # 2026-11-05 手動加碼也發進場卡
 tm.on_tick("6269", 84.0); ok(pm["state"] == EXITING and gm.sent[-1][:3] == ("6269", "B", 3), gm.sent[-1])
 tm.on_report(51, "A0002", 0, 3000, 84.1); ok("6269" not in tm.positions)
 # Y1c) 2026-11-02 程式進場單還在送(ENTERING)時手動同方向成交 2 張 @86.4 → 進場單成交 1 張 @86.1 → 併成 3 張 均價 86.3,停利停損照 % 重算

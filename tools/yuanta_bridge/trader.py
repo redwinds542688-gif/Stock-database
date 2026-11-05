@@ -721,6 +721,24 @@ class Trader:
             self.log(f"[交易] {p['judge']} {code} 元大手動同方向成交 {lots} 張(委託 {order_no})→ 併進程式部位,共 {tot} 張 均價 {p['entry']:.2f} 停利 {p['tp']} 停損 {p['sl']}")
             if p.get("judge") != MANUAL:
                 self.alert(f"✅ {self.name_of(code)} {code} 手動加碼 {lots} 張已交給程式", f"共 {tot} 張 均價 {p['entry']:.2f}(停利 {p['tp']} / 停損 {p['sl']}),平倉時全部一起平")
+            # 2026-11-05 12:33 使用者「我是永久會員 這手動單 要加入進場」(宏碁手動加買 3 張,當沖有、進場沒有):手動加碼也在進場欄發一張卡(標「加碼」,張數 = 這次加的);
+            #   同一張委託分批成交等 3 秒併成一張卡
+            try:
+              if not (order_no and str(order_no) == str(p.get("y3_no") or "")):   # 元三開倉那張委託分批成交的後幾筆不算加碼(開倉卡已經寫總張數)
+                ak = (code, str(order_no or "")); A = self.__dict__.setdefault("_add_post", {})
+                a0 = A.get(ak); first = a0 is None
+                if first: a0 = A[ak] = {"lots": 0, "cost": 0.0, "t": self.hm(), "dir": p["dir"]}
+                a0["lots"] += lots; a0["cost"] += price * lots
+                if first:
+                    def _post_add(ak=ak, code=code):
+                        with self.lock:
+                            x = self.__dict__.get("_add_post", {}).pop(ak, None); q = self.positions.get(code) or {}
+                        if not x or x["lots"] <= 0: return
+                        px = x["cost"] / x["lots"]
+                        self.post(f"{self.name_of(code)} {code} {'做多' if x['dir'] > 0 else '做空'}進場 {px:.2f}",
+                                  f"{x['t']} 元大 · 加碼 · 共 {q.get('qty', '?')} 張 均價 {float(q.get('entry') or 0):.2f} · {x['lots']}張 · {MANUAL}", "long" if x["dir"] > 0 else "short")
+                    threading.Timer(max(0.0, self.y3_post_delay), _post_add).start()
+            except Exception as e: self.log(f"[交易] 手動加碼發卡失敗 {e!r}")
             self.save_state()
             if p["state"] == EXITING:
                 self.resize_exit(p, "平倉中又手動加碼")                 # 平倉單張數不夠了 → 取消重送全部
