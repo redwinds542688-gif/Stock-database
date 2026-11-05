@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.Ringtone
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -18,6 +19,12 @@ object Alert {
     private val h = Handler(Looper.getMainLooper())
     private var rt: Ringtone? = null
     private val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+
+    /** 2026-11-05 14:16 使用者「通知的音效有辦法統一嗎」→「第一個 只做一般通知 一聲 叮」「輸錢平倉 一次 低 高」→「改」:
+     *  不再用各手機系統預設的通知 / 鬧鐘聲,改播 App 內建的 res/raw/mysh_notify(叮)、mysh_alarm(低→高);每支手機一樣。讀不到才退回系統預設 */
+    private fun own(ctx: Context, alarm: Boolean): Uri? = try {
+        Uri.parse("android.resource://" + ctx.packageName + "/" + (if (alarm) R.raw.mysh_alarm else R.raw.mysh_notify))
+    } catch (e: Exception) { null }
 
     fun buzz(ctx: Context, danger: Boolean) {
         h.post { vibrate(ctx, danger); sound(ctx, danger) }
@@ -53,11 +60,11 @@ object Alert {
     private fun soundFor(ctx: Context, alarm: Boolean, ms: Long) {
         try {
             try { rt?.stop() } catch (e: Exception) {}
-            val uri = RingtoneManager.getDefaultUri(if (alarm) RingtoneManager.TYPE_ALARM else RingtoneManager.TYPE_NOTIFICATION)
+            val uri = own(ctx, alarm) ?: RingtoneManager.getDefaultUri(if (alarm) RingtoneManager.TYPE_ALARM else RingtoneManager.TYPE_NOTIFICATION)
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE) ?: return
             val r = RingtoneManager.getRingtone(ctx, uri) ?: return
             r.audioAttributes = attrs
-            if (Build.VERSION.SDK_INT >= 28) r.isLooping = true
+            if (Build.VERSION.SDK_INT >= 28) r.isLooping = alarm   // 分級 2~5:低→高重複到時間到(越嚴重越久);一般叮一聲
             r.play(); rt = r
             h.postDelayed({ try { if (rt === r) { r.stop(); rt = null } } catch (e: Exception) {} }, ms)
         } catch (e: Exception) { Log.e("mysh", "sound failed", e) }
@@ -74,11 +81,11 @@ object Alert {
     private fun sound(ctx: Context, danger: Boolean) {
         try {
             try { rt?.stop() } catch (e: Exception) {}
-            val uri = RingtoneManager.getDefaultUri(if (danger) RingtoneManager.TYPE_ALARM else RingtoneManager.TYPE_NOTIFICATION)
+            val uri = own(ctx, danger) ?: RingtoneManager.getDefaultUri(if (danger) RingtoneManager.TYPE_ALARM else RingtoneManager.TYPE_NOTIFICATION)
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE) ?: return
             val r = RingtoneManager.getRingtone(ctx, uri) ?: return
             r.audioAttributes = attrs
-            if (Build.VERSION.SDK_INT >= 28) r.isLooping = danger
+            if (Build.VERSION.SDK_INT >= 28) r.isLooping = false   // 輸錢平倉:低→高一次;一般:叮一次
             r.play(); rt = r
             h.postDelayed({ try { if (rt === r) { r.stop(); rt = null } } catch (e: Exception) {} }, if (danger) 8000L else 3000L)
         } catch (e: Exception) { Log.e("mysh", "sound failed", e) }
