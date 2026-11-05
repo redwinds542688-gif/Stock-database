@@ -48,16 +48,17 @@ object Alert {
             for (i in 0 until n) { p[1 + i * 2] = 70L; p[2 + i * 2] = 90L }
             p[n * 2 + 1] = 120L; p[n * 2 + 2] = 350L
         }
-        h.post { vibratePattern(ctx, pattern); soundFor(ctx, false, 1500L + lv * 700L, win = true) }
+        // 2026-11-05 14:28 使用者「當沖贏錢W3 也是一樣1-5萬 對應1-5次」:浮贏分級雙金幣響 1~5 次
+        h.post { vibratePattern(ctx, pattern); soundTimes(ctx, R.raw.mysh_win, lv.coerceIn(1, 5), 1300L) }
     }
     /** 同一個內建聲音連響 n 次(每次間隔 0.7 秒) */
-    private fun soundTimes(ctx: Context, res: Int, n: Int) {
+    private fun soundTimes(ctx: Context, res: Int, n: Int, gap: Long = 700L) {
         try { rt?.stop() } catch (e: Exception) {}
         val uri = try { Uri.parse("android.resource://" + ctx.packageName + "/" + res) } catch (e: Exception) { null } ?: return
         for (i in 0 until n) h.postDelayed({
             try { val r = RingtoneManager.getRingtone(ctx, uri) ?: return@postDelayed; r.audioAttributes = attrs
                   if (Build.VERSION.SDK_INT >= 28) r.isLooping = false; r.play(); rt = r } catch (e: Exception) { Log.e("mysh", "sound failed", e) }
-        }, i * 700L)
+        }, i * gap)
     }
     private fun vibratePattern(ctx: Context, pattern: LongArray) {
         try {
