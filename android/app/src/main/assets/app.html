@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-06 05:45(實際時間)進場和明細日期聯動:進場轉到哪天,切到明細就是那天;明細轉到哪天,切回進場就是那天(使用者「明細與進場日期聯動」)
   · 2026-11-06 05:40(實際時間)明細:前幾天每天最下面的「N 筆 總輸贏」列拿掉(標題列右邊已顯示捲到那天的總輸贏)
   · 2026-11-06 03:13(實際時間)說明視窗也拿掉右上「✕」,用手機返回鍵離開(點視窗外面也可以)
   · 2026-11-06 03:12(實際時間)鑰匙視窗拿掉右上「✕」,用手機返回鍵離開(點視窗外面也可以);沒存的字丟掉、鑰匙不變(使用者「按「✕」離開 這取消 手機返回即離開」)
@@ -280,7 +281,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611060540">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611060545">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2042,7 +2043,7 @@ window.fitBands = fitBands;
         const z = Math.round(r.top) + '|' + Math.round(r.height); if (z !== lastZ){ lastZ = z; Android.gestureZone(Math.round(r.top), Math.round(r.height)); } }catch(e){} };
       setTimeout(zone, 800); setInterval(zone, 3000); addEventListener('resize', zone); }
     for (const e0 of ['cover', 'rsMenu', 'panel']){ const e = document.getElementById(e0) || document.querySelector('.' + e0); if (e){ e.addEventListener('touchstart', st, {passive: true, capture: true}); e.addEventListener('touchmove', mv, {passive: false}); e.addEventListener('touchend', en, {passive: true}); e.addEventListener('touchcancel', () => { window.__nlTouch = 0; if (pv){ const P = pv; pv = null; drag = false; t0 = 0; swiped = Date.now(); busy = true; requestAnimationFrame(() => { if (P.g) setT(P.g, 0, 200); if (P.el2) setT(P.el2, P.dir * P.W, 200); }); setTimeout(() => { if (P.el2) clearX(P.el2); if (P.nl) P.nl.style.visibility = ''; go(tab0); requestAnimationFrame(() => { if (P.g) P.g.remove(); busy = false; }); }, 230); return; } if (drag){ drag = false; const b = boxOf(tab0); setX(b, 0, 200); setTimeout(() => clearX(b), 220); } t0 = 0; }, {passive: true}); } } }
-  const setView = (v, rs) => { window.NL_VIEW = v; if (rs !== undefined) window.LOG_RS = rs; closeMenu(); window.__nlTouch = 0;   /* 2026-11-03 22:43 使用者影片 13928(9~11 秒):按進場後還停在當沖約半秒才換 → 按鍵也算「手指在通知欄上」,重畫被延後 0.35 秒;換頁時立刻畫 */
+  const setView = (v, rs) => { window.NL_VIEW = v; if (rs !== undefined) window.LOG_RS = rs; closeMenu(); window.__nlTouch = 0; if (v === 'msg' && window.NL_VIEW_PREV !== 'msg' && window.__linkDay) window.NL_GOTO = window.__linkDay; window.NL_VIEW_PREV = v;   /* 2026-11-06 日期聯動:回進場時跳到明細正在看的那天 */   /* 2026-11-03 22:43 使用者影片 13928(9~11 秒):按進場後還停在當沖約半秒才換 → 按鍵也算「手指在通知欄上」,重畫被延後 0.35 秒;換頁時立刻畫 */
     const pnl = document.querySelector('.panel'); if (pnl) pnl.classList.remove('open'); hideInfo(); if (window.nlRender) nlRender(); refreshToolbar(); };
   window.nlSetView = setView;
   // 放開手指就動作(touchend),不等 click;同一次觸控的 click 擋掉(2026-10-18 的做法)
@@ -7283,14 +7284,15 @@ window.bgTick = bgTick; window.BG = BG;
             let day = window.__doneToday; for (const x of box.querySelectorAll('.tb.done > [data-day]')){ if (x.getBoundingClientRect().bottom > hb + 2){ day = x.dataset.day; break; } }
             const v = Math.round((window.__doneTot || {})[day] || 0), c = box.querySelector('.hd .cash'), lb = box.querySelector('.hd .nav > span');
             if (c) __wH(c, `<span class="dnet ${v > 0 ? 'up' : v < 0 ? 'dn' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}</span>`);
-            if (lb) __wT(lb, '明細'); const sr = box.querySelector('.hd .dsrc'); if (sr) __wT(sr, window.__doneVirtOk || (window.__doneY || {})[day] ? '' : (window.VIEWER ? '' : ' 系統')); { const yt = box.querySelector('.hd .ytag'); if (yt) yt.style.display = !window.__doneVirtOk && (window.__doneY || {})[day] ? '' : 'none'; } box.__dwDay = day; dwSet(box, day); }catch(e){} }); }, {passive: true}); }   // 2026-10-28 00:30 標題一律寫日期(明細 10/28)
-        const jsD = window.__nlV !== 'done'; if (jsD){ box.scrollTop = 0; window.__nlV = 'done'; }
+            if (lb) __wT(lb, '明細'); const sr = box.querySelector('.hd .dsrc'); if (sr) __wT(sr, window.__doneVirtOk || (window.__doneY || {})[day] ? '' : (window.VIEWER ? '' : ' 系統')); { const yt = box.querySelector('.hd .ytag'); if (yt) yt.style.display = !window.__doneVirtOk && (window.__doneY || {})[day] ? '' : 'none'; } box.__dwDay = day; if (!box.__jsD) window.__linkDay = day; dwSet(box, day); }catch(e){} }); }, {passive: true}); }   // 2026-10-28 00:30 標題一律寫日期(明細 10/28)
+        const jsD = window.__nlV !== 'done'; const goD = jsD && window.__linkDay && window.__linkDay !== d0 && box.querySelector(`.tb.done > .dsep[data-day="${window.__linkDay}"]`) ? window.__linkDay : null; const go0 = () => { if (goD) dwGo(box, goD); else box.scrollTop = 0; };   /* 2026-11-06 05:44 使用者「明細與進場日期聯動 進場調11/04明細就是11/04 明細調10/28 進場就是10/28」:切到明細時跳到進場正在看的那天 */
+        if (jsD){ go0(); window.__nlV = 'done'; }
         try{ const tb = box.querySelector('.tb.done'); const u = (tb.clientWidth || box.clientWidth) / 37; tb.style.fontSize = Math.max(12, Math.floor(u * 2 * 0.96)) + 'px'; 
           // 2026-10-27 13:00 對齊:有任何一格(進→出、輸贏…)放不下就整張表一起縮 1px,直到每格都放得下(最小 12px),欄位永遠對齊
           const over = () => [...tb.querySelectorAll('.r:not(.h) > .num, .r:not(.h) .io > span')].some(x => x.scrollWidth > x.clientWidth + 1);
           let fs = parseFloat(tb.style.fontSize) || 17; while (over() && fs > 12){ fs -= 1; tb.style.fontSize = fs + 'px'; } }catch(e){}
-        box.__fitL = () => { fitLines('.tb.done'); if (jsD && window.__nlV === 'done' && box.__jsD) box.scrollTop = 0; if (!jsD) keepBack(); }; box.__jsD = jsD; setTimeout(() => { box.__jsD = false; }, 500);
-        fitLines('.tb.done'); if (!jsD) keepBack(); requestAnimationFrame(() => requestAnimationFrame(() => { fitLines('.tb.done'); if (jsD) box.scrollTop = 0; else keepBack(); try{ box.dispatchEvent(new Event('scroll')); }catch(e){} }));   /* 11:45 排好列高後再回最上面,欄名那列不會被捲掉 */   // 2026-10-27 11:20 切到明細從最上面(今天)開始看;原本留著訊息欄的捲動位置,一打開就跳到前幾天(10/22)
+        box.__fitL = () => { fitLines('.tb.done'); if (jsD && window.__nlV === 'done' && box.__jsD) go0(); if (!jsD) keepBack(); }; box.__jsD = jsD; setTimeout(() => { box.__jsD = false; }, 500);
+        fitLines('.tb.done'); if (!jsD) keepBack(); requestAnimationFrame(() => requestAnimationFrame(() => { fitLines('.tb.done'); if (jsD) go0(); else keepBack(); try{ box.dispatchEvent(new Event('scroll')); }catch(e){} }));   /* 11:45 排好列高後再回最上面,欄名那列不會被捲掉 */   // 2026-10-27 11:20 切到明細從最上面(今天)開始看;原本留著訊息欄的捲動位置,一打開就跳到前幾天(10/22)
    // 2026-10-27 04:20 明細字級 = 2 欄寬(一列 38 欄)
       }
       box.querySelectorAll('.tb .r[data-code]').forEach(r => { r.addEventListener('click', () => openChart(r.dataset.code, r.dataset.name));
@@ -7362,7 +7364,7 @@ window.bgTick = bgTick; window.BG = BG;
         const h = box.querySelector('.hd'); const hb = h ? h.getBoundingClientRect().bottom : box.getBoundingClientRect().top;
         let top = null; for (const c of box.querySelectorAll('.card[data-day], .dsep[data-day]')){   // 2026-10-27 14:40 日期列也算(開盤前最上面 10/28 那列 → 標題 10/28)
         if (c.getBoundingClientRect().bottom > hb + 2){ top = c.dataset.day; break; } }
-        if (top && top !== window.NL_TOPDAY){ window.NL_TOPDAY = top; const dt = box.querySelector('.hd .dt'); if (dt) dt.textContent = top.slice(5).replace('-', '/'); } if (top) mwSet(box, top);
+        if (top && top !== window.NL_TOPDAY){ window.NL_TOPDAY = top; const dt = box.querySelector('.hd .dt'); if (dt) dt.textContent = top.slice(5).replace('-', '/'); } if (top) mwSet(box, top); if (top && !window.NL_GOTO) window.__linkDay = top;   // 2026-11-06 日期聯動:記住進場正在看的那天
         if (top){ const L = window.NL_DAYS || [], k = L.indexOf(top), pv = el('nlPrev'), nx = el('nlNext'); if (pv) pv.disabled = k >= L.length - 1; if (nx) nx.disabled = k <= 0; } }catch(e){} }); }, {passive: true}); }
     if (cur){ window.NL_GOTO = cur; cur = null; }   // 等下面 fitAll 把列高定好再捲(不然高度一變位置就跑掉)
     }
