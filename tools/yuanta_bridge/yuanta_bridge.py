@@ -188,6 +188,16 @@ class LoginRejected(Exception):
     """元大明確拒絕登入(帳密錯、密碼凍結、沒權限):不能一直重試,錯的密碼連續試會把帳號鎖住"""
 
 
+def _ts_of(t):
+    """元大 K 的 TimeStamp → ('YYYY-MM-DD', 'HH:MM')(和 hist_kline.ts_of 同一套)"""
+    parts = str(t).strip().split(); y, m, dd = parts[0].replace("/", "-").split("-")
+    ap = next((x for x in parts[1:] if x in ("上午", "下午", "AM", "PM")), ""); tm = next(x for x in parts[1:] if ":" in x)
+    hh, mi = int(tm.split(":")[0]), int(tm.split(":")[1])
+    if ap in ("下午", "PM") and hh < 12: hh += 12
+    if ap in ("上午", "AM") and hh == 12: hh = 0
+    return f"{int(y):04d}-{int(m):02d}-{int(dd):02d}", f"{hh:02d}:{mi:02d}"
+
+
 class Bridge:
     def __init__(self):
         self.Y, self.List, self.System = load_sdk()
@@ -200,6 +210,7 @@ class Bridge:
         self.codes = []          # [(code, enumMarketType)]
         self.printer = None      # test 模式:每筆印出
         self.kline_out = None
+        self.kline_lock = threading.Lock()   # 2026-11-06 盤中補名單外股票的 1 分 K(extra_add)和其他查 K 不要同時用 kline_out
         self.n_ticks = 0
         self.trader = None       # 一次一單自動交易(trader.py;TRADE_ENABLE=1 才會下單)
         self.quotes = QuoteBook(vol_mult=int(CFG.get("VOL_MULT", "1000")))   # 手機即時價(quotes.py)
@@ -707,7 +718,98 @@ class Bridge:
         mkt = self.mkt_of_code(code)
         if code not in [c for c, _ in self.codes]:
             self.codes.append((code, mkt)); self.pending_sub.append((code, mkt)); log(f"[交易] {code} 不在名單上 → 補訂閱逐筆")
+            if CFG.get("EXTRA_ADD", "1") == "1" and "09:00" <= now_tw().strftime("%H:%M") < "13:25":
+                threading.Thread(target=self.extra_add, args=(code, mkt), daemon=True).start()
         return str(mkt)
+
+    def kline_query(self, code, mkt, day):
+        """用中繼這條已登入的連線查元大 1 分 K(day = YYYY-MM-DD);回傳 [(YYYY-MM-DD, HH:MM, o, h, l, c, 股數)]"""
+        with self.kline_lock:
+            self.kline_out = []
+            try:
+                self.api.GetKLine(CFG["YT_ACCOUNT"], self.Y.KLineType(0), mkt, code, day.replace("-", "/"), day.replace("-", "/"))
+                t0 = time.time(); last = -1; still = 0.0
+                while time.time() - t0 < 5:
+                    time.sleep(0.1); n = len(self.kline_out)
+                    if n and n == last:
+                        still += 0.1
+                        if still >= 0.4: break
+                    else: still = 0.0
+                    last = n
+                rows = list(self.kline_out)
+            finally:
+                self.kline_out = None
+        mult = float(CFG.get("VOL_MULT", "1000") or 1000); out = []
+        for k in rows:
+            d, hm = _ts_of(k[0])
+            if d == day and "09:00" <= hm <= "13:30": out.append((d, hm, float(k[1]), float(k[2]), float(k[3]), float(k[4]), int(round(float(k[5]) * mult))))
+        time.sleep(0.5)                      # 查詢一秒最多 3 次
+        return out
+
+    def extra_add(self, code, mkt):
+        """2026-11-06 使用者 10:14「如果我在元大下單 監控裡面沒有的股票 … 程式必須重新拉這檔股票進入監控名單 k圖回補五天資料」→「完全加入名單」:
+           元三成交的名單外股票 → 用元大 1 分 K 補今天到目前 + 前 5 個交易日,寫進引擎的 K 檔、推上 Worker,寫 engine_data/extra_codes.json(引擎每分鐘看,當成名單股照算判一~五)"""
+        try:
+            day = now_tw().strftime("%Y-%m-%d"); d0 = dt.date.fromisoformat(day)
+            days = [day] + [(d0 - dt.timedelta(days=k)).isoformat() for k in range(1, 15) if (d0 - dt.timedelta(days=k)).weekday() < 5]
+            got = {}; n_trade = 0
+            for i, d in enumerate(days):
+                rows = self.kline_query(code, mkt, d)
+                if i == 0 and not rows and str(mkt) != str(self.Y.enumMarketType.TWOTC):   # 今天查不到:可能是上櫃股(名單外不知道市場)→ 改上櫃再查
+                    m2 = self.Y.enumMarketType.TWOTC; r2 = self.kline_query(code, m2, d)
+                    if r2: rows = r2; mkt = m2; self.pending_sub.append((code, m2)); log(f"[名單外] {code} 是上櫃股,改上櫃訂閱")
+                if rows: got[d] = rows
+                if d != day and rows: n_trade += 1
+                if n_trade >= 5: break
+            if not got:
+                log(f"[名單外] {code} 元大查不到 1 分 K,不加入名單"); return
+            byw = {}
+            for d, rows in got.items():
+                y, w, _ = dt.date.fromisoformat(d).isocalendar(); byw.setdefault(f"{y}-W{w:02d}", {})[d] = rows
+            # 模擬器先讀 kline/(雲端 K)再用 kline_yuanta/ 蓋;名單外股票 kline/ 一個檔都沒有會整檔讀失敗 → 兩邊都寫
+            for ed, wk, dd in [(HERE / "engine_data" / sub / code, wk, dd) for sub in ("kline_yuanta", "kline") for wk, dd in byw.items()]:
+                ed.mkdir(parents=True, exist_ok=True)
+                f = ed / f"{wk}.csv"; old = []
+                if f.exists():
+                    with open(f, encoding="utf-8") as fh: old = [r for r in __import__("csv").DictReader(fh) if r["date"] not in dd]
+                lines = ["date,time,open,high,low,close,volume\n"] + [f"{r['date']},{r['time']},{r['open']},{r['high']},{r['low']},{r['close']},{r['volume']}\n" for r in old]
+                for d in sorted(dd): lines += [f"{a},{b},{o},{h},{l},{c},{v}\n" for a, b, o, h, l, c, v in dd[d]]
+                tmp = f.with_suffix(".tmp"); tmp.write_text("".join(lines), encoding="utf-8"); os.replace(tmp, f)
+            prev_days = sorted(d for d in got if d < day); prev = got[prev_days[-1]][-1][5] if prev_days else (self.quotes.meta.get(code) or {}).get("y")
+            name = ""
+            try: name = self.trader.name_of(code) if self.trader else ""
+            except Exception: pass
+            otc = str(mkt) == str(self.Y.enumMarketType.TWOTC)
+            xf = HERE / "engine_data" / "extra_codes.json"
+            try: xj = json.loads(xf.read_text(encoding="utf-8"))
+            except Exception: xj = {}
+            if xj.get("day") != day: xj = {"day": day, "codes": []}
+            xj["codes"] = [s for s in xj["codes"] if s.get("code") != code] + [{"code": code, "name": name if name and name != code else code, "market": "tpex" if otc else "twse",
+                           "close": prev, "prev": prev, "date": prev_days[-1] if prev_days else "", "daytrade": 1, "short_first": 1, "extra": 1, "at": now_tw().strftime("%H:%M")}]
+            tmp = xf.with_suffix(".tmp"); tmp.write_text(json.dumps(xj, ensure_ascii=False), encoding="utf-8"); os.replace(tmp, xf)
+            n_k = sum(len(r) for r in got.values())
+            log(f"[名單外] {code} 加入今天的監控名單:補 {len(got)} 天 {n_k} 根元大 1 分 K(今天 {len(got.get(day, []))} 根),昨收 {prev}")
+            threading.Thread(target=self.push_extra_k, args=(code, got), daemon=True).start()
+            self.phone_alert(f"✅ {name or code} {code} 已加入監控名單", f"名單外手動成交 → 補了 {len(got)} 天元大 1 分 K,判一~五開始照算")
+        except Exception as e:
+            log(f"[名單外] {code} 加入名單失敗", e)
+
+    def push_extra_k(self, code, got):
+        """補的 K 推上 Worker(?ybars=push merge,和那分鐘原本的股票合併),雲端 / 手機也看得到"""
+        if not CFG.get("PUSH_KEY") or not CFG.get("WORKER_URL"): return
+        ok = n = 0
+        for d, rows in sorted(got.items()):
+            for _, hm, o, h, l, c, v in rows:
+                n += 1
+                body = json.dumps({"d": d, "m": hm, "bars": {code: [o, h, l, c, v]}, "merge": 1}).encode()
+                req = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?ybars=push", data=body, method="POST",
+                                             headers={"Content-Type": "application/json", "X-Push-Key": CFG["PUSH_KEY"], "User-Agent": "yuanta-bridge"})
+                try:
+                    if json.loads(urllib.request.urlopen(req, timeout=15).read().decode()).get("ok"): ok += 1
+                except Exception as e:
+                    if n - ok <= 3: log(f"[名單外] {code} {d} {hm} 推 Worker 失敗", e)
+                time.sleep(0.03)
+        log(f"[名單外] {code} 補的 K 推上 Worker {ok}/{n} 分鐘")
 
     def trade_post(self, title, body, kind):
         """2026-10-28 強三進出場、強平 → 寫一則交易訊息到手機的訊息欄(Worker ?log=add,和手機自己發的同一套)"""

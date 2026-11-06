@@ -470,6 +470,10 @@ def build_universe(j, day, cap, held=(), noted=(), old_src=None):
     if isinstance(j, list): j = {"pool": j}
     R = pool_rules(j, cap)
     src = {str(s["code"]): s for s in pool if "code" in s}
+    # 2026-11-06 名單外手動成交的股票(中繼 extra_add 寫 engine_data/extra_codes.json):當成名單股照算判一~五,不篩、不佔檔數
+    ex = [s for s in extra_codes(day) if str(s.get("code")) not in src]
+    for s in ex: src[str(s["code"])] = s
+    held = list(held) + [str(s["code"]) for s in ex]
     for c, s in (old_src or {}).items():
         if c not in src and (c in held or c in noted): src[c] = s   # 換名單後不見的、今天有通知的:用舊資料照算(平倉要靠它)
     carried = [c for c in list(held) + list(noted) if c in src]
@@ -485,7 +489,7 @@ def build_universe(j, day, cap, held=(), noted=(), old_src=None):
         else: rest.append(str(s["code"]))
     n_held = len([c for c in held if c in src])
     codes = carried + rest[: max(0, R["cnt"] - n_held)]
-    no_new = {c for c in carried if stock_ok(src[c], j, R)}
+    no_new = {c for c in carried if not src[c].get("extra") and stock_ok(src[c], j, R)}
     names, prev, mkts, canshort = {}, {}, {}, {}
     for c in codes:
         s = src[c]; names[c] = s.get("name", "")
@@ -495,7 +499,23 @@ def build_universe(j, day, cap, held=(), noted=(), old_src=None):
     out = dict(j); out["pool"] = [src[c] for c in src]   # 模擬器用代碼查昨收,換名單後不見的股票也要在裡面
     write_atomic(DATA / "pool_today.json", json.dumps(out, ensure_ascii=False))
     return {"codes": codes, "names": names, "prev": prev, "mkts": mkts, "canshort": canshort, "no_new": no_new, "src": src,
-            "stamp": f"{j.get('generated', '')}|{j.get('elig_checked_at', '')}", "why": why, "R": R}
+            "stamp": f"{j.get('generated', '')}|{j.get('elig_checked_at', '')}", "why": why, "R": R, "j": j, "xstamp": extra_stamp()}
+
+
+def extra_codes(day):
+    """2026-11-06 名單外股票(中繼盤中補好 K 才寫進來);不是今天的不算"""
+    try:
+        x = json.loads((DATA / "extra_codes.json").read_text(encoding="utf-8"))
+        return [s for s in (x.get("codes") or []) if s.get("code")] if x.get("day") == day else []
+    except Exception:
+        return []
+
+
+def extra_stamp():
+    try:
+        st = (DATA / "extra_codes.json").stat(); return f"{st.st_mtime_ns}|{st.st_size}"
+    except Exception:
+        return ""
 
 
 def fetch_pool_json(day):
@@ -857,6 +877,14 @@ def live():
                             eng.set_universe(nu)
                     else:
                         log("名單重讀:雲端 pool.json 抓不到,沿用手上的")
+                # 2026-11-06 名單外股票:中繼補好 K 寫 extra_codes.json → 這一輪就加進來(不等 5 分鐘重讀名單)
+                if extra_stamp() != eng.uni.get("xstamp", ""):
+                    try:
+                        held, noted = eng.carried(); nu = build_universe(eng.uni.get("j") or {"pool": list(eng.uni["src"].values())}, day, cap, held, noted, eng.uni["src"])
+                        add = [c for c in nu["codes"] if c not in eng.codes]
+                        if add: log(f"名單外股票加入:{add}(中繼已補 K)")
+                        eng.set_universe(nu)
+                    except Exception as e: log("名單外股票加入失敗", repr(e))
                 # 等 hm-1 那根上來(稽核 #6)
                 want = hm_add(hm, -1); t_end = time.time() + bar_wait
                 while True:
