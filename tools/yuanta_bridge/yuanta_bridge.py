@@ -364,7 +364,11 @@ class Bridge:
                                 why = next((fs[k] for k in fs if re.search(r"err|msg|reason|note|memo|desc", k, re.I) and not re.fullmatch(r"[\d.\s]+", fs[k])), "")
                             except Exception as e: log("委託失敗欄位讀取失敗", e)
                             cn = str(r.CompanyNo).strip()   # 推手機在另一條執行緒做(不能卡住元大的事件)
-                            threading.Thread(target=lambda: self.phone_alert(f"⚠ 元大退回委託 {cn}", why or "元大回報委託失敗(原因見電腦紀錄)", "pc"), daemon=True).start()
+                            se = str(getattr(r, "StkErrorNo", "") or "").strip()
+                            if se == "21352" and str(r.BS).strip() == "S":   # 2026-11-06 使用者「應該是無券可藉來空 … 我手動操作元大也是一樣無法做空」:做空被 21352 擋 → 這檔今天不再送空單
+                                if self.trader: self.trader.no_short(cn, "元大 21352(無券可空)")
+                            else:
+                                threading.Thread(target=lambda: self.phone_alert(f"⚠ 元大退回委託 {cn}", why or "元大回報委託失敗(原因見電腦紀錄)", "pc"), daemon=True).start()
                         typ = str(getattr(r, "OrderType", "") or "").strip()   # 2026-10-28 平倉檢查 #6:委託種類(有的話元三平倉用同一種)
                         if self.trader: self.trader.on_report(rt, str(r.OrderNo), int(r.OrderStatus), int(r.OrderQty), float(r.Price), str(r.BasketNo), str(r.CompanyNo), str(r.BS).strip(), typ)
                     return
