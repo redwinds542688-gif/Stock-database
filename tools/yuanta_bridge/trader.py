@@ -171,6 +171,7 @@ class Trader:
         self.prehang_deadline = cfg.get("TRADE_PREHANG_DEADLINE", "13:24").strip()
         self.prehang = {}   # code → 保留的手動預掛委託書號 [no, …]
         self.man_meta = {}  # 2026-11-06 手動預掛的書號 → {bs, typ}(強平時取消用)
+        self.noshort = dict(self.load_state().get("noshort") or {})   # 2026-11-06 今天元大回 21352(無券)的股票 → 原因;之後的空單訊號不再送
         self.alert = lambda title, body="", kind="pc": None      # bridge 會換成「發提醒到手機」(kind:pc = 一般、lv1~lv5 = 虧損分級)
         self.post = lambda title, body, kind: None    # bridge 會換成「寫一則交易訊息到手機的訊息欄」(強三進出場、強平)
         self.ref_of = lambda code: None                # bridge 會換成「這檔的昨收」(±6.5% 用)
@@ -250,6 +251,7 @@ class Trader:
             js["win_hit"] = sorted({float(x) for x in (old.get("win_hit") or [])} | getattr(self, "win_hit", set()))      # 2026-10-31 賺錢慶祝
             js["loss_hit"] = sorted({float(x) for x in (old.get("loss_hit") or [])} | getattr(self, "loss_hit", set()))   # 2026-10-31 虧損級距通知
             js["closed_ok"] = sorted(set(old.get("closed_ok") or []) | getattr(self, "closed_ok", set()))   # 2026-11-03 程式自己平掉的部位(手機照常顯示平倉卡)
+            js["noshort"] = {**(old.get("noshort") or {}), **getattr(self, "noshort", {})}   # 2026-11-06 元大 21352 無券
             js["brk_block"] = {**(old.get("brk_block") or {}), **getattr(self, "brk_block", {})}   # 2026-10-31 元大拒絕(資格)的股票
             self.state_file.write_text(json.dumps(js, ensure_ascii=False), encoding="utf-8")
         except Exception as e:
@@ -716,6 +718,15 @@ class Trader:
                 o["dead"] = True; o["end_status"] = status
                 self.log(f"[交易] {p['code']} 委託結束 狀態 {status}({ {1: '委託失敗', 2: '取消成功', 24: '委託失效', 25: '價穩失效'}[status] })")
             self.after_report(p)
+
+    def no_short(self, code, why):
+        """2026-11-06 做空被元大 21352 擋(程式或手動):這檔今天不再送空單,手機提醒一次"""
+        with self.lock:
+            if self.noshort.get(code): return
+            self.noshort[code] = why; self.save_state()
+        self.log(f"[交易] {code} {why} → 今天不再送這檔的空單")
+        try: self.alert(f"⚠ {self.name_of(code)} {code} 無券可空", f"{why};今天這檔的做空訊號只通知、不下單")
+        except Exception: pass
 
     def man_order(self, code, no, status, qty_shares, price, bs, typ=""):
         """2026-11-06 11:32 使用者「大聯大 預掛 程式沒有提示」→ 選「程式讓位給預掛」:程式持倉中,元大手動掛了平倉方向的單 →
@@ -1303,6 +1314,8 @@ class Trader:
             return
         if kind not in ("long", "short"):
             return
+        if kind == "short" and self.noshort.get(code):
+            self.log(f"[交易] 不進場 {title}:{self.noshort[code]},今天這檔不能空"); return
         if re.search(r"·\s*超額\s*·", body):                   # 2026-10-30 使用者「超過限額的股票 … 只是註記“超額”不交易」:只通知,要做請用手機強制進場
             self.log(f"[交易] 不進場 {title}:超額(一張就超過多空上限),只通知;要做請用強制進場")
             tpsl = RE_TPSL.search(body); mp = RE_PX_END.search(title)
