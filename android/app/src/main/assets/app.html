@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-06 08:59(實際時間)開盤日 08:45 起進場通知欄跟燈號一起換日:標題是今天、最上面一整塊「今日還沒有通知」,前一個交易日接在下面(用日期滾輪轉回去看)(使用者選 A)
   · 2026-11-06 06:00(實際時間)通知欄(進場 / 明細)上下滑動更順:捲動時找「最上面是哪天」改成只量日期分隔列,不再每格畫面掃全部卡片
   · 2026-11-06 05:53(實際時間)進場日期滾輪 / 從明細聯動跳到某天:那天第一則卡片貼齊標題列下面,不再先露出日期分隔列(使用者截圖圖一)
   · 2026-11-06 05:45(實際時間)進場和明細日期聯動:進場轉到哪天,切到明細就是那天;明細轉到哪天,切回進場就是那天(使用者「明細與進場日期聯動」)
@@ -283,7 +284,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611060600">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611060859">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -395,7 +396,7 @@
   #notifLog .row.mine{outline:1px solid #FFD54F;outline-offset:-1px}   /* 長按記「我有做」 */
   /* 2026-10-17 18:30 三列卡片 */
   #notifLog .card{margin:3px 0;padding:2px 2px 1px;border-radius:0;cursor:pointer}
-  #notifLog.snap{scroll-snap-type:y mandatory} #notifLog.snap .card,#notifLog.snap .dsep{scroll-snap-align:start}
+  #notifLog.snap{scroll-snap-type:y mandatory} #notifLog.snap .card,#notifLog.snap .dsep,#notifLog.snap .e845{scroll-snap-align:start}   /* 2026-11-06 08:45 空白那塊也是停點,不然被吸到下面 11/05 */
   #notifLog.snap .card,#notifLog.snap .dsep{border-top:0;border-bottom:1px solid rgba(255,255,255,.28)}   /* 2026-10-27 08:20 使用者:「通知訊息之間要有1px的間隔」:每一列(卡片、日期分隔列)底下一條 1px 的淡線隔開 */   /* 2026-10-27 07:00 五列制:一列一列停,最下面那列不切半 */   /* 2026-10-19 使用者:「通知訊息的外框都拿掉,有三種都拿掉」→ 白框、黃框、藍框全部取消 */
   /* 2026-10-18 使用者:做多淺紫色網狀底、做空淺藍色網狀底(原本做多淺紅、做空淺綠) */
   #notifLog .card.c-long{background-color:rgba(170,120,255,.16);background-image:repeating-linear-gradient(0deg,rgba(190,150,255,.30) 0 1px,transparent 1px 6px),repeating-linear-gradient(90deg,rgba(190,150,255,.30) 0 1px,transparent 1px 6px)}   /* 做多:直橫方格網(做空是斜紋交叉網),2026-10-18 使用者:「做多的網狀改別種形式」 */
@@ -475,7 +476,8 @@
   #notifLog .row.x-win{background:rgba(79,195,247,.22);border-radius:6px;padding-left:4px}  #notifLog .row.x-win .ti{color:#FFFFFF}
   #notifLog .row.x-lose{background:rgba(255,59,59,.22);border-radius:6px;padding-left:4px}  #notifLog .row.x-lose .ti{color:#FFFFFF}
   .row.sig{box-shadow:inset 3px 0 0 #FFD54F}   /* 今天有訊號:左側黃條 */
-  #notifLog .empty{color:var(--dim);text-align:center;margin-top:60px;font-size:16px}   /* 2026-10-27 04:20 鐵律 19 巡檢:12 → 16px */
+  #notifLog .empty{color:var(--dim);text-align:center;margin-top:60px;font-size:16px}
+  #notifLog .empty.e845{margin-top:0;padding-top:50px;box-sizing:border-box}   /* 2026-10-27 04:20 鐵律 19 巡檢:12 → 16px */
   /* 顯示區固定存在,開啟設定也不消失、不縮放 */
 
   /* (判別式相關說明已移到私人庫) */
@@ -7320,7 +7322,11 @@ window.bgTick = bgTick; window.BG = BG;
       preOpen = d === today && wd_ >= 1 && wd_ <= 5 && hm_ >= 8 * 60 + 30 && hm_ < 9 * 60 && (!(window.Android && Android.monitorRunning) || Android.monitorRunning()); }catch(e){}
     const sepOf = dd => `<div class="dsep" data-day="${dd}">${dd.slice(5).replace('-', '/')}</div>`;
     let html = shown.length ? shown.map((o, k) => cardHtml(o, k, d)).join('') : '';   // 2026-10-27 14:40 使用者:「明天開盤時顯示10/27 就是區隔 意思就是10/28即將開盤訊息會接著進來了」→ 開盤前燈亮:最上面放前一天的日期列(10/27)當區隔,不放今天的
-    let topDone = preOpen || shown.length > 0;   // 最上面那天已經放了(它的日期列不顯示)
+    // 2026-11-06 08:58 使用者(08:56 截圖「已經是開盤前15分鐘內 這畫面對嗎？」→ 選 A):開盤日 08:45 起進場通知欄也跟燈號一起換日 —
+    //   標題是今天、最上面先一整塊空白「今日還沒有通知」,前一個交易日(帶日期列)接在下面,要看用日期滾輪轉回去
+    let pre845 = false; try{ const n_ = new Date(Date.now() + 8 * 3600000), hm_ = n_.getUTCHours() * 60 + n_.getUTCMinutes(), wd_ = n_.getUTCDay();
+      pre845 = d === today && !sess && !shown.length && wd_ >= 1 && wd_ <= 5 && hm_ >= 8 * 60 + 45 && !(window.TW_HOL && TW_HOL.has(today)); }catch(e){}
+    let topDone = preOpen || pre845 || shown.length > 0;   // 最上面那天已經放了(它的日期列不顯示)
     const todayEmpty = `<div class="empty">${window.VIEWER && window.KEYME && KEYME.role === 'trial' && false ? '' : window.LOG_RS ? '今天沒有' + window.LOG_RS + '的通知' : '今日還沒有通知<br>(進場 / 停利 / 停損 / 出場會列在這裡)'}</div>`;   // 2026-10-29 試用版
     const dayList = shown.length ? [today] : [];   // 有卡片的日子(新 → 舊),◀ ▶ 在這些日子之間捲
     // 2026-10-27 11:40(實際時間)使用者:「開盤時那個黃色的日期也不要顯示在通知欄裡面」:開盤中只列今天,前幾天(和它們的黃色日期列)收盤後才接在下面
@@ -7333,8 +7339,11 @@ window.bgTick = bgTick; window.BG = BG;
     }
     window.NL_ALL = allShown; window.NL_DAYS = dayList;
     if (!window.NL_TOPDAY || !dayList.includes(window.NL_TOPDAY)) window.NL_TOPDAY = dayList[0] || today;
+    window.__e845Day = pre845 && allShown.length ? today : null;
     // 2026-10-27 03:10 使用者(收盤後開通知欄:「剛剛進入通知欄是圖一 應該是圖二這樣才對」):今天沒通知時不放「今日還沒有通知」那塊佔位,前幾天直接接在標題下;完全沒有任何一天才顯示
-    if (!shown.length && ((d === today && inSession()) || !allShown.length)) html = todayEmpty + html;
+    if (pre845 && allShown.length){ html = `<div class="empty e845" data-day="${today}">${window.LOG_RS ? '今天沒有' + window.LOG_RS + '的通知' : '今日還沒有通知<br>(進場 / 停利 / 停損 / 出場會列在這裡)'}</div>` + html; dayList.unshift(today);
+      if (window.__e845 !== today){ window.__e845 = today; window.NL_TOPDAY = today; if (!window.NL_GOTO) window.NL_GOTO = today; } }   // 08:45 換日那一次跳回最上面(今天)
+    else if (!shown.length && ((d === today && inSession()) || !allShown.length)) html = todayEmpty + html;
     // 2026-10-27 05:00 使用者:「訊息裡 通知欄 左鍵+“監控訊息”+日期+右鍵 空10px “可用資金”+(2400000-已經進場的金額)空10px "已動資金"顯示進場金額」
     //   已動資金 = 這天進場還沒平倉的進場價 × 張數 × 1000 加總;可用資金 = 2,400,000(一天成交總金額上限,同桌機 TRADE_MAX_AMOUNT)− 已動資金
     // 2026-10-27 21:50 使用者(「這裡顯示錯了 怎麼最近還有往上的」):資金改成和自動交易同一套 — 元大額度買 + 賣 500 萬留緩衝 = 490 萬,
@@ -7371,7 +7380,7 @@ window.bgTick = bgTick; window.BG = BG;
     if (!box.__dayScroll){ box.__dayScroll = true;
       box.addEventListener('scroll', () => { if (box.__msR) return; box.__msR = requestAnimationFrame(() => { box.__msR = 0; try{ if (window.NL_VIEW && window.NL_VIEW !== 'msg') return;   // 2026-11-02 23:40 捲動中一格畫面只算一次
         const h = box.querySelector('.hd'); const hb = h ? h.getBoundingClientRect().bottom : box.getBoundingClientRect().top;
-        let top = nlTopDay(box, hb, '.dsep[data-day]', '.card[data-day], .dsep[data-day]');   // 2026-10-27 14:40 日期列也算(開盤前最上面 10/28 那列 → 標題 10/28);2026-11-06 改只量日期列(見 nlTopDay)
+        let top = nlTopDay(box, hb, '.dsep[data-day]', '.empty[data-day], .card[data-day], .dsep[data-day]');   // 2026-10-27 14:40 日期列也算(開盤前最上面 10/28 那列 → 標題 10/28);2026-11-06 改只量日期列(見 nlTopDay)
         if (top && top !== window.NL_TOPDAY){ window.NL_TOPDAY = top; const dt = box.querySelector('.hd .dt'); if (dt) dt.textContent = top.slice(5).replace('-', '/'); } if (top && (top !== box.__mwDay || box.__mwFc !== box.firstChild)){ box.__mwDay = top; box.__mwFc = box.firstChild; mwSet(box, top); } if (top && !window.NL_GOTO) window.__linkDay = top;   // 2026-11-06 日期聯動:記住進場正在看的那天
         if (top){ const L = window.NL_DAYS || [], k = L.indexOf(top), pv = el('nlPrev'), nx = el('nlNext'); if (pv) pv.disabled = k >= L.length - 1; if (nx) nx.disabled = k <= 0; } }catch(e){} }); }, {passive: true}); }
     if (cur){ window.NL_GOTO = cur; cur = null; }   // 等下面 fitAll 把列高定好再捲(不然高度一變位置就跑掉)
@@ -7462,7 +7471,9 @@ window.bgTick = bgTick; window.BG = BG;
     //   資金框 / 元大(虛擬)框一律放在日期格右邊固定距離(14px),數字只在右邊剩下的空間裡靠右,怎麼變都不會推動框
     const alignKey = () => { try{ const h = box.querySelector('.hd'), w = h && h.querySelector('.dwh'), k = h && h.querySelector('.cash .rlb, .vbtn'); if (!w || !k) return;
         k.style.marginLeft = '0px'; const x = w.getBoundingClientRect().right + 14 - k.getBoundingClientRect().left; k.style.marginLeft = Math.round(x) + 'px'; }catch(e){} };
-    const fitAll = () => { fit(); fitHd(); alignM30(); fitHdShrink(); alignM30(); fit(); fitHd(); alignM30(); fitHdShrink(); alignM30(); alignKey();   /* 2026-11-03 22:45 使用者「只是稍微變大」(影片 13928:換到進場 0.33 秒後卡片字放大一點):卡片列高 = (通知欄高 − 標題列高) ÷ 3,第一次量時標題列還沒縮到最終大小、比較高 → 卡片字偏小,0.3 秒後重量才放大。改成標題列定好後馬上再量一次卡片,第一次畫出來就是最終大小 */ try{ if (box.__fitL) box.__fitL(); }catch(e){} if (window.NL_GOTO) scrollToDay(window.NL_GOTO); };
+    let fitAll = () => { fit(); fitHd(); alignM30(); fitHdShrink(); alignM30(); fit(); fitHd(); alignM30(); fitHdShrink(); alignM30(); alignKey();   /* 2026-11-03 22:45 使用者「只是稍微變大」(影片 13928:換到進場 0.33 秒後卡片字放大一點):卡片列高 = (通知欄高 − 標題列高) ÷ 3,第一次量時標題列還沒縮到最終大小、比較高 → 卡片字偏小,0.3 秒後重量才放大。改成標題列定好後馬上再量一次卡片,第一次畫出來就是最終大小 */ try{ if (box.__fitL) box.__fitL(); }catch(e){} if (window.NL_GOTO) scrollToDay(window.NL_GOTO); };
+    { const fa0 = fitAll; const e845 = () => { try{ const e = box.querySelector('.e845'); if (e){ const h = box.querySelector('.hd'); const mh = Math.max(80, box.clientHeight - (h ? h.offsetHeight : 0) - 2) + 'px'; if (e.style.minHeight !== mh){ e.style.minHeight = mh; if (window.NL_TOPDAY === e.dataset.day) box.scrollTop = 0; } }   /* 撐高後瀏覽器的捲動錨點會把畫面往下推到 11/05 → 看的是今天就拉回最上面 */ }catch(e){} };   // 08:45 空白那塊撐滿一整個通知欄高,前一天要往下捲 / 轉滾輪才看得到
+      fitAll = () => { fa0(); e845(); }; }
     fitAll(); try{ if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll); }catch(e){} setTimeout(fitAll, 300); setTimeout(() => { window.NL_GOTO = null; }, 400);
     const prev = el('nlPrev'), next = el('nlNext');
     { const pn = box.querySelector('.hd .pnl'); if (pn) pn.onclick = () => { window.NL_SHOW30 = !window.NL_SHOW30; render(true); }; }
