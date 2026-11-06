@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-06 23:31(實際時間)資訊頁改 2 欄 × 3 排:左上標題、右上台灣加權,中間費城半導體 / 日經225,下面 NASDAQ / 韓國綜合(新加)(使用者「覺得右上太空了…下面再加一個韓國股市」→「改」)
   · 2026-11-06 23:02(實際時間)資訊四格改成 費城半導體 / 台灣加權 / NASDAQ / 日經225(道瓊拿掉)(使用者「把道瓊刪除 那費城半導體移到原道瓊位置 原費半改日經225」)
   · 2026-11-06 22:51(實際時間)資訊鍵左上紅燈改成跟公式鍵的燈一樣大、一樣位置(框內左上 9px),不壓黃框(使用者「資訊 紅燈 不要壓到框」「跟公式 燈一致就好」)
   · 2026-11-06 22:35(實際時間)永久版「元大」真實成交改從 11/09(下週一)起接;10/06~11/06 二十一天永久版元大、虛擬都顯示同一份用最新判別式重算的紀錄(判五第三次修改:名單平均 ≤ −6% 這檔今天不做);額度版 21 天 +690,889(使用者「以現在最新的判別式 重寫21天 永久會員元大 虛擬都一樣 下週一才開始接永久會員元大」)
@@ -296,7 +297,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611062302">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611062331">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -536,6 +537,11 @@
   #btnState{position:relative}   /* 2026-11-06 美股紅點;22:50 使用者「資訊 紅燈 不要壓到框」→ 縮成 9px、往框內移(跟公式的燈一樣) */
   #btnState.usdot::after{content:'';position:absolute;top:4px;left:4px;width:9px;height:9px;z-index:2;border-radius:50%;background:#FF3B30;box-shadow:0 0 6px #FF3B30;animation:usdotb 1s steps(2,start) infinite;pointer-events:none}
   @keyframes usdotb{to{visibility:hidden}}
+  /* 2026-11-06 23:26 使用者「覺得右上太空了 把台灣股市往上移到右上 日本股市移到右邊中間 下面再加一個韓國股市」:
+     資訊模式整個通知欄變 2 欄 × 3 列 —— 左上 = 標題(資訊 + 日期),右上 = 台灣加權,中間 = 費半 / 日經,下面 = NASDAQ / 韓國 */
+  #notifLog.usm{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,minmax(0,1fr));gap:6px;padding:5px 6px 6px;box-sizing:border-box;overflow:hidden}
+  #notifLog.usm .usx{display:contents} #notifLog.usm .hd{position:static;padding:0;align-self:center;min-width:0;overflow:hidden}
+  #notifLog.usm .usk{padding:3px 5px 3px 8px} #notifLog.usm .usk .usn{font-size:clamp(11px,3.1vw,14px);line-height:1.15} #notifLog.usm .usk .usv{font-size:clamp(15px,4.6vw,22px);line-height:1.1} #notifLog.usm .usk .usd{font-size:clamp(9px,2.7vw,12px);line-height:1.15} #notifLog.usm .usk .usc{padding:2px 0}
   #notifLog .usx{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:8px;padding:6px 6px 8px;box-sizing:border-box}
   #notifLog .usk{position:relative;display:grid;grid-template-columns:1fr 31%;column-gap:4px;align-items:stretch;min-height:0;background:linear-gradient(#1E2636,#151A25);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:6px 6px 6px 9px;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
   #notifLog .usk .usl{display:flex;flex-direction:column;justify-content:center;min-width:0}
@@ -1447,12 +1453,12 @@ const usSpark = (sp, prev, up) => { if (!Array.isArray(sp) || sp.length < 2) ret
     + `<line x1="0" x2="100" y1="${by}" y2="${by}" stroke="#8C96AB" stroke-width="1" stroke-dasharray="2 3" vector-effect="non-scaling-stroke"/>`
     + `<circle cx="100" cy="${Y(sp[n - 1])}" r="1.6" fill="${col}"/></svg>`; };
 const usCards = () => { const U = window.__US; if (!U) return '';
-  const NM = {'道瓊': '道瓊工業', 'S&P 500': 'S&P 500', '台股': '台灣加權', '那斯達克': 'NASDAQ', '費半': '費城半導體', '日經': '日經225'};   /* 23:02 道瓊拿掉;順序 費半 / 台灣加權 / NASDAQ / 日經225(Worker 決定) */   /* 2026-11-06 20:03 S&P 500 那格換台灣加權 */
+  const NM = {'道瓊': '道瓊工業', 'S&P 500': 'S&P 500', '台股': '台灣加權', '那斯達克': 'NASDAQ', '費半': '費城半導體', '日經': '日經225', '韓國': '韓國綜合'};   /* 23:02 道瓊拿掉;順序 費半 / 台灣加權 / NASDAQ / 日經225(Worker 決定) */   /* 2026-11-06 20:03 S&P 500 那格換台灣加權 */
   const f = v => v == null ? '—' : (+v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   let h = '<div class="usx">';
   for (const x of (U.idx || [])){ const up = (x.pct || 0) > 0, dn = (x.pct || 0) < 0, c = up ? 'up' : dn ? 'dn' : '';
     const nm = String(NM[x.name] || x.name).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-    h += `<div class="usk ${c}"><div class="usl"><div class="usn">${nm}</div><div class="usv">${f(x.close)}</div>`
+    h += `<div class="usk ${c}${x.name === '台股' ? ' tw' : ''}"><div class="usl"><div class="usn">${nm}</div><div class="usv">${f(x.close)}</div>`
       + `<div class="usd">${x.pct == null ? '' : (up ? '▲' : dn ? '▼' : '') + (x.chg != null ? f(Math.abs(x.chg)) : '') + ` <b>${Math.abs(x.pct).toFixed(2)}%</b>`}</div></div>`
       + `<div class="usc">${usSpark(x.spark, x.prev, up)}</div></div>`; }
   return h + '</div>'; };
@@ -2138,7 +2144,7 @@ window.fitBands = fitBands;
         const z = Math.round(r.top) + '|' + Math.round(r.height); if (z !== lastZ){ lastZ = z; Android.gestureZone(Math.round(r.top), Math.round(r.height)); } }catch(e){} };
       setTimeout(zone, 800); setInterval(zone, 3000); addEventListener('resize', zone); }
     for (const e0 of ['cover', 'rsMenu', 'panel']){ const e = document.getElementById(e0) || document.querySelector('.' + e0); if (e){ e.addEventListener('touchstart', st, {passive: true, capture: true}); e.addEventListener('touchmove', mv, {passive: false}); e.addEventListener('touchend', en, {passive: true}); e.addEventListener('touchcancel', () => { window.__nlTouch = 0; if (pv){ const P = pv; pv = null; drag = false; t0 = 0; swiped = Date.now(); busy = true; requestAnimationFrame(() => { if (P.g) setT(P.g, 0, 200); if (P.el2) setT(P.el2, P.dir * P.W, 200); }); setTimeout(() => { if (P.el2) clearX(P.el2); if (P.nl) P.nl.style.visibility = ''; go(tab0); requestAnimationFrame(() => { if (P.g) P.g.remove(); busy = false; }); }, 230); return; } if (drag){ drag = false; const b = boxOf(tab0); setX(b, 0, 200); setTimeout(() => clearX(b), 220); } t0 = 0; }, {passive: true}); } } }
-  const setView = (v, rs) => { if (window.NL_VIEW === 'pos' && v !== 'pos' && window.usSeen) window.usSeen(); window.NL_VIEW = v; if (window.usDot) setTimeout(window.usDot, 0); if (rs !== undefined) window.LOG_RS = rs; closeMenu(); window.__nlTouch = 0; if (v === 'msg' && window.NL_VIEW_PREV !== 'msg' && window.__linkDay) window.NL_GOTO = window.__linkDay; window.NL_VIEW_PREV = v;   /* 2026-11-06 日期聯動:回進場時跳到明細正在看的那天 */   /* 2026-11-03 22:43 使用者影片 13928(9~11 秒):按進場後還停在當沖約半秒才換 → 按鍵也算「手指在通知欄上」,重畫被延後 0.35 秒;換頁時立刻畫 */
+  const setView = (v, rs) => { if (window.NL_VIEW === 'pos' && v !== 'pos' && window.usSeen) window.usSeen(); if (v !== 'pos'){ try{ document.getElementById('notifLog').classList.remove('usm'); }catch(e){} } window.NL_VIEW = v; if (window.usDot) setTimeout(window.usDot, 0); if (rs !== undefined) window.LOG_RS = rs; closeMenu(); window.__nlTouch = 0; if (v === 'msg' && window.NL_VIEW_PREV !== 'msg' && window.__linkDay) window.NL_GOTO = window.__linkDay; window.NL_VIEW_PREV = v;   /* 2026-11-06 日期聯動:回進場時跳到明細正在看的那天 */   /* 2026-11-03 22:43 使用者影片 13928(9~11 秒):按進場後還停在當沖約半秒才換 → 按鍵也算「手指在通知欄上」,重畫被延後 0.35 秒;換頁時立刻畫 */
     const pnl = document.querySelector('.panel'); if (pnl) pnl.classList.remove('open'); hideInfo(); if (window.nlRender) nlRender(); refreshToolbar(); };
   window.nlSetView = setView;
   // 放開手指就動作(touchend),不等 click;同一次觸控的 click 擋掉(2026-10-18 的做法)
@@ -7287,8 +7293,9 @@ window.bgTick = bgTick; window.BG = BG;
         if (window.__nlV !== 'pos'){ box.scrollTop = 0; window.__nlV = 'pos'; }   // 2026-10-27 11:20 切到當沖也從最上面開始
         window.__posWin = window.__posWinTmp || []; window.__posWinTP = !!TP;
         const __usx = !!(__ub && !open.length);
+        box.classList.toggle('usm', __usx);
         if (__usx){ const __H = hdPos + usCards(); if (!nlSame(__H)) nlPut(__H);
-          const fitU = () => { try{ const ux = box.querySelector('.usx'), hh = box.querySelector('.hd'); if (ux) ux.style.height = Math.max(150, box.clientHeight - (hh ? hh.offsetHeight : 0) - 2) + 'px'; }catch(e){} };
+          const fitU = () => { try{ const ux = box.querySelector('.usx'), hh = box.querySelector('.hd'); if (ux && !box.classList.contains('usm')) ux.style.height = Math.max(150, box.clientHeight - (hh ? hh.offsetHeight : 0) - 2) + 'px'; }catch(e){} };
           fitU(); requestAnimationFrame(() => requestAnimationFrame(fitU)); }
         else {
         { const __H = hdPos + `<div class="tb pos">` + body + (cnt ? (late ? `<div class="late-note">⚠ 已過 13:20,這 ${cnt} 檔還沒收到平倉通知,請到投資先生確認已贖回</div>` : '') : __ub ? '' : `<div class="empty">${over || !TP || !TP.ok ? '目前沒有進場中的股票' : '目前沒有已成交的部位'}</div>`) + `</div>`; if (nlSame(__H)){ if (__snapPrev[0]) box.classList.add('snapdt'); box.style.scrollPaddingTop = __snapPrev[1]; return; } nlPut(__H); }
