@@ -290,7 +290,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611061605">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611061610">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -530,7 +530,10 @@
   #btnState{position:relative}   /* 2026-11-06 美股紅點 */
   #btnState.usdot::after{content:'';position:absolute;top:2px;left:3px;width:11px;height:11px;border-radius:50%;background:#FF3B30;box-shadow:0 0 6px #FF3B30;animation:usdotb 1s steps(2,start) infinite;pointer-events:none}
   @keyframes usdotb{to{visibility:hidden}}
-  #notifLog .tb.pos .r.us .num{font-weight:700}
+  #notifLog .tb.pos .r.us{grid-template-columns:9fr 9fr 2fr 9fr 11fr;column-gap:4px}
+  #notifLog .tb.pos .r.us.ush{grid-template-columns:1fr;text-align:center;color:#FFD54F;font-weight:800}
+  #notifLog .tb.pos .usn{color:#E6EAF2;font-weight:700} #notifLog .tb.pos .usp{font-weight:800;text-align:right}
+  #notifLog .tb.pos .usp.up{color:#FF5A5A} #notifLog .tb.pos .usp.dn{color:#2ED47A}
   #notifLog .tb.pos .r{grid-template-columns:10fr 1fr 8fr 1fr 8fr 1fr 3fr 1fr 7fr;column-gap:0}   /* 2026-10-27 02:45 使用者:「張數改3 當沖輸贏改7」 */   /* 2026-10-27 02:35 使用者:「股票名稱10,空格1,現在股價8,空格1,攤平股價8,空格1,張數2,空格1,當沖輸贏8 把一列平均40個欄位」:一列分 40 等份照這個排(02:20 版是 36 欄沒張數) */
   #notifLog .tb.pos{padding-left:0;padding-right:0}
   #notifLog .tb.done .r{grid-template-columns:minmax(0,10fr) minmax(0,16fr) minmax(0,4fr) minmax(0,7fr);column-gap:0} #notifLog .tb.done .r > *{min-width:0;overflow:hidden} #notifLog .tb.done .io{display:grid;grid-template-columns:1fr auto 1fr;text-align:right} #notifLog .tb.done .io > :nth-child(2){padding:0 .1em}   /* 2026-10-27 13:05 使用者:「箭頭位置固定」:進、出各一格靠右,箭頭固定在正中間,小數點上下對齊 */   /* 2026-10-27 13:00 使用者:「改 要對齊」:名稱 10 | 進→出 16 | 張 4 | 輸贏 7;minmax(0,…) 欄寬固定,長的價格不會把後面的欄推歪 */   /* 2026-10-27 12:10 判別式欄拿掉(使用者:「明細 判二這不用顯示」):名稱 11 | 進→出 14 | 張 4 | 輸贏 8 = 37 等份 */   /* 2026-10-27 04:20 明細也照 38 等份排:名稱 10 | 判別式 5 | 進→出 13 | 張 3 | 輸贏 7,字級 = 2 欄寬(鐵律 19) */
@@ -1397,9 +1400,10 @@ const usPoll = async () => { try{ if (!BASE.liveUrl) return; const r = await fet
 setTimeout(usPoll, 3000); setInterval(usPoll, 5 * 60000); setInterval(() => { usDot(); if (!usLive() && window.__usShown && window.NL_VIEW === 'pos' && window.nlRender){ window.__usShown = false; nlRender(); } }, 30000); window.usSeen = usSeen; window.usDot = usDot;
 const usBlock = () => { const U = window.__US; if (!usLive() || !U || U.d !== usToday() || !(U.idx || []).some(x => x.close != null)) return ''; window.__usShown = true;
   const f = v => v == null ? '—' : (+v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-  let h = `<div class="dsep">美股 ${String(U.us || '').slice(5).replace('-', '/')} 收盤</div>`;
-  for (const x of U.idx){ const c = x.pct == null ? '' : x.pct > 0 ? 'up' : x.pct < 0 ? 'dn' : '';
-    h += `<div class="r us"><span class="nm">${String(x.name).replace(/&/g, "&amp;").replace(/</g, "&lt;")}</span><span></span><span class="num ${c}">${f(x.close)}</span><span></span><span></span><span></span><span></span><span></span><span class="num ${c}">${x.pct == null ? '—' : (x.pct > 0 ? '+' : '') + x.pct.toFixed(2) + '%'}</span></div>`; }
+  const cell = x => { const c = x.pct == null ? '' : x.pct > 0 ? 'up' : x.pct < 0 ? 'dn' : ''; return `<span class="usn">${String(x.name).replace(/&/g, "&amp;").replace(/</g, "&lt;")}</span><span class="usp ${c}">${x.pct == null ? '—' : (x.pct > 0 ? '+' : '') + x.pct.toFixed(2) + '%'}</span>`; };
+  const I = U.idx || [];
+  let h = `<div class="r us ush"><span>美股 ${String(U.us || '').slice(5).replace('-', '/')} 收盤</span></div>`;
+  for (let k = 0; k < I.length; k += 2) h += `<div class="r us">${cell(I[k])}<span></span>${I[k + 1] ? cell(I[k + 1]) : '<span></span><span></span>'}</div>`;
   return h; };
 const lampBtn = (id, txt, kind, a, b) => { try{ const e = document.getElementById(id); if (!e) return; let H = '';
     if (kind){ if (kind === 'cnt') H = lampSeg(Math.min(10, a | 0), 0, 'y') + `<b>${txt}</b>` + lampSeg(Math.min(10, b | 0), 0, 'b');
