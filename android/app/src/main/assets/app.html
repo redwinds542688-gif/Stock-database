@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-06 12:07(實際時間)明細「元大 / 虛擬」改成手指一按下就切換(盤中標題列一直重畫,原本放開時按鍵已被換掉,按了沒反應)(使用者「沒法切換」)
   · 2026-11-06 11:51(實際時間)明細「元大 / 虛擬」盤中也能切換(原本盤中按了沒反應、一律看元大)(使用者「在明細裡按元大可以切換看到虛擬」)
   · 2026-11-06 11:00(實際時間)K 圖錯位修正(使用者「改」):K 圖上疊的線只用 K 棒有的時間點,不再把 K 圖時間軸撐長、和指標二 / 乖離錯開(10:56 華新錯 43 根);丟掉的點記進抓 bug(kTrim)
   · 2026-11-06 09:07(實際時間)進場:開盤中今天還沒有通知時,日期框原本空白 → 顯示今天日期(使用者截圖「日期呢」)
@@ -287,7 +288,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611061151">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611061207">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7285,7 +7286,10 @@ window.bgTick = bgTick; window.BG = BG;
         { const __H = hdDone + `<div class="tb done">` + body + `</div>`; if (nlSame(__H)){ if (__snapPrev[0]) box.classList.add('snapdt'); box.style.scrollPaddingTop = __snapPrev[1]; return; }
           if (Date.now() - (box.__dwT || 0) < 900){ clearTimeout(box.__dwLater); box.__dwLater = setTimeout(() => render(true), 500); return; }   /* 2026-11-03 15:25 滾輪轉動中先不重畫,停下來再補 */
           nlPut(__H); dwWire(box); }
-        { const vb = box.querySelector('.hd .vbtn'); if (vb) vb.onclick = ev => { ev.stopPropagation(); const day = box.__dwDay || window.__doneToday;
+        /* 2026-11-06 12:06 使用者「沒法切換」:盤中明細一直在更新,手指按下到放開之間標題列被重畫 → 按鍵換成新的,click 不會觸發。
+           改成在通知欄上聽「按下」就切(標題列重畫也不影響),一按就換 */
+        if (!box.__vbDel){ box.__vbDel = 1; box.addEventListener('pointerdown', ev => { try{ const b = ev.target && ev.target.closest && ev.target.closest('.hd .vbtn'); if (!b || window.NL_VIEW !== 'done' || typeof box.__vbH !== 'function') return; if (Date.now() - (box.__vbAt || 0) < 400) return; box.__vbAt = Date.now(); ev.preventDefault(); box.__vbH(ev); }catch(e){} }, true); }
+        { const vb = box.querySelector('.hd .vbtn'); if (vb) box.__vbH = ev => { ev.stopPropagation(); const day = box.__dwDay || window.__doneToday;
             // 2026-11-04 使用者「在明細裡 上滑到比較下面的股票 然後按 元大或虛擬 會跳回開頭」:切換前記下畫面最上面那一列(哪天、哪檔、第幾列、離欄名多遠),切換後捲回同一檔(找不到就同一天的第幾列)
             const hbOf = () => { const h = box.querySelector('.tb.done > .r.h'), hd = box.querySelector('.hd'); return h ? h.getBoundingClientRect().bottom : hd ? hd.getBoundingClientRect().bottom : 0; };
             const anc = (() => { try{ const hb = hbOf(), rows = [...box.querySelectorAll('.tb.done > .r[data-code]')], top = rows.find(x => x.getBoundingClientRect().bottom > hb + 2); if (!top) return null;
