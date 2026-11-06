@@ -34,16 +34,16 @@
 "lots": 149714
 },
 {
+"code": "1303",
+"name": "南亞",
+"market": "twse",
+"lots": 114669
+},
+{
 "code": "1815",
 "name": "富喬",
 "market": "tpex",
 "lots": 109774
-},
-{
-"code": "1303",
-"name": "南亞",
-"market": "twse",
-"lots": 107378
 },
 {
 "code": "2317",
@@ -208,6 +208,12 @@
 "lots": 29698
 },
 {
+"code": "2412",
+"name": "中華電",
+"market": "twse",
+"lots": 28469
+},
+{
 "code": "5314",
 "name": "世紀*",
 "market": "tpex",
@@ -226,16 +232,10 @@
 "lots": 27971
 },
 {
-"code": "2412",
-"name": "中華電",
-"market": "twse",
-"lots": 27188
-},
-{
 "code": "3702",
 "name": "大聯大",
 "market": "twse",
-"lots": 26906
+"lots": 27906
 },
 {
 "code": "2356",
@@ -496,6 +496,12 @@
 "lots": 11820
 },
 {
+"code": "8069",
+"name": "元太",
+"market": "tpex",
+"lots": 11812
+},
+{
 "code": "2105",
 "name": "正新",
 "market": "twse",
@@ -512,6 +518,12 @@
 "name": "遠傳",
 "market": "twse",
 "lots": 11595
+},
+{
+"code": "5904",
+"name": "寶雅*",
+"market": "tpex",
+"lots": 11344
 },
 {
 "code": "1711",
@@ -554,12 +566,6 @@
 "name": "中美晶",
 "market": "tpex",
 "lots": 10591
-},
-{
-"code": "8069",
-"name": "元太",
-"market": "tpex",
-"lots": 10585
 },
 {
 "code": "6209",
@@ -770,12 +776,6 @@
 "name": "友訊",
 "market": "twse",
 "lots": 7712
-},
-{
-"code": "5904",
-"name": "寶雅*",
-"market": "tpex",
-"lots": 7653
 },
 {
 "code": "3715",
