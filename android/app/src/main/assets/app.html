@@ -290,7 +290,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611061630">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611061635">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1394,15 +1394,23 @@ const lampAmt = v => { const n = Math.ceil(Math.abs(Math.round(v || 0)) / 5000);
 //   Worker ?usmkt=get(08:20 起有今天那份);今天的資料還沒看過 → 當沖鍵左上角閃紅點;進當沖看過、離開當沖 → 記住看過了,紅點消失
 window.__US = null;
 const usToday = () => new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
-const usLive = () => new Date(Date.now() + 8 * 3600000).toISOString().slice(11, 16) < '09:00';   /* 2026-11-06 15:48 使用者「只在當沖通知欄裡顯示到當天9.00 之後交回當沖使用」 */
-const usKey = () => window.__US ? window.__US.d + '|' + window.__US.us : '';
+/* 2026-11-06 16:11 使用者「星期六8.20 一直到星期一早上9.00 都是顯示美股星期五的資訊 如果美股剛好星期五休市那就是顯示星期四的資訊」:
+   顯示時段 = 平日 08:20~09:00;週末 = 星期六 08:20 起一直到星期一 09:00。資料要是這個時段開始以後抓的(永遠是最近一個已收盤的美股交易日) */
+const usWinStart = () => { const n = new Date(Date.now() + 8 * 3600000), wd = n.getUTCDay(), hm = n.toISOString().slice(11, 16), day = 86400000;
+  const at = k => Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate() - k, 0, 20) ;   /* 台灣 08:20 = UTC 00:20(k 天前) */
+  if (wd === 6) return hm >= '08:20' ? at(0) : 0;
+  if (wd === 0) return at(1);
+  if (wd === 1 && hm < '09:00') return at(2);
+  return (hm >= '08:20' && hm < '09:00') ? at(0) : 0; };
+const usLive = () => usWinStart() > 0;   /* 2026-11-06 15:48 使用者「只在當沖通知欄裡顯示到當天9.00 之後交回當沖使用」 */
+const usKey = () => window.__US ? String(window.__US.us || '') : '';   /* 看過的是哪一天的美股(星期六看過,星期日 / 星期一早上同一份就不再閃) */
 const usDot = () => { try{ usBtnTxt(); }catch(e){} try{ const b = document.getElementById('btnState'); if (!b) return; let seen = ''; try{ seen = localStorage.getItem('mysh.usSeen') || ''; }catch(e){}
-  const on = !!(usLive() && window.__US && window.__US.d === usToday() && (window.__US.idx || []).some(x => x.close != null) && seen !== usKey() && window.NL_VIEW !== 'pos'); b.classList.toggle('usdot', on); }catch(e){} };
-const usSeen = () => { try{ if (window.__US && window.__US.d === usToday() && window.__usShown) localStorage.setItem('mysh.usSeen', usKey()); }catch(e){} usDot(); };
+  const on = !!(usOn() && seen !== usKey() && window.NL_VIEW !== 'pos'); b.classList.toggle('usdot', on); }catch(e){} };
+const usSeen = () => { try{ if (usOn() && window.__usShown) localStorage.setItem('mysh.usSeen', usKey()); }catch(e){} usDot(); };
 const usPoll = async () => { try{ if (!BASE.liveUrl) return; const r = await fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?usmkt=get&_=${Date.now()}`, {cache: 'no-store'}); const j = await r.json();
   if (j && j.d && Array.isArray(j.idx)){ const ch = usKey() !== (j.d + '|' + j.us); window.__US = j; if (ch && window.NL_VIEW === 'pos' && window.nlRender) nlRender(); } }catch(e){} usDot(); };
 setTimeout(usPoll, 3000); setInterval(usPoll, 5 * 60000); setInterval(() => { usDot(); if (!usLive() && window.__usShown && window.NL_VIEW === 'pos' && window.nlRender){ window.__usShown = false; nlRender(); } }, 30000); window.usSeen = usSeen; window.usDot = usDot;
-const usOn = () => !!(usLive() && window.__US && window.__US.d === usToday() && (window.__US.idx || []).some(x => x.close != null));
+const usOn = () => { const w = usWinStart(); return !!(w && window.__US && (+window.__US.at || 0) >= w && (window.__US.idx || []).some(x => x.close != null)); };
 const usLabel = () => usOn() ? '美股' : '當沖';   /* 2026-11-06 15:59 使用者「這時段 “當沖” 改 “美股” 裡面的當沖 也一樣」:08:20~09:00 有美股時按鍵、標題都叫「美股」 */
 window.usLabel = usLabel;
 const usBtnTxt = () => { try{ const b = document.getElementById('btnState'); if (!b) return; const t = usLabel(); if (b.classList.contains('lmb')){ const x = b.querySelector('b'); if (x && x.textContent !== t) x.textContent = t; } else if (b.textContent !== t) b.textContent = t; b.setAttribute('aria-label', t); }catch(e){} };
