@@ -95,7 +95,7 @@ const ymdOf = t => t.toISOString().slice(0, 10);
 const hhmmOf = t => t.toISOString().slice(11, 16);
 // 2026-11-06 15:44 使用者「美股只是參考 每天8.20 拿到資料之後 在當沖的通知欄裡 顯示 美股四大指數的結果 當沖按鍵 左上角 閃紅點」:
 //   台灣 08:20 / 08:30 / 08:45 cron 抓前一個美股交易日的道瓊、S&P 500、那斯達克、費半收盤(Yahoo 圖表 API,抓不到改 FRED),存 Hub「usmkt」;GET ?usmkt=get 給手機
-const US_IDX = [["^DJI", "道瓊", "DJIA"], ["^TWII", "台股", ""], ["^IXIC", "那斯達克", "NASDAQCOM"], ["^SOX", "費半", "NASDAQSOX"]];   // 2026-11-06 20:03 使用者「這裡的 s&p500 改成台灣股市」:第二格換台灣加權指數(Yahoo ^TWII;FRED 沒有,抓不到就空著)
+const US_IDX = [["^SOX", "費半", "NASDAQSOX"], ["^TWII", "台股", ""], ["^IXIC", "那斯達克", "NASDAQCOM"], ["^N225", "日經", "NIKKEI225"]];   // 2026-11-06 23:02 使用者「把道瓊刪除 那費城半導體移到原道瓊位置 原費半改日經225」   // 2026-11-06 20:03 使用者「這裡的 s&p500 改成台灣股市」:第二格換台灣加權指數(Yahoo ^TWII;FRED 沒有,抓不到就空著)
 async function fetchUS(env) {
   const out = [];
   for (const [sym, name, fred] of US_IDX) {
@@ -127,7 +127,7 @@ async function fetchUS(env) {
     out.push(row || { name, close: null, pct: null, date: "", src: "" });
   }
   const t = new Date(Date.now() + 8 * 3600e3);
-  return { d: t.toISOString().slice(0, 10), at: Date.now(), hm: t.toISOString().slice(11, 16), us: out.filter(x => x.name !== "台股").map(x => x.date).filter(Boolean).sort().pop() || ""   /* 美股日期只看美國那三個(台股日期是台灣的) */, idx: out };
+  return { d: t.toISOString().slice(0, 10), at: Date.now(), hm: t.toISOString().slice(11, 16), us: out.filter(x => x.name !== "台股" && x.name !== "日經").map(x => x.date).filter(Boolean).sort().pop() || ""   /* 美股日期只看美國那三個(台股日期是台灣的) */, idx: out };
 }
 async function usGet(env, force) {
   let v = null; try { v = env.HUB ? await hubOf(env).kvGet("usmkt") : null; } catch (e) {}
