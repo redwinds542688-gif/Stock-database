@@ -158,7 +158,7 @@ class Trader:
         # 2026-10-28 12:27 使用者「我在元大自己下的股票 成交後也顯示在這邊 受判三管制」→「這個都下單的叫做 元三」→「改」:
         #   不是程式送的單成交、這檔程式又沒有部位 → 接成「元三」部位,停利 / 停損用判三的 %(TRADE_Y3_TP_PCT / TRADE_Y3_SL_PCT,從成交價算),±6.5%、13:20、強平照樣管
         self.y3 = cfg.get("TRADE_Y3", "1") == "1"
-        self.y3_tp = float(cfg.get("TRADE_Y3_TP_PCT", "2.5"))
+        self.y3_tp = float(cfg.get("TRADE_Y3_TP_PCT", "3"))   # 2026-11-06 15:29 使用者「改一樣」:2.5 → 3(判三 TAKE=3)
         self.y3_sl = float(cfg.get("TRADE_Y3_SL_PCT", "4.5"))
         self.force_exit = cfg.get("TRADE_FORCE_EXIT", "13:20")
         self.ignore = set(x.strip() for x in cfg.get("TRADE_IGNORE_CODES", "YY0070").split(",") if x.strip())   # 2026-10-28 庫存裡下市、不能賣的股票:元三不接、13:22 複查不平

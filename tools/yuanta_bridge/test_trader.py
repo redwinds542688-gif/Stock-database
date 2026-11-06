@@ -19,7 +19,7 @@ class GWN(GW):
 tmp = Path(tempfile.mkdtemp()); stop = tmp / "STOP"; NMK = [0]
 def mk(gw=GW, prime=True, **kw):
     NMK[0] += 1   # 2026-10-29 每個測試自己的狀態檔(今天進場過的訊號會存檔,不要互相影響)
-    cfg = {"TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0"}; cfg.update(kw)
+    cfg = {"TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0", "TRADE_Y3_TP_PCT": "2.5"}; cfg.update(kw)
     g = gw(); t = Trader(cfg, g, logs.append, lambda: NOW[0]); t.posts = []; t.alerts = []
     t.post = lambda a, b, k: t.posts.append((a, b, k)); t.akinds = []; t.alert = lambda a, b="", k="pc": (t.alerts.append(a), t.akinds.append(k))
     if prime: t.prime([])   # 2026-10-29 稽核 #1:跟 bridge 一樣,啟動時讀到通知(這裡是空的)才算準備好
@@ -606,5 +606,8 @@ tm4.on_report(50, "i00Pe", 0, 1000, 87.0, "", "6269", "S", "9"); ok(not tm4.preh
 at(10, 0); tq_, gq_ = mk(); tq_.on_report(50, "i00Qa", 0, 3000, 50.5, "", "2330", "S", "9"); tq_.on_report(50, "i00Qa", 0, 3000, 50.5, "", "2330", "S", "9")
 ok(sum("預掛做空" in x[0] and x[2] == "warn" for x in tq_.posts) == 1 and not tq_.prehang, tq_.posts)
 tq_.on_report(50, "i00Qa", 2, 3000, 50.5, "", "2330", "S", "9"); ok(any("預掛已取消" in x[0] for x in tq_.posts), tq_.posts)
+
+# 2026-11-06 元三停利預設 2.5 → 3(和判三一樣)
+from trader import Trader as _T; ok(_T({"TRADE_STATE_FILE": str(tmp / "y3d.json")}, GW(), logs.append, lambda: NOW[0]).y3_tp == 3.0)
 
 print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1)")
