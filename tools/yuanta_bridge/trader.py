@@ -32,6 +32,9 @@ def limit_up(ref):
     return round(lu, 2)
 
 
+def close_side(d):
+    return "B" if d < 0 else "S"
+
 def shift(p, ticks):
     """價格往上(+)/ 往下(−)移 ticks 檔"""
     for _ in range(abs(ticks)):
@@ -167,6 +170,7 @@ class Trader:
         #   到 TRADE_PREHANG_DEADLINE(13:24)還沒成交 → 取消那張、程式照舊漲停 / 跌停平倉。0 = 關(照舊 13:20 全部取消)
         self.prehang_deadline = cfg.get("TRADE_PREHANG_DEADLINE", "13:24").strip()
         self.prehang = {}   # code → 保留的手動預掛委託書號 [no, …]
+        self.man_meta = {}  # 2026-11-06 手動預掛的書號 → {bs, typ}(強平時取消用)
         self.alert = lambda title, body="", kind="pc": None      # bridge 會換成「發提醒到手機」(kind:pc = 一般、lv1~lv5 = 虧損分級)
         self.post = lambda title, body, kind: None    # bridge 會換成「寫一則交易訊息到手機的訊息欄」(強三進出場、強平)
         self.ref_of = lambda code: None                # bridge 會換成「這檔的昨收」(±6.5% 用)
@@ -661,7 +665,7 @@ class Trader:
                     p["oco_noted"] = True; self.log(f"[交易] {code} 價格 {price} 碰到{why},由元大條件單(OCO)平倉")
                 return
             self.exit_pos(p, why, price, force_limit=True)
-            if hit_mv:
+            if hit_mv and p["state"] == EXITING:   # 讓位給手動預掛時沒平,不要每個價都提醒
                 self.alert(f"⚠ {code} 離昨收 {'−' if d > 0 else '+'}{mm:g}% 系統強制平倉", f"{'做多跌停賣出' if d > 0 else '做空漲停買回'} {p['qty']} 張")
 
     def find_order(self, order_no, basket):
@@ -696,6 +700,8 @@ class Trader:
                         self.log(f"[交易] {code} 程式舊委託({str(basket).strip()})晚到的成交 {qty_shares // 1000} 張 @ {price},只記錄(13:22 複查以元大為準)")
                         return
                     self.on_other_fill(str(code).strip(), bs, qty_shares, price, str(order_no or "").strip(), typ)
+                elif rpt_type == 50 and code and str(basket or "").strip()[:1] not in ("T", "F", "R"):
+                    self.man_order(str(code).strip(), str(order_no or "").strip(), status, qty_shares, price, bs, typ)
                 return
             o = p["order"]
             if order_no and str(order_no).strip() and basket and str(basket).strip() == o["tag"]:
@@ -710,6 +716,28 @@ class Trader:
                 o["dead"] = True; o["end_status"] = status
                 self.log(f"[交易] {p['code']} 委託結束 狀態 {status}({ {1: '委託失敗', 2: '取消成功', 24: '委託失效', 25: '價穩失效'}[status] })")
             self.after_report(p)
+
+    def man_order(self, code, no, status, qty_shares, price, bs, typ=""):
+        """2026-11-06 11:32 使用者「大聯大 預掛 程式沒有提示」→ 選「程式讓位給預掛」:程式持倉中,元大手動掛了平倉方向的單 →
+           記成預掛(prehang)、通知手機;預掛還在時程式的停利 / 停損 / ±% / 平倉通知都先不平(只靠預掛出場),13:20 / 13:24 照舊處理;
+           預掛取消 / 失效 → 拿掉、通知手機,程式恢復盯停利停損。手機強平不受影響(先取消預掛再平)"""
+        if not no: return
+        p = self.positions.get(code); lst = self.prehang.get(code) or []
+        if status in (1, 2, 24, 25):
+            if no in lst:
+                lst.remove(no)
+                if not lst: self.prehang.pop(code, None)
+                self.man_meta.pop(no, None)
+                if p and p["state"] == HOLDING:
+                    self.log(f"[交易] {code} 手動預掛 {no} 結束(狀態 {status})→ 程式恢復盯停利 {p['tp']} / 停損 {p['sl']}")
+                    self.alert(f"↩ {self.name_of(code)} {code} 預掛單沒了", f"程式恢復盯停利 {p['tp']} / 停損 {p['sl']}")
+            return
+        if status != 0 or not p or p["state"] != HOLDING or bs != close_side(p["dir"]) or no in lst: return
+        lst.append(no); self.prehang[code] = lst; self.man_meta[no] = {"bs": bs, "typ": typ}
+        lots = qty_shares // 1000
+        self.log(f"[交易] {code} 看到手動預掛平倉 {'買回' if bs == 'B' else '賣出'} {lots} 張 @ {price}(書號 {no})→ 程式讓位:停利 / 停損先不平,等預掛成交({self.prehang_deadline} 前沒成交由程式平)")
+        self.alert(f"✅ {self.name_of(code)} {code} 看到你的預掛", f"{'買回' if bs == 'B' else '賣出'} {lots} 張 @ {price}(程式部位 {p['qty']} 張);程式停利 / 停損先不動,{self.prehang_deadline} 前沒成交由程式平")
+        if lots != p["qty"]: self.alert(f"⚠ {code} 預掛張數 {lots} 和程式部位 {p['qty']} 張不一樣", "成交後剩下的(或多出來的)請自己確認")
 
     def on_other_fill(self, code, bs, qty_shares, price, order_no="", typ=""):
         """不是這支程式送的單成交了:手動開新部位(元三)、手動加碼、手動 / 條件單平倉,或程式平倉時條件單也同時觸發(多平了)"""
@@ -864,6 +892,7 @@ class Trader:
         c = p["code"]
         self.flat_watch[c] = {"mkt": p["mkt"], "dir": p["dir"], "typ": p["typ"], "until": time.time() + 120}
         self.positions.pop(c, None)
+        for no in self.prehang.pop(c, []) if self.hm() < "13:20" else []: self.man_meta.pop(no, None)   # 2026-11-06 部位沒了,盤中記的預掛跟著清(13:20 後的由 prehang_pick / expire 管)
         # 2026-10-28 強三的出場、任何部位的強平 → 寫一則平倉訊息到手機訊息欄(判一 / 二 / 三自己的平倉訊息照舊由手機發)
         if (p.get("forced") or p.get("forced_close")) and p.get("judge") in ("判一", "判二", "判三", "判四", "判五", FORCED, MANUAL) and p["closed_lots"]:   # 2026-11-02 判四強平也要寫訊息(使用者「強制平倉 訊息欄要顯示」;欣銓 3264 判四強平沒出現)
             ex = p["closed_cost"] / p["closed_lots"]; d = p["dir"]
@@ -1380,6 +1409,10 @@ class Trader:
     def exit_pos(self, p, why, px, force_limit=False):
         if not p or p["state"] != HOLDING:
             return
+        if self.prehang_wait(p["code"]) and str(why).startswith("強平"):   # 手機強平:先取消預掛再平,不讓位
+            for no in self.prehang.pop(p["code"], []):
+                m = self.man_meta.pop(no, {}); self.gw.cancel(no, p["code"], m.get("bs") or close_side(p["dir"]), m.get("typ") or p["typ"])
+                self.log(f"[交易] {p['code']} 強平:先取消手動預掛 {no}")
         if self.prehang_wait(p["code"]):
             if not p.get("_ph_log"): p["_ph_log"] = True; self.log(f"[交易] 出場 {p['code']}:{why} → 有手動預掛的平倉單,{self.prehang_deadline} 前先等它成交")
             return

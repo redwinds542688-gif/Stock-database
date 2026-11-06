@@ -586,4 +586,20 @@ tl4, gl4 = mk(); tl4.on_tick("6269", 87.0); tl4.step([ENT]); tl4.step([sig("x-l4
 tl5, gl5 = mk(TRADE_LATE_REDO_MIN="0"); tl5.on_tick("6269", 87.0); tl5.step([ENT]); ok(not tl5.late_wait)
 OLD = dict(ENT); OLD["_k"] = "old-l6"; OLD["t"] = "09:50"; tl6, gl6 = mk(); tl6.on_tick("6269", 86.2); tl6.step([OLD]); ok(not tl6.positions and not tl6.late_wait)   # 通知本來就太舊:不記
 
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6)")
+# 2026-11-06 盤中手動預掛平倉單 → 通知、程式讓位(停利 / 停損不平);預掛取消 → 恢復;手機強平 → 先取消預掛再平
+at(11, 0); tm_, gm_ = mk(); tm_.on_tick("6269", 86.2); tm_.step([ENT]); tm_.on_report(51, "A0001", 0, 1000, 86.2)
+tm_.on_report(50, "i00Pb", 0, 1000, 85.0, "", "6269", "B", "9"); ok(tm_.prehang.get("6269") == ["i00Pb"] and any("看到你的預掛" in a for a in tm_.alerts), tm_.alerts)
+n0 = len(gm_.sent); tm_.on_tick("6269", 84.0); ok(tm_.positions["6269"]["state"] == HOLDING and len(gm_.sent) == n0)   # 停利到了也讓位
+tm_.on_tick("6269", 89.0); ok(tm_.positions["6269"]["state"] == HOLDING and len(gm_.sent) == n0)                       # 停損也讓位
+tm_.on_report(50, "i00Pb", 2, 1000, 85.0, "", "6269", "B", "9"); ok(not tm_.prehang and any("預掛單沒了" in a for a in tm_.alerts))
+tm_.on_tick("6269", 89.0); ok(tm_.positions["6269"]["state"] == EXITING)                                               # 預掛沒了 → 照停損平
+tm2, gm2 = mk(); tm2.on_tick("6269", 86.2); tm2.step([ENT]); tm2.on_report(51, "A0001", 0, 1000, 86.2)
+tm2.on_report(50, "i00Pc", 0, 1000, 85.0, "", "6269", "B", "9"); tm2.on_report(51, "i00Pc", 0, 1000, 85.0, "", "6269", "B", "9")
+ok("6269" not in tm2.positions and not tm2.prehang)                                                                    # 預掛成交 → 部位結束、預掛清掉
+tm3, gm3 = mk(); tm3.on_tick("6269", 86.2); tm3.step([ENT]); tm3.on_report(51, "A0001", 0, 1000, 86.2)
+tm3.on_report(50, "i00Pd", 0, 1000, 85.0, "", "6269", "B", "9"); tm3.exit_pos(tm3.positions["6269"], "強平", 86.0, force_limit=True)
+ok(("cancel", "i00Pd", "6269", "B") in gm3.sent and tm3.positions["6269"]["state"] == EXITING, gm3.sent)
+tm4, gm4 = mk(); tm4.on_tick("6269", 86.2); tm4.step([ENT]); tm4.on_report(51, "A0001", 0, 1000, 86.2)
+tm4.on_report(50, "i00Pe", 0, 1000, 87.0, "", "6269", "S", "9"); ok(not tm4.prehang)                                   # 同方向(加碼)不算預掛
+
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5)")
