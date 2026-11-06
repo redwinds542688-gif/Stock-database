@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-07 00:37(實際時間)修:從資訊切回進場 / 明細時,卡片被排成兩欄(資訊頁的排版沒拿掉)(使用者影片「進場 顯示錯誤」)
   · 2026-11-06 23:31(實際時間)資訊頁改 2 欄 × 3 排:左上標題、右上台灣加權,中間費城半導體 / 日經225,下面 NASDAQ / 韓國綜合(新加)(使用者「覺得右上太空了…下面再加一個韓國股市」→「改」)
   · 2026-11-06 23:02(實際時間)資訊四格改成 費城半導體 / 台灣加權 / NASDAQ / 日經225(道瓊拿掉)(使用者「把道瓊刪除 那費城半導體移到原道瓊位置 原費半改日經225」)
   · 2026-11-06 22:51(實際時間)資訊鍵左上紅燈改成跟公式鍵的燈一樣大、一樣位置(框內左上 9px),不壓黃框(使用者「資訊 紅燈 不要壓到框」「跟公式 燈一致就好」)
@@ -297,7 +298,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611062331">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611070037">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6963,7 +6964,8 @@ window.bgTick = bgTick; window.BG = BG;
     if (!force && (window.__nlFinger || Date.now() - (window.__nlScrollAt || 0) < 800)){ if (!render.__pend2){ render.__pend2 = setTimeout(function again(){ if (window.__nlFinger || Date.now() - (window.__nlScrollAt || 0) < 800){ render.__pend2 = setTimeout(again, 300); return; } render.__pend2 = 0; render(false); }, 300); } return; }
     const nlKey = () => (window.NL_VIEW || 'msg') + (window.NL_SHOW30 ? '|30' : '') + '|' + (box.parentElement ? box.parentElement.clientWidth + 'x' + box.parentElement.clientHeight : '') + '|' + innerWidth + 'x' + innerHeight;   // 視窗大小變了照樣重排
     const nlSame = H => !cur && !window.NL_GOTO && box.__h === H && box.__hv === nlKey() && box.__hf === box.firstChild && box.__hl === box.lastChild && box.firstChild;
-    const nlPut = H => { box.innerHTML = H; box.__h = H; box.__hv = nlKey(); box.__hf = box.firstChild; box.__hl = box.lastChild; };
+    const nlPut = H => { box.classList.toggle('usm', H.indexOf('class="usx"') >= 0); box.innerHTML = H; box.__h = H; box.__hv = nlKey(); box.__hf = box.firstChild; box.__hl = box.lastChild; };
+    if (window.NL_VIEW !== 'pos') box.classList.remove('usm');   /* 2026-11-07 00:36 使用者影片「進場 顯示錯誤」:從資訊切回進場,資訊頁的 2 欄排版(usm)沒拿掉 → 進場卡片被排成兩欄;內容換掉時一律照內容決定 */
     const ds = days(); const today = todayStr(); if (!ds.includes(today)) ds.push(today); ds.sort();
     // 2026-10-19 使用者:「非開盤時間、也沒有當天紀錄,就顯示前一個工作日的通知」:沒有手動翻頁(cur 為空)、不在盤中、今天沒有買賣訊號 → 自動顯示最近一個有紀錄的日子
     // 2026-10-27 00:40 使用者:「最上面就是最新的通知 往上滑動 可以看到以往的資訊 如果不同天 … 就要空出一列顯示(10/21)這日期」:
