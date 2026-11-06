@@ -290,7 +290,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611061330">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611061420">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6905,7 +6905,7 @@ window.bgTick = bgTick; window.BG = BG;
     //   第 3 列 = 灰字明細(進場時間、停利停損價、平倉時間與原因、反彈提醒)
     const parse = x => {
       const m = (x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?(\S+) (\d{4,6}[A-Z]*)\s*(.*)$/); if (!m) return null;
-      if (!window.VIEWER && /·\s*已強平\s*·/.test(x.body || '')) return null;   // 2026-11-04 使用者「我強平過的 當沖最後就不用顯示未平倉的訊息 看盤版就是照程式設定來」:強平後引擎照算的虛擬出場,永久版不列(看盤版 Worker 已拿掉「已強平」照常列)
+      if (!window.VIEWER && !window.DONE_VIRT && /·\s*已強平\s*·/.test(x.body || '')) return null;   /* 2026-11-06 14:18 使用者「虛擬 看盤版 該怎麼寫就怎麼寫 跟我強平不強平沒有關係」:切到虛擬也照列 */   // 2026-11-04 使用者「我強平過的 當沖最後就不用顯示未平倉的訊息 看盤版就是照程式設定來」:強平後引擎照算的虛擬出場,永久版不列(看盤版 Worker 已拿掉「已強平」照常列)
       const b = x.body || '', rest = m[3];
       const o = {x, name: m[1], code: m[2], t: x.t || '', kind: x.kind || '', prev: +x.prev || 0, rs: ((b.match(/· (判[一二三四五]|強三|元三)\s*$/) || [])[1]) || '', fc: /· 強平 ·/.test(b), madd: /·\s*加碼\s*·/.test(b), over: /·\s*超額\s*·/.test(b)};   /* (判別式相關說明已移到私人庫) */   // (判別式相關說明已移到私人庫)
       // 2026-10-23 12:00 轉折通知(內容結尾「· 轉折」):自己一類,一張卡只有 名稱 | 價 | 做多 / 做空 | 時間 | 轉折,不算部位、不配對平倉、不藏
@@ -6941,9 +6941,9 @@ window.bgTick = bgTick; window.BG = BG;
     { const fcT = new Map(); for (const o of _pc) if (o.fc && o.t && (!fcT.has(o.code) || o.t < fcT.get(o.code))) fcT.set(o.code, o.t);
       if (fcT.size) for (let k = _pc.length - 1; k >= 0; k--){ const o = _pc[k], t0 = fcT.get(o.code); if (t0 && !o.fc && o.type !== 'turn' && o.rs !== '強三' && o.rs !== '元三' && o.t >= t0) _pc.splice(k, 1);   /* 強平後自己再強制進場(強三)/ 元大手動(元三)照顯示 */ } }
     // 2026-11-02 11:39 使用者「金山電 早已經強制平倉 怎麼還出現停損訊息」:判四強平今天電腦還沒寫強平卡(明天更新後才寫)→ 這支手機自己強平過的股票(fclosed)也藏後面的停利 / 停損 / 出場
-    if (d === today){ let fl = []; try{ fl = fcList(); if (!window.VIEWER) tposPoll(); }catch(e){}
+    if (d === today && !window.DONE_VIRT){ let fl = []; try{ fl = fcList(); if (!window.VIEWER) tposPoll(); }catch(e){}
       if (fl.length) for (let k = _pc.length - 1; k >= 0; k--){ const o = _pc[k]; if (fl.includes(o.code) && !_pc.some(x => x.fc && x.code === o.code) && o.type === 'exit' && !o.fc && /^判[一二三四五]$/.test(o.rs || '')) _pc.splice(k, 1); } }
-    if (d === today && !window.VIEWER) for (let k = _pc.length - 1; k >= 0; k--){ const o = _pc[k]; if (o.type === 'exit' && !o.fc && /^判[一二三四五]$/.test(o.rs || '') && realGoneHas(d, o)) _pc.splice(k, 1); }   // 2026-11-02 13:05 元大已沒有這檔部位時收到的平倉通知(realGone)也藏
+    if (d === today && !window.VIEWER && !window.DONE_VIRT) for (let k = _pc.length - 1; k >= 0; k--){ const o = _pc[k]; if (o.type === 'exit' && !o.fc && /^判[一二三四五]$/.test(o.rs || '') && realGoneHas(d, o)) _pc.splice(k, 1); }   // 2026-11-02 13:05 元大已沒有這檔部位時收到的平倉通知(realGone)也藏
     const cards = _pc.filter(o => !(o.type === 'turn' && !o.add && !o.warnT && YH.turnLogFirst === false))   // (判別式相關說明已移到私人庫)
       // (判別式相關說明已移到私人庫)
       //   (量只會增加,現在都不到,當時一定不到 = 照規則本來就不該發;舊版背景發的也一併藏起來),清單也就不會因為它標「監控中」
@@ -7276,7 +7276,7 @@ window.bgTick = bgTick; window.BG = BG;
         /* 2026-11-06 12:15 使用者「強平 虛擬不可以顯示 虛擬就是照虛擬所有的邏輯走 怎麼把我操作的copy到虛擬那邊」:
            今天(還沒有重算的)切到虛擬 → 從原始訊息重新整理,只留程式自己的進場 / 停利 / 停損 / 出場;電腦發的元大卡(強平、元大預掛成交、加碼、元三、強制進場、預掛)全部不算,
            也不套「強平後藏掉這檔後面的卡」那幾條(那是元大畫面用的)→ 你手動平掉的,虛擬照程式自己的出場或 13:20 平倉算 */
-        else if (doneVirt && d0 === today){ try{ src0 = finish(prep(itemsFor(today).filter(x => !/強平|元大|預掛|強制 ·/.test((x.title || '') + ' ' + (x.body || ''))))); }catch(e){} }
+        else if (doneVirt && d0 === today){ try{ src0 = finish(prep(itemsFor(today).filter(x => !/強平|元大|預掛|強制 ·/.test((x.title || '') + ' ' + (x.body || '').replace(/已強平/g, ''))))); }catch(e){} }
         let [h0, t0, c0] = dayRows(d0, src0);
         let empty0 = d0 === today ? '今天還沒有平倉的股票' : '這天沒有平倉的股票';
         void TPe;   // 2026-10-30 12:20 原本「自動交易開著但讀不到元大 → 不列模擬的」改成連不上就列程式的模擬交易(使用者「當無法連上主機 明細就顯示程式做的股票明細」)
