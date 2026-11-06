@@ -93,6 +93,44 @@ const MIS_HDR = { "User-Agent": "Mozilla/5.0", "Accept": "application/json", "Re
 const twNow = () => new Date(Date.now() + 8 * 3600e3);
 const ymdOf = t => t.toISOString().slice(0, 10);
 const hhmmOf = t => t.toISOString().slice(11, 16);
+// 2026-11-06 15:44 使用者「美股只是參考 每天8.20 拿到資料之後 在當沖的通知欄裡 顯示 美股四大指數的結果 當沖按鍵 左上角 閃紅點」:
+//   台灣 08:20 / 08:30 / 08:45 cron 抓前一個美股交易日的道瓊、S&P 500、那斯達克、費半收盤(Yahoo 圖表 API,抓不到改 FRED),存 Hub「usmkt」;GET ?usmkt=get 給手機
+const US_IDX = [["^DJI", "道瓊", "DJIA"], ["^GSPC", "S&P 500", "SP500"], ["^IXIC", "那斯達克", "NASDAQCOM"], ["^SOX", "費半", "NASDAQSOX"]];
+async function fetchUS(env) {
+  const out = [];
+  for (const [sym, name, fred] of US_IDX) {
+    let row = null;
+    try {
+      const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=10d&interval=1d`, { headers: { "User-Agent": "Mozilla/5.0" } });
+      const j = await r.json(); const res = j && j.chart && j.chart.result && j.chart.result[0];
+      const ts = (res && res.timestamp) || [], cl = (res && res.indicators && res.indicators.quote && res.indicators.quote[0] && res.indicators.quote[0].close) || [], off = +((res && res.meta && res.meta.gmtoffset) || -18000);
+      const v = ts.map((t, i) => [t, cl[i]]).filter(x => x[1] != null);
+      if (v.length >= 2) { const [t1, c1] = v[v.length - 1], c0 = v[v.length - 2][1]; row = { name, close: +c1.toFixed(2), prev: +c0.toFixed(2), pct: +((c1 / c0 - 1) * 100).toFixed(2), date: new Date((t1 + off) * 1000).toISOString().slice(0, 10), src: "Yahoo" }; }
+    } catch (e) {}
+    if (!row) {
+      try {
+        const t = await (await fetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${fred}`, { headers: { "User-Agent": "Mozilla/5.0" } })).text();
+        const v = t.trim().split("\n").slice(1).map(l => l.split(",")).filter(x => x[1] && x[1] !== ".");
+        if (v.length >= 2) { const c1 = +v[v.length - 1][1], c0 = +v[v.length - 2][1]; row = { name, close: +c1.toFixed(2), prev: +c0.toFixed(2), pct: +((c1 / c0 - 1) * 100).toFixed(2), date: v[v.length - 1][0], src: "FRED" }; }
+      } catch (e) {}
+    }
+    out.push(row || { name, close: null, pct: null, date: "", src: "" });
+  }
+  const t = new Date(Date.now() + 8 * 3600e3);
+  return { d: t.toISOString().slice(0, 10), at: Date.now(), hm: t.toISOString().slice(11, 16), us: out.map(x => x.date).filter(Boolean).sort().pop() || "", idx: out };
+}
+async function usGet(env, force) {
+  let v = null; try { v = env.HUB ? await hubOf(env).kvGet("usmkt") : null; } catch (e) {}
+  const t = new Date(Date.now() + 8 * 3600e3), d = t.toISOString().slice(0, 10), hm = t.toISOString().slice(11, 16), wd = t.getUTCDay();
+  const ok = v && v.d === d && v.idx && v.idx.every(x => x.close != null);
+  if (!ok && (force || (wd >= 1 && wd <= 5 && hm >= "08:20"))) {
+    const c = MC.get("usfetch"); if (!force && c && Date.now() - c < 300e3) return v;   // 手機來問、今天還沒有:最多 5 分鐘抓一次
+    MC.set("usfetch", Date.now());
+    const n = await fetchUS(env); if (n.idx.some(x => x.close != null)) { v = n; try { if (env.HUB) await hubOf(env).kvPut("usmkt", n); } catch (e) {} }
+  }
+  return v;
+}
+
 async function poolCodes(env) {
   const r = await ghRaw(env, "pool.json");
   if (!r.ok) throw new Error("pool.json " + r.status);
@@ -619,6 +657,7 @@ export default {
     const SLOTS = { "8:20": "recheck", "8:45": "recheck", "9:05": "recheck", "14:30": "daily", "16:30": "daily", "20:30": "daily" };
     const what = SLOTS[key];
     if (what) { const r = await dispatch(env, what); console.log(`cron ${event.cron} 台灣 ${key} → ${what}: ${r.msg}`); }
+    if (key === "8:20" || key === "8:30" || key === "8:45") { try { const v = await usGet(env, false); console.log(`cron 台灣 ${key} 美股:${v ? v.us + " " + v.idx.map(x => x.name + " " + x.pct + "%").join(" ") : "抓不到"}`); } catch (e) { console.log("美股失敗 " + e); } }
     try { const r = await snapshotBars(env, true, event.scheduledTime); if (r !== "off-hours") console.log(`cron 台灣 ${key} 分K:${r}`); } catch (e) { console.log("分K 快照失敗 " + e); }
   },
 
@@ -898,6 +937,10 @@ export default {
 
     // ── 2026-10-30 11:08(實際時間)電腦開盤前資格複檢(tools/yuanta_bridge/elig.py;使用者「該如何避免再次出現這問題」→「2道都做」):
     //    POST ?elig=push {d, hm, disposed, attention, nodt, noshort, …}(中繼金鑰)/ GET ?elig=get → 手機把這些股票從監控拿掉(不靠 GitHub 排程)
+    if (url.searchParams.get("usmkt")) {   // 2026-11-06 美股四大指數(當沖通知欄;公開資料不用鑰匙)
+      const v = await usGet(env, url.searchParams.get("usmkt") === "force");
+      return new Response(JSON.stringify(v || {}), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60" } });
+    }
     const el = url.searchParams.get("elig");
     if (el) {
       if (!env || !env.HUB) return J({ error: "Worker 還沒綁定 Durable Object(HUB)" }, 503);

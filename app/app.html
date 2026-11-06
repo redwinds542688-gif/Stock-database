@@ -290,7 +290,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611061545">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611061600">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -527,6 +527,10 @@
   #notifLog .dsep{display:flex;align-items:center;justify-content:center;font-size:clamp(24px,7vw,32px);font-weight:800;color:#FFD54F;letter-spacing:1px;padding:4px 0 2px;margin:6px 0 2px;border-top:1px solid rgba(255,255,255,.14)}   /* 日與日之間的分隔列:日期,這列字最大 */
   #notifLog .tb{padding:2px 4px 6px;font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
   #notifLog .tb .r{display:grid;align-items:center;column-gap:4px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.08);white-space:nowrap;overflow:hidden}
+  #btnState{position:relative}   /* 2026-11-06 美股紅點 */
+  #btnState.usdot::after{content:'';position:absolute;top:2px;left:3px;width:11px;height:11px;border-radius:50%;background:#FF3B30;box-shadow:0 0 6px #FF3B30;animation:usdotb 1s steps(2,start) infinite;pointer-events:none}
+  @keyframes usdotb{to{visibility:hidden}}
+  #notifLog .tb.pos .r.us .num{font-weight:700}
   #notifLog .tb.pos .r{grid-template-columns:10fr 1fr 8fr 1fr 8fr 1fr 3fr 1fr 7fr;column-gap:0}   /* 2026-10-27 02:45 使用者:「張數改3 當沖輸贏改7」 */   /* 2026-10-27 02:35 使用者:「股票名稱10,空格1,現在股價8,空格1,攤平股價8,空格1,張數2,空格1,當沖輸贏8 把一列平均40個欄位」:一列分 40 等份照這個排(02:20 版是 36 欄沒張數) */
   #notifLog .tb.pos{padding-left:0;padding-right:0}
   #notifLog .tb.done .r{grid-template-columns:minmax(0,10fr) minmax(0,16fr) minmax(0,4fr) minmax(0,7fr);column-gap:0} #notifLog .tb.done .r > *{min-width:0;overflow:hidden} #notifLog .tb.done .io{display:grid;grid-template-columns:1fr auto 1fr;text-align:right} #notifLog .tb.done .io > :nth-child(2){padding:0 .1em}   /* 2026-10-27 13:05 使用者:「箭頭位置固定」:進、出各一格靠右,箭頭固定在正中間,小數點上下對齊 */   /* 2026-10-27 13:00 使用者:「改 要對齊」:名稱 10 | 進→出 16 | 張 4 | 輸贏 7;minmax(0,…) 欄寬固定,長的價格不會把後面的欄推歪 */   /* 2026-10-27 12:10 判別式欄拿掉(使用者:「明細 判二這不用顯示」):名稱 11 | 進→出 14 | 張 4 | 輸贏 8 = 37 等份 */   /* 2026-10-27 04:20 明細也照 38 等份排:名稱 10 | 判別式 5 | 進→出 13 | 張 3 | 輸贏 7,字級 = 2 欄寬(鐵律 19) */
@@ -1379,6 +1383,23 @@ const lampCol = (c, i) => { const w = 0.65 * (9 - i) / 9, q = LAMP_C[c]; return 
 const lampSeg = (k, k2, c) => `<span class="lmp ${c}">` + Array.from({length: 10}, (_, i) => { const t = i < k2 ? (c === 'r' ? 'au' : 'pu') : i < k ? c : ''; return t ? `<i class="on" style="background:${lampCol(t, i)};box-shadow:0 0 3px ${lampCol(t, 9)}"></i>` : '<i></i>'; }).join('') + '</span>';
 const lampAmt = v => { const n = Math.ceil(Math.abs(Math.round(v || 0)) / 5000); return [Math.min(10, n), Math.max(0, Math.min(10, n - 10))]; };   // 5,000 一格,滿 10 格後第二圈
 // 2026-11-05 00:17 使用者「進場燈號在進場按鍵上 當沖燈號在當沖按鍵上 明細燈號在明細按鍵上」:改放下排三顆按鍵(三顆同時看得到),通知欄左上角綠框不放
+// 2026-11-06 15:44 使用者「美股只是參考 每天8.20 拿到資料之後 在當沖的通知欄裡 顯示 美股四大指數的結果 當沖按鍵 左上角 閃紅點 點擊當沖 看到資料之後 退出 就看不到紅點」:
+//   Worker ?usmkt=get(08:20 起有今天那份);今天的資料還沒看過 → 當沖鍵左上角閃紅點;進當沖看過、離開當沖 → 記住看過了,紅點消失
+window.__US = null;
+const usToday = () => new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+const usKey = () => window.__US ? window.__US.d + '|' + window.__US.us : '';
+const usDot = () => { try{ const b = document.getElementById('btnState'); if (!b) return; let seen = ''; try{ seen = localStorage.getItem('mysh.usSeen') || ''; }catch(e){}
+  const on = !!(window.__US && window.__US.d === usToday() && (window.__US.idx || []).some(x => x.close != null) && seen !== usKey() && window.NL_VIEW !== 'pos'); b.classList.toggle('usdot', on); }catch(e){} };
+const usSeen = () => { try{ if (window.__US && window.__US.d === usToday() && window.__usShown) localStorage.setItem('mysh.usSeen', usKey()); }catch(e){} usDot(); };
+const usPoll = async () => { try{ if (!BASE.liveUrl) return; const r = await fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?usmkt=get&_=${Date.now()}`, {cache: 'no-store'}); const j = await r.json();
+  if (j && j.d && Array.isArray(j.idx)){ const ch = usKey() !== (j.d + '|' + j.us); window.__US = j; if (ch && window.NL_VIEW === 'pos' && window.nlRender) nlRender(); } }catch(e){} usDot(); };
+setTimeout(usPoll, 3000); setInterval(usPoll, 5 * 60000); window.usSeen = usSeen; window.usDot = usDot;
+const usBlock = () => { const U = window.__US; if (!U || U.d !== usToday() || !(U.idx || []).some(x => x.close != null)) return ''; window.__usShown = true;
+  const f = v => v == null ? '—' : (+v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  let h = `<div class="dsep">美股 ${String(U.us || '').slice(5).replace('-', '/')} 收盤</div>`;
+  for (const x of U.idx){ const c = x.pct == null ? '' : x.pct > 0 ? 'up' : x.pct < 0 ? 'dn' : '';
+    h += `<div class="r us"><span class="nm">${String(x.name).replace(/&/g, "&amp;").replace(/</g, "&lt;")}</span><span></span><span class="num ${c}">${f(x.close)}</span><span></span><span></span><span></span><span></span><span></span><span class="num ${c}">${x.pct == null ? '—' : (x.pct > 0 ? '+' : '') + x.pct.toFixed(2) + '%'}</span></div>`; }
+  return h; };
 const lampBtn = (id, txt, kind, a, b) => { try{ const e = document.getElementById(id); if (!e) return; let H = '';
     if (kind){ if (kind === 'cnt') H = lampSeg(Math.min(10, a | 0), 0, 'y') + `<b>${txt}</b>` + lampSeg(Math.min(10, b | 0), 0, 'b');
       else { const [k, k2] = lampAmt(a), w = Math.round(a || 0) > 0, l = Math.round(a || 0) < 0; H = lampSeg(w ? k : 0, w ? k2 : 0, 'r') + `<b>${txt}</b>` + lampSeg(l ? k : 0, l ? k2 : 0, 'g'); } }
@@ -2061,7 +2082,7 @@ window.fitBands = fitBands;
         const z = Math.round(r.top) + '|' + Math.round(r.height); if (z !== lastZ){ lastZ = z; Android.gestureZone(Math.round(r.top), Math.round(r.height)); } }catch(e){} };
       setTimeout(zone, 800); setInterval(zone, 3000); addEventListener('resize', zone); }
     for (const e0 of ['cover', 'rsMenu', 'panel']){ const e = document.getElementById(e0) || document.querySelector('.' + e0); if (e){ e.addEventListener('touchstart', st, {passive: true, capture: true}); e.addEventListener('touchmove', mv, {passive: false}); e.addEventListener('touchend', en, {passive: true}); e.addEventListener('touchcancel', () => { window.__nlTouch = 0; if (pv){ const P = pv; pv = null; drag = false; t0 = 0; swiped = Date.now(); busy = true; requestAnimationFrame(() => { if (P.g) setT(P.g, 0, 200); if (P.el2) setT(P.el2, P.dir * P.W, 200); }); setTimeout(() => { if (P.el2) clearX(P.el2); if (P.nl) P.nl.style.visibility = ''; go(tab0); requestAnimationFrame(() => { if (P.g) P.g.remove(); busy = false; }); }, 230); return; } if (drag){ drag = false; const b = boxOf(tab0); setX(b, 0, 200); setTimeout(() => clearX(b), 220); } t0 = 0; }, {passive: true}); } } }
-  const setView = (v, rs) => { window.NL_VIEW = v; if (rs !== undefined) window.LOG_RS = rs; closeMenu(); window.__nlTouch = 0; if (v === 'msg' && window.NL_VIEW_PREV !== 'msg' && window.__linkDay) window.NL_GOTO = window.__linkDay; window.NL_VIEW_PREV = v;   /* 2026-11-06 日期聯動:回進場時跳到明細正在看的那天 */   /* 2026-11-03 22:43 使用者影片 13928(9~11 秒):按進場後還停在當沖約半秒才換 → 按鍵也算「手指在通知欄上」,重畫被延後 0.35 秒;換頁時立刻畫 */
+  const setView = (v, rs) => { if (window.NL_VIEW === 'pos' && v !== 'pos' && window.usSeen) window.usSeen(); window.NL_VIEW = v; if (window.usDot) setTimeout(window.usDot, 0); if (rs !== undefined) window.LOG_RS = rs; closeMenu(); window.__nlTouch = 0; if (v === 'msg' && window.NL_VIEW_PREV !== 'msg' && window.__linkDay) window.NL_GOTO = window.__linkDay; window.NL_VIEW_PREV = v;   /* 2026-11-06 日期聯動:回進場時跳到明細正在看的那天 */   /* 2026-11-03 22:43 使用者影片 13928(9~11 秒):按進場後還停在當沖約半秒才換 → 按鍵也算「手指在通知欄上」,重畫被延後 0.35 秒;換頁時立刻畫 */
     const pnl = document.querySelector('.panel'); if (pnl) pnl.classList.remove('open'); hideInfo(); if (window.nlRender) nlRender(); refreshToolbar(); };
   window.nlSetView = setView;
   // 放開手指就動作(touchend),不等 click;同一次觸控的 click 擋掉(2026-10-18 的做法)
@@ -7192,7 +7213,7 @@ window.bgTick = bgTick; window.BG = BG;
         tposPoll();
         const {over, TP, TPL, open} = posOpen();
         const late = (() => { const n = new Date(Date.now() + 8 * 3600000); const hm = n.getUTCHours() * 60 + n.getUTCMinutes(); return hm >= 13 * 60 + 20 && hm <= 14 * 60; })();   // 台灣時間 13:20~14:00
-        body = `<div class="r h"><span>股票</span><span></span><span class="num">現價</span><span></span><span class="num">攤平</span><span></span><span class="num">張</span><span></span><span class="num">輸贏</span></div>`;   // 2026-10-27 02:45 欄位 10|1|8|1|8|1|3|1|7 = 40
+        body = usBlock() + `<div class="r h"><span>股票</span><span></span><span class="num">現價</span><span></span><span class="num">攤平</span><span></span><span class="num">張</span><span></span><span class="num">輸贏</span></div>`;   // 2026-10-27 02:45 欄位 10|1|8|1|8|1|3|1|7 = 40
         window.__posWinTmp = [];
         for (const o of open){
           const lt = lotsOf(o), dr = o.side === 'long' ? 1 : -1, ent = +o.entP;
