@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-06 20:04(實際時間)美股四格:S&P 500 那格換成台灣加權指數(使用者「這裡的 s&p500 改成台灣股市」)
   · 2026-11-06 19:59(實際時間)美股:只要不是開盤時間(平日 09:00~13:30)當沖頁就顯示最近一份美股四大指數,開盤中交回當沖(使用者「只要未開盤時間 就是顯示美國」)
   · 2026-11-06 12:28(實際時間)進場:元大預掛的股票,進場卡右邊顯示黃色「預掛價 預掛」;預掛成交 → 同一張卡變成平倉(強平、平倉價、輸贏),不另外多一張(使用者選 A、「是同一張卡片 不是又多一張」)
   · 2026-11-06 12:16(實際時間)明細虛擬(今天):不再把你的強平 / 元大手動單算進來,只照程式自己的進出場邏輯(使用者「強平 虛擬不可以顯示 虛擬就是照虛擬所有的邏輯走」)
@@ -291,7 +292,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611061959">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611062004">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1442,7 +1443,7 @@ const usSpark = (sp, prev, up) => { if (!Array.isArray(sp) || sp.length < 2) ret
     + `<line x1="0" x2="100" y1="${by}" y2="${by}" stroke="#8C96AB" stroke-width="1" stroke-dasharray="2 3" vector-effect="non-scaling-stroke"/>`
     + `<circle cx="100" cy="${Y(sp[n - 1])}" r="1.6" fill="${col}"/></svg>`; };
 const usCards = () => { const U = window.__US; if (!U) return '';
-  const NM = {'道瓊': '道瓊工業', 'S&P 500': 'S&P 500', '那斯達克': 'NASDAQ', '費半': '費城半導體'};
+  const NM = {'道瓊': '道瓊工業', 'S&P 500': 'S&P 500', '台股': '台灣加權', '那斯達克': 'NASDAQ', '費半': '費城半導體'};   /* 2026-11-06 20:03 S&P 500 那格換台灣加權 */
   const f = v => v == null ? '—' : (+v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   let h = '<div class="usx">';
   for (const x of (U.idx || [])){ const up = (x.pct || 0) > 0, dn = (x.pct || 0) < 0, c = up ? 'up' : dn ? 'dn' : '';
