@@ -911,7 +911,7 @@ class Trader:
             ex = p["closed_cost"] / p["closed_lots"]; d = p["dir"]
             pl = (ex - p["entry"]) / p["entry"] * 100 * d if p["entry"] else 0
             self.post(f"{'✅ ' if pl >= 0 else '⚠ '}{self.name_of(c)} {c} 出場 {'+' if pl >= 0 else '−'}{abs(pl):.1f}%:元大預掛成交",
-                      f"{self.hm()} {'做多' if d > 0 else '做空'} {p.get('t0') or self.hm()} 進 {p['entry']:.2f} → 現價 {ex:.2f} · {p['closed_lots']}張 · 原{p.get('judge') or ''} · 元三",
+                      f"{self.hm()} {'做多' if d > 0 else '做空'} {p.get('t0') or self.hm()} 進 {p['entry']:.2f} → 現價 {ex:.2f} · {p['closed_lots']}張 · 強平 · {p.get('judge') or ''}",   # 標原判別式才會和那張進場卡配成同一筆、算進輸贏;「· 強平 ·」讓手機藏掉之後引擎的虛擬出場
                       "profit" if pl >= 0 else "loss")
 
     def on_strategy_reply(self, strategy_no, ok, msg):
