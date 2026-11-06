@@ -951,6 +951,23 @@ export default {
       const v = await usGet(env, url.searchParams.get("usmkt") === "force");
       return new Response(JSON.stringify(v || {}), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60" } });
     }
+    // 2026-11-06 名單外手動成交的股票(中繼 extra_add 補好 K 後推上來):POST ?extra=push {d, codes:[{code,name,market,prev}]}(中繼金鑰)/ GET ?extra=get → 手機也加進名單
+    const exq = url.searchParams.get("extra");
+    if (exq) {
+      if (!env || !env.HUB) return J({ error: "Worker 還沒綁定 Durable Object(HUB)" }, 503);
+      if (exq === "push") {
+        if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
+        if (!env.YT_PUSH_KEY || request.headers.get("X-Push-Key") !== env.YT_PUSH_KEY) return J({ error: "金鑰不對" }, 403);
+        let b; try { b = await request.json(); } catch (e) { return J({ error: "JSON 格式錯誤" }, 400); }
+        if (!b || !/^\d{4}-\d{2}-\d{2}$/.test(b.d || "")) return J({ error: "要有 d(YYYY-MM-DD)" }, 400);
+        const codes = (Array.isArray(b.codes) ? b.codes : []).filter(x => x && /^[1-9]\d{3}$/.test(String(x.code))).slice(0, 50)
+          .map(x => ({ code: String(x.code), name: String(x.name || x.code).slice(0, 12), market: x.market === "tpex" ? "tpex" : "twse", prev: +x.prev || null, at: String(x.at || "").slice(0, 5) }));
+        await hubOf(env).kvPut("extra", { d: b.d, codes });
+        return J({ ok: true, n: codes.length });
+      }
+      const v = await hubOf(env).kvGet("extra");
+      return new Response(JSON.stringify(v || {}), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=30" } });
+    }
     const el = url.searchParams.get("elig");
     if (el) {
       if (!env || !env.HUB) return J({ error: "Worker 還沒綁定 Durable Object(HUB)" }, 503);

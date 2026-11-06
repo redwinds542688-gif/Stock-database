@@ -290,7 +290,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611061635">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611061640">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1238,7 +1238,11 @@ async function loadRemotePool(){
     if (j.rules.avg5_min_hits != null) BASE.avg5MinHits = j.rules.avg5_min_hits;
     if (j.rules.entry_max_chg!= null) BASE.entryMaxChg = j.rules.entry_max_chg;
   }
-  return j.pool
+  // 2026-11-06 名單外手動成交的股票(電腦補好 K 推到 Worker ?extra=get):今天的加進名單,不篩條件(電腦離線、手機自己算時也算得到)
+  const _xd = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10), _x = (window.__EXTRA && window.__EXTRA.d === _xd && Array.isArray(window.__EXTRA.codes)) ? window.__EXTRA.codes : [];
+  const _have = new Set(j.pool.map(s => String(s.code)));
+  const _xp = _x.filter(x => !_have.has(String(x.code))).map(x => ({code: String(x.code), name: x.name || String(x.code), close: +x.prev || 0, prev: +x.prev || null, amp: 99, lots: 1e9, market: x.market === 'tpex' ? 'tpex' : 'twse', daytrade: 1, short_first: 1, extra: 1}));
+  return j.pool.concat(_xp)
     .filter(s => isStockCode(s.code) && (s.market === 'twse' || s.market === 'tpex'))
     .map(s => ({
       code: s.code, name: (s.name || '').replace(/\*|-KY$|-創$/g, ''), close: +s.close, dir: s.dir,   // 2026-10-17 使用者:名稱的 -KY、*、-創 拿掉,最長 5 個中文字(10 欄)
@@ -1254,8 +1258,16 @@ async function loadRemotePool(){
       dt:      s.daytrade    === 1,
       dtShort: s.short_first === 1,
       date: j.date || '',
+      extra: s.extra === 1,
     }));
 }
+// 2026-11-06 名單外股票:每 2 分鐘問 Worker,有新的就讓名單重載(loadRemotePool 會把它們加進去)
+window.__EXTRA = null;
+async function extraWatch(){ try{ if (typeof BASE === 'undefined' || !BASE.liveUrl) return; const r = await fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?extra=get&_=${Date.now()}`, {cache: 'no-store'}); const j = await r.json();
+  const d = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10); if (!j || j.d !== d || !Array.isArray(j.codes)) return;
+  const k = j.codes.map(x => x.code).sort().join(','), k0 = window.__EXTRA && window.__EXTRA.d === d ? window.__EXTRA.codes.map(x => x.code).sort().join(',') : '';
+  window.__EXTRA = j; if (k && k !== k0 && (typeof SRC === 'undefined' || !SRC || j.codes.some(x => !SRC.some(s => s.code === String(x.code))))){ try{ SRC_STAMP = ''; POOL_WATCH.at = 0; await poolWatch(); }catch(e){} } }catch(e){} }
+setTimeout(extraWatch, 5000); setInterval(extraWatch, 120000);
 
 /* ══════════════════════════════════════════
    處置股名單 — 一律排除,不列入監控
@@ -6520,9 +6532,9 @@ async function buildPool(){
 
   SRC = src;
   POOL = src
-    .filter(s => !DISPOSED.has(s.code) && s.disposed !== true
+    .filter(s => s.extra || (!DISPOSED.has(s.code) && s.disposed !== true
       && s.close >= BASE.lo && s.close <= BASE.hi
-      && s.amp != null && s.amp >= BASE.amp)
+      && s.amp != null && s.amp >= BASE.amp))
     .sort((a, b) => b.vol - a.vol)
     .slice(0, BASE.size);
 

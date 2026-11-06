@@ -188,6 +188,14 @@ class LoginRejected(Exception):
     """元大明確拒絕登入(帳密錯、密碼凍結、沒權限):不能一直重試,錯的密碼連續試會把帳號鎖住"""
 
 
+def _bn(x):
+    """2026-11-06 查「華新 1605 重開後被當成元三接回」:元大回報 / 查詢裡的自訂編號前面會多「Ewodr」(送出 T104310001 → 回報 EwodrT104310001),
+       程式靠第一個字 T / F / R 認自己的單 → 認不得,重開時把程式的部位當成手動(元三)接回。統一拿掉前綴,只留程式送出的那段"""
+    b = str(x or "").strip()
+    m = re.search(r"([TFR]\d{6,})$", b)
+    return m.group(1) if m else b
+
+
 def _ts_of(t):
     """元大 K 的 TimeStamp → ('YYYY-MM-DD', 'HH:MM')(和 hist_kline.ts_of 同一套)"""
     parts = str(t).strip().split(); y, m, dd = parts[0].replace("/", "-").split("-")
@@ -254,7 +262,7 @@ class Bridge:
                         with self.tag_lock:
                             tag = self.sent_tags.pop(0) if self.sent_tags else None   # 一次送一筆,回應照送出順序
                         try:                                                       # 回應本身有帶自訂編號就以它為準(元件有這個欄位的話)
-                            bn = str(getattr(r.ResultList[i], "BasketNo", "") or "").strip() if st.Count else ""
+                            bn = _bn(getattr(r.ResultList[i], "BasketNo", "")) if st.Count else ""
                             if bn: tag = bn
                         except Exception: pass
                         if st.Count == 0:
@@ -278,14 +286,14 @@ class Bridge:
                     r = objValue
                     lots_of = lambda q: q // 1000 if q >= 1000 else q
                     for i in range(r.StkOrderList.Count):
-                        o = r.StkOrderList[i]; self.resume_buf["tags"][str(o.OrderNo).strip()] = str(o.BasketNo).strip()
+                        o = r.StkOrderList[i]; self.resume_buf["tags"][str(o.OrderNo).strip()] = _bn(o.BasketNo)
                         self.resume_buf.setdefault("types", {})[str(o.OrderNo).strip()] = str(o.OrderType).strip()
                         try: _cq = int(o.CancelQty)
                         except Exception: _cq = 0
                         rest = int(o.AfterQty) - int(o.OkQty) - _cq   # 2026-10-29 使用者實測(win_order_test):已取消的單 OrderStatus=30、CancelQty=1000、AfterQty=1000、OkQty=0 → 不扣 CancelQty 會當成還掛著
                         if int(o.OrderStatus) not in (1, 2, 24, 25, 30) and rest > 0:   # 還有沒成交的量、而且不是失敗 / 取消 / 失效 / 價穩失效 = 還掛著(含部分成交;2026-10-28 獨立檢查 #1,原本只認 0 / 20)
                             self.resume_buf["working"].append({"code": str(o.CompanyNo).strip(), "bs": str(o.BS).strip(), "lots": lots_of(rest),
-                                                               "no": str(o.OrderNo).strip(), "typ": str(o.OrderType).strip(), "tag": str(o.BasketNo).strip()})
+                                                               "no": str(o.OrderNo).strip(), "typ": str(o.OrderType).strip(), "tag": _bn(o.BasketNo)})
                     for i in range(r.StkTradeList.Count):
                         x = r.StkTradeList[i]; q = int(x.OkQty)
                         self.resume_buf["trades"].append({"code": str(x.CompanyNo).strip(), "bs": str(x.BS).strip(), "lots": q // 1000 if q >= 1000 else q,   # 成交量單位文件沒寫:股(≥1000)或張都能處理;使用者只做整張、不做零股(2026-10-22),不會混淆
@@ -370,7 +378,7 @@ class Bridge:
                             else:
                                 threading.Thread(target=lambda: self.phone_alert(f"⚠ 元大退回委託 {cn}", why or "元大回報委託失敗(原因見電腦紀錄)", "pc"), daemon=True).start()
                         typ = str(getattr(r, "OrderType", "") or "").strip()   # 2026-10-28 平倉檢查 #6:委託種類(有的話元三平倉用同一種)
-                        if self.trader: self.trader.on_report(rt, str(r.OrderNo), int(r.OrderStatus), int(r.OrderQty), float(r.Price), str(r.BasketNo), str(r.CompanyNo), str(r.BS).strip(), typ)
+                        if self.trader: self.trader.on_report(rt, str(r.OrderNo), int(r.OrderStatus), int(r.OrderQty), float(r.Price), _bn(r.BasketNo), str(r.CompanyNo), str(r.BS).strip(), typ)
                     return
                 if not strIndex or int(dwIndex) == 1:
                     log(f"!! 訂閱 / 取消訂閱失敗 [{dwIndex}] {strIndex or ''} {objValue}")
@@ -794,9 +802,20 @@ class Bridge:
             n_k = sum(len(r) for r in got.values())
             log(f"[名單外] {code} 加入今天的監控名單:補 {len(got)} 天 {n_k} 根元大 1 分 K(今天 {len(got.get(day, []))} 根),昨收 {prev}")
             threading.Thread(target=self.push_extra_k, args=(code, got), daemon=True).start()
+            threading.Thread(target=self.push_extra_list, args=(xj,), daemon=True).start()
             self.phone_alert(f"✅ {name or code} {code} 已加入監控名單", f"名單外手動成交 → 補了 {len(got)} 天元大 1 分 K,判一~五開始照算")
         except Exception as e:
             log(f"[名單外] {code} 加入名單失敗", e)
+
+    def push_extra_list(self, xj):
+        """名單外股票清單推上 Worker(?extra=push),手機自己算判別式時(電腦離線)也會把它們加進名單"""
+        if not CFG.get("PUSH_KEY") or not CFG.get("WORKER_URL"): return
+        try:
+            req = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?extra=push", data=json.dumps({"d": xj["day"], "codes": xj["codes"]}).encode(), method="POST",
+                                         headers={"Content-Type": "application/json", "X-Push-Key": CFG["PUSH_KEY"], "User-Agent": "yuanta-bridge"})
+            log(f"[名單外] 清單推上 Worker:{urllib.request.urlopen(req, timeout=15).read().decode()[:80]}")
+        except Exception as e:
+            log("[名單外] 清單推上 Worker 失敗", e)
 
     def push_extra_k(self, code, got):
         """補的 K 推上 Worker(?ybars=push merge,和那分鐘原本的股票合併),雲端 / 手機也看得到"""
@@ -1315,7 +1334,16 @@ def bridge_lock():
             _BRIDGE_LOCK = f; return
         except OSError:
             time.sleep(1)
-    log("!! 已經有另一個中繼在跑(bridge.lock 被鎖)→ 這個不跑"); sys.exit(0)
+    # 2026-11-06 使用者「1,2,3都做」第 3 項:排程每 5 分鐘叫一次中繼(當掉才會重拉),中繼本來就在跑時原本寫「!! 已經有另一個中繼在跑」,
+    #   看起來像錯誤 → 改成一般說明,而且一小時只寫一次
+    mk = HERE / "log" / ".bridge_running_note"
+    try: quiet = mk.exists() and time.time() - mk.stat().st_mtime < 3600
+    except Exception: quiet = False
+    if not quiet:
+        log("中繼已經在執行中(排程每 5 分鐘檢查一次,這是正常的;一小時只記一次)")
+        try: mk.parent.mkdir(exist_ok=True); mk.write_text(str(time.time()))
+        except Exception: pass
+    sys.exit(0)
 
 
 def self_update():
