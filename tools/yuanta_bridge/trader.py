@@ -128,6 +128,10 @@ class Trader:
         #   這份判別式還沒發平倉通知、沒過最後進場時間 → 補進場一次(照當下價格,停利 / 停損照原訊號);0 = 關
         #   12:10 使用者「這種股票要加上 確認按鍵」:條件到了不自動下單,手機跳「確認補進場」(?trade=pos 的 redo),按了才進(act=redo)
         self.over_redo = cfg.get("TRADE_OVER_REDO", "1") == "1"
+        # 2026-11-06 使用者「如果價格又回到原預計空的點位呢」→「改重啟一次」:因「太晚了」沒進的訊號先記著,
+        #   N 分鐘內現價回到訊號價 ±TRADE_MAX_DEV_PCT 以內、還沒碰到停利 / 停損 → 自動補進場(0 = 關)
+        self.late_redo_min = float(cfg.get("TRADE_LATE_REDO_MIN", "10"))
+        self.late_wait = {}
         self.y3_post_delay = float(cfg.get("TRADE_Y3_POST_DELAY", "3"))
         self.y3_near = float(cfg.get("TRADE_Y3_NEAR_PCT", "1.5"))
         self.man_move = float(cfg.get("TRADE_MANUAL_MAX_MOVE_PCT", "8.5"))   # 2026-11-03 13:17 元三 / 強三離昨收 ±8.5% 強制平倉(判一~四照舊 ±6.5%);設成跟 TRADE_MAX_MOVE_PCT 一樣 = 回到原本
@@ -949,6 +953,7 @@ class Trader:
             for it in (signals or []):
                 self.on_signal(it)
             self.over_check()
+            self.late_check()
 
     def over_ok(self, code, w):
         """超額訊號現在能不能補進(回 (能?, 現價, 取消原因))"""
@@ -971,6 +976,26 @@ class Trader:
                 self.alert(f"↩ {self.name_of(code)} {code} 可以補進場", f"原訊號 {'做多' if w['kind'] == 'long' else '做空'} {w['px']} 超額沒進,現價 {last} 回到多空上限內,打開 App 按確認")
             elif not ok and w.get("ready"):
                 w["ready"] = None                                  # 又超過上限:收回確認
+
+    def late_check(self):
+        """太晚了沒進的訊號(見 late_redo_min):現價回到訊號價附近就自動補進場"""
+        for code, w in list(self.late_wait.items()):
+            last = self.last_px.get(code)
+            why = ""
+            if code in self.positions: why = "已經有部位"
+            elif time.time() > w["until"]: why = f"等了 {self.late_redo_min:g} 分鐘價格沒回來"
+            elif self.hm() >= self.last_entry: why = f"已過最後進場時間 {self.last_entry}"
+            elif last and not ((w["sl"] < last < w["tp"]) if w["kind"] == "long" else (w["tp"] < last < w["sl"])):
+                why = f"現價 {last} 已碰到停利 {w['tp']} / 停損 {w['sl']}"
+            if why:
+                self.late_wait.pop(code, None); self.log(f"[交易] {code} 太晚了等補進場取消:{why}"); continue
+            if not last or abs(last - w["px"]) / w["px"] * 100 > self.max_dev: continue
+            self.late_wait.pop(code, None)
+            it = w["it"]; it2 = dict(it); it2["_late"] = True
+            it2["_k"] = (it.get("_k") or (it.get("t", "") + it.get("title", ""))) + "|晚補"
+            self.log(f"[交易] {code} 價格回到訊號價:現價 {last}(訊號 {w['px']},±{self.max_dev:g}% 內)→ 自動補進場")
+            self.on_signal(it2)
+            if code in self.positions: self.alert(f"↩ {self.name_of(code)} {code} 補進場", f"原訊號 {'做多' if w['kind'] == 'long' else '做空'} {w['px']} 太晚沒進,現價 {last} 回來了,已自動進場")
 
     def over_list(self):
         with self.lock:
@@ -1223,6 +1248,9 @@ class Trader:
             w = self.over_wait.get(code)
             if w and (judge is None or judge == w["judge"] or (w["judge"] in ("強三", "元三") and judge == "判三")):
                 self.over_wait.pop(code, None); self.log(f"[交易] {code} 超額等補進場取消:{w['judge']} 已發平倉通知")
+            w = self.late_wait.get(code)
+            if w and (judge is None or judge == w["judge"]):
+                self.late_wait.pop(code, None); self.log(f"[交易] {code} 太晚了等補進場取消:{w['judge']} 已發平倉通知")
             p = self.positions.get(code)
             if p and self.exit_match(p, judge):
                 if p["state"] == HOLDING:
@@ -1243,7 +1271,7 @@ class Trader:
                 self.log(f"[交易] {code} 超額先記著:現價回到一張 ≤ 多空上限 {self.cap:,.0f} 時補進場(停利 {num(tpsl.group(1))} / 停損 {num(tpsl.group(2))})")
             return
         age = self.sig_age(it.get("t"))
-        if age is not None and age > self.sig_max_age:          # 2026-10-29 稽核 #1:太舊的進場通知(例如重開 / 讀取延遲才看到)不進
+        if age is not None and age > self.sig_max_age and not it.get("_late"):   # 太晚補進場:原訊號本來就舊了,時間由 late_redo_min 管          # 2026-10-29 稽核 #1:太舊的進場通知(例如重開 / 讀取延遲才看到)不進
             self.log(f"[交易] 不進場 {title}:通知時間 {it.get('t')} 已經過 {age:.0f} 分鐘(上限 {self.sig_max_age:g},TRADE_SIGNAL_MAX_AGE_MIN)"); return
         why = self.can_enter(code, judge)
         if why:
@@ -1268,7 +1296,11 @@ class Trader:
         if not last:
             self.log(f"[交易] 不進場 {title}:還沒收到 {code} 的元大即時價"); return
         if not it.get("_over") and abs(last - px_sig) / px_sig * 100 > self.max_dev:   # 超額補進場:本來就是價格變了才補,不看離訊號價多遠(停利 / 停損之間另外檢查)
-            self.log(f"[交易] 不進場 {title}:現價 {last} 離訊號價 {px_sig} 超過 {self.max_dev}%(太晚了)"); return
+            self.log(f"[交易] 不進場 {title}:現價 {last} 離訊號價 {px_sig} 超過 {self.max_dev}%(太晚了)")
+            if self.late_redo_min > 0 and not it.get("_late") and code not in self.positions:
+                self.late_wait[code] = {"it": dict(it), "judge": judge, "kind": kind, "px": px_sig, "tp": tp_sig, "sl": sl_sig, "until": time.time() + self.late_redo_min * 60}
+                self.log(f"[交易] {code} 太晚了先記著:{self.late_redo_min:g} 分鐘內現價回到 {px_sig} ±{self.max_dev:g}% 且沒碰停利 {tp_sig} / 停損 {sl_sig} → 自動補進場")
+            return
         d = 1 if kind == "long" else -1
         price = shift(last, self.slip * d)                     # 買進往上讓、賣出往下讓
         lots = max(1, int(self.cap // (px_sig * 1000))) if self.cap > 0 else self.qty   # 2026-10-30 張數照多空上限(訊號價算,和通知上的張數一樣)

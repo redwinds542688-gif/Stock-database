@@ -575,4 +575,15 @@ NOW[0] = NOW0.replace(hour=13, minute=24, second=5); tp_.prehang = {}
 tp_.recheck([{"code": "6269", "bs": "S", "lots": 1}], [], "13:24"); ok(pp_["state"] == EXITING and gp_.sent[-1][:3] == ("6269", "B", 1), gp_.sent[-1])
 NOW[0] = NOW0
 
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3)")
+# 2026-11-06 太晚了先記著 → 價格回到訊號價 ±0.5% 自動補進場;碰停利 / 過時間 / 平倉通知取消;0 = 關
+at(10, 0); tl, gl = mk(); tl.on_tick("6269", 87.0); tl.step([ENT]); ok("6269" not in tl.positions and "6269" in tl.late_wait)
+tl.on_tick("6269", 86.9); tl.step([]); ok("6269" not in tl.positions and "6269" in tl.late_wait)          # 還沒回來
+tl.on_tick("6269", 86.5); tl.step([]); ok("6269" in tl.positions and "6269" not in tl.late_wait and gl.sent[-1][:3] == ("6269", "S", 1), gl.sent)
+ok(tl.positions["6269"]["tp"] == 84.05 and tl.positions["6269"]["sl"] == 88.70)
+tl2, gl2 = mk(); tl2.on_tick("6269", 87.0); tl2.step([ENT]); tl2.on_tick("6269", 84.0); tl2.step([]); ok("6269" not in tl2.late_wait and not tl2.positions)   # 碰停利取消
+tl3, gl3 = mk(); tl3.on_tick("6269", 87.0); tl3.step([ENT]); tl3.late_wait["6269"]["until"] = 0; tl3.on_tick("6269", 86.2); tl3.step([]); ok(not tl3.positions and not tl3.late_wait)   # 過時間
+tl4, gl4 = mk(); tl4.on_tick("6269", 87.0); tl4.step([ENT]); tl4.step([sig("x-l4", "exit", "台郡 6269 出場 +0.3%:出", "… · 判二")]); ok(not tl4.late_wait)   # 判別式平倉了
+tl5, gl5 = mk(TRADE_LATE_REDO_MIN="0"); tl5.on_tick("6269", 87.0); tl5.step([ENT]); ok(not tl5.late_wait)
+OLD = dict(ENT); OLD["_k"] = "old-l6"; OLD["t"] = "09:50"; tl6, gl6 = mk(); tl6.on_tick("6269", 86.2); tl6.step([OLD]); ok(not tl6.positions and not tl6.late_wait)   # 通知本來就太舊:不記
+
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6)")
