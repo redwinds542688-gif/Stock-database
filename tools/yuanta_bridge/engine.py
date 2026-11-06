@@ -321,6 +321,14 @@ def write_breadth(day):
 
 # ── 模擬器:每個工作行程只載入一次 pandas,之後用 runpy 一檔一檔跑 ──
 BASE_ENV = dict(os.environ)   # 每次跑模擬器前把環境變數還原(判一的 OBVCROSS / GAPMIN… 不能留給判二;2026-10-29 回放抓到的 bug)
+_SIM_CO = {"key": None, "co": None}
+def _sim_code():
+    """2026-11-06 13:21 使用者「分秒必爭」:sim_day.py(1,800 行)每個工作都重新讀檔、編譯一次 → 每個工作行程只編譯一次;檔案改了(規則每 30 分鐘重抓)才重編"""
+    f = SIMD / "sim_day.py"; st = f.stat(); key = (st.st_mtime_ns, st.st_size)
+    if _SIM_CO["key"] != key:
+        _SIM_CO["co"] = compile(f.read_bytes(), str(f), "exec"); _SIM_CO["key"] = key
+    return _SIM_CO["co"]
+
 def _sim_one(args):
     code, name, rs, env, day = args
     sys.path.insert(0, str(SIMD))
@@ -330,8 +338,9 @@ def _sim_one(args):
     for k in ("TRACESTOP", "TRACEF", "TRACEX", "TRACET", "TRACES", "TRACELC", "TRACED", "TRACEG", "TRACE", "OBCTRACE"): os.environ.pop(k, None)
     buf = io.StringIO(); sys.argv = ["sim_day.py", code, name, "10", "10"]
     try:
+        co = _sim_code()
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
-            runpy.run_path(str(SIMD / "sim_day.py"), run_name="__main__")
+            exec(co, {"__name__": "__main__", "__file__": str(SIMD / "sim_day.py"), "__builtins__": __builtins__})   # 2026-11-06 加速:同 runpy.run_path(每次全新的變數空間),但程式只編譯一次
     except SystemExit:
         pass
     except Exception as e:
@@ -541,7 +550,7 @@ class Engine:
         self.cap = int(CFG.get("ENGINE_CAP", "250000")) if dry else cloud_cap(int(CFG.get("ENGINE_CAP", "250000")))   # 2026-11-02 跟 5861 主導機(回放 --dry 不讀雲端);手機的多空上限(通知裡的張數);2026-10-29 手機設 25 萬
         self.set_universe(uni)
         self.reload_envs()
-        self.pool = Pool(int(CFG.get("ENGINE_WORKERS", "3")))
+        self.pool = Pool(int(CFG.get("ENGINE_WORKERS", "8")))   # 2026-11-06 3 → 8(電腦 Xeon E5-2680 v2 10 核 20 緒;一輪 ~55 秒 → 目標 ~20 秒)
 
     def set_universe(self, uni):
         self.uni = uni; self.codes = uni["codes"]; self.names = uni["names"]; self.prev = uni["prev"]; self.mkts = uni["mkts"]
