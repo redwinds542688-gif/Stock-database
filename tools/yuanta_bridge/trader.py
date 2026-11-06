@@ -170,6 +170,7 @@ class Trader:
         #   到 TRADE_PREHANG_DEADLINE(13:24)還沒成交 → 取消那張、程式照舊漲停 / 跌停平倉。0 = 關(照舊 13:20 全部取消)
         self.prehang_deadline = cfg.get("TRADE_PREHANG_DEADLINE", "13:24").strip()
         self.prehang = {}   # code → 保留的手動預掛委託書號 [no, …]
+        self.man_cards = {}  # 2026-11-06 14:26 手動預掛(新進場 / 加碼)發過卡的書號 → {lots, px, d, end}
         self.man_meta = {}  # 2026-11-06 手動預掛的書號 → {bs, typ}(強平時取消用)
         self.alert = lambda title, body="", kind="pc": None      # bridge 會換成「發提醒到手機」(kind:pc = 一般、lv1~lv5 = 虧損分級)
         self.post = lambda title, body, kind: None    # bridge 會換成「寫一則交易訊息到手機的訊息欄」(強三進出場、強平)
@@ -723,6 +724,23 @@ class Trader:
            預掛取消 / 失效 → 拿掉、通知手機,程式恢復盯停利停損。手機強平不受影響(先取消預掛再平)"""
         if not no: return
         p = self.positions.get(code); lst = self.prehang.get(code) or []
+        # 2026-11-06 14:26 使用者「元大這邊 … 進場通知欄 可以看到我在程式裡強平 或是在元大手動交易 … 手動預掛 進場通知欄也可以看到預掛卡」:
+        #   不是平程式部位的手動預掛(新進場 / 加碼)也發預掛卡;取消 / 失效 / 被退回再發一張;成交照舊變元三進場卡
+        if no not in lst and not (p and p["state"] == HOLDING and bs == close_side(p["dir"])):
+            mc = self.man_cards.get(no)
+            if status == 0 and mc is None:
+                lots = qty_shares // 1000; d = 1 if bs == "B" else -1
+                what = ("預掛加碼" if p and p["dir"] == d else "預掛") + ("做多" if d > 0 else "做空")
+                self.man_cards[no] = {"lots": lots, "px": price, "d": d}
+                self.log(f"[交易] {code} 看到手動{what} {lots} 張 @ {price or '市價'}(書號 {no})→ 進場欄發預掛卡,成交後變元三")
+                try: self.post(f"{self.name_of(code)} {code} {what} {price:g}" if price else f"{self.name_of(code)} {code} {what} 市價",
+                               f"{self.hm()} {'做多' if d > 0 else '做空'} · {lots}張 · 預掛 · 元三", "warn")
+                except Exception as e: self.log(f"[交易] 預掛卡發送失敗 {e!r}")
+            elif status in (1, 2, 24, 25) and mc and not mc.get("end"):
+                mc["end"] = status; why = {1: "被元大退回", 2: "已取消", 24: "失效", 25: "價穩失效"}[status]
+                try: self.post(f"{self.name_of(code)} {code} 預掛{why}", f"{self.hm()} {'做多' if mc['d'] > 0 else '做空'} · {mc['lots']}張 @ {mc['px'] or '市價'} · 預掛 · 元三", "warn")
+                except Exception as e: self.log(f"[交易] 預掛卡發送失敗 {e!r}")
+            return
         if status in (1, 2, 24, 25):
             if no in lst:
                 lst.remove(no)
@@ -739,7 +757,7 @@ class Trader:
         self.alert(f"✅ {self.name_of(code)} {code} 看到你的預掛", f"{'買回' if bs == 'B' else '賣出'} {lots} 張 @ {price}(程式部位 {p['qty']} 張);程式停利 / 停損先不動,{self.prehang_deadline} 前沒成交由程式平")
         # 2026-11-06 11:34 使用者「程式在進場那邊 要出現大聯大 預掛 如果成交 就改成元三」:訊息欄發一張預掛卡;成交平倉時(finish_pos)再發一張元三平倉卡
         try: self.post(f"{self.name_of(code)} {code} 預掛{'買回' if bs == 'B' else '賣出'} {price:g}",
-                       f"{self.hm()} {'做多' if p['dir'] > 0 else '做空'} {p.get('t0') or ''} 進 {p['entry']:.2f} · {lots}張 · 預掛 · {p.get('judge') or ''}", "warn")
+                       f"{self.hm()} {'做多' if p['dir'] > 0 else '做空'} {p.get('t0') or ''} 進 {p['entry']:.2f} · {lots}張 · 預掛 · {p.get('judge') or ''} · 元大中繼", "warn")   # 結尾「元大中繼」:Worker 當真實卡(看盤版看不到),虛擬也不列
         except Exception as e: self.log(f"[交易] 預掛卡發送失敗 {e!r}")
         if lots != p["qty"]: self.alert(f"⚠ {code} 預掛張數 {lots} 和程式部位 {p['qty']} 張不一樣", "成交後剩下的(或多出來的)請自己確認")
 
