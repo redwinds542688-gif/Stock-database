@@ -133,7 +133,7 @@ async function usGet(env, force) {
   let v = null; try { v = env.HUB ? await hubOf(env).kvGet("usmkt") : null; } catch (e) {}
   const t = new Date(Date.now() + 8 * 3600e3), d = t.toISOString().slice(0, 10), hm = t.toISOString().slice(11, 16), wd = t.getUTCDay();
   const ok = v && v.d === d && v.idx && v.idx.every(x => x.close != null);
-  if (!ok && (force || (wd >= 1 && wd <= 5 && hm >= "08:20"))) {
+  if (force || (!ok && wd >= 1 && wd <= 5 && hm >= "08:20")) {
     const c = MC.get("usfetch"); if (!force && c && Date.now() - c < 300e3) return v;   // 手機來問、今天還沒有:最多 5 分鐘抓一次
     MC.set("usfetch", Date.now());
     const n = await fetchUS(env); if (n.idx.some(x => x.close != null)) { v = n; try { if (env.HUB) await hubOf(env).kvPut("usmkt", n); } catch (e) {} }
