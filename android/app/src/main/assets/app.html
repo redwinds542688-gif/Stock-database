@@ -290,7 +290,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611061625">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611061630">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -530,10 +530,14 @@
   #btnState{position:relative}   /* 2026-11-06 美股紅點 */
   #btnState.usdot::after{content:'';position:absolute;top:2px;left:3px;width:11px;height:11px;border-radius:50%;background:#FF3B30;box-shadow:0 0 6px #FF3B30;animation:usdotb 1s steps(2,start) infinite;pointer-events:none}
   @keyframes usdotb{to{visibility:hidden}}
-  #notifLog .tb.pos .r.us{grid-template-columns:9fr 9fr 2fr 9fr 11fr;column-gap:4px}
-  #notifLog .tb.pos .r.us.ush{grid-template-columns:1fr;text-align:center;color:#FFD54F;font-weight:800}
-  #notifLog .tb.pos .usn{color:#E6EAF2;font-weight:700} #notifLog .tb.pos .usp{font-weight:800;text-align:right}
-  #notifLog .tb.pos .usp.up{color:#FF5A5A} #notifLog .tb.pos .usp.dn{color:#2ED47A}
+  #notifLog .usx{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:8px;padding:6px 6px 8px;box-sizing:border-box}
+  #notifLog .usk{position:relative;display:grid;grid-template-columns:1fr 31%;column-gap:4px;align-items:stretch;min-height:0;background:linear-gradient(#1E2636,#151A25);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:6px 6px 6px 9px;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+  #notifLog .usk .usl{display:flex;flex-direction:column;justify-content:center;min-width:0}
+  #notifLog .usk .usn{font-size:clamp(12px,3.4vw,16px);font-weight:700;color:#C9D1E0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
+  #notifLog .usk .usv{font-size:clamp(17px,5vw,25px);font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:.2px;line-height:1.2;white-space:nowrap}
+  #notifLog .usk .usd{font-size:clamp(10px,2.9vw,13px);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;line-height:1.3} #notifLog .usk .usd b{font-weight:800}
+  #notifLog .usk.up .usv,#notifLog .usk.up .usd{color:#FF5A5A} #notifLog .usk.dn .usv,#notifLog .usk.dn .usd{color:#2ED47A}
+  #notifLog .usk .usc{min-height:0;align-self:stretch;padding:4px 0} #notifLog .usk .ussv{display:block;width:100%;height:100%}
   #notifLog .tb.pos .r{grid-template-columns:10fr 1fr 8fr 1fr 8fr 1fr 3fr 1fr 7fr;column-gap:0}   /* 2026-10-27 02:45 使用者:「張數改3 當沖輸贏改7」 */   /* 2026-10-27 02:35 使用者:「股票名稱10,空格1,現在股價8,空格1,攤平股價8,空格1,張數2,空格1,當沖輸贏8 把一列平均40個欄位」:一列分 40 等份照這個排(02:20 版是 36 欄沒張數) */
   #notifLog .tb.pos{padding-left:0;padding-right:0}
   #notifLog .tb.done .r{grid-template-columns:minmax(0,10fr) minmax(0,16fr) minmax(0,4fr) minmax(0,7fr);column-gap:0} #notifLog .tb.done .r > *{min-width:0;overflow:hidden} #notifLog .tb.done .io{display:grid;grid-template-columns:1fr auto 1fr;text-align:right} #notifLog .tb.done .io > :nth-child(2){padding:0 .1em}   /* 2026-10-27 13:05 使用者:「箭頭位置固定」:進、出各一格靠右,箭頭固定在正中間,小數點上下對齊 */   /* 2026-10-27 13:00 使用者:「改 要對齊」:名稱 10 | 進→出 16 | 張 4 | 輸贏 7;minmax(0,…) 欄寬固定,長的價格不會把後面的欄推歪 */   /* 2026-10-27 12:10 判別式欄拿掉(使用者:「明細 判二這不用顯示」):名稱 11 | 進→出 14 | 張 4 | 輸贏 8 = 37 等份 */   /* 2026-10-27 04:20 明細也照 38 等份排:名稱 10 | 判別式 5 | 進→出 13 | 張 3 | 輸贏 7,字級 = 2 欄寬(鐵律 19) */
@@ -1402,13 +1406,26 @@ const usOn = () => !!(usLive() && window.__US && window.__US.d === usToday() && 
 const usLabel = () => usOn() ? '美股' : '當沖';   /* 2026-11-06 15:59 使用者「這時段 “當沖” 改 “美股” 裡面的當沖 也一樣」:08:20~09:00 有美股時按鍵、標題都叫「美股」 */
 window.usLabel = usLabel;
 const usBtnTxt = () => { try{ const b = document.getElementById('btnState'); if (!b) return; const t = usLabel(); if (b.classList.contains('lmb')){ const x = b.querySelector('b'); if (x && x.textContent !== t) x.textContent = t; } else if (b.textContent !== t) b.textContent = t; b.setAttribute('aria-label', t); }catch(e){} };
-const usBlock = () => { const U = window.__US; if (!usLive() || !U || U.d !== usToday() || !(U.idx || []).some(x => x.close != null)) return ''; window.__usShown = true;
+const usBlock = () => usOn() ? (window.__usShown = true, 'x') : '';   /* 有美股 → 當沖頁整頁換成美股四格(usCards) */
+const usSpark = (sp, prev, up) => { if (!Array.isArray(sp) || sp.length < 2) return '';
+  const lo = Math.min(prev || sp[0], ...sp), hi = Math.max(prev || sp[0], ...sp), rg = (hi - lo) || 1, n = sp.length;
+  const X = k => (k / (n - 1) * 100).toFixed(2), Y = v => ((hi - v) / rg * 36 + 2).toFixed(2);
+  const line = sp.map((v, k) => `${k ? 'L' : 'M'}${X(k)},${Y(v)}`).join(''), by = Y(prev || sp[0]);
+  const col = up ? '#FF5A5A' : '#2ED47A', gid = 'usg' + Math.random().toString(36).slice(2, 7);
+  return `<svg class="ussv" viewBox="0 0 100 40" preserveAspectRatio="none"><defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".05"/><stop offset="1" stop-color="${col}" stop-opacity=".55"/></linearGradient></defs>`
+    + `<path d="${line}L100,40L0,40Z" fill="url(#${gid})"/><path d="${line}" fill="none" stroke="${col}" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`
+    + `<line x1="0" x2="100" y1="${by}" y2="${by}" stroke="#8C96AB" stroke-width="1" stroke-dasharray="2 3" vector-effect="non-scaling-stroke"/>`
+    + `<circle cx="100" cy="${Y(sp[n - 1])}" r="1.6" fill="${col}"/></svg>`; };
+const usCards = () => { const U = window.__US; if (!U) return '';
+  const NM = {'道瓊': '道瓊工業', 'S&P 500': 'S&P 500', '那斯達克': 'NASDAQ', '費半': '費城半導體'};
   const f = v => v == null ? '—' : (+v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-  const cell = x => { const c = x.pct == null ? '' : x.pct > 0 ? 'up' : x.pct < 0 ? 'dn' : ''; return `<span class="usn">${String(x.name).replace(/&/g, "&amp;").replace(/</g, "&lt;")}</span><span class="usp ${c}">${x.pct == null ? '—' : (x.pct > 0 ? '+' : '') + x.pct.toFixed(2) + '%'}</span>`; };
-  const I = U.idx || [];
-  let h = `<div class="r us ush"><span>美股 ${String(U.us || '').slice(5).replace('-', '/')} 收盤</span></div>`;
-  for (let k = 0; k < I.length; k += 2) h += `<div class="r us">${cell(I[k])}<span></span>${I[k + 1] ? cell(I[k + 1]) : '<span></span><span></span>'}</div>`;
-  return h; };
+  let h = '<div class="usx">';
+  for (const x of (U.idx || [])){ const up = (x.pct || 0) > 0, dn = (x.pct || 0) < 0, c = up ? 'up' : dn ? 'dn' : '';
+    const nm = String(NM[x.name] || x.name).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    h += `<div class="usk ${c}"><div class="usl"><div class="usn">${nm}</div><div class="usv">${f(x.close)}</div>`
+      + `<div class="usd">${x.pct == null ? '' : (up ? '▲' : dn ? '▼' : '') + (x.chg != null ? f(Math.abs(x.chg)) : '') + ` <b>${Math.abs(x.pct).toFixed(2)}%</b>`}</div></div>`
+      + `<div class="usc">${usSpark(x.spark, x.prev, up)}</div></div>`; }
+  return h + '</div>'; };
 const lampBtn = (id, txt, kind, a, b) => { try{ const e = document.getElementById(id); if (!e) return; let H = '';
     if (kind){ if (kind === 'cnt') H = lampSeg(Math.min(10, a | 0), 0, 'y') + `<b>${txt}</b>` + lampSeg(Math.min(10, b | 0), 0, 'b');
       else { const [k, k2] = lampAmt(a), w = Math.round(a || 0) > 0, l = Math.round(a || 0) < 0; H = lampSeg(w ? k : 0, w ? k2 : 0, 'r') + `<b>${txt}</b>` + lampSeg(l ? k : 0, l ? k2 : 0, 'g'); } }
@@ -7236,9 +7253,14 @@ window.bgTick = bgTick; window.BG = BG;
         }
         // (判別式相關說明已移到私人庫)
         // 2026-10-27 10:30(實際時間)使用者:「當沖 通知欄 最下面的資訊 改在上面顯示 這邊不用」:「N 檔 未平倉 + 合計輸贏」改放標題列(取代 當日),最下面那列拿掉
-        const hdPos = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(tot))}</span>`).replace(`<span>${usLabel()}</span>`, `<span class="dlb">${usLabel()}</span><span class="dwh dstat"${inSession() ? '' : ' style="visibility:hidden"'}><span class="dwi">${today.slice(5).replace('-', '/')}</span></span><span class="dsrc"></span>${usOn() ? '' : (!window.VIEWER && (TP || (!over && TPL && TPL.ok))) ? '<span class="vbtn on vtag">元大</span>' : !over ? '<span class="vbtn on virt vtag">虛擬</span>' : ''}`);   /* 2026-11-04 使用者「開盤版 當沖裡也是只能顯示 虛擬」:看盤版當沖標題和永久版同一個樣子,那格固定紫色「虛擬」(原「當沖 系統」) */   /* 2026-11-04 使用者「開盤中 會顯示 元大 如果真連不上線 一樣顯示虛擬 原來顯示元大的那個鍵 改顯示 虛擬」:列的是程式訊號(虛擬部位)時,同一格改紫色「虛擬」 */   /* 2026-11-03 17:28 使用者「當沖啟動時 也就是盤中 元大按鍵位置 與 明細裡的位置一致」:當沖也放一格同寬的日期(不能捲),元大就和明細的按鍵對齊;17:32「(非開盤時間)就不用 顯示 日期」:非盤中日期格隱藏(位置留著,元大照樣對齊) */   /* 17:24 使用者「連得上電腦時 當沖 元大。把 元大 放上去」 */   /* 2026-11-03 17:22 使用者「把 當沖 改 綠色 後面的系統不顯示」:綠色、不寫元大 / 系統(看盤版照舊「當沖 系統」) */   // 13:21 連得上電腦(元大真實部位)標「元大」,模擬標「系統」(看盤版標題本來就是「當沖 系統」)   // 2026-10-27 10:40(實際時間)使用者:「輸贏金額 顯示在最右邊」:合計放標題列最右邊(.cash);10:45「幾檔也不用顯示」:左邊只剩 當沖
+        const hdPos = hd.replace(/<\/span><span>\d+ 則<\/span>/, (usOn() ? '</span>' : `</span><span class="cash">${money(Math.round(tot))}</span>`)).replace(`<span>${usLabel()}</span>`, `<span class="dlb">${usLabel()}</span><span class="dwh dstat"${inSession() || usOn() ? '' : ' style="visibility:hidden"'}><span class="dwi">${usOn() ? String(window.__US.us || '').slice(5).replace('-', '/') : today.slice(5).replace('-', '/')}</span></span><span class="dsrc"></span>${usOn() ? '' : (!window.VIEWER && (TP || (!over && TPL && TPL.ok))) ? '<span class="vbtn on vtag">元大</span>' : !over ? '<span class="vbtn on virt vtag">虛擬</span>' : ''}`);   /* 2026-11-04 使用者「開盤版 當沖裡也是只能顯示 虛擬」:看盤版當沖標題和永久版同一個樣子,那格固定紫色「虛擬」(原「當沖 系統」) */   /* 2026-11-04 使用者「開盤中 會顯示 元大 如果真連不上線 一樣顯示虛擬 原來顯示元大的那個鍵 改顯示 虛擬」:列的是程式訊號(虛擬部位)時,同一格改紫色「虛擬」 */   /* 2026-11-03 17:28 使用者「當沖啟動時 也就是盤中 元大按鍵位置 與 明細裡的位置一致」:當沖也放一格同寬的日期(不能捲),元大就和明細的按鍵對齊;17:32「(非開盤時間)就不用 顯示 日期」:非盤中日期格隱藏(位置留著,元大照樣對齊) */   /* 17:24 使用者「連得上電腦時 當沖 元大。把 元大 放上去」 */   /* 2026-11-03 17:22 使用者「把 當沖 改 綠色 後面的系統不顯示」:綠色、不寫元大 / 系統(看盤版照舊「當沖 系統」) */   // 13:21 連得上電腦(元大真實部位)標「元大」,模擬標「系統」(看盤版標題本來就是「當沖 系統」)   // 2026-10-27 10:40(實際時間)使用者:「輸贏金額 顯示在最右邊」:合計放標題列最右邊(.cash);10:45「幾檔也不用顯示」:左邊只剩 當沖
         if (window.__nlV !== 'pos'){ box.scrollTop = 0; window.__nlV = 'pos'; }   // 2026-10-27 11:20 切到當沖也從最上面開始
         window.__posWin = window.__posWinTmp || []; window.__posWinTP = !!TP;
+        const __usx = !!(__ub && !open.length);
+        if (__usx){ const __H = hdPos + usCards(); if (!nlSame(__H)) nlPut(__H);
+          const fitU = () => { try{ const ux = box.querySelector('.usx'), hh = box.querySelector('.hd'); if (ux) ux.style.height = Math.max(150, box.clientHeight - (hh ? hh.offsetHeight : 0) - 2) + 'px'; }catch(e){} };
+          fitU(); requestAnimationFrame(() => requestAnimationFrame(fitU)); }
+        else {
         { const __H = hdPos + `<div class="tb pos">` + body + (cnt ? (late ? `<div class="late-note">⚠ 已過 13:20,這 ${cnt} 檔還沒收到平倉通知,請到投資先生確認已贖回</div>` : '') : __ub ? '' : `<div class="empty">${over || !TP || !TP.ok ? '目前沒有進場中的股票' : '目前沒有已成交的部位'}</div>`) + `</div>`; if (nlSame(__H)){ if (__snapPrev[0]) box.classList.add('snapdt'); box.style.scrollPaddingTop = __snapPrev[1]; return; } nlPut(__H); }
         try{ const tb = box.querySelector('.tb.pos'); const u = (tb.clientWidth || box.clientWidth) / 40; tb.style.fontSize = Math.max(12, Math.floor(u * 2 * 0.96)) + 'px'; }catch(e){}
         // 2026-10-27 11:10 使用者(當沖 4 檔,「和桐下面切到」):整張表放不下 → 先把每列上下留白縮小,還放不下再整張表一起把字縮小(最小 12px,整表同字級,欄位照樣對齊);再多才用捲的
@@ -7246,6 +7268,7 @@ window.bgTick = bgTick; window.BG = BG;
             if (!tb || !box.clientHeight || fit()) return; tb.querySelectorAll('.r').forEach(r => { r.style.paddingTop = r.style.paddingBottom = '1px'; });
             let fs = parseFloat(tb.style.fontSize) || 17; while (!fit() && fs > 12){ fs -= 1; tb.style.fontSize = fs + 'px'; } }catch(e){} };
           box.__fitL = () => { fitLines('.tb.pos'); keepBack(); }; fitLines('.tb.pos'); keepBack(); requestAnimationFrame(() => requestAnimationFrame(() => { fitLines('.tb.pos'); keepBack(); })); }   // 2026-10-27 12:05 改成四列制(標題 + 3 筆),不再縮字塞滿   // 切到當沖那一刻框可能還沒顯示(高度 0),畫面出來後再量一次   // 整張表(含欄名、合計)同一個字級   // 字級 = 2 個欄位寬(一列 40 欄):5 個中文字 = 10 欄、6 位數字 ≈ 8 欄、2 位張數 = 2 欄
+        }   /* __usx */
       } else {
         // 2026-10-27 01:30 使用者:「明細顯示一直保留 最新的在最上面 往上滑動可以看到以往的資料」:今天在最上面,往下接前幾天(最多 10 天),每天一列日期分隔 + 那天的總輸贏
         const hdr = `<div class="r h"><span>股票</span><span class="num io"><span>進</span><span>→</span><span>出</span></span><span class="num">張</span><span class="num">輸贏</span></div>`;

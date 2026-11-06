@@ -107,6 +107,16 @@ async function fetchUS(env) {
       const v = ts.map((t, i) => [t, cl[i]]).filter(x => x[1] != null);
       if (v.length >= 2) { const [t1, c1] = v[v.length - 1], c0 = v[v.length - 2][1]; row = { name, close: +c1.toFixed(2), prev: +c0.toFixed(2), pct: +((c1 / c0 - 1) * 100).toFixed(2), date: new Date((t1 + off) * 1000).toISOString().slice(0, 10), src: "Yahoo" }; }
     } catch (e) {}
+    if (row && row.src === "Yahoo") {   // 2026-11-06 16:06 使用者「顯示要有點質感」(附 Yahoo 四格走勢圖):那一天的 5 分 K 收盤當走勢線
+      try {
+        const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=1d&interval=5m`, { headers: { "User-Agent": "Mozilla/5.0" } });
+        const j = await r.json(); const res = j && j.chart && j.chart.result && j.chart.result[0];
+        const cl = ((res && res.indicators && res.indicators.quote && res.indicators.quote[0] && res.indicators.quote[0].close) || []).filter(x => x != null).map(x => +(+x).toFixed(2));
+        const off = +((res && res.meta && res.meta.gmtoffset) || -18000), t0 = res && res.timestamp && res.timestamp[0];
+        if (cl.length >= 5 && t0 && new Date((t0 + off) * 1000).toISOString().slice(0, 10) === row.date) { row.spark = cl.slice(-90); }
+      } catch (e) {}
+    }
+    if (row && row.close != null && row.prev != null) row.chg = +(row.close - row.prev).toFixed(2);
     if (!row) {
       try {
         const t = await (await fetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${fred}`, { headers: { "User-Agent": "Mozilla/5.0" } })).text();
