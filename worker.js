@@ -105,15 +105,18 @@ async function fetchUS(env) {
       const j = await r.json(); const res = j && j.chart && j.chart.result && j.chart.result[0];
       const ts = (res && res.timestamp) || [], cl = (res && res.indicators && res.indicators.quote && res.indicators.quote[0] && res.indicators.quote[0].close) || [], off = +((res && res.meta && res.meta.gmtoffset) || -18000);
       const v = ts.map((t, i) => [t, cl[i]]).filter(x => x[1] != null);
+      { const rp = res && res.meta && res.meta.currentTradingPeriod && res.meta.currentTradingPeriod.regular, nowS = Date.now() / 1000;   // 2026-11-06 23:03 還在交易中的那一天不算(只拿已收盤的):盤中手動 force 抓到半天的數字
+        if (rp && nowS < rp.end && v.length && v[v.length - 1][0] >= rp.start - 3600) v.pop(); }
       if (v.length >= 2) { const [t1, c1] = v[v.length - 1], c0 = v[v.length - 2][1]; row = { name, close: +c1.toFixed(2), prev: +c0.toFixed(2), pct: +((c1 / c0 - 1) * 100).toFixed(2), date: new Date((t1 + off) * 1000).toISOString().slice(0, 10), src: "Yahoo" }; }
     } catch (e) {}
     if (row && row.src === "Yahoo") {   // 2026-11-06 16:06 使用者「顯示要有點質感」(附 Yahoo 四格走勢圖):那一天的 5 分 K 收盤當走勢線
       try {
-        const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=1d&interval=5m`, { headers: { "User-Agent": "Mozilla/5.0" } });
+        const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=5d&interval=5m`, { headers: { "User-Agent": "Mozilla/5.0" } });
         const j = await r.json(); const res = j && j.chart && j.chart.result && j.chart.result[0];
-        const cl = ((res && res.indicators && res.indicators.quote && res.indicators.quote[0] && res.indicators.quote[0].close) || []).filter(x => x != null).map(x => +(+x).toFixed(2));
-        const off = +((res && res.meta && res.meta.gmtoffset) || -18000), t0 = res && res.timestamp && res.timestamp[0];
-        if (cl.length >= 5 && t0 && new Date((t0 + off) * 1000).toISOString().slice(0, 10) === row.date) { row.spark = cl.slice(-90); }
+        const c0 = (res && res.indicators && res.indicators.quote && res.indicators.quote[0] && res.indicators.quote[0].close) || [], tt = (res && res.timestamp) || [];
+        const off = +((res && res.meta && res.meta.gmtoffset) || -18000);
+        const cl = tt.map((t, i) => [new Date((t + off) * 1000).toISOString().slice(0, 10), c0[i]]).filter(x => x[0] === row.date && x[1] != null).map(x => +(+x[1]).toFixed(2));   // 2026-11-06 抓 5 天、只留收盤那一天的 5 分 K(盤中 / 換日也拿得到)
+        if (cl.length >= 5) { row.spark = cl.length > 90 ? cl.filter((x, i) => i % Math.ceil(cl.length / 90) === 0 || i === cl.length - 1) : cl; }
       } catch (e) {}
     }
     if (row && row.close != null && row.prev != null) row.chg = +(row.close - row.prev).toFixed(2);
