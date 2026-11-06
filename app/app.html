@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-06 11:00(實際時間)K 圖錯位修正(使用者「改」):K 圖上疊的線只用 K 棒有的時間點,不再把 K 圖時間軸撐長、和指標二 / 乖離錯開(10:56 華新錯 43 根);丟掉的點記進抓 bug(kTrim)
   · 2026-11-06 09:07(實際時間)進場:開盤中今天還沒有通知時,日期框原本空白 → 顯示今天日期(使用者截圖「日期呢」)
   · 2026-11-06 08:59(實際時間)開盤日 08:45 起進場通知欄跟燈號一起換日:標題是今天、最上面一整塊「今日還沒有通知」,前一個交易日接在下面(用日期滾輪轉回去看)(使用者選 A)
   · 2026-11-06 06:00(實際時間)通知欄(進場 / 明細)上下滑動更順:捲動時找「最上面是哪天」改成只量日期分隔列,不再每格畫面掃全部卡片
@@ -285,7 +286,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611061035">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611061100">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4917,6 +4918,12 @@ function initChart(){
   vwapLine = chart.addLineSeries({autoscaleInfoProvider: kRange, priceScaleId:'left', color:CHART_THEME.vwap, lineWidth:2,
                                   priceLineVisible:false, lastValueVisible:false,
                                   visible: YH.showVwapLine});
+  /* 2026-11-06 10:59 使用者「華新k 圖有問題 看抓bug」→「改」:抓 bug 10:56 華新 K 圖和指標二 / 乖離同一段位置、時間卻差 43 根(K 13:19~10:12、下面 09:36~10:55)
+     —— K 圖上疊的線(Ka / Kb / VWAP / 漲跌、轉折線)帶進 K 棒沒有的時間點,K 圖時間軸被撐長 → 整張往前錯位。
+     修:這些線放資料時只留 K 棒有的時間點,多的丟掉並記進抓 bug(kTrim 線名 丟幾根 第一個丟的時間),下次直接看得出是哪條 */
+  { let kT = null, kN = -1, kL = 0; const kTimes = () => { try{ const d = candle.data(), n = d.length, l = n ? d[n - 1].time : 0; if (n !== kN || l !== kL){ kN = n; kL = l; kT = new Set(d.map(b => b.time)); } }catch(e){ kT = null; } return kT; };
+    for (const [nm, sr] of [['Ka', maLine], ['Kb', ma24Line], ['rf', rfLine], ['rfC', rfChain], ['rfA', rfAll], ['vw', vwapLine]]){ if (!sr) continue; const o = sr.setData.bind(sr);
+      sr.setData = arr => { try{ const T = kTimes(); if (T && T.size && Array.isArray(arr) && arr.length){ const f = arr.filter(q => T.has(q.time)); if (f.length !== arr.length){ const x = arr.find(q => !T.has(q.time)); try{ bugAdd('fn', ['kTrim', nm, arr.length - f.length, x ? hmKey(x.time) : '']); }catch(e){} return o(f); } } }catch(e){} return o(arr); }; } }
 
   // 中圖:OBV
   chartM = LightweightCharts.createChart(mid, {...CHART_OPTS,
