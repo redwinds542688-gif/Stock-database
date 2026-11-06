@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-06 19:59(實際時間)美股:只要不是開盤時間(平日 09:00~13:30)當沖頁就顯示最近一份美股四大指數,開盤中交回當沖(使用者「只要未開盤時間 就是顯示美國」)
   · 2026-11-06 12:28(實際時間)進場:元大預掛的股票,進場卡右邊顯示黃色「預掛價 預掛」;預掛成交 → 同一張卡變成平倉(強平、平倉價、輸贏),不另外多一張(使用者選 A、「是同一張卡片 不是又多一張」)
   · 2026-11-06 12:16(實際時間)明細虛擬(今天):不再把你的強平 / 元大手動單算進來,只照程式自己的進出場邏輯(使用者「強平 虛擬不可以顯示 虛擬就是照虛擬所有的邏輯走」)
   · 2026-11-06 12:07(實際時間)明細「元大 / 虛擬」改成手指一按下就切換(盤中標題列一直重畫,原本放開時按鍵已被換掉,按了沒反應)(使用者「沒法切換」)
@@ -290,7 +291,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611061650">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611061959">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1408,12 +1409,16 @@ window.__US = null;
 const usToday = () => new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
 /* 2026-11-06 16:11 使用者「星期六8.20 一直到星期一早上9.00 都是顯示美股星期五的資訊 如果美股剛好星期五休市那就是顯示星期四的資訊」:
    顯示時段 = 平日 08:20~09:00;週末 = 星期六 08:20 起一直到星期一 09:00。資料要是這個時段開始以後抓的(永遠是最近一個已收盤的美股交易日) */
-const usWinStart = () => { const n = new Date(Date.now() + 8 * 3600000), wd = n.getUTCDay(), hm = n.toISOString().slice(11, 16), day = 86400000;
+let usWinStart = () => { const n = new Date(Date.now() + 8 * 3600000), wd = n.getUTCDay(), hm = n.toISOString().slice(11, 16), day = 86400000;
   const at = k => Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate() - k, 0, 20) ;   /* 台灣 08:20 = UTC 00:20(k 天前) */
   if (wd === 6) return hm >= '08:20' ? at(0) : 0;
   if (wd === 0) return at(1);
   if (wd === 1 && hm < '09:00') return at(2);
   return (hm >= '08:20' && hm < '09:00') ? at(0) : 0; };
+/* 2026-11-06 19:58 使用者「現在 未開盤 當沖欄位閒著也是閒著 就恢復顯示美股資訊好了」「只要未開盤時間 就是顯示美國」:
+   不再限 08:20~09:00 / 週末 —— 只要不是開盤時間(平日 09:00~13:30)就顯示最近一份美股(4 天內抓的都算);開盤中交回當沖 */
+const usWinStart0 = usWinStart;
+usWinStart = () => { try{ if (inSession()) return 0; }catch(e){} return Date.now() - 4 * 86400000; };
 const usLive = () => usWinStart() > 0;   /* 2026-11-06 15:48 使用者「只在當沖通知欄裡顯示到當天9.00 之後交回當沖使用」 */
 const usKey = () => window.__US ? String(window.__US.us || '') : '';   /* 看過的是哪一天的美股(星期六看過,星期日 / 星期一早上同一份就不再閃) */
 const usDot = () => { try{ usBtnTxt(); }catch(e){} try{ const b = document.getElementById('btnState'); if (!b) return; let seen = ''; try{ seen = localStorage.getItem('mysh.usSeen') || ''; }catch(e){}
