@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-06 11:51(實際時間)明細「元大 / 虛擬」盤中也能切換(原本盤中按了沒反應、一律看元大)(使用者「在明細裡按元大可以切換看到虛擬」)
   · 2026-11-06 11:00(實際時間)K 圖錯位修正(使用者「改」):K 圖上疊的線只用 K 棒有的時間點,不再把 K 圖時間軸撐長、和指標二 / 乖離錯開(10:56 華新錯 43 根);丟掉的點記進抓 bug(kTrim)
   · 2026-11-06 09:07(實際時間)進場:開盤中今天還沒有通知時,日期框原本空白 → 顯示今天日期(使用者截圖「日期呢」)
   · 2026-11-06 08:59(實際時間)開盤日 08:45 起進場通知欄跟燈號一起換日:標題是今天、最上面一整塊「今日還沒有通知」,前一個交易日接在下面(用日期滾輪轉回去看)(使用者選 A)
@@ -286,7 +287,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611061155">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611061151">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7255,7 +7256,7 @@ window.bgTick = bgTick; window.BG = BG;
         const ySrc = {}; window.__ySrc = ySrc;   // 哪幾天是元大的真實成交(標題列加「元大」)
         // 2026-11-03 13:48 使用者「永久板在明細那邊 增加一個可以看虛擬交易的結果的按鍵 只有在非開盤時間的時候 按鍵才會出現 其他版本沒有這個功能」:
         //   自己的 App(不是看盤版)、不在盤中 → 標題列多一顆「虛擬」/「元大」切換;切到虛擬 = 每天都列程式照判別式算的虛擬交易(含今天);一開盤自動切回元大
-        const virtOk = !window.VIEWER && !inSession(); if (!virtOk) window.DONE_VIRT = false; const doneVirt = virtOk && !!window.DONE_VIRT;
+        const virtOk = !window.VIEWER; if (!virtOk) window.DONE_VIRT = false;   /* 2026-11-06 11:51 使用者「在明細裡按元大可以切換看到虛擬」:盤中也能切(原本盤中一律切回元大、按了沒反應) */ const doneVirt = virtOk && !!window.DONE_VIRT;
         let d0 = today, src0 = cards;
         { const n_ = new Date(Date.now() + 8 * 3600000), hm_ = n_.getUTCHours() * 60 + n_.getUTCMinutes(), wd_ = n_.getUTCDay();
           if (!(wd_ >= 1 && wd_ <= 5 && hm_ >= 8 * 60 + 45)){ const prev = ds.filter(x => x < today).sort().reverse()[0];
