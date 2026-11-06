@@ -737,6 +737,10 @@ class Trader:
         lots = qty_shares // 1000
         self.log(f"[交易] {code} 看到手動預掛平倉 {'買回' if bs == 'B' else '賣出'} {lots} 張 @ {price}(書號 {no})→ 程式讓位:停利 / 停損先不平,等預掛成交({self.prehang_deadline} 前沒成交由程式平)")
         self.alert(f"✅ {self.name_of(code)} {code} 看到你的預掛", f"{'買回' if bs == 'B' else '賣出'} {lots} 張 @ {price}(程式部位 {p['qty']} 張);程式停利 / 停損先不動,{self.prehang_deadline} 前沒成交由程式平")
+        # 2026-11-06 11:34 使用者「程式在進場那邊 要出現大聯大 預掛 如果成交 就改成元三」:訊息欄發一張預掛卡;成交平倉時(finish_pos)再發一張元三平倉卡
+        try: self.post(f"{self.name_of(code)} {code} 預掛{'買回' if bs == 'B' else '賣出'} {price:g}",
+                       f"{self.hm()} {'做多' if p['dir'] > 0 else '做空'} {p.get('t0') or ''} 進 {p['entry']:.2f} · {lots}張 · 預掛 · {p.get('judge') or ''}", "warn")
+        except Exception as e: self.log(f"[交易] 預掛卡發送失敗 {e!r}")
         if lots != p["qty"]: self.alert(f"⚠ {code} 預掛張數 {lots} 和程式部位 {p['qty']} 張不一樣", "成交後剩下的(或多出來的)請自己確認")
 
     def on_other_fill(self, code, bs, qty_shares, price, order_no="", typ=""):
@@ -902,6 +906,13 @@ class Trader:
             # 2026-11-04 使用者「強平 還是要通知比較好吧」→「直接 富喬 1815 強平 +1.1%」:強平的標題改成「名稱 代碼 強平 ±x.x%」(手機收到會跳通知)
             ttl = f"{self.name_of(c)} {c} 強平 {'+' if pl >= 0 else '−'}{abs(pl):.1f}%" if p.get("forced_close") else f"{self.name_of(c)} {c} 出場 {'+' if pl >= 0 else '−'}{abs(pl):.1f}%:{why}"
             self.post(ttl, body, "exit")
+
+        elif p.get("exit_why") == "元大條件單 / 手動" and p["closed_lots"] and not p.get("forced_close"):
+            ex = p["closed_cost"] / p["closed_lots"]; d = p["dir"]
+            pl = (ex - p["entry"]) / p["entry"] * 100 * d if p["entry"] else 0
+            self.post(f"{'✅ ' if pl >= 0 else '⚠ '}{self.name_of(c)} {c} 出場 {'+' if pl >= 0 else '−'}{abs(pl):.1f}%:元大預掛成交",
+                      f"{self.hm()} {'做多' if d > 0 else '做空'} {p.get('t0') or self.hm()} 進 {p['entry']:.2f} → 現價 {ex:.2f} · {p['closed_lots']}張 · 原{p.get('judge') or ''} · 元三",
+                      "profit" if pl >= 0 else "loss")
 
     def on_strategy_reply(self, strategy_no, ok, msg):
         """元大新增條件單回應(只有 TRADE_BROKER_STOP=1 才會掛)"""

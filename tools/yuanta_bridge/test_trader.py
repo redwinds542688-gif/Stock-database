@@ -595,7 +595,7 @@ tm_.on_report(50, "i00Pb", 2, 1000, 85.0, "", "6269", "B", "9"); ok(not tm_.preh
 tm_.on_tick("6269", 89.0); ok(tm_.positions["6269"]["state"] == EXITING)                                               # 預掛沒了 → 照停損平
 tm2, gm2 = mk(); tm2.on_tick("6269", 86.2); tm2.step([ENT]); tm2.on_report(51, "A0001", 0, 1000, 86.2)
 tm2.on_report(50, "i00Pc", 0, 1000, 85.0, "", "6269", "B", "9"); tm2.on_report(51, "i00Pc", 0, 1000, 85.0, "", "6269", "B", "9")
-ok("6269" not in tm2.positions and not tm2.prehang)                                                                    # 預掛成交 → 部位結束、預掛清掉
+ok("6269" not in tm2.positions and not tm2.prehang); ok(any("預掛買回" in x[0] and x[2] == "warn" for x in tm2.posts) and any("元大預掛成交" in x[0] and x[1].endswith("· 元三") for x in tm2.posts), tm2.posts)                                                                    # 預掛成交 → 部位結束、預掛清掉
 tm3, gm3 = mk(); tm3.on_tick("6269", 86.2); tm3.step([ENT]); tm3.on_report(51, "A0001", 0, 1000, 86.2)
 tm3.on_report(50, "i00Pd", 0, 1000, 85.0, "", "6269", "B", "9"); tm3.exit_pos(tm3.positions["6269"], "強平", 86.0, force_limit=True)
 ok(("cancel", "i00Pd", "6269", "B") in gm3.sent and tm3.positions["6269"]["state"] == EXITING, gm3.sent)
