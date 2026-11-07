@@ -136,7 +136,7 @@ async function usGet(env, force) {
   let v = null; try { v = env.HUB ? await hubOf(env).kvGet("usmkt") : null; } catch (e) {}
   const t = new Date(Date.now() + 8 * 3600e3), d = t.toISOString().slice(0, 10), hm = t.toISOString().slice(11, 16), wd = t.getUTCDay();
   const ok = v && v.d === d && v.idx && v.idx.length >= US_IDX.length && v.idx.every(x => x.close != null);   // 2026-11-07 加 S&P 500 後,舊快取少一張要重抓
-  if (force || (!ok && hm >= "08:20")) {   // 2026-11-06 16:11 週六、週日也抓(手機來問時;星期六 08:20 起顯示到星期一 09:00)
+  if (force || (!ok && hm >= "08:30")) {   // 2026-11-07 15:03 使用者「不用隨時抓 每天早上8.30抓一次即可 除非抓不到」:08:30 前不抓;今天抓齊就整天用快取   // 2026-11-06 16:11 週六、週日也抓(手機來問時;星期六 08:20 起顯示到星期一 09:00)
     const c = MC.get("usfetch"); if (!force && c && Date.now() - c < 300e3) return v;   // 手機來問、今天還沒有:最多 5 分鐘抓一次
     MC.set("usfetch", Date.now());
     const n = await fetchUS(env); if (n.idx.some(x => x.close != null)) { v = n; try { if (env.HUB) await hubOf(env).kvPut("usmkt", n); } catch (e) {} }
@@ -670,7 +670,7 @@ export default {
     const SLOTS = { "8:20": "recheck", "8:45": "recheck", "9:05": "recheck", "14:30": "daily", "16:30": "daily", "20:30": "daily" };
     const what = SLOTS[key];
     if (what) { const r = await dispatch(env, what); console.log(`cron ${event.cron} 台灣 ${key} → ${what}: ${r.msg}`); }
-    if (key === "8:20" || key === "8:30" || key === "8:45") { try { const v = await usGet(env, false); console.log(`cron 台灣 ${key} 美股:${v ? v.us + " " + v.idx.map(x => x.name + " " + x.pct + "%").join(" ") : "抓不到"}`); } catch (e) { console.log("美股失敗 " + e); } }
+    if (key === "8:30" || key === "8:45") {   // 2026-11-07 15:03 改 08:30 抓一次;08:45 只在 08:30 沒抓齊時補抓(usGet 有今天完整的就不抓) try { const v = await usGet(env, false); console.log(`cron 台灣 ${key} 美股:${v ? v.us + " " + v.idx.map(x => x.name + " " + x.pct + "%").join(" ") : "抓不到"}`); } catch (e) { console.log("美股失敗 " + e); } }
     try { const r = await snapshotBars(env, true, event.scheduledTime); if (r !== "off-hours") console.log(`cron 台灣 ${key} 分K:${r}`); } catch (e) { console.log("分K 快照失敗 " + e); }
   },
 
