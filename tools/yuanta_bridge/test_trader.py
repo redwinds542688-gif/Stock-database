@@ -566,7 +566,7 @@ ok(s28.force_enter("2330", -1, 1)[0])
 s28b, _ = mk(); s28b.ref_of = lambda c: 100.0; s28b.on_tick("2331", 106.6); ok(not s28b.force_enter("2331", -1, 1)[0] and s28b.force_enter("2331", 1, 1)[0])
 # PH) 2026-11-05 13:20 保留手動預掛平倉:期限前 exit_pos 不平、複查看到掛著的不補單;期限到了才平
 import datetime as _dt
-tp_, gp_ = mk(); tp_.on_tick("6269", 86.2); tp_.step([ENT]); tp_.on_report(51, "A0001", 0, 1000, 86.1); pp_ = tp_.positions["6269"]
+tp_, gp_ = mk(TRADE_PREHANG_DEADLINE="13:24"); tp_.on_tick("6269", 86.2); tp_.step([ENT]); tp_.on_report(51, "A0001", 0, 1000, 86.1); pp_ = tp_.positions["6269"]
 NOW0 = NOW[0]; NOW[0] = NOW0.replace(hour=13, minute=20, second=30)
 tp_.prehang = {"6269": ["M77"]}; n0 = len(gp_.sent)
 tp_.exit_pos(pp_, "13:20 強制平倉", 86.0, force_limit=True); ok(pp_["state"] == HOLDING and len(gp_.sent) == n0, gp_.sent[n0:])
@@ -574,6 +574,9 @@ ok(tp_.recheck([{"code": "6269", "bs": "S", "lots": 1}], [{"code": "6269", "bs":
 NOW[0] = NOW0.replace(hour=13, minute=24, second=5); tp_.prehang = {}
 tp_.recheck([{"code": "6269", "bs": "S", "lots": 1}], [], "13:24"); ok(pp_["state"] == EXITING and gp_.sent[-1][:3] == ("6269", "B", 1), gp_.sent[-1])
 NOW[0] = NOW0
+# 2026-11-08 01:08 預設 13:20 全部取消預掛:13:21 有預掛也不讓位,直接平
+tp2, gp2 = mk(); tp2.on_tick("6269", 86.2); tp2.step([ENT]); tp2.on_report(51, "A0001", 0, 1000, 86.1); NOW[0] = NOW0.replace(hour=13, minute=21, second=5)
+tp2.prehang = {"6269": ["M78"]}; tp2.step(); ok(tp2.positions["6269"]["state"] == EXITING and tp2.prehang_deadline == "13:20"); NOW[0] = NOW0
 
 # 2026-11-06 太晚了先記著 → 價格回到訊號價 ±0.5% 自動補進場;碰停利 / 過時間 / 平倉通知取消;0 = 關
 at(10, 0); tl, gl = mk(); tl.on_tick("6269", 87.0); tl.step([ENT]); ok("6269" not in tl.positions and "6269" in tl.late_wait)

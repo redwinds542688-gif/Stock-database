@@ -992,7 +992,7 @@ class Bridge:
         """13:20 查元大還掛著的委託:手動下的(沒有程式的自訂編號)、方向是平倉、同一檔加起來剛好等於未沖銷張數 → 保留,回傳書號集合;
            張數不夠 / 太多 / 期限設 0 → 不保留(照舊取消,程式全部平)"""
         t = self.trader; t.prehang = {}
-        if t.prehang_deadline in ("", "0"): return set()
+        if t.prehang_deadline in ("", "0") or t.prehang_deadline <= t.force_exit: return set()   # 2026-11-08 01:08 期限 ≤ 13:20 = 13:20 全部取消(預設)
         r = self.query_today(with_oco=False)
         if not r: return set()
         net = {}

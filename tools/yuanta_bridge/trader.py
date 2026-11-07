@@ -168,7 +168,8 @@ class Trader:
         self.recheck_close = cfg.get("TRADE_RECHECK_CLOSE", "all")
         # 2026-11-05 13:29 使用者「程式要檢查 我是否預掛」→「改」:13:20 時手動預掛的平倉單(方向對、張數剛好等於未沖銷張數)保留,程式不另外平;
         #   到 TRADE_PREHANG_DEADLINE(13:24)還沒成交 → 取消那張、程式照舊漲停 / 跌停平倉。0 = 關(照舊 13:20 全部取消)
-        self.prehang_deadline = cfg.get("TRADE_PREHANG_DEADLINE", "13:24").strip()
+        # 2026-11-08 01:08 使用者「13點20分也要取消所有元大預掛」:預設 13:24 → 13:20(盤中照舊讓位給預掛;13:20 預掛和條件單、委託全部取消,程式平倉)
+        self.prehang_deadline = cfg.get("TRADE_PREHANG_DEADLINE", "13:20").strip()
         self.prehang = {}   # code → 保留的手動預掛委託書號 [no, …]
         self.man_cards = {}  # 2026-11-06 14:26 手動預掛(新進場 / 加碼)發過卡的書號 → {lots, px, d, end}
         self.man_meta = {}  # 2026-11-06 手動預掛的書號 → {bs, typ}(強平時取消用)
