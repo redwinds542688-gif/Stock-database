@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-07 10:36(實際時間)元大預掛:新進場 / 加碼預掛在進場欄顯示黃色「預掛」卡(不算部位、燈號、資金),成交後同位置變元三進場卡;預掛取消 / 失效 / 退回黃色預掛拿掉;元大手動平倉、預掛成交改叫「元平」(和手機強平分開)(使用者「好」「元大手動平倉是不是應該叫做元平」→「改」)
   · 2026-11-07 09:32(實際時間)燈號只在開盤中(平日 09:00~13:30)顯示,其他時間進場 / 明細鍵不亮燈(使用者「非開盤時間 進場 明細的燈號不用顯示」)
   · 2026-11-07 00:49(實際時間)進場 / 燈號跟明細一致:重算的日子進場只留明細(額度版)那幾筆、張數照額度(重算紀錄被重寫回含超額版,11/06 燈號算成 3 萬多)(使用者「燈號不對 今天金額才20112」)
   · 2026-11-07 00:37(實際時間)修:從資訊切回進場 / 明細時,卡片被排成兩欄(資訊頁的排版沒拿掉)(使用者影片「進場 顯示錯誤」)
@@ -300,7 +301,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611070932">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611071036">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6845,7 +6846,7 @@ async function realGone(x){
   try{
     if (window.VIEWER || !/^(exit|profit|loss)$/.test(x.kind || '')) return false;
     if (/·\s*已強平\s*·/.test(x.body || '')) return true;   // 2026-11-04 強平過的部位,引擎照算的虛擬出場(只給看盤版)→ 永久版不響、訊息欄也藏
-    if (/·\s*強平\s*·/.test(x.body || '')) return false;   // 2026-11-04 使用者「強平 還是要通知比較好吧」:強平平倉卡一定跳通知(三支主程式手機都響;之後這檔的停利 / 停損 / 13:20 照舊不發)
+    if (/·\s*(?:強平|元平)\s*·/.test(x.body || '')) return false;   // 2026-11-04 使用者「強平 還是要通知比較好吧」:強平平倉卡一定跳通知(三支主程式手機都響;之後這檔的停利 / 停損 / 13:20 照舊不發)
     const rs = ((x.body || '').match(/· (判[一二三四五])\s*$/) || [])[1]; if (!rs) return false;
     const code = ((x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?\S+ (\d{4,6}[A-Z]*)/) || [])[1]; if (!code) return false;
     const r = await fetch(BASE.liveUrl.replace(/\/$/, '') + '/?trade=pos&_=' + Date.now(), {cache: 'no-store', signal: AbortSignal.timeout(6000)}); const g = await r.json();
@@ -7006,7 +7007,7 @@ window.bgTick = bgTick; window.BG = BG;
       const m = (x.title || '').match(/^(?:⚠⚠ |⚠ |✅ )?(\S+) (\d{4,6}[A-Z]*)\s*(.*)$/); if (!m) return null;
       if (!window.VIEWER && !window.DONE_VIRT && /·\s*已強平\s*·/.test(x.body || '')) return null;   /* 2026-11-06 14:18 使用者「虛擬 看盤版 該怎麼寫就怎麼寫 跟我強平不強平沒有關係」:切到虛擬也照列 */   // 2026-11-04 使用者「我強平過的 當沖最後就不用顯示未平倉的訊息 看盤版就是照程式設定來」:強平後引擎照算的虛擬出場,永久版不列(看盤版 Worker 已拿掉「已強平」照常列)
       const b = x.body || '', rest = m[3];
-      const o = {x, name: m[1], code: m[2], t: x.t || '', kind: x.kind || '', prev: +x.prev || 0, rs: ((b.match(/· (判[一二三四五]|強三|元三)\s*$/) || [])[1]) || '', fc: /· 強平 ·/.test(b), madd: /·\s*加碼\s*·/.test(b), over: /·\s*超額\s*·/.test(b)};   /* (判別式相關說明已移到私人庫) */   // (判別式相關說明已移到私人庫)
+      const o = {x, name: m[1], code: m[2], t: x.t || '', kind: x.kind || '', prev: +x.prev || 0, rs: ((b.match(/· (判[一二三四五]|強三|元三)\s*$/) || [])[1]) || '', yp: /· 元平 ·|元大預掛成交|元大條件單/.test(b) || /元大預掛成交/.test(x.title || ''), fc: /· (?:強平|元平) ·/.test(b), madd: /·\s*加碼\s*·/.test(b), over: /·\s*超額\s*·/.test(b)};   /* (判別式相關說明已移到私人庫) */   // (判別式相關說明已移到私人庫)
       // 2026-10-23 12:00 轉折通知(內容結尾「· 轉折」):自己一類,一張卡只有 名稱 | 價 | 做多 / 做空 | 時間 | 轉折,不算部位、不配對平倉、不藏
       if (/· 轉折\s*$/.test(b)){ o.type = 'turn'; o.rs = '轉折'; o.add = /^加碼\b|加碼/.test(rest); o.warnT = /(多單|空單)注意/.test(rest);   /* 2026-10-26 21:45 急拉 / 急殺注意卡原本顯示「做空」(像空點),改顯示「注意」 */ o.side = (/做空|空單注意/.test(rest) || (o.add && /空點/.test(b))) ? 'short' : 'long'; o.price = +((rest.match(/([\d.]+)\s*$/) || [])[1]) || 0; o.entP = o.price; return o; }
       if (o.kind === 'long' || o.kind === 'short'){ o.type = 'entry'; o.side = o.kind; o.price = +((rest.match(/([\d.]+)\s*$/) || [])[1]) || 0; o.entT = o.t; o.entP = o.price;
@@ -7020,6 +7021,12 @@ window.bgTick = bgTick; window.BG = BG;
         o.win = o.pl != null ? o.pl >= 0 : o.kind !== 'loss';
         const sm = b.match(/做[多空]/); o.side = sm ? (sm[0] === '做空' ? 'short' : 'long') : ((o.entP && o.price) ? (((o.price < o.entP) === o.win) ? 'short' : 'long') : '');
         o.reason = /強平/.test(rest) ? '強平' : /停損/.test(rest) ? '停損' : /OBV/.test(rest) ? 'OBV停利' : /停利/.test(rest) ? '停利' : /超6/.test(rest) ? '超6%' : /沒走/.test(rest) ? '沒走' : /:出/.test(rest) ? '收盤前平倉' : '反向點';
+        /* 2026-11-07 10:14 使用者「好」(元大手動預掛:新進場 / 加碼也要在進場欄顯示;預掛取消黃色標籤要拿掉):
+           電腦發的「預掛做多 / 預掛做空 / 預掛加碼…」卡 → 當成一張黃色「預掛」進場卡(不算部位、不算燈號);成交後同一個位置換成元三進場卡;
+           「預掛已取消 / 失效 / 被元大退回」卡 → 藏起來,同時拿掉那檔的預掛卡或進場卡上的黃色預掛標籤 */
+        if (o.kind === 'warn' && /預掛/.test(rest)){ const pm = /預掛(?:加碼)?(做多|做空)\s*([\d.]+|市價)?/.exec(rest);
+          if (pm){ o.type = 'entry'; o.phNew = true; o.side = pm[1] === '做多' ? 'long' : 'short'; o.price = o.entP = +pm[2] || 0; o.ph = +pm[2] || -1; o.entT = o.t; o.alert = ''; }
+          else if (/預掛(?:已取消|失效|被元大退回|價穩失效)/.test(rest)) o.phEnd = true; }
       } else return null;
       return o;
     };
@@ -7062,7 +7069,14 @@ window.bgTick = bgTick; window.BG = BG;
     // 2026-10-27 00:40 一進一出 + 警示欄位的整理抽成 finish(),前幾天的卡也用同一套
     const finish = cards => {
     { const keep = []; const open = new Map();   // key = code|rs → 進場卡已顯示、還沒平倉
+      const pend = new Map();   // 2026-11-07 code|side → 還沒成交的手動預掛卡
       for (let k = cards.length - 1; k >= 0; k--){ const o = cards[k]; const kk = o.code + '|' + (o.rs || '');
+        if (o.type === 'entry' && o.phNew){ pend.set(o.code + '|' + o.side, o); o.__ki = keep.length; keep.push(o); continue; }
+        if (o.type === 'entry'){ const pk = o.code + '|' + o.side, pv = pend.get(pk); if (pv && keep[pv.__ki] === pv){ pend.delete(pk); keep[pv.__ki] = o;   // 預掛成交:同一個位置換成真的進場卡
+            if (!o.madd && !open.has(kk)){ open.set(kk, o); o.__ki = pv.__ki; } continue; } }
+        if (o.type === 'warn' && o.phEnd){ o._hide = true; const pv = [...pend.values()].reverse().find(q => q.code === o.code);
+          if (pv){ pend.delete(pv.code + '|' + pv.side); pv._hide = true; } else { const e = [...open.values()].reverse().find(q => q.code === o.code && q.ph); if (e) e.ph = 0; }
+          keep.push(o); continue; }
         if (o.type === 'entry' && o.madd){ /* 2026-11-05 手動加碼卡:不蓋掉原本的進場卡,自己也不被蓋 */ }
         else if (o.type === 'entry'){ if (open.has(kk)){ o._hide = true; } else { open.set(kk, o); o.__ki = keep.length; } }
         else if (o.type === 'exit'){ const e = open.get(kk); if (e && e.ph){ e.ph = 0; open.delete(kk); if (o.fc && keep[e.__ki] === e){ keep[e.__ki] = o; o.__phM = true; continue; } } open.delete(kk); }   /* 2026-11-06 12:25 使用者「如果預掛在元大裡面成交了 就把這張卡片後面預掛改成強平」「是同一張卡片 不是又多一張」:預掛成交的平倉卡直接取代原本那張進場卡(同一個位置),不另外多一張 */   // 2026-11-06 12:22 使用者「如果預掛在元大裡面成交了 就把這張卡片後面預掛改成強平」
@@ -7116,7 +7130,7 @@ window.bgTick = bgTick; window.BG = BG;
       const ud = v => !prevC || !v ? '' : v > prevC ? ' up' : v < prevC ? ' down' : ' flat';
       // 2026-10-24 16:33 使用者:「單擊雙擊判二 三角形位置 如果已經平倉也只有平倉 就顯示輸贏金額」:按判鍵篩選時,平倉卡的三角形改成這筆的淨輸贏(扣手續費、證交稅)
       const nv = (window.LOG_RS && o.type === 'exit') ? netOf([o]) : null;
-      const ex = (o.type === 'entry' && o.ph > 0) ? `<span class="mk ph">${o.ph.toFixed(2)}</span>` : o.type === 'exit' ? (nv && nv[1] ? `<span class="mk amt ${nv[0] >= 0 ? 'win' : 'lose'}">${nv[0] >= 0 ? '+' : '−'}${Math.abs(nv[0])}</span>`
+      const ex = (o.type === 'entry' && (o.ph > 0 || o.phNew)) ? `<span class="mk ph">${o.ph > 0 ? o.ph.toFixed(2) : '市價'}</span>` : o.type === 'exit' ? (nv && nv[1] ? `<span class="mk amt ${nv[0] >= 0 ? 'win' : 'lose'}">${nv[0] >= 0 ? '+' : '−'}${Math.abs(nv[0])}</span>`
         : `<span class="${o.win ? 'mk win' : 'mk lose'}">${(o.win ? '▲' : '⚠').repeat(marks(o.pl))}</span>`) : '';
       // 2026-10-18 使用者定案:最右邊是「警示欄位」,顯示 平倉 / 注意 / 反彈。進場卡片顯示這筆交易之後最新的狀態(平倉 > 反彈 / 注意),
       // 平倉 / 注意 / 反彈 那則自己也顯示;今天、而且出現不到 10 分鐘的會閃爍。每列都有同樣的欄位,成交價 / 做多做空 / 張數才會上下對齊
@@ -7124,7 +7138,7 @@ window.bgTick = bgTick; window.BG = BG;
       // 2026-10-21 使用者(時碩:「第一個通知就後面顯示平倉」→「改」):進場卡右邊留白,「平倉 / 輸贏」只顯示在平倉那張(原本進場卡顯示這筆交易後來的最新狀態)
       const al = (o.type === 'entry' || o.type === 'turn') ? '' : o._alert, alT = o._alertT || '';
       const fresh = dd === today && alT && (() => { const [h, mi] = alT.split(':').map(Number); const n = new Date(Date.now() + 8 * 3600000); return (n.getUTCHours() * 60 + n.getUTCMinutes()) - (h * 60 + mi) < 10; })();
-      const rs = (o.type === 'entry' && o.ph > 0) ? '<span class="rs al al-ph">預掛</span>' : (o.type === 'entry' && o.phFc) ? '<span class="rs al al-exit"><b class="fz">強</b>平</span>' : al ? `<span class="rs al al-${al}">${al === 'exit' && o.fc ? '<b class="fz">強</b>平' : AL[al]}</span>` : '<span class="rs"></span>';   // 2026-10-28 強平:「強」紅色   // 2026-10-19 使用者:「反彈 / 平倉 / 注意一直閃太干擾,不要閃了」→ 拿掉 blink,只用顏色,不再閃爍(fresh 保留給之後可能用)
+      const rs = (o.type === 'entry' && (o.ph > 0 || o.phNew)) ? '<span class="rs al al-ph">預掛</span>' : (o.type === 'entry' && o.phFc) ? '<span class="rs al al-exit"><b class="fz">強</b>平</span>' : al ? `<span class="rs al al-${al}">${al === 'exit' && o.fc ? (o.yp ? '<b class="fz">元</b>平' : '<b class="fz">強</b>平') : AL[al]}</span>` : '<span class="rs"></span>';   // 2026-10-28 強平:「強」紅色   // 2026-10-19 使用者:「反彈 / 平倉 / 注意一直閃太干擾,不要閃了」→ 拿掉 blink,只用顏色,不再閃爍(fresh 保留給之後可能用)
       return `<div class="ln"><span class="nmblk"><span class="nm">${esc(o.name)}</span></span><span class="px${ud(+entP)}">${pxTop}</span><span class="sd${sideTxt ? (o.side === 'long' ? ' win' : ' lose') : ''}">${sideTxt}</span><span class="qt">${o.over ? '<b style="color:#FFD24D;font-weight:700">超額</b>' : o.notrade ? '<b style="color:#8C96AB;font-weight:700">未交易</b>' : (o.madd && lots) ? '<b style="color:#FFD54F;font-weight:700">加</b>' + lots + '張' : lots ? lots + '張' : (o.type === 'turn' && (o.add || o.warnT) && o.side) ? `<b class="tsd ${o.side === 'long' ? 'win' : 'lose'}">${o.side === 'long' ? '做多' : '做空'}</b>` : ''}</span><span class="exm">${ex}</span>${rs}</div>`
            + `<div class="ln sub"><span class="nmblk"><span class="cd">${esc(o.code)}</span></span><span class="px${ud(+o.price)}"><i class="s">${pxBot}</i></span><span class="sd"><i class="s rsb">${o.rs === '強三' ? '<b class="fz">強</b>三' : o.rs === '元三' ? '<b class="fz">元</b>三' : (o.rs || '')}</i></span><span class="qt">${o.t ? `<i class="s tm">${esc(o.t)}</i>` : ''}</span><span class="exm"></span><span class="rs">${al === 'exit' && o._win != null ? `<i class="s wl ${o._win ? 'win' : 'lose'}">${o._win ? '贏' : '輸'}</i>` : ''}</span></div>`;   // 2026-10-18 使用者:平倉下面顯示 輸 / 贏,加框
     };
@@ -7216,7 +7230,7 @@ window.bgTick = bgTick; window.BG = BG;
           const L = JSON.parse(localStorage.getItem('mysh.tpos.last') || 'null'); return L && L.d === today && Array.isArray(L.pos) ? {ok: true, pos: L.pos} : null; }catch(e){ return null; } })();   // 2026-11-04 13:20 後電腦沒在交易 → 用今天最後一次的元大部位   // 2026-10-30 13:21 使用者「如果沒有連線主機 這裡跟明細一樣 顯示程式自己做的模擬交易」:2 分鐘沒問到電腦也算連不上 → 列模擬(標「當沖 系統」)
         const nmOf = c => SIG_NAMES.get(c) || ((SRC || []).find(x => x.code === c) || {}).name || ((cards.find(o => o.code === c) || {}).name) || c;
         // 12:37 使用者「電腦那邊沒辦法連線也不要影響這邊的顯示」:電腦連不上(或還沒問到)→ 照原本用手機通知列(和改之前一樣)
-        const open = over ? [] : (!TPL || !TPL.ok) ? cards.filter(o => o.type === 'entry' && !o.over && !o.notrade && !o.madd && !o._hide && o._alert !== 'exit' && o.entP > 0 && !cards.some(x => x.fc && x.code === o.code && x.t >= o.t)) : (TPL.pos || []).filter(p => p.qty > 0 && p.entry > 0 && (p.state === '持倉中' || p.state === '平倉中'))
+        const open = over ? [] : (!TPL || !TPL.ok) ? cards.filter(o => o.type === 'entry' && !o.over && !o.notrade && !o.madd && !o._hide && !o.phNew && o._alert !== 'exit' && o.entP > 0 && !cards.some(x => x.fc && x.code === o.code && x.t >= o.t)) : (TPL.pos || []).filter(p => p.qty > 0 && p.entry > 0 && (p.state === '持倉中' || p.state === '平倉中'))
           .map(p => ({code: p.code, name: nmOf(p.code), side: p.dir > 0 ? 'long' : 'short', entP: +p.entry, lots: +p.qty, rs: p.judge, exiting: p.state === '平倉中'}));
         // 2026-10-29 12:25(實際時間)使用者「既然真實接通 … 顯示元大裡的真實的交易」:元大帳號裡手動進場、還沒沖掉的張數(成交回報 open ≠ 0)也列進當沖(程式的部位已在上面,不重複)
         if (TP && !over){ tfillsPoll(); try{ const F = window.__tfills; if (F && F.ok && F.d === today && Array.isArray(F.rows)) for (const r of F.rows){ const q = +r.open || 0; if (!q || open.some(o => o.code === r.code)) continue;
@@ -7231,12 +7245,12 @@ window.bgTick = bgTick; window.BG = BG;
       else try{ if (lampDay !== today){
           // 前一個交易日:那天的通知(進場 / 平倉)和元大成交明細;當沖收盤後都平掉了 → 不亮
           let pc = []; try{ const k_ = lampDay + '|' + itemsFor(lampDay).length; if (render.__lampPc && render.__lampPc.k === k_) pc = render.__lampPc.v; else { pc = prep(itemsFor(lampDay)); for (const o of pc){ if (!(o.x && o.x.bt)) continue; const q = +(((o.x.body || '').match(/· (\d+)張/) || [])[1]) || 0; if (q) o.lots = q; } pc = finish(pc); render.__lampPc = {k: k_, v: pc}; }   /* 2026-11-06 01:45 使用者「明細的燈號不對」:重算紀錄的張數照紀錄(額度版),和明細一樣;原本照 25 萬自己算張數 → 11/05 算成 +50,126 */ }catch(e){}
-          const en = pc.filter(o => (o.type === 'entry' || o.__phM) && !o._hide && !o.over && !o.notrade && !o.madd);
+          const en = pc.filter(o => (o.type === 'entry' || o.__phM) && !o._hide && !o.over && !o.notrade && !o.madd && !o.phNew);
           let nE = en.length, nX = en.filter(o => o._alert === 'exit' || o.__phM).length, dt = netOf(pc.filter(o => o.type === 'exit' && !o._hide && !o.over && !(o.rs === '元三' || o.rs === '強三')))[0];
           try{ const Y = !window.VIEWER && !window.DONE_VIRT ? (yfillsFix(lampDay), yFillsOf(lampDay)) : null;   /* 2026-11-07 00:48 跟明細(dayRows)同一個條件:元大模式、手機有那天的元大成交就用成交,沒有才看重算的 */   /* 2026-11-06 02:27 使用者「燈號不對」:和明細同一個切點 —— 元大真實成交從 11/06 起(11/05 明細看重算的),切在虛擬也看重算的 */ if (Y && Array.isArray(Y.rows) && Y.rows.length){ const R = Y.rows.filter(r => (+r.lots || 0) > 0 || (+r.open || 0) !== 0); nE = R.length; nX = R.filter(r => (+r.lots || 0) > 0 && !(+r.open || 0)).length; dt = Y.rows.reduce((a, r) => a + (r.lots > 0 ? +r.net || 0 : 0), 0); } }catch(e){}
           lampBtn('refreshBtn', '進場', 'cnt', Math.max(0, nE - nX), nX); lampBtn('btnState', usLabel(), 'amt', 0); lampBtn('btnRules', '明細', 'amt', dt);
         } else { if (inSession() && window.NL_VIEW !== 'pos'){ const tA = window.__tposAt || 0; if (Date.now() - tA > 30000) tposPoll(); }
-          const en = cards.filter(o => (o.type === 'entry' || o.__phM) && !o._hide && !o.over && !o.notrade && !o.madd);
+          const en = cards.filter(o => (o.type === 'entry' || o.__phM) && !o._hide && !o.over && !o.notrade && !o.madd && !o.phNew);
           let pt = 0; try{ let C = {fee: 0, tax: 0}; try{ C = cost(); }catch(e){} const {open} = posOpen(); for (const o of open){ const lt = lotsOf(o), dr = o.side === 'long' ? 1 : -1, ent = +o.entP, cu = +(((LIVE.get(o.code) || {}).z) || 0) || ent;
             pt += (cu - ent) * dr * lt * 1000 - (dr > 0 ? costAmt(ent * lt * 1000, cu * lt * 1000, C) : costAmt(cu * lt * 1000, ent * lt * 1000, C)); } }catch(e){}
           let dt = netOf(cards.filter(o => o.type === 'exit' && !o._hide && !o.over && !(o.rs === '元三' || o.rs === '強三')))[0];
@@ -7384,7 +7398,7 @@ window.bgTick = bgTick; window.BG = BG;
         /* 2026-11-06 12:15 使用者「強平 虛擬不可以顯示 虛擬就是照虛擬所有的邏輯走 怎麼把我操作的copy到虛擬那邊」:
            今天(還沒有重算的)切到虛擬 → 從原始訊息重新整理,只留程式自己的進場 / 停利 / 停損 / 出場;電腦發的元大卡(強平、元大預掛成交、加碼、元三、強制進場、預掛)全部不算,
            也不套「強平後藏掉這檔後面的卡」那幾條(那是元大畫面用的)→ 你手動平掉的,虛擬照程式自己的出場或 13:20 平倉算 */
-        else if (doneVirt && d0 === today){ try{ src0 = finish(prep(itemsFor(today).filter(x => !/強平|元大|預掛|強制 ·/.test((x.title || '') + ' ' + (x.body || '').replace(/已強平/g, ''))))); }catch(e){} }
+        else if (doneVirt && d0 === today){ try{ src0 = finish(prep(itemsFor(today).filter(x => !/強平|元平|元大|預掛|強制 ·/.test((x.title || '') + ' ' + (x.body || '').replace(/已強平/g, ''))))); }catch(e){} }
         let [h0, t0, c0] = dayRows(d0, src0);
         let empty0 = d0 === today ? '今天還沒有平倉的股票' : '這天沒有平倉的股票';
         void TPe;   // 2026-10-30 12:20 原本「自動交易開著但讀不到元大 → 不列模擬的」改成連不上就列程式的模擬交易(使用者「當無法連上主機 明細就顯示程式做的股票明細」)
@@ -7480,7 +7494,7 @@ window.bgTick = bgTick; window.BG = BG;
     // 2026-10-27 21:50 使用者(「這裡顯示錯了 怎麼最近還有往上的」):資金改成和自動交易同一套 — 元大額度買 + 賣 500 萬留緩衝 = 490 萬,
     //   今天每一筆進場(買或賣)和出場都算成交金額,只扣不加回(原本 240 萬 − 還沒平倉的進場金額,平倉後會加回去)
     const usedOf = list => { let u = 0; try{ for (const o of list){ if (o._hide || !(o.side)) continue; const lt = lotsOf(o);
-        if (o.type === 'entry' && o.entP > 0) u += o.entP * lt * 1000;
+        if (o.type === 'entry' && !o.phNew && o.entP > 0) u += o.entP * lt * 1000;
         else if (o.type === 'exit' && o.price > 0) u += o.price * lt * 1000; } }catch(e){} return Math.round(u); };
     const used = usedOf(cards); const CAPD = 5000000;   // 2026-10-31 14:57 使用者「490萬 改成500萬」
     // 2026-10-29 使用者:「我說的可用資金是訊息右上那個」→ 有桌機推上來的當沖額度(今天、10 分鐘內)就用它:總額度 − 成交 − 掛著的(含手動);沒有就照上面 App 自己算的

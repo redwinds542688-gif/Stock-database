@@ -747,6 +747,8 @@ class Trader:
                 try: self.post(f"{self.name_of(code)} {code} {what} {price:g}" if price else f"{self.name_of(code)} {code} {what} 市價",
                                f"{self.hm()} {'做多' if d > 0 else '做空'} · {lots}張 · 預掛 · 元三", "warn")
                 except Exception as e: self.log(f"[交易] 預掛卡發送失敗 {e!r}")
+                try: self.alert(f"📌 {self.name_of(code)} {code} {what} {price:g}" if price else f"📌 {self.name_of(code)} {code} {what} 市價", f"{lots} 張,成交後變元三由程式管")   # 2026-11-07 10:36 使用者「改」:新進場 / 加碼預掛手機也跳通知
+                except Exception as e: self.log(f"[交易] 預掛通知失敗 {e!r}")
             elif status in (1, 2, 24, 25) and mc and not mc.get("end"):
                 mc["end"] = status; why = {1: "被元大退回", 2: "已取消", 24: "失效", 25: "價穩失效"}[status]
                 try: self.post(f"{self.name_of(code)} {code} 預掛{why}", f"{self.hm()} {'做多' if mc['d'] > 0 else '做空'} · {mc['lots']}張 @ {mc['px'] or '市價'} · 預掛 · 元三", "warn")
@@ -760,6 +762,11 @@ class Trader:
                 if p and p["state"] == HOLDING:
                     self.log(f"[交易] {code} 手動預掛 {no} 結束(狀態 {status})→ 程式恢復盯停利 {p['tp']} / 停損 {p['sl']}")
                     self.alert(f"↩ {self.name_of(code)} {code} 預掛單沒了", f"程式恢復盯停利 {p['tp']} / 停損 {p['sl']}")
+                    # 2026-11-07 10:14 使用者「好」:平倉預掛取消 / 失效也發一張卡,手機進場卡上的黃色「預掛」標籤跟著拿掉
+                    try:
+                        why = {1: "被元大退回", 2: "已取消", 24: "失效", 25: "價穩失效"}.get(status, "已取消")
+                        self.post(f"{self.name_of(code)} {code} 預掛{why}", f"{self.hm()} {'做多' if p['dir'] > 0 else '做空'} {p.get('t0') or ''} 進 {p['entry']:.2f} · 預掛 · {p.get('judge') or ''} · 元大中繼", "warn")
+                    except Exception as e: self.log(f"[交易] 預掛卡發送失敗 {e!r}")
             return
         if status != 0 or not p or p["state"] != HOLDING or bs != close_side(p["dir"]) or no in lst: return
         lst.append(no); self.prehang[code] = lst; self.man_meta[no] = {"bs": bs, "typ": typ}
@@ -940,7 +947,7 @@ class Trader:
             ex = p["closed_cost"] / p["closed_lots"]; d = p["dir"]
             pl = (ex - p["entry"]) / p["entry"] * 100 * d if p["entry"] else 0
             self.post(f"{'✅ ' if pl >= 0 else '⚠ '}{self.name_of(c)} {c} 出場 {'+' if pl >= 0 else '−'}{abs(pl):.1f}%:元大預掛成交",
-                      f"{self.hm()} {'做多' if d > 0 else '做空'} {p.get('t0') or self.hm()} 進 {p['entry']:.2f} → 現價 {ex:.2f} · {p['closed_lots']}張 · 強平 · {p.get('judge') or ''}",   # 標原判別式才會和那張進場卡配成同一筆、算進輸贏;「· 強平 ·」讓手機藏掉之後引擎的虛擬出場
+                      f"{self.hm()} {'做多' if d > 0 else '做空'} {p.get('t0') or self.hm()} 進 {p['entry']:.2f} → 現價 {ex:.2f} · {p['closed_lots']}張 · 元平 · {p.get('judge') or ''}",   # 2026-11-07 10:36 使用者「元大手動平倉是不是應該叫做元平」→「改」   # 標原判別式才會和那張進場卡配成同一筆、算進輸贏;「· 強平 ·」讓手機藏掉之後引擎的虛擬出場
                       "profit" if pl >= 0 else "loss")
 
     def on_strategy_reply(self, strategy_no, ok, msg):

@@ -560,7 +560,7 @@ const KEY_RE = /^[a-f0-9]{16,40}$/;
 const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const b64uStr = t => b64u(new TextEncoder().encode(t));
 const PUSH_KINDS = new Set(["long", "short", "loss", "profit", "exit"]);
-const REAL_RE = /·\s*元大中繼\s*$|·\s*(強三|元三)\s*$|·\s*強平\s*·/;
+const REAL_RE = /·\s*元大中繼\s*$|·\s*(強三|元三)\s*$|·\s*(強平|元平)\s*·/;   // 2026-11-07 元平(元大手動平倉)也是真實卡
 async function vapidKeys(env) {
   const hub = hubOf(env); let v = await hub.kvGet("vapid");
   if (!v) { const kp = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
@@ -1218,7 +1218,7 @@ export default {
         //   是你帳戶的私事,看盤版 / 試用 / 免費的人讀通知時拿掉(只留判別式的進出場訊號)
         //   使用者「除了我 永久會員以外 能看到我元大買賣的資訊 其他看到的資訊都是程式虛擬交易的狀況與結果」:元大真實買賣也只給自己看 ——
         //   強三(手機強制進場)/ 元三(元大手動單接回)的進出場、任何部位被強平的平倉訊息(內容有「· 強平 ·」),看盤版 / 試用 / 免費都拿掉;判別式的訊號(虛擬交易)照給
-        const REAL = /·\s*元大中繼\s*$|·\s*(強三|元三)\s*$|·\s*強平\s*·/;
+        const REAL = /·\s*元大中繼\s*$|·\s*(強三|元三)\s*$|·\s*(強平|元平)\s*·/;
         // 2026-11-04 強平過的部位,引擎照算的虛擬出場(內容有「· 已強平 ·」):看盤版 / 免費照常看(拿掉「已強平」這幾個字,一進一出),永久版 App 自己藏
         const FCV = /\s*·\s*已強平(?=\s*·)/;
         const mine = pushOk || ownerKI, scrub0 = a => mine || !Array.isArray(a) ? a : a.filter(x => !REAL.test(String((x && x.body) || "")) && !String((x && x.key) || "").startsWith("yt|")).map(x => FCV.test(String(x.body || "")) ? { ...x, body: String(x.body).replace(FCV, "") } : x);
