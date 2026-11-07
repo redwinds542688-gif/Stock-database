@@ -1283,8 +1283,13 @@ class Bridge:
                 for at in self.trader.recheck_times:                     # 13:22 / 13:23 / 13:24 各一次
                     if at not in rechecked and hm_now >= at:
                         rechecked.add(at); self.recheck_positions(at); break
-                if k % 10 == 0:
-                    self.flush(day); self.flush_ticks(day)
+                # 2026-11-07 12:55 使用者「能再加快進場訊息速度嗎」:原本每 10 秒才推一次 K → 一分鐘收完最慢要等 10 秒(平均 5 秒)才推上去,電腦算訊號也跟著晚。
+                #   改成:換分鐘後第 1 秒就推剛走完的那根(晚到的成交照舊整分鐘重送);其他時間維持每 10 秒
+                _nw = now_tw(); _hm = _nw.strftime("%H:%M")
+                if k % 10 == 0 or (_nw.second >= 1 and getattr(self, "_flush_hm", "") != _hm):
+                    self._flush_hm = _hm
+                    self.flush(day)
+                    if k % 10 == 0: self.flush_ticks(day)
                 # 2026-10-30 引擎看門狗:盤中引擎行程結束了(當掉 / 被關)→ 重新開(一天最多 5 次);13:30 後不管
                 if CFG.get("ENGINE", "0") == "1" and k % 30 == 0 and "08:45" <= hm_now < "13:30" and getattr(self, "engine", None) is not None and self.engine.poll() is not None:
                     self.eng_restarts = getattr(self, "eng_restarts", 0) + 1

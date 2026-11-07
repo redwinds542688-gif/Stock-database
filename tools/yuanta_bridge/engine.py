@@ -57,7 +57,7 @@ def load_env():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1); cfg[k.strip()] = re.split(r"\s+#", v, 1)[0].strip()
-    for k in ("ENGINE_PRE", "ENGINE_PRE_SEC", "QUOTE_PORT", "WORKER_URL", "PUSH_KEY", "ENGINE_WORKERS", "ENGINE_CAP", "LOG_DIR", "ENGINE_SIM_SRC", "ENGINE_MAX_CODES", "ENGINE_LO", "ENGINE_HI", "ENGINE_AMP",
+    for k in ("ENGINE_PRE", "ENGINE_PRE_SEC", "ENGINE_START_SEC", "DRAG_ON", "DRAG_MIN", "DRAG_MFE", "DRAG_MKT", "QUOTE_PORT", "WORKER_URL", "PUSH_KEY", "ENGINE_WORKERS", "ENGINE_CAP", "LOG_DIR", "ENGINE_SIM_SRC", "ENGINE_MAX_CODES", "ENGINE_LO", "ENGINE_HI", "ENGINE_AMP",
               "ENGINE_ERR_MAX", "ENGINE_RULES_MIN", "ENGINE_BAR_WAIT"):
         if os.environ.get(k): cfg[k] = os.environ[k]
     return cfg
@@ -896,6 +896,8 @@ def live():
     # 2026-11-06 13:14 使用者「那把預判拿掉 浪費時間」:一輪要 ~53 秒,第 45 秒開始的預判算完已過下一分鐘第 4 秒 → 快速確認幾乎跑不到
     #   (11/02~11/06 約 960 次預判只提早推出 4 則,11/04 起 0 則),還連續搶走整輪(11/06 華經 10:22 訊號連 3 輪預判,10:26:35 才通知)→ 預設關;ENGINE_PRE=1 可再開
     pre_on = CFG.get("ENGINE_PRE", "0") == "1"; pre_sec = int(CFG.get("ENGINE_PRE_SEC", "45"))
+    try: start_sec = int(CFG.get("ENGINE_START_SEC", "2"))
+    except Exception: start_sec = 2
     pre = {"for": "", "cand": set(), "done": set(), "fast": set(), "ok": False, "rs_block": {}}
     try:
         while True:
@@ -926,7 +928,7 @@ def live():
                         log(f"預判收盤確認 {hm}:候選 {len(cand)} 個,推出 {len(eng.sent) - nb} 則,{time.time() - t0:.1f} 秒")
                 except Exception as e: log("預判確認失敗", repr(e))
                 continue
-            if hm < "09:01" or n.second < 4 or hm in done:
+            if hm < "09:01" or n.second < start_sec or hm in done:   # 2026-11-07 中繼換分鐘第 1 秒就推 K → 開算從第 4 秒提早到第 2 秒(ENGINE_START_SEC;下面還是會等 hm-1 那根到齊)
                 time.sleep(0.5 if pre_on else 1); continue
             done.add(hm)
             c2 = cloud_cap(eng.cap) if hm < "09:03" else eng.cap   # 2026-11-02 跟 5861 主導機的多空上限(通知裡的張數);盤中設定禁改 → 只在開盤頭兩分鐘再確認
