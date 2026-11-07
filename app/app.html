@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-07 23:09(實際時間)資訊「檢討」字放大:內文 13 → 17、標題 14 → 18、今日輸贏 16 → 21、每行 19 → 25(使用者「我覺得字體有點小 我看不太清楚」→「改」)
   · 2026-11-07 14:10(實際時間)拖輸視窗 K 圖 ①②③ 只畫圓圈(使用者「123 在k 圖 只要標示 不用詳細說明數值」):① ② 在那根 K 下面、③ 在上面,不寫時間 / 文字,K 線區不再留 ①②③ 標籤列
   · 2026-11-07 14:05(實際時間)拖輸視窗 K 圖標籤不遮 K 線(使用者「進場那列遮住k線 拖輸也有」):拖輸 / 進場標籤移到 K 線上方留白的兩列,①②③ 標籤移到價格和量中間那一列
   · 2026-11-07 14:00(實際時間)拖輸視窗改小、標示清楚(使用者「拖輸視窗 … 只佔用股票監控區就好 不要遮住進場按鍵跟通知欄」「進場點 拖輸點 123點 都要明顯標示出來」):視窗從按鍵列下面開始(上面通知欄、五個按鍵照常可按),K 圖吃剩下的高度;圖上進場(綠點 + 標籤)、拖輸(橘色虛線 + 標籤)、① 爆量 ② 量縮 ③ 翻多(色點 + 標籤 + 紫色區間),標籤錯開不重疊
@@ -311,7 +312,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611072043">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611072309">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -585,10 +586,10 @@
   #notifLog .hd .vbtn.rvb.on{background:#FFD54F;color:#000;border-color:#fff;box-shadow:0 0 0 2px #000,0 0 0 3.5px #FFD54F}
   #notifLog .hd .vbtn.rvb.dot::before{content:'';position:absolute;top:3px;left:3px;width:8px;height:8px;border-radius:50%;background:#FF3B30;box-shadow:0 0 5px #FF3B30;animation:rvBlink 1s steps(1,end) infinite}
   @keyframes rvBlink{0%{opacity:1}50%{opacity:0}}
-  #notifLog .rvw{grid-column:1/-1;grid-row:2/-1;align-self:start;min-height:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;scroll-snap-type:y mandatory;padding:0 8px;font-size:13px;line-height:19px;color:#E6EAF2}   /* 2026-11-07 19:00 使用者「視窗太小 不要分上下部」:整份一起滑;每行一律 19px,框高切成整數行(rvFit),一次停在一行開頭 → 不會露出半行字 */
-  #notifLog .rvw > *, #notifLog .rvw li{scroll-snap-align:start;margin:0!important;line-height:19px!important} #notifLog .rvw::-webkit-scrollbar{display:none}
-  #notifLog .rvw .rvt{display:flex;justify-content:space-between;color:#FFD54F;font-weight:800;font-size:14px} #notifLog .rvw .rvt i{color:#8C96AB;font-style:normal;font-weight:400;font-size:.8em}
-  #notifLog .rvw .rvr{display:flex;align-items:baseline;gap:12px} #notifLog .rvw .rvr span{color:#8C96AB} #notifLog .rvw .rvr b{font-size:16px;font-variant-numeric:tabular-nums}
+  #notifLog .rvw{grid-column:1/-1;grid-row:2/-1;align-self:start;min-height:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;scroll-snap-type:y mandatory;padding:0 8px;font-size:17px;line-height:25px;color:#E6EAF2}   /* 2026-11-07 23:07 使用者「我覺得字體有點小 我看不太清楚」:13 → 17px、一行 19 → 25px */   /* 2026-11-07 19:00 使用者「視窗太小 不要分上下部」:整份一起滑;每行一律 19px,框高切成整數行(rvFit),一次停在一行開頭 → 不會露出半行字 */
+  #notifLog .rvw > *, #notifLog .rvw li{scroll-snap-align:start;margin:0!important;line-height:25px!important} #notifLog .rvw::-webkit-scrollbar{display:none}
+  #notifLog .rvw .rvt{display:flex;justify-content:space-between;color:#FFD54F;font-weight:800;font-size:18px} #notifLog .rvw .rvt i{color:#8C96AB;font-style:normal;font-weight:400;font-size:.8em}
+  #notifLog .rvw .rvr{display:flex;align-items:baseline;gap:12px} #notifLog .rvw .rvr span{color:#8C96AB} #notifLog .rvw .rvr b{font-size:21px;font-variant-numeric:tabular-nums}
   #notifLog .rvw .up{color:#FF5A5A} #notifLog .rvw .dn{color:#2ED47A} #notifLog .rvw .rvs{color:#C9D1E0}
   #notifLog .rvw .rvh{color:#ff8c42;font-weight:800;margin-top:4px} #notifLog .rvw ul{margin:0;padding-left:1.2em} #notifLog .rvw li{margin:1px 0} #notifLog .rvw .rv0{color:#8C96AB}
   #notifLog .usk{position:relative;display:grid;grid-template-columns:1fr 31%;column-gap:4px;align-items:stretch;min-height:0;background:linear-gradient(#1E2636,#151A25);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:6px 6px 6px 9px;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
@@ -1553,7 +1554,7 @@ const rvHtml = () => { const R = window.__RV || {}, A = R.auto || {}, N = R.note
   return h + '</div>'; };
 /* 2026-11-07 18:56 重大發現那塊的高度切成整數行(19px 一行),底下不會露出半行字;捲動一次停在一條的開頭 */
 window.rvFit = () => { try{ const f = document.querySelector('#notifLog .rvw'), box = document.getElementById('notifLog'), hd = box && box.querySelector('.hd'); if (!f || !hd) return;
-  const LH = 19, av = box.clientHeight - hd.offsetHeight - 4; f.style.height = Math.max(LH, Math.floor(av / LH) * LH) + 'px'; }catch(e){} };
+  const LH = 25, av = box.clientHeight - hd.offsetHeight - 4; f.style.height = Math.max(LH, Math.floor(av / LH) * LH) + 'px'; }catch(e){} };
 window.addEventListener('resize', () => window.rvFit && rvFit());
 const rvPoll = async () => { try{ if (window.VIEWER || !BASE.liveUrl || !liveOn()) return;
   const r = await fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?review=get&_=${Date.now()}`, {cache: 'no-store'}); const j = await r.json();
