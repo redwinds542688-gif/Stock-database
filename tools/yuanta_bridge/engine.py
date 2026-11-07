@@ -489,14 +489,22 @@ def _f(v, d):
 
 def pool_rules(j, cap):
     r = (j.get("rules") or {}) if isinstance(j, dict) else {}
-    return {"lo": max(_f(r.get("lo"), 10), _f(CFG.get("ENGINE_LO"), 10)),   # 2026-11-02 使用者「最低15元改成10元」                      # 手機 BASE.lo 15 / 滾輪「監控低價」
-            "hi": min(_f(r.get("hi"), 500), _f(CFG.get("ENGINE_HI"), 500)),                      # 手機 BASE.hi 500 / 滾輪「監控高價」(2026-10-30 不再和「多空上限 ÷ 1000」取小:超額的照算、通知標「超額」)
-            "amp": max(_f(r.get("min_amp"), 3.0), _f(CFG.get("ENGINE_AMP"), 3.0)),              # 手機 BASE.amp 3.0 / 滾輪「振幅」
-            "size": int(_f(r.get("size"), 130)), "cnt": int(_f(CFG.get("ENGINE_MAX_CODES"), 99)), # 原始池前 size 名 / 滾輪「監控檔數」(2026-10-31 預設 49 → 99:使用者「現在不是99嗎」手機監控檔數是 99,電腦要一樣;「所有 15到500的股票 只要符合資格 都要放進來」)
+    # 2026-11-07 19:16 使用者「這裡面的設定 程式要照設定走」:監控低價 / 高價 / 最低振幅 / 監控檔數 改跟主導機的設定(cap=get 的 set);讀不到才用 bridge.env 的 ENGINE_*
+    cs = lambda k, d: _f(re.sub(r"[^\d.]", "", str(CLOUD_SET.get(k, ""))) or d, d)
+    return {"lo": max(_f(r.get("lo"), 10), cs("lo", _f(CFG.get("ENGINE_LO"), 10))),           # 滾輪「監控低價」(名單底線 10 元以下不會有)
+            "hi": min(_f(r.get("hi"), 500), cs("hi", _f(CFG.get("ENGINE_HI"), 500))),           # 滾輪「監控高價」
+            "amp": max(_f(r.get("min_amp"), 3.0), cs("amp", _f(CFG.get("ENGINE_AMP"), 3.0))),   # 滾輪「最低振幅」
+            "size": int(_f(r.get("size"), 130)), "cnt": int(cs("cnt", _f(CFG.get("ENGINE_MAX_CODES"), 99))),   # 滾輪「監控檔數」
             "tick": _f(r.get("tick_max_pct"), 0.5), "excl": [str(x) for x in (r.get("exclude_industry") or ["17"])],
             "a5": _f(r.get("avg5_min_amp"), 3.0), "hits": r.get("avg5_min_hits"),
             # 2026-11-07 16:15 使用者加手機滾輪「最低張數 / 成交K棒 / 連續天數」(初始 6000 / 250 / 1):跟主導機設定,讀不到用初始值
             "lots": _f(CLOUD_SET.get("lots"), 6000), "bars": _f(CLOUD_SET.get("bars"), 250), "days": int(_f(re.sub(r"\D", "", str(CLOUD_SET.get("days", "1"))) or 1, 1))}
+
+
+def cost_rates():
+    """2026-11-07 19:16 手續費跟主導機的設定(手機 cost() 同一套):單邊 = 證商費 × 手續折扣 + 證手費;證交稅只算賣出那邊"""
+    p = lambda k, d: _f(re.sub(r"[^\d.]", "", str(CLOUD_SET.get(k, ""))) or d, d) / 100
+    return p("broker", 0.1425) * p("disc", 25) + p("exch", 0), p("tax", 0.15)
 
 
 def days_ok(s, R):
@@ -772,8 +780,8 @@ class Engine:
     def push_review(self):
         """2026-11-07 14:32 使用者「檢討」A+B 的 A:收盤後電腦自己算今天的數字推 Worker(?review=push),App 資訊頁「檢討」顯示;重大發現(B)由每天的 Claude 排程寫"""
         def net(sd, e, x, q):
-            buy, sell = (e, x) if sd > 0 else (x, e); b = buy * q * 1000; s_ = sell * q * 1000; fee = lambda a: max(20, int(a * 0.001425 * 0.25))
-            return round(s_ - b - fee(b) - fee(s_) - int(s_ * 0.0015))
+            buy, sell = (e, x) if sd > 0 else (x, e); b = buy * q * 1000; s_ = sell * q * 1000; fr, tx = cost_rates(); fee = lambda a: max(20, int(a * fr + 1e-6))
+            return round(s_ - b - fee(b) - fee(s_) - int(s_ * tx + 1e-6))
         L = []
         for c in self.closed:
             if c.get("over"): continue
