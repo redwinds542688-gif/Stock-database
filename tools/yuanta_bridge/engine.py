@@ -660,7 +660,7 @@ class Engine:
         self.set_universe(uni)
         self.upto_hm = ""   # 2026-11-06 這輪算到幾點(compute 用來判斷判別式是不是已過進場時段)
         self.reload_envs()
-        self.pool = Pool(int(CFG.get("ENGINE_WORKERS", "8")))   # 2026-11-06 3 → 8(電腦 Xeon E5-2680 v2 10 核 20 緒;一輪 ~55 秒 → 目標 ~20 秒)
+        self.pool = Pool(int(CFG.get("ENGINE_WORKERS", "12")))   # 2026-11-07 20:02 使用者「改」:8 → 12(記憶體 15.9 GB、平常用 7.9 GB;前 10 個吃實體核心,後 2 個用超執行緒)   # 2026-11-06 3 → 8(電腦 Xeon E5-2680 v2 10 核 20 緒;一輪 ~55 秒 → 目標 ~20 秒)
 
     def set_universe(self, uni):
         self.uni = uni; self.codes = uni["codes"]; self.names = uni["names"]; self.prev = uni["prev"]; self.mkts = uni["mkts"]
