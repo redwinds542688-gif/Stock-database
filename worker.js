@@ -574,6 +574,37 @@ async function vapidAuth(env, endpoint) {
   const sig = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, new TextEncoder().encode(unsigned));
   return `vapid t=${unsigned}.${b64u(sig)}, k=${v.pub}`;
 }
+/* 2026-11-07 23:44 使用者「如果電腦斷網或斷電 有沒有什麼緊急處理的措施」→ 選 A(斷線警報):
+   開盤日 09:00~13:30 每分鐘看電腦還活著沒(電腦引擎每分鐘心跳 ?engine=push、或手機剛透過 Worker 問到元大部位 ?trade=pos,任一個 3 分鐘內有就算活著);
+   兩個都超過 3 分鐘沒有 → 寫一則電腦提醒(kind pc,三支主程式手機都跳通知)「電腦斷線」+ 最後知道的持倉;還斷著每 10 分鐘再提醒一次;恢復時通知一次。
+   看盤版看不到(內容結尾「· 元大中繼」)。休市日(分K 快照判斷 holiday)不檢查 */
+async function pcWatch(env, snap) {
+  if (!env || !env.HUB || snap === "holiday" || snap === "off-hours") return;
+  const t = twNow(), d = ymdOf(t), hm = t.getUTCHours() * 60 + t.getUTCMinutes(), wd = t.getUTCDay();
+  if (wd === 0 || wd === 6 || hm < 9 * 60 + 2 || hm > 13 * 60 + 30) return;
+  const hub = hubOf(env); let eg = null, tp = null, st = null;
+  try { eg = await hub.kvGet("engine"); } catch (e) {} try { tp = await hub.kvGet("tposLast"); } catch (e) {} try { st = await hub.kvGet("pcdown"); } catch (e) {}
+  const now = Date.now(), egAt = eg && eg.d === d ? +eg.at || 0 : 0, tpAt = tp && tp.d === d ? +tp.at || 0 : 0, last = Math.max(egAt, tpAt);
+  const down = now - last > 3 * 60e3;
+  if (!st || st.d !== d) st = { d, down: false, sent: 0, n: 0 };
+  const hhmm = `${String(t.getUTCHours()).padStart(2, "0")}:${String(t.getUTCMinutes()).padStart(2, "0")}`;
+  const add = async (title, body) => { const key = `log:${d}:${hhmm}:yt|${title}`.replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 140);
+    await hub.logAdd(d, key, { t: hhmm, title, body: body + " · 元大中繼", kind: "pc" }, ""); };
+  if (down){
+    if (!st.down || now - (st.sent || 0) >= 10 * 60e3){
+      const pos = tp && tp.d === d && Array.isArray(tp.pos) ? tp.pos.filter(p => +p.qty > 0) : [];
+      const lastTxt = last ? new Date(last + 8 * 3600e3).toISOString().slice(11, 16) : "今天還沒有";
+      const posTxt = pos.length ? `最後知道的持倉 ${pos.length} 檔:` + pos.slice(0, 8).map(p => `${p.name || p.code}${p.code && p.name ? " " + p.code : ""} ${p.dir > 0 ? "多" : "空"}${p.qty}張`).join("、") : "最後知道的持倉:沒有(或還沒問到)";
+      await add(`⚠⚠ 電腦斷線${st.down ? "(還沒恢復)" : ""}`, `電腦最後回報 ${lastTxt};程式現在沒有在盯停利 / 停損、13:20 也不會自動平倉。${posTxt}。請用投資先生手動處理`);
+      st.down = true; st.sent = now; st.n = (st.n || 0) + 1; await hub.kvPut("pcdown", st);
+    }
+  } else if (st.down){
+    await add("✅ 電腦恢復連線", `斷線約 ${Math.max(1, Math.round((now - (st.since || st.sent || now)) / 60e3))} 分鐘;電腦會從元大把部位接回來繼續管,請到當沖確認`);
+    st.down = false; st.sent = 0; st.since = 0; await hub.kvPut("pcdown", st);
+  }
+  if (st.down && !st.since) { st.since = now; await hub.kvPut("pcdown", st); }
+}
+
 async function pushTier(env, s) {
   if (s.k) { const KI = await keyInfo(env, s.k); if (!KI || !KI.on || (KI.exp && ymdOf(twNow()) > KI.exp)) return ""; return KI.role === "owner" ? "owner" : "viewer"; }
   if (s.dv) { let first = null; try { first = await hubOf(env).kvGet("free:" + s.dv); } catch (e) {} return !first || Date.now() - +first <= 7 * 86400e3 ? "free" : ""; }
@@ -672,7 +703,8 @@ export default {
     if (what) { const r = await dispatch(env, what); console.log(`cron ${event.cron} 台灣 ${key} → ${what}: ${r.msg}`); }
     // 2026-11-07 15:03 改 08:30 抓一次;08:45 只在 08:30 沒抓齊時補抓(usGet 有今天完整的就不抓)
     if (key === "8:30" || key === "8:45") { try { const v = await usGet(env, false); console.log(`cron 台灣 ${key} 美股:${v ? v.us + " " + v.idx.map(x => x.name + " " + x.pct + "%").join(" ") : "抓不到"}`); } catch (e) { console.log("美股失敗 " + e); } }
-    try { const r = await snapshotBars(env, true, event.scheduledTime); if (r !== "off-hours") console.log(`cron 台灣 ${key} 分K:${r}`); } catch (e) { console.log("分K 快照失敗 " + e); }
+    let snap = ""; try { const r = await snapshotBars(env, true, event.scheduledTime); snap = String(r || ""); if (r !== "off-hours") console.log(`cron 台灣 ${key} 分K:${r}`); } catch (e) { console.log("分K 快照失敗 " + e); }
+    try { await pcWatch(env, snap); } catch (e) { console.log("電腦斷線偵測失敗 " + e); }
   },
 
   async fetch(request, env, ctx) {
@@ -1131,6 +1163,10 @@ export default {
         const fd = url.searchParams.get("d") || "";   // 2026-10-31 ?trade=fills&d=YYYY-MM-DD:前幾天的元大成交(電腦每天收盤前存的 fills\日期.json;使用者「先1」:10/30 明細空白要補上)
         const r = await fetch(`${qu}/trade/${tq}` + (tq === "fills" && /^\d{4}-\d{2}-\d{2}$/.test(fd) ? `?d=${fd}` : ""), init);
         const j = await r.json();
+        // 2026-11-07 電腦斷線警報用:手機問到元大部位 = 電腦活著;順便記最後一份持倉(每 30 秒最多寫一次)
+        if (tq === "pos" && j && j.ok && env.HUB && ctx && ctx.waitUntil && Date.now() - (MC.get("tposW") || 0) > 30e3) { MC.set("tposW", Date.now());
+          const pos = (Array.isArray(j.pos) ? j.pos : []).filter(p => +p.qty > 0).slice(0, 20).map(p => ({ code: String(p.code || ""), name: String(p.name || "").slice(0, 12), dir: +p.dir || 0, qty: +p.qty || 0 }));
+          ctx.waitUntil(hubOf(env).kvPut("tposLast", { d: ymdOf(twNow()), at: Date.now(), pos }).catch(() => {})); }
         return J(j, r.ok ? 200 : r.status);
       } catch (e) { return J({ ok: false, msg: "電腦沒有回應(可能關機、斷線或元大中繼沒在跑)" }, 504); }
     }
