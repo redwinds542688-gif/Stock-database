@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-07 09:32(實際時間)燈號只在開盤中(平日 09:00~13:30)顯示,其他時間進場 / 明細鍵不亮燈(使用者「非開盤時間 進場 明細的燈號不用顯示」)
   · 2026-11-07 00:49(實際時間)進場 / 燈號跟明細一致:重算的日子進場只留明細(額度版)那幾筆、張數照額度(重算紀錄被重寫回含超額版,11/06 燈號算成 3 萬多)(使用者「燈號不對 今天金額才20112」)
   · 2026-11-07 00:37(實際時間)修:從資訊切回進場 / 明細時,卡片被排成兩欄(資訊頁的排版沒拿掉)(使用者影片「進場 顯示錯誤」)
   · 2026-11-06 23:31(實際時間)資訊頁改 2 欄 × 3 排:左上標題、右上台灣加權,中間費城半導體 / 日經225,下面 NASDAQ / 韓國綜合(新加)(使用者「覺得右上太空了…下面再加一個韓國股市」→「改」)
@@ -299,7 +300,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611070049">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611070932">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7225,7 +7226,9 @@ window.bgTick = bgTick; window.BG = BG;
       // 2026-11-06 01:09 使用者:燈一直顯示「最近一個交易日」的結果,交易日 08:45 才歸零換成今天(六日 / 休市日照舊顯示前一個交易日)
       const lampDay = (() => { const tw = new Date(Date.now() + 8 * 3600000), hm = tw.getUTCHours() * 60 + tw.getUTCMinutes(); const isT = ds_ => { const w = new Date(ds_ + 'T00:00:00Z').getUTCDay(); return w >= 1 && w <= 5 && !(window.TW_HOL && TW_HOL.has(ds_)); };
         if (isT(today) && hm >= 8 * 60 + 45) return today; const t = new Date(today + 'T00:00:00Z'); for (let k = 0; k < 15; k++){ t.setUTCDate(t.getUTCDate() - 1); const x = t.toISOString().slice(0, 10); if (isT(x)) return x; } return today; })();
-      try{ if (lampDay !== today){
+      /* 2026-11-07 09:31 使用者「不過非開盤時間 進場 明細的燈號不用顯示」:只有開盤中(平日 09:00~13:30)亮燈,其他時間三個鍵都只顯示字 */
+      if (!inSession()){ lampBtn('refreshBtn', '進場'); lampBtn('btnState', usLabel()); lampBtn('btnRules', '明細'); }
+      else try{ if (lampDay !== today){
           // 前一個交易日:那天的通知(進場 / 平倉)和元大成交明細;當沖收盤後都平掉了 → 不亮
           let pc = []; try{ const k_ = lampDay + '|' + itemsFor(lampDay).length; if (render.__lampPc && render.__lampPc.k === k_) pc = render.__lampPc.v; else { pc = prep(itemsFor(lampDay)); for (const o of pc){ if (!(o.x && o.x.bt)) continue; const q = +(((o.x.body || '').match(/· (\d+)張/) || [])[1]) || 0; if (q) o.lots = q; } pc = finish(pc); render.__lampPc = {k: k_, v: pc}; }   /* 2026-11-06 01:45 使用者「明細的燈號不對」:重算紀錄的張數照紀錄(額度版),和明細一樣;原本照 25 萬自己算張數 → 11/05 算成 +50,126 */ }catch(e){}
           const en = pc.filter(o => (o.type === 'entry' || o.__phM) && !o._hide && !o.over && !o.notrade && !o.madd);
