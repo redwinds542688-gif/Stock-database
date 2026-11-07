@@ -912,8 +912,13 @@ class Trader:
     def cost_amt(self, buy, sell, lots):
         """2026-10-28 18:29 使用者「改」(對元大明細 10/28 −3,371):手續費 = 每邊 成交金額 × 0.1425% × 2.5 折 無條件捨去(沒另收證手費),
            證交稅 = 賣出金額 × 0.15% 無條件捨去;折扣用 TRADE_FEE_DISCOUNT(沒設 = 0.25,原 0.3)"""
-        r = 0.001425 * float(self.cfg.get("TRADE_FEE_DISCOUNT", "0.25"))
-        return math.floor(buy * lots * 1000 * r + 1e-6) + math.floor(sell * lots * 1000 * r + 1e-6) + math.floor(sell * lots * 1000 * 0.0015 + 1e-6)   # +1e-6:浮點誤差
+        r = 0.001425 * float(self.cfg.get("TRADE_FEE_DISCOUNT", "0.25")); tx = 0.0015
+        # 2026-11-07 20:41 使用者同意「元大真單的手續費估算跟設定走」:主導機設定頁的 證商費 × 手續折扣 + 證手費、證交稅(cap=get 的 set,開盤前讀);讀不到才用上面的固定值
+        try:
+            pc = lambda k: float(re.sub(r"[^\d.]", "", str(CLOUD_SET[k]))) / 100
+            if all(k in CLOUD_SET for k in ("broker", "disc", "tax")): r = pc("broker") * pc("disc") + (pc("exch") if "exch" in CLOUD_SET else 0); tx = pc("tax")
+        except Exception: pass
+        return math.floor(buy * lots * 1000 * r + 1e-6) + math.floor(sell * lots * 1000 * r + 1e-6) + math.floor(sell * lots * 1000 * tx + 1e-6)   # +1e-6:浮點誤差
 
     def book_close(self, p, lots, avg):
         if not lots:
@@ -1641,11 +1646,16 @@ def amount_reject(msg):
     return any(k in m for k in AMT_YES) and not any(k in m for k in AMT_NO)
 
 
+CLOUD_SET = {}   # 2026-11-07 主導機的整組設定(手續費估算用);fetch_cap 讀到就更新
+
+
 def fetch_cap(worker_url, push_key=""):
     """2026-11-02 多空上限主控(使用者:「金鑰裡面有5861的為主導機」):讀 5861 主導機設定的每筆上限(元);讀不到 / 沒設過 / 超出 5萬~50萬 → None(維持原值)"""
     try:
         r = urllib.request.urlopen(urllib.request.Request(f"{worker_url.rstrip('/')}/?cap=get&_={int(time.time())}", headers={"X-Push-Key": push_key or "", "User-Agent": "yuanta-bridge/1"}), timeout=8)
-        v = int(json.loads(r.read().decode("utf-8")).get("cap") or 0)
+        j = json.loads(r.read().decode("utf-8"))
+        if isinstance(j.get("set"), dict): CLOUD_SET.clear(); CLOUD_SET.update(j["set"])
+        v = int(j.get("cap") or 0)
         return v if 50000 <= v <= 500000 else None
     except Exception:
         return None
