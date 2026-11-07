@@ -1048,10 +1048,13 @@ class Trader:
             self.gw.place_oco(c, p["mkt"], p["dir"], p["qty"], p["tp"], p["sl"])
             self.log(f"[交易] {c} 掛元大停損停利條件單 {p['qty']} 張(停利 {p['tp']} / 停損 {p['sl']})")
 
-    def on_strategy_reply(self, strategy_no, ok, msg):
-        """元大新增條件單回應(只有 TRADE_BROKER_STOP=1 才會掛)"""
+    def on_strategy_reply(self, strategy_no, ok, msg, code=None):
+        """元大新增條件單回應(只有 TRADE_BROKER_STOP=1 才會掛)。
+           2026-11-08 01:25 稽核:回應有股票代碼就照代碼對(原本只照送出順序,送出當下就失敗的那筆會把排在前面那檔的回應吃掉 → 條件單編號張冠李戴)"""
         with self.lock:
-            c = self.oco_q.pop(0) if self.oco_q else None
+            code = str(code or "").strip() or None
+            if code and code in self.oco_q: self.oco_q.remove(code); c = code
+            else: c = self.oco_q.pop(0) if self.oco_q else None
             p = self.positions.get(c) if c else None
             if not p or p.get("oco_no") is not None:
                 return

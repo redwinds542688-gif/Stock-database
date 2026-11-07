@@ -665,6 +665,11 @@ u3, h3, q3 = _hb(); u3.on_report(50, "P3", 0, 1000, 85.0, "", "6269", "B", "9");
 ok(("cancel", "P3", "6269", "B") in h3.sent and q3["state"] == EXITING, h3.sent)                                                          # 緊急全平先取消預掛再平
 at(13, 21); u4, h4 = mk(TRADE_BROKER_STOP="1"); u4.resume([{"code": "6269", "bs": "S", "lots": 1, "price": 86.1, "time": "10:00", "order_no": "A1"}], {"A1": "T1006269"}, [], [ENT])
 ok(not any(x[0] == "oco" for x in h4.sent), h4.sent); at(10, 0)                                                                            # 13:20 後接回不掛條件單
+# 2026-11-08 01:25 條件單回應照代碼對:A 還在等回應、B 送出當下就失敗 → B 失敗不能吃掉 A;A 的編號回到 A
+at(10, 0); x1, y1 = mk(TRADE_BROKER_STOP="1"); x1.on_tick("6269", 86.2); x1.on_tick("2330", 600.0)
+x1.step([ENT]); x1.on_report(51, "A0001", 0, 1000, 86.1); x1.force_enter("2330", 1, 1, 2.5, 1.5); x1.on_report(51, "", 0, 1000, 600.0, basket=y1.tags[-1])
+x1.on_strategy_reply("", False, "送出失敗", "2330"); x1.on_strategy_reply("SA", True, "")
+ok(x1.positions["6269"].get("oco_no") == "SA" and x1.positions["2330"].get("oco_no") == "", (x1.positions["6269"].get("oco_no"), x1.positions["2330"].get("oco_no")))
 # 2026-11-08 01:00 再檢查:預掛成交完剩下的恢復盯 + 補條件單;重開認得預掛;晚到成交 / 對帳改張數重掛;對帳沒部位刪條件單
 at(10, 0); v1, k1 = mk(TRADE_BROKER_STOP="1", TRADE_QTY="3"); v1.on_tick("6269", 86.2); v1.step([ENT]); v1.on_report(51, "A0001", 0, 3000, 86.1); v1.on_strategy_reply("S1", True, ""); w1 = v1.positions["6269"]
 v1.on_report(50, "P1", 0, 1000, 85.0, "", "6269", "B", "9"); n1 = len(k1.sent); v1.on_other_fill("6269", "B", 1000, 85.0, "P1")
@@ -676,4 +681,4 @@ n3 = len(k3.sent); v3.on_report(51, "", 0, 1000, 86.1, basket=w3["entry_tag"], c
 v3.on_strategy_reply("S2", True, ""); T3 = [{"code": "6269", "bs": "S", "lots": 1, "price": 86.1, "time": "10:00", "order_no": "A0001"}, {"code": "6269", "bs": "B", "lots": 1, "price": 86.0, "time": "10:05", "order_no": "Z"}]
 v3.reconcile(T3, [], {}); n3 = len(k3.sent); v3.reconcile(T3, [], {}); ok("6269" not in v3.positions and ("del_oco", "S2") in k3.sent[n3:], k3.sent[n3:])
 
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4)")
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1)")

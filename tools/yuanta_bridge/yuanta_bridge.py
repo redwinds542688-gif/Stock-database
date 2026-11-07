@@ -280,7 +280,7 @@ class Bridge:
                         d = lst[i]; st = int(d.OrdStatus)   # 策略狀態:0 建立、1 執行中 = 成功;9 無法建立、911 建立失敗
                         log(f"條件單回應 {strIndex} 狀態 {st} 編號 {d.OrderNo} {d.Msg}")
                         if strIndex == "SendAlgoCOOdrStrategy" and self.trader:
-                            self.trader.on_strategy_reply(str(d.OrderNo), st in (0, 1, 100, 101), str(d.Msg))
+                            self.trader.on_strategy_reply(str(d.OrderNo), st in (0, 1, 100, 101), str(d.Msg), str(getattr(d, "StkCode", "") or "").strip() or None)
                     return
                 if strIndex == "GetOrderTradeReport" and self.resume_buf is not None:
                     r = objValue
@@ -521,7 +521,7 @@ class Bridge:
         lst = self.List[Y.OCOStrategy](); lst.Add(x)
         ok = self.api.SendAlgoCOOdrStrategy[Y.OCOStrategy](CFG["YT_ACCOUNT"], lst)
         log(f"[交易] 送元大條件單 OCO {code} {'空' if d < 0 else '多'} {lots} 張 停損 {sl} 停利 {tp}:{'送出' if ok else '失敗'}")
-        if not ok and self.trader: self.trader.on_strategy_reply("", False, "SendAlgoCOOdrStrategy 回傳失敗")
+        if not ok and self.trader: self.trader.on_strategy_reply("", False, "SendAlgoCOOdrStrategy 回傳失敗", code)
 
     def delete_oco(self, no):
         self.delete_strategy(3, no)                                                     # 3 二擇一
