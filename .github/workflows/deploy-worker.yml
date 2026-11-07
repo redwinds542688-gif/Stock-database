@@ -57,6 +57,10 @@ jobs:
           printf '\n[[kv_namespaces]]\nbinding = "LOGS"\nid = "%s"\n' "$ID" >> wrangler.toml
           echo "KV LOGS id=$ID"; tail -4 wrangler.toml
 
+      # 2026-11-07 20:41 使用者同意「雲端程式更新失敗推通知」:先用 Node 以模組模式檢查語法(11/07 註解吃掉程式碼那次 node --check 沒抓到)
+      - name: 檢查 worker.js 語法
+        run: node --input-type=module --check < worker.js
+
       - name: 部署到 Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
@@ -78,3 +82,22 @@ jobs:
           sleep 5
           curl -sS "https://twse-proxy.redwinds542688.workers.dev/?gh=status"
           echo; curl -sS "https://twse-proxy.redwinds542688.workers.dev/?log=days"
+
+      # 2026-11-07 20:41 更新失敗 → 用還在跑的舊版 Worker 推一則提醒到手機「今日監控紀錄」(會跳通知);11/07 15:03~19:30 失敗了 4 個多小時都沒人知道
+      - name: 更新失敗通知手機
+        if: failure()
+        env:
+          K: ${{ secrets.YT_PUSH_KEY }}
+          MSG0: ${{ github.event.head_commit.message }}
+        run: |
+          if [ -z "$K" ]; then echo "沒有 YT_PUSH_KEY,沒辦法推手機"; exit 0; fi
+          python3 - <<'PY'
+          import json, os, datetime, urllib.request
+          n = datetime.datetime.utcnow() + datetime.timedelta(hours=8); d = n.strftime("%Y-%m-%d"); t = n.strftime("%H:%M")
+          body = (os.environ.get("MSG0") or "").splitlines()[0][:60] if os.environ.get("MSG0") else "手動部署"
+          it = {"d": d, "t": t, "title": "⚠ 雲端程式更新失敗", "body": body + " · 舊版照常在跑,請叫 Claude 查", "kind": "pc", "key": f"deployfail|{d} {t}"}
+          req = urllib.request.Request("https://twse-proxy.redwinds542688.workers.dev/?log=add", data=json.dumps(it).encode(), method="POST",
+                                       headers={"Content-Type": "application/json", "X-Push-Key": os.environ["K"], "User-Agent": "deploy-worker/1"})
+          try: print(urllib.request.urlopen(req, timeout=15).read()[:200])
+          except Exception as e: print("推不上", e)
+          PY
