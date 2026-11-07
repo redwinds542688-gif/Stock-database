@@ -574,6 +574,7 @@ class Engine:
         self.fclosed = set()    # 2026-11-02 今天手機強平過的股票(雲端有「· 強平 ·」的平倉):這檔不再發任何判一~四的進場 / 平倉通知
         self.j5 = set()       # 2026-11-05 判五今天已進場的股票:一天最多 J5MAX 檔
         self.j4 = set()       # 2026-10-31 判四今天已進場(推了、或雲端已有,超額的不算)的股票:一天最多 T4MAX 檔
+        self.drag = set()     # 2026-11-07 已發過「可能拖輸」提示的部位(判別式|代碼|進場時間)
         self.sent = []; self.px = {}; self.last_hm = {}; self.held_note = set()   # px / last_hm:每檔最新價、今天 K 到哪一分鐘(判定「訊號消失」前要確認這檔的 K 有到)
         self.state_f = DATA / f"engine_state_{day}.json" if state else None
         if self.state_f:
@@ -582,6 +583,7 @@ class Engine:
                 self.pos = {tuple(k.split("|")): v for k, v in j.get("pos", {}).items()}
                 self.emitted = set(tuple(x) for x in j.get("emitted", []))
                 self.j4 = set(j.get("j4", [])); self.j5 = set(j.get("j5", []))
+                self.drag = set(j.get("drag", []))
                 self.emitted |= {(x[0], x[1], x[2]) for x in j.get("seen", []) if len(x) == 4 and x[3] == "entry"}   # 舊版狀態檔
                 if self.pos or self.emitted: log(f"接回狀態:開著 {len(self.pos)} 筆、處理過的進場 {len(self.emitted)} 個")
             except FileNotFoundError: pass
@@ -614,7 +616,7 @@ class Engine:
 
     def save(self):
         if not self.state_f: return
-        try: write_atomic(self.state_f, json.dumps({"emitted": sorted(self.emitted), "j4": sorted(self.j4), "j5": sorted(self.j5), "pos": {"|".join(k): v for k, v in self.pos.items()}, "ver": RULES["ver"]}, ensure_ascii=False))
+        try: write_atomic(self.state_f, json.dumps({"emitted": sorted(self.emitted), "j4": sorted(self.j4), "j5": sorted(self.j5), "drag": sorted(self.drag), "pos": {"|".join(k): v for k, v in self.pos.items()}, "ver": RULES["ver"]}, ensure_ascii=False))
         except Exception as e: log("!! 狀態檔寫不進去", e)
 
     def push(self, it):
@@ -682,6 +684,38 @@ class Engine:
         y = self.prev.get(code)
         if y: it["prev"] = y
         return self.push(it)
+
+    def drag_check(self, bars, hm):
+        """2026-11-07 11:55 使用者「做出 中級 提示」(定義:「進場後一直沒往對的方向走、帳面小虧、大盤反向走」= 可能拖到 13:20 的輸單):
+           開著的部位進場滿 DRAG_MIN(60)分鐘後,只要「曾順向 < DRAG_MFE(0.3)%、現在帳面虧、名單平均反向走 ≥ DRAG_MKT(0.5)點」→ 推一則中級提示(kind lv2 = 手機「⚠⚠ 警告」那級的顏色 / 聲音)。
+           只提示、不平倉(21 天回測提早平倉反而少賺);每筆部位只發一次。11/06 聯合再生 11:24 空 16.80 → 12:27 會發(實際 12:55 停損 −9,902)"""
+        if CFG.get("DRAG_ON", "1") != "1" or not self.pos: return
+        try: mins = int(CFG.get("DRAG_MIN", "60")); a_mfe = float(CFG.get("DRAG_MFE", "0.3")); a_mkt = float(CFG.get("DRAG_MKT", "0.5"))
+        except Exception: mins, a_mfe, a_mkt = 60, 0.3, 0.5
+        try: av = (json.loads((DATA / "mktavg.json").read_text(encoding="utf-8")) or {}).get(self.day) or {}
+        except Exception: av = {}
+        def mk(t):
+            ks = [k for k in av if k <= t and av[k] is not None]
+            return float(av[max(ks)]) if ks else None
+        for (rs, code), p in list(self.pos.items()):
+            k = f"{rs}|{code}|{p['t']}"
+            if k in self.drag or p.get("over"): continue
+            rows = sorted(r for r in (bars.get(code) or []) if p["t"] < r[0] <= hm)
+            if len(rows) < mins: continue
+            e = float(p["px"]); sd = p["side"]
+            if not e: continue
+            mfe = max(((e - r[3]) if sd < 0 else (r[2] - e)) / e * 100 for r in rows)
+            cur = ((e - rows[-1][4]) if sd < 0 else (rows[-1][4] - e)) / e * 100
+            m0, m1 = mk(p["t"]), mk(hm)
+            if m0 is None or m1 is None: continue
+            against = (m1 - m0) * (-sd)
+            if mfe < a_mfe - 1e-9 and cur < 0 and against >= a_mkt - 1e-9:
+                nm = self.names.get(code, code); side = "做多" if sd > 0 else "做空"
+                title = f"⚠⚠ 可能拖輸 {nm} {code}"
+                body = (f"{hm} {side} {p['t']} 進 {e:.2f},進場 {len(rows)} 分鐘:曾順向只有 {mfe:.2f}%、現價 {rows[-1][4]:.2f} 帳面 {cur:+.2f}%、"
+                        f"名單平均 {m0:+.2f} → {m1:+.2f}(反向 {against:+.2f} 點)· {JUDGE[rs]} · 只提示不平倉,請自行判斷")
+                it = {"d": self.day, "t": hm, "title": title, "body": body, "kind": "lv2", "key": f"drag|{code}|{JUDGE[rs]}|{p['t']}"}
+                if self.push(it): self.drag.add(k); self.save()
 
     def push_entry(self, rs, code, tm, d, at):
         nm = self.names.get(code, code); j = JUDGE[rs]
@@ -939,6 +973,8 @@ def live():
                     ok = ok0 and not (njobs and errs / njobs > err_max)
                     n_ev += eng.apply_one(r, hm, cutoff, ok, ok, rs_block)
                 eng.save(); dtm = time.time() - t0c
+                try: eng.drag_check(bars, hm)   # 2026-11-07 可能拖輸提示(中級)
+                except Exception as e: log("可能拖輸檢查出錯", repr(e))
                 if njobs and errs / njobs > err_max: off.append(f"模擬器錯誤 {errs}/{njobs}")
                 healthy = not off
                 pre["ok"] = healthy and not late and bool(bars); pre["rs_block"] = dict(rs_block); pre["base"] = bars   # 2026-10-30 預判只在上一輪健康時做,判二沒寬度那種封鎖也照帶
