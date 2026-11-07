@@ -172,6 +172,7 @@ class Trader:
         self.prehang = {}   # code → 保留的手動預掛委託書號 [no, …]
         self.man_cards = {}  # 2026-11-06 14:26 手動預掛(新進場 / 加碼)發過卡的書號 → {lots, px, d, end}
         self.man_meta = {}  # 2026-11-06 手動預掛的書號 → {bs, typ}(強平時取消用)
+        self.ph_cancel = {}  # 2026-11-07 23:34 強平時程式取消掉的手動委託書號 → 時間;取消前一兩秒它還是成交了 → 多出來的部位程式馬上再強平
         self.noshort = dict(self.load_state().get("noshort") or {})   # 2026-11-06 今天元大回 21352(無券)的股票 → 原因;之後的空單訊號不再送
         self.alert = lambda title, body="", kind="pc": None      # bridge 會換成「發提醒到手機」(kind:pc = 一般、lv1~lv5 = 虧損分級)
         self.post = lambda title, body, kind: None    # bridge 會換成「寫一則交易訊息到手機的訊息欄」(強三進出場、強平)
@@ -784,6 +785,13 @@ class Trader:
         p = self.positions.get(code)
         close_side = lambda d: "B" if d < 0 else "S"
         lots = qty_shares // 1000
+        # 2026-11-07 23:34 使用者「如果真的出現這樣情況 電腦需要再次出手強平」:強平時程式取消的手動預掛,取消前還是成交了 →
+        #   不接成元三,多出來的部位馬上再強平(做多跌停賣、做空漲停買)
+        if order_no and order_no in self.ph_cancel and lots > 0 and not (p and p["state"] in (HOLDING, EXITING) and bs == close_side(p["dir"])):
+            d = 1 if bs == "B" else -1
+            self.log(f"[交易] !! {code} 強平時取消的手動委託 {order_no} 還是成交了 {lots} 張 @ {price} → 多出 {lots} 張{'多' if d > 0 else '空'}單,馬上再強平")
+            self.alert(f"⚠ {self.name_of(code)} {code} 預掛取消前成交了", f"多出 {lots} 張{'多' if d > 0 else '空'}單,程式已再強平({'跌停賣出' if d > 0 else '漲停買回'})")
+            self.flatten_later(code, d, lots, price, typ or None); return
         if p and bs != close_side(p["dir"]) and p["state"] in (HOLDING, EXITING) and lots > 0:
             # 平倉檢查 #5:元三同方向再成交(同一張分批成交,或另外下一張加碼)→ 併進去、成本平均,停利 / 停損照新均價
             # 2026-11-02 11:43 使用者「新做空的股票我需要程式一併接手可以嗎」:判一~四 / 強三的部位,元大手動同方向加碼也併進去一起管
@@ -868,7 +876,11 @@ class Trader:
             self.log(f"[交易] {code} 不是程式送的平倉單成交 {lots} 張 @ {price}(元大條件單 / 手動)")
             p["exit_why"] = p.get("exit_why") or "元大條件單 / 手動"
             self.book_close(p, take, price)
-            if extra > 0:
+            if extra > 0 and (p.get("forced_close") or (order_no and order_no in self.ph_cancel)):
+                # 2026-11-07 23:34 強平中(預掛取消前成交 / 程式平倉單也成交)多出來的反向部位 → 程式自己再強平
+                self.alert(f"⚠ {self.name_of(code)} {code} 平倉多了 {extra} 張", f"強平時預掛也成交,多出 {extra} 張反向部位,程式已再強平")
+                self.flatten_later(code, 1 if bs == "B" else -1, extra, price, typ or None)
+            elif extra > 0:
                 self.alert(f"⚠ {code} 手動平倉多了 {extra} 張", f"程式記 {take} 張,手動平了 {lots} 張,多出來的 {extra} 張變反向部位,請自己處理")
             o = p.get("order")
             if p["state"] == EXITING and o and not o.get("dead"):
@@ -900,6 +912,18 @@ class Trader:
         if o.get("no") and not o.get("cancel_sent"):
             o["cancel_sent"] = True; self.gw.cancel(o["no"], p["code"], o["side"], o["typ"])
         self.log(f"[交易] {p['code']} {why} → 取消程式的平倉單{' ' + o['no'] if o.get('no') else '(等委託書號回來再取消)'},之後照剩下 {max(p['qty'], 0)} 張處理")
+
+    def flatten_later(self, code, d, lots, price, typ=None, tries=20):
+        """2026-11-07 多出來的部位要再強平:這檔程式還有部位在收尾時先等它結束(每 1.5 秒看一次,最多 30 秒),再用 rebuy 漲停 / 跌停平掉"""
+        def go(n=tries):
+            with self.lock:
+                q = self.positions.get(code)
+                if q and n > 0:
+                    threading.Timer(1.5, go, (n - 1,)).start(); return
+                if q:
+                    self.alert(f"⚠⚠ {code} 多出的 {lots} 張還沒平", "程式部位一直沒結束,請立刻到投資先生手動平倉"); return
+                self.rebuy(code, d, lots, price, None, typ); self.save_state()
+        go()
 
     def rebuy(self, code, d, lots, price, mkt=None, typ=None):
         """多平了 → 反向的張數馬上用漲停 / 跌停平掉(補回)"""
@@ -1285,7 +1309,7 @@ class Trader:
             mytags = {q["order"]["tag"] for q in self.positions.values() if q.get("order")}
             for w in working:
                 if w.get("code") == code and w.get("tag") not in mytags and w.get("no"):
-                    self.gw.cancel(w["no"], code, w.get("bs") or "", w.get("typ") or "")
+                    self.gw.cancel(w["no"], code, w.get("bs") or "", w.get("typ") or ""); self.ph_cancel[w["no"]] = time.time()
                     self.log(f"[交易] {code} 強平(還沒接手的手動單):先取消手動委託 {w['no']}")
             if n == 0:
                 r = (False, "元大已經沒有這檔部位")
@@ -1499,7 +1523,7 @@ class Trader:
             return
         if self.prehang_wait(p["code"]) and str(why).startswith("強平"):   # 手機強平:先取消預掛再平,不讓位
             for no in self.prehang.pop(p["code"], []):
-                m = self.man_meta.pop(no, {}); self.gw.cancel(no, p["code"], m.get("bs") or close_side(p["dir"]), m.get("typ") or p["typ"])
+                m = self.man_meta.pop(no, {}); self.gw.cancel(no, p["code"], m.get("bs") or close_side(p["dir"]), m.get("typ") or p["typ"]); self.ph_cancel[no] = time.time()
                 self.log(f"[交易] {p['code']} 強平:先取消手動預掛 {no}")
         if self.prehang_wait(p["code"]):
             if not p.get("_ph_log"): p["_ph_log"] = True; self.log(f"[交易] 出場 {p['code']}:{why} → 有手動預掛的平倉單,{self.prehang_deadline} 前先等它成交")
