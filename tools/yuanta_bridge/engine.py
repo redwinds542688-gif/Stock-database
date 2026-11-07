@@ -192,6 +192,7 @@ def fetch_rules():
 
 def prep_k(day, codes):
     """每檔前幾週的 K(kline + kline_yuanta);2026-10-29 抓不到的要 log(原本靜靜跳過,模擬器少了跨日資料也不知道)"""
+    for k in [k for k in _WT_OLD if any(f"{os.sep}{c}{os.sep}" in k[0] or f"/{c}/" in k[0] for c in codes)]: _WT_OLD.pop(k, None)   # 2026-11-07 重抓歷史 → 記憶體裡前幾天的列作廢
     wk = weeks_back(day, 3); n = 0; miss = []; nohist = []
     for c in codes:
         have_prev = False
@@ -249,18 +250,24 @@ def latest_bar(bars, last=""):
     return max(xs + ([last] if last else [])) if (xs or last) else ""
 
 
+_WT_OLD = {}
 def write_today(day, bars, upto=None, forming=None):
     """把今天的 K 併進 kline_yuanta/<code>/<本週>.csv(前幾天的列保留、今天的整段換掉);upto = 只到這分鐘(不含);
        forming = {code: [hm, o, h, l, c, v]} 正在形成的這一分鐘(即時價):模擬器要看到下一根才會判定前一根的訊號,手機用的就是正在形成的那根(2026-10-29 回放發現)"""
     wk = iso_week(day)
     for c, rows in bars.items():
         if forming and c in forming: rows = [r for r in rows if r[0] != forming[c][0]] + [forming[c]]
-        p = DATA / "kline_yuanta" / c / f"{wk}.csv"; old = []
-        if p.exists():
-            with open(p, encoding="utf-8") as f:
-                old = [r for r in csv.DictReader(f) if r["date"] != day]
-        out = ["date,time,open,high,low,close,volume\n"]
-        for r in old: out.append(f"{r['date']},{r['time']},{r['open']},{r['high']},{r['low']},{r['close']},{r['volume']}\n")
+        p = DATA / "kline_yuanta" / c / f"{wk}.csv"
+        # 2026-11-07 使用者「再檢查」:前幾天的列盤中不會變 → 一檔只讀一次存在記憶體(原本每分鐘 90 個檔都重讀一遍),今天的照舊整段換
+        ck = (str(p), day); prev = _WT_OLD.get(ck)
+        if prev is None:
+            old = []
+            if p.exists():
+                with open(p, encoding="utf-8") as f:
+                    old = [r for r in csv.DictReader(f) if r["date"] != day]
+            prev = "".join(f"{r['date']},{r['time']},{r['open']},{r['high']},{r['low']},{r['close']},{r['volume']}\n" for r in old)
+            if prev: _WT_OLD[ck] = prev   # 檔案還沒有前幾天的(還沒抓歷史)不記,下次重讀
+        out = ["date,time,open,high,low,close,volume\n", prev]
         for hm, o, h, l, cl, v in sorted(rows):
             if upto and hm > upto: continue   # upto 那分鐘 = 正在形成的(forming),之後的不要
             if upto and hm == upto and not (forming and c in forming): continue
@@ -269,23 +276,31 @@ def write_today(day, bars, upto=None, forming=None):
 
 
 def live_forming(codes, mkts, hm, bars):
-    """Worker ?codes=(走元大通道或證交所)→ 每檔正在形成的這一分鐘:開高低收都用最新價、量 = 今天累計量 − 已完成分鐘的量(股)"""
+    """Worker ?codes=(走元大通道或證交所)→ 每檔正在形成的這一分鐘:開高低收都用最新價、量 = 今天累計量 − 已完成分鐘的量(股)
+       2026-11-07 使用者「看看還有什麼會拖慢速度的 再檢查」:每 40 檔一批原本一批一批輪流問(90 檔 = 3 趟),改成同時問"""
     out = {}
-    try:
-        for i in range(0, len(codes), 40):
-            cs = codes[i:i + 40]; ms = [mkts.get(c, "tse") for c in cs]
-            j = http(worker_url("codes=" + ",".join(cs) + "&mkt=" + ",".join(ms)), timeout=15)
-            for q in j.get("msgArray", []):
-                c = q.get("c") or q.get("ch", "").split(".")[0]; z = q.get("z") or q.get("pz") or ""
-                try: z = float(z)
-                except Exception: continue
-                if not (z > 0): continue
-                try: tv = float(q.get("v") or 0) * 1000
-                except Exception: tv = 0
-                done = sum(r[5] for r in bars.get(c, []) if r[0] < hm)
-                out[c] = [hm, z, z, z, z, max(0, tv - done)]
-    except Exception as e:
-        log("即時價抓不到(這分鐘沒有形成中的 K)", e)
+    def one(cs):
+        try:
+            ms = [mkts.get(c, "tse") for c in cs]
+            return http(worker_url("codes=" + ",".join(cs) + "&mkt=" + ",".join(ms)), timeout=15).get("msgArray", [])
+        except Exception as e:
+            log("即時價抓不到(這批這分鐘沒有形成中的 K)", e); return []
+    groups = [codes[i:i + 40] for i in range(0, len(codes), 40)]
+    res = [None] * len(groups)
+    def run(k): res[k] = one(groups[k])
+    ths = [threading.Thread(target=run, args=(k,), daemon=True) for k in range(len(groups))]
+    for t in ths: t.start()
+    for t in ths: t.join(20)
+    for arr in res:
+        for q in arr or []:
+            c = q.get("c") or q.get("ch", "").split(".")[0]; z = q.get("z") or q.get("pz") or ""
+            try: z = float(z)
+            except Exception: continue
+            if not (z > 0): continue
+            try: tv = float(q.get("v") or 0) * 1000
+            except Exception: tv = 0
+            done = sum(r[5] for r in bars.get(c, []) if r[0] < hm)
+            out[c] = [hm, z, z, z, z, max(0, tv - done)]
     return out
 
 
