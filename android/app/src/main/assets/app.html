@@ -311,7 +311,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611071530">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611071531">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -643,7 +643,9 @@
   .wheel{flex:0 0 calc((100% - 16px) / 3);position:relative;min-width:0}
   /* 2026-11-07 16:15 設定變三排(加最低張數 / 成交K棒 / 連續天數):滾輪框矮一點才放得下 */
   .wheels > .wheel .scroller{height:40px!important} .wheels > .wheel .opt{height:20px!important;line-height:20px!important;font-size:12px!important} .wheels > .wheel .opt.on{font-size:18px!important} .wheels > .wheel .lbl{font-size:min(17px,calc((100vw - 28px) / 22))!important}   /* 2026-11-07 16:27 使用者「壓線了」:再矮一點 */ .subwheels .wheel .scroller{height:44px!important} .subwheels .wheel .opt{height:22px!important;line-height:22px!important} .subwheels .wheel .lbl{font-size:min(18px,calc((100vw - 28px) / 21))!important} .subwheels{top:2px!important}
-  #feeWheel.locked{filter:grayscale(1) brightness(.5)} #feeWheel.locked .scroller{pointer-events:none;touch-action:none}   /* 2026-10-24 12:50 手續折扣平常暗灰、不能滾,長按才啟動 */
+  /* 2026-11-07 18:05 使用者「把第二列的底色改與第一列第三列略有不同」:第二排(監控檔數 / 手續折扣 / 多空上限)整排淡一點的底,左右補滿間隙 */
+  #cntWheel,#feeWheel,#capWheel{background:#252C3B} #cntWheel{box-shadow:-6px 0 0 #252C3B,4px 0 0 #252C3B} #feeWheel{box-shadow:-4px 0 0 #252C3B,4px 0 0 #252C3B} #capWheel{box-shadow:-4px 0 0 #252C3B,6px 0 0 #252C3B}
+  #feeWheel.locked > *{filter:grayscale(1) brightness(.5)} #feeWheel.locked .scroller{pointer-events:none;touch-action:none}   /* 2026-10-24 12:50 手續折扣平常暗灰、不能滾,長按才啟動 */
 
   /* 長按「手續費折扣」:三個費率滾輪覆蓋在第一排上方,
      絕對定位 → 面板與灰框尺寸完全不變 */
