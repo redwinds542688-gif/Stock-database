@@ -311,7 +311,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611071527">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611071528">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1516,7 +1516,7 @@ const rvBtn = () => { if (!rvHas()) return ''; let seen = ''; try{ seen = localS
   return `<button class="vbtn rvb${window.__rvOn ? ' on' : ''}${!window.__rvOn && seen !== rvKey() ? ' dot' : ''}" type="button">檢討</button>`; };
 const rvHtml = () => { const R = window.__RV || {}, A = R.auto || {}, N = R.notes || {}, e = x => String(x == null ? '' : x).replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]));
   const m = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(Math.round(v || 0)).toLocaleString('en-US'), cl = v => v > 0 ? 'up' : v < 0 ? 'dn' : '';
-  let h = `<div class="rvw"><div class="rvt"><span>${e((R.d || '').slice(5).replace('-', '/'))} 收盤檢討</span><i>虛擬(電腦通知)</i></div>`;
+  let h = `<div class="rvw"><div class="rvt"><span>${e((R.d || '').slice(5).replace('-', '/'))} 收盤檢討</span></div>`;   // 2026-11-07 16:00 使用者「虛擬電腦通知那個不用顯示」
   if (R.auto){ h += `<div class="rvr"><span>今日輸贏</span><b class="${cl(A.net)}">${m(A.net)}</b><span>${A.n || 0} 筆 ${A.w || 0} 贏 ${(A.n || 0) - (A.w || 0)} 輸</span></div>`;
     const by = Object.entries(A.by || {}).sort((x, y) => '一二三四五'.indexOf(x[0].slice(-1)) - '一二三四五'.indexOf(y[0].slice(-1))); if (by.length) h += `<div class="rvs">${by.map(([j, b]) => `${e(j)} <span class="${cl(b.net)}">${m(b.net)}</span>`).join('　')}</div>`;
     if (A.best || A.worst) h += `<div class="rvs">${A.best ? `最大贏 ${e(A.best.name)} <span class="${cl(A.best.net)}">${m(A.best.net)}</span>` : ''}${A.worst ? `　最大輸 ${e(A.worst.name)} <span class="${cl(A.worst.net)}">${m(A.worst.net)}</span>` : ''}</div>`;
