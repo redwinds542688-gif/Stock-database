@@ -639,7 +639,11 @@ class Bridge:
             return {"ok": False, "msg": "沒有股票代碼"}
         log(f"[交易] 手機強制指令 {act} {code} {cmd.get('dir', '')} {cmd.get('lots', '')} 張(編號 {cid})")
         if act == "close":
-            ok, msg = t.force_close(code, cid)
+            if code not in t.positions and cmd.get("manual"):   # 2026-11-07 手機長按當沖:元大有、程式還沒接手的手動單 → 查元大成交,接成元三再強平(掛著的手動單先取消)
+                r = self.query_today(with_oco=False)
+                ok, msg = t.force_close_manual(code, r["trades"], r["working"], r.get("tags"), r.get("types"), cid) if r else (False, "查不到元大今天的成交,請自己到投資先生平")
+            else:
+                ok, msg = t.force_close(code, cid)
         elif act == "redo":                                          # 2026-11-03 手機「確認補進場」(超額訊號回到多空上限內)
             ok, msg = t.over_confirm(code, cid)
         elif act == "redo_no":

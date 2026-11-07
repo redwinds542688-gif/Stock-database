@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-07 23:31(實際時間)長按當沖平倉:電腦還沒接手的元大手動單不再標「自己平」—— 一起送,電腦先取消這檔掛著的手動單(預掛)、接成元三再強平(電腦端下個交易日生效)(使用者「電腦也要管 有預掛也要先取消」→「改」)
   · 2026-11-07 23:17(實際時間)進場平倉卡的贏 / 輸改照扣手續費、證交稅後的淨額,和明細一致(濱川價差 +300、扣費後 −220 → 輸)(使用者「進場裡 濱川 贏 明細裡 輸」→「改」)
   · 2026-11-07 23:09(實際時間)資訊「檢討」字放大:內文 13 → 17、標題 14 → 18、今日輸贏 16 → 21、每行 19 → 25(使用者「我覺得字體有點小 我看不太清楚」→「改」)
   · 2026-11-07 14:10(實際時間)拖輸視窗 K 圖 ①②③ 只畫圓圈(使用者「123 在k 圖 只要標示 不用詳細說明數值」):① ② 在那根 K 下面、③ 在上面,不寫時間 / 文字,K 線區不再留 ①②③ 標籤列
@@ -313,7 +314,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611072317">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611072331">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2070,22 +2071,22 @@ window.fmShow = fmShow;
   const fmtN = v => (v >= 0 ? '+' : '−') + Math.abs(Math.round(v)).toLocaleString('en-US');
   const send = async th => { const shown = (el('winPanel') || {}).__codes || []; closeM();
     const rows = pick(th);
-    const prog = rows.filter(r => !r.manual), man = rows.filter(r => r.manual);
+    const prog = rows, man = [];   // 2026-11-07 23:30 使用者「改」:電腦還沒接手的元大手動單也送(電腦接成元三再強平,掛著的預掛先取消)
     const drop = shown.filter(c => !rows.some(r => r.code === c)).map(c => { const r = (window.__posWin || []).find(x => x.code === c); return r ? (r.name || c) : c; });
     if (!window.__posWinTP){ fmToast('電腦沒連上,沒有送出', 3500); return; }
     if (!prog.length){ fmToast((th > 0 ? `現在沒有扣完手續費後贏 ${th}% 以上的股票` : '現在沒有扣完手續費後還贏的股票') + (man.length ? `;元大手動單請自己平:${man.map(r => r.name || r.code).join('、')}` : ''), 4000); return; }
     const pin = fmPin.get(); let ok = 0; const bad = [];
-    for (const r of prog){ const cmd = {act: 'close', code: r.code, id: 'win-' + r.code + '-' + Date.now(), name: r.name || ''}; if (pin) cmd.pin = pin;
+    for (const r of prog){ const cmd = {act: 'close', code: r.code, id: 'win-' + r.code + '-' + Date.now(), name: r.name || ''}; if (r.manual) cmd.manual = 1; if (pin) cmd.pin = pin;
       let j = null; try{ const q = await fetch(fmApi() + 'cmd', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cmd), signal: AbortSignal.timeout(12000)}); j = await q.json(); }catch(e){ j = {ok: false}; }
       if (j && j.ok){ ok++; try{ fcAdd(r.code); }catch(e){} } else bad.push(r.name || r.code); }
     try{ tposPoll(true); }catch(e){}
     fmToast(`${th > 0 ? '贏' + th + '%' : '全平倉'}:${ok} 檔平倉中` + (drop.length ? `;滑的時候已經不到${th > 0 ? ' ' + th + '%' : '贏'}、沒平:${drop.join('、')}` : '') + (bad.length ? `;沒送出:${bad.join('、')}` : '') + (man.length ? `;元大手動單請自己平:${man.map(r => r.name || r.code).join('、')}` : ''), 6000); };
-  const drawP = () => { const p = el('winPanel'); if (!p || selTh == null) return; const th = selTh, rows = pick(th), prog = rows.filter(r => !r.manual);
+  const drawP = () => { const p = el('winPanel'); if (!p || selTh == null) return; const th = selTh, rows = pick(th), prog = rows;
     const H = p.clientHeight, slH = Math.max(28, Math.min(40, H * 0.2)), hdH = Math.max(18, Math.min(26, H * 0.13)), colH = 14, rh = Math.max(20, Math.floor((H - slH - hdH - colH - 18) / 3));
     const fs = Math.max(12, Math.min(17, rh * 0.62)), tot = rows.reduce((a, r) => a + r.net, 0);
     const grid = 'display:grid;grid-template-columns:minmax(0,1fr) 0.6fr 0.95fr 0.95fr;column-gap:4px;align-items:center;white-space:nowrap;font-variant-numeric:tabular-nums';   /* 2026-11-04 使用者「平倉價可以往後移動且每一筆也要對齊」:平倉價 / 贏 / % 都靠右對齊、數字等寬,小數點上下對齊 */   /* 2026-11-04 使用者「+3.1%這些 在固定位置 整齊」:% 自己一欄,不跟著名稱長短跑 */
     p.__codes = rows.map(r => r.code);
-    const list = rows.length ? rows.map(r => `<div style="${grid};height:${rh}px;border-bottom:1px solid #2a2a2a;font-size:${fs}px;font-weight:700"><span style="overflow:hidden;text-overflow:ellipsis"><span style="display:inline-block;font-size:.78em;line-height:1.15;padding:0 .12em;margin-right:.18em;border:1px solid;border-radius:3px;vertical-align:.08em;color:var(${r.side > 0 ? '--up' : '--down'})">${r.side > 0 ? '多' : '空'}</span>${esc(r.name || r.code)}</span><span style="text-align:right;font-size:${Math.round(fs * 0.8)}px;color:#FF6B6B">${r.manual ? '自己平' : '+' + r.pct.toFixed(1) + '%'}</span><span style="text-align:right;color:${!(r.y > 0) || +r.px === r.y ? '#E6EAF2' : +r.px > r.y ? '#FF3B3B' : '#2EE59D'};font-size:${Math.round(fs * 1.06)}px">${(+r.px || 0).toFixed(2)}</span><span style="text-align:right;color:#FF3B3B">${fmtN(r.net)}</span></div>`).join('')
+    const list = rows.length ? rows.map(r => `<div style="${grid};height:${rh}px;border-bottom:1px solid #2a2a2a;font-size:${fs}px;font-weight:700"><span style="overflow:hidden;text-overflow:ellipsis"><span style="display:inline-block;font-size:.78em;line-height:1.15;padding:0 .12em;margin-right:.18em;border:1px solid;border-radius:3px;vertical-align:.08em;color:var(${r.side > 0 ? '--up' : '--down'})">${r.side > 0 ? '多' : '空'}</span>${esc(r.name || r.code)}</span><span style="text-align:right;font-size:${Math.round(fs * 0.8)}px;color:#FF6B6B">${'+' + r.pct.toFixed(1) + '%'}</span><span style="text-align:right;color:${!(r.y > 0) || +r.px === r.y ? '#E6EAF2' : +r.px > r.y ? '#FF3B3B' : '#2EE59D'};font-size:${Math.round(fs * 1.06)}px">${(+r.px || 0).toFixed(2)}</span><span style="text-align:right;color:#FF3B3B">${fmtN(r.net)}</span></div>`).join('')
       : `<div style="display:flex;align-items:center;justify-content:center;height:${rh * 3}px;color:#8C96AB;font-size:${fs}px;text-align:center">${th > 0 ? `現在沒有扣完手續費後<br>贏 ${th}% 以上的股票` : '現在沒有扣完手續費後<br>還贏的股票'}</div>`;
     const keep = p.querySelector('.wl') ? p.querySelector('.wl').scrollTop : 0;
     p.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;height:${hdH}px;font-weight:800;font-size:${Math.round(hdH * 0.62)}px;color:${th > 0 ? '#FF4D5E' : '#FFD54F'};border-bottom:1px solid #333;white-space:nowrap"><span>${th > 0 ? `贏 ${th}% 以上` : '全平倉(還贏的)'} · ${rows.length} 檔</span><span><b style="color:#fff">總贏</b> <span style="color:#FF3B3B">${fmtN(tot)}</span></span></div>

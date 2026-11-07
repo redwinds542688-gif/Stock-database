@@ -1267,6 +1267,40 @@ class Trader:
             if cmd_id: self.cmd_seen[cmd_id] = r
             return r
 
+    def force_close_manual(self, code, trades, working, tags=None, types=None, cmd_id=None):
+        """2026-11-07 23:30 使用者「改」(長按當沖平倉碰到電腦還沒接手的元大手動單):立刻接成元三再強平;
+           這檔還掛著的手動單(預掛)先全部取消。程式已經有這檔部位 → 照一般強平"""
+        tags = tags or {}; types = types or {}
+        with self.lock:
+            if cmd_id and cmd_id in self.cmd_seen:
+                return self.cmd_seen[cmd_id]
+            if code in self.positions or not self.enabled:
+                return self.force_close(code, cmd_id)
+            if code in self.ignore:
+                return (False, "這檔在 TRADE_IGNORE_CODES(不管的股票)")
+            n, otyp = 0, ""
+            for t in sorted((t for t in trades if t["code"] == code), key=lambda x: x.get("time", "")):
+                n0 = n; n += t["lots"] * (1 if t["bs"] == "B" else -1)
+                if n != 0 and (n0 == 0 or (n0 > 0) != (n > 0)): otyp = str(types.get(t.get("order_no"), "") or "").strip()
+            mytags = {q["order"]["tag"] for q in self.positions.values() if q.get("order")}
+            for w in working:
+                if w.get("code") == code and w.get("tag") not in mytags and w.get("no"):
+                    self.gw.cancel(w["no"], code, w.get("bs") or "", w.get("typ") or "")
+                    self.log(f"[交易] {code} 強平(還沒接手的手動單):先取消手動委託 {w['no']}")
+            if n == 0:
+                r = (False, "元大已經沒有這檔部位")
+                if cmd_id: self.cmd_seen[cmd_id] = r
+                return r
+            d = 1 if n > 0 else -1
+            cs = [t for t in trades if t["code"] == code and t["bs"] == ("B" if d > 0 else "S")]
+            avg = (sum(t["price"] * t["lots"] for t in cs) / sum(t["lots"] for t in cs)) if cs else (self.last_px.get(code) or 0.0)
+            p = self.new_pos(code, d, MANUAL, "元大手動(強平接回)", forced=True)
+            if otyp: p["typ"] = otyp
+            p.update({"qty": abs(n), "entry": avg, "state": HOLDING, "t0": self.hm(), "tp_pct": self.y3_tp, "sl_pct": self.y3_sl})
+            self.set_forced_tpsl(p, avg); self.sub(p)
+            self.log(f"[交易] {code} 長按強平:元大有手動 {abs(n)} 張{'多' if d > 0 else '空'}單、程式還沒接手 → 接成元三(均價 {avg:.2f})馬上強平")
+            return self.force_close(code, cmd_id)
+
     def positions_view(self):
         with self.lock:
             return [{"code": p["code"], "dir": p["dir"], "qty": p["qty"], "entry": round(p["entry"], 2), "judge": p["judge"], "state": p["state"],
