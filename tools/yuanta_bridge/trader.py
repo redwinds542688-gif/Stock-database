@@ -494,6 +494,11 @@ class Trader:
                     self.log(f"[交易] !! 對帳:{c} 元大有 {abs(n)} 張{'多' if d > 0 else '空'}單、程式不知道(程式的單晚到 / 多平)→ 馬上平掉")
                     self.alert(f"⚠ {c} 對帳發現 {abs(n)} 張沒管到", f"程式的單晚到成交 / 多平,已{'跌停賣出' if d > 0 else '漲停買回'}")
                     self.rebuy(c, d, abs(n), px or 0, None, otyp.get(c) or None)
+                elif any(t.get("order_no") in self.ph_cancel for t in trades if t["code"] == c and t["bs"] == ("B" if d > 0 else "S")):
+                    # 2026-11-07 23:38 使用者「再補」:漏了回報、對帳才看到的部位,其實是強平時程式取消掉的預掛(取消前成交)→ 不接成元三,馬上再強平
+                    self.log(f"[交易] !! 對帳:{c} 元大有 {abs(n)} 張{'多' if d > 0 else '空'}單,是強平時取消掉的手動預掛成交的 → 馬上再強平")
+                    self.alert(f"⚠ {self.name_of(c)} {c} 預掛取消前成交了", f"對帳才發現多出 {abs(n)} 張{'多' if d > 0 else '空'}單,程式已再強平({'跌停賣出' if d > 0 else '漲停買回'})")
+                    self.rebuy(c, d, abs(n), px or 0, None, otyp.get(c) or None)
                 elif self.y3 and self.enabled:
                     p = self.new_pos(c, d, MANUAL, "元大手動(對帳接回)", forced=True)
                     if otyp.get(c): p["typ"] = otyp[c]
