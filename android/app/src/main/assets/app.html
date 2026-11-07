@@ -311,7 +311,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611072002">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611072024">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2757,7 +2757,7 @@ const DEFAULT_SETTINGS = {
   cap   : { init: '25萬', range: [{from:5,to:50,step:1,suffix:'萬'}] },
   lots  : { init: '6000', range: [{from:5000,to:10000,step:500}] },   // 2026-11-07 16:15 使用者「範圍 成交量5000到10000」
   bars  : { init: '250',  range: [{from:240,to:266,step:1}] },        // 「成交根數240到266」(一天最多 266 根)
-  days  : { init: '2天',  range: [{from:1,to:3,step:1,suffix:'天'}] }, // 「連續天數一到三天」
+  days  : { init: '1天',  range: [{from:1,to:3,step:1,suffix:'天'}] }, // 「連續天數一到三天」
   broker: { init: '0.1425%',
             range: ['0.1500%', '0.1475%', '0.1450%', '0.1425%', '0.1400%', '0.1375%', '0.1350%', '0.1325%', '0.1300%', '0.1275%', '0.1250%', '0.1225%', '0.1200%', '0.1175%', '0.1150%', '0.1125%', '0.1100%', '0.1075%', '0.1050%', '0.1025%', '0.1000%'] },
   exch  : { init: '0.00000%',
@@ -2871,10 +2871,10 @@ const wFee = makeWheel('wFee', buildVals(CFG.disc && CFG.disc.range),
 /* 2026-11-07 16:15 使用者:選股「連續 N 天每天都要 成交 ≥ 最低張數、有成交的 1 分K ≥ 成交K棒、振幅 ≥ 最低振幅」(N = 連續天數;1 = 只看前一天,和以前一樣) */
 const wLots = makeWheel('wLots', buildVals(CFG.lots && CFG.lots.range), startVal('lots', '6000'), cfgGuard('lots', onFeeChange));
 const wBars = makeWheel('wBars', buildVals(CFG.bars && CFG.bars.range), startVal('bars', '250'),  cfgGuard('bars', onFeeChange));
-const wDays = makeWheel('wDays', buildVals(CFG.days && CFG.days.range), startVal('days', '2天'),  cfgGuard('days', onFeeChange));
-{ const days2 = () => { try{ if (localStorage.getItem('mysh.days2')) return; if (inSession()) return void setTimeout(days2, 60000); localStorage.setItem('mysh.days2', '1'); if (parseInt(wDays.value) !== 2) wDays.setValue('2天'); }catch(e){} }; setTimeout(days2, 900); }   // 盤中設定不能送雲端 → 收盤後再撥   // 2026-11-07 19:21 使用者「連續1天改成2天 電腦也要照設定找出監控股票」:每支手機開啟時撥一次到 2 天(主導機撥了就送雲端,電腦跟著);之後自己轉就以你的為準
+const wDays = makeWheel('wDays', buildVals(CFG.days && CFG.days.range), startVal('days', '1天'),  cfgGuard('days', onFeeChange));
+{ const days1 = () => { try{ if (localStorage.getItem('mysh.days1')) return; if (inSession()) return void setTimeout(days1, 60000); localStorage.setItem('mysh.days1', '1'); localStorage.setItem('mysh.days2', '1'); if (parseInt(wDays.value) !== 1) wDays.setValue('1天'); }catch(e){} }; setTimeout(days1, 900); }   // 2026-11-07 20:23 使用者「改回1」(17 天回測 1 天賺最多):每支手機開啟時撥一次回 1 天(主導機撥了就送雲端)   // 盤中設定不能送雲端 → 收盤後再撥   // 2026-11-07 19:21 使用者「連續1天改成2天 電腦也要照設定找出監控股票」:每支手機開啟時撥一次到 2 天(主導機撥了就送雲端,電腦跟著);之後自己轉就以你的為準
 function daysOk(s, minAmp){   // 連續天數篩選(手機 scan、電腦 engine build_universe 同一套)
-  const L = +wLots.value || 6000, B = +wBars.value || 250, N = parseInt(wDays.value) || 2;
+  const L = +wLots.value || 6000, B = +wBars.value || 250, N = parseInt(wDays.value) || 1;
   if (!Array.isArray(s.d3)){   // 舊名單沒有 d3:只看前一天
     if (s.vol != null && s.vol / 1000 < L) return false;
     if (s.bars != null && s.bars < B) return false;

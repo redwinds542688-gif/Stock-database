@@ -498,7 +498,7 @@ def pool_rules(j, cap):
             "tick": _f(r.get("tick_max_pct"), 0.5), "excl": [str(x) for x in (r.get("exclude_industry") or ["17"])],
             "a5": _f(r.get("avg5_min_amp"), 3.0), "hits": r.get("avg5_min_hits"),
             # 2026-11-07 16:15 使用者加手機滾輪「最低張數 / 成交K棒 / 連續天數」(初始 6000 / 250 / 1):跟主導機設定,讀不到用初始值
-            "lots": _f(CLOUD_SET.get("lots"), 6000), "bars": _f(CLOUD_SET.get("bars"), 250), "days": int(_f(re.sub(r"\D", "", str(CLOUD_SET.get("days", "2"))) or 2, 2))}   # 2026-11-07 19:21 使用者「連續1天改成2天」:讀不到也用 2
+            "lots": _f(CLOUD_SET.get("lots"), 6000), "bars": _f(CLOUD_SET.get("bars"), 250), "days": int(_f(re.sub(r"\D", "", str(CLOUD_SET.get("days", "1"))) or 1, 1))}   # 2026-11-07 20:23 使用者「改回1」:讀不到用 1
 
 
 def cost_rates():
