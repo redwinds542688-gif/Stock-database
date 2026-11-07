@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-07 14:05(實際時間)拖輸視窗 K 圖標籤不遮 K 線(使用者「進場那列遮住k線 拖輸也有」):拖輸 / 進場標籤移到 K 線上方留白的兩列,①②③ 標籤移到價格和量中間那一列
   · 2026-11-07 14:00(實際時間)拖輸視窗改小、標示清楚(使用者「拖輸視窗 … 只佔用股票監控區就好 不要遮住進場按鍵跟通知欄」「進場點 拖輸點 123點 都要明顯標示出來」):視窗從按鍵列下面開始(上面通知欄、五個按鍵照常可按),K 圖吃剩下的高度;圖上進場(綠點 + 標籤)、拖輸(橘色虛線 + 標籤)、① 爆量 ② 量縮 ③ 翻多(色點 + 標籤 + 紫色區間),標籤錯開不重疊
   · 2026-11-07 13:45(實際時間)再加速(使用者「看看還有什麼會拖慢速度的 再檢查」):① 電腦抓正在形成那根的即時價,原本 90 檔分 3 批一批一批問,改成 3 批同時問 ② 電腦每分鐘把今天的 K 寫進 90 個檔前都要重讀整週的檔,改成前幾天的列只讀一次記在記憶體 ③ 自己的 App 讀電腦通知從每 15 秒改每 5 秒(看盤版維持 15 秒)
   · 2026-11-07 13:40(實際時間)電腦再加速(使用者「看看還有什麼會拖慢速度的」):今天的 K 改成只抓最近 3 分鐘(原本每次整天重抓,下午上百 KB),每 10 分鐘整天對齊一次;寬度 / 名單平均和雲端通知對帳改成一開始就在背景同時抓(原本排在等到 K 之後一個一個做);等 K 每 0.5 秒問一次、等開算每 0.2 秒看一次
@@ -309,7 +310,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611071400">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611071405">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1865,7 +1866,9 @@ window.fmShow = fmShow;
     const W = cv.clientWidth, H = cv.clientHeight, r = window.devicePixelRatio || 1; cv.width = W * r; cv.height = H * r;
     const g = cv.getContext('2d'); g.scale(r, r); g.fillStyle = '#0f1115'; g.fillRect(0, 0, W, H);
     const n = bars.length; if (!n) return;
-    const L = 34, R = 4, T = 6, PH = H * 0.74, VB = H - 14, VT = PH + 8;
+    // 2026-11-07 14:02 使用者「進場那列遮住k線 拖輸也有」:標籤列放在 K 線外面 —— 上面留拖輸 / 進場兩列、價格區和量之間留 ①②③ 一列
+    const nTop = (iAl >= 0 ? 1 : 0) + (iEnt >= 0 ? 1 : 0), has3 = i3 >= 0 && i3 < bars.length;
+    const L = 34, R = 4, T = 6 + nTop * 22, PH = H * 0.82 - (has3 ? 26 : 0), VB = H - 14, VT = PH + (has3 ? 30 : 8);
     let hi = Math.max(...bars.map(b => b.high), e), lo = Math.min(...bars.map(b => b.low), e); const pad = (hi - lo) * 0.06 || 0.1; hi += pad; lo -= pad;
     const X = i => L + (i + 0.5) * (W - L - R) / n, Y = v => T + (hi - v) / (hi - lo) * (PH - T), bw = Math.max(1, (W - L - R) / n * 0.7);
     const vmax = Math.max(...bars.map(b => b.volume || 0)) || 1;
@@ -1903,7 +1906,7 @@ window.fmShow = fmShow;
     if (iAl >= 0){ dot(X(iAl), Y(bars[iAl].close), '#ff8c42', 5); top.push({x: X(iAl), py: Y(bars[iAl].close), t: '⚠⚠ 拖輸 ' + (tAl || ''), bg: '#ff8c42', fg: '#2a1405'}); }
     const mid = [];
     if (iEnt >= 0){ dot(X(iEnt), Y(e), '#26c281', 6); mid.push({x: X(iEnt), py: Y(e), t: '進場 ' + (tEnt || '') + ' ' + (dir > 0 ? '多' : '空') + ' ' + e.toFixed(2), bg: '#26c281', fg: '#06261a'}); }
-    if (top.length) lay(top, T + 2); if (mid.length) lay(mid, T + 24); if (r3.length) lay(r3, PH - 22);
+    if (top.length) lay(top, 3); if (mid.length) lay(mid, 3 + top.length * 22); if (r3.length) lay(r3, PH + 5);
     g.fillStyle = '#8C96AB'; g.font = '10px sans-serif';
     bars.forEach((b, i) => { const hm = hmOf(b.time); if (hm.endsWith(':00') || (i === split)) g.fillText(i === split ? '開盤' : hm, X(i) - 12, H - 2); });
   }
