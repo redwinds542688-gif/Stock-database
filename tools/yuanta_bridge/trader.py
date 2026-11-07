@@ -158,6 +158,7 @@ class Trader:
         # 2026-10-28 12:27 使用者「我在元大自己下的股票 成交後也顯示在這邊 受判三管制」→「這個都下單的叫做 元三」→「改」:
         #   不是程式送的單成交、這檔程式又沒有部位 → 接成「元三」部位,停利 / 停損用判三的 %(TRADE_Y3_TP_PCT / TRADE_Y3_SL_PCT,從成交價算),±6.5%、13:20、強平照樣管
         self.y3 = cfg.get("TRADE_Y3", "1") == "1"
+        self.oco_grace = float(cfg.get("TRADE_OCO_GRACE", "15") or 0)   # 2026-11-08 01:26 使用者「改」:價格碰到停利 / 停損 N 秒部位還在(條件單沒觸發)→ 程式刪條件單自己平;0 = 關
         self.y3_tp = float(cfg.get("TRADE_Y3_TP_PCT", "3"))   # 2026-11-06 15:29 使用者「改一樣」:2.5 → 3(判三 TAKE=3)
         self.y3_sl = float(cfg.get("TRADE_Y3_SL_PCT", "4.5"))
         self.force_exit = cfg.get("TRADE_FORCE_EXIT", "13:20")
@@ -685,7 +686,8 @@ class Trader:
             why = f"超{mm:g}%" if hit_mv else "停利" if hit_tp else "停損"
             if p.get("oco_live") and not hit_mv:
                 if not p.get("oco_noted"):
-                    p["oco_noted"] = True; self.log(f"[交易] {code} 價格 {price} 碰到{why},由元大條件單(OCO)平倉")
+                    p["oco_noted"] = True; p["oco_hit_at"] = time.time(); p["oco_hit_why"] = why
+                    self.log(f"[交易] {code} 價格 {price} 碰到{why},由元大條件單(OCO)平倉" + (f"({self.oco_grace:g} 秒內沒平掉由程式平)" if self.oco_grace > 0 else ""))
                 return
             self.exit_pos(p, why, price, force_limit=True)
             if hit_mv and p["state"] == EXITING:   # 讓位給手動預掛時沒平,不要每個價都提醒
@@ -1044,7 +1046,7 @@ class Trader:
             self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False
             self.log(f"[交易] {c} 刪除元大條件單 {p['oco_no']}({why or '部位變了'})")
         if p["state"] == HOLDING and p["qty"] > 0 and p.get("tp") and p.get("sl") and self.positions.get(c) is p and self.oco_ok(c):
-            p["oco_no"] = None; self.oco_q.append(c)
+            p["oco_no"] = None; self.oco_q.append(c); p.pop("oco_noted", None); p.pop("oco_hit_at", None)
             self.gw.place_oco(c, p["mkt"], p["dir"], p["qty"], p["tp"], p["sl"])
             self.log(f"[交易] {c} 掛元大停損停利條件單 {p['qty']} 張(停利 {p['tp']} / 停損 {p['sl']})")
 
@@ -1113,6 +1115,13 @@ class Trader:
             if self.cancel_all:                                   # 13:20 由 bridge 先取消全部掛單再平倉;這裡晚 1 分鐘當備援
                 h, m = map(int, fe.split(":")); fe = f"{h + (m + 1) // 60:02d}:{(m + 1) % 60:02d}"
             for p in list(self.positions.values()):
+                if (p["state"] == HOLDING and p.get("oco_live") and p.get("oco_hit_at") and self.oco_grace > 0
+                        and time.time() - p["oco_hit_at"] >= self.oco_grace and hm < fe):
+                    # 2026-11-08 01:26 條件單保險:碰到停利 / 停損 N 秒了部位還在 → 條件單沒觸發,程式先刪條件單再自己平(漲停 / 跌停)
+                    w = p.pop("oco_hit_why", "停利停損"); p.pop("oco_hit_at", None)
+                    self.log(f"[交易] !! {p['code']} 碰到{w} {self.oco_grace:g} 秒元大條件單還沒平 → 程式刪條件單自己平")
+                    self.alert(f"⚠ {self.name_of(p['code'])} {p['code']} 元大條件單沒觸發", f"碰到{w} {self.oco_grace:g} 秒還沒平,程式已自己平倉")
+                    self.exit_pos(p, f"{w}(條件單沒觸發)", self.last_px.get(p["code"], p["entry"]), force_limit=True)
                 if p["state"] == HOLDING and hm >= fe:
                     self.exit_pos(p, f"{self.force_exit} 強制平倉", self.last_px.get(p["code"], p["entry"]), force_limit=True)
                 o = p.get("order")
