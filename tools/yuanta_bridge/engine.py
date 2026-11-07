@@ -712,7 +712,7 @@ class Engine:
             if mfe < a_mfe - 1e-9 and cur < 0 and against >= a_mkt - 1e-9:
                 nm = self.names.get(code, code); side = "做多" if sd > 0 else "做空"
                 title = f"⚠⚠ 可能拖輸 {nm} {code}"
-                body = (f"{hm} {side} {p['t']} 進 {e:.2f},進場 {len(rows)} 分鐘:曾順向只有 {mfe:.2f}%、現價 {rows[-1][4]:.2f} 帳面 {cur:+.2f}%、"
+                body = (f"{hm} {side} {p['t']} 進 {e:.2f} · {p.get('lots') or max(1, int(self.cap // (e * 1000)))}張,進場 {len(rows)} 分鐘:曾順向只有 {mfe:.2f}%、現價 {rows[-1][4]:.2f} 帳面 {cur:+.2f}%、"
                         f"名單平均 {m0:+.2f} → {m1:+.2f}(反向 {against:+.2f} 點)· {JUDGE[rs]} · 只提示不平倉,請自行判斷")
                 it = {"d": self.day, "t": hm, "title": title, "body": body, "kind": "lv2", "key": f"drag|{code}|{JUDGE[rs]}|{p['t']}"}
                 if self.push(it): self.drag.add(k); self.save()
