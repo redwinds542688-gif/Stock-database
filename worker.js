@@ -968,15 +968,23 @@ export default {
         if (!b || !/^\d{4}-\d{2}-\d{2}$/.test(b.d || "")) return J({ error: "要有 d(YYYY-MM-DD)" }, 400);
         const body = JSON.stringify(b.auto || {}); if (body.length > 20000) return J({ error: "太大" }, 413);
         await hubOf(env).kvPut("review:" + b.d, { d: b.d, at: Date.now(), auto: b.auto || {} });
-        const last = await hubOf(env).kvGet("review:last"); if (!last || !last.d || last.d <= b.d) await hubOf(env).kvPut("review:last", { d: b.d });
+        const last = await hubOf(env).kvGet("review:last"); if (!last || !last.d || last.d <= b.d) await hubOf(env).kvPut("review:last", { d: b.d, prev: last && last.d && last.d < b.d ? last.d : ((last && last.prev) || "") });
         return J({ ok: true });
       }
       if (!(pushOk || (KI && KI.role === "owner"))) return J({ error: KI ? "這把鑰匙不能看檢討" : "要鑰匙", badKey: !KI }, 403);
-      let d = url.searchParams.get("d") || ""; if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { const last = await hubOf(env).kvGet("review:last"); d = (last && last.d) || ""; }
+      // 2026-11-07 14:56 使用者「統一14.00顯示A+B 一直顯示到下一則最新的A+B出現」:今天的檢討 14:00 起、而且重大發現(B)也寫好了才放出來
+      //   (B 沒寫好最晚等到 15:00 就只放 A);在那之前一律給上一份
+      const rvNotes = async dd => { try { if (env.GH_TOKEN) { const r = await ghRaw(env, `review/${dd}.json`, GH_REF, 60, GH_REPO_LOGIC); if (r.ok) return await r.json(); } } catch (e) {} return null; };
+      let d = url.searchParams.get("d") || "", notes = null, held = false;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+        const last = await hubOf(env).kvGet("review:last"); d = (last && last.d) || "";
+        const tt = new Date(Date.now() + 8 * 3600e3), td = tt.toISOString().slice(0, 10), thm = tt.toISOString().slice(11, 16);
+        if (d && d >= td) { notes = thm >= "14:00" ? await rvNotes(d) : null;
+          if (thm < "14:00" || (!notes && thm < "15:00")) { d = (last && last.prev) || ""; notes = null; held = true; } }
+      }
       if (!d) return J({ d: "", auto: null, notes: null });
       const v = await hubOf(env).kvGet("review:" + d);
-      let notes = null;
-      try { if (env.GH_TOKEN) { const r = await ghRaw(env, `review/${d}.json`, GH_REF, 60, GH_REPO_LOGIC); if (r.ok) notes = await r.json(); } } catch (e) {}
+      if (!notes) notes = await rvNotes(d);
       return new Response(JSON.stringify({ d, auto: (v && v.auto) || null, at: (v && v.at) || 0, notes }), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
     }
     const exq = url.searchParams.get("extra");

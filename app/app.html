@@ -311,7 +311,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611071521">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611071522">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1509,9 +1509,9 @@ const usCards = () => { const U = window.__US; if (!U) return '';
       + `<div class="usd">${x.pct == null ? '' : (up ? '▲' : dn ? '▼' : '') + (x.chg != null ? f(Math.abs(x.chg)) : '') + ` <b>${Math.abs(x.pct).toFixed(2)}%</b>`}</div></div>`
       + `<div class="usc">${usSpark(x.spark, x.prev, up)}</div></div>`; }
   return h + '</div>'; };
-/* 2026-11-07 14:32 使用者「檢討」(A+B):收盤後資訊頁「檢討」鍵 —— A 電腦收盤算的數字(?review=get 的 auto)、B 每天 Claude 寫的重大發現(notes);開盤中不出現;看盤版沒有 */
-const rvKey = () => { const R = window.__RV; return R && R.d ? R.d + (R.notes ? '|n' : '|a') : ''; };
-const rvHas = () => { const R = window.__RV; return !!(R && R.d && (R.auto || R.notes)) && !window.VIEWER && !inSession(); };
+/* 2026-11-07 14:32 使用者「檢討」(A+B):資訊頁「檢討」鍵 —— A 電腦收盤算的數字(?review=get 的 auto)、B 每天 Claude 寫的重大發現(notes);14:56 改:每天 14:00 A+B 一起換新,一直顯示到下一份(開盤中也在);看盤版沒有 */
+const rvKey = () => { const R = window.__RV; return R && R.d ? R.d : ''; };   // 2026-11-07 14:56 使用者「統一14.00顯示A+B 一直顯示到下一則最新的A+B出現」:一天只亮一次燈(Worker 14:00 起 A+B 一起放出來,之前給上一份)
+const rvHas = () => { const R = window.__RV; return !!(R && R.d && (R.auto || R.notes)) && !window.VIEWER; };
 const rvBtn = () => { if (!rvHas()) return ''; let seen = ''; try{ seen = localStorage.getItem('mysh.rvSeen') || ''; }catch(e){}
   return `<button class="vbtn rvb${window.__rvOn ? ' on' : ''}${!window.__rvOn && seen !== rvKey() ? ' dot' : ''}" type="button">檢討</button>`; };
 const rvHtml = () => { const R = window.__RV || {}, A = R.auto || {}, N = R.notes || {}, e = x => String(x == null ? '' : x).replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]));
@@ -1523,10 +1523,10 @@ const rvHtml = () => { const R = window.__RV || {}, A = R.auto || {}, N = R.note
     h += `<div class="rvs">拖輸提示 ${(A.drag || []).length} 筆${A.lat_med != null ? `　進場通知中位晚 ${A.lat_med} 秒` : ''}${A.round_med != null ? `　每輪 ${A.round_med} 秒` : ''}</div>`; }
   else h += `<div class="rv0">電腦收盤數字還沒上來</div>`;
   h += `<div class="rvh">⚠ 重大發現</div>`;
-  if (Array.isArray(N.findings) && N.findings.length) h += `<ul>${N.findings.map(x => `<li>${e(x)}</li>`).join('')}</ul>`; else h += `<div class="rv0">每天 14:00 前後補上</div>`;
+  if (Array.isArray(N.findings) && N.findings.length) h += `<ul>${N.findings.map(x => `<li>${e(x)}</li>`).join('')}</ul>`; else h += `<div class="rv0">這天沒有寫重大發現</div>`;
   if (N.tomorrow) h += `<div class="rvs">明天注意:${e(N.tomorrow)}</div>`;
   return h + '</div>'; };
-const rvPoll = async () => { try{ if (window.VIEWER || !BASE.liveUrl || !liveOn() || inSession()) return;
+const rvPoll = async () => { try{ if (window.VIEWER || !BASE.liveUrl || !liveOn()) return;
   const r = await fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?review=get&_=${Date.now()}`, {cache: 'no-store'}); const j = await r.json();
   if (j && 'd' in j){ const ch = JSON.stringify(j) !== JSON.stringify(window.__RV || null); window.__RV = j; if (ch && window.NL_VIEW === 'pos' && window.nlRender) nlRender(); } }catch(e){} };
 setTimeout(rvPoll, 4000); setInterval(rvPoll, 5 * 60000); window.rvPoll = rvPoll;
