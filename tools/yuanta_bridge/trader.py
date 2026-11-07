@@ -386,7 +386,9 @@ class Trader:
                     p["oco_no"] = oco[-1]["no"]; p["oco_live"] = True
                 self.log(f"[交易] 接回部位 {c} {p['judge']} {'多' if d > 0 else '空'} {abs(n)} 張 均價 {avg:.2f} 停利 {p['tp'] or '?'} 停損 {p['sl'] or '?'};"
                          f"元大條件單 {'在(' + p['oco_no'] + ')' if oco else '沒有'}")
-                if not oco and self.broker_stop and p["tp"] and p["sl"]:
+                if oco and not self.oco_ok(c):                       # 13:20 後接回 / 有預掛 → 元大上還在的條件單刪掉
+                    self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False; self.log(f"[交易] 接回:{c} 已過 {self.force_exit} 或有預掛 → 刪除元大條件單 {p['oco_no']}")
+                if not oco and self.oco_ok(c) and p["tp"] and p["sl"]:
                     p["oco_no"] = None; self.oco_q.append(c)
                     self.gw.place_oco(c, p["mkt"], d, abs(n), p["tp"], p["sl"])
                 elif not (p["tp"] and p["sl"]):
@@ -633,7 +635,7 @@ class Trader:
         with self.lock:
             for p in list(self.positions.values()):
                 if p["state"] in (HOLDING, ENTERING) and lock: self.locked.add(p["code"])   # 2026-11-03「只全部平倉」:自動進場照常,但平掉的這幾檔今天不再自動進(和強平一樣)
-                if p["state"] == HOLDING: self.exit_pos(p, why, self.last_px.get(p["code"]) or p["entry"], force_limit=True); n += 1
+                if p["state"] == HOLDING: self.exit_pos(p, why, self.last_px.get(p["code"]) or p["entry"], force_limit=True, kill_ph=True); n += 1
                 elif p["state"] == ENTERING and lock:
                     # 2026-11-03 11:45 使用者「進場單還沒成交完 … 應該是還沒成交撤銷吧」:只全部平倉 → 進場單沒成交的部分撤銷;已經成交的那幾張馬上平(和強平進場中一樣)
                     p["forced_close"] = True; p["close_after_entry"] = True; n += 1
@@ -768,6 +770,7 @@ class Trader:
                 if p and p["state"] == HOLDING:
                     self.log(f"[交易] {code} 手動預掛 {no} 結束(狀態 {status})→ 程式恢復盯停利 {p['tp']} / 停損 {p['sl']}")
                     self.alert(f"↩ {self.name_of(code)} {code} 預掛單沒了", f"程式恢復盯停利 {p['tp']} / 停損 {p['sl']}")
+                    if not lst: self.oco_refresh(p, "預掛撤除 → 條件單補回")   # 2026-11-08 00:55 使用者「預掛撤除 條件單再補上去」
                     # 2026-11-07 10:14 使用者「好」:平倉預掛取消 / 失效也發一張卡,手機進場卡上的黃色「預掛」標籤跟著拿掉
                     try:
                         why = {1: "被元大退回", 2: "已取消", 24: "失效", 25: "價穩失效"}.get(status, "已取消")
@@ -776,6 +779,7 @@ class Trader:
             return
         if status != 0 or not p or p["state"] != HOLDING or bs != close_side(p["dir"]) or no in lst: return
         lst.append(no); self.prehang[code] = lst; self.man_meta[no] = {"bs": bs, "typ": typ}
+        self.oco_refresh(p, "手動預掛:預掛跟條件單不同時存在")   # 2026-11-08 00:55 使用者「預掛當下 條件單直接撤除」(有預掛 oco_ok=False → 只刪不掛)
         lots = qty_shares // 1000
         self.log(f"[交易] {code} 看到手動預掛平倉 {'買回' if bs == 'B' else '賣出'} {lots} 張 @ {price}(書號 {no})→ 程式讓位:停利 / 停損先不平,等預掛成交({self.prehang_deadline} 前沒成交由程式平)")
         self.alert(f"✅ {self.name_of(code)} {code} 看到你的預掛", f"{'買回' if bs == 'B' else '賣出'} {lots} 張 @ {price}(程式部位 {p['qty']} 張);程式停利 / 停損先不動,{self.prehang_deadline} 前沒成交由程式平")
@@ -879,6 +883,7 @@ class Trader:
                 else: _post_y3()
                 return
         if p and p["state"] in (HOLDING, EXITING) and bs == close_side(p["dir"]):
+            if order_no and order_no in (self.prehang.get(code) or []): self.__dict__.setdefault("_ph_filled", set()).add(order_no)
             take = min(lots, max(p["qty"], 0)); extra = lots - take
             self.log(f"[交易] {code} 不是程式送的平倉單成交 {lots} 張 @ {price}(元大條件單 / 手動)")
             p["exit_why"] = p.get("exit_why") or "元大條件單 / 手動"
@@ -886,7 +891,7 @@ class Trader:
             #   元大的條件單不會自己消失 → 程式刪掉;只平一部分 → 照剩下張數重掛。價格到了停利 / 停損 = 條件單自己在平,不動它
             oco_hit = p.get("oco_live") and p.get("tp") and p.get("sl") and ((price >= p["tp"] or price <= p["sl"]) if p["dir"] > 0 else (price <= p["tp"] or price >= p["sl"]))
             self.book_close(p, take, price)
-            if p.get("oco_live") and not oco_hit:
+            if p.get("oco_live") and (not oco_hit or p["qty"] <= 0):   # 2026-11-08 00:55 部位歸零一律刪(條件單已觸發的刪了也無害;沒刪會留著開出反向新部位)
                 if p["state"] == HOLDING and p["qty"] > 0 and self.positions.get(code) is p: self.oco_refresh(p, "元平一部分")
                 else: self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False; self.log(f"[交易] {code} 元平 → 刪除元大條件單 {p['oco_no']}")
             if extra > 0 and (p.get("forced_close") or (order_no and order_no in self.ph_cancel)):
@@ -974,7 +979,12 @@ class Trader:
         c = p["code"]
         self.flat_watch[c] = {"mkt": p["mkt"], "dir": p["dir"], "typ": p["typ"], "until": time.time() + 120}
         self.positions.pop(c, None)
-        for no in self.prehang.pop(c, []) if self.hm() < "13:20" else []: self.man_meta.pop(no, None)   # 2026-11-06 部位沒了,盤中記的預掛跟著清(13:20 後的由 prehang_pick / expire 管)
+        for no in self.prehang.pop(c, []) if self.hm() < "13:20" else []:
+            # 2026-11-08 00:55 部位已經結束(條件單 / 程式平掉)還掛著的手動預掛 → 取消;取消前成交的照「強平取消的預掛」再強平,不接成元三
+            m = self.man_meta.pop(no, {}) or {}
+            if no not in self.__dict__.setdefault("_ph_filled", set()):
+                self.gw.cancel(no, c, m.get("bs") or ("B" if p["dir"] < 0 else "S"), m.get("typ") or p["typ"]); self.ph_cancel[no] = time.time()
+                self.log(f"[交易] {c} 部位結束 → 取消還掛著的手動預掛 {no}")   # 2026-11-06 部位沒了,盤中記的預掛跟著清(13:20 後的由 prehang_pick / expire 管)
         # 2026-10-28 強三的出場、任何部位的強平 → 寫一則平倉訊息到手機訊息欄(判一 / 二 / 三自己的平倉訊息照舊由手機發)
         if (p.get("forced") or p.get("forced_close")) and p.get("judge") in ("判一", "判二", "判三", "判四", "判五", FORCED, MANUAL) and p["closed_lots"]:   # 2026-11-02 判四強平也要寫訊息(使用者「強制平倉 訊息欄要顯示」;欣銓 3264 判四強平沒出現)
             ex = p["closed_cost"] / p["closed_lots"]; d = p["dir"]
@@ -992,6 +1002,10 @@ class Trader:
                       f"{self.hm()} {'做多' if d > 0 else '做空'} {p.get('t0') or self.hm()} 進 {p['entry']:.2f} → 現價 {ex:.2f} · {p['closed_lots']}張 · 元平 · {p.get('judge') or ''}",   # 2026-11-07 10:36 使用者「元大手動平倉是不是應該叫做元平」→「改」   # 標原判別式才會和那張進場卡配成同一筆、算進輸贏;「· 強平 ·」讓手機藏掉之後引擎的虛擬出場
                       "profit" if pl >= 0 else "loss")
 
+    def oco_ok(self, c):
+        """2026-11-08 00:55 使用者:13:20 以後一律處在平倉狀態(接回 / 加碼都不再掛條件單);手動預掛跟條件單不會同時存在(有預掛就不掛)"""
+        return self.broker_stop and self.hm() < self.force_exit and not self.prehang.get(c)
+
     def oco_refresh(self, p, why=""):
         """2026-11-08 元大停損停利條件單跟著部位走:張數 / 停利停損變了 → 刪掉舊的照現在的重掛;部位沒了(元平平完)→ 只刪。
            元三開倉分批成交還沒併完(發卡前)先不掛,_post_y3 併完再掛;條件單還在等元大回應時,回來後再重掛一次"""
@@ -1003,7 +1017,7 @@ class Trader:
         if p.get("oco_live"):
             self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False
             self.log(f"[交易] {c} 刪除元大條件單 {p['oco_no']}({why or '部位變了'})")
-        if p["state"] == HOLDING and p["qty"] > 0 and p.get("tp") and p.get("sl") and self.positions.get(c) is p:
+        if p["state"] == HOLDING and p["qty"] > 0 and p.get("tp") and p.get("sl") and self.positions.get(c) is p and self.oco_ok(c):
             p["oco_no"] = None; self.oco_q.append(c)
             self.gw.place_oco(c, p["mkt"], p["dir"], p["qty"], p["tp"], p["sl"])
             self.log(f"[交易] {c} 掛元大停損停利條件單 {p['qty']} 張(停利 {p['tp']} / 停損 {p['sl']})")
@@ -1019,7 +1033,7 @@ class Trader:
                 p["oco_no"] = str(strategy_no).strip(); p["oco_live"] = True
                 self.log(f"[交易] {c} 元大條件單(OCO)已掛:策略編號 {p['oco_no']}(停利 {p['tp']} / 停損 {p['sl']})")
                 if p.pop("oco_redo", False): self.oco_refresh(p, "等回應時部位變了")
-                elif p["state"] != HOLDING or p["qty"] <= 0 or self.positions.get(c) is not p:   # 掛上去前部位已經在平 / 平完了 → 刪掉
+                elif p["state"] != HOLDING or p["qty"] <= 0 or self.positions.get(c) is not p or not self.oco_ok(c):   # 掛上去前部位已經在平 / 平完了 / 有預掛 / 過 13:20 → 刪掉
                     self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False; self.log(f"[交易] {c} 條件單掛好時部位已經不在持倉 → 刪除 {p['oco_no']}")
             else:
                 p["oco_no"] = ""; p["oco_live"] = False
@@ -1550,10 +1564,10 @@ class Trader:
         """這檔有保留的手動預掛平倉單、還沒到期限 → True(程式先不平)"""
         return bool(self.prehang.get(code)) and self.prehang_deadline not in ("", "0") and self.hm() < self.prehang_deadline
 
-    def exit_pos(self, p, why, px, force_limit=False):
+    def exit_pos(self, p, why, px, force_limit=False, kill_ph=False):
         if not p or p["state"] != HOLDING:
             return
-        if self.prehang_wait(p["code"]) and str(why).startswith("強平"):   # 手機強平:先取消預掛再平,不讓位
+        if self.prehang.get(p["code"]) and (str(why).startswith("強平") or kill_ph):   # 2026-11-08 00:55 緊急 / 虧損全平也先取消預掛(條件單下面刪)   # 手機強平:先取消預掛再平,不讓位
             for no in self.prehang.pop(p["code"], []):
                 m = self.man_meta.pop(no, {}); self.gw.cancel(no, p["code"], m.get("bs") or close_side(p["dir"]), m.get("typ") or p["typ"]); self.ph_cancel[no] = time.time()
                 self.log(f"[交易] {p['code']} 強平:先取消手動預掛 {no}")
@@ -1677,7 +1691,7 @@ class Trader:
                 self.post(f"{self.name_of(c)} {c} {'做多' if p['dir'] > 0 else '做空'}進場 {avg:.2f}",
                           f"{p['t0']} 強制 · 停利 {p['tp']:.2f} 停損 {p['sl']:.2f} · {lots}張 · {FORCED}", "long" if p["dir"] > 0 else "short")
             self.log(f"[交易] 持倉 {p['code']} {p['judge']} {'多' if p['dir'] > 0 else '空'} {lots} 張 均價 {avg:.2f} 停利 {p['tp']} 停損 {p['sl']}")
-            if self.broker_stop and p["tp"] and p["sl"]:
+            if self.oco_ok(p["code"]) and p["tp"] and p["sl"]:
                 p["oco_no"] = None; self.oco_q.append(p["code"])
                 self.gw.place_oco(p["code"], p["mkt"], p["dir"], p["qty"] or lots, p["tp"], p["sl"])
             return

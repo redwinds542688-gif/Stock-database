@@ -646,7 +646,21 @@ tb.on_other_fill("2033", "B", 2000, 72.4, "M3")                                 
 ok(gb.sent[n0:] == [("del_oco", "S2")] and "2033" not in tb.positions, gb.sent[n0:])
 tc, gc = mk(TRADE_BROKER_STOP="1"); tc.on_tick("2034", 50.0); tc.on_other_fill("2034", "B", 2000, 50.0, "N1"); pc_ = tc.positions["2034"]
 tc.on_strategy_reply("T1", True, ""); n1 = len(gc.sent)
-tc.on_other_fill("2034", "S", 2000, pc_["tp"], "")                                                        # 價格到停利 = 條件單自己在平 → 不刪
-ok(not any(x[0] == "del_oco" for x in gc.sent[n1:]), gc.sent[n1:])
+tc.on_other_fill("2034", "S", 1000, pc_["tp"], "")                                                        # 價格到停利、只平一部分 = 條件單自己在平 → 不刪不重掛
+ok(not any(x[0] in ("del_oco", "oco") for x in gc.sent[n1:]), gc.sent[n1:])
+tc.on_other_fill("2034", "S", 1000, pc_["tp"], ""); ok(("del_oco", "T1") in gc.sent[n1:], gc.sent[n1:])   # 2026-11-08 00:55 部位歸零一律刪(已觸發的刪了無害)
 
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 5)")
+# 2026-11-08 00:55 使用者:13:20 後不掛條件單;預掛當下撤條件單、預掛撤除再補;部位結束取消剩下的預掛;緊急全平先取消預掛
+def _hb():
+    at(10, 0); t, g = mk(TRADE_BROKER_STOP="1"); t.on_tick("6269", 86.2); t.step([ENT]); t.on_report(51, "A0001", 0, 1000, 86.1); t.on_strategy_reply("S1", True, ""); return t, g, t.positions["6269"]
+u1, h1, q1 = _hb(); u1.on_report(50, "P1", 0, 1000, 85.0, "", "6269", "B", "9"); ok(("del_oco", "S1") in h1.sent and not q1["oco_live"], h1.sent)
+n2 = len(h1.sent); u1.on_report(50, "P1", 2, 1000, 85.0, "", "6269", "B", "9"); ok(any(x[0] == "oco" for x in h1.sent[n2:]), h1.sent[n2:])        # 預掛撤除 → 補回條件單
+u2, h2, q2 = _hb(); u2.on_report(50, "P2", 0, 1000, 85.0, "", "6269", "B", "9"); u2.on_other_fill("6269", "B", 1000, q2["sl"], "X2")
+ok(("cancel", "P2", "6269", "B") in h2.sent and "P2" in u2.ph_cancel, h2.sent)                                                            # 部位結束 → 取消剩下的預掛
+u2.on_other_fill("6269", "B", 1000, 85.0, "P2"); ok(u2.positions.get("6269", {}).get("judge") == "補回")                                 # 取消前成交 → 再強平,不接成元三
+u3, h3, q3 = _hb(); u3.on_report(50, "P3", 0, 1000, 85.0, "", "6269", "B", "9"); u3.close_all("緊急全部平倉")
+ok(("cancel", "P3", "6269", "B") in h3.sent and q3["state"] == EXITING, h3.sent)                                                          # 緊急全平先取消預掛再平
+at(13, 21); u4, h4 = mk(TRADE_BROKER_STOP="1"); u4.resume([{"code": "6269", "bs": "S", "lots": 1, "price": 86.1, "time": "10:00", "order_no": "A1"}], {"A1": "T1006269"}, [], [ENT])
+ok(not any(x[0] == "oco" for x in h4.sent), h4.sent); at(10, 0)                                                                            # 13:20 後接回不掛條件單
+
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6)")
