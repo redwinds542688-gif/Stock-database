@@ -135,7 +135,7 @@ async function fetchUS(env) {
 async function usGet(env, force) {
   let v = null; try { v = env.HUB ? await hubOf(env).kvGet("usmkt") : null; } catch (e) {}
   const t = new Date(Date.now() + 8 * 3600e3), d = t.toISOString().slice(0, 10), hm = t.toISOString().slice(11, 16), wd = t.getUTCDay();
-  const ok = v && v.d === d && v.idx && v.idx.every(x => x.close != null);
+  const ok = v && v.d === d && v.idx && v.idx.length >= US_IDX.length && v.idx.every(x => x.close != null);   // 2026-11-07 加 S&P 500 後,舊快取少一張要重抓
   if (force || (!ok && hm >= "08:20")) {   // 2026-11-06 16:11 週六、週日也抓(手機來問時;星期六 08:20 起顯示到星期一 09:00)
     const c = MC.get("usfetch"); if (!force && c && Date.now() - c < 300e3) return v;   // 手機來問、今天還沒有:最多 5 分鐘抓一次
     MC.set("usfetch", Date.now());
