@@ -1261,7 +1261,7 @@ class Bridge:
                     loc = self.local_signals(day)
                     if loc: sig = loc + (sig or []) if sig is not None else loc
                 self.trader.step(sig)
-                if k % 60 == 1 and time.strftime("%H:%M", time.gmtime(time.time() + 8 * 3600)) < "09:03": threading.Thread(target=self.cap_sync, daemon=True).start()   # 2026-11-02 跟 5861 主導機的多空上限:開盤前每分鐘讀,盤中設定禁改 → 09:03 後不讀
+                if k % 60 == 1 and time.strftime("%H:%M", time.gmtime(time.time() + 8 * 3600)) < "09:00": threading.Thread(target=self.cap_sync, daemon=True).start()   # 2026-11-07 19:32「開盤中不用追蹤主導機設定」09:03 → 09:00 前;2026-11-02 跟 5861 主導機的多空上限:開盤前每分鐘讀,盤中設定禁改 → 09:03 後不讀
                 # 2026-10-29 額度(使用者「我現在要做的是2」):沒開自動交易時沒有人查今天的委託成交 → 每 QUOTA_SEC(60)秒查一次,查到就由 quota_from_report 推上雲端
                 if CFG.get("QUOTA_PUSH", "1") == "1" and CFG.get("PUSH_KEY") and k % int(CFG.get("QUOTA_SEC", "60")) == 0 and self.logged_in.is_set():
                     try: self.query_today(with_oco=False)

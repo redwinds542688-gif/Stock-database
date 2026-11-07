@@ -1065,10 +1065,23 @@ def live():
                         log(f"預判收盤確認 {hm}:候選 {len(cand)} 個,推出 {len(eng.sent) - nb} 則,{time.time() - t0:.1f} 秒")
                 except Exception as e: log("預判確認失敗", repr(e))
                 continue
+            if hm in ("08:50", "08:58") and ("cfg" + hm) not in done:   # 2026-11-07 19:32 使用者「開盤中不用追蹤主導機設定 因為開盤中 設定是封閉的」:
+                done.add("cfg" + hm)                                       #   開盤前 08:50、08:58 各讀一次主導機設定(最後一次為準),選股設定變了就重選監控股票;09:00 後不再讀
+                try:
+                    keys = ("hi", "lo", "amp", "cnt", "lots", "bars", "days"); old = {k: CLOUD_SET.get(k) for k in keys}
+                    c2 = cloud_cap(eng.cap)
+                    if c2 != eng.cap: log(f"多空上限 {eng.cap:,} → {c2:,}(5861 主導機)"); eng.cap = cap = c2
+                    if {k: CLOUD_SET.get(k) for k in keys} != old:
+                        held, noted = eng.carried(); nu = build_universe(eng.uni.get("j") or j, day, cap, held, noted, eng.uni.get("src"))
+                        add = [c for c in nu["codes"] if c not in eng.codes]
+                        if add: prep_day(day, add)
+                        log(f"主導機選股設定改了({old} → { {k: CLOUD_SET.get(k) for k in keys} }):重選 {len(nu['codes'])} 檔,新增 {len(add)} 檔")
+                        eng.set_universe(nu)
+                except Exception as e: log("開盤前讀主導機設定失敗", repr(e))
             if hm < "09:01" or n.second < start_sec or hm in done:   # 2026-11-07 中繼換分鐘第 1 秒就推 K → 開算從第 4 秒提早到第 2 秒(ENGINE_START_SEC;下面還是會等 hm-1 那根到齊)
                 time.sleep(0.5 if pre_on else 0.2); continue   # 2026-11-07 等開算 1 → 0.2 秒(第 2 秒準時開)
             done.add(hm)
-            c2 = cloud_cap(eng.cap) if hm < "09:03" else eng.cap   # 2026-11-02 跟 5861 主導機的多空上限(通知裡的張數);盤中設定禁改 → 只在開盤頭兩分鐘再確認
+            c2 = cloud_cap(eng.cap) if hm < "09:00" else eng.cap   # 2026-11-07 19:32 使用者「開盤中不用追蹤主導機設定」:原 09:03 前 → 09:00 前(開盤前最後一次為準)   # 2026-11-02 跟 5861 主導機的多空上限(通知裡的張數);盤中設定禁改 → 只在開盤頭兩分鐘再確認
             if c2 != eng.cap: log(f"多空上限 {eng.cap:,} → {c2:,}(5861 主導機)"); eng.cap = c2
             try:
                 flags = []; off = []

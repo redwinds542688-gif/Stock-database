@@ -311,7 +311,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611071541">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611071542">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2841,7 +2841,7 @@ const cfgGuard = (name, orig) => () => {
 const onCapChange = () => onFeeChange();
 function capPull(){
   const role = capRole(); if (!role || !liveOn() || document.hidden) return;
-  if (capPull.first && inSession(new Date(Date.now() - 2 * 60000))) return;   // 2026-11-02 使用者「設定有開盤禁改」:09:00–13:30 設定改不了 → 盤中不問(開啟時問一次、09:02 前還會再跟一次)
+  if (capPull.first && inSession()) return;   // 2026-11-07 19:32 使用者「開盤中不用追蹤主導機設定 因為開盤中 設定是封閉的」:盤中只有打開 App 那一次讀,09:00 後不再每分鐘問   // 2026-11-02 使用者「設定有開盤禁改」:09:00–13:30 設定改不了 → 盤中不問(開啟時問一次、09:02 前還會再跟一次)
   capPull.first = true;
   if (Date.now() - (capPost.at || 0) < 15000) return;   // 主導機剛轉完、還在送 → 不要被雲端舊值蓋回去
   fetch(capUrl('get&_=' + Date.now()), {cache: 'no-store', signal: AbortSignal.timeout(9000)}).then(r => r.ok ? r.json() : null).then(j => {
