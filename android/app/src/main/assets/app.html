@@ -311,7 +311,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611071539">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611071540">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2850,7 +2850,7 @@ function capPull(){
     const o = j.set ? {...j.set} : {}; o.cap = Math.round(j.cap / 10000) + '萬';
     if (cfgApply(o)) { saveFees(); queueScan(); }
     cfgSent = cfgSnap();
-    if (role === 'master' && !j.set && !inSession()) cfgSend();   // 雲端只有上限(舊版)→ 主導機補送整組設定
+    if (role === 'master' && !inSession() && (!j.set || Object.keys(CFGW()).some(k => !(k in j.set)))) cfgSend();   // 雲端只有上限(舊版)或少了新滾輪(2026-11-07 最低張數 / 成交K棒 / 連續天數)→ 主導機補送整組設定
   }).catch(() => {});
 }
 const wHi  = makeWheel('wHi',  buildVals(CFG.hi   && CFG.hi.range),
