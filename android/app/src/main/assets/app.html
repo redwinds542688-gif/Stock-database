@@ -311,7 +311,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611071524">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611071525">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1078,7 +1078,7 @@ window.MONITOR_SETTINGS = {
 
   hi: {                       // 監控高價
     label: '監控高價',
-    init : 350,                 // (判別式相關說明已移到私人庫)
+    init : 500,                 // 2026-11-07 15:18 使用者「監控高價 350 元 改500」
     range: [{ from: 50, to: 500, step: 5 }],   // 2026-10-24 12:45 使用者:「監控高價 滾輪每次加5或者是減5」(原每 1 元、最低 51)
   },
 
@@ -2717,7 +2717,7 @@ function exportSettings(){
    ══════════════════════════════════════════ */
 /* 內建備份:settings.js 讀不到時使用,確保程式一定跑得起來 */
 const DEFAULT_SETTINGS = {
-  hi    : { init: 350, range: [{from:51,to:500,step:1}] },
+  hi    : { init: 500, range: [{from:51,to:500,step:1}] },
   lo    : { init: 10,  range: [{from:10,to:50,step:1}] },
   amp   : { init: '4.0%',  range: [{from:4.0,to:8,step:0.1,decimals:1,suffix:'%'}] },
   disc  : { init: '25%',   range: [{from:10,to:100,step:5,suffix:'%'}] },
@@ -2819,7 +2819,7 @@ function capPull(){
   }).catch(() => {});
 }
 const wHi  = makeWheel('wHi',  buildVals(CFG.hi   && CFG.hi.range),
-                       String(Math.min(500, Math.max(50, Math.round(+startVal('hi', 350) / 5) * 5))), cfgGuard('hi', onHiChange));   // 2026-10-24 存檔的舊值(例如 331)對齊到 5 的倍數
+                       String(Math.min(500, Math.max(50, Math.round(+startVal('hi', 500) / 5) * 5))), cfgGuard('hi', onHiChange));   // 2026-10-24 存檔的舊值(例如 331)對齊到 5 的倍數
 const wLo  = makeWheel('wLo',  buildVals(CFG.lo   && CFG.lo.range),
                        startVal('lo', 10), cfgGuard('lo', onFeeChange));
 const wAmp = makeWheel('wAmp', buildVals(CFG.amp  && CFG.amp.range),
