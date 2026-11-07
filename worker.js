@@ -95,7 +95,7 @@ const ymdOf = t => t.toISOString().slice(0, 10);
 const hhmmOf = t => t.toISOString().slice(11, 16);
 // 2026-11-06 15:44 使用者「美股只是參考 每天8.20 拿到資料之後 在當沖的通知欄裡 顯示 美股四大指數的結果 當沖按鍵 左上角 閃紅點」:
 //   台灣 08:20 / 08:30 / 08:45 cron 抓前一個美股交易日的道瓊、S&P 500、那斯達克、費半收盤(Yahoo 圖表 API,抓不到改 FRED),存 Hub「usmkt」;GET ?usmkt=get 給手機
-const US_IDX = [["^TWII", "台股", ""], ["^SOX", "費半", "NASDAQSOX"], ["^N225", "日經", "NIKKEI225"], ["^IXIC", "那斯達克", "NASDAQCOM"], ["^KS11", "韓國", ""]];   // 2026-11-06 23:31 使用者「改」:台灣加權移到右上(跟標題同一排),中間 費半 / 日經,下面 NASDAQ / 韓國綜合   // 2026-11-06 23:02 使用者「把道瓊刪除 那費城半導體移到原道瓊位置 原費半改日經225」   // 2026-11-06 20:03 使用者「這裡的 s&p500 改成台灣股市」:第二格換台灣加權指數(Yahoo ^TWII;FRED 沒有,抓不到就空著)
+const US_IDX = [["^TWII", "台股", ""], ["^SOX", "費半", "NASDAQSOX"], ["^N225", "日經", "NIKKEI225"], ["^IXIC", "那斯達克", "NASDAQCOM"], ["^KS11", "韓國", ""], ["^GSPC", "S&P 500", "SP500"]];   // 2026-11-07 14:29 使用者「資訊 增加 s&p 500 的圖」:第六格加回 S&P 500   // 2026-11-06 23:31 使用者「改」:台灣加權移到右上(跟標題同一排),中間 費半 / 日經,下面 NASDAQ / 韓國綜合   // 2026-11-06 23:02 使用者「把道瓊刪除 那費城半導體移到原道瓊位置 原費半改日經225」   // 2026-11-06 20:03 使用者「這裡的 s&p500 改成台灣股市」:第二格換台灣加權指數(Yahoo ^TWII;FRED 沒有,抓不到就空著)
 async function fetchUS(env) {
   const out = [];
   for (const [sym, name, fred] of US_IDX) {
@@ -955,6 +955,30 @@ export default {
       return new Response(JSON.stringify(v || {}), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60" } });
     }
     // 2026-11-06 名單外手動成交的股票(中繼 extra_add 補好 K 後推上來):POST ?extra=push {d, codes:[{code,name,market,prev}]}(中繼金鑰)/ GET ?extra=get → 手機也加進名單
+    // 2026-11-07 14:32 使用者「資訊 … 增加一個按鍵 … 名為 檢討 … 檢討一下今天的輸贏 或者是有什麼重大發現」→ A+B:
+    //   A = 電腦 13:3x 收盤後自己算的數字:POST ?review=push {d, auto:{…}}(中繼金鑰);B = 每天 Claude 排程寫的重大發現(私人庫 Stock-logic review/<日期>.json)
+    //   GET ?review=get[&d=](owner 鑰匙 / 中繼金鑰)→ {d, auto, notes};不給 d = 最近一天
+    const rvq = url.searchParams.get("review");
+    if (rvq) {
+      if (!env || !env.HUB) return J({ error: "Worker 還沒綁定 Durable Object(HUB)" }, 503);
+      if (rvq === "push") {
+        if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
+        if (!pushOk) return J({ error: "金鑰不對" }, 403);
+        let b; try { b = await request.json(); } catch (e) { return J({ error: "JSON 格式錯誤" }, 400); }
+        if (!b || !/^\d{4}-\d{2}-\d{2}$/.test(b.d || "")) return J({ error: "要有 d(YYYY-MM-DD)" }, 400);
+        const body = JSON.stringify(b.auto || {}); if (body.length > 20000) return J({ error: "太大" }, 413);
+        await hubOf(env).kvPut("review:" + b.d, { d: b.d, at: Date.now(), auto: b.auto || {} });
+        const last = await hubOf(env).kvGet("review:last"); if (!last || !last.d || last.d <= b.d) await hubOf(env).kvPut("review:last", { d: b.d });
+        return J({ ok: true });
+      }
+      if (!(pushOk || (KI && KI.role === "owner"))) return J({ error: KI ? "這把鑰匙不能看檢討" : "要鑰匙", badKey: !KI }, 403);
+      let d = url.searchParams.get("d") || ""; if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { const last = await hubOf(env).kvGet("review:last"); d = (last && last.d) || ""; }
+      if (!d) return J({ d: "", auto: null, notes: null });
+      const v = await hubOf(env).kvGet("review:" + d);
+      let notes = null;
+      try { if (env.GH_TOKEN) { const r = await ghRaw(env, `review/${d}.json`, GH_REF, 60, GH_REPO_LOGIC); if (r.ok) notes = await r.json(); } } catch (e) {}
+      return new Response(JSON.stringify({ d, auto: (v && v.auto) || null, at: (v && v.at) || 0, notes }), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
+    }
     const exq = url.searchParams.get("extra");
     if (exq) {
       if (!env || !env.HUB) return J({ error: "Worker 還沒綁定 Durable Object(HUB)" }, 503);

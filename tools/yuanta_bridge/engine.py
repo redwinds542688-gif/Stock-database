@@ -609,6 +609,7 @@ class Engine:
         self.fclosed = set()    # 2026-11-02 今天手機強平過的股票(雲端有「· 強平 ·」的平倉):這檔不再發任何判一~四的進場 / 平倉通知
         self.j5 = set()       # 2026-11-05 判五今天已進場的股票:一天最多 J5MAX 檔
         self.j4 = set()       # 2026-10-31 判四今天已進場(推了、或雲端已有,超額的不算)的股票:一天最多 T4MAX 檔
+        self.closed = []; self.lat = []; self.rounds = []   # 2026-11-07 收盤檢討(A):今天平倉的部位、進場通知晚幾秒、每輪幾秒
         self.drag = set()     # 2026-11-07 已發過「可能拖輸」提示的部位(判別式|代碼|進場時間)
         self.sent = []; self.px = {}; self.last_hm = {}; self.held_note = set()   # px / last_hm:每檔最新價、今天 K 到哪一分鐘(判定「訊號消失」前要確認這檔的 K 有到)
         self.state_f = DATA / f"engine_state_{day}.json" if state else None
@@ -619,6 +620,7 @@ class Engine:
                 self.emitted = set(tuple(x) for x in j.get("emitted", []))
                 self.j4 = set(j.get("j4", [])); self.j5 = set(j.get("j5", []))
                 self.drag = set(j.get("drag", []))
+                self.closed = j.get("closed", []); self.lat = j.get("lat", [])
                 self.emitted |= {(x[0], x[1], x[2]) for x in j.get("seen", []) if len(x) == 4 and x[3] == "entry"}   # 舊版狀態檔
                 if self.pos or self.emitted: log(f"接回狀態:開著 {len(self.pos)} 筆、處理過的進場 {len(self.emitted)} 個")
             except FileNotFoundError: pass
@@ -651,7 +653,7 @@ class Engine:
 
     def save(self):
         if not self.state_f: return
-        try: write_atomic(self.state_f, json.dumps({"emitted": sorted(self.emitted), "j4": sorted(self.j4), "j5": sorted(self.j5), "drag": sorted(self.drag), "pos": {"|".join(k): v for k, v in self.pos.items()}, "ver": RULES["ver"]}, ensure_ascii=False))
+        try: write_atomic(self.state_f, json.dumps({"emitted": sorted(self.emitted), "j4": sorted(self.j4), "j5": sorted(self.j5), "drag": sorted(self.drag), "closed": self.closed, "lat": self.lat, "pos": {"|".join(k): v for k, v in self.pos.items()}, "ver": RULES["ver"]}, ensure_ascii=False))
         except Exception as e: log("!! 狀態檔寫不進去", e)
 
     def push(self, it):
@@ -718,7 +720,11 @@ class Engine:
         it = {"d": self.day, "t": at, "title": title, "body": body, "kind": kind, "key": self.key_of(code, title, rs), "pos": f"{j}|{code}|{p['t']}"}
         y = self.prev.get(code)
         if y: it["prev"] = y
-        return self.push(it)
+        ok = self.push(it)
+        if ok and not phantom:
+            try: self.closed.append({"rs": j, "code": code, "name": nm, "side": p["side"], "t": p["t"], "e": p["px"], "xt": tm, "x": ex, "lots": p.get("lots") or 1, "over": bool(p.get("over")), "why": exit_text(why)})
+            except Exception: pass
+        return ok
 
     @staticmethod
     def raw123(rows, i, d):
@@ -739,6 +745,32 @@ class Engine:
             seg = h[a:i + 1]; ex = max(seg); ie = a + seg.index(ex); oth = min(l[a:ie + 1])
             if (ex - oth) / oth * 100 < 2 - 1e-9 or (ex - c[i]) / ex * 100 > 1.5 + 1e-9 or ie >= i: return False
         return max(v[max(a, ie - 5):ie + 1]) >= va * 1.3 - 1e-9
+
+    def push_review(self):
+        """2026-11-07 14:32 使用者「檢討」A+B 的 A:收盤後電腦自己算今天的數字推 Worker(?review=push),App 資訊頁「檢討」顯示;重大發現(B)由每天的 Claude 排程寫"""
+        def net(sd, e, x, q):
+            buy, sell = (e, x) if sd > 0 else (x, e); b = buy * q * 1000; s_ = sell * q * 1000; fee = lambda a: max(20, int(a * 0.001425 * 0.25))
+            return round(s_ - b - fee(b) - fee(s_) - int(s_ * 0.0015))
+        L = []
+        for c in self.closed:
+            if c.get("over"): continue
+            L.append({**c, "net": net(c["side"], float(c["e"]), float(c["x"]), int(c["lots"]))})
+        byj = {}
+        for c in L:
+            b = byj.setdefault(c["rs"], {"n": 0, "w": 0, "net": 0}); b["n"] += 1; b["w"] += c["net"] > 0; b["net"] += c["net"]
+        med = lambda a: sorted(a)[len(a) // 2] if a else None
+        auto = {"n": len(L), "w": sum(c["net"] > 0 for c in L), "net": sum(c["net"] for c in L), "by": byj,
+                "best": max(L, key=lambda c: c["net"]) if L else None, "worst": min(L, key=lambda c: c["net"]) if L else None,
+                "list": sorted(L, key=lambda c: c["t"]),
+                "drag": sorted({k.split("|")[1] for k in self.drag}), "lat_med": med(self.lat), "lat_max": max(self.lat) if self.lat else None,
+                "round_med": med(self.rounds), "round_max": max(self.rounds) if self.rounds else None}
+        if not L and not self.lat and not self.drag: log("[檢討] 今天沒有資料(收盤後才開?),不推"); return auto
+        if self.dry: log("[檢討] " + json.dumps(auto, ensure_ascii=False)[:300]); return auto
+        try:
+            r = http(worker_url("review=push"), {"d": self.day, "auto": auto}, key=True)
+            log(f"[檢討] 推上去:{len(L)} 筆 {auto['net']:+,}" if r.get("ok") else f"[檢討] 被拒 {r}")
+        except Exception as e: log("[檢討] 推不上去", repr(e))
+        return auto
 
     def drag_check(self, bars, hm):
         """2026-11-07 11:55 使用者「做出 中級 提示」(定義:「進場後一直沒往對的方向走、帳面小虧、大盤反向走」= 可能拖到 13:20 的輸單):
@@ -803,6 +835,9 @@ class Engine:
         y = self.prev.get(code)
         if y: it["prev"] = y
         if self.push(it):
+            try:   # 2026-11-07 收盤檢討:進場通知比訊號那根 K 收完晚幾秒
+                n_ = now_tw(); self.lat.append(round((n_.hour * 3600 + n_.minute * 60 + n_.second) - (int(tm[:2]) * 3600 + int(tm[3:5]) * 60 + 60)))
+            except Exception: pass
             self.pos[(rs, code)] = {"side": d["side"], "t": tm, "px": px, "lots": qty, "text": d["text"], "over": over}
             if rs == "四" and not over: self.j4.add(code)
             if rs == "五" and not over: self.j5.add(code)
@@ -970,7 +1005,10 @@ def live():
     try:
         while True:
             n = now_tw(); hm = n.strftime("%H:%M")
-            if hm >= "13:32": break
+            if hm >= "13:32":
+                try: eng.push_review()   # 2026-11-07 收盤檢討(A)
+                except Exception as e: log("[檢討] 失敗", repr(e))
+                break
             if pre_on and "09:00" <= hm < "13:24" and n.second >= pre_sec and hm not in pre["done"] and pre["ok"]:
                 pre["done"].add(hm); t0 = time.time()
                 try:
@@ -1057,6 +1095,7 @@ def live():
                     ok = ok0 and not (njobs and errs / njobs > err_max)
                     n_ev += eng.apply_one(r, hm, cutoff, ok, ok, rs_block)
                 eng.save(); dtm = time.time() - t0c
+                eng.rounds.append(round(dtm, 1))
                 try: eng.drag_check(bars, hm)   # 2026-11-07 可能拖輸提示(中級)
                 except Exception as e: log("可能拖輸檢查出錯", repr(e))
                 if njobs and errs / njobs > err_max: off.append(f"模擬器錯誤 {errs}/{njobs}")

@@ -311,7 +311,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611071410">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611071520">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -577,6 +577,18 @@
   #notifLog.usm .usx{display:contents} #notifLog.usm .hd{position:static;padding:0;align-self:center;min-width:0;overflow:hidden}
   #notifLog.usm .usk{padding:3px 5px 3px 8px} #notifLog.usm .usk .usn{font-size:clamp(11px,3.1vw,14px);line-height:1.15} #notifLog.usm .usk .usv{font-size:clamp(15px,4.6vw,22px);line-height:1.1} #notifLog.usm .usk .usd{font-size:clamp(9px,2.7vw,12px);line-height:1.15} #notifLog.usm .usk .usc{padding:2px 0}
   #notifLog .usx{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:8px;padding:6px 6px 8px;box-sizing:border-box}
+  /* 2026-11-07 14:32 使用者「資訊 增加 s&p 500 的圖」「增加一個按鍵 … 名為 檢討」:資訊頁標題列佔整列(右邊放「檢討」鍵,和明細的元大 / 虛擬同位置),下面 2 欄 × 3 列六張行情卡;按「檢討」換成當天檢討 */
+  #notifLog.usm{grid-template-rows:auto repeat(3,minmax(0,1fr))!important} #notifLog.usm .hd{grid-column:1/-1}
+  #notifLog.usm .hd{justify-content:flex-start!important} #notifLog.usm .hd .rvb{margin-left:14px}
+  #notifLog.usm .usk{padding:2px 4px 2px 7px} #notifLog.usm .usk .usn{font-size:clamp(10px,2.9vw,13px);line-height:1.1} #notifLog.usm .usk .usv{font-size:clamp(13px,4.1vw,19px);line-height:1.08} #notifLog.usm .usk .usd{font-size:clamp(9px,2.5vw,11px);line-height:1.15}
+  #notifLog .hd .vbtn.rvb{position:relative;color:#C9D1E0;border-color:#6b6f7a;box-shadow:0 0 0 2px #000,0 0 0 3.5px #4A5570}
+  #notifLog .hd .vbtn.rvb.on{background:#FFD54F;color:#000;border-color:#fff;box-shadow:0 0 0 2px #000,0 0 0 3.5px #FFD54F}
+  #notifLog .hd .vbtn.rvb.dot::before{content:'';position:absolute;top:3px;left:3px;width:8px;height:8px;border-radius:50%;background:#FF3B30;box-shadow:0 0 5px #FF3B30}
+  #notifLog .rvw{grid-column:1/-1;grid-row:2/-1;overflow:auto;padding:2px 8px 6px;font-size:clamp(12px,3.5vw,15px);line-height:1.45;color:#E6EAF2}
+  #notifLog .rvw .rvt{display:flex;justify-content:space-between;color:#FFD54F;font-weight:800;font-size:1.15em} #notifLog .rvw .rvt i{color:#8C96AB;font-style:normal;font-weight:400;font-size:.8em}
+  #notifLog .rvw .rvr{display:flex;align-items:baseline;gap:12px} #notifLog .rvw .rvr span{color:#8C96AB} #notifLog .rvw .rvr b{font-size:1.45em;font-variant-numeric:tabular-nums}
+  #notifLog .rvw .up{color:#FF5A5A} #notifLog .rvw .dn{color:#2ED47A} #notifLog .rvw .rvs{color:#C9D1E0}
+  #notifLog .rvw .rvh{color:#ff8c42;font-weight:800;margin-top:4px} #notifLog .rvw ul{margin:0;padding-left:1.2em} #notifLog .rvw li{margin:1px 0} #notifLog .rvw .rv0{color:#8C96AB}
   #notifLog .usk{position:relative;display:grid;grid-template-columns:1fr 31%;column-gap:4px;align-items:stretch;min-height:0;background:linear-gradient(#1E2636,#151A25);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:6px 6px 6px 9px;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
   #notifLog .usk .usl{display:flex;flex-direction:column;justify-content:center;min-width:0}
   #notifLog .usk .usn{font-size:clamp(12px,3.4vw,16px);font-weight:700;color:#C9D1E0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
@@ -1496,6 +1508,27 @@ const usCards = () => { const U = window.__US; if (!U) return '';
       + `<div class="usd">${x.pct == null ? '' : (up ? '▲' : dn ? '▼' : '') + (x.chg != null ? f(Math.abs(x.chg)) : '') + ` <b>${Math.abs(x.pct).toFixed(2)}%</b>`}</div></div>`
       + `<div class="usc">${usSpark(x.spark, x.prev, up)}</div></div>`; }
   return h + '</div>'; };
+/* 2026-11-07 14:32 使用者「檢討」(A+B):收盤後資訊頁「檢討」鍵 —— A 電腦收盤算的數字(?review=get 的 auto)、B 每天 Claude 寫的重大發現(notes);開盤中不出現;看盤版沒有 */
+const rvKey = () => { const R = window.__RV; return R && R.d ? R.d + (R.notes ? '|n' : '|a') : ''; };
+const rvHas = () => { const R = window.__RV; return !!(R && R.d && (R.auto || R.notes)) && !window.VIEWER && !inSession(); };
+const rvBtn = () => { if (!rvHas()) return ''; let seen = ''; try{ seen = localStorage.getItem('mysh.rvSeen') || ''; }catch(e){}
+  return `<button class="vbtn rvb${window.__rvOn ? ' on' : ''}${!window.__rvOn && seen !== rvKey() ? ' dot' : ''}" type="button">檢討</button>`; };
+const rvHtml = () => { const R = window.__RV || {}, A = R.auto || {}, N = R.notes || {}, e = x => String(x == null ? '' : x).replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]));
+  const m = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(Math.round(v || 0)).toLocaleString('en-US'), cl = v => v > 0 ? 'up' : v < 0 ? 'dn' : '';
+  let h = `<div class="rvw"><div class="rvt"><span>${e((R.d || '').slice(5).replace('-', '/'))} 收盤檢討</span><i>虛擬(電腦通知)</i></div>`;
+  if (R.auto){ h += `<div class="rvr"><span>今日輸贏</span><b class="${cl(A.net)}">${m(A.net)}</b><span>${A.n || 0} 筆 ${A.w || 0} 贏 ${(A.n || 0) - (A.w || 0)} 輸</span></div>`;
+    const by = Object.entries(A.by || {}).sort((x, y) => '一二三四五'.indexOf(x[0].slice(-1)) - '一二三四五'.indexOf(y[0].slice(-1))); if (by.length) h += `<div class="rvs">${by.map(([j, b]) => `${e(j)} <span class="${cl(b.net)}">${m(b.net)}</span>`).join('　')}</div>`;
+    if (A.best || A.worst) h += `<div class="rvs">${A.best ? `最大贏 ${e(A.best.name)} <span class="${cl(A.best.net)}">${m(A.best.net)}</span>` : ''}${A.worst ? `　最大輸 ${e(A.worst.name)} <span class="${cl(A.worst.net)}">${m(A.worst.net)}</span>` : ''}</div>`;
+    h += `<div class="rvs">拖輸提示 ${(A.drag || []).length} 筆${A.lat_med != null ? `　進場通知中位晚 ${A.lat_med} 秒` : ''}${A.round_med != null ? `　每輪 ${A.round_med} 秒` : ''}</div>`; }
+  else h += `<div class="rv0">電腦收盤數字還沒上來</div>`;
+  h += `<div class="rvh">⚠ 重大發現</div>`;
+  if (Array.isArray(N.findings) && N.findings.length) h += `<ul>${N.findings.map(x => `<li>${e(x)}</li>`).join('')}</ul>`; else h += `<div class="rv0">每天 14:00 前後補上</div>`;
+  if (N.tomorrow) h += `<div class="rvs">明天注意:${e(N.tomorrow)}</div>`;
+  return h + '</div>'; };
+const rvPoll = async () => { try{ if (window.VIEWER || !BASE.liveUrl || !liveOn() || inSession()) return;
+  const r = await fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?review=get&_=${Date.now()}`, {cache: 'no-store'}); const j = await r.json();
+  if (j && 'd' in j){ const ch = JSON.stringify(j) !== JSON.stringify(window.__RV || null); window.__RV = j; if (ch && window.NL_VIEW === 'pos' && window.nlRender) nlRender(); } }catch(e){} };
+setTimeout(rvPoll, 4000); setInterval(rvPoll, 5 * 60000); window.rvPoll = rvPoll;
 const lampBtn = (id, txt, kind, a, b) => { try{ const e = document.getElementById(id); if (!e) return; let H = '';
     if (kind){ if (kind === 'cnt') H = lampSeg(Math.min(10, a | 0), 0, 'y') + `<b>${txt}</b>` + lampSeg(Math.min(10, b | 0), 0, 'b');
       else { const [k, k2] = lampAmt(a), w = Math.round(a || 0) > 0, l = Math.round(a || 0) < 0; H = lampSeg(w ? k : 0, w ? k2 : 0, 'r') + `<b>${txt}</b>` + lampSeg(l ? k : 0, l ? k2 : 0, 'g'); } }
@@ -7501,7 +7534,9 @@ window.bgTick = bgTick; window.BG = BG;
         window.__posWin = window.__posWinTmp || []; window.__posWinTP = !!TP;
         const __usx = !!(__ub && !open.length);
         box.classList.toggle('usm', __usx);
-        if (__usx){ const __H = hdPos + usCards(); if (!nlSame(__H)) nlPut(__H);
+        if (__usx){ const __rb = rvBtn(); if (!__rb) window.__rvOn = false; const __H = (__rb ? hdPos.replace(/<\/div>$/, __rb + '</div>') : hdPos) + (window.__rvOn && __rb ? rvHtml() : usCards()); if (!nlSame(__H)) nlPut(__H);
+          if (!box.__rvDel){ box.__rvDel = 1; box.addEventListener('pointerdown', ev => { try{ const b = ev.target && ev.target.closest && ev.target.closest('.hd .rvb'); if (!b || window.NL_VIEW !== 'pos') return; ev.preventDefault(); ev.stopPropagation();
+            window.__rvOn = !window.__rvOn; if (window.__rvOn) try{ localStorage.setItem('mysh.rvSeen', rvKey()); }catch(e){} if (window.nlRender) nlRender(); }catch(e){} }, true); }
           const fitU = () => { try{ const ux = box.querySelector('.usx'), hh = box.querySelector('.hd'); if (ux && !box.classList.contains('usm')) ux.style.height = Math.max(150, box.clientHeight - (hh ? hh.offsetHeight : 0) - 2) + 'px'; }catch(e){} };
           fitU(); requestAnimationFrame(() => requestAnimationFrame(fitU)); }
         else {
