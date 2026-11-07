@@ -879,6 +879,10 @@ class Engine:
         """only = {(判別式, 代碼)}:只算這些(2026-10-30 預判收盤確認用)"""
         jobs = []
         hm_now = self.upto_hm or ""
+        # 2026-11-07 19:52 使用者「加速 程式運行跟進場訊息」:不可能再發進場、也沒持倉的不算 —— 強平過的股票;判四 / 判五今天檔數已滿、又不是已進過的股票
+        #   (對帳那邊本來就不會發,算了也白算);ENGINE_SKIP_IDLE=0 全部照算
+        skip_on = CFG.get("ENGINE_SKIP_IDLE", "1") == "1"
+        full = {"四": len(self.j4) >= int(_f(self.envs.get("四", {}).get("T4MAX"), T4MAX)), "五": len(self.j5) >= getattr(self, "j5max", J5MAX)}
         for rs in RS_ALL:
             if rs not in self.envs: continue   # 2026-11-05 判五規則還沒到
             # 2026-11-06 加速:過了這個判別式最後進場時間 + 11 分鐘(10 分鐘內的進場還會補發),只算還開著虛擬部位的股票
@@ -887,9 +891,11 @@ class Engine:
             for c in self.codes:
                 if only is not None and (rs, c) not in only: continue
                 if idle and (rs, c) not in self.pos: continue
+                if skip_on and only is None and (rs, c) not in self.pos and (c in self.fclosed or (full.get(rs) and c not in (self.j4 if rs == "四" else self.j5))): continue
                 env = dict(self.envs[rs])
                 if not self.canshort.get(c, False): env["CANSHORT"] = "0"   # 2026-10-29 稽核 #3:不能先賣 → 空單只記錄
                 jobs.append((c, self.names.get(c, c), rs, env, self.day))
+        if skip_on: jobs.sort(key=lambda x: 0 if (x[2], x[0]) in self.pos else 1)   # 2026-11-07 開著的部位先算(停損 / 停利早一點發);其他照原本順序(新進場的先後不變)
         if stream:   # 2026-11-06 算完一檔就交回(照原本順序,對帳順序和以前一樣)
             return (self.pool.imap(_sim_one, jobs, chunksize=1) if jobs else iter(())), len(jobs)
         t0 = time.time(); res = self.pool.map(_sim_one, jobs, chunksize=4) if jobs else []
