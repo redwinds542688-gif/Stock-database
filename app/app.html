@@ -311,7 +311,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611071525">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611071526">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2835,10 +2835,10 @@ const wFee = makeWheel('wFee', buildVals(CFG.disc && CFG.disc.range),
                        startVal('disc', '25%'), cfgGuard('disc', onFeeChange));
 
 
-const wBroker = makeWheel('wBroker', buildVals(CFG.broker && CFG.broker.range),
+const wBroker = makeWheel('wBroker', buildVals(CFG.broker && CFG.broker.range).slice().reverse(),   // 2026-11-07 15:33 使用者「統一」:清單由高至低 → 反過來,跟其他滾輪一樣上滑增加
                           startVal('broker', '0.1425%'), cfgGuard('broker', onFeeChange));
 
-const wExch = makeWheel('wExch', buildVals(CFG.exch && CFG.exch.range),
+const wExch = makeWheel('wExch', buildVals(CFG.exch && CFG.exch.range).slice().reverse(),   // 2026-11-07 15:33 同上(0 在最上面)
                         startVal('exch', '0.00000%'), cfgGuard('exch', onFeeChange));
 
 /* 長按滾輪 → 在幾個常用值之間快速切換
