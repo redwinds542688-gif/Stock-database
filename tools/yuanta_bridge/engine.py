@@ -715,7 +715,11 @@ class Engine:
                 body = (f"{hm} {side} {p['t']} 進 {e:.2f} · {p.get('lots') or max(1, int(self.cap // (e * 1000)))}張,進場 {len(rows)} 分鐘:曾順向只有 {mfe:.2f}%、現價 {rows[-1][4]:.2f} 帳面 {cur:+.2f}%、"
                         f"名單平均 {m0:+.2f} → {m1:+.2f}(反向 {against:+.2f} 點)· {JUDGE[rs]} · 只提示不平倉,請自行判斷")
                 it = {"d": self.day, "t": hm, "title": title, "body": body, "kind": "lv2", "key": f"drag|{code}|{JUDGE[rs]}|{p['t']}"}
-                if self.push(it): self.drag.add(k); self.save()
+                # 2026-11-07 使用者「這會不會影響通知速度」:提示改在背景執行緒推(Worker 慢 / 掛掉時最多會卡 ~66 秒,不能擋到下一分鐘的進場通知);推成功才記,下一輪存檔
+                self.drag.add(k)
+                def _send(it=it, k=k):
+                    if not self.push(it): self.drag.discard(k)
+                threading.Thread(target=_send, daemon=True).start()
 
     def push_entry(self, rs, code, tm, d, at):
         nm = self.names.get(code, code); j = JUDGE[rs]
