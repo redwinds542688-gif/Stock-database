@@ -105,10 +105,15 @@ def worker_url(q):
     return CFG["WORKER_URL"].rstrip("/") + "/?" + q
 
 
+CLOUD_SET = {}   # 2026-11-07 主導機的整組設定(cap=get 的 set);目前用到 lots / bars / days
+
+
 def cloud_cap(cur):
     """2026-11-02 多空上限主控:5861 主導機設定的每筆上限(元);讀不到 / 沒設過 → 原值 cur"""
     try:
-        v = int(http(worker_url(f"cap=get&_={int(time.time())}"), key=True, timeout=8).get("cap") or 0)
+        j = http(worker_url(f"cap=get&_={int(time.time())}"), key=True, timeout=8)
+        if isinstance(j.get("set"), dict): CLOUD_SET.clear(); CLOUD_SET.update(j["set"])
+        v = int(j.get("cap") or 0)
         return v if 50000 <= v <= 500000 else cur
     except Exception:
         return cur
@@ -489,7 +494,25 @@ def pool_rules(j, cap):
             "amp": max(_f(r.get("min_amp"), 3.0), _f(CFG.get("ENGINE_AMP"), 3.0)),              # 手機 BASE.amp 3.0 / 滾輪「振幅」
             "size": int(_f(r.get("size"), 130)), "cnt": int(_f(CFG.get("ENGINE_MAX_CODES"), 99)), # 原始池前 size 名 / 滾輪「監控檔數」(2026-10-31 預設 49 → 99:使用者「現在不是99嗎」手機監控檔數是 99,電腦要一樣;「所有 15到500的股票 只要符合資格 都要放進來」)
             "tick": _f(r.get("tick_max_pct"), 0.5), "excl": [str(x) for x in (r.get("exclude_industry") or ["17"])],
-            "a5": _f(r.get("avg5_min_amp"), 3.0), "hits": r.get("avg5_min_hits")}
+            "a5": _f(r.get("avg5_min_amp"), 3.0), "hits": r.get("avg5_min_hits"),
+            # 2026-11-07 16:15 使用者加手機滾輪「最低張數 / 成交K棒 / 連續天數」(初始 6000 / 250 / 1):跟主導機設定,讀不到用初始值
+            "lots": _f(CLOUD_SET.get("lots"), 6000), "bars": _f(CLOUD_SET.get("bars"), 250), "days": int(_f(re.sub(r"\D", "", str(CLOUD_SET.get("days", "1"))) or 1, 1))}
+
+
+def days_ok(s, R):
+    """手機 daysOk 同一套:連續 R["days"] 天,每天 成交張數 ≥ lots、有成交的 1 分K ≥ bars、振幅 ≥ amp(d3 = [[日期, 張數, K棒, 振幅], …] 新到舊)"""
+    d3 = s.get("d3")
+    if not isinstance(d3, list):   # 舊名單沒有 d3:只看前一天
+        if s.get("lots") is not None and _f(s.get("lots"), 0) < R["lots"]: return False
+        if s.get("bars") is not None and _f(s.get("bars"), 0) < R["bars"]: return False
+        return True
+    for i in range(R["days"]):
+        if i >= len(d3) or not d3[i]: return False
+        _, lo, br, am = (list(d3[i]) + [None] * 4)[:4]
+        if lo is not None and lo < R["lots"]: return False
+        if br is not None and br < R["bars"]: return False
+        if am is not None and am < R["amp"]: return False
+    return True
 
 
 def stock_ok(s, j, R):
@@ -533,7 +556,7 @@ def build_universe(j, day, cap, held=(), noted=(), old_src=None):
     carried = [c for c in list(held) + list(noted) if c in src]
     carried = list(dict.fromkeys(carried))
     stage1 = sorted([s for s in pool if str(s.get("code")) not in carried and re.fullmatch(r"[1-9]\d{3}", str(s.get("code", ""))) and s.get("market") in ("twse", "tpex")
-                     and str(s.get("code")) not in set(map(str, j.get("disposed", []))) and R["lo"] <= _f(s.get("close"), 0) <= R["hi"] and s.get("amp") is not None and _f(s.get("amp"), 0) >= R["amp"]],
+                     and str(s.get("code")) not in set(map(str, j.get("disposed", []))) and R["lo"] <= _f(s.get("close"), 0) <= R["hi"] and s.get("amp") is not None and _f(s.get("amp"), 0) >= R["amp"] and days_ok(s, R)],
                     key=lambda s: -_f(s.get("lots"), 0))[: R["size"]]   # buildPool:成交張數大到小,前 size 名
     # 2026-11-03 20:50 使用者「查 味全」:11/02 最低價改 10 元時這裡還寫死 15 元 → 味全 13.65、彩晶 13.45 在名單裡卻沒算(電腦只算 60 檔),改成和手機 buildPool 一樣用 BASE.lo / hi / amp
     why = {}; rest = []

@@ -777,9 +777,9 @@ export default {
         { const t = twNow(), wd = t.getUTCDay(), m = t.getUTCHours() * 60 + t.getUTCMinutes(); if (wd > 0 && wd < 6 && m >= 540 && m <= 810) return J({ error: "開盤中不能改設定(13:30 後才能用)" }, 403); }
         const n = Math.round(Number(url.searchParams.get("v")));
         if (!(n >= 50000 && n <= 500000)) return J({ error: "金額要 5萬~50萬" }, 400);
-        // 2026-11-02 09:24 使用者「所有設定下的數值 皆由主導機節制」:POST body {set:{hi,lo,amp,cnt,cap,disc,broker,exch,tax}} 一起存
+        // 2026-11-02 09:24 使用者「所有設定下的數值 皆由主導機節制」:POST body {set:{hi,lo,amp,cnt,cap,disc,broker,exch,tax}} 一起存;2026-11-07 加 lots / bars / days(最低張數 / 成交K棒 / 連續天數)
         let set = null; try { const b = await request.json(); if (b && b.set && typeof b.set === "object") { set = {};
-          for (const k of ["hi", "lo", "amp", "cnt", "cap", "disc", "broker", "exch", "tax"]) if (b.set[k] != null) set[k] = String(b.set[k]).slice(0, 12); } } catch (e) {}
+          for (const k of ["hi", "lo", "amp", "cnt", "cap", "disc", "broker", "exch", "tax", "lots", "bars", "days"]) if (b.set[k] != null) set[k] = String(b.set[k]).slice(0, 12); } } catch (e) {}
         const v = { cap: n, at: Date.now(), by: "5861", ...(set ? { set } : {}) };
         let kvOk = true; try { await env.LOGS.put("cfg:cap", JSON.stringify(v)); } catch (e) { kvOk = false; }   // 2026-11-03 KV 寫入額度用完時照樣存 Hub(get 會拿兩邊比較新的)
         MC.set("cfg:cap", { v: JSON.stringify(v), at: Date.now() }); try { if (env.HUB) await hubOf(env).kvPut("m:cfg:cap", JSON.stringify(v)); } catch (e) { if (!kvOk) return J({ error: "雲端存不進去,請稍後再試" }, 503); }

@@ -35,9 +35,13 @@ ENTRY_MAX_CHG = 3.5      # 進場時漲跌幅上限(%,寫進 pool.json 給 HTML 
 AVG5_MIN_AMP = 3.0       # 2026-10-21 4.0 → 3.0(同上); 最近 5 個交易日「平均振幅」下限(%):擋掉只有昨天偶然動一次的股票
 AVG5_MIN_HITS = 0        # 2026-10-21 3 → 0(使用者:「選股 五天 平均 也一樣 3% 以上即可」:只看 5 日平均 ≥ 3%,不再要求 5 天中幾天達標);原: 最近 5 個交易日裡,至少要有幾天振幅 ≥ MIN_AMP:擋掉「平常不動、只靠一根大跌把平均撐起來」的股票(例:緯創)
 AVG_DAYS = 3             # 2026-11-03 12:35 5 → 3(使用者「至少 3%,而且最近 5 天平均振幅也要至少 3% 這裡5天改成3天」);欄位名 amp5 / avg5_min_amp 照舊沿用
-MIN_BARS = 250          # 2026-10-25 使用者「改」:昨天有成交的 1 分鐘數(滿分 266)< 250 = 冷門股,不進名單。
+MIN_BARS = 240   # 2026-11-07 16:15 使用者加手機滾輪「成交K棒」240~266(初始 250):名單底線改 240,手機 / 電腦再照滾輪篩。原 250          # 2026-10-25 使用者「改」:昨天有成交的 1 分鐘數(滿分 266)< 250 = 冷門股,不進名單。
 #   元大 K 10/06~10/22 回測:判二 前一天 ≥250 的 244 筆 +28,642,不設 301 筆 −69,486;判一差不多。用 Yahoo 1 分 K 數(和元大 99.6% 一致);抓不到不擋
-MIN_LOTS = 6000          # 2026-10-21 使用者:「股票挑選 量第一位 振幅第二位 不要選那個沒有量的股票」:昨天成交 < 6000 張不進名單(和判別式進場的 6000 張同一個數)
+MIN_LOTS = 5000   # 2026-11-07 16:15 使用者加手機滾輪「最低成交量」5000~10000(初始 6000):名單底線改 5000,手機 / 電腦再照滾輪篩。原 6000          # 2026-10-21 使用者:「股票挑選 量第一位 振幅第二位 不要選那個沒有量的股票」:昨天成交 < 6000 張不進名單(和判別式進場的 6000 張同一個數)
+POOL_KEEP = 200   # 2026-11-07 名單底線放寬(5000 張 / 240 根)後多出來的股票不要把 6000 張 / 250 根的擠掉:名單最多留 200 檔,手機 / 電腦照滾輪篩完再取「監控檔數」
+DAYS_MAX = 3   # 2026-11-07 16:15 使用者加手機滾輪「連續天數」1~3:每檔存最近 3 個交易日的 [日期, 張數, 成交K棒數, 振幅](d3,新到舊)
+LOTS_FILE = "lots_history.json"   # 全市場每日成交張數(最近 15 個交易日)
+BARS_FILE = "bars_history.json"   # 名單候選每日有成交的 1 分鐘數(最近 15 個交易日)
 HIST_FILE = "amp_history.json"   # 每日振幅滾動存檔(全市場,保留最近 15 個交易日)
 EXCLUDE_INDUSTRY = {"17"}   # 排除的產業別代碼:17 = 金融保險業(金控、銀行、保險、證券)
 # 官方產業別抓不到時的備援:代號 28xx 與這幾檔都是金融股
@@ -390,6 +394,19 @@ if os.path.exists(HIST_FILE):
         hist = {}
 for r in rows:
     hist.setdefault(r["code"], {})[LAST] = r["amp"]
+lots_h = {}
+if os.path.exists(LOTS_FILE):
+    try: lots_h = json.load(open(LOTS_FILE, encoding="utf-8"))
+    except Exception: lots_h = {}
+for r in rows:
+    lots_h.setdefault(r["code"], {})[LAST] = r["lots"]
+for code in list(lots_h):
+    ds = sorted(d for d in lots_h[code] if d <= LAST)[-15:]
+    lots_h[code] = {d: lots_h[code][d] for d in ds}
+bars_h = {}
+if os.path.exists(BARS_FILE):
+    try: bars_h = json.load(open(BARS_FILE, encoding="utf-8"))
+    except Exception: bars_h = {}
 for code in list(hist):
     # 只留 ≤ 資料日期的日子(擋掉 Yahoo 未完成 K 棒之類的未來日期),且最多 15 個交易日
     ds = sorted(d for d in hist[code] if d <= LAST)[-15:]
@@ -409,10 +426,12 @@ def yahoo_daily_amp(code, market):
                 continue
             q = res["indicators"]["quote"][0]
             ts, hi, lo, cl = res["timestamp"], q["high"], q["low"], q["close"]
+            vo = q.get("volume") or [None] * len(ts)
             for i in range(1, len(ts)):
                 if None in (hi[i], lo[i], cl[i - 1]) or not cl[i - 1]:
                     continue
                 d = datetime.fromtimestamp(ts[i], TAIPEI).strftime("%Y-%m-%d")
+                if d < LAST and vo[i]: lots_h.setdefault(code, {}).setdefault(d, int(vo[i] / 1000))   # 2026-11-07 順便補前幾天的張數(連續天數用)
                 a = (hi[i] - lo[i]) / cl[i - 1] * 100
                 if d > LAST or a <= 0 or a > 25:      # 未來日期 / 未完成 K 棒 / 明顯異常值不收
                     continue
@@ -641,19 +660,22 @@ pool = [s for s in pool if s["code"] not in attention and s["code"] not in dispo
 n2 = len(pool)
 
 # 5 日平均振幅:只對前 SIZE*3 檔候選算(歷史不足的會向 Yahoo 補抓),省時間
-def traded_minutes(code, market):
+def traded_minutes(code, market, day=None):
     """資料日 LAST 有成交的 1 分鐘數。2026-10-25 使用者「現在抓股票 都以元大為準」:先看元大(kline_yuanta/,桌機收工後抓、
     14:30 save_cloud_bars.py 存進來的;沒成交的分鐘元大不給 K),沒有才用 Yahoo 1 分 K(09:00 那根量常是 0 也算),都抓不到回傳 None"""
-    y, w, _ = date.fromisoformat(LAST).isocalendar()
+    day = day or LAST   # 2026-11-07 連續天數:前幾天也要算
+    if day in bars_h.get(code, {}): return bars_h[code][day]
+    y, w, _ = date.fromisoformat(day).isocalendar()
     fy = os.path.join("kline_yuanta", code, f"{y}-W{w:02d}.csv")
     if os.path.exists(fy):
         with open(fy, encoding="utf-8") as fh:
-            tms = [line.split(",")[1] for line in fh if line.startswith(LAST)]
+            tms = [line.split(",")[1] for line in fh if line.startswith(day)]
         n = len(tms)
         # 2026-10-25 使用者「改」:元大那天要是完整的一天(有 09:05 以前的 K、也有 13:30 收盤那根)才用;
         #   桌機晚開機(例如 11:00)時推上來的盤中 K 只有後半天,熱門股也只有約 150 根,會被誤判成冷門股 → 不完整就改用 Yahoo
         if n and (n >= MIN_BARS or (min(tms) <= "09:05" and "13:30" in tms)):
             s_src["元大"] = s_src.get("元大", 0) + 1
+            bars_h.setdefault(code, {})[day] = n
             return n
         if n:
             s_src["元大不完整→Yahoo"] = s_src.get("元大不完整→Yahoo", 0) + 1
@@ -664,12 +686,15 @@ def traded_minutes(code, market):
             res = (j.get("chart", {}).get("result") or [None])[0]
             if not res or not res.get("timestamp"):
                 continue
-            vol = res["indicators"]["quote"][0]["volume"]; n = 0
+            vol = res["indicators"]["quote"][0]["volume"]; cnt = {}
             for t, v in zip(res["timestamp"], vol):
-                dt = datetime.fromtimestamp(t, TAIPEI); hm = dt.strftime("%H:%M")
-                if dt.strftime("%Y-%m-%d") == LAST and "09:00" <= hm <= "13:30" and ((v or 0) > 0 or hm == "09:00"):
-                    n += 1
+                dt = datetime.fromtimestamp(t, TAIPEI); hm = dt.strftime("%H:%M"); dd = dt.strftime("%Y-%m-%d")
+                if dd <= LAST and "09:00" <= hm <= "13:30" and ((v or 0) > 0 or hm == "09:00"):
+                    cnt[dd] = cnt.get(dd, 0) + 1
             time.sleep(0.2)
+            for dd, k in cnt.items():   # 2026-11-07 Yahoo 一次給 5 天,前幾天的也記下來(今天這天由上面元大 / 這裡算)
+                if dd != LAST or dd == day: bars_h.setdefault(code, {}).setdefault(dd, k)
+            n = cnt.get(day, 0)
             return n if n else None
         except Exception:
             pass
@@ -678,7 +703,7 @@ def traded_minutes(code, market):
 
 print(f"計算 {AVG_DAYS} 日平均振幅 + 昨天成交分鐘數 …")
 kept = []; n_cold = 0; s_src = {}
-for s in pool[:SIZE * 3]:
+for s in pool[:POOL_KEEP * 3]:
     a5 = avg_amp(s["code"], s["market"])
     s["amp5"] = a5
     s["amp_days"] = len(hist.get(s["code"], {}))
@@ -688,15 +713,36 @@ for s in pool[:SIZE * 3]:
         if MIN_BARS and nb is not None and nb < MIN_BARS:
             n_cold += 1; continue
         kept.append(s)
-    if len(kept) >= SIZE:
+    if len(kept) >= POOL_KEEP:
         break
 n3 = len(kept)
-pool = kept[:SIZE]
+pool = kept[:POOL_KEEP]
+# 2026-11-07 16:15 使用者「連續幾天」:每檔附最近 DAYS_MAX 個交易日 [日期, 張數, 成交K棒數, 振幅](新到舊);手機 / 電腦依滾輪
+#   「最低成交量 / 成交K棒 / 最低振幅 / 連續天數」篩:連續 N 天每天都要達標(N=1 = 只看前一天,和以前一樣)
+_cnt_d = {}
+for c in hist:
+    for d in hist[c]: _cnt_d[d] = _cnt_d.get(d, 0) + 1
+TDAYS = sorted(d for d, k in _cnt_d.items() if k >= 300 and d <= LAST)[-DAYS_MAX:][::-1]   # 全市場有 300 檔以上資料的日子 = 交易日
+for s in pool:
+    c = s["code"]
+    if any(d not in lots_h.get(c, {}) or d not in hist.get(c, {}) for d in TDAYS[1:]): [hist.setdefault(c, {}).setdefault(d, a) for d, a in yahoo_daily_amp(c, s["market"]).items()]; time.sleep(0.3)
+    row = []
+    for d in TDAYS:
+        lo_ = lots_h.get(c, {}).get(d); am_ = hist.get(c, {}).get(d)
+        br_ = s.get("bars") if d == LAST else traded_minutes(c, s["market"], d)
+        row.append([d, lo_, br_, am_])
+    s["d3"] = row
+print(f"連續天數資料:交易日 {TDAYS}")
 print(f"成交分鐘數來源:{s_src}")
 print(f"排除不可當沖 {n0 - n1} 檔、注意/處置股 {n1 - n2} 檔、冷門(成交 < {MIN_BARS} 分鐘){n_cold} 檔、5 日均振幅不足 {min(n2, SIZE * 3) - n3 - n_cold} 檔 → 最終 {len(pool)} 檔")
 
 with open(HIST_FILE, "w", encoding="utf-8") as f:
     json.dump(hist, f, ensure_ascii=False, separators=(",", ":"))
+for code in list(bars_h):
+    ds = sorted(d for d in bars_h[code] if d <= LAST)[-15:]
+    bars_h[code] = {d: bars_h[code][d] for d in ds}
+json.dump(lots_h, open(LOTS_FILE, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
+json.dump(bars_h, open(BARS_FILE, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
 
 # ── 6. 產生 pool.js(格式與 Colab 版相同)──────────
 lines = []
@@ -733,9 +779,9 @@ with open("pool.js", "w", encoding="utf-8") as f:
 
 with open("pool.json", "w", encoding="utf-8") as f:
     json.dump({"date": LAST, "generated": stamp,
-               "rules": {"lo": LO, "hi": HI, "min_amp": MIN_AMP, "size": SIZE, "min_lots": MIN_LOTS, "min_bars": MIN_BARS,
+               "rules": {"lo": LO, "hi": HI, "min_amp": MIN_AMP, "size": POOL_KEEP, "min_lots": MIN_LOTS, "min_bars": MIN_BARS,
                          "tick_max_pct": TICK_MAX_PCT, "exclude_industry": sorted(EXCLUDE_INDUSTRY),
-                         "avg5_min_amp": AVG5_MIN_AMP, "avg5_min_hits": AVG5_MIN_HITS, "avg_days": AVG_DAYS,
+                         "avg5_min_amp": AVG5_MIN_AMP, "avg5_min_hits": AVG5_MIN_HITS, "avg_days": AVG_DAYS, "days_max": DAYS_MAX,
                          "entry_max_chg": ENTRY_MAX_CHG},
                "disposed": sorted(disposed), "attention": sorted(attention),
                "elig_source": src_note, "pool": pool}, f, ensure_ascii=False, indent=1)
