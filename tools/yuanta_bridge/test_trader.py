@@ -19,7 +19,7 @@ class GWN(GW):
 tmp = Path(tempfile.mkdtemp()); stop = tmp / "STOP"; NMK = [0]
 def mk(gw=GW, prime=True, **kw):
     NMK[0] += 1   # 2026-10-29 每個測試自己的狀態檔(今天進場過的訊號會存檔,不要互相影響)
-    cfg = {"TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0", "TRADE_Y3_TP_PCT": "2.5"}; cfg.update(kw)
+    cfg = {"TRADE_BROKER_STOP": "0", "TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0", "TRADE_Y3_TP_PCT": "2.5"}; cfg.update(kw)
     g = gw(); t = Trader(cfg, g, logs.append, lambda: NOW[0]); t.posts = []; t.alerts = []
     t.post = lambda a, b, k: t.posts.append((a, b, k)); t.akinds = []; t.alert = lambda a, b="", k="pc": (t.alerts.append(a), t.akinds.append(k))
     if prime: t.prime([])   # 2026-10-29 稽核 #1:跟 bridge 一樣,啟動時讀到通知(這裡是空的)才算準備好
@@ -634,4 +634,19 @@ T9 = [{"code": "2033", "bs": "S", "lots": 3, "price": 72.6, "time": "10:05", "or
 tm9.reconcile(T9, [], {}); tm9.reconcile(T9, [], {})
 ok(tm9.positions.get("2033", {}).get("judge") == "補回" and any(x[:3] == ("2033", "S", 3) for x in gm9.sent), (gm9.sent, tm9.positions.get("2033")))
 
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2)")
+# 2026-11-08 元大停損停利條件單跟著部位走(元三也掛、元平刪 / 一部分重掛、條件單自己觸發不動)
+tb, gb = mk(TRADE_BROKER_STOP="1"); tb.on_tick("2033", 72.6)
+tb.on_other_fill("2033", "S", 3000, 72.6, "M1"); pb = tb.positions["2033"]
+ok(pb["judge"] == "元三" and gb.sent[-1][:5] == ("oco", "2033", pb["mkt"], -1, 3), gb.sent)            # 元三進場 → 掛 3 張條件單
+tb.on_strategy_reply("S1", True, ""); ok(pb["oco_live"] and pb["oco_no"] == "S1")
+tb.on_other_fill("2033", "B", 1000, 72.5, "M2")                                                          # 元平 1 張(不是停利停損價)→ 刪舊的、照 2 張重掛
+ok(("del_oco", "S1") in gb.sent and gb.sent[-1][:5] == ("oco", "2033", pb["mkt"], -1, 2), gb.sent[-3:])
+tb.on_strategy_reply("S2", True, ""); n0 = len(gb.sent)
+tb.on_other_fill("2033", "B", 2000, 72.4, "M3")                                                          # 元平剩下 2 張 → 只刪,不再掛
+ok(gb.sent[n0:] == [("del_oco", "S2")] and "2033" not in tb.positions, gb.sent[n0:])
+tc, gc = mk(TRADE_BROKER_STOP="1"); tc.on_tick("2034", 50.0); tc.on_other_fill("2034", "B", 2000, 50.0, "N1"); pc_ = tc.positions["2034"]
+tc.on_strategy_reply("T1", True, ""); n1 = len(gc.sent)
+tc.on_other_fill("2034", "S", 2000, pc_["tp"], "")                                                        # 價格到停利 = 條件單自己在平 → 不刪
+ok(not any(x[0] == "del_oco" for x in gc.sent[n1:]), gc.sent[n1:])
+
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 5)")

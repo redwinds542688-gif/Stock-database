@@ -149,7 +149,7 @@ class Trader:
         # 2026-10-22 使用者:「30 元做空反漲到 30.5 觸發平倉,直接掛漲停價贖回」:平倉空單掛漲停(H)買回、多單掛跌停(L)賣出,ROD
         self.exit_mode = cfg.get("TRADE_EXIT_MODE", "limitup")
         # 2026-10-28 使用者「這1取消 所有都不預掛 只要股價觸發停利/停損 程式立刻啟動強制平倉機制」:預設不掛元大條件單(1 = 舊做法)
-        self.broker_stop = cfg.get("TRADE_BROKER_STOP", "0") == "1"
+        self.broker_stop = cfg.get("TRADE_BROKER_STOP", "1") == "1"   # 2026-11-08 00:14 使用者「改」(電腦斷線時元大自己守停利停損):預設改成掛元大停損停利條件單(二擇一)
         # 2026-10-28 使用者「+6.5 是針對做空的股票 -6.5 是針對做多的股票 全部股票都列入管理」:離昨收 ±6.5%(對部位不利的方向)→ 程式立刻全部平倉
         self.max_move = float(cfg.get("TRADE_MAX_MOVE_PCT", "6.5"))
         # 2026-10-28 使用者「如果30秒內沒有強制平倉成功 則再次檢查元大 是平倉單還掛著未成交 還是強制平倉訊息沒傳到元大 前者再等 後者再掛一次」
@@ -506,7 +506,7 @@ class Trader:
                     p.update({"qty": abs(n), "entry": avg, "state": HOLDING, "t0": self.hm(), "tp_pct": self.y3_tp, "sl_pct": self.y3_sl})
                     cs = [t for t in trades if t["code"] == c and t["bs"] == ("B" if d > 0 else "S")]
                     if cs: p["entry"] = sum(t["price"] * t["lots"] for t in cs) / sum(t["lots"] for t in cs)
-                    self.set_forced_tpsl(p, p["entry"]); self.sub(p)
+                    self.set_forced_tpsl(p, p["entry"]); self.sub(p); p["y3_posted"] = True; self.oco_refresh(p, "對帳接回元三")
                     self.log(f"[交易] 對帳:{c} 元大有手動 {abs(n)} 張{'多' if d > 0 else '空'}單、程式沒收到回報 → 接成元三(均價 {p['entry']:.2f})")
                     self.alert(f"⚠ {c} 對帳接回元三 {abs(n)} 張", "斷線時漏了回報,程式已接手(停利 / 停損照判三)")
 
@@ -809,6 +809,7 @@ class Trader:
                 if p.get("tp"): p["tp"] = round(p["entry"] * p["tp"] / e0, 2)
                 if p.get("sl"): p["sl"] = round(p["entry"] * p["sl"] / e0, 2)
             self.log(f"[交易] {p['judge']} {code} 元大手動同方向成交 {lots} 張(委託 {order_no})→ 併進程式部位,共 {tot} 張 均價 {p['entry']:.2f} 停利 {p['tp']} 停損 {p['sl']}")
+            if p["state"] == HOLDING: self.oco_refresh(p, "手動加碼")
             if p.get("judge") != MANUAL:
                 self.alert(f"✅ {self.name_of(code)} {code} 手動加碼 {lots} 張已交給程式", f"共 {tot} 張 均價 {p['entry']:.2f}(停利 {p['tp']} / 停損 {p['sl']}),平倉時全部一起平")
             # 2026-11-05 12:33 使用者「我是永久會員 這手動單 要加入進場」(宏碁手動加買 3 張,當沖有、進場沒有):手動加碼也在進場欄發一張卡(標「加碼」,張數 = 這次加的);
@@ -873,6 +874,7 @@ class Trader:
                         tp, sl, t0 = p.get("tp") or 0, p.get("sl") or 0, p.get("t0", "")
                     self.post(f"{self.name_of(code)} {code} {'做多' if d > 0 else '做空'}進場 {px:.2f}",
                               f"{t0} 元大 · 停利 {tp:.2f} 停損 {sl:.2f} · {n}張 · {MANUAL}", "long" if d > 0 else "short")
+                    with self.lock: self.oco_refresh(p, "元三進場")   # 2026-11-08 元三也掛元大停損停利條件單(分批成交併完才掛)
                 if self.y3_post_delay > 0: threading.Timer(self.y3_post_delay, _post_y3).start()
                 else: _post_y3()
                 return
@@ -880,7 +882,13 @@ class Trader:
             take = min(lots, max(p["qty"], 0)); extra = lots - take
             self.log(f"[交易] {code} 不是程式送的平倉單成交 {lots} 張 @ {price}(元大條件單 / 手動)")
             p["exit_why"] = p.get("exit_why") or "元大條件單 / 手動"
+            # 2026-11-08 使用者「元三強三 變成 元平強平 條件單呢會自己消失嗎」→「改」:不是條件單自己觸發的平倉(元平:手動平倉 / 預掛成交)→
+            #   元大的條件單不會自己消失 → 程式刪掉;只平一部分 → 照剩下張數重掛。價格到了停利 / 停損 = 條件單自己在平,不動它
+            oco_hit = p.get("oco_live") and p.get("tp") and p.get("sl") and ((price >= p["tp"] or price <= p["sl"]) if p["dir"] > 0 else (price <= p["tp"] or price >= p["sl"]))
             self.book_close(p, take, price)
+            if p.get("oco_live") and not oco_hit:
+                if p["state"] == HOLDING and p["qty"] > 0 and self.positions.get(code) is p: self.oco_refresh(p, "元平一部分")
+                else: self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False; self.log(f"[交易] {code} 元平 → 刪除元大條件單 {p['oco_no']}")
             if extra > 0 and (p.get("forced_close") or (order_no and order_no in self.ph_cancel)):
                 # 2026-11-07 23:34 強平中(預掛取消前成交 / 程式平倉單也成交)多出來的反向部位 → 程式自己再強平
                 self.alert(f"⚠ {self.name_of(code)} {code} 平倉多了 {extra} 張", f"強平時預掛也成交,多出 {extra} 張反向部位,程式已再強平")
@@ -984,6 +992,22 @@ class Trader:
                       f"{self.hm()} {'做多' if d > 0 else '做空'} {p.get('t0') or self.hm()} 進 {p['entry']:.2f} → 現價 {ex:.2f} · {p['closed_lots']}張 · 元平 · {p.get('judge') or ''}",   # 2026-11-07 10:36 使用者「元大手動平倉是不是應該叫做元平」→「改」   # 標原判別式才會和那張進場卡配成同一筆、算進輸贏;「· 強平 ·」讓手機藏掉之後引擎的虛擬出場
                       "profit" if pl >= 0 else "loss")
 
+    def oco_refresh(self, p, why=""):
+        """2026-11-08 元大停損停利條件單跟著部位走:張數 / 停利停損變了 → 刪掉舊的照現在的重掛;部位沒了(元平平完)→ 只刪。
+           元三開倉分批成交還沒併完(發卡前)先不掛,_post_y3 併完再掛;條件單還在等元大回應時,回來後再重掛一次"""
+        if not self.broker_stop or not p: return
+        c = p["code"]
+        if p.get("judge") == MANUAL and not p.get("y3_posted") and p["state"] == HOLDING and p["qty"] > 0 and not p.get("oco_live"): return
+        if p.get("oco_no") is None and c in self.oco_q:
+            p["oco_redo"] = True; return
+        if p.get("oco_live"):
+            self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False
+            self.log(f"[交易] {c} 刪除元大條件單 {p['oco_no']}({why or '部位變了'})")
+        if p["state"] == HOLDING and p["qty"] > 0 and p.get("tp") and p.get("sl") and self.positions.get(c) is p:
+            p["oco_no"] = None; self.oco_q.append(c)
+            self.gw.place_oco(c, p["mkt"], p["dir"], p["qty"], p["tp"], p["sl"])
+            self.log(f"[交易] {c} 掛元大停損停利條件單 {p['qty']} 張(停利 {p['tp']} / 停損 {p['sl']})")
+
     def on_strategy_reply(self, strategy_no, ok, msg):
         """元大新增條件單回應(只有 TRADE_BROKER_STOP=1 才會掛)"""
         with self.lock:
@@ -994,6 +1018,9 @@ class Trader:
             if ok and strategy_no:
                 p["oco_no"] = str(strategy_no).strip(); p["oco_live"] = True
                 self.log(f"[交易] {c} 元大條件單(OCO)已掛:策略編號 {p['oco_no']}(停利 {p['tp']} / 停損 {p['sl']})")
+                if p.pop("oco_redo", False): self.oco_refresh(p, "等回應時部位變了")
+                elif p["state"] != HOLDING or p["qty"] <= 0 or self.positions.get(c) is not p:   # 掛上去前部位已經在平 / 平完了 → 刪掉
+                    self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False; self.log(f"[交易] {c} 條件單掛好時部位已經不在持倉 → 刪除 {p['oco_no']}")
             else:
                 p["oco_no"] = ""; p["oco_live"] = False
                 self.log(f"[交易] !! {c} 元大條件單掛失敗:{msg} → 改由程式自己盯停利停損")
@@ -1652,7 +1679,7 @@ class Trader:
             self.log(f"[交易] 持倉 {p['code']} {p['judge']} {'多' if p['dir'] > 0 else '空'} {lots} 張 均價 {avg:.2f} 停利 {p['tp']} 停損 {p['sl']}")
             if self.broker_stop and p["tp"] and p["sl"]:
                 p["oco_no"] = None; self.oco_q.append(p["code"])
-                self.gw.place_oco(p["code"], p["mkt"], p["dir"], lots, p["tp"], p["sl"])
+                self.gw.place_oco(p["code"], p["mkt"], p["dir"], p["qty"] or lots, p["tp"], p["sl"])
             return
         # 平倉
         take = min(lots, max(p["qty"], 0)); extra = lots - take
