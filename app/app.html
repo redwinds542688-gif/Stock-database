@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-07 14:00(實際時間)拖輸視窗改小、標示清楚(使用者「拖輸視窗 … 只佔用股票監控區就好 不要遮住進場按鍵跟通知欄」「進場點 拖輸點 123點 都要明顯標示出來」):視窗從按鍵列下面開始(上面通知欄、五個按鍵照常可按),K 圖吃剩下的高度;圖上進場(綠點 + 標籤)、拖輸(橘色虛線 + 標籤)、① 爆量 ② 量縮 ③ 翻多(色點 + 標籤 + 紫色區間),標籤錯開不重疊
   · 2026-11-07 13:45(實際時間)再加速(使用者「看看還有什麼會拖慢速度的 再檢查」):① 電腦抓正在形成那根的即時價,原本 90 檔分 3 批一批一批問,改成 3 批同時問 ② 電腦每分鐘把今天的 K 寫進 90 個檔前都要重讀整週的檔,改成前幾天的列只讀一次記在記憶體 ③ 自己的 App 讀電腦通知從每 15 秒改每 5 秒(看盤版維持 15 秒)
   · 2026-11-07 13:40(實際時間)電腦再加速(使用者「看看還有什麼會拖慢速度的」):今天的 K 改成只抓最近 3 分鐘(原本每次整天重抓,下午上百 KB),每 10 分鐘整天對齊一次;寬度 / 名單平均和雲端通知對帳改成一開始就在背景同時抓(原本排在等到 K 之後一個一個做);等 K 每 0.5 秒問一次、等開算每 0.2 秒看一次
   · 2026-11-07 13:15(實際時間)拖輸通知加「①②③ 出現多久」(使用者「123先出現 表示反手增加 再出現拖輸 可能就是要反攻了」→ 好):電腦通知寫 ①②③ 第一次出現的時間 / 幾分鐘前,視窗多一行(≥ 45 分紅字「撐很久:較可能反攻」、< 45 分黃字「剛出現:較可能只是小反彈」、沒有就寫沒有);電腦另存 drag_日期.jsonl 累積實盤紀錄
@@ -308,7 +309,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611071345">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611071400">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -453,24 +454,25 @@
   #fmToast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);max-width:86vw;background:#1B2233;color:#E6EAF2;border:1px solid #4A5570;border-radius:10px;padding:8px 14px;font-size:15px;z-index:1200;opacity:0;pointer-events:none;transition:opacity .2s;text-align:center}
   #fmToast.on{opacity:1}
   /* 2026-11-07 12:48 使用者「提示時 … 程式也在股票監控區這 顯示一個(上面顯示「拖輸通知」下面顯示 K 圖)」→ 示意圖 →「下面應該顯示目前輸贏多少 加上一個強制平倉的拖曳」:拖輸通知視窗 */
-  #dragWin{position:fixed;inset:0;z-index:1090}
-  #dragWin .dwbg{position:absolute;inset:0;background:rgba(0,0,0,.66)}
-  #dragWin .dwp{position:absolute;left:8px;right:8px;top:7vh;max-height:88vh;overflow:auto;background:#141a26;border:3px solid #ff8c42;border-radius:16px;box-sizing:border-box}
-  #dragWin .dwh{display:flex;justify-content:space-between;align-items:center;background:#ff8c42;color:#2a1405;padding:8px 14px;font-weight:900;font-size:26px;border-radius:12px 12px 0 0}
-  #dragWin .dwh b{font-size:20px;font-family:var(--mono,monospace)}
-  #dragWin canvas{display:block;width:calc(100% - 16px);height:300px;margin:8px auto 0;background:#0f1115;border-radius:6px}
-  #dragWin .dwcm{color:#8C96AB;font-size:12px;text-align:center;min-height:14px;margin-top:2px}
-  #dragWin .dwt{color:#e8eaee;font-weight:800;font-size:19px;padding:6px 14px 2px}
-  #dragWin .dwr{display:flex;gap:10px;padding:2px 14px;font-size:15px} #dragWin .dwr span{color:#8C96AB;min-width:62px} #dragWin .dwr b{color:#ffb070;font-weight:500}
+  /* 2026-11-07 13:54 使用者「拖輸視窗 我覺得高度太高 能夠改成只佔用股票監控區就好 不要遮住進場按鍵跟通知欄」:視窗從按鍵列下面開始(top 由 JS 設成按鍵列底部),字和間距縮小、K 圖吃剩下的高度 */
+  #dragWin{position:fixed;left:0;right:0;bottom:0;top:0;z-index:1090}
+  #dragWin .dwbg{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+  #dragWin .dwp{position:absolute;left:4px;right:4px;top:4px;bottom:4px;display:flex;flex-direction:column;overflow:hidden;background:#141a26;border:3px solid #ff8c42;border-radius:14px;box-sizing:border-box}
+  #dragWin .dwh{display:flex;justify-content:space-between;align-items:center;background:#ff8c42;color:#2a1405;padding:5px 12px;font-weight:900;font-size:19px;border-radius:10px 10px 0 0;flex:none}
+  #dragWin .dwh b{font-size:16px;font-family:var(--mono,monospace)}
+  #dragWin canvas{display:block;width:calc(100% - 12px);flex:1 1 auto;min-height:120px;margin:6px auto 0;background:#0f1115;border-radius:6px}
+  #dragWin .dwcm{color:#8C96AB;font-size:10px;text-align:center;min-height:12px;margin-top:2px;flex:none}
+  #dragWin .dwt{color:#e8eaee;font-weight:800;font-size:16px;padding:3px 12px 0;flex:none}
+  #dragWin .dwr{display:flex;gap:10px;padding:1px 12px;font-size:13px;flex:none} #dragWin .dwr span{color:#8C96AB;min-width:52px} #dragWin .dwr b{color:#ffb070;font-weight:500}
   #dragWin .dwr.w b{color:#e8eaee}
-  #dragWin .dwpl{display:flex;justify-content:space-between;align-items:center;margin:10px 12px 0;padding:8px 12px;background:#2a1214;border:1px solid #5a2228;border-radius:10px}
-  #dragWin .dwpl span{color:#c9a0a4;font-size:14px;display:block} #dragWin .dwpl i{color:#e8eaee;font-style:normal;font-size:15px}
-  #dragWin .dwv{font-size:34px;font-weight:900;font-family:var(--mono,monospace)}
-  #dragWin .dwsl{position:relative;margin:12px 12px 6px;height:58px;border-radius:29px;background:#3a1418;border:2px solid #ff4d5e;touch-action:none;user-select:none;-webkit-user-select:none}
-  #dragWin .dwsl .dwtx{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ff8a8a;font-weight:800;font-size:18px;padding-left:40px;pointer-events:none}
-  #dragWin .dwsl .dwkn{position:absolute;left:4px;top:4px;width:50px;height:50px;border-radius:25px;background:#ff4d5e;color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-style:normal}
+  #dragWin .dwpl{display:flex;justify-content:space-between;align-items:center;margin:6px 10px 0;padding:5px 10px;background:#2a1214;border:1px solid #5a2228;border-radius:10px;flex:none}
+  #dragWin .dwpl span{color:#c9a0a4;font-size:12px;display:block} #dragWin .dwpl i{color:#e8eaee;font-style:normal;font-size:13px}
+  #dragWin .dwv{font-size:26px;font-weight:900;font-family:var(--mono,monospace)}
+  #dragWin .dwsl{position:relative;margin:8px 10px 4px;height:46px;border-radius:23px;background:#3a1418;border:2px solid #ff4d5e;touch-action:none;user-select:none;-webkit-user-select:none;flex:none}
+  #dragWin .dwsl .dwtx{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ff8a8a;font-weight:800;font-size:15px;padding-left:34px;pointer-events:none}
+  #dragWin .dwsl .dwkn{position:absolute;left:3px;top:2px;width:38px;height:38px;border-radius:19px;background:#ff4d5e;color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-style:normal}
   #dragWin .dwsl.sending{opacity:.6}
-  #dragWin .dwerr{color:#FFD24D;font-size:13px;text-align:center;min-height:16px;padding-bottom:8px}
+  #dragWin .dwerr{color:#FFD24D;font-size:12px;text-align:center;min-height:14px;padding-bottom:4px;flex:none}
   #fmWin{position:fixed;inset:0;z-index:1100}
   #fmWin .fmbg{position:absolute;inset:0;background:rgba(0,0,0,.55)}
   #fmWin .fmp0{position:absolute;left:0;right:0;bottom:0;background:#000;border-top:2px solid #4A5570;border-radius:16px 16px 0 0;padding:14px 14px 22px;color:#E6EAF2;font-family:var(--mono);box-sizing:border-box}
@@ -1859,7 +1861,7 @@ window.fmShow = fmShow;
   let timer = null;
   const close = () => { const w = document.getElementById('dragWin'); if (w) w.remove(); clearInterval(timer); timer = null; };
   window.dragClose = close;
-  function draw(cv, bars, split, e, iEnt, iAl){
+  function draw(cv, bars, split, e, iEnt, iAl, i3, dir, tEnt, tAl){
     const W = cv.clientWidth, H = cv.clientHeight, r = window.devicePixelRatio || 1; cv.width = W * r; cv.height = H * r;
     const g = cv.getContext('2d'); g.scale(r, r); g.fillStyle = '#0f1115'; g.fillRect(0, 0, W, H);
     const n = bars.length; if (!n) return;
@@ -1879,9 +1881,29 @@ window.fmShow = fmShow;
     const ma = k => bars.map((_, i) => i < k - 1 ? null : bars.slice(i - k + 1, i + 1).reduce((a, b) => a + b.close, 0) / k);
     line(ma(10), '#ffd166'); line(ma(28), '#4fc3f7');
     { let pv = 0, vv = 0; line(bars.map((b, i) => { if (i < split) return null; pv += b.close * (b.volume || 0); vv += (b.volume || 0); return vv ? pv / vv : null; }), '#c8a2ff', [4, 3]); }
-    g.font = 'bold 11px sans-serif';
-    if (iEnt >= 0){ g.fillStyle = '#26c281'; g.beginPath(); g.arc(X(iEnt), Y(e), 4, 0, 7); g.fill(); g.fillText('進 ' + e.toFixed(2), Math.min(X(iEnt) + 6, W - 70), Y(e) - 6); }
-    if (iAl >= 0){ g.fillStyle = '#ff8c42'; g.textAlign = 'right'; g.fillText('⚠⚠ 提示', X(iAl) - 4, T + 12); g.textAlign = 'left'; }
+    // 2026-11-07 13:58 使用者「進場點 拖輸點 123點 都要明顯標示出來」:點上畫記號,文字標籤放在固定的列(拖輸最上、進場第二列、①②③ 價格區底下)
+    //   標籤左右錯開不重疊,用細線連到那根 K
+    g.font = 'bold 12px sans-serif';
+    const lay = (items, y) => { items.sort((a, b) => a.x - b.x); let lastR = L;
+      for (const it of items){ it.w = g.measureText(it.t).width + 10; it.bx = Math.max(lastR + 4, it.x - it.w / 2); lastR = it.bx + it.w; }
+      let over = lastR - (W - R); if (over > 0) for (let k = items.length - 1; k >= 0; k--){ const it = items[k], lim = k ? items[k - 1].bx + items[k - 1].w + 4 : L; const sh = Math.min(over, it.bx - lim); it.bx -= over; if (k && it.bx < lim){ over = lim - it.bx; } else over = 0; }
+      for (const it of items){ g.strokeStyle = it.bg; g.lineWidth = 1.3; g.beginPath(); g.moveTo(Math.min(Math.max(it.x, it.bx + 3), it.bx + it.w - 3), y + (it.py > y ? 18 : 0)); g.lineTo(it.x, it.py); g.stroke(); g.lineWidth = 1;
+        g.fillStyle = it.bg; g.beginPath(); if (g.roundRect) g.roundRect(it.bx, y, it.w, 18, 4); else g.rect(it.bx, y, it.w, 18); g.fill();
+        g.fillStyle = it.fg; g.textBaseline = 'middle'; g.fillText(it.t, it.bx + 5, y + 10); g.textBaseline = 'alphabetic'; } };
+    const dot = (x, y, col, r) => { g.fillStyle = col; g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, r || 5, 0, 7); g.fill(); g.stroke(); g.lineWidth = 1; };
+    if (iAl >= 0){ g.strokeStyle = '#ff8c42'; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(X(iAl), T); g.lineTo(X(iAl), VB); g.stroke(); g.setLineDash([]); }
+    const r3 = [];
+    if (i3 >= 0 && i3 < n){ const d = -dir, a0 = Math.max(split, i3 - 60); let i1 = a0;
+      for (let k = a0; k <= i3; k++){ if (d > 0 ? bars[k].low < bars[i1].low : bars[k].high > bars[i1].high) i1 = k; }
+      g.fillStyle = 'rgba(200,162,255,.18)'; g.fillRect(X(i1) - bw, T, X(i3) - X(i1) + bw * 2, PH - T);
+      const py = k => d > 0 ? Y(bars[k].low) : Y(bars[k].high);
+      const pts = [[i1, '① 爆量 ' + hmOf(bars[i1].time), '#ff8c42'], [i3 - 1, '② 量縮 ' + hmOf(bars[i3 - 1].time), '#4fc3f7'], [i3, '③ 翻' + (d > 0 ? '多 ' : '空 ') + hmOf(bars[i3].time), '#c8a2ff']].filter((q, k) => k !== 1 || i3 - 1 > i1);
+      for (const [k, t, col] of pts){ dot(X(k), py(k), col, 4); r3.push({x: X(k), py: py(k), t, bg: col, fg: '#0f1115'}); } }
+    const top = [];
+    if (iAl >= 0){ dot(X(iAl), Y(bars[iAl].close), '#ff8c42', 5); top.push({x: X(iAl), py: Y(bars[iAl].close), t: '⚠⚠ 拖輸 ' + (tAl || ''), bg: '#ff8c42', fg: '#2a1405'}); }
+    const mid = [];
+    if (iEnt >= 0){ dot(X(iEnt), Y(e), '#26c281', 6); mid.push({x: X(iEnt), py: Y(e), t: '進場 ' + (tEnt || '') + ' ' + (dir > 0 ? '多' : '空') + ' ' + e.toFixed(2), bg: '#26c281', fg: '#06261a'}); }
+    if (top.length) lay(top, T + 2); if (mid.length) lay(mid, T + 24); if (r3.length) lay(r3, PH - 22);
     g.fillStyle = '#8C96AB'; g.font = '10px sans-serif';
     bars.forEach((b, i) => { const hm = hmOf(b.time); if (hm.endsWith(':00') || (i === split)) g.fillText(i === split ? '開盤' : hm, X(i) - 12, H - 2); });
   }
@@ -1904,6 +1926,7 @@ window.fmShow = fmShow;
         const mm = +m3[2], late = mm >= 45; return `<div class="dwr"><span>①②③</span><b style="color:${late ? '#ff4d5e' : '#ffd166'}">${m3[1]} 出現(${mm} 分鐘前)${late ? '　撐很久:較可能反攻' : '　剛出現:較可能只是小反彈'}</b></div>`; })()}
       <div class="dwpl"><div><span>目前輸贏</span><i class="dwpx">—</i></div><b class="dwv">—</b></div>
       <div class="dwsl"><span class="dwtx">向右滑到底　強制平倉 ▶▶</span><i class="dwkn">▶</i></div><div class="dwerr"></div></div>`;
+    { const tb = document.querySelector('.toolbar'); const top = tb ? Math.round(tb.getBoundingClientRect().bottom) : 0; w.style.top = Math.max(0, top) + 'px'; }   // 只蓋股票監控區(按鍵列以下)
     document.body.appendChild(w);
     w.querySelector('.dwbg').addEventListener('click', close);
     const pos = {dir, e: e0, q: lots0, real: false};
@@ -1925,7 +1948,9 @@ window.fmShow = fmShow;
         const bars = A.concat(B); if (!bars.length){ cm.textContent = '拿不到 K 線'; return; }
         const iEnt = A.length + B.findIndex(q => hmOf(q.time) > t0), iAl = A.length + B.findIndex(q => hmOf(q.time) >= at);
         cm.textContent = `${pd.slice(5).replace('-', '/')} ${cut} → ${td.slice(5).replace('-', '/')} ${cut}　黃 K10 藍 K28 紫 VWAP`;
-        draw(cv, bars, A.length, pos.e || e0, iEnt >= A.length ? iEnt : -1, iAl >= A.length ? iAl : -1);
+        const m3 = /①②③\s*(\d\d:\d\d)/.exec(b), i3 = m3 ? A.length + B.findIndex(q => hmOf(q.time) === m3[1]) : -1;
+        const paintK = () => draw(cv, bars, A.length, pos.e || e0, iEnt >= A.length ? iEnt : -1, iAl >= A.length ? iAl : -1, i3 >= A.length ? i3 : -1, dir, t0, at);
+        requestAnimationFrame(paintK); window.addEventListener('resize', paintK, {once: true});
       }catch(err){ cm.textContent = 'K 線載入失敗'; } })();
     // 向右滑到底 = 強制平倉(和長按的強制平倉送同一個指令)
     const sl = w.querySelector('.dwsl'), kn = w.querySelector('.dwkn'), er = w.querySelector('.dwerr'); let drag = null;
