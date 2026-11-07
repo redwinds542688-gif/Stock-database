@@ -685,6 +685,26 @@ class Engine:
         if y: it["prev"] = y
         return self.push(it)
 
+    @staticmethod
+    def raw123(rows, i, d):
+        """2026-11-07 判七原始 ①②③(不看 4 特徵),d=+1 做多方向(①爆量殺到底 ②量縮 ③力道翻多),d=-1 反過來;rows = 今天 [hm,o,h,l,c,v](和回測 rb_j5x._raw123 同一套)"""
+        if i < 12: return False
+        v = [r[5] for r in rows[:i + 1]]; c = [r[4] for r in rows[:i + 1]]; h = [r[2] for r in rows[:i + 1]]; l = [r[3] for r in rows[:i + 1]]
+        a = max(0, i - 60); va = sum(v) / len(v)
+        if (v[i - 1] + v[i]) / 2 > va * 0.35 + 1e-9: return False
+        def R(j):
+            bb = max(1, j - 9); u = sum(v[k] for k in range(bb, j + 1) if c[k] > c[k - 1]); dn = sum(v[k] for k in range(bb, j + 1) if c[k] < c[k - 1])
+            return (u - dn) / (u + dn) if u + dn > 0 else 0.0
+        r = R(i)
+        if not (r * d > 0 and min(R(i - q) * d for q in (1, 2, 3)) < 0): return False
+        if d > 0:
+            seg = l[a:i + 1]; ex = min(seg); ie = a + seg.index(ex); oth = max(h[a:ie + 1])
+            if (oth - ex) / ex * 100 < 2 - 1e-9 or (c[i] - ex) / ex * 100 > 1.5 + 1e-9 or ie >= i: return False
+        else:
+            seg = h[a:i + 1]; ex = max(seg); ie = a + seg.index(ex); oth = min(l[a:ie + 1])
+            if (ex - oth) / oth * 100 < 2 - 1e-9 or (ex - c[i]) / ex * 100 > 1.5 + 1e-9 or ie >= i: return False
+        return max(v[max(a, ie - 5):ie + 1]) >= va * 1.3 - 1e-9
+
     def drag_check(self, bars, hm):
         """2026-11-07 11:55 使用者「做出 中級 提示」(定義:「進場後一直沒往對的方向走、帳面小虧、大盤反向走」= 可能拖到 13:20 的輸單):
            開著的部位進場滿 DRAG_MIN(60)分鐘後,只要「曾順向 < DRAG_MFE(0.3)%、現在帳面虧、名單平均反向走 ≥ DRAG_MKT(0.5)點」→ 推一則中級提示(kind lv2 = 手機「⚠⚠ 警告」那級的顏色 / 聲音)。
@@ -710,10 +730,23 @@ class Engine:
             if m0 is None or m1 is None: continue
             against = (m1 - m0) * (-sd)
             if mfe < a_mfe - 1e-9 and cur < 0 and against >= a_mkt - 1e-9:
+                # 2026-11-07 13:10 使用者「123先出現 表示反手增加 再出現拖輸 可能就是要反攻了」→ 好:通知加「①②③ 什麼時候出現 / 幾分鐘前」(反方向的原始 ①②③,進場後第一次);
+                #   21 天:①②③ 早於提示 ≥ 45 分 11 筆 9 輸、< 45 分 5 筆全贏(樣本小,先只顯示、不改規則)
+                allr = sorted(bars.get(code) or []); i0 = next((q for q, r in enumerate(allr) if r[0] > p["t"]), None); t123 = None
+                if i0 is not None:
+                    for q in range(i0, len(allr)):
+                        if allr[q][0] > hm: break
+                        if self.raw123(allr, q, -sd): t123 = allr[q][0]; break
+                def _mm(x): return int(x[:2]) * 60 + int(x[3:5])
+                s123 = f"、①②③ {t123}({_mm(hm) - _mm(t123)} 分鐘前)" if t123 else "、沒有①②③"
+                try:
+                    with open(DATA / f"drag_{self.day}.jsonl", "a", encoding="utf-8") as f:   # 累積實盤紀錄(之後看 ①②③ 間隔準不準)
+                        f.write(json.dumps({"d": self.day, "hm": hm, "rs": rs, "code": code, "t": p["t"], "px": e, "side": sd, "mfe": round(mfe, 3), "cur": round(cur, 3), "mkt": round(against, 3), "t123": t123}, ensure_ascii=False) + "\n")
+                except Exception: pass
                 nm = self.names.get(code, code); side = "做多" if sd > 0 else "做空"
                 title = f"⚠⚠ 可能拖輸 {nm} {code}"
                 body = (f"{hm} {side} {p['t']} 進 {e:.2f} · {p.get('lots') or max(1, int(self.cap // (e * 1000)))}張,進場 {len(rows)} 分鐘:曾順向只有 {mfe:.2f}%、現價 {rows[-1][4]:.2f} 帳面 {cur:+.2f}%、"
-                        f"名單平均 {m0:+.2f} → {m1:+.2f}(反向 {against:+.2f} 點)· {JUDGE[rs]} · 只提示不平倉,請自行判斷")
+                        f"名單平均 {m0:+.2f} → {m1:+.2f}(反向 {against:+.2f} 點){s123} · {JUDGE[rs]} · 只提示不平倉,請自行判斷")
                 it = {"d": self.day, "t": hm, "title": title, "body": body, "kind": "lv2", "key": f"drag|{code}|{JUDGE[rs]}|{p['t']}"}
                 # 2026-11-07 使用者「這會不會影響通知速度」:提示改在背景執行緒推(Worker 慢 / 掛掉時最多會卡 ~66 秒,不能擋到下一分鐘的進場通知);推成功才記,下一輪存檔
                 self.drag.add(k)
