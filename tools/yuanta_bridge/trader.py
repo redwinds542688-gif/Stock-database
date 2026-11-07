@@ -320,6 +320,12 @@ class Trader:
                         self.pnl += (t["price"] - avg) * lots * 1000 * d - self.cost_amt(avg if d > 0 else t["price"], t["price"] if d > 0 else avg, lots)
                 net[c] = n1
             open_mine = [c for c, n in net.items() if n != 0 and by.get(c)]
+            if self.hm() < self.force_exit:   # 2026-11-08 01:00 盤中重開:元大上還掛著的手動平倉單 = 預掛(程式讓位、不掛條件單)
+                for w in working:
+                    c = w["code"]; n = net.get(c, 0)
+                    if n and not str(w.get("tag") or "").strip() and w["bs"] == ("S" if n > 0 else "B") and w.get("no"):
+                        self.prehang.setdefault(c, []).append(w["no"]); self.man_meta[w["no"]] = {"bs": w["bs"], "typ": w.get("typ", ""), "lots": w["lots"], "fl": 0}
+                        self.log(f"[交易] 接回:{c} 元大有手動預掛平倉 {w['lots']} 張(書號 {w['no']})→ 程式讓位、不掛條件單")
             for w in working:                                       # 強制進場單還掛著、還沒成交(沒有部位)→ 接成「進場中」
                 c, tg = w["code"], str(w.get("tag", ""))
                 if tg[:1] == "F" and net.get(c, 0) == 0 and c not in self.positions:
@@ -340,7 +346,11 @@ class Trader:
                     if otyp.get(c): p["typ"] = otyp[c]
                     p.update({"qty": abs(n), "entry": avg, "state": HOLDING, "t0": "", "tp_pct": self.y3_tp, "sl_pct": self.y3_sl}); self.set_forced_tpsl(p, avg)
                     self.resume_exiting(p, working)
-                    self.sub(p)
+                    self.sub(p); p["y3_posted"] = True
+                    if p["state"] == HOLDING:
+                        mo = [x for x in strategies if x.get("code") == c]
+                        if mo: p["oco_no"] = mo[-1]["no"]; p["oco_live"] = True
+                        self.oco_refresh(p, "接回元三")   # 2026-11-08 01:00 元三接回也照規則掛 / 刪條件單
                     self.log(f"[交易] 接回元三 {c} {'多' if d > 0 else '空'} {abs(n)} 張 均價 {avg:.2f}(停利 {p['tp']} 停損 {p['sl']})")
             elif manual:
                 self.log(f"[交易] 接回:{', '.join(manual)} 有未平部位但不是程式開的(手動),不管")
@@ -488,9 +498,10 @@ class Trader:
                 if p:
                     if n == 0 or (n > 0) != (p["dir"] > 0):
                         self.log(f"[交易] 對帳:{c} 元大已經沒有這個部位(程式記 {mine})→ 結束"); p["order"] = None; self.positions.pop(c, None)
+                        if p.get("oco_live"): self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False; self.log(f"[交易] 對帳:{c} 部位沒了 → 刪除元大條件單 {p['oco_no']}")
                         if n == 0: continue
                     else:
-                        self.log(f"[交易] 對帳:{c} 程式記 {abs(mine)} 張、元大 {abs(n)} 張 → 以元大為準"); p["qty"] = abs(n); continue
+                        self.log(f"[交易] 對帳:{c} 程式記 {abs(mine)} 張、元大 {abs(n)} 張 → 以元大為準"); p["qty"] = abs(n); self.oco_refresh(p, "對帳張數以元大為準"); continue
                 d = 1 if n > 0 else -1; px = self.last_px.get(c) or 0
                 if opener.get(c, "")[:1] in ("T", "F", "R"):
                     self.log(f"[交易] !! 對帳:{c} 元大有 {abs(n)} 張{'多' if d > 0 else '空'}單、程式不知道(程式的單晚到 / 多平)→ 馬上平掉")
@@ -705,6 +716,7 @@ class Trader:
                             lots = qty_shares // 1000; tot = p2["qty"] + lots
                             p2["entry"] = (p2["entry"] * p2["qty"] + price * lots) / tot if tot else p2["entry"]; p2["qty"] = tot; self.amount_today += price * lots * 1000
                             self.log(f"[交易] {p2['code']} 進場單({p2['entry_tag']})晚到的成交 {lots} 張 @ {price} → 併進部位,共 {tot} 張 均價 {p2['entry']:.2f}")
+                            if p2["state"] == HOLDING: self.oco_refresh(p2, "進場晚到成交併入")
                             if p2["state"] == EXITING:
                                 self.resize_exit(p2, "平倉中又收到進場單晚到的成交")
                             return
@@ -778,7 +790,7 @@ class Trader:
                     except Exception as e: self.log(f"[交易] 預掛卡發送失敗 {e!r}")
             return
         if status != 0 or not p or p["state"] != HOLDING or bs != close_side(p["dir"]) or no in lst: return
-        lst.append(no); self.prehang[code] = lst; self.man_meta[no] = {"bs": bs, "typ": typ}
+        lst.append(no); self.prehang[code] = lst; self.man_meta[no] = {"bs": bs, "typ": typ, "lots": qty_shares // 1000, "fl": 0}
         self.oco_refresh(p, "手動預掛:預掛跟條件單不同時存在")   # 2026-11-08 00:55 使用者「預掛當下 條件單直接撤除」(有預掛 oco_ok=False → 只刪不掛)
         lots = qty_shares // 1000
         self.log(f"[交易] {code} 看到手動預掛平倉 {'買回' if bs == 'B' else '賣出'} {lots} 張 @ {price}(書號 {no})→ 程式讓位:停利 / 停損先不平,等預掛成交({self.prehang_deadline} 前沒成交由程式平)")
@@ -814,6 +826,9 @@ class Trader:
                 if p.get("sl"): p["sl"] = round(p["entry"] * p["sl"] / e0, 2)
             self.log(f"[交易] {p['judge']} {code} 元大手動同方向成交 {lots} 張(委託 {order_no})→ 併進程式部位,共 {tot} 張 均價 {p['entry']:.2f} 停利 {p['tp']} 停損 {p['sl']}")
             if p["state"] == HOLDING: self.oco_refresh(p, "手動加碼")
+            if self.prehang.get(code):   # 2026-11-08 01:00 預掛期間又加碼 → 預掛張數不夠了,提醒
+                ph = sum((self.man_meta.get(n) or {}).get("lots", 0) - (self.man_meta.get(n) or {}).get("fl", 0) for n in self.prehang[code])
+                self.alert(f"⚠ {self.name_of(code)} {code} 加碼後預掛張數不夠", f"部位 {tot} 張、預掛 {ph} 張;程式仍讓位給預掛,沒平到的請改預掛張數({self.prehang_deadline} 前沒成交由程式平)")
             if p.get("judge") != MANUAL:
                 self.alert(f"✅ {self.name_of(code)} {code} 手動加碼 {lots} 張已交給程式", f"共 {tot} 張 均價 {p['entry']:.2f}(停利 {p['tp']} / 停損 {p['sl']}),平倉時全部一起平")
             # 2026-11-05 12:33 使用者「我是永久會員 這手動單 要加入進場」(宏碁手動加買 3 張,當沖有、進場沒有):手動加碼也在進場欄發一張卡(標「加碼」,張數 = 這次加的);
@@ -883,7 +898,13 @@ class Trader:
                 else: _post_y3()
                 return
         if p and p["state"] in (HOLDING, EXITING) and bs == close_side(p["dir"]):
-            if order_no and order_no in (self.prehang.get(code) or []): self.__dict__.setdefault("_ph_filled", set()).add(order_no)
+            ph_done = False
+            if order_no and order_no in (self.prehang.get(code) or []):
+                self.__dict__.setdefault("_ph_filled", set()).add(order_no)
+                m = self.man_meta.get(order_no) or {}; m["fl"] = m.get("fl", 0) + lots
+                if m.get("lots") and m["fl"] >= m["lots"]:            # 2026-11-08 01:00 預掛這張成交完了 → 從預掛清單拿掉(剩下的部位程式恢復盯 + 補條件單)
+                    lst = self.prehang.get(code) or []; lst.remove(order_no); self.man_meta.pop(order_no, None); ph_done = not lst
+                    if not lst: self.prehang.pop(code, None)
             take = min(lots, max(p["qty"], 0)); extra = lots - take
             self.log(f"[交易] {code} 不是程式送的平倉單成交 {lots} 張 @ {price}(元大條件單 / 手動)")
             p["exit_why"] = p.get("exit_why") or "元大條件單 / 手動"
@@ -891,6 +912,10 @@ class Trader:
             #   元大的條件單不會自己消失 → 程式刪掉;只平一部分 → 照剩下張數重掛。價格到了停利 / 停損 = 條件單自己在平,不動它
             oco_hit = p.get("oco_live") and p.get("tp") and p.get("sl") and ((price >= p["tp"] or price <= p["sl"]) if p["dir"] > 0 else (price <= p["tp"] or price >= p["sl"]))
             self.book_close(p, take, price)
+            if ph_done and p["state"] == HOLDING and p["qty"] > 0:
+                self.log(f"[交易] {code} 手動預掛成交完,還剩 {p['qty']} 張 → 程式恢復盯停利 {p['tp']} / 停損 {p['sl']}")
+                self.alert(f"↩ {self.name_of(code)} {code} 預掛成交完,還剩 {p['qty']} 張", f"程式恢復盯停利 {p['tp']} / 停損 {p['sl']}")
+                self.oco_refresh(p, "預掛成交完 → 條件單補回剩下張數")
             if p.get("oco_live") and (not oco_hit or p["qty"] <= 0):   # 2026-11-08 00:55 部位歸零一律刪(條件單已觸發的刪了也無害;沒刪會留著開出反向新部位)
                 if p["state"] == HOLDING and p["qty"] > 0 and self.positions.get(code) is p: self.oco_refresh(p, "元平一部分")
                 else: self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False; self.log(f"[交易] {code} 元平 → 刪除元大條件單 {p['oco_no']}")
