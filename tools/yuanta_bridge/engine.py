@@ -224,6 +224,26 @@ def today_bars(day, since=""):
     return j.get("bars", {}), j.get("last", "")
 
 
+_TB = {"d": "", "rows": {}, "last": "", "full_at": 0.0}
+def today_bars_fast(day):
+    """2026-11-07 13:25 使用者「看看還有什麼會拖慢速度的」:原本每分鐘(等 K 時每秒)整天的 K 全部重抓一次(下午 ~90 檔 × 260 根,上百 KB);
+       改成只抓最近 3 分鐘(since,晚到成交整分鐘重送也抓得到)併進手上那份,每 10 分鐘(或換日、出錯)整天重抓一次對齊。回傳格式和 today_bars 一樣"""
+    full = _TB["d"] != day or not _TB["last"] or time.time() - _TB["full_at"] > 600 or CFG.get("ENGINE_BARS_INC", "1") != "1"
+    try:
+        if full:
+            bars, last = today_bars(day); _TB.update(d=day, rows={c: {r[0]: r for r in rows} for c, rows in bars.items()}, last=last or latest_bar(bars), full_at=time.time())
+        else:
+            bars, last = today_bars(day, since=hm_add(_TB["last"], -3))
+            for c, rows in bars.items():
+                dc = _TB["rows"].setdefault(c, {})
+                for r in rows: dc[r[0]] = r
+            lb = last or latest_bar(bars)
+            if lb and lb > _TB["last"]: _TB["last"] = lb
+    except Exception:
+        _TB["full_at"] = 0.0; raise
+    return {c: [d[m] for m in sorted(d)] for c, d in _TB["rows"].items()}, _TB["last"]
+
+
 def latest_bar(bars, last=""):
     xs = [r[0] for rows in bars.values() for r in rows]
     return max(xs + ([last] if last else [])) if (xs or last) else ""
@@ -962,7 +982,7 @@ def live():
                 except Exception as e: log("預判確認失敗", repr(e))
                 continue
             if hm < "09:01" or n.second < start_sec or hm in done:   # 2026-11-07 中繼換分鐘第 1 秒就推 K → 開算從第 4 秒提早到第 2 秒(ENGINE_START_SEC;下面還是會等 hm-1 那根到齊)
-                time.sleep(0.5 if pre_on else 1); continue
+                time.sleep(0.5 if pre_on else 0.2); continue   # 2026-11-07 等開算 1 → 0.2 秒(第 2 秒準時開)
             done.add(hm)
             c2 = cloud_cap(eng.cap) if hm < "09:03" else eng.cap   # 2026-11-02 跟 5861 主導機的多空上限(通知裡的張數);盤中設定禁改 → 只在開盤頭兩分鐘再確認
             if c2 != eng.cap: log(f"多空上限 {eng.cap:,} → {c2:,}(5861 主導機)"); eng.cap = c2
@@ -976,12 +996,22 @@ def live():
                         if add: log(f"名單外股票加入:{add}(中繼已補 K)")
                         eng.set_universe(nu)
                     except Exception as e: log("名單外股票加入失敗", repr(e))
+                # 2026-11-07 使用者「看看還有什麼會拖慢速度的」:寬度 / 名單平均(Worker ?breadth)和雲端通知對帳(?log=get)原本排在等到 K 之後一個一個做 → 一開始就在背景同時做,開算前等它們做完
+                _bg = {}
+                def _bg_br():
+                    try: _bg["br"] = write_breadth(day)
+                    except Exception as e: _bg["br"] = (False, 0, ""); log("寬度背景抓失敗", repr(e))
+                def _bg_sync():
+                    try: eng.sync_cloud()
+                    except Exception as e: log("雲端通知對帳失敗", repr(e))
+                _ths = [threading.Thread(target=_bg_br, daemon=True), threading.Thread(target=_bg_sync, daemon=True)]
+                for _t in _ths: _t.start()
                 # 等 hm-1 那根上來(稽核 #6)
                 want = hm_add(hm, -1); t_end = time.time() + bar_wait
                 while True:
-                    bars, last = today_bars(day); lb = latest_bar(bars, last)
+                    bars, last = today_bars_fast(day); lb = latest_bar(bars, last)   # 2026-11-07 只抓最近幾分鐘
                     if lb >= want or time.time() >= t_end: break
-                    time.sleep(1)   # 2026-11-06 3 → 1 秒
+                    time.sleep(0.5)   # 2026-11-06 3 → 1 秒;2026-11-07 → 0.5 秒
                 forming = live_forming(eng.codes, eng.mkts, hm, bars)
                 write_today(day, bars, upto=hm, forming=forming)
                 eng.last_hm = {}
@@ -989,7 +1019,7 @@ def live():
                     if rows: r = max(rows); eng.px[c] = r[4]; eng.last_hm[c] = r[0]
                 for c, r in forming.items(): eng.px[c] = r[4]; eng.last_hm[c] = max(eng.last_hm.get(c, ""), r[0])
                 # 寬度每分鐘(稽核 #1)
-                ok, nbr, blast = write_breadth(day)
+                _ths[0].join(35); ok, nbr, blast = _bg.get("br", (False, 0, ""))
                 if ok: br.update(ok_at=time.time(), last=blast)
                 rs_block = {}
                 if not br["last"] or time.time() - br["ok_at"] > 180 or (hm < "13:26" and br["last"] < hm_add(hm, -5)):
@@ -1002,7 +1032,7 @@ def live():
                 if not eng.codes: off.append("名單是空的")
                 if stale_bars: off.append(f"K 只到 {lb or '(沒有)'}")
                 if late_n >= 3: off.append(f"K 連續 {late_n} 分鐘晚到")
-                eng.sync_cloud()
+                _ths[1].join(15)
                 # 2026-11-06 13:24 使用者「還有什麼可以再更快的」:算完一檔就對帳發通知,不等整輪(順序和以前一樣)
                 eng.upto_hm = hm
                 t0c = time.time(); it, njobs = eng.compute(stream=True); res = []; errs = 0; n_ev = 0
