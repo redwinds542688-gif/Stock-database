@@ -311,7 +311,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611071533">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611071534">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -585,9 +585,9 @@
   #notifLog .hd .vbtn.rvb.on{background:#FFD54F;color:#000;border-color:#fff;box-shadow:0 0 0 2px #000,0 0 0 3.5px #FFD54F}
   #notifLog .hd .vbtn.rvb.dot::before{content:'';position:absolute;top:3px;left:3px;width:8px;height:8px;border-radius:50%;background:#FF3B30;box-shadow:0 0 5px #FF3B30;animation:rvBlink 1s steps(1,end) infinite}
   @keyframes rvBlink{0%{opacity:1}50%{opacity:0}}
-  #notifLog .rvw{grid-column:1/-1;grid-row:2/-1;overflow:auto;padding:2px 8px 6px;font-size:clamp(12px,3.5vw,15px);line-height:1.45;color:#E6EAF2}
+  #notifLog .rvw{grid-column:1/-1;grid-row:2/-1;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;padding:0 8px 14px;font-size:clamp(11px,3.2vw,14px);line-height:1.38;color:#E6EAF2;-webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 14px),transparent);mask-image:linear-gradient(180deg,#000 calc(100% - 14px),transparent)}   /* 2026-11-07 18:52 使用者「通知欄切到字」:字小一點、底部淡出、可上下滑看完 */
   #notifLog .rvw .rvt{display:flex;justify-content:space-between;color:#FFD54F;font-weight:800;font-size:1.15em} #notifLog .rvw .rvt i{color:#8C96AB;font-style:normal;font-weight:400;font-size:.8em}
-  #notifLog .rvw .rvr{display:flex;align-items:baseline;gap:12px} #notifLog .rvw .rvr span{color:#8C96AB} #notifLog .rvw .rvr b{font-size:1.45em;font-variant-numeric:tabular-nums}
+  #notifLog .rvw .rvr{display:flex;align-items:baseline;gap:12px} #notifLog .rvw .rvr span{color:#8C96AB} #notifLog .rvw .rvr b{font-size:1.3em;font-variant-numeric:tabular-nums}
   #notifLog .rvw .up{color:#FF5A5A} #notifLog .rvw .dn{color:#2ED47A} #notifLog .rvw .rvs{color:#C9D1E0}
   #notifLog .rvw .rvh{color:#ff8c42;font-weight:800;margin-top:4px} #notifLog .rvw ul{margin:0;padding-left:1.2em} #notifLog .rvw li{margin:1px 0} #notifLog .rvw .rv0{color:#8C96AB}
   #notifLog .usk{position:relative;display:grid;grid-template-columns:1fr 31%;column-gap:4px;align-items:stretch;min-height:0;background:linear-gradient(#1E2636,#151A25);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:6px 6px 6px 9px;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
