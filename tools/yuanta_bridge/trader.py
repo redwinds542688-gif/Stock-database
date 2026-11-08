@@ -326,8 +326,12 @@ class Trader:
                 for w in working:
                     c = w["code"]; n = net.get(c, 0)
                     if n and not str(w.get("tag") or "").strip() and w["bs"] == ("S" if n > 0 else "B") and w.get("no"):
-                        self.prehang.setdefault(c, []).append(w["no"]); self.man_meta[w["no"]] = {"bs": w["bs"], "typ": w.get("typ", ""), "lots": w["lots"], "fl": 0}
+                        self.prehang.setdefault(c, []).append(w["no"]); self.man_meta[w["no"]] = {"bs": w["bs"], "typ": w.get("typ", ""), "lots": w["lots"], "fl": 0, "px": w.get("px") or 0}
                         self.log(f"[交易] 接回:{c} 元大有手動預掛平倉 {w['lots']} 張(書號 {w['no']})→ 程式讓位、不掛條件單")
+            for w in working:                                       # 2026-11-08 16:00 預掛扣額度:重開時元大上還掛著的手動新進場 / 加碼預掛也記起來(進場前先扣額度,不重發卡)
+                no = w.get("no")
+                if no and not str(w.get("tag") or "").strip() and no not in self.man_meta and no not in self.man_cards:
+                    self.man_cards[no] = {"lots": w["lots"], "px": w.get("px") or 0, "d": 1 if w["bs"] == "B" else -1, "fl": 0, "code": w["code"]}
             for w in working:                                       # 強制進場單還掛著、還沒成交(沒有部位)→ 接成「進場中」
                 c, tg = w["code"], str(w.get("tag", ""))
                 if tg[:1] == "F" and net.get(c, 0) == 0 and c not in self.positions:
@@ -765,7 +769,7 @@ class Trader:
             if status == 0 and mc is None:
                 lots = qty_shares // 1000; d = 1 if bs == "B" else -1
                 what = ("預掛加碼" if p and p["dir"] == d else "預掛") + ("做多" if d > 0 else "做空")
-                self.man_cards[no] = {"lots": lots, "px": price, "d": d}
+                self.man_cards[no] = {"lots": lots, "px": price, "d": d, "fl": 0, "code": code}
                 self.log(f"[交易] {code} 看到手動{what} {lots} 張 @ {price or '市價'}(書號 {no})→ 進場欄發預掛卡,成交後變元三")
                 try: self.post(f"{self.name_of(code)} {code} {what} {price:g}" if price else f"{self.name_of(code)} {code} {what} 市價",
                                f"{self.hm()} {'做多' if d > 0 else '做空'} · {lots}張 · 預掛 · 元三", "warn")
@@ -793,7 +797,7 @@ class Trader:
                     except Exception as e: self.log(f"[交易] 預掛卡發送失敗 {e!r}")
             return
         if status != 0 or not p or p["state"] != HOLDING or bs != close_side(p["dir"]) or no in lst: return
-        lst.append(no); self.prehang[code] = lst; self.man_meta[no] = {"bs": bs, "typ": typ, "lots": qty_shares // 1000, "fl": 0}
+        lst.append(no); self.prehang[code] = lst; self.man_meta[no] = {"bs": bs, "typ": typ, "lots": qty_shares // 1000, "fl": 0, "px": price or 0}
         self.oco_refresh(p, "手動預掛:預掛跟條件單不同時存在")   # 2026-11-08 00:55 使用者「預掛當下 條件單直接撤除」(有預掛 oco_ok=False → 只刪不掛)
         lots = qty_shares // 1000
         self.log(f"[交易] {code} 看到手動預掛平倉 {'買回' if bs == 'B' else '賣出'} {lots} 張 @ {price}(書號 {no})→ 程式讓位:停利 / 停損先不平,等預掛成交({self.prehang_deadline} 前沒成交由程式平)")
@@ -809,6 +813,8 @@ class Trader:
         p = self.positions.get(code)
         close_side = lambda d: "B" if d < 0 else "S"
         lots = qty_shares // 1000
+        mc = self.man_cards.get(order_no) if order_no else None
+        if mc is not None: mc["fl"] = mc.get("fl", 0) + lots   # 2026-11-08 16:00 預掛扣額度:手動預掛(新進場 / 加碼)成交的張數不再算掛著
         # 2026-11-07 23:34 使用者「如果真的出現這樣情況 電腦需要再次出手強平」:強平時程式取消的手動預掛,取消前還是成交了 →
         #   不接成元三,多出來的部位馬上再強平(做多跌停賣、做空漲停買)
         if order_no and order_no in self.ph_cancel and lots > 0 and not (p and p["state"] in (HOLDING, EXITING) and bs == close_side(p["dir"])):
@@ -1541,11 +1547,11 @@ class Trader:
         lots = max(1, int(self.cap // (px_sig * 1000))) if self.cap > 0 else self.qty   # 2026-10-30 張數照多空上限(訊號價算,和通知上的張數一樣)
         if it.get("_over") and self.cap > 0: lots = max(1, int(self.cap // (last * 1000)))   # 超額補進場:照現價算張數
         if self.max_amount > 0:                                 # 2026-10-27 一天成交總金額上限(買 + 賣都算):剩的額度夠幾張就掛幾張
-            hold = self.hold_reserve(); lu = self.lu_of(code, price)
-            room = self.max_amount - self.amount_today - hold          # 2026-11-02 照元大:持倉的部位先用漲停價扣贖回額度
+            hold = self.hold_reserve(); lu = self.lu_of(code, price); pend = self.pend_reserve()
+            room = self.max_amount - self.amount_today - hold - pend   # 2026-11-02 照元大:持倉的部位先用漲停價扣贖回額度;2026-11-08 手動預掛還掛著的也先扣
             fit = int(room // ((price + lu) * 1000))                    #   新單每張 = 進場價 + 漲停價(元大一樣這樣先扣)
             if fit < 1:
-                self.log(f"[交易] 不進場 {title}:今天成交 {self.amount_today:,.0f} + 持倉漲停預留 {hold:,.0f},剩 {room:,.0f} 不夠 1 張(進場 {price} + 漲停 {lu};上限 {self.max_amount:,.0f})"); return
+                self.log(f"[交易] 不進場 {title}:今天成交 {self.amount_today:,.0f} + 持倉漲停預留 {hold:,.0f} + 預掛 {pend:,.0f},剩 {room:,.0f} 不夠 1 張(進場 {price} + 漲停 {lu};上限 {self.max_amount:,.0f})"); return
             if fit < lots:
                 self.log(f"[交易] 額度只夠 {fit} 張(今天成交金額 {self.amount_today:,.0f} / 上限 {self.max_amount:,.0f}),{lots} 張改掛 {fit} 張"); lots = fit
         p = self.new_pos(code, d, judge, title, tp=tp_sig, sl=sl_sig)
@@ -1592,7 +1598,29 @@ class Trader:
         s = 0.0
         for c, p in self.positions.items():
             if p.get("state") in (states or (ENTERING, HOLDING, EXITING)) and p.get("qty", 0) > 0:
-                s += p["qty"] * self.lu_of(c, p.get("entry") or 0) * 1000
+                q = max(0, p["qty"] - self.ph_lots(c))           # 2026-11-08 16:00 有手動預掛平倉單的張數改照預掛價扣(pend_reserve),不重複用漲停扣
+                s += q * self.lu_of(c, p.get("entry") or 0) * 1000
+        return s
+
+    def ph_lots(self, code):
+        """這檔手動預掛平倉單還沒成交的張數"""
+        return sum(max(0, (self.man_meta.get(no) or {}).get("lots", 0) - (self.man_meta.get(no) or {}).get("fl", 0)) for no in (self.prehang.get(code) or []))
+
+    # 2026-11-08 16:00 使用者「預掛單 需要先扣資金額度」:元大掛單當下就扣額度 → 程式進場前算剩多少額度時,手動預掛還掛著的也要先扣:
+    #   平倉預掛 = 剩下張數 × 預掛價(那幾張不再用漲停扣,見 hold_reserve);新進場 / 加碼預掛 = 剩下張數 ×(預掛價 + 漲停價),跟程式自己的新單一樣;市價單沒價格用漲停價
+    def pend_reserve(self):
+        s = 0.0
+        for c, lst in self.prehang.items():
+            lu = self.lu_of(c, self.last_px.get(c) or 0)
+            for no in lst:
+                m = self.man_meta.get(no) or {}; left = max(0, m.get("lots", 0) - m.get("fl", 0))
+                s += left * (m.get("px") or lu) * 1000
+        for no, mc in self.man_cards.items():
+            if mc.get("end"): continue
+            left = max(0, mc.get("lots", 0) - mc.get("fl", 0))
+            if left:
+                c = mc.get("code", ""); lu = self.lu_of(c, mc.get("px") or self.last_px.get(c) or 0)
+                s += left * ((mc.get("px") or lu) + lu) * 1000
         return s
 
     # ── 下單 ──
@@ -1647,7 +1675,7 @@ class Trader:
         if why:
             self.log(f"[交易] {c} 進場 IOC 沒成交 {left} 張,不補單:{why}"); return 0
         if self.max_amount > 0:
-            fit = int((self.max_amount - self.amount_today - self.hold_reserve()) // ((last + self.lu_of(c, last)) * 1000))   # 2026-11-02 照元大:持倉漲停預留 + 每張 進場 + 漲停
+            fit = int((self.max_amount - self.amount_today - self.hold_reserve() - self.pend_reserve()) // ((last + self.lu_of(c, last)) * 1000))   # 2026-11-02 照元大:持倉漲停預留 + 每張 進場 + 漲停
             if fit < 1:
                 self.log(f"[交易] {c} 進場 IOC 沒成交 {left} 張,不補單:今天成交金額額度不夠"); return 0
             left = min(left, fit)

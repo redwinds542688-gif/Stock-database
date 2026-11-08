@@ -293,7 +293,8 @@ class Bridge:
                         rest = int(o.AfterQty) - int(o.OkQty) - _cq   # 2026-10-29 使用者實測(win_order_test):已取消的單 OrderStatus=30、CancelQty=1000、AfterQty=1000、OkQty=0 → 不扣 CancelQty 會當成還掛著
                         if int(o.OrderStatus) not in (1, 2, 24, 25, 30) and rest > 0:   # 還有沒成交的量、而且不是失敗 / 取消 / 失效 / 價穩失效 = 還掛著(含部分成交;2026-10-28 獨立檢查 #1,原本只認 0 / 20)
                             self.resume_buf["working"].append({"code": str(o.CompanyNo).strip(), "bs": str(o.BS).strip(), "lots": lots_of(rest),
-                                                               "no": str(o.OrderNo).strip(), "typ": str(o.OrderType).strip(), "tag": _bn(o.BasketNo)})
+                                                               "no": str(o.OrderNo).strip(), "typ": str(o.OrderType).strip(), "tag": _bn(o.BasketNo),
+                                                               "px": float(o.Price or 0)})
                     for i in range(r.StkTradeList.Count):
                         x = r.StkTradeList[i]; q = int(x.OkQty)
                         self.resume_buf["trades"].append({"code": str(x.CompanyNo).strip(), "bs": str(x.BS).strip(), "lots": q // 1000 if q >= 1000 else q,   # 成交量單位文件沒寫:股(≥1000)或張都能處理;使用者只做整張、不做零股(2026-10-22),不會混淆
