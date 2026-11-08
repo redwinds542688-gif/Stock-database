@@ -317,7 +317,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611080936">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611081156">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -698,7 +698,8 @@
   /* 1 位元 = 螢幕寬 ÷ 30,整列剛好鋪滿螢幕,不留左右邊界
      名次2 空1 名稱10 空1 成交價6 漲跌號1 空1 成交量6 萬2 = 30
      (2026-10-18 使用者:「股票區域 文字數字最大化」:原本 36 格、空白欄 2 格,改 30 格、空白欄 1 格,字級隨位元寬放大 20%) */
-  :root{--u:calc(100vw / 30);}          /* 單一位元寬 */
+  :root{--u:calc(100vw / 30);--uf:var(--u);}          /* 單一位元寬;--uf = 字級用的位元寬 */
+  @media (min-width:600px){:root{--uf:min(calc(100vw / 30), calc(62vh / 30));}}   /* 2026-11-08 11:52 使用者「自動適配手機或電腦」:電腦 / 平板寬螢幕,欄寬照樣用整個寬度(--u),字和圖示照「高度 × 0.62」算,列跟列不再疊;手機直式(< 600px)不變 */
   .grid{display:grid;
         grid-template-columns:
           calc(var(--u) * 2)    /* 名次   */
@@ -726,11 +727,11 @@
   #result{will-change:scroll-position} #bands .row{contain:layout style}   /* 2026-11-02 22:58 清單捲動順暢:捲動區自己一層、每列重排不牽動整個清單 */
   #result.rows8{scroll-snap-type:y proximity}   /* 2026-10-27 18:30 使用者:「點進k圖再退出」清單自己一直往下跳換股票 → 強制吸附(mandatory)改成靠近才吸附,手機 WebView 不會再自己重新對齊、一頁一頁跳 */
   #result.rows8 .row{scroll-snap-align:start;box-sizing:border-box;padding-top:0;padding-bottom:0;overflow:hidden}
-  #result.rows8 .row .nm{font-size:calc(var(--u) * 1.9 * var(--rk, 1))} #result.rows8 .row .posline{font-size:calc(var(--u) * 1.1 * var(--rk, 1))}   /* 列高不夠裝名稱 + 部位兩行時按比例縮(--rk ≤ 1) */
-  .head div{font-size:calc(var(--u) * 1.8);color:var(--dim);   /* 2026-10-27 04:20 鐵律 19 巡檢:1.15u → 1.8u(3 個字 5.4u,塞得進 8u 的價格 / 量欄) */
+  #result.rows8 .row .nm{font-size:calc(var(--uf) * 1.9 * var(--rk, 1))} #result.rows8 .row .posline{font-size:calc(var(--uf) * 1.1 * var(--rk, 1))}   /* 列高不夠裝名稱 + 部位兩行時按比例縮(--rk ≤ 1) */
+  .head div{font-size:calc(var(--uf) * 1.8);color:var(--dim);   /* 2026-10-27 04:20 鐵律 19 巡檢:1.15u → 1.8u(3 個字 5.4u,塞得進 8u 的價格 / 量欄) */
             text-align:right;overflow:visible}
   .head .h-nm{text-align:left}
-  .head .h-dot{display:flex;align-items:center;justify-content:flex-start;overflow:visible} .head .h-dot svg{display:block;width:calc(var(--u) * 2);height:calc(var(--u) * 2 * 24 / 28);color:#8A93A3;overflow:visible;transition:color .6s}   /* 2026-10-27 10:55 軸心貼左邊框線 */   /* 2026-10-27 12:30 指針:寬 2 格(軸心在左、針尖到最右),轉動用 SVG rotate(軸心為圓心) */   /* 2026-10-27 11:00 使用者:「用這種箭頭顯示大盤的漲跌」:大盤箭頭(idxArrow 設角度與顏色;還沒拿到資料灰色);10:45 原本是紅點 */
+  .head .h-dot{display:flex;align-items:center;justify-content:flex-start;overflow:visible} .head .h-dot svg{display:block;width:calc(var(--uf) * 2);height:calc(var(--uf) * 2 * 24 / 28);color:#8A93A3;overflow:visible;transition:color .6s}   /* 2026-10-27 10:55 軸心貼左邊框線 */   /* 2026-10-27 12:30 指針:寬 2 格(軸心在左、針尖到最右),轉動用 SVG rotate(軸心為圓心) */   /* 2026-10-27 11:00 使用者:「用這種箭頭顯示大盤的漲跌」:大盤箭頭(idxArrow 設角度與顏色;還沒拿到資料灰色);10:45 原本是紅點 */
   .head .h-px{text-align:center}
   /* 2026-11-04 成交價 / 成交量排序鍵:兩個三角形,平常灰、排序中那顆亮黃 */
   .head .lsrt{cursor:pointer;-webkit-tap-highlight-color:transparent;white-space:nowrap}
@@ -743,10 +744,10 @@
   #bands .row:nth-child(even),#result .row:nth-child(even){background:rgba(255,255,255,.04)}   /* 2026-10-30 03:16(實際時間)使用者「下面監控股票 每檔股票有底色間隔」→「改 1」:斑馬紋,一列深一列淺 */
   .row:active{background:var(--panel)}
   .row .rank{color:var(--faint);text-align:right;font-size:.9em;padding-left:2px;box-sizing:border-box}
-  .row .rank{overflow:visible;display:flex;align-items:center;justify-content:flex-start;align-self:stretch;padding:0} .row .rank svg{display:block;width:calc(var(--u) * 2);height:calc(var(--u) * 2 * 24 / 28);overflow:visible;color:#8A93A3}   /* 2026-10-27 10:55 使用者:「指針在該欄位上下置中 指針頭貼左邊邊框格線」:格子撐滿整列高再置中,軸心左緣在 x=0 貼黃框線 */   /* 2026-10-27 10:50 使用者:「監控股票 編號位置 改顯示 指針」:編號換成這檔的漲跌指針(轉 90° 會超出格子,格子不裁) */   /* 2026-10-27 10:00 使用者:「股票名稱前面的編號 似乎被切到了」:兩位數剛好 2 格寬、貼著螢幕左邊,手機字稍寬一點就被切;縮 10% 並留 2px,黃框也壓不到 */
-  .row .nm{font-family:var(--sans);font-size:calc(var(--u) * 1.9);   /* 2026-10-18 使用者:「股票名稱也放大一點」1.5 → 1.9(10 格放得下 5 個中文字) */
+  .row .rank{overflow:visible;display:flex;align-items:center;justify-content:flex-start;align-self:stretch;padding:0} .row .rank svg{display:block;width:calc(var(--uf) * 2);height:calc(var(--uf) * 2 * 24 / 28);overflow:visible;color:#8A93A3}   /* 2026-10-27 10:55 使用者:「指針在該欄位上下置中 指針頭貼左邊邊框格線」:格子撐滿整列高再置中,軸心左緣在 x=0 貼黃框線 */   /* 2026-10-27 10:50 使用者:「監控股票 編號位置 改顯示 指針」:編號換成這檔的漲跌指針(轉 90° 會超出格子,格子不裁) */   /* 2026-10-27 10:00 使用者:「股票名稱前面的編號 似乎被切到了」:兩位數剛好 2 格寬、貼著螢幕左邊,手機字稍寬一點就被切;縮 10% 並留 2px,黃框也壓不到 */
+  .row .nm{font-family:var(--sans);font-size:calc(var(--uf) * 1.9);   /* 2026-10-18 使用者:「股票名稱也放大一點」1.5 → 1.9(10 格放得下 5 個中文字) */
            color:var(--text);text-overflow:ellipsis;overflow:hidden}
-  .row .posline{font-size:calc(var(--u) * 1.1);margin-top:1px}   /* 部位標記跟著放大 .95 → 1.1 */
+  .row .posline{font-size:calc(var(--uf) * 1.1);margin-top:1px}   /* 部位標記跟著放大 .95 → 1.1 */
   .row .posline .pos{padding:0 .35em;border-radius:3px;white-space:pre;
                   font-family:var(--mono);font-weight:700;color:#12151C}
   .row .posline .pos.long{background:var(--up)}     /* 持有多單 */
@@ -2552,7 +2553,10 @@ function calibrateFont(){
   const ratio = probe.getBoundingClientRect().width / 10 / 100;  // 字寬 ÷ 字級
   probe.remove();
 
-  const unit = document.documentElement.clientWidth / CELLS;
+  // 2026-11-08 11:52 使用者「把程式改成自動適配手機或電腦 電腦這樣寬版也不錯」:字級原本照寬度算,電腦寬螢幕字會大到列跟列疊在一起
+  //   → 寬度 ≥ 600 且比「高度 × 0.62」寬(電腦 / 平板橫放)時,字級改照 高度 × 0.62 算,版面照樣用整個寬度;手機直式(寬 < 600)完全不變
+  const dw = document.documentElement.clientWidth, dh = document.documentElement.clientHeight || innerHeight || dw;
+  const unit = (dw >= 600 ? Math.min(dw, dh * 0.62) : dw) / CELLS;
   document.documentElement.style.setProperty('--fs', (unit / ratio) + 'px');
 }
 
