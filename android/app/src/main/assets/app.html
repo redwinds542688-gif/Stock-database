@@ -317,7 +317,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611081203">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611081207">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1562,7 +1562,7 @@ const rvHtml = () => { const R = window.__RV || {}, A = R.auto || {}, N = R.note
 window.rvFit = () => { try{ const f = document.querySelector('#notifLog .rvw'), box = document.getElementById('notifLog'), hd = box && box.querySelector('.hd'); if (!f || !hd) return;
   const LH = 25, av = box.clientHeight - hd.offsetHeight - 4; f.style.height = Math.max(LH, Math.floor(av / LH) * LH) + 'px'; }catch(e){} };
 window.addEventListener('resize', () => window.rvFit && rvFit());
-const rvPoll = async () => { try{ if (!BASE.liveUrl || (!window.VIEWER && !liveOn())) return;   /* 2026-11-08 12:01 使用者「(電腦網頁版)沒有 檢討 鍵」:看盤版也去抓;Worker 只給 owner 鑰匙(檢討有判別式內容),別人的看盤版鑰匙被拒 → 照舊沒有檢討鍵 */
+const rvPoll = async () => { try{ if (!BASE.liveUrl || (!window.VIEWER && !liveOn()) || (window.VIEWER && !(window.appKey && appKey.get()))) return;   /* 12:07 看盤版沒鑰匙(免鑰匙試用)不抓,免得被拒跳出「要鑰匙」 */   /* 2026-11-08 12:01 使用者「(電腦網頁版)沒有 檢討 鍵」:看盤版也去抓;Worker 只給 owner 鑰匙(檢討有判別式內容),別人的看盤版鑰匙被拒 → 照舊沒有檢討鍵 */
   const r = await fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?review=get&_=${Date.now()}`, {cache: 'no-store'}); const j = await r.json();
   if (j && 'd' in j){ const ch = JSON.stringify(j) !== JSON.stringify(window.__RV || null); window.__RV = j; if (ch && window.NL_VIEW === 'pos' && window.nlRender) nlRender(); } }catch(e){} };
 setTimeout(rvPoll, 4000); setInterval(rvPoll, 5 * 60000); window.rvPoll = rvPoll;
