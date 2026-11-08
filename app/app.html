@@ -317,7 +317,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611081221">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611081228">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2495,6 +2495,27 @@ window.fitBands = fitBands;
   document.addEventListener('mousemove', e => { if (tgt && (e.buttons & 1)) fire('touchmove', e); }, true);
   const up = e => { if (tgt){ fire('touchend', e); tgt = null; } };
   document.addEventListener('mouseup', up, true); window.addEventListener('blur', () => { if (tgt){ try{ tgt.dispatchEvent(new TouchEvent('touchcancel', {bubbles: true})); }catch(err){} tgt = null; } });
+  // 2026-11-08 12:26 使用者「所有的長按 改成長按或者雙擊也可以」(電腦):雙擊 = 在同一點按住 1 秒(觸控 / 滑鼠 / pointer 三種長按寫法都送)。
+  //   為了分得出單擊 / 雙擊,單擊延後 0.28 秒才送出(第二下在 0.28 秒內來 = 雙擊,前一下的單擊取消);輸入框、K 線圖照舊不延後
+  let pend = null;
+  const hold = (el, e) => { try{ const o = {bubbles: true, cancelable: true, composed: true, clientX: e.clientX, clientY: e.clientY, screenX: e.screenX, screenY: e.screenY, button: 0, buttons: 1};
+    const nomt = !!el.closest('[data-nomt]'); let tch = null; try{ tch = new Touch({identifier: 2, target: el, clientX: e.clientX, clientY: e.clientY, pageX: e.pageX, pageY: e.pageY, screenX: e.screenX, screenY: e.screenY}); }catch(err){}
+    try{ el.dispatchEvent(new PointerEvent('pointerdown', {...o, pointerId: 1, pointerType: 'mouse', isPrimary: true})); }catch(err){}
+    if (nomt) el.dispatchEvent(new MouseEvent('mousedown', o)); else if (tch) el.dispatchEvent(new TouchEvent('touchstart', {touches: [tch], targetTouches: [tch], changedTouches: [tch], bubbles: true, cancelable: true, composed: true}));
+    setTimeout(() => { try{ const u = {...o, buttons: 0};
+      try{ el.dispatchEvent(new PointerEvent('pointerup', {...u, pointerId: 1, pointerType: 'mouse', isPrimary: true})); }catch(err){}
+      if (nomt) el.dispatchEvent(new MouseEvent('mouseup', u)); else if (tch) el.dispatchEvent(new TouchEvent('touchend', {touches: [], targetTouches: [], changedTouches: [tch], bubbles: true, cancelable: true, composed: true})); }catch(err){} }, 1000); }catch(err){} };
+  const noDelay = el => !el || !el.closest || el.closest('input,textarea,select,label,#chartTop,#chartMid,#chartBot,.tv-lightweight-charts');
+  document.addEventListener('click', e => {
+    if (!e.isTrusted || e.button !== 0 || noDelay(e.target)) return;
+    e.stopImmediatePropagation(); e.preventDefault();
+    if (pend && Date.now() - pend.at < 280 && Math.hypot(e.clientX - pend.x, e.clientY - pend.y) < 12){ clearTimeout(pend.tm); const t0 = pend.el; pend = null; hold(t0, e); return; }
+    if (pend){ clearTimeout(pend.tm); pend.go(); }
+    const el = e.target, init = {bubbles: true, cancelable: true, composed: true, clientX: e.clientX, clientY: e.clientY, screenX: e.screenX, screenY: e.screenY, button: 0, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey, metaKey: e.metaKey, detail: 1};
+    const go = () => { pend = null; try{ el.dispatchEvent(new MouseEvent('click', init)); }catch(err){} };
+    pend = {el, at: Date.now(), x: e.clientX, y: e.clientY, go, tm: setTimeout(go, 280)};
+  }, true);
+  document.addEventListener('dblclick', e => { if (!noDelay(e.target)){ e.stopImmediatePropagation(); e.preventDefault(); } }, true);
 }catch(e){} })();
 
 /* 停用長按選單、選取與拖曳,讓操作更像 App */
