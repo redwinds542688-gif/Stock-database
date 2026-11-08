@@ -317,7 +317,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611081359">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611081410">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3411,7 +3411,7 @@ function helpShow(){
   const build = (document.querySelector('meta[name="app-build"]') || {}).content || '';
   const sec = (t, items) => `<div style="margin-top:12px"><b style="color:#FFD54F;font-size:17px">${t}</b><ul style="margin:6px 0 0 18px;padding:0;font-size:16px;line-height:1.5;color:#E6EAF2">${items.map(x => '<li>' + x + '</li>').join('')}</ul></div>`;
   const html = `<div class="fmhd"><b class="fmnm">說明 · 本程式怎麼挑當沖股票</b><button class="fmx" aria-label="關閉">✕</button></div>
-    <div style="max-height:62vh;overflow:auto;-webkit-overflow-scrolling:touch;padding-right:4px">
+    <div class="hlpBody" style="flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;padding-right:4px">
     ${sec('名單從哪裡來', ['每個交易日 14:30 由雲端用證交所、櫃買的全市場日成交資料算出「明天的名單」,16:30、18:30、20:30 再更新;開盤前 08:20~09:40 再複檢一次當沖資格。', '手機每 5~10 分鐘自動換上最新名單,不用自己按。'])}
     ${sec('一定要符合(硬性條件)', ['上市或上櫃的普通股(代號 4 碼、不以 0 開頭,排除 ETF、權證、DR)。', '在官方「可現股當沖」名單裡,而且可以先賣後買。', '不是金融保險業(金控、銀行、保險、證券)。', '不是處置股、注意股。', '昨天沒有收在跌停(收漲停的放行,隔天常開低洗盤)。'])}
     ${sec('數字門檻', [`昨天收盤價 ${B.lo || 15}~${B.hi || 500} 元(設定頁的價格範圍可再縮,目前 ${lo}~${hi})。`, `昨天振幅 ≥ ${B.amp || 3}%,而且最近 3 個交易日平均振幅 ≥ ${B.avg5MinAmp || 3}%(擋掉只動一天的)。`, '昨天成交量 ≥ 6,000 張(沒量的不要)。', '昨天有成交的分鐘數 ≥ 250(滿分 266;冷門股不收)。', `一檔跳動 ÷ 股價 ≤ ${B.tickMaxPct || 0.5}%(跳一檔就吃掉來回成本的不收)。`])}
@@ -3423,7 +3423,12 @@ function helpShow(){
   w.innerHTML = `<div class="fmbg"></div><div class="fmp0">${html}</div>`;
   document.body.appendChild(w);
   const close = () => { try{ w.remove(); }catch(e){} };
-  w.querySelector('.fmx').style.display = 'none'; w.querySelector('.fmbg').addEventListener('click', close);   // 2026-11-06 03:12 使用者「說明 按「✕」離開 這取消 手機返回即離開」
+  w.querySelector('.fmx').style.display = 'none'; w.querySelector('.fmbg').addEventListener('click', close);
+  // 2026-11-08 14:10 使用者「這個說明不要壓到五顆按鍵 要在五顆按鍵之下的股票監控區」:說明只蓋五顆按鍵下面那塊(股票監控區),上面的通知欄和五顆按鍵照常看得到、按得到;按到外面(含五顆按鍵)就收起來
+  try{ const tb = document.querySelector('.toolbar'), top = tb ? Math.round(tb.getBoundingClientRect().bottom) + 2 : 0, p0 = w.querySelector('.fmp0');
+    w.style.top = top + 'px'; p0.style.top = '0'; p0.style.bottom = '0'; p0.style.borderRadius = '0'; p0.style.display = 'flex'; p0.style.flexDirection = 'column'; p0.style.paddingBottom = '10px';
+    const out = ev => { if (!document.body.contains(w)){ document.removeEventListener('pointerdown', out, true); return; } if (!w.contains(ev.target)){ document.removeEventListener('pointerdown', out, true); close(); } };
+    setTimeout(() => document.addEventListener('pointerdown', out, true), 0); }catch(e){}   // 2026-11-06 03:12 使用者「說明 按「✕」離開 這取消 手機返回即離開」
 }
 window.helpShow = helpShow;
 /* 2026-10-29 18:19(實際時間)判一二三搬到私人庫 Stock-logic(使用者:「只要判別式改成私人」):這份公開的 app.html 只留空殼,
