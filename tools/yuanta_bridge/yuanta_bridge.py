@@ -279,6 +279,8 @@ class Bridge:
                     for i in range(lst.Count):
                         d = lst[i]; st = int(d.OrdStatus)   # 策略狀態:0 建立、1 執行中 = 成功;9 無法建立、911 建立失敗
                         log(f"條件單回應 {strIndex} 狀態 {st} 編號 {d.OrderNo} {d.Msg}")
+                        if strIndex == "DeleteAlgoCOOdrStrategy" and self.trader:   # 2026-11-08 20:50 刪除確認後才掛新的條件單
+                            self.trader.on_strategy_delete_reply(str(d.OrderNo), st, str(d.Msg))
                         if strIndex == "SendAlgoCOOdrStrategy" and self.trader:
                             self.trader.on_strategy_reply(str(d.OrderNo), st in (0, 1, 100, 101), str(d.Msg), str(getattr(d, "StkCode", "") or "").strip() or None)
                     return

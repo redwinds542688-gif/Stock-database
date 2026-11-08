@@ -184,6 +184,7 @@ class Trader:
         # 2026-11-08 01:08 使用者「13點20分也要取消所有元大預掛」:預設 13:24 → 13:20(盤中照舊讓位給預掛;13:20 預掛和條件單、委託全部取消,程式平倉)
         self.prehang_deadline = cfg.get("TRADE_PREHANG_DEADLINE", "13:20").strip()
         self.prehang = {}   # code → 保留的手動預掛委託書號 [no, …]
+        self.del_q = []     # 2026-11-08 20:50 等元大確認刪除的條件單編號
         self.man_cards = {}  # 2026-11-06 14:26 手動預掛(新進場 / 加碼)發過卡的書號 → {lots, px, d, end}
         self.man_meta = {}  # 2026-11-06 手動預掛的書號 → {bs, typ}(強平時取消用)
         self.ph_cancel = {}  # 2026-11-07 23:34 強平時程式取消掉的手動委託書號 → 時間;取消前一兩秒它還是成交了 → 多出來的部位程式馬上再強平
@@ -1072,13 +1073,41 @@ class Trader:
         if p.get("judge") == MANUAL and not p.get("y3_posted") and p["state"] == HOLDING and p["qty"] > 0 and not p.get("oco_live"): return
         if p.get("oco_no") is None and c in self.oco_q:
             p["oco_redo"] = True; return
+        if p.get("oco_del"): return                    # 舊條件單還在等元大確認刪掉 → 確認後(on_strategy_delete_reply)照當時的張數再掛
         if p.get("oco_live"):
-            self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False
+            p["oco_live"] = False
             self.log(f"[交易] {c} 刪除元大條件單 {p['oco_no']}({why or '部位變了'})")
+            # 2026-11-08 20:50 使用者「改」:等元大確認舊的刪掉才掛新的(避免刪單失敗時新舊兩張同時在、碰到停損一起平 → 多平);等的這段沒條件單,程式自己盯停損停利
+            if p["state"] == HOLDING and p["qty"] > 0 and self.positions.get(c) is p and self.oco_ok(c):
+                p["oco_del"] = {"no": p["oco_no"], "at": time.time(), "tries": 1, "why": why}; self.del_q.append(p["oco_no"])
+                self.log(f"[交易] {c} 等元大確認刪掉 {p['oco_no']} 再掛新的條件單(這段由程式盯停損停利)")
+                self.gw.delete_oco(p["oco_no"]); return
+            self.gw.delete_oco(p["oco_no"])
         if p["state"] == HOLDING and p["qty"] > 0 and p.get("tp") and p.get("sl") and self.positions.get(c) is p and self.oco_ok(c):
             p["oco_no"] = None; self.oco_q.append(c); p.pop("oco_noted", None); p.pop("oco_hit_at", None)
             n = self.oco_lots(c); self.gw.place_oco(c, p["mkt"], p["dir"], n, p["tp"], p["sl"])
             self.log(f"[交易] {c} 掛元大停損停利條件單 {n} 張(停利 {p['tp']} / 停損 {p['sl']}){'(預掛 ' + str(p['qty'] - n) + ' 張不掛)' if n < p['qty'] else ''}")
+
+    def on_strategy_delete_reply(self, strategy_no, status, msg=""):
+        """2026-11-08 20:50 元大刪除條件單的回應:是程式在等的那張 → 成功就照現在的張數掛新的;失敗(9 / 911 / 無法刪除)最多再刪 3 次"""
+        with self.lock:
+            no = str(strategy_no or "").strip()
+            if no and no in self.del_q: self.del_q.remove(no)
+            elif self.del_q:   # 回應沒帶編號 / 編號對不上(元大刪除回應的欄位還沒實盤看過)→ 照送出順序對最早那張
+                self.log(f"[交易] 刪除條件單回應編號 {no or '(空)'} 對不上,照順序當成 {self.del_q[0]}"); no = self.del_q.pop(0)
+            else: return
+            p = next((x for x in self.positions.values() if (x.get("oco_del") or {}).get("no") == no), None)
+            if not p: return
+            w = p["oco_del"]; bad = status in (9, 911) or any(k in str(msg) for k in ("失敗", "無法", "錯誤"))
+            if bad:
+                self.log(f"[交易] !! {p['code']} 刪除條件單 {no} 失敗(狀態 {status} {msg})")
+                if w["tries"] < 3:
+                    w["tries"] += 1; w["at"] = time.time(); self.del_q.append(no); self.gw.delete_oco(no); return
+                p.pop("oco_del", None)
+                self.alert(f"⚠ {self.name_of(p['code'])} {p['code']} 元大條件單刪不掉", f"舊條件單 {no} 刪除失敗 3 次,先不掛新的(程式自己盯停損停利);請在投資先生確認條件單")
+                return
+            p.pop("oco_del", None); self.log(f"[交易] {p['code']} 元大確認刪掉條件單 {no} → 掛新的")
+            self.oco_refresh(p, w.get("why") or "")
 
     def on_strategy_reply(self, strategy_no, ok, msg, code=None):
         """元大新增條件單回應(只有 TRADE_BROKER_STOP=1 才會掛)。
@@ -1145,6 +1174,15 @@ class Trader:
             if self.cancel_all:                                   # 13:20 由 bridge 先取消全部掛單再平倉;這裡晚 1 分鐘當備援
                 h, m = map(int, fe.split(":")); fe = f"{h + (m + 1) // 60:02d}:{(m + 1) % 60:02d}"
             for p in list(self.positions.values()):
+                w = p.get("oco_del")
+                if w and time.time() - w["at"] > 5:   # 2026-11-08 20:50 刪條件單 5 秒沒回應 → 再刪一次(最多 3 次);還是沒回應就不掛新的,程式自己盯
+                    if w["tries"] < 3:
+                        w["tries"] += 1; w["at"] = time.time()
+                        if w["no"] not in self.del_q: self.del_q.append(w["no"])
+                        self.gw.delete_oco(w["no"]); self.log(f"[交易] {p['code']} 刪條件單 {w['no']} 沒回應,再刪一次(第 {w['tries']} 次)")
+                    else:
+                        p.pop("oco_del", None)
+                        self.alert(f"⚠ {self.name_of(p['code'])} {p['code']} 元大條件單刪除沒回應", f"舊條件單 {w['no']} 刪了 3 次沒回應,先不掛新的(程式自己盯停損停利);請在投資先生確認條件單")
                 if (p["state"] == HOLDING and p.get("oco_live") and p.get("oco_hit_at") and self.oco_grace > 0
                         and time.time() - p["oco_hit_at"] >= self.oco_grace and hm < fe):
                     # 2026-11-08 01:26 條件單保險:碰到停利 / 停損 N 秒了部位還在 → 條件單沒觸發,程式先刪條件單再自己平(漲停 / 跌停)

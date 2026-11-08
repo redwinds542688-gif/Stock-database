@@ -13,14 +13,16 @@ class GW:
     def send(s, code, mkt, side, lots, price, typ, tif, tag='', flag=' '): s.n += 1; s.sent.append((code, side, lots, price, typ, tif, flag)); s.tags.append(tag); return f"A{s.n:04d}"
     def cancel(s, no, code='', bs=None, typ=None): s.sent.append(("cancel", no, code, bs))
     def place_oco(s, *a): s.sent.append(("oco",) + a)
-    def delete_oco(s, no): s.sent.append(("del_oco", no))
+    def delete_oco(s, no):
+        s.sent.append(("del_oco", no))
+        if getattr(s, "auto", True) and hasattr(s, "t"): s.t.on_strategy_delete_reply(no, 0, "")   # 2026-11-08 20:50 元大確認刪除(測試預設馬上回)
 class GWN(GW):
     def send(s, *a): GW.send(s, *a); return None          # 真的通道:委託書號從回應事件來
 tmp = Path(tempfile.mkdtemp()); stop = tmp / "STOP"; NMK = [0]
 def mk(gw=GW, prime=True, **kw):
     NMK[0] += 1   # 2026-10-29 每個測試自己的狀態檔(今天進場過的訊號會存檔,不要互相影響)
     cfg = {"TRADE_BROKER_STOP": "0", "TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0", "TRADE_Y3_TP_PCT": "2.5"}; cfg.update(kw)
-    g = gw(); t = Trader(cfg, g, logs.append, lambda: NOW[0]); t.posts = []; t.alerts = []
+    g = gw(); t = Trader(cfg, g, logs.append, lambda: NOW[0]); g.t = t; t.posts = []; t.alerts = []
     t.post = lambda a, b, k: t.posts.append((a, b, k)); t.akinds = []; t.alert = lambda a, b="", k="pc": (t.alerts.append(a), t.akinds.append(k))
     if prime: t.prime([])   # 2026-10-29 稽核 #1:跟 bridge 一樣,啟動時讀到通知(這裡是空的)才算準備好
     return t, g
@@ -759,4 +761,15 @@ for how in ("all", "one"):
     oe = pe["order"]; e1.on_report(51, oe["no"] or "A0002", 0, 4000, 88.9, basket=oe["tag"])
     ok(pe["state"] == EXITING and ge.sent[-1][:3] == ("6269", "B", 2) and ge.sent[-1][6] == "H", (how, ge.sent[-1]))
 
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6)")
+# 2026-11-08 20:50「等元大確認刪掉舊條件單才掛新的」:預掛 2 張 → 刪 6 張,沒確認前不掛 4 張(這段程式自己盯);確認後掛 4 張;刪除失敗再刪,3 次失敗不掛 + 通知;5 秒沒回應再刪
+at(10, 0); k1, gk = mk(TRADE_BROKER_STOP="1", TRADE_CAP="520000"); gk.auto = False; k1.on_tick("6269", 86.2); k1.step([ENT]); k1.on_report(51, "A0001", 0, 6000, 86.1); k1.on_strategy_reply("S6", True, "", "6269"); pk = k1.positions["6269"]
+k1.on_report(50, "P2", 0, 2000, 85.0, "", "6269", "B", "9"); ok(gk.sent[-1] == ("del_oco", "S6") and pk.get("oco_del") and not pk["oco_live"], gk.sent[-2:])
+k1.on_strategy_delete_reply("S6", 0, "刪除成功"); ok(gk.sent[-1][0] == "oco" and gk.sent[-1][4] == 4 and not pk.get("oco_del"), gk.sent[-1])
+k1.on_strategy_reply("S4", True, "", "6269"); nk = len(gk.sent); k1.on_report(50, "P2", 2, 0, 0, "", "6269", "B", "9"); ok(gk.sent[-1] == ("del_oco", "S4"))
+k1.on_strategy_delete_reply("S4", 9, "無法刪除"); ok(gk.sent[-1] == ("del_oco", "S4") and pk["oco_del"]["tries"] == 2)
+k1.on_strategy_delete_reply("S4", 9, "無法刪除"); k1.on_strategy_delete_reply("S4", 9, "無法刪除"); ok(not pk.get("oco_del") and not any(x[0] == "oco" for x in gk.sent[nk:]) and any("刪不掉" in a for a in k1.alerts), k1.alerts[-1:])
+k2, gk2 = mk(TRADE_BROKER_STOP="1", TRADE_CAP="520000"); gk2.auto = False; k2.on_tick("6269", 86.2); k2.step([ENT]); k2.on_report(51, "A0001", 0, 6000, 86.1); k2.on_strategy_reply("S6", True, "", "6269"); pk2 = k2.positions["6269"]
+k2.on_report(50, "P2", 0, 2000, 85.0, "", "6269", "B", "9"); pk2["oco_del"]["at"] -= 6; k2.step(); ok(gk2.sent[-1] == ("del_oco", "S6") and pk2["oco_del"]["tries"] == 2, gk2.sent[-2:])
+k2.on_tick("6269", 88.8); ok(pk2["state"] == EXITING and gk2.sent[-1][:3] == ("6269", "B", 4), gk2.sent[-1])   # 等確認期間碰停損 → 程式自己平沒預掛的 4 張
+
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7)")
