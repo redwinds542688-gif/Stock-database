@@ -849,7 +849,7 @@ class Trader:
             if p["state"] == HOLDING: self.oco_refresh(p, "手動加碼")
             if self.prehang.get(code):   # 2026-11-08 01:00 預掛期間又加碼 → 預掛張數不夠了,提醒
                 ph = sum((self.man_meta.get(n) or {}).get("lots", 0) - (self.man_meta.get(n) or {}).get("fl", 0) for n in self.prehang[code])
-                self.alert(f"⚠ {self.name_of(code)} {code} 加碼後預掛張數不夠", f"部位 {tot} 張、預掛 {ph} 張;程式仍讓位給預掛,沒平到的請改預掛張數({self.prehang_deadline} 前沒成交由程式平)")
+                self.alert(f"ℹ {self.name_of(code)} {code} 加碼後預掛只蓋住一部分", f"部位 {tot} 張、預掛 {ph} 張;沒預掛的 {max(0, tot - ph)} 張程式管(條件單已照這個張數重掛),預掛的等成交({self.prehang_deadline} 前沒成交由程式平)")   # 2026-11-08 18:58 跟著 18:30 部分預掛規則改字
             if p.get("judge") != MANUAL:
                 self.alert(f"✅ {self.name_of(code)} {code} 手動加碼 {lots} 張已交給程式", f"共 {tot} 張 均價 {p['entry']:.2f}(停利 {p['tp']} / 停損 {p['sl']}),平倉時全部一起平")
             # 2026-11-05 12:33 使用者「我是永久會員 這手動單 要加入進場」(宏碁手動加買 3 張,當沖有、進場沒有):手動加碼也在進場欄發一張卡(標「加碼」,張數 = 這次加的);
