@@ -317,7 +317,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611081202">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611081203">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1543,7 +1543,7 @@ const usCards = () => { const U = window.__US; if (!U) return '';
   return h + '</div>'; };
 /* 2026-11-07 14:32 使用者「檢討」(A+B):資訊頁「檢討」鍵 —— A 電腦收盤算的數字(?review=get 的 auto)、B 每天 Claude 寫的重大發現(notes);14:56 改:每天 14:00 A+B 一起換新,一直顯示到下一份(開盤中也在);看盤版沒有 */
 const rvKey = () => { const R = window.__RV; return R && R.d ? R.d : ''; };   // 2026-11-07 14:56 使用者「統一14.00顯示A+B 一直顯示到下一則最新的A+B出現」:一天只亮一次燈(Worker 14:00 起 A+B 一起放出來,之前給上一份)
-const rvHas = () => { const R = window.__RV; return !!(R && R.d && (R.auto || R.notes)) && !window.VIEWER && !inSession(); };   // 2026-11-07 14:59 使用者「開盤時段還是隱藏好了」
+const rvHas = () => { const R = window.__RV; return !!(R && R.d && (R.auto || R.notes)) && !inSession(); };   /* 2026-11-08 看盤版拿得到(owner 鑰匙)就顯示 */   // 2026-11-07 14:59 使用者「開盤時段還是隱藏好了」
 const rvBtn = () => { if (!rvHas()) return ''; let seen = ''; try{ seen = localStorage.getItem('mysh.rvSeen') || ''; }catch(e){}
   return `<button class="vbtn rvb${window.__rvOn ? ' on' : ''}${!window.__rvOn && seen !== rvKey() ? ' dot' : ''}" type="button">檢討</button>`; };
 const rvHtml = () => { const R = window.__RV || {}, A = R.auto || {}, N = R.notes || {}, e = x => String(x == null ? '' : x).replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]));
