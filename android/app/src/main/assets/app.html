@@ -317,7 +317,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611081219">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611081221">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1587,12 +1587,16 @@ window.resortList = resortList;
 /* (判別式相關說明已移到私人庫) */
 const FM = { busy: false };
 const fmEsc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+/* 2026-11-08 12:20 使用者「(電腦看盤版)改」:看盤版用主人(owner)鑰匙 = 自己的電腦 → 和手機一樣可以強制進場 / 強制平倉 / 結束交易 / 停止進場全平、問電腦部位與元大成交;
+   別人的看盤鑰匙(viewer)、免鑰匙照舊不能下單。Worker 那邊下單本來就只收 owner 鑰匙 + 綁定的裝置 */
+const vTrade = () => !window.VIEWER || !!(window.KEYME && KEYME.role === 'owner');
+window.vTrade = vTrade;
 const fmApi = () => liveOn() ? BASE.liveUrl.replace(/\/$/, '') + '/?trade=' : '';
 
 /* 2026-10-28 12:21 當沖只列元大真的成交的部位:當沖開著、App 在前景時每 15 秒問電腦一次(?trade=pos,一次一個 Worker 請求;不開當沖不問) */
 function tposPoll(force){
   try{
-    if (window.VIEWER) return;   // 2026-10-29 看盤版沒有電腦、不問部位(當沖照通知列)
+    if (!vTrade()) return;   // 2026-10-29 看盤版沒有電腦、不問部位(當沖照通知列)
     if (!liveOn() || document.visibilityState === 'hidden') return;
     const now = Date.now(); if (!force && window.__tposAt && now - window.__tposAt < 15000) return;
     window.__tposAt = now;
@@ -1660,7 +1664,7 @@ function haltSet(on){ HALT.on = !!on; try{ localStorage.setItem('mysh.halted', H
 window.haltSet = haltSet;
 function haltAsk(){
   // 2026-10-31 使用者「改」:多一個「停止進場 + 全部平倉」(所有未平倉部位馬上漲停買回 / 跌停賣出,和虧到 5 萬同一個做法);全部平倉要按兩次才送出,免得誤觸
-  if (window.VIEWER) return;
+  if (!vTrade()) return;
   const on = !HALT.on; let w = el('fmWin'); if (w) w.remove();
   w = document.createElement('div'); w.id = 'fmWin';
   const btn = (c, bg, t, fill) => `<button data-a="${c}" style="flex:1;padding:12px 4px;border-radius:10px;font-size:17px;font-weight:700;font-family:inherit;border:2px solid ${bg};background:${fill ? bg : '#000'};color:${fill ? '#fff' : bg}">${t}</button>`;
@@ -1704,7 +1708,7 @@ function haltAsk(){
     haltPaint();
     const h = document.querySelector('h1'); if (!h || h.__halt) return; h.__halt = 1;
     let tm = null, x0 = 0, y0 = 0;
-    const start = (x, y) => { if (window.VIEWER) return; if (x < 56 && y < 50) return;   /* 2026-11-03 21:22 左上角抓 bug 灰點附近不算按標題(不會跳緊急停止) */ x0 = x; y0 = y; clearTimeout(tm); tm = setTimeout(() => { tm = null; try{ navigator.vibrate && navigator.vibrate(40); }catch(e){} haltAsk(); }, 800); };
+    const start = (x, y) => { if (!vTrade()) return; if (x < 56 && y < 50) return;   /* 2026-11-03 21:22 左上角抓 bug 灰點附近不算按標題(不會跳緊急停止) */ x0 = x; y0 = y; clearTimeout(tm); tm = setTimeout(() => { tm = null; try{ navigator.vibrate && navigator.vibrate(40); }catch(e){} haltAsk(); }, 800); };
     const stop = () => { clearTimeout(tm); tm = null; };
     h.addEventListener('touchstart', e => start(e.touches[0].clientX, e.touches[0].clientY), {passive: true});
     h.addEventListener('touchmove', e => { const t = e.touches[0]; if (Math.abs(t.clientX - x0) > 12 || Math.abs(t.clientY - y0) > 12) stop(); }, {passive: true});
@@ -1721,7 +1725,7 @@ function haltAsk(){
    拿到就存在這支手機(mysh.yfills.日期,留 12 天),以後往上滑看前幾天也是元大的真實成交 */
 function tfillsPoll(force){
   try{
-    if (window.VIEWER) return;   // 2026-10-29 看盤版沒有電腦(明細照通知算)
+    if (!vTrade()) return;   // 2026-10-29 看盤版沒有電腦(明細照通知算)
     if (!liveOn() || document.visibilityState === 'hidden') return;
     const now = Date.now(); if (!force && window.__tfillsAt && now - window.__tfillsAt < 30000) return;
     window.__tfillsAt = now; const d = fmToday();
@@ -1805,7 +1809,7 @@ const fmPx = code => { const r = LIVE.get(code) || {}; let z = +r.z || 0, y = +r
   return {z, y}; };
 const fmLimit = (y, up) => { if (!(y > 0)) return 0; const v = y * (up ? 1.1 : 0.9); const t = tickOf(v); const q = up ? Math.floor(v / t + 1e-9) : Math.ceil(v / t - 1e-9); return Math.round(q * t * 100) / 100; };
 async function forceOpen(code, name, closeOnly){
-  if (window.VIEWER){ fmToast('看盤版不能下單'); return; }   // 2026-10-29 看盤版
+  if (!vTrade()){ fmToast('看盤版不能下單'); return; }   // 2026-10-29 看盤版
   // 2026-10-30 03:13(實際時間)使用者:「未開盤 這訊息也不用通知了 直接沒作用就好 反正本來盤後就沒作用」:不在交易時段(週一~五 08:45~13:35,休市日除外)長按什麼都不做、不問電腦
   try{ const n = new Date(Date.now() + 8 * 3600000), hm = n.getUTCHours() * 60 + n.getUTCMinutes(), wd = n.getUTCDay(), hol = window.TW_HOL && TW_HOL.has(n.toISOString().slice(0, 10));
     if (!(wd >= 1 && wd <= 5 && !hol && hm >= 8 * 60 + 45 && hm <= 13 * 60 + 35)) return; }catch(e){}
