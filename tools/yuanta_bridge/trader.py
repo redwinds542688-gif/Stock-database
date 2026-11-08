@@ -1615,6 +1615,18 @@ class Trader:
             for no in lst:
                 m = self.man_meta.get(no) or {}; left = max(0, m.get("lots", 0) - m.get("fl", 0))
                 s += left * (m.get("px") or lu) * 1000
+        # 2026-11-08 16:04 使用者「掛空補單呢」:程式自己還在「進場中」的單也要先扣(原本要等轉持倉才算進成交 / 漲停預留):
+        #   已成交的(IOC + 補單)= 成交金額 + 張數 × 漲停(之後買回 / 賣出的預留);還掛著的 = 剩下張數 ×(委託價 + 漲停),漲停買用漲停價、跌停賣用現價
+        #   → IOC 成交一部分後補單算張數時,IOC 那幾張不會被當成沒用到額度;同時兩個訊號進場也不會重複用同一筆額度
+        for c, p in self.positions.items():
+            if p.get("state") != ENTERING: continue
+            lu = self.lu_of(c, self.last_px.get(c) or p.get("px_sig") or 0); o = p.get("order") or {}
+            f = (o.get("filled") or 0) + (p.get("pre_filled") or 0); cost = (o.get("cost") or 0.0) + (p.get("pre_cost") or 0.0)
+            s += cost + f * lu
+            if o and not o.get("dead") and o.get("purpose") == "進場":
+                left = max(0, (o.get("want") or 0) - (o.get("filled") or 0))
+                px = o.get("price") or (lu if o.get("side") == "B" else (self.last_px.get(c) or p.get("px_sig") or lu))
+                s += left * (px + lu)
         for no, mc in self.man_cards.items():
             if mc.get("end"): continue
             left = max(0, mc.get("lots", 0) - mc.get("fl", 0))
