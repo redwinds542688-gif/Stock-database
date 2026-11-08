@@ -43,7 +43,7 @@ t.on_report(51, "A0002", 0, 1000, 84.1); ok("6269" not in t.positions and t.jour
 ok(not t.posts, t.posts)                                                              # 判二自己的平倉訊息由手機發,程式不重複寫
 # 2) 進場 IOC 沒成交(價穩失效)→ 2026-10-31 改 C:改掛跌停賣 ROD 補進場;補單也結束沒成交 → 拿掉;TRADE_ENTRY_FALLBACK=0 照舊直接拿掉
 t2, g2 = mk(); t2.on_tick("6269", 86.2); t2.step([ENT]); t2.on_report(50, "A0001", 25, 0, 0)
-ok("6269" in t2.positions and g2.sent[-1] == ("6269", "S", 1, 0, "9", "0", "L"), g2.sent)
+ok("6269" in t2.positions and g2.sent[-1] == ("6269", "S", 1, 85.4, "9", "0", " "), g2.sent)   # 2026-11-08 16:09 補單改掛訊號價 −1%
 t2.on_report(50, "A0002", 2, 0, 0); ok("6269" not in t2.positions)
 t2b, g2b = mk(TRADE_ENTRY_FALLBACK="0"); t2b.on_tick("6269", 86.2); t2b.step([ENT]); t2b.on_report(50, "A0001", 25, 0, 0); ok("6269" not in t2b.positions and len(g2b.sent) == 1)
 # 3) 平倉只成交一部分 → 再送剩下的
@@ -423,7 +423,7 @@ T9 = [{"code": "6269", "bs": "S", "lots": 1, "price": 86.0, "time": "10:00", "or
 s9.reconcile(T9, []); ok(p9["state"] == ENTERING); s9.reconcile(T9, []); ok(p9["state"] == HOLDING and p9["qty"] == 1 and p9["entry"] == 86.0 and p9["tp"] == 84.05 and not p9.get("wait_confirm"), p9)
 s9b, gs9b = mk(); s9b.on_tick("6269", 86.2); s9b.step([ENT]); s9b.positions["6269"]["order"]["at"] -= 9; s9b.step()
 s9b.reconcile([], []); ok("6269" in s9b.positions); s9b.reconcile([], [])
-ok("6269" in s9b.positions and "已改掛補單" in logs[-1] and gs9b.sent[-1] == ("6269", "S", 1, 0, "9", "0", "L"), (logs[-1], gs9b.sent[-1]))   # 2026-10-31 改 C:元大確認 IOC 沒成交 → 改掛跌停補
+ok("6269" in s9b.positions and "已改掛補單" in logs[-1] and gs9b.sent[-1] == ("6269", "S", 1, 85.4, "9", "0", " "), (logs[-1], gs9b.sent[-1]))   # 2026-10-31 改 C:元大確認 IOC 沒成交 → 改掛跌停補
 s9b.on_report(50, "", 2, 0, 0, basket=s9b.positions["6269"]["order"]["tag"]); ok("6269" not in s9b.positions)
 s9c, gs9c = mk(TRADE_ENTRY_FALLBACK="0"); s9c.on_tick("6269", 86.2); s9c.step([ENT]); s9c.positions["6269"]["order"]["at"] -= 9; s9c.step()
 s9c.reconcile([], []); s9c.reconcile([], []); ok("6269" not in s9c.positions and "確定沒成交" in logs[-1], logs[-1])
@@ -457,7 +457,7 @@ s14b, _ = mk(TRADE_STATE_FILE=str(s14.state_file)); ok(s14b.killed)
 s15, g15 = mk(TRADE_CAP="250000"); s15.on_tick("1714", 17.45)
 s15.step([sig("k151", "short", "和桐 1714 做空進場 17.45", "10:00 空 · 停利 15.88 停損 18.04 · 14張 · 判四")])
 o15 = s15.positions["1714"]["order"]; s15.on_report(51, "", 0, 6000, 17.40, basket=o15["tag"]); s15.on_report(50, "", 2, 0, 0, basket=o15["tag"])
-ok(s15.positions["1714"]["state"] == ENTERING and g15.sent[-1] == ("1714", "S", 8, 0, "9", "0", "L"), g15.sent)
+ok(s15.positions["1714"]["state"] == ENTERING and g15.sent[-1] == ("1714", "S", 8, 17.3, "9", "0", " "), g15.sent)
 o15b = s15.positions["1714"]["order"]; s15.on_report(51, "", 0, 8000, 17.35, basket=o15b["tag"])
 p15 = s15.positions["1714"]; ok(p15["state"] == HOLDING and p15["qty"] == 14 and abs(p15["entry"] - (17.40 * 6 + 17.35 * 8) / 14) < 1e-9, p15)
 s18, g18 = mk(TRADE_CAP="250000"); s18.on_tick("1714", 17.45)   # IOC 取消回報先到、成交回報晚到 → 張數照樣算進去
@@ -723,4 +723,8 @@ r4 = m4.pend_reserve(); ok(r4 > 14 * 17.40 * 1000 and n4_.sent[0][2] == 14 and n
 o4 = m4.positions["1714"]["order"]; m4.on_report(51, "", 0, 6000, 17.40, basket=o4["tag"]); m4.on_report(50, "", 2, 0, 0, basket=o4["tag"])
 ok(m4.positions["1714"]["state"] == ENTERING and m4.pend_reserve() >= 6 * 17.40 * 1000, m4.pend_reserve())
 
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2)")
+# 2026-11-08 16:09 補單限價:做空 訊號 −1% 往上取檔、做多 +1% 往下取檔;碰漲停 / 跌停就用漲停 / 跌停
+from trader import fb_price
+ok(fb_price(17.45, -1) == 17.3 and fb_price(86.2, -1) == 85.4 and fb_price(86.2, 1) == 87.0 and fb_price(49.8, 1) == 50.2 and fb_price(100, 1, ref=91) == 100.0 and fb_price(82, -1, ref=91) == 81.9 and fb_price(82, -1, ref=90) == 81.2)
+
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1)")

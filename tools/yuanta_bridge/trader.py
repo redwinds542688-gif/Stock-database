@@ -32,6 +32,17 @@ def limit_up(ref):
     return round(lu, 2)
 
 
+def fb_price(sig, d, ref=0.0, pct=1.0):
+    """2026-11-08 16:09 使用者「改」:進場補單的限價 = 訊號價往不利方向 pct%(做多往上、做空往下),取到升降單位(做多往下取、做空往上取 → 不超過 pct%);
+       超過漲停 / 跌停就用漲停 / 跌停"""
+    v = sig * (1 + d * pct / 100); t = tick_size(v)
+    px = math.floor(v / t + 1e-6) * t if d > 0 else math.ceil(v / t - 1e-6) * t
+    if ref and ref > 0:
+        lu = limit_up(ref); ld = ref * 0.9; tl = tick_size(ld); ld = math.ceil(ld / tl - 1e-6) * tl
+        px = min(px, lu) if d > 0 else max(px, ld)
+    return round(px, 2)
+
+
 def close_side(d):
     return "B" if d < 0 else "S"
 
@@ -116,7 +127,8 @@ class Trader:
         self.loss_alerts = sorted({float(x) for x in re.split(r"[,\s]+", str(cfg.get("TRADE_LOSS_ALERTS", "10000,20000,30000,40000,50000"))) if x.strip().replace(".", "", 1).isdigit() and float(x) > 0})
         # 2026-10-31 使用者「改 C」(進場一定成交):進場先掛 IOC(讓 TRADE_SLIP_TICKS 檔);元大回報 IOC 結束還有沒成交的張數 →
         #   現價還在訊號價 ±TRADE_MAX_DEV_PCT 內、13:10 前、沒觸發全部平倉 → 剩下的張數改掛漲停買 / 跌停賣(ROD,保證成交,只補一次);0 = 關(照舊沒成交就放棄)
-        self.entry_fallback = cfg.get("TRADE_ENTRY_FALLBACK", "1") == "1"   # 2026-10-26 使用者「改。當天虧 20,000 就停止進場」(原 3000)
+        self.entry_fallback = cfg.get("TRADE_ENTRY_FALLBACK", "1") == "1"
+        self.fb_pct = float(cfg.get("TRADE_FALLBACK_PCT", "1") or 1)   # 2026-11-08 16:09 補單限價離訊號價 %   # 2026-10-26 使用者「改。當天虧 20,000 就停止進場」(原 3000)
         # 2026-10-27 使用者:一天買 + 賣成交金額上限(元大額度 500 萬留緩衝 490 萬);自動進場前算這筆一進一出要用多少,不夠就少掛幾張、連 1 張都不夠就不進;
         #   進場委託被拒(額度 / 金額)→ 少 1 張再掛,一直退到 1 張還被拒才放棄。強制進場不看這個(使用者:元大自己會擋)
         self.max_amount = float(cfg.get("TRADE_MAX_AMOUNT", "5000000"))
@@ -1701,9 +1713,11 @@ class Trader:
         p["pre_filled"] = p.get("pre_filled", 0) + o["filled"]; p["pre_cost"] = p.get("pre_cost", 0.0) + o["cost"]
         p.pop("wait_confirm", None)
         side = "B" if p["dir"] > 0 else "S"
-        self.log(f"[交易] {p['code']} 進場 IOC 成交 {o['filled'] // 1000}/{o['want'] // 1000} 張 → 剩 {left} 張改掛{'漲停買' if side == 'B' else '跌停賣'}(ROD)補進場")
+        sig = p.get("px_sig") or p["entry"] or self.last_px.get(p["code"])
+        px = fb_price(sig, p["dir"], self.ref_of(p["code"]) or 0, self.fb_pct)   # 2026-11-08 16:09 使用者「改」:補單不再掛漲停 / 跌停(買方 / 賣方很少時會一路吃下去),改掛訊號價 ±1% 限價
+        self.log(f"[交易] {p['code']} 進場 IOC 成交 {o['filled'] // 1000}/{o['want'] // 1000} 張 → 剩 {left} 張改掛{'買' if side == 'B' else '賣'} {px}(訊號 {sig} {'+' if side == 'B' else '−'}{self.fb_pct:g}%,ROD,{self.fill_wait:.0f} 秒沒成交完取消)補進場")
         p["ioc_tag"] = o["tag"]
-        self.send(p, "進場", side, left, 0, p["typ"], "H" if side == "B" else "L", "0")
+        self.send(p, "進場", side, left, px, p["typ"], " ", "0")
         p["order"]["fallback"] = True
         return True
 
