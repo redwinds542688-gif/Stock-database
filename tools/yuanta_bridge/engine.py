@@ -1047,7 +1047,7 @@ def live():
                 except Exception as e: log("[檢討] 失敗", repr(e))
                 break
             # 2026-11-08 20:28 使用者「改」:預判重新打開(ENGINE_PRE=1),加保險 —— 最近 3 輪都在 ENGINE_PRE_MAXSEC(15)秒內算完才做;慢了就自動不做,照一般整輪跑(不再像 11/06 一輪 53 秒時插隊)
-            pre_fast = len(eng.rounds) >= 3 and max(eng.rounds[-3:]) <= pre_max
+            pre_fast = len(eng.rounds) >= 3 and max(eng.rounds[-3:]) <= pre_max and not pre.get("off")
             if pre_on and pre_fast and "09:00" <= hm < "13:24" and n.second >= pre_sec and hm not in pre["done"] and pre["ok"]:
                 pre["done"].add(hm); t0 = time.time()
                 try:
@@ -1058,6 +1058,8 @@ def live():
                         res_, dtm_, nj_ = eng.compute()
                         pre["for"], pre["cand"] = nxt, eng.candidates(res_, nxt)
                         log(f"預判 {hm} 這根(假設現價收):{len(pre['cand'])} 個候選 {sorted(JUDGE[r] + c for r, c in pre['cand'])},{time.time() - t0:.1f} 秒")
+                        if time.time() - t0 > pre_max:   # 2026-11-08 20:30 使用者「改」:預判自己超過 15 秒 → 今天不再預判(不讓它拖到下一分鐘的整輪)
+                            pre["off"] = True; pre["cand"] = set(); log(f"!! 預判 {time.time() - t0:.1f} 秒超過 {pre_max:.0f} 秒 → 今天不再預判,照一般整輪跑")
                 except Exception as e: log("預判失敗", repr(e))
                 continue
             if pre_on and pre["cand"] and hm == pre["for"] and hm not in pre["fast"] and n.second < 4:
