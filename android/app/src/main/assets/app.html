@@ -317,7 +317,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611081241">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611081242">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7199,7 +7199,7 @@ async function realGone(x){
 }
 async function cloudNotifyNew(force){
   try{
-    const now = Date.now(); if (!force && now - (BG.vAt || 0) < (window.VIEWER ? 15000 : 5000)) return 'ok ' + (BG.vN || 0);   // 2026-11-07 使用者「看看還有什麼會拖慢速度的 再檢查」:自己的 App(永久版)讀電腦通知 15 → 5 秒(看盤版維持 15 秒,省 Worker 請求)
+    const now = Date.now(); if (!force && now - (BG.vAt || 0) < (vwOnly() ? 15000 : 5000)) return 'ok ' + (BG.vN || 0);   // 2026-11-07 使用者「看看還有什麼會拖慢速度的 再檢查」:自己的 App(永久版)讀電腦通知 15 → 5 秒(看盤版維持 15 秒,省 Worker 請求)
     BG.vAt = now;
     const d = new Date(now + 8 * 3600000).toISOString().slice(0, 10);
     const r = await fetch(cloudLogUrl() + 'get&d=' + d + '&_=' + now, {cache: 'no-store', signal: AbortSignal.timeout(9000)});
@@ -7260,7 +7260,7 @@ window.bgTick = bgTick; window.BG = BG;
     const now = Date.now();
     if (now - CLOUD_LOG.daysAt > 600000){ CLOUD_LOG.daysAt = now;
       fetch(u + 'days&_=' + now).then(r => r.ok ? r.json() : null).then(a => { if (Array.isArray(a)){ CLOUD_LOG.days = a; render(true); } }).catch(() => {}); }
-    const ttl = d === todayStr() ? (window.VIEWER ? 15000 : 60000) : 3600000;   // 2026-10-29 看盤版今天每 15 秒抓一次(訊號只有這條路)
+    const ttl = d === todayStr() ? (vwOnly() ? 15000 : window.VIEWER ? 5000 : 60000) : 3600000;   /* 2026-11-08 主人鑰匙的電腦看盤版今天也是 5 秒(和手機讀電腦通知一樣快) */   // 2026-10-29 看盤版今天每 15 秒抓一次(訊號只有這條路)
     if (now - (CLOUD_LOG.at[d] || 0) < ttl) return; CLOUD_LOG.at[d] = now;
     fetch(u + 'get&d=' + d + '&_=' + now).then(r => r.ok ? r.json() : null).then(a => { if (Array.isArray(a)){ CLOUD_LOG.items[d] = a; render(true); } }).catch(() => {});
   }
