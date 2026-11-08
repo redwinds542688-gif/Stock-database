@@ -317,7 +317,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611081258">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611081354">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -587,6 +587,8 @@
   #notifLog.usm{grid-template-rows:auto repeat(3,minmax(0,1fr))!important} #notifLog.usm .hd{grid-column:1/-1}
   #notifLog.usm .hd{justify-content:flex-start!important} #notifLog.usm .hd .rvb{margin-left:14px}
   #notifLog.usm .usk{padding:2px 4px 2px 7px} #notifLog.usm .usk .usn{font-size:clamp(10px,2.9vw,13px);line-height:1.1} #notifLog.usm .usk .usv{font-size:clamp(13px,4.1vw,19px);line-height:1.08} #notifLog.usm .usk .usd{font-size:clamp(9px,2.5vw,11px);line-height:1.15}
+  #notifLog .hd .vbtn.spk{display:inline-flex;align-items:center;justify-content:center;padding:0 6px;color:#8C96AB;border-color:#6b6f7a;box-shadow:0 0 0 2px #000,0 0 0 3.5px #4A5570;background:#000;cursor:pointer}   /* 2026-11-08 當沖標題喇叭鍵:靜音 灰框;有聲音 黃底(.on) */
+  #notifLog .hd .vbtn.spk.on{background:#FFD54F;color:#000;border-color:#fff;box-shadow:0 0 0 2px #000,0 0 0 3.5px #FFD54F}
   #notifLog .hd .vbtn.rvb{position:relative;color:#C9D1E0;border-color:#6b6f7a;box-shadow:0 0 0 2px #000,0 0 0 3.5px #4A5570}
   #notifLog .hd .vbtn.rvb.on{background:#FFD54F;color:#000;border-color:#fff;box-shadow:0 0 0 2px #000,0 0 0 3.5px #FFD54F}
   #notifLog .hd .vbtn.rvb.dot::before{content:'';position:absolute;top:3px;left:3px;width:8px;height:8px;border-radius:50%;background:#FF3B30;box-shadow:0 0 5px #FF3B30;animation:rvBlink 1s steps(1,end) infinite}
@@ -7066,6 +7068,34 @@ function notifLay(title, body, kind){
     return {t: [cn, `${lose ? '⚠⚠ ' : '✅ '}${why} ${pl.replace('-', '−')}`, '平倉'], b: [`${hm} ${e[1]}`, `${e[2]}→${(+e[3]).toFixed(2)}`, rs], c: lose ? '#ff8a8a' : '#7cc8ff', bg: lose ? 'loss' : 'profit'};
   }catch(err){ return null; }
 }
+/* 2026-11-08 13:10 使用者「(當沖標題)不用顯示虛擬也不用顯示元大 這位置固定 改一個聲音按鍵 一樣要有框 … 喇叭符號 切換通知有聲音或是靜音 這聲音按鍵只針對該使用設備」
+   → 13:31「符號太小 框裡面最大化」→ 13:52「只改聲音不改震動」:靜音 = 這台不響(手機 App 1.5.65 起 Alert 看 mysh.kv 的 mute;震動照舊);電腦網頁自己放的分級音效也停 */
+const sndMuted = () => { try{ return localStorage.getItem('mysh.mute') === '1'; }catch(e){ return false; } };
+const sndSet = m => { try{ localStorage.setItem('mysh.mute', m ? '1' : ''); }catch(e){} try{ if (window.Android && Android.setPref) Android.setPref('mute', m ? '1' : ''); }catch(e){} };
+try{ if (window.Android && Android.setPref) Android.setPref('mute', sndMuted() ? '1' : ''); }catch(e){}
+const SPK_ON = '<svg viewBox="0 0 24 24" width="1.6em" height="1.6em" style="display:block"><path d="M3 9h4l5-4v14l-5-4H3z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>';
+const SPK_OFF = '<svg viewBox="0 0 24 24" width="1.6em" height="1.6em" style="display:block"><path d="M3 9h4l5-4v14l-5-4H3z" fill="currentColor"/><path d="M16 9l6 6M22 9l-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+const spkBtn = () => `<button class="vbtn spk${sndMuted() ? '' : ' on'}" type="button" aria-label="${sndMuted() ? '靜音' : '有聲音'}">${sndMuted() ? SPK_OFF : SPK_ON}</button>`;
+window.spkBtn = spkBtn;
+document.addEventListener('click', ev => { try{ const b = ev.target && ev.target.closest && ev.target.closest('.vbtn.spk'); if (!b) return; ev.preventDefault(); ev.stopPropagation();
+  const m = !sndMuted(); sndSet(m); document.querySelectorAll('.vbtn.spk').forEach(x => { x.classList.toggle('on', !m); x.innerHTML = m ? SPK_OFF : SPK_ON; x.setAttribute('aria-label', m ? '靜音' : '有聲音'); });
+  try{ fmToast(m ? '這台靜音(不響,震動照舊)' : '這台通知有聲音', 1800); }catch(e){} if (!m) try{ webSnd('long', ''); }catch(e){} }catch(e){} }, true);
+/* 電腦 / 網頁(沒有 Android App):收到通知自己放分級音效(進場短嗶;賺錢上升、分級越高越多音;賠錢下降、分級越高越多次);Chrome 規定要先點過畫面才能出聲 */
+const WSND = { ctx: null };
+const wsCtx = () => { try{ if (!WSND.ctx){ const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; WSND.ctx = new C(); } if (WSND.ctx.state === 'suspended') WSND.ctx.resume(); return WSND.ctx; }catch(e){ return null; } };
+['pointerdown', 'keydown'].forEach(t => document.addEventListener(t, () => { if (!window.Android) wsCtx(); }, {capture: true, passive: true}));
+function webSnd(kind, title){ try{
+  if (window.Android || sndMuted() || !kind || kind === 'warn' || kind === 'sys') return; const c = wsCtx(); if (!c || c.state !== 'running') return;
+  const tone = (f, t0, d, v = 0.22, type = 'sine') => { const o = c.createOscillator(), g = c.createGain(); o.type = type; o.frequency.value = f; o.connect(g); g.connect(c.destination);
+    const t = c.currentTime + t0; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.start(t); o.stop(t + d + 0.02); };
+  const lv = +((/^lv(\d)$/.exec(kind) || [])[1] || 0), win = +((/^win(\d)$/.exec(kind) || [])[1] || 0);
+  const xp = kind === 'exit' ? (/^✅/.test(title || '') ? 1 : /^⚠/.test(title || '') ? -1 : (/[+]\s*\d/.test(title || '') ? 1 : /[-−]\s*\d/.test(title || '') ? -1 : 0)) : 0;
+  if (win > 0 || kind === 'profit' || xp > 0){ const n = win > 0 ? win + 1 : 2, base = [659, 784, 988, 1175, 1319, 1568]; for (let i = 0; i < n; i++) tone(base[i % base.length], i * 0.12, 0.22, 0.2, 'triangle'); return; }
+  if (lv > 0 || kind === 'loss' || xp < 0){ const n = lv > 0 ? lv : 1; for (let k = 0; k < n; k++){ tone(523, k * 0.7, 0.28, 0.24, 'square'); tone(392, k * 0.7 + 0.3, 0.36, 0.24, 'square'); } return; }
+  if (kind === 'long' || kind === 'short'){ tone(880, 0, 0.12, 0.2); tone(1175, 0.15, 0.16, 0.2); return; }
+  tone(660, 0, 0.25, 0.18);
+}catch(e){} }
+window.webSnd = webSnd;
 function andNotify(title, body, kind){
   if (!(window.Android && Android.notify)) return;
   // 2026-10-31 使用者「浮輸1,2,3,4 訊息通知 要有危機感 一則要比一則嚴重」:電腦推的虧損分級 lv1~lv5 —— 新版 App(1.5.50 起,Android.caps 有 lv)照級數放顏色 / 鬧鐘聲 / 震動;
@@ -7209,7 +7239,7 @@ async function cloudNotifyNew(force){
     CLOUD_LOG.items[d] = arr; CLOUD_LOG.at[d] = now;
     if (BG.vDay !== d){ BG.vDay = d; BG.vSeen = new Set(arr.map(cloudLogKey)); BG.vN = arr.length; return 'init ' + arr.length; }   // 第一輪(或換日):已有的不重發
     for (const x of arr.slice().reverse()){ const k = cloudLogKey(x); if (BG.vSeen.has(k)) continue; BG.vSeen.add(k);
-      if (x.kind && x.kind !== 'warn' && x.kind !== 'sys' && !freeRes){ if (await realGone(x)) continue; try{ andNotify(x.title, x.body, x.kind); }catch(e){} }
+      if (x.kind && x.kind !== 'warn' && x.kind !== 'sys' && !freeRes){ if (await realGone(x)) continue; try{ andNotify(x.title, x.body, x.kind); }catch(e){} try{ webSnd(x.kind, x.title); }catch(e){} }
       { const mw = /^win(\d)$/.exec(x.kind || ''); if (mw) try{ celebrate(x.title, +mw[1]); }catch(e){} } }
     BG.vN = arr.length; try{ if (window.nlRender) nlRender(); }catch(e){}
     return 'ok ' + arr.length;
@@ -7661,7 +7691,7 @@ window.bgTick = bgTick; window.BG = BG;
         }
         // (判別式相關說明已移到私人庫)
         // 2026-10-27 10:30(實際時間)使用者:「當沖 通知欄 最下面的資訊 改在上面顯示 這邊不用」:「N 檔 未平倉 + 合計輸贏」改放標題列(取代 當日),最下面那列拿掉
-        const hdPos = hd.replace(/<\/span><span>\d+ 則<\/span>/, (usOn() ? '</span>' : `</span><span class="cash">${money(Math.round(tot))}</span>`)).replace(`<span>${usLabel()}</span>`, `<span class="dlb">${usLabel()}</span><span class="dwh dstat"${inSession() || usOn() ? '' : ' style="visibility:hidden"'}><span class="dwi">${usOn() ? String(window.__US.us || '').slice(5).replace('-', '/') : today.slice(5).replace('-', '/')}</span></span><span class="dsrc"></span>${usOn() ? '' : (!vwOnly() && (TP || (!over && TPL && TPL.ok))) ? '<span class="vbtn on vtag">元大</span>' : !over ? '<span class="vbtn on virt vtag">虛擬</span>' : ''}`);   /* 2026-11-04 使用者「開盤版 當沖裡也是只能顯示 虛擬」:看盤版當沖標題和永久版同一個樣子,那格固定紫色「虛擬」(原「當沖 系統」) */   /* 2026-11-04 使用者「開盤中 會顯示 元大 如果真連不上線 一樣顯示虛擬 原來顯示元大的那個鍵 改顯示 虛擬」:列的是程式訊號(虛擬部位)時,同一格改紫色「虛擬」 */   /* 2026-11-03 17:28 使用者「當沖啟動時 也就是盤中 元大按鍵位置 與 明細裡的位置一致」:當沖也放一格同寬的日期(不能捲),元大就和明細的按鍵對齊;17:32「(非開盤時間)就不用 顯示 日期」:非盤中日期格隱藏(位置留著,元大照樣對齊) */   /* 17:24 使用者「連得上電腦時 當沖 元大。把 元大 放上去」 */   /* 2026-11-03 17:22 使用者「把 當沖 改 綠色 後面的系統不顯示」:綠色、不寫元大 / 系統(看盤版照舊「當沖 系統」) */   // 13:21 連得上電腦(元大真實部位)標「元大」,模擬標「系統」(看盤版標題本來就是「當沖 系統」)   // 2026-10-27 10:40(實際時間)使用者:「輸贏金額 顯示在最右邊」:合計放標題列最右邊(.cash);10:45「幾檔也不用顯示」:左邊只剩 當沖
+        const hdPos = hd.replace(/<\/span><span>\d+ 則<\/span>/, (usOn() ? '</span>' : `</span><span class="cash">${money(Math.round(tot))}</span>`)).replace(`<span>${usLabel()}</span>`, `<span class="dlb">${usLabel()}</span><span class="dwh dstat"${inSession() || usOn() ? '' : ' style="visibility:hidden"'}><span class="dwi">${usOn() ? String(window.__US.us || '').slice(5).replace('-', '/') : today.slice(5).replace('-', '/')}</span></span><span class="dsrc"></span>${usOn() ? '' : spkBtn()}`);   /* 2026-11-04 使用者「開盤版 當沖裡也是只能顯示 虛擬」:看盤版當沖標題和永久版同一個樣子,那格固定紫色「虛擬」(原「當沖 系統」) */   /* 2026-11-04 使用者「開盤中 會顯示 元大 如果真連不上線 一樣顯示虛擬 原來顯示元大的那個鍵 改顯示 虛擬」:列的是程式訊號(虛擬部位)時,同一格改紫色「虛擬」 */   /* 2026-11-03 17:28 使用者「當沖啟動時 也就是盤中 元大按鍵位置 與 明細裡的位置一致」:當沖也放一格同寬的日期(不能捲),元大就和明細的按鍵對齊;17:32「(非開盤時間)就不用 顯示 日期」:非盤中日期格隱藏(位置留著,元大照樣對齊) */   /* 17:24 使用者「連得上電腦時 當沖 元大。把 元大 放上去」 */   /* 2026-11-03 17:22 使用者「把 當沖 改 綠色 後面的系統不顯示」:綠色、不寫元大 / 系統(看盤版照舊「當沖 系統」) */   // 13:21 連得上電腦(元大真實部位)標「元大」,模擬標「系統」(看盤版標題本來就是「當沖 系統」)   // 2026-10-27 10:40(實際時間)使用者:「輸贏金額 顯示在最右邊」:合計放標題列最右邊(.cash);10:45「幾檔也不用顯示」:左邊只剩 當沖
         if (window.__nlV !== 'pos'){ box.scrollTop = 0; window.__nlV = 'pos'; }   // 2026-10-27 11:20 切到當沖也從最上面開始
         window.__posWin = window.__posWinTmp || []; window.__posWinTP = !!TP;
         const __usx = !!(__ub && !open.length);

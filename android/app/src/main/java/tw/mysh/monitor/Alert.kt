@@ -18,6 +18,8 @@ import android.util.Log
 object Alert {
     private val h = Handler(Looper.getMainLooper())
     private var rt: Ringtone? = null
+    /** 2026-11-08 13:52 使用者「當沖標題的喇叭鍵 … 只改聲音不改震動」:這支手機按了靜音(App 存 mysh.kv 的 mute = 1)→ 不放聲音,震動照舊 */
+    private fun muted(ctx: Context): Boolean = try { ctx.getSharedPreferences("mysh.kv", Context.MODE_PRIVATE).getString("mute", "") == "1" } catch (e: Exception) { false }
     private val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
 
     /** 2026-11-05 14:16 使用者「通知的音效有辦法統一嗎」→「第一個 只做一般通知 一聲 叮」「輸錢平倉 一次 低 高」→「改」:
@@ -60,6 +62,7 @@ object Alert {
     }
     /** 同一個內建聲音連響 n 次(每次間隔 0.7 秒) */
     private fun soundTimes(ctx: Context, res: Int, n: Int, gap: Long = 700L) {
+        if (muted(ctx)) return
         try { rt?.stop() } catch (e: Exception) {}
         val uri = try { Uri.parse("android.resource://" + ctx.packageName + "/" + res) } catch (e: Exception) { null } ?: return
         for (i in 0 until n) h.postDelayed({
@@ -76,6 +79,7 @@ object Alert {
         } catch (e: Exception) { Log.e("mysh", "vibrate failed", e) }
     }
     private fun soundFor(ctx: Context, alarm: Boolean, ms: Long, win: Boolean = false) {
+        if (muted(ctx)) return
         try {
             try { rt?.stop() } catch (e: Exception) {}
             val uri = own(ctx, alarm, win) ?: RingtoneManager.getDefaultUri(if (alarm) RingtoneManager.TYPE_ALARM else RingtoneManager.TYPE_NOTIFICATION)
@@ -97,6 +101,7 @@ object Alert {
         } catch (e: Exception) { Log.e("mysh", "vibrate failed", e) }
     }
     private fun sound(ctx: Context, danger: Boolean) {
+        if (muted(ctx)) return
         try {
             try { rt?.stop() } catch (e: Exception) {}
             val uri = own(ctx, danger) ?: RingtoneManager.getDefaultUri(if (danger) RingtoneManager.TYPE_ALARM else RingtoneManager.TYPE_NOTIFICATION)
