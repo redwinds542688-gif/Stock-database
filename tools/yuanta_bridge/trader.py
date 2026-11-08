@@ -109,8 +109,8 @@ class Trader:
         self.auto = cfg.get("TRADE_AUTO", "0") == "1"
         self.qty = int(cfg.get("TRADE_QTY", "1"))
         # 2026-10-30 10:16 使用者「和桐 是程式自己下單的 … 照25萬上限 應該成交14張 可是卻只交易一張」:自動進場張數 = 多空上限 ÷ 一張(和手機 / 通知同一套),
-        #   TRADE_CAP 沒設就用 ENGINE_CAP(30 萬,2026-11-08 起);TRADE_CAP=0 才回到固定 TRADE_QTY 張
-        self.cap = int(float(cfg.get("TRADE_CAP", cfg.get("ENGINE_CAP", "300000")) or 0))
+        #   TRADE_CAP 沒設就用 ENGINE_CAP(25 萬);TRADE_CAP=0 才回到固定 TRADE_QTY 張
+        self.cap = int(float(cfg.get("TRADE_CAP", cfg.get("ENGINE_CAP", "250000")) or 0))
         self.max_pos = int(cfg.get("TRADE_MAX_POS", "0"))          # 2026-10-28 使用者「開放同時可以五檔股票在線 強制進場不在受限範圍內」
         # 2026-10-31 03:55 使用者「改 10」(16 天回測:同時 2 檔 +72,395、5 檔 +212,220、10 檔 +338,404、不限 +371,487;超過 10 檔是一天 490 萬先用完):
         #   預設 10;bridge.env 還是以前設的 2 或 5(10/29 開自動交易時 2、10/28 的 5)也當 10,不用動桌機檔案;要別的數字就寫成 2、5 以外的值

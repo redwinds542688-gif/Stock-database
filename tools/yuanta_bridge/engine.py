@@ -656,7 +656,7 @@ class Engine:
                 if self.pos or self.emitted: log(f"接回狀態:開著 {len(self.pos)} 筆、處理過的進場 {len(self.emitted)} 個")
             except FileNotFoundError: pass
             except Exception as e: log("!! 狀態檔讀不懂(當作沒有;雲端通知會再對一次)", e)
-        self.cap = int(CFG.get("ENGINE_CAP", "300000")) if dry else cloud_cap(int(CFG.get("ENGINE_CAP", "300000")))   # 2026-11-02 跟 5861 主導機(回放 --dry 不讀雲端);手機的多空上限(通知裡的張數);2026-10-29 手機設 25 萬
+        self.cap = int(CFG.get("ENGINE_CAP", "250000")) if dry else cloud_cap(int(CFG.get("ENGINE_CAP", "250000")))   # 2026-11-02 跟 5861 主導機(回放 --dry 不讀雲端);手機的多空上限(通知裡的張數);2026-10-29 手機設 25 萬
         self.set_universe(uni)
         self.upto_hm = ""   # 2026-11-06 這輪算到幾點(compute 用來判斷判別式是不是已過進場時段)
         self.reload_envs()
@@ -1017,7 +1017,7 @@ def acquire_lock():
 def live():
     lockf = acquire_lock()
     day = now_tw().strftime("%Y-%m-%d")
-    cap = cloud_cap(int(CFG.get("ENGINE_CAP", "300000")))   # 2026-11-02 跟 5861 主導機
+    cap = cloud_cap(int(CFG.get("ENGINE_CAP", "250000")))   # 2026-11-02 跟 5861 主導機
     j = load_pool(day)
     try:   # 先看狀態檔裡今天通知過哪些股票(和手機一樣不受篩選,平倉要靠它)
         sj = json.loads((DATA / f"engine_state_{day}.json").read_text(encoding="utf-8"))
@@ -1192,7 +1192,7 @@ def live():
 def replay(day, only=None, dry=True):
     lockf = acquire_lock()
     j = load_pool(day, fresh=False)
-    cap = int(CFG.get("ENGINE_CAP", "300000"))
+    cap = int(CFG.get("ENGINE_CAP", "250000"))
     uni = build_universe(j, day, cap)
     if only:   # 指定代碼:不管篩選,照算(對照用)
         pool = {str(s["code"]): s for s in j.get("pool", [])}
