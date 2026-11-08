@@ -673,6 +673,9 @@ class Trader:
                         if o.get("no") and not o.get("cancel_sent"): o["cancel_sent"] = True; self.gw.cancel(o["no"], p["code"], o["side"], o["typ"])
                         else: o["cancel_after"] = True
                 elif p["state"] == ENTERING: p["exit_pending"] = why; n += 1   # 進場單還沒成交:成交轉持倉後馬上平
+                elif p["state"] == EXITING and self.prehang.get(p["code"]):
+                    # 2026-11-08 20:45 檢查:只平沒預掛那幾張的途中(ph_part)按緊急全平 → 預掛也要取消,平倉單成交後剩下的(原預掛張數)照全平送出
+                    self.cancel_ph(p, why); n += 1
             if lock and n: self.save_state()
         return n
 
@@ -1394,6 +1397,7 @@ class Trader:
                 r = (True, "進場單取消中,已成交的會馬上平倉")
             elif p["state"] == EXITING:
                 p["forced_close"] = True; self.locked.add(code); self.save_state()
+                if self.prehang.get(code): self.cancel_ph(p, "強平")   # 2026-11-08 20:45 檢查:只平沒預掛那幾張的途中按強平 → 預掛先取消,平倉單成交後剩下的照強平送出
                 o = p.get("order")
                 if not o or o.get("dead") or p.get("stuck"):
                     # 平倉檢查 #4:重送 3 次失敗(stuck)/ 沒有在掛的平倉單 → 強平重新送出,次數歸零
@@ -1669,6 +1673,13 @@ class Trader:
         if no:
             o["no"] = str(no).strip()
 
+    def cancel_ph(self, p, why):
+        """取消這檔所有手動預掛(強平 / 緊急全平用);取消前成交的照「強平取消的預掛」處理(多出來的再強平)"""
+        for no in self.prehang.pop(p["code"], []):
+            m = self.man_meta.pop(no, {}); self.gw.cancel(no, p["code"], m.get("bs") or close_side(p["dir"]), m.get("typ") or p["typ"]); self.ph_cancel[no] = time.time()
+            self.log(f"[交易] {p['code']} {why}:先取消手動預掛 {no}")
+        p["forced_close"] = True; p["force_limit"] = True
+
     def prehang_wait(self, code):
         """這檔有保留的手動預掛平倉單、還沒到期限 → True(程式先不平)"""
         return bool(self.prehang.get(code)) and self.prehang_deadline not in ("", "0") and self.hm() < self.prehang_deadline
@@ -1829,7 +1840,7 @@ class Trader:
             self.finish_pos(p)
             self.rebuy(p["code"], -p["dir"], extra, avg, p["mkt"])
             return
-        if p.get("ph_part") and p["qty"] > 0 and self.prehang.get(p["code"]):
+        if (p.get("ph_part") or self.prehang_wait(p["code"])) and p["qty"] > 0 and self.prehang.get(p["code"]) and not p.get("forced_close"):   # 2026-11-08 20:50 檢查:重開接回時 ph_part 記號沒了,預掛期間一樣只補沒預掛的
             # 2026-11-08 18:26 只平沒預掛的那幾張:平完 → 回持倉中、剩下的等預掛;沒平完 → 只重送沒預掛的張數
             keep = self.ph_lots(p["code"]); px = self.last_px.get(p["code"], avg or p["entry"])
             if p["qty"] <= keep:
