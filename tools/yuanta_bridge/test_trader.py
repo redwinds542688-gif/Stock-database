@@ -687,4 +687,19 @@ n3 = len(k3.sent); v3.on_report(51, "", 0, 1000, 86.1, basket=w3["entry_tag"], c
 v3.on_strategy_reply("S2", True, ""); T3 = [{"code": "6269", "bs": "S", "lots": 1, "price": 86.1, "time": "10:00", "order_no": "A0001"}, {"code": "6269", "bs": "B", "lots": 1, "price": 86.0, "time": "10:05", "order_no": "Z"}]
 v3.reconcile(T3, [], {}); n3 = len(k3.sent); v3.reconcile(T3, [], {}); ok("6269" not in v3.positions and ("del_oco", "S2") in k3.sent[n3:], k3.sent[n3:])
 
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2)")
+# 2026-11-08 15:57 進場流程檢查「改」:① 補單(跌停賣 ROD)8 秒沒成交完 → 取消剩下的,取消回報後照已成交張數轉持倉 / 0 張放棄;委託書號晚到也會取消 ② 現價已過停損 / 停利不進
+at(10, 0); f1, h1 = mk(TRADE_CAP="250000"); f1.on_tick("1714", 17.45)
+f1.step([sig("kf1", "short", "和桐 1714 做空進場 17.45", "10:00 空 · 停利 15.88 停損 18.04 · 14張 · 判四")])
+of1 = f1.positions["1714"]["order"]; f1.on_report(51, "", 0, 6000, 17.40, basket=of1["tag"]); f1.on_report(50, "", 2, 0, 0, basket=of1["tag"])
+fb1 = f1.positions["1714"]["order"]; f1.on_report(50, "B9", 0, 0, 0, basket=fb1["tag"]); fb1["at"] -= 9; f1.step()
+ok(("cancel", "B9", "1714", "S") in h1.sent and f1.positions["1714"]["state"] == ENTERING, h1.sent[-2:])
+f1.on_report(50, "B9", 2, 0, 0, basket=fb1["tag"]); ok(f1.positions["1714"]["state"] == HOLDING and f1.positions["1714"]["qty"] == 6, f1.positions["1714"])
+f2, h2 = mk(GWN, TRADE_CAP="250000"); f2.on_tick("1714", 17.45)
+f2.step([sig("kf2", "short", "和桐 1714 做空進場 17.45", "10:00 空 · 停利 15.88 停損 18.04 · 14張 · 判四")])
+of2 = f2.positions["1714"]["order"]; f2.on_report(50, "", 2, 0, 0, basket=of2["tag"]); fb2 = f2.positions["1714"]["order"]; fb2["at"] -= 9; f2.step()
+ok(not any(x[0] == "cancel" for x in h2.sent) and fb2.get("cancel_after"), h2.sent)
+f2.on_order_reply("B7", True, "", fb2["tag"]); ok(("cancel", "B7", "1714", "S") in h2.sent, h2.sent)
+f2.on_report(50, "B7", 2, 0, 0, basket=fb2["tag"]); ok("1714" not in f2.positions)
+f3, h3 = mk(TRADE_MAX_DEV_PCT="5"); f3.on_tick("6269", 88.9); f3.step([ENT]); ok("6269" not in f3.positions and "已不在停利" in logs[-1], logs[-1])
+
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1)")

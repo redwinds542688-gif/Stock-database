@@ -1125,6 +1125,14 @@ class Trader:
                 if p["state"] == HOLDING and hm >= fe:
                     self.exit_pos(p, f"{self.force_exit} 強制平倉", self.last_px.get(p["code"], p["entry"]), force_limit=True)
                 o = p.get("order")
+                if (o and not o.get("dead") and o.get("fallback") and o["purpose"] == "進場" and not o.get("fb_cut")
+                        and time.time() - o["at"] > self.fill_wait):
+                    # 2026-11-08 15:57 使用者「改」:進場補單(漲停買 / 跌停賣 ROD)N 秒沒成交完 → 剩下的取消不追(鎖漲跌停時排隊,晚很久才成交、價格早就離訊號很遠)
+                    #   取消回報回來 → after_report 照已成交的張數(IOC + 補單)轉持倉,0 張就放棄;回報沒來由 30 秒複查(verify)照元大處理
+                    o["fb_cut"] = True
+                    if o.get("no") and not o.get("cancel_sent"): o["cancel_sent"] = True; self.gw.cancel(o["no"], p["code"], o["side"], o["typ"])
+                    else: o["cancel_after"] = True
+                    self.log(f"[交易] {p['code']} 進場補單 {self.fill_wait:.0f} 秒沒成交完(已成交 {o['filled'] // 1000}/{o['want'] // 1000} 張),取消剩下的不追")
                 if o and not o.get("dead") and o.get("tif") != "0" and time.time() - o["at"] > self.fill_wait:
                     if o.get("no"):
                         self.log(f"[交易] {p['code']} {o['purpose']} 委託 {self.fill_wait:.0f} 秒沒成交完,取消剩餘"); self.gw.cancel(o["no"], p["code"], o["side"], o["typ"])
@@ -1526,6 +1534,8 @@ class Trader:
                 self.late_wait[code] = {"it": dict(it), "judge": judge, "kind": kind, "px": px_sig, "tp": tp_sig, "sl": sl_sig, "until": time.time() + self.late_redo_min * 60}
                 self.log(f"[交易] {code} 太晚了先記著:{self.late_redo_min:g} 分鐘內現價回到 {px_sig} ±{self.max_dev:g}% 且沒碰停利 {tp_sig} / 停損 {sl_sig} → 自動補進場")
             return
+        if not ((sl_sig < last < tp_sig) if kind == "long" else (tp_sig < last < sl_sig)):   # 2026-11-08 15:57 使用者「改」:現價已經碰到停利 / 停損就不進(太晚 / 超額補進場本來就有這關)
+            self.log(f"[交易] 不進場 {title}:現價 {last} 已不在停利 {tp_sig} / 停損 {sl_sig} 之間"); return
         d = 1 if kind == "long" else -1
         price = shift(last, self.slip * d)                     # 買進往上讓、賣出往下讓
         lots = max(1, int(self.cap // (px_sig * 1000))) if self.cap > 0 else self.qty   # 2026-10-30 張數照多空上限(訊號價算,和通知上的張數一樣)
