@@ -57,7 +57,7 @@ def load_env():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1); cfg[k.strip()] = re.split(r"\s+#", v, 1)[0].strip()
-    for k in ("ENGINE_PRE", "ENGINE_PRE_SEC", "ENGINE_START_SEC", "DRAG_ON", "DRAG_MIN", "DRAG_MFE", "DRAG_MKT", "QUOTE_PORT", "WORKER_URL", "PUSH_KEY", "ENGINE_WORKERS", "ENGINE_CAP", "LOG_DIR", "ENGINE_SIM_SRC", "ENGINE_MAX_CODES", "ENGINE_LO", "ENGINE_HI", "ENGINE_AMP",
+    for k in ("ENGINE_PRE", "ENGINE_PRE_SEC", "ENGINE_PRE_MAXSEC", "ENGINE_START_SEC", "DRAG_ON", "DRAG_MIN", "DRAG_MFE", "DRAG_MKT", "QUOTE_PORT", "WORKER_URL", "PUSH_KEY", "ENGINE_WORKERS", "ENGINE_CAP", "LOG_DIR", "ENGINE_SIM_SRC", "ENGINE_MAX_CODES", "ENGINE_LO", "ENGINE_HI", "ENGINE_AMP",
               "ENGINE_ERR_MAX", "ENGINE_RULES_MIN", "ENGINE_BAR_WAIT"):
         if os.environ.get(k): cfg[k] = os.environ[k]
     return cfg
@@ -1035,7 +1035,7 @@ def live():
     #   判斷依據還是收盤後的 K(和回測一樣);第 4 秒的整輪照舊(已推的不會重發,沒趕上的照發)。ENGINE_PRE=0 關掉
     # 2026-11-06 13:14 使用者「那把預判拿掉 浪費時間」:一輪要 ~53 秒,第 45 秒開始的預判算完已過下一分鐘第 4 秒 → 快速確認幾乎跑不到
     #   (11/02~11/06 約 960 次預判只提早推出 4 則,11/04 起 0 則),還連續搶走整輪(11/06 華經 10:22 訊號連 3 輪預判,10:26:35 才通知)→ 預設關;ENGINE_PRE=1 可再開
-    pre_on = CFG.get("ENGINE_PRE", "0") == "1"; pre_sec = int(CFG.get("ENGINE_PRE_SEC", "45"))
+    pre_on = CFG.get("ENGINE_PRE", "1") == "1"; pre_sec = int(CFG.get("ENGINE_PRE_SEC", "45")); pre_max = float(CFG.get("ENGINE_PRE_MAXSEC", "15"))   # 2026-11-08 20:28 預設改回開(有 15 秒保險)
     try: start_sec = int(CFG.get("ENGINE_START_SEC", "2"))
     except Exception: start_sec = 2
     pre = {"for": "", "cand": set(), "done": set(), "fast": set(), "ok": False, "rs_block": {}}
@@ -1046,7 +1046,9 @@ def live():
                 try: eng.push_review()   # 2026-11-07 收盤檢討(A)
                 except Exception as e: log("[檢討] 失敗", repr(e))
                 break
-            if pre_on and "09:00" <= hm < "13:24" and n.second >= pre_sec and hm not in pre["done"] and pre["ok"]:
+            # 2026-11-08 20:28 使用者「改」:預判重新打開(ENGINE_PRE=1),加保險 —— 最近 3 輪都在 ENGINE_PRE_MAXSEC(15)秒內算完才做;慢了就自動不做,照一般整輪跑(不再像 11/06 一輪 53 秒時插隊)
+            pre_fast = len(eng.rounds) >= 3 and max(eng.rounds[-3:]) <= pre_max
+            if pre_on and pre_fast and "09:00" <= hm < "13:24" and n.second >= pre_sec and hm not in pre["done"] and pre["ok"]:
                 pre["done"].add(hm); t0 = time.time()
                 try:
                     lb_ = local_bars()
@@ -1085,7 +1087,7 @@ def live():
                         eng.set_universe(nu)
                 except Exception as e: log("開盤前讀主導機設定失敗", repr(e))
             if hm < "09:01" or n.second < start_sec or hm in done:   # 2026-11-07 中繼換分鐘第 1 秒就推 K → 開算從第 4 秒提早到第 2 秒(ENGINE_START_SEC;下面還是會等 hm-1 那根到齊)
-                time.sleep(0.5 if pre_on else 0.2); continue   # 2026-11-07 等開算 1 → 0.2 秒(第 2 秒準時開)
+                time.sleep(0.2); continue   # 2026-11-07 等開算 1 → 0.2 秒(第 2 秒準時開)
             done.add(hm)
             c2 = cloud_cap(eng.cap) if hm < "09:00" else eng.cap   # 2026-11-07 19:32 使用者「開盤中不用追蹤主導機設定」:原 09:03 前 → 09:00 前(開盤前最後一次為準)   # 2026-11-02 跟 5861 主導機的多空上限(通知裡的張數);盤中設定禁改 → 只在開盤頭兩分鐘再確認
             if c2 != eng.cap: log(f"多空上限 {eng.cap:,} → {c2:,}(5861 主導機)"); eng.cap = c2
