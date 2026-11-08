@@ -16,11 +16,12 @@ SRC = ROOT / "app" / "app.html"
 OUT = ROOT / "app" / "viewer.html"
 ANDROID = ROOT / "android" / "app" / "src" / "viewer" / "assets" / "app.html"
 
+# 2026-11-08:RULES 用 var(和 app.html 一樣),主人鑰匙的看盤版載 judge.js 時才蓋得掉
 # 空殼:名稱、回傳的形狀要和原本一樣,其他畫面(圖、燈號、通知欄)才不會壞;數值一律是「沒有」
 STUBS = {
-    "RULES": """const RULESET1 = { name: '判別式一' };
-const SIG1 = { takePct: 2.5, stopPct: 1.5, skipMin: 15, lampBars: 3, lampWarnBars: 1, scaleBars: 5, scaleMaFull: 0.5, scaleObFull: 20, scaleW: {ma: 0, obma: 0.75, ob: 0.25}, strong: false, entryMode: '' };
-const RULESETS = {
+    "RULES": """var RULESET1 = { name: '判別式一' };
+var SIG1 = { takePct: 2.5, stopPct: 1.5, skipMin: 15, lampBars: 3, lampWarnBars: 1, scaleBars: 5, scaleMaFull: 0.5, scaleObFull: 20, scaleW: {ma: 0, obma: 0.75, ob: 0.25}, strong: false, entryMode: '' };
+var RULESETS = {
   '一': { key: '一', btn: '判一', name: '判別式一', sig: Object.assign({}, SIG1) },
   '二': { key: '二', btn: '判二', name: '判別式二', sig: Object.assign({}, SIG1) },
   '三': { key: '三', btn: '判三', name: '判別式三', sig: Object.assign({}, SIG1) },
@@ -90,7 +91,7 @@ function turnBias(bars, ma, ma24, ob){
   return out;
 }
 """,
-    "RULETEXT": """  const rulesHtml = () => '看盤版沒有判別式規則(訊號由主程式提供)';
+    "RULETEXT": """  const rulesHtml = (k = ACTIVE_RS) => (window.LOGIC_RULES ? LOGIC_RULES(k) : '看盤版沒有判別式規則(訊號由主程式提供)');   // 2026-11-08 主人鑰匙的看盤版載了判別式就顯示
 """,
     "BG": """async function bgRebuild(){}
 function bgExit(){}
