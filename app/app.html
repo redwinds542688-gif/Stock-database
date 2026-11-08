@@ -317,7 +317,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611081207">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611081211">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -332,7 +332,7 @@
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;
     -webkit-touch-callout:none;                 /* 長按不跳出系統選單 */
-    -webkit-user-select:none;user-select:none}  /* 停用選字與複製貼上 */
+    -webkit-user-select:none;user-select:none}  input,textarea{-webkit-user-select:text;user-select:text}  /* 停用選字與複製貼上 */
   html,body{margin:0;height:100%;overflow:hidden;max-width:100%;overscroll-behavior-y:none}   /* 2026-10-18 使用者:「滑動下面監控股票不太動」:整頁不再捲動,改由 #result 自己捲(手機 WebView 整頁捲動 + 固定表頭會卡) */
   #result{position:fixed;left:0;right:0;bottom:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior:contain}   /* top 由 JS 設成固定區的高度 */   /* 2026-10-18 使用者:「下拉回彈」:關掉 Android 拉到頂 / 拉到底時整頁伸縮回彈的效果(影片量到固定的標題列也跟著位移 15~30px,是系統效果不是清單重畫) */
   body{background:var(--ink);color:var(--text);font-family:var(--sans);
@@ -2480,7 +2480,7 @@ window.fitBands = fitBands;
 
 /* 停用長按選單、選取與拖曳,讓操作更像 App */
 ['contextmenu', 'selectstart', 'dragstart'].forEach(ev =>
-  document.addEventListener(ev, e => e.preventDefault()));
+  document.addEventListener(ev, e => { const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return; e.preventDefault(); }));   // 2026-11-08 12:11 使用者「(電腦)無法貼上金鑰」:輸入框放行右鍵貼上 / 選字
 
 /* ══════════════════════════════════════════
    監控設定面板:單擊齒輪開合
