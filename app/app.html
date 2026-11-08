@@ -317,7 +317,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611081858">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611082014">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1134,7 +1134,7 @@ window.MONITOR_SETTINGS = {
 
   cap: {                      // (判別式相關說明已移到私人庫)
     label: '多空上限',
-    init : '25萬',                // 2026-11-07 15:18 使用者「35 萬 … 改25」(實際一直用 25 萬,10/29 手機設的);2026-10-15 使用者改 35 萬
+    init : '30萬',                // 2026-11-08 20:13 使用者「改」(額度版 21 天:25 萬 +708,728 → 30 萬 +736,798);2026-11-07 15:18 使用者「35 萬 … 改25」(實際一直用 25 萬,10/29 手機設的);2026-10-15 使用者改 35 萬
     range: [{ from: 5, to: 50, step: 1, suffix: '萬' }],   // 長按跳 5/10/…/50
   },
 
@@ -2816,7 +2816,7 @@ const DEFAULT_SETTINGS = {
   amp   : { init: '4.0%',  range: [{from:4.0,to:8,step:0.1,decimals:1,suffix:'%'}] },
   disc  : { init: '25%',   range: [{from:10,to:100,step:5,suffix:'%'}] },
   cnt   : { init: 99, range: ['19','29','39','49','59','69','79','89','99'] },   // 2026-10-18 使用者:最多 99,每 10 一格
-  cap   : { init: '25萬', range: [{from:5,to:50,step:1,suffix:'萬'}] },
+  cap   : { init: '30萬', range: [{from:5,to:50,step:1,suffix:'萬'}] },
   lots  : { init: '6000', range: [{from:5000,to:10000,step:500}] },   // 2026-11-07 16:15 使用者「範圍 成交量5000到10000」
   bars  : { init: '250',  range: [{from:240,to:266,step:1}] },        // 「成交根數240到266」(一天最多 266 根)
   days  : { init: '1天',  range: [{from:1,to:3,step:1,suffix:'天'}] }, // 「連續天數一到三天」
@@ -2923,9 +2923,9 @@ const wAmp = makeWheel('wAmp', buildVals(CFG.amp  && CFG.amp.range),
                        startVal('amp', '3.0%'), cfgGuard('amp', onFeeChange));
 const wCnt = makeWheel('wCnt', buildVals(CFG.cnt  && CFG.cnt.range),
                        startVal('cnt', 49), cfgGuard('cnt', onFeeChange), {loop: true});   // 2026-10-18 使用者:最多 99,99/89/…/19 循環
-function capFund(){ const v = parseFloat((wCap && wCap.value) || '') * 10000; return v > 0 ? v : 250000; }   // 2026-11-07 初始 35 → 25 萬   // (判別式相關說明已移到私人庫)
+function capFund(){ const v = parseFloat((wCap && wCap.value) || '') * 10000; return v > 0 ? v : 300000; }   // 2026-11-08 初始 25 → 30 萬;2026-11-07 初始 35 → 25 萬   // (判別式相關說明已移到私人庫)
 const wCap = makeWheel('wCap', buildVals(CFG.cap  && CFG.cap.range),
-                       startVal('cap', '25萬'), cfgGuard('cap', onCapChange));
+                       startVal('cap', '30萬'), cfgGuard('cap', onCapChange));
 setTimeout(() => { try{ if (!localStorage.getItem('mysh.hi500')){ localStorage.setItem('mysh.hi500', '1'); if (+wHi.value < 500) wHi.setValue('500'); } }catch(e){} }, 800);   // 2026-10-31 02:58 原本開啟時把高價對齊到「上限 ÷ 1000」(上限 25 萬 → 高價 250);改成一次性把高價放回 500(之後使用者自己調的照存)   // 開啟時舊存檔不一致(高價 350、上限 20 萬)也先對齊一次
 
 const wFee = makeWheel('wFee', buildVals(CFG.disc && CFG.disc.range),
