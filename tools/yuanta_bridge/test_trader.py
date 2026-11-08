@@ -678,7 +678,7 @@ z2, q2_ = mk(TRADE_BROKER_STOP="1"); z2.on_tick("6269", 86.2); z2.step([ENT]); z
 z2.on_tick("6269", 88.8); z2.on_other_fill("6269", "B", 1000, 88.8, "OC"); n2 = len(q2_.sent); z2.step(); ok("6269" not in z2.positions and not any(x[:2] == ("6269", "B") for x in q2_.sent[n2:]))
 # 2026-11-08 01:00 再檢查:預掛成交完剩下的恢復盯 + 補條件單;重開認得預掛;晚到成交 / 對帳改張數重掛;對帳沒部位刪條件單
 at(10, 0); v1, k1 = mk(TRADE_BROKER_STOP="1", TRADE_QTY="3"); v1.on_tick("6269", 86.2); v1.step([ENT]); v1.on_report(51, "A0001", 0, 3000, 86.1); v1.on_strategy_reply("S1", True, ""); w1 = v1.positions["6269"]
-v1.on_report(50, "P1", 0, 1000, 85.0, "", "6269", "B", "9"); n1 = len(k1.sent); v1.on_other_fill("6269", "B", 1000, 85.0, "P1")
+n1 = len(k1.sent); v1.on_report(50, "P1", 0, 1000, 85.0, "", "6269", "B", "9"); v1.on_other_fill("6269", "B", 1000, 85.0, "P1")   # 18:30 起預掛當下就重掛沒預掛的 2 張
 ok(not v1.prehang and any(x[0] == "oco" and x[4] == 2 for x in k1.sent[n1:]), k1.sent[n1:]); v1.on_tick("6269", 88.8); ok(w1["state"] == EXITING)
 at(10, 30); v2, k2 = mk(TRADE_BROKER_STOP="1"); v2.resume([{"code": "6269", "bs": "S", "lots": 1, "price": 86.1, "time": "10:00", "order_no": "A1"}], {"A1": "T1006269"}, [{"no": "S7", "code": "6269"}], [ENT], [{"code": "6269", "bs": "B", "lots": 1, "no": "P5", "typ": "9", "tag": ""}])
 ok(v2.prehang.get("6269") == ["P5"] and ("del_oco", "S7") in k2.sent and not any(x[0] == "oco" for x in k2.sent), k2.sent)
@@ -738,4 +738,15 @@ ok(pq["state"] == HOLDING and pq["qty"] == 2 and "P6" in q1.prehang.get("6269", 
 n0 = len(g1q.sent); q1.on_tick("6269", 89.0); ok(len(g1q.sent) == n0, g1q.sent[n0:], logs[-6:], q1.prehang, pq["state"], pq["qty"])
 q1.on_other_fill("6269", "B", 2000, 85.0, "P6"); ok("6269" not in q1.positions)
 
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5)")
+# 2026-11-08 18:30「預掛手動取消 → 取消4張條件單 再改掛6張」:6 張預掛 2 張 → 條件單 6 張刪掉改掛 4 張;預掛取消 → 4 張刪掉改掛 6 張;碰停損程式平 4 張前先刪條件單
+at(10, 0); u1, h1u = mk(TRADE_BROKER_STOP="1", TRADE_CAP="520000"); u1.on_tick("6269", 86.2); u1.step([ENT]); u1.on_report(51, "A0001", 0, 6000, 86.1); u1.on_strategy_reply("S6", True, "", "6269"); pu = u1.positions["6269"]
+ok(("oco", "6269") == h1u.sent[-1][:2] and h1u.sent[-1][4] == 6 and pu["oco_live"], h1u.sent[-1])
+u1.on_report(50, "P2", 0, 2000, 85.0, "", "6269", "B", "9"); ok(("del_oco", "S6") in h1u.sent and h1u.sent[-1][0] == "oco" and h1u.sent[-1][4] == 4, h1u.sent[-2:])
+u1.on_strategy_reply("S4", True, "", "6269"); ok(pu["oco_no"] == "S4" and pu["oco_live"])
+u1.on_report(50, "P2", 2, 0, 0, "", "6269", "B", "9"); ok(("del_oco", "S4") in h1u.sent and h1u.sent[-1][0] == "oco" and h1u.sent[-1][4] == 6 and not u1.prehang, h1u.sent[-2:])
+u2, h2u = mk(TRADE_BROKER_STOP="1", TRADE_CAP="520000"); u2.on_tick("6269", 86.2); u2.step([ENT]); u2.on_report(51, "A0001", 0, 6000, 86.1); u2.on_strategy_reply("S6", True, "", "6269")
+u2.on_report(50, "P2", 0, 2000, 85.0, "", "6269", "B", "9"); u2.on_strategy_reply("S4", True, "", "6269"); pv = u2.positions["6269"]
+u2.on_tick("6269", 88.8); pv["oco_hit_at"] = (pv.get("oco_hit_at") or 0) - 16; u2.step()
+ok(pv["state"] == EXITING and ("del_oco", "S4") in h2u.sent and h2u.sent[-1][:3] == ("6269", "B", 4), h2u.sent[-3:])
+
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5)")

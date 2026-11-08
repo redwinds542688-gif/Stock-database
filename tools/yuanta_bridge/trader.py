@@ -414,11 +414,11 @@ class Trader:
                     p["oco_no"] = oco[-1]["no"]; p["oco_live"] = True
                 self.log(f"[交易] 接回部位 {c} {p['judge']} {'多' if d > 0 else '空'} {abs(n)} 張 均價 {avg:.2f} 停利 {p['tp'] or '?'} 停損 {p['sl'] or '?'};"
                          f"元大條件單 {'在(' + p['oco_no'] + ')' if oco else '沒有'}")
-                if oco and not self.oco_ok(c):                       # 13:20 後接回 / 有預掛 → 元大上還在的條件單刪掉
+                if oco and (not self.oco_ok(c) or self.prehang.get(c)):   # 13:20 後接回 / 有預掛 → 元大上還在的條件單刪掉(有預掛的下面照沒預掛的張數重掛)
                     self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False; self.log(f"[交易] 接回:{c} 已過 {self.force_exit} 或有預掛 → 刪除元大條件單 {p['oco_no']}")
-                if not oco and self.oco_ok(c) and p["tp"] and p["sl"]:
+                if (not oco or self.prehang.get(c)) and self.oco_ok(c) and p["tp"] and p["sl"]:
                     p["oco_no"] = None; self.oco_q.append(c)
-                    self.gw.place_oco(c, p["mkt"], d, abs(n), p["tp"], p["sl"])
+                    self.gw.place_oco(c, p["mkt"], d, self.oco_lots(c), p["tp"], p["sl"])
                 elif not (p["tp"] and p["sl"]):
                     self.log(f"[交易] !! {c} 找不到停利 / 停損價,只剩 ±{self.max_move}%、手機平倉通知、強平和 13:20 會出場")
             self.log(f"[交易] 接回 {len(open_mine)} 檔;今天已做 {self.n_trades} 筆、已實現 {self.pnl:+,.0f}")
@@ -810,7 +810,7 @@ class Trader:
             return
         if status != 0 or not p or p["state"] != HOLDING or bs != close_side(p["dir"]) or no in lst: return
         lst.append(no); self.prehang[code] = lst; self.man_meta[no] = {"bs": bs, "typ": typ, "lots": qty_shares // 1000, "fl": 0, "px": price or 0}
-        self.oco_refresh(p, "手動預掛:預掛跟條件單不同時存在")   # 2026-11-08 00:55 使用者「預掛當下 條件單直接撤除」(有預掛 oco_ok=False → 只刪不掛)
+        self.oco_refresh(p, "手動預掛:預掛的張數不掛條件單")   # 2026-11-08 00:55 使用者「預掛當下 條件單直接撤除」;18:30 只預掛一部分 → 刪掉重掛沒預掛的張數
         lots = qty_shares // 1000
         self.log(f"[交易] {code} 看到手動預掛平倉 {'買回' if bs == 'B' else '賣出'} {lots} 張 @ {price}(書號 {no})→ 程式讓位:停利 / 停損先不平,等預掛成交({self.prehang_deadline} 前沒成交由程式平)")
         self.alert(f"✅ {self.name_of(code)} {code} 看到你的預掛", f"{'買回' if bs == 'B' else '賣出'} {lots} 張 @ {price}(程式部位 {p['qty']} 張);程式停利 / 停損先不動,{self.prehang_deadline} 前沒成交由程式平")
@@ -1049,8 +1049,17 @@ class Trader:
                       "profit" if pl >= 0 else "loss")
 
     def oco_ok(self, c):
-        """2026-11-08 00:55 使用者:13:20 以後一律處在平倉狀態(接回 / 加碼都不再掛條件單);手動預掛跟條件單不會同時存在(有預掛就不掛)"""
-        return self.broker_stop and self.hm() < self.force_exit and not self.prehang.get(c)
+        """2026-11-08 00:55 使用者:13:20 以後一律處在平倉狀態(接回 / 加碼都不再掛條件單);手動預掛跟條件單不會同時存在(有預掛就不掛)
+           2026-11-08 18:30 使用者「取消4張條件單 再改掛6張條件單」:預掛只蓋住一部分 → 沒預掛的張數照掛條件單(同一張不會同時有預掛和條件單)"""
+        return self.broker_stop and self.hm() < self.force_exit and self.oco_lots(c) > 0
+
+    def oco_lots(self, c):
+        """條件單該掛幾張 = 部位 − 還沒成交的預掛張數;預掛張數不知道 → 0(整個交給預掛)"""
+        p = self.positions.get(c)
+        if not p: return 0
+        lst = self.prehang.get(c) or []
+        if any(not (self.man_meta.get(n) or {}).get("lots") for n in lst): return 0
+        return max(0, p["qty"] - self.ph_lots(c)) if lst else p["qty"]
 
     def oco_refresh(self, p, why=""):
         """2026-11-08 元大停損停利條件單跟著部位走:張數 / 停利停損變了 → 刪掉舊的照現在的重掛;部位沒了(元平平完)→ 只刪。
@@ -1065,8 +1074,8 @@ class Trader:
             self.log(f"[交易] {c} 刪除元大條件單 {p['oco_no']}({why or '部位變了'})")
         if p["state"] == HOLDING and p["qty"] > 0 and p.get("tp") and p.get("sl") and self.positions.get(c) is p and self.oco_ok(c):
             p["oco_no"] = None; self.oco_q.append(c); p.pop("oco_noted", None); p.pop("oco_hit_at", None)
-            self.gw.place_oco(c, p["mkt"], p["dir"], p["qty"], p["tp"], p["sl"])
-            self.log(f"[交易] {c} 掛元大停損停利條件單 {p['qty']} 張(停利 {p['tp']} / 停損 {p['sl']})")
+            n = self.oco_lots(c); self.gw.place_oco(c, p["mkt"], p["dir"], n, p["tp"], p["sl"])
+            self.log(f"[交易] {c} 掛元大停損停利條件單 {n} 張(停利 {p['tp']} / 停損 {p['sl']}){'(預掛 ' + str(p['qty'] - n) + ' 張不掛)' if n < p['qty'] else ''}")
 
     def on_strategy_reply(self, strategy_no, ok, msg, code=None):
         """元大新增條件單回應(只有 TRADE_BROKER_STOP=1 才會掛)。
@@ -1680,6 +1689,8 @@ class Trader:
                 self.log(f"[交易] 出場 {p['code']}:{why}(現價 {px})→ 預掛 {p['qty'] - free} 張留著,只平沒預掛的 {free} 張")
                 self.alert(f"✂ {self.name_of(p['code'])} {p['code']} {why}", f"平沒預掛的 {free} 張;預掛 {p['qty'] - free} 張照樣等成交({self.prehang_deadline} 前沒成交由程式平)")
                 p["exit_why"] = why; p["ph_part"] = True
+                if p.get("oco_live"):                       # 沒預掛那幾張的條件單先刪,免得和程式的平倉單一起成交
+                    self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False; self.log(f"[交易] 刪除元大條件單 {p['oco_no']}")
                 p["force_limit"] = force_limit or self.hm() >= "13:25"
                 p["state"] = EXITING
                 self.send_exit(p, free, px); return
