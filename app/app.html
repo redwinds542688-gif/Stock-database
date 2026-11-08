@@ -317,7 +317,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611081156">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611081201">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2544,6 +2544,9 @@ window.fitBands = fitBands;
    ══════════════════════════════════════════ */
 const CELLS = 30;   // 2026-10-18 由 36 改 30(股票區域文字數字最大化)
 
+// 2026-11-08 12:00 使用者截圖電腦寬螢幕「明細」字疊在一起:照寬度算字級的表(當沖 / 明細)寬螢幕改用 min(寬, 高 × 0.62)(和 calibrateFont 同一套;手機直式 < 600 不變)
+function fitW(w){ const dw = document.documentElement.clientWidth, dh = document.documentElement.clientHeight || innerHeight || dw; return dw >= 600 ? Math.min(w, dh * 0.62) : w; }
+window.fitW = fitW;
 function calibrateFont(){
   const probe = document.createElement('span');
   probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;'
@@ -7626,7 +7629,7 @@ window.bgTick = bgTick; window.BG = BG;
           fitU(); requestAnimationFrame(() => requestAnimationFrame(fitU)); }
         else {
         { const __H = hdPos + `<div class="tb pos">` + body + (cnt ? (late ? `<div class="late-note">⚠ 已過 13:20,這 ${cnt} 檔還沒收到平倉通知,請到投資先生確認已贖回</div>` : '') : __ub ? '' : `<div class="empty">${over || !TP || !TP.ok ? '目前沒有進場中的股票' : '目前沒有已成交的部位'}</div>`) + `</div>`; if (nlSame(__H)){ if (__snapPrev[0]) box.classList.add('snapdt'); box.style.scrollPaddingTop = __snapPrev[1]; return; } nlPut(__H); }
-        try{ const tb = box.querySelector('.tb.pos'); const u = (tb.clientWidth || box.clientWidth) / 40; tb.style.fontSize = Math.max(12, Math.floor(u * 2 * 0.96)) + 'px'; }catch(e){}
+        try{ const tb = box.querySelector('.tb.pos'); const u = fitW(tb.clientWidth || box.clientWidth) / 40; tb.style.fontSize = Math.max(12, Math.floor(u * 2 * 0.96)) + 'px'; }catch(e){}
         // 2026-10-27 11:10 使用者(當沖 4 檔,「和桐下面切到」):整張表放不下 → 先把每列上下留白縮小,還放不下再整張表一起把字縮小(最小 12px,整表同字級,欄位照樣對齊);再多才用捲的
         { const fitPos = () => { try{ const tb = box.querySelector('.tb.pos'), fit = () => box.scrollHeight <= box.clientHeight + 1;
             if (!tb || !box.clientHeight || fit()) return; tb.querySelectorAll('.r').forEach(r => { r.style.paddingTop = r.style.paddingBottom = '1px'; });
@@ -7737,7 +7740,7 @@ window.bgTick = bgTick; window.BG = BG;
             if (lb) __wT(lb, '明細'); const sr = box.querySelector('.hd .dsrc'); if (sr) __wT(sr, window.__doneVirtOk || (window.__doneY || {})[day] ? '' : (window.VIEWER ? '' : ' 系統')); { const yt = box.querySelector('.hd .ytag'); if (yt) yt.style.display = !window.__doneVirtOk && (window.__doneY || {})[day] ? '' : 'none'; } box.__dwDay = day; if (!box.__jsD) window.__linkDay = day; dwSet(box, day); }catch(e){} }); }, {passive: true}); }   // 2026-10-28 00:30 標題一律寫日期(明細 10/28)
         const jsD = window.__nlV !== 'done'; const goD = jsD && window.__linkDay && window.__linkDay !== d0 && box.querySelector(`.tb.done > .dsep[data-day="${window.__linkDay}"]`) ? window.__linkDay : null; const go0 = () => { if (goD) dwGo(box, goD); else box.scrollTop = 0; };   /* 2026-11-06 05:44 使用者「明細與進場日期聯動 進場調11/04明細就是11/04 明細調10/28 進場就是10/28」:切到明細時跳到進場正在看的那天 */
         if (jsD){ go0(); window.__nlV = 'done'; }
-        try{ const tb = box.querySelector('.tb.done'); const u = (tb.clientWidth || box.clientWidth) / 37; tb.style.fontSize = Math.max(12, Math.floor(u * 2 * 0.96)) + 'px'; 
+        try{ const tb = box.querySelector('.tb.done'); const u = fitW(tb.clientWidth || box.clientWidth) / 37; tb.style.fontSize = Math.max(12, Math.floor(u * 2 * 0.96)) + 'px'; 
           // 2026-10-27 13:00 對齊:有任何一格(進→出、輸贏…)放不下就整張表一起縮 1px,直到每格都放得下(最小 12px),欄位永遠對齊
           const over = () => [...tb.querySelectorAll('.r:not(.h) > .num, .r:not(.h) .io > span')].some(x => x.scrollWidth > x.clientWidth + 1);
           let fs = parseFloat(tb.style.fontSize) || 17; while (over() && fs > 12){ fs -= 1; tb.style.fontSize = fs + 'px'; } }catch(e){}
