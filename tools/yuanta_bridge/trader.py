@@ -1672,6 +1672,17 @@ class Trader:
                 m = self.man_meta.pop(no, {}); self.gw.cancel(no, p["code"], m.get("bs") or close_side(p["dir"]), m.get("typ") or p["typ"]); self.ph_cancel[no] = time.time()
                 self.log(f"[交易] {p['code']} 強平:先取消手動預掛 {no}")
         if self.prehang_wait(p["code"]):
+            # 2026-11-08 18:26 使用者「進場6張 我預掛兩張」→「改」:預掛只蓋住一部分 → 沒預掛的張數程式照停利 / 停損平掉,預掛的照樣留著等成交
+            #   (不掛元大條件單,維持「預掛跟條件單不同時存在」;平完剩預掛張數 → 回持倉中繼續等預掛)
+            free = p["qty"] - self.ph_lots(p["code"])
+            if any(not (self.man_meta.get(n) or {}).get("lots") for n in self.prehang.get(p["code"]) or []): free = 0   # 預掛張數不知道 → 當作全部都有預掛,照舊等
+            if free > 0:
+                self.log(f"[交易] 出場 {p['code']}:{why}(現價 {px})→ 預掛 {p['qty'] - free} 張留著,只平沒預掛的 {free} 張")
+                self.alert(f"✂ {self.name_of(p['code'])} {p['code']} {why}", f"平沒預掛的 {free} 張;預掛 {p['qty'] - free} 張照樣等成交({self.prehang_deadline} 前沒成交由程式平)")
+                p["exit_why"] = why; p["ph_part"] = True
+                p["force_limit"] = force_limit or self.hm() >= "13:25"
+                p["state"] = EXITING
+                self.send_exit(p, free, px); return
             if not p.get("_ph_log"): p["_ph_log"] = True; self.log(f"[交易] 出場 {p['code']}:{why} → 有手動預掛的平倉單,{self.prehang_deadline} 前先等它成交")
             return
         self.log(f"[交易] 出場 {p['code']}:{why}(現價 {px})")
@@ -1807,6 +1818,20 @@ class Trader:
             self.finish_pos(p)
             self.rebuy(p["code"], -p["dir"], extra, avg, p["mkt"])
             return
+        if p.get("ph_part") and p["qty"] > 0 and self.prehang.get(p["code"]):
+            # 2026-11-08 18:26 只平沒預掛的那幾張:平完 → 回持倉中、剩下的等預掛;沒平完 → 只重送沒預掛的張數
+            keep = self.ph_lots(p["code"]); px = self.last_px.get(p["code"], avg or p["entry"])
+            if p["qty"] <= keep:
+                p.pop("ph_part", None); p["order"] = None; p["state"] = HOLDING; p["_ph_log"] = True
+                self.log(f"[交易] {p['code']} 沒預掛的張數平完,剩預掛 {p['qty']} 張 → 回持倉中等預掛成交({self.prehang_deadline} 前沒成交由程式平)"); return
+            p["resend"] = p.get("resend", 0) + 1
+            if p["resend"] > self.max_resend:
+                self.log(f"[交易] !! {p['code']} 平倉已重送 {self.max_resend} 次還沒平完,停止自動重送,請手動確認")
+                self.alert(f"⚠⚠ {p['code']} 平倉失敗 {p['qty'] - keep} 張", f"已重送 {self.max_resend} 次,請立刻到投資先生手動平倉")
+                p["stuck"] = True; return
+            self.log(f"[交易] {p['code']} 沒預掛的還剩 {p['qty'] - keep} 張沒平,再送(第 {p['resend']} 次)")
+            p["force_limit"] = True; self.send_exit(p, p["qty"] - keep, px); return
+        p.pop("ph_part", None)
         if p["qty"] > 0:      # 還沒平完(委託失效 / 被取消)→ 再送
             px = self.last_px.get(p["code"], avg or p["entry"])
             if o.get("shrink") or o.get("partial"):              # 是程式自己取消(手動先平一部分 / 加碼 / 接回時只掛一部分)→ 重送剩下的,不算失敗次數
