@@ -317,7 +317,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611081420">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611081423">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2872,7 +2872,7 @@ const onHiChange = () => onFeeChange();
    主程式(非看盤版)鑰匙含 5861 = 主導機:滾輪改完跳「確定改成 XX 萬？」→ 確定才送 Worker ?cap=set,取消就退回原值;
    其他主程式手機 = 跟隨機:開啟 / 回到畫面 / 每 60 秒(畫面開著才問)讀 ?cap=get 自動跟上,自己轉滾輪會退回並提示;電腦中繼也每分鐘讀同一個值。看盤版不受影響 */
 let capSyncing = false;
-const capRole = () => { if (window.VIEWER) return ''; const k = (window.appKey && appKey.get()) || ''; return !k ? '' : k.includes('5861') ? 'master' : 'follow'; };
+const capRole = () => { if (window.VIEWER) return vTrade() ? 'follow' : '';   /* 2026-11-08 14:22 使用者「電腦顯示58股」(手機 108):主人鑰匙的電腦看盤版當跟隨機,選股設定跟 5861 主導機(不能改) */ const k = (window.appKey && appKey.get()) || ''; return !k ? '' : k.includes('5861') ? 'master' : 'follow'; };
 const capUrl = q => BASE.liveUrl.replace(/\/$/, '') + '/?cap=' + q;
 /* 2026-11-02 09:24 使用者「改 所有設定下的數值 皆由主導機節制」:不只多空上限,設定面板 9 個滾輪(高價/低價/振幅/檔數/上限/折扣/券商/證交所/證交稅)都跟主導機一樣 */
 const CFGW = () => ({hi: wHi, lo: wLo, amp: wAmp, cnt: wCnt, cap: wCap, disc: wFee, broker: wBroker, exch: wExch, tax: wTax, lots: wLots, bars: wBars, days: wDays});   // 2026-11-07 加最低張數 / 成交K棒 / 連續天數(也由主導機節制、電腦照這組篩)
@@ -3465,7 +3465,7 @@ function keyMe(force){
     fetch(BASE.liveUrl.replace(/\/$/, '') + '/?keys=me&_=' + now, {cache: 'no-store', signal: AbortSignal.timeout(9000)}).then(r => r.ok ? r.json() : null).then(j => {
       if (!j || !j.ok) return; const was = KEYME.role; KEYME.role = j.role || ''; KEYME.exp = j.exp || null; KEYME.left = j.left;
       if (KEYME.role === 'trial' && was !== 'trial') fmToast('試用版:到 ' + String(KEYME.exp || '').slice(5).replace('-', '/') + ' 止(剩 ' + KEYME.left + ' 天)。訊號、當沖、明細都是系統模擬,不是真實交易', 6000);   // 2026-10-29 16:00 使用者:試用一樣有訊號,只不過是系統的
-      try{ if (KEYME.role === 'owner' && was !== 'owner'){ logicLoad(true); tposPoll(true); tfillsPoll(true); } }catch(e){} try{ if (window.nlRender) nlRender(); }catch(e){} try{ if (window.rsLampUpd) rsLampUpd(); }catch(e){} }).catch(() => {});   // 身分拿到就更新燈(試用不亮)
+      try{ if (KEYME.role === 'owner' && was !== 'owner'){ logicLoad(true); tposPoll(true); tfillsPoll(true); capPull.first = false; capPull(); } }catch(e){} try{ if (window.nlRender) nlRender(); }catch(e){} try{ if (window.rsLampUpd) rsLampUpd(); }catch(e){} }).catch(() => {});   // 身分拿到就更新燈(試用不亮)
   }catch(e){}
 }
 window.keyMe = keyMe;
