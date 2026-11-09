@@ -796,8 +796,8 @@ at(10, 0); tb, gb = mk(TRADE_J2_BRCAP="0.9:1,0.8:2", TRADE_J2_BRRANGE=""); tb.br
 tb.mark_skip(tb.positions.pop("2330")); tb.on_tick("2303", 40.0); tb.step([ENTX("2303", 40.0, judge="判二")])
 ok("2303" in tb.positions, sorted(tb.positions))   # 沒成交放棄的不算一檔
 SHX = lambda code, px, judge: sig(f"10:0y:{code}", "short", f"股{code} {code} 做空進場 {px}", f"10:00 空✓ · 停利 {px * 0.975:.2f} 停損 {px * 1.015:.2f} · {judge}")
-# 2026-11-10 01:45 判二第二十六次修改:大盤上漲家數範圍(預設 空 4.4%~88.1%、多 10.6%~95.7%),取代 ≥ 92% 不做;判一不受影響
-for br_, kind_, want in ((0.97, "long", False), (0.957, "long", True), (0.93, "long", True), (0.08, "long", False), (0.106, "long", True),
+# 2026-11-10 01:45 判二第二十六次修改:大盤上漲家數範圍(預設 空 4.4%~88.1%、多 10.6%~92%),取代 ≥ 92% 不做;判一不受影響
+for br_, kind_, want in ((0.97, "long", False), (0.957, "long", False), (0.93, "long", False), (0.92, "long", True), (0.08, "long", False), (0.106, "long", True),
                          (0.90, "short", False), (0.881, "short", True), (0.5, "short", True), (0.03, "short", False), (None, "short", True)):
     at(10, 0); tb, gb = mk(); tb.br_now = lambda b=br_: b; tb.on_tick("2330", 50.0); tb.step([ENTX("2330", 50.0, judge="判二") if kind_ == "long" else SHX("2330", 50.0, "判二")])
     ok(("2330" in tb.positions) == want, (br_, kind_, sorted(tb.positions)))
