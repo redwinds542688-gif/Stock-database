@@ -317,7 +317,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611090908">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611090954">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -919,6 +919,9 @@
 #bugPanel .bp-b{display:flex;gap:8px;margin-top:10px} #bugPanel button{flex:1;padding:9px 0;border-radius:8px;border:1.5px solid #4A5570;background:#1B2233;color:#E6EAF2;font-size:15px;font-weight:700}
 #bugPanel .bp-msg{margin-top:8px;color:#FFD24D;font-size:13px;min-height:16px}
 @keyframes bgBlink{0%{opacity:1}50%{opacity:.15}100%{opacity:1}}
+/* 2026-11-09 09:53 使用者「電腦 左上角綠燈不會閃嗎」→「電腦版」:沒有 Android App 時,8:45~13:35 電腦判別引擎有心跳 → 左上角綠點閃;心跳停了 3 分鐘 → 紅點;其他時間灰點(手機不變) */
+#bugDot.pc{background:#1DD75B;box-shadow:0 0 6px rgba(29,215,91,.8);animation:bgBlink 1.2s infinite}
+#bugDot.pcoff{background:#FF3B3B;box-shadow:0 0 6px rgba(255,59,59,.8)}
 </style>
 </head>
 <body>
@@ -8111,7 +8114,11 @@ function bugPanel(){
     }catch(e){ st = ''; }
     document.querySelectorAll('.tool.rs').forEach(b => { const run = BG_RS.includes(b.dataset.rs); b.classList.toggle('live', false);   /* 2026-10-24 監控中不亮綠點 */ b.classList.toggle('dead', false); });   /* 2026-10-24 16:37 判鍵上不再亮任何燈,監控狀態只看右上角的點 */   // 2026-10-19 判一、判二同時跑 → 兩顆都亮監控燈
     const d = el('bgDot'); if (d) d.className = '';   // 2026-10-28 11:18 使用者「怎麼左上角跟右上角都有綠點」:右上角不再亮,狀態只看左上角那顆
-    { const b = el('bugDot'); if (b){ b.classList.toggle('on', st === 'live'); b.classList.toggle('off', st === 'dead'); } }   // 2026-10-28 左上角燈:開盤監控中綠、監控沒在跑紅、平時灰   // 2026-10-24 16:37 開盤監控中右上角綠點,監控沒在跑紅點,非交易時段不亮
+    { const b = el('bugDot'); if (b){ b.classList.toggle('on', st === 'live'); b.classList.toggle('off', st === 'dead'); } }
+    if (!window.Android){ const b = el('bugDot'); if (b){ let pc = '';   // 2026-11-09 電腦版:看電腦判別引擎心跳
+      try{ const n = new Date(), wd = n.getDay(), hm = n.getHours() * 60 + n.getMinutes();
+        if (!(wd === 0 || wd === 6 || hm < 8 * 60 + 45 || hm > 13 * 60 + 35)) pc = (window.engineOn && engineOn()) ? 'pc' : (performance.now() < 10000 ? '' : 'pcoff'); }   /* 剛開網頁還沒讀到心跳的前 10 秒先灰,不亮紅 */catch(e){ pc = ''; }
+      b.classList.toggle('pc', pc === 'pc'); b.classList.toggle('pcoff', pc === 'pcoff'); } }   // 2026-10-28 左上角燈:開盤監控中綠、監控沒在跑紅、平時灰   // 2026-10-24 16:37 開盤監控中右上角綠點,監控沒在跑紅點,非交易時段不亮
   }
   upd(); setInterval(upd, 3000);
 })();
