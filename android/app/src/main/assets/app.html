@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-09 13:31(實際時間)13:30 收盤後下排三顆燈(進場藍燈等)確實熄掉:通知欄內容沒變也會在開盤 / 收盤那一刻重畫(使用者「1點半之後 進場右邊的藍燈關閉」)
   · 2026-11-09 13:07(實際時間)監控清單:做多 / 做空的股票,前面指針改成部位輸贏指針反白(贏紅底、輸綠底、白針;1% = 9°)(使用者「改」)
   · 2026-11-09 12:50(實際時間)App 1.5.66:點手機通知開 K 圖,標題前面任何符號都跳過(📌 預掛、↩ 預掛沒了也開得到圖)(使用者「改」;要裝新版 APK)
   · 2026-11-09 12:43(實際時間)監控清單:進場還沒平倉的股票,「監控中」改成紅底「做多」/ 綠底「做空」(跟當沖同一份部位)(使用者「有進場未平倉的股票 監控中 要改為 做多 或是 做空」)
@@ -323,7 +324,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611091307">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611091331">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7426,7 +7427,8 @@ window.bgTick = bgTick; window.BG = BG;
     const navDays = ds.filter(x => x === today || x === d || itemsFor(x).some(y => y.kind !== 'sys'));
     const i = navDays.indexOf(d);
     const items = itemsFor(d).filter(x => x.kind !== 'sys');   // 視窗只列買賣訊號,啟動 / 停止這類系統訊息不顯示
-    const key = d + '|' + items.length + '|' + (items[0] ? items[0].t + items[0].title : '') + '|' + capFund() + '|' + (window.NL_VIEW || 'msg') + '|' + (window.LOG_RS || '') + '|' + (window.NL_VIEW === 'pos' ? Math.floor(Date.now() / 5000) : '') + '|' + (window.NL_VIEW !== 'msg' && window.__tfills ? window.__tfills.at : '') + '|' + Object.keys(CLOUD_LOG.items).length;   // 2026-10-29 12:25(實際時間)元大成交資料到了也重畫   // 2026-10-27 視窗(通知 / 當沖 / 明細)、篩選、當沖的現價(5 秒)、雲端抓到新的一天都要重畫   // 2026-10-19 上限改了也要重畫(超過上限的卡片要藏 / 露)
+    const key = d + '|' + items.length + '|' + (items[0] ? items[0].t + items[0].title : '') + '|' + capFund() + '|' + (window.NL_VIEW || 'msg') + '|' + (window.LOG_RS || '') + '|' + (window.NL_VIEW === 'pos' ? Math.floor(Date.now() / 5000) : '') + '|' + (window.NL_VIEW !== 'msg' && window.__tfills ? window.__tfills.at : '') + '|' + Object.keys(CLOUD_LOG.items).length + '|' + (inSession() ? 1 : 0);   // 2026-11-09 13:30 使用者「1點半之後 進場右邊的藍燈關閉」:內容沒變就不重畫 → 收盤那一刻燈熄不掉;開盤 / 收盤一換就重畫一次
+      // 2026-10-29 12:25(實際時間)元大成交資料到了也重畫   // 2026-10-27 視窗(通知 / 當沖 / 明細)、篩選、當沖的現價(5 秒)、雲端抓到新的一天都要重畫   // 2026-10-19 上限改了也要重畫(超過上限的卡片要藏 / 露)
     if (!force && key === lastKey) return; const changed = key !== lastKey; lastKey = key;
     // 2026-11-05 21:34 使用者「進 進場,跟明細 最慢」:原本切頁(key 含頁面)也整張股票清單重排一次(平板上約 0.1~0.2 秒)→ 只有通知內容真的變了才重排
     { const dk_ = d + '|' + items.length + '|' + (items[0] ? items[0].t + items[0].title : ''); if (changed && d === today && dk_ !== (render.__resortKey || '')){ render.__resortKey = dk_; try{ resortList(); }catch(e){} } }   // 新訊號進來 → 清單重新排序
