@@ -317,7 +317,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611090954">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611091000">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7092,7 +7092,7 @@ function notifLay(title, body, kind){
 }
 /* 2026-11-08 13:10 使用者「(當沖標題)不用顯示虛擬也不用顯示元大 這位置固定 改一個聲音按鍵 一樣要有框 … 喇叭符號 切換通知有聲音或是靜音 這聲音按鍵只針對該使用設備」
    → 13:31「符號太小 框裡面最大化」→ 13:52「只改聲音不改震動」:靜音 = 這台不響(手機 App 1.5.65 起 Alert 看 mysh.kv 的 mute;震動照舊);電腦網頁自己放的分級音效也停 */
-const sndMuted = () => { try{ return localStorage.getItem('mysh.mute') !== '0'; }catch(e){ return true; } };   // 13:58 使用者「初始關閉」:沒按過 = 靜音(存 '0' 才是有聲音)
+const sndMuted = () => { try{ const v = localStorage.getItem('mysh.mute'); return window.Android ? v !== '0' : v === '1'; }catch(e){ return !!window.Android; } };   // 2026-11-09 09:58 使用者「改」(電腦版通知):電腦沒按過 = 有聲音(手機照舊初始靜音)   // 13:58 使用者「初始關閉」:沒按過 = 靜音(存 '0' 才是有聲音)
 const sndSet = m => { try{ localStorage.setItem('mysh.mute', m ? '1' : '0'); }catch(e){} try{ if (window.Android && Android.setPref) Android.setPref('mute', m ? '1' : ''); }catch(e){} };
 try{ if (window.Android && Android.setPref) Android.setPref('mute', sndMuted() ? '1' : ''); }catch(e){}
 const SPK_ON = '<svg viewBox="0 0 24 24" width="1.6em" height="1.6em" style="display:block"><path d="M3 9h4l5-4v14l-5-4H3z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>';
@@ -7262,13 +7262,28 @@ async function cloudNotifyNew(force){
     CLOUD_LOG.items[d] = arr; CLOUD_LOG.at[d] = now;
     if (BG.vDay !== d){ BG.vDay = d; BG.vSeen = new Set(arr.map(cloudLogKey)); BG.vN = arr.length; return 'init ' + arr.length; }   // 第一輪(或換日):已有的不重發
     for (const x of arr.slice().reverse()){ const k = cloudLogKey(x); if (BG.vSeen.has(k)) continue; BG.vSeen.add(k);
-      if (x.kind && x.kind !== 'warn' && x.kind !== 'sys' && !freeRes){ if (await realGone(x)) continue; try{ andNotify(x.title, x.body, x.kind); }catch(e){} try{ webSnd(x.kind, x.title); }catch(e){} }
+      if (x.kind && x.kind !== 'warn' && x.kind !== 'sys' && !freeRes){ if (await realGone(x)) continue; try{ andNotify(x.title, x.body, x.kind); }catch(e){} try{ webSnd(x.kind, x.title); }catch(e){} try{ pcNotify(x.title, x.body, x.kind); }catch(e){} }
       { const mw = /^win(\d)$/.exec(x.kind || ''); if (mw) try{ celebrate(x.title, +mw[1]); }catch(e){} } }
     BG.vN = arr.length; try{ if (window.nlRender) nlRender(); }catch(e){}
     return 'ok ' + arr.length;
   }catch(e){ return 'err ' + (e && e.message); }
 }
 window.cloudNotifyNew = cloudNotifyNew;
+/* 2026-11-09 09:58 使用者「查一下 電腦版 跟 手機板還有什麼不同」→「改」:電腦版(沒有 Android App)收到新通知
+   ① 右下角跳 Windows 通知(第一次點畫面時問「允許通知」);虧損 lv2 以上 / 賠錢平倉的通知停在畫面上,要按掉才消失
+   ② 放分級音效(webSnd;Chrome 規定開網頁後要先點一下畫面才能出聲)
+   電腦網頁沒有 App 前景服務敲 bgTick,改由網頁自己每 5 秒讀一次雲端通知(平日 08:45~14:00) */
+function pcNotify(title, body, kind){ try{
+  if (window.Android || !('Notification' in window) || Notification.permission !== 'granted') return;
+  const lv = +((/^lv(\d)$/.exec(kind || '') || [])[1] || 0), bad = lv >= 2 || kind === 'loss' || /^⚠/.test(title || '');
+  const n = new Notification(title, {body: body || '', tag: (title || '') + '|' + (body || ''), requireInteraction: bad, silent: true});
+  n.onclick = () => { try{ window.focus(); n.close(); }catch(e){} };
+}catch(e){} }
+window.pcNotify = pcNotify;
+if (!window.Android){
+  ['pointerdown', 'keydown'].forEach(t => document.addEventListener(t, () => { try{ if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); }catch(e){} }, {capture: true, passive: true}));
+  setInterval(() => { try{ if (document.visibilityState === 'hidden' && !dispSession()) return; if (!dispSession() || !(window.appKey && appKey.get())) return; cloudNotifyNew(); }catch(e){} }, 5000);
+}
 /* (判別式相關說明已移到私人庫) */
 const BG_STATE_KEY = 'mysh.bgstate';
 function bgSave(){ const js = JSON.stringify({day: BG.histDay, pos: [...BG.pos], exited: [...(BG.exited || new Map())]});
