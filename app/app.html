@@ -331,7 +331,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611092203">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611092206">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7749,7 +7749,11 @@ window.bgTick = bgTick; window.BG = BG;
       const doneSrc = dd => { if (BTF && BTF[dd] && BTF[dd].length){ const s = prep(btfCap(dd)); for (const o of s){ const q = +((((o.x || {}).body || '').match(/· (\d+)張/) || [])[1]) || 0; if (q) o.lots = q; } return finish(s); }
         if (dd === today){ if (doneVirt){ try{ return finish(prep(itemsFor(today).filter(x => !/強平|元平|元大|預掛|強制 ·/.test((x.title || '') + ' ' + (x.body || '').replace(/已強平/g, ''))))); }catch(e){} } if (d === today) return cards; }
         ensureCloud(dd); return finish(prep(itemsFor(dd))); };
-      const doneTotC = {}; const doneTot = dd => (dd in doneTotC) ? doneTotC[dd] : (doneTotC[dd] = (() => { try{ return dayRows(dd, doneSrc(dd))[1]; }catch(e){ return 0; } })());   // 明細那天標題列右邊的總輸贏(燈號用同一個)
+      const doneResC = {}; const doneRes = dd => (dd in doneResC) ? doneResC[dd] : (doneResC[dd] = (() => { try{ return dayRows(dd, doneSrc(dd)); }catch(e){ return ['', 0, 0, 0]; } })());
+      const doneTot = dd => doneRes(dd)[1];   // 明細那天標題列右邊的總輸贏(燈號用同一個)
+      // 2026-11-09 22:06 使用者「改」(進場燈也接同一份):藍 = 明細那天列出來的平倉筆數(有算進輸贏的),黃 = 當沖頁現在還開著的檔數(只有今天盤中)
+      const doneCnt = dd => { const r = doneRes(dd); return r[3] != null ? r[3] : r[2]; };
+      const lampOpen = dd => { try{ return dd === today && inSession() ? posOpen().open.length : 0; }catch(e){ return 0; } };
       // 2026-11-05 下排 進場 / 當沖 / 明細 按鍵的燈(開盤中):進場 = 今天真的進場幾檔 / 已平倉幾檔;當沖 = 持倉輸贏;明細 = 今天平倉後輸贏(永久版有元大成交用元大)
       // 2026-11-06 01:09 使用者:燈一直顯示「最近一個交易日」的結果,交易日 08:45 才歸零換成今天(六日 / 休市日照舊顯示前一個交易日)
       const lampDay = (() => { const tw = new Date(Date.now() + 8 * 3600000), hm = tw.getUTCHours() * 60 + tw.getUTCMinutes(); const isT = ds_ => { const w = new Date(ds_ + 'T00:00:00Z').getUTCDay(); return w >= 1 && w <= 5 && !(window.TW_HOL && TW_HOL.has(ds_)); };
@@ -7763,7 +7767,7 @@ window.bgTick = bgTick; window.BG = BG;
           const en = pc.filter(o => (o.type === 'entry' || o.__phM) && !o._hide && !o.over && !o.notrade && !o.madd && !o.phNew);
           let nE = en.length, nX = en.filter(o => o._alert === 'exit' || o.__phM).length, dt = netOf(pc.filter(o => o.type === 'exit' && !o._hide && !o.over && !(o.rs === '元三' || o.rs === '強三')))[0];
           try{ const Y = !vwOnly() && !window.DONE_VIRT ? (yfillsFix(lampDay), yFillsOf(lampDay)) : null;   /* 2026-11-07 00:48 跟明細(dayRows)同一個條件:元大模式、手機有那天的元大成交就用成交,沒有才看重算的 */   /* 2026-11-06 02:27 使用者「燈號不對」:和明細同一個切點 —— 元大真實成交從 11/06 起(11/05 明細看重算的),切在虛擬也看重算的 */ if (Y && Array.isArray(Y.rows) && Y.rows.length){ const R = Y.rows.filter(r => (+r.lots || 0) > 0 || (+r.open || 0) !== 0); nE = R.length; nX = R.filter(r => (+r.lots || 0) > 0 && !(+r.open || 0)).length; dt = Y.rows.reduce((a, r) => a + (r.lots > 0 ? +r.net || 0 : 0), 0); } }catch(e){}
-          lampBtn('refreshBtn', '進場', 'cnt', Math.max(0, nE - nX), nX); lampBtn('btnState', usLabel(), 'amt', 0); lampBtn('btnRules', '明細', 'amt', doneTot(lampDay));
+          lampBtn('refreshBtn', '進場', 'cnt', lampOpen(lampDay), doneCnt(lampDay)); lampBtn('btnState', usLabel(), 'amt', 0); lampBtn('btnRules', '明細', 'amt', doneTot(lampDay));
         } else { if (inSession() && window.NL_VIEW !== 'pos'){ const tA = window.__tposAt || 0; if (Date.now() - tA > 30000) tposPoll(); }
           const en = cards.filter(o => (o.type === 'entry' || o.__phM) && !o._hide && !o.over && !o.notrade && !o.madd && !o.phNew);
           let pt = 0; try{ let C = {fee: 0, tax: 0}; try{ C = cost(); }catch(e){} const {open} = posOpen(); for (const o of open){ const lt = lotsOf(o), dr = o.side === 'long' ? 1 : -1, ent = +o.entP, cu = +(((LIVE.get(o.code) || {}).z) || 0) || ent;
@@ -7774,7 +7778,7 @@ window.bgTick = bgTick; window.BG = BG;
           let nE = en.length, nX = en.filter(o => o._alert === 'exit' || o.__phM).length;
           // 2026-11-05 01:56 使用者「我是永久會員 明天訊號燈接通元大」:永久版問得到元大成交明細 → 進場 = 今天元大有成交的檔數、平倉 = 已經沖銷完(沒有未平倉張數)的檔數
           try{ const F0 = window.__tfills, F = F0 && F0.ok && F0.d === today && Array.isArray(F0.rows) && Date.now() - (F0.at || 0) < 10 * 60000 ? F0 : (!inSession() && today >= '2026-11-05' ? yFillsOf(today) : null); if (!vwOnly() && today >= '2026-11-10' && F && Array.isArray(F.rows)){ const R = F.rows.filter(r => (+r.lots || 0) > 0 || (+r.open || 0) !== 0); if (R.length || !en.length){ nE = R.length; nX = R.filter(r => (+r.lots || 0) > 0 && !(+r.open || 0)).length; } } }catch(e){}
-          lampBtn('refreshBtn', '進場', 'cnt', Math.max(0, nE - nX), nX);   /* 2026-11-05 13:03 使用者「進場如果已經平倉 進場這邊就要退一個燈號」:黃 = 還在場上的檔數(進場 − 已平倉),藍 = 已平倉 */ lampBtn('btnState', usLabel(), 'amt', pt); lampBtn('btnRules', '明細', 'amt', doneTot(lampDay));
+          lampBtn('refreshBtn', '進場', 'cnt', lampOpen(lampDay), doneCnt(lampDay));   /* 2026-11-05 13:03 使用者「進場如果已經平倉 進場這邊就要退一個燈號」:黃 = 還在場上的檔數(進場 − 已平倉),藍 = 已平倉 */ lampBtn('btnState', usLabel(), 'amt', pt); lampBtn('btnRules', '明細', 'amt', doneTot(lampDay));
         } }catch(e){}
       if (!inSession()){ lampBtn('refreshBtn', '進場'); lampBtn('btnState', usLabel());
         try{ const tw_ = new Date(Date.now() + 8 * 3600000), hm_ = tw_.getUTCHours() * 60 + tw_.getUTCMinutes(); if (lampDay === today && hm_ >= 8 * 60 + 45 && hm_ < 9 * 60) lampBtn('btnRules', '明細'); }catch(e){} }
