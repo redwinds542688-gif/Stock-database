@@ -130,13 +130,14 @@ async function fetchUS(env) {
     out.push(row || { name, close: null, pct: null, date: "", src: "" });
   }
   const t = new Date(Date.now() + 8 * 3600e3);
-  return { d: t.toISOString().slice(0, 10), at: Date.now(), hm: t.toISOString().slice(11, 16), us: out.filter(x => x.name === "費半" || x.name === "那斯達克").map(x => x.date).filter(Boolean).sort().pop() || ""   /* 美股日期只看美國那三個(台股日期是台灣的) */, idx: out };
+  return { d: t.toISOString().slice(0, 10), at: Date.now(), hm: t.toISOString().slice(11, 16), us: out.map(x => x.date).filter(Boolean).sort().pop() || ""   /* 2026-11-09 14:32 使用者「台股 美股 韓股 日股 都要逐日更新」:標題日期 = 六張裡最新的一天(下午抓到台日韓當天收盤就換成今天) */, idx: out };
 }
 async function usGet(env, force) {
   let v = null; try { v = env.HUB ? await hubOf(env).kvGet("usmkt") : null; } catch (e) {}
   const t = new Date(Date.now() + 8 * 3600e3), d = t.toISOString().slice(0, 10), hm = t.toISOString().slice(11, 16), wd = t.getUTCDay();
-  const ok = v && v.d === d && v.idx && v.idx.length >= US_IDX.length && v.idx.every(x => x.close != null);   // 2026-11-07 加 S&P 500 後,舊快取少一張要重抓
-  if (force || (!ok && hm >= "08:30")) {   // 2026-11-07 15:03 使用者「不用隨時抓 每天早上8.30抓一次即可 除非抓不到」:08:30 前不抓;今天抓齊就整天用快取   // 2026-11-06 16:11 週六、週日也抓(手機來問時;星期六 08:20 起顯示到星期一 09:00)
+  const ok = v && v.d === d && v.idx && v.idx.length >= US_IDX.length && v.idx.every(x => x.close != null);
+  const pm = wd >= 1 && wd <= 5 && hm >= "14:40", okPm = !pm || (v && v.hm >= "14:40");   // 2026-11-09 14:32 使用者「台股 美股 韓股 日股 都要逐日更新」:早上 08:30 抓美股(前一晚收盤);平日 14:40 後再抓一次,換上台股 / 日經 / 韓國當天收盤和走勢線   // 2026-11-07 加 S&P 500 後,舊快取少一張要重抓
+  if (force || ((!ok || !okPm) && hm >= "08:30")) {   // 2026-11-07 15:03 使用者「不用隨時抓 每天早上8.30抓一次即可 除非抓不到」:08:30 前不抓;今天抓齊就整天用快取   // 2026-11-06 16:11 週六、週日也抓(手機來問時;星期六 08:20 起顯示到星期一 09:00)
     const c = MC.get("usfetch"); if (!force && c && Date.now() - c < 300e3) return v;   // 手機來問、今天還沒有:最多 5 分鐘抓一次
     MC.set("usfetch", Date.now());
     const n = await fetchUS(env); if (n.idx.some(x => x.close != null)) { v = n; try { if (env.HUB) await hubOf(env).kvPut("usmkt", n); } catch (e) {} }
