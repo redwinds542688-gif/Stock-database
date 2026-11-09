@@ -183,6 +183,8 @@ class Trader:
         #   到 TRADE_PREHANG_DEADLINE(13:24)還沒成交 → 取消那張、程式照舊漲停 / 跌停平倉。0 = 關(照舊 13:20 全部取消)
         # 2026-11-08 01:08 使用者「13點20分也要取消所有元大預掛」:預設 13:24 → 13:20(盤中照舊讓位給預掛;13:20 預掛和條件單、委託全部取消,程式平倉)
         self.prehang_deadline = cfg.get("TRADE_PREHANG_DEADLINE", "13:20").strip()
+        self.j2_brcap = [(float(a_), int(b_)) for a_, b_ in (x.split(":") for x in cfg.get("TRADE_J2_BRCAP", "0.9:1,0.8:2").split(",") if ":" in x)]   # 2026-11-09 判二大盤分級檔數(見 reset_day 說明)
+        self.br_file = Path(cfg.get("TRADE_BR_FILE") or (Path(__file__).resolve().parent / "engine_data" / "breadth.json")); self._br = (0.0, None)
         self.prehang = {}   # code → 保留的手動預掛委託書號 [no, …]
         self.del_q = []     # 2026-11-08 20:50 等元大確認刪除的條件單編號
         self.man_cards = {}  # 2026-11-06 14:26 手動預掛(新進場 / 加碼)發過卡的書號 → {lots, px, d, end}
@@ -212,7 +214,10 @@ class Trader:
         self.journal = []
         self.flat_watch = {}       # code → 剛平倉的部位 {dir, typ, mkt, until}:這段時間又有同方向平倉成交(手動 / 條件單同時觸發)= 多平了,要補回來
         self.locked = set()        # 今天強平過的股票:判一 / 二 / 三不再自動進場
-        self.traded_keys = set()
+        self.traded_keys = set(self.load_state().get("traded") or []) if getattr(self, "state_file", None) else set()   # 2026-11-09 存檔(判二大盤分級檔數要算今天真的進過幾檔,程式重開也記得)
+        # 2026-11-09 14:45 判二第二十四次修改(使用者「上漲家數大於90%只限制做一檔 80%二檔 70%沒限制」→「解鎖 改」):
+        #   判二進場那一刻看名單上漲家數比例(engine_data/breadth.json,和判二 / 判三 / 判四同一份):≥ 90% → 今天判二最多 1 檔、≥ 80% → 2 檔、以下不限;
+        #   檔數只算真的有送單變成部位的(太晚了 / 超額 / 沒成交放棄的不算);TRADE_J2_BRCAP="0.9:1,0.8:2",空字串 = 關
         self.skipped = set()       # 2026-11-02 今天沒變成部位的進場訊號(代碼|判別式|訊號那根),手機標「未交易」
         # 2026-11-03 和益 1709 判三 OBV 停利平倉卡在主程式訊息欄不見(使用者「和益 已經平倉 進場資訊欄 沒顯示平倉」):
         #   手機收到平倉通知才問 ?trade=pos,電腦已經照同一則通知平完 → 手機以為元大根本沒這檔、把平倉卡藏了。
@@ -270,6 +275,7 @@ class Trader:
             js["closed_ok"] = sorted(set(old.get("closed_ok") or []) | getattr(self, "closed_ok", set()))   # 2026-11-03 程式自己平掉的部位(手機照常顯示平倉卡)
             js["noshort"] = {**(old.get("noshort") or {}), **getattr(self, "noshort", {})}   # 2026-11-06 元大 21352 無券
             js["brk_block"] = {**(old.get("brk_block") or {}), **getattr(self, "brk_block", {})}   # 2026-10-31 元大拒絕(資格)的股票
+            js["traded"] = sorted(getattr(self, "traded_keys", set()))   # 2026-11-09 判二大盤分級檔數
             self.state_file.write_text(json.dumps(js, ensure_ascii=False), encoding="utf-8")
         except Exception as e:
             self.log(f"[交易] 存狀態檔失敗 {e}")
@@ -1650,7 +1656,26 @@ class Trader:
         hm = self.hm()
         if not ("09:00" <= hm < self.last_entry):
             return f"不在 09:00~{self.last_entry}"
+        if judge == "判二" and self.j2_brcap:   # 2026-11-09 判二第二十四次修改:大盤上漲家數分級限制檔數
+            b = self.br_now()
+            if b is not None:
+                n2 = sum(1 for k in self.traded_keys if k.split("|")[1:2] == ["判二"])
+                for th, cap in self.j2_brcap:
+                    if b >= th - 1e-9:
+                        if n2 >= cap: return f"大盤上漲家數 {b:.0%} ≥ {th:.0%},判二今天已做 {n2} 檔(上限 {cap})"
+                        break
         return None
+
+    def br_now(self):
+        """今天名單上漲家數比例(最新一筆);讀不到 / 今天沒資料 → None(不擋)。30 秒讀一次檔"""
+        try:
+            if time.time() - self._br[0] > 30:
+                d = json.loads(self.br_file.read_text(encoding="utf-8")).get(self.now().strftime("%Y-%m-%d")) or {}
+                hm = self.hm(); ks = [k for k in d if k <= hm and d[k] is not None]
+                self._br = (time.time(), float(d[max(ks)]) if ks else None)
+            return self._br[1]
+        except Exception:
+            self._br = (time.time(), None); return None
 
     # 2026-11-02 16:16 使用者「500萬 就是買和賣的總和 當沖還未贖回 皆以漲停價 暗自計算 … 再扣除如果做空 就以漲停價贖回的價格 剩餘的 才是能再交易的資金」→「改」:
     #   元大可用額度 = 500 萬 − 已成交(買 + 賣)− 還沒平倉的部位 × 漲停價(多空都用漲停,使用者「皆以漲停價」);新單每張要預留 進場價 + 漲停價
