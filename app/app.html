@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-09 11:29(實際時間)當沖每一列的字上下置中(原本偏上)(使用者「當沖三筆 太偏上」「上下置中」)
   · 2026-11-08 00:16(實際時間)電腦:打開元大停損停利條件單(二擇一)—— 程式單、強三、元三成交後都掛;手動加碼重掛;元平(手動平倉 / 預掛成交)刪掉,只平一部分照剩下張數重掛;條件單自己觸發不動(使用者「改」;下個交易日生效)
   · 2026-11-07 23:38(實際時間)電腦:強平時取消的預掛成交、回報又漏了 → 每分鐘對帳看到時也馬上再強平,不接成元三(使用者「再補」;電腦下個交易日生效)
   · 2026-11-07 23:35(實際時間)電腦:強平時取消的手動預掛,如果取消前還是成交了 → 多出來的部位不接成元三,程式馬上再強平並通知手機(使用者「如果真的出現這樣情況 電腦需要再次出手強平」;電腦下個交易日生效)
@@ -317,7 +318,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611091052">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611091129">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -573,6 +574,7 @@
   .rsmenu .rsm.r .lamp{background:#FF3B3B;box-shadow:0 0 6px rgba(255,59,59,.7)}
   #notifLog .dsep{display:flex;align-items:center;justify-content:center;font-size:clamp(24px,7vw,32px);font-weight:800;color:#FFD54F;letter-spacing:1px;padding:4px 0 2px;margin:6px 0 2px;border-top:1px solid rgba(255,255,255,.14)}   /* 日與日之間的分隔列:日期,這列字最大 */
   #notifLog .tb{padding:2px 4px 6px;font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+  #notifLog .tb.pos > .r:not(.h){padding-top:7px!important}   /* 2026-11-09 11:28 使用者「當沖三筆 太偏上」「上下置中」:數字字形偏上,往下補 7px 看起來在兩條線正中間 */
   #notifLog .tb .r{display:grid;align-items:center;column-gap:4px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.08);white-space:nowrap;overflow:hidden}
   #btnState{position:relative}   /* 2026-11-06 美股紅點;22:50 使用者「資訊 紅燈 不要壓到框」→ 縮成 9px、往框內移(跟公式的燈一樣) */
   #btnState.usdot::after{content:'';position:absolute;top:4px;left:4px;width:9px;height:9px;z-index:2;border-radius:50%;background:#FF3B30;box-shadow:0 0 6px #FF3B30;animation:usdotb 1s steps(2,start) infinite;pointer-events:none}
