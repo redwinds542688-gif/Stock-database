@@ -59,7 +59,7 @@ RE_CODE = re.compile(r"\b(\d{4,6})\b")
 RE_TPSL = re.compile(r"停利\s*([\d,]+(?:\.\d+)?)\s*停損\s*([\d,]+(?:\.\d+)?)")
 RE_PX_END = re.compile(r"([\d,]+(?:\.\d+)?)\s*$")      # 標題最後的進場價
 RE_BAR = re.compile(r"^\s*(\d{1,2}:\d{2})")            # 2026-10-29 稽核 #3:通知內容開頭的 K 棒時間(例如「09:05 多✓ · …」)
-RE_JUDGE = re.compile(r"判[一二三四五七]")   # 2026-11-05 加判五;2026-11-09 加判七(觀察版,只認得、一律不理)
+RE_JUDGE = re.compile(r"判[一二三四五七]")   # 2026-11-05 加判五;2026-11-09 加判七(15:28 使用者「判七 解凍上線」:照通知自動下單)
 EXIT_KINDS = ("loss", "profit", "exit")
 
 
@@ -134,7 +134,7 @@ class Trader:
         self.max_amount = float(cfg.get("TRADE_MAX_AMOUNT", "5000000"))
         # 2026-10-31 14:57 使用者「490萬 改成500萬」:預設 500 萬;bridge.env 還是以前寫的 4900000 也當 500 萬(不用動桌機檔案)
         if self.max_amount == 4900000: self.max_amount = 5000000
-        self.judges = set(x.strip() for x in cfg.get("TRADE_JUDGES", "判一,判二,判三,判四,判五").split(",") if x.strip())   # 2026-10-31 預設加判四(使用者「判四 … 真正的下單也啟動 自動平倉機制也啟動」);bridge.env 有寫 TRADE_JUDGES 的要自己加
+        self.judges = set(x.strip() for x in cfg.get("TRADE_JUDGES", "判一,判二,判三,判四,判五,判七").split(",") if x.strip())   # 2026-10-31 預設加判四(使用者「判四 … 真正的下單也啟動 自動平倉機制也啟動」);bridge.env 有寫 TRADE_JUDGES 的要自己加
         if self.judges == {"判一", "判二", "判三"}: self.judges.add("判四")
         if self.judges == {"判一", "判二", "判三", "判四"}: self.judges.add("判五")   # 2026-11-05 使用者「完整上線」判五:bridge.env 寫的是判一~四(舊預設)= 沒特別排除 → 一樣加判五   # bridge.env 還是舊範本那行(判一,判二,判三)= 沒特別排除 → 一樣加判四;要排除就寫成別的(例如 判一,判二,判三,-)
         self.slip = int(cfg.get("TRADE_SLIP_TICKS", "2"))          # 讓價檔數(確保成交)
@@ -1544,8 +1544,6 @@ class Trader:
             return
         self.seen.add(k)
         title, body, kind = it.get("title", ""), it.get("body", ""), it.get("kind", "")
-        if judge_of(body) == "判七":   # 2026-11-09 觀察版判七:只發通知不下單、不佔額度,進場 / 平倉通知都不理(平倉通知也不能拿去平「接回」的部位)
-            return
         code = code_of(title)
         if not code:
             return

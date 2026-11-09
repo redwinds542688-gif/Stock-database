@@ -755,7 +755,6 @@ class Engine:
             elif text == "OBV": title, kind = f"✅ {nm} {code} OBV 反轉提早停利{plTxt} 立即平倉", "profit"
             else: title, kind = f"{nm} {code} 出場{plTxt}:{text}", "exit"
         body = f"{tm} {frm}現價 {ex:.2f} · {'超額' if p.get('over') else str(p['lots']) + '張'}{' · 已強平' if p.get('fc') and not p.get('over') else ''} · {j}"   # 2026-10-30 超額的部位平倉也標「超額」
-        if rs == "七": body = f"{tm} {frm}現價 {ex:.2f} · 觀察 · {j}"   # 2026-11-09 觀察版判七
         it = {"d": self.day, "t": at, "title": title, "body": body, "kind": kind, "key": self.key_of(code, title, rs), "pos": f"{j}|{code}|{p['t']}"}
         y = self.prev.get(code)
         if y: it["prev"] = y
@@ -790,10 +789,10 @@ class Engine:
         def net(sd, e, x, q):
             buy, sell = (e, x) if sd > 0 else (x, e); b = buy * q * 1000; s_ = sell * q * 1000; fr, tx = cost_rates(); fee = lambda a: max(20, int(a * fr + 1e-6))
             return round(s_ - b - fee(b) - fee(s_) - int(s_ * tx + 1e-6))
-        L = []; L7 = []   # 2026-11-09 觀察版判七另外算(沒下單,不算進今日輸贏)
+        L = []; L7 = []   # 2026-11-09 觀察版判七另外算 → 15:28 判七解凍上線,和其他判別式一起算(L7 留空)
         for c in self.closed:
             if c.get("over"): continue
-            (L7 if c.get("rs") == "判七" else L).append({**c, "net": net(c["side"], float(c["e"]), float(c["x"]), int(c["lots"]))})
+            L.append({**c, "net": net(c["side"], float(c["e"]), float(c["x"]), int(c["lots"]))})
         byj = {}
         for c in L:
             b = byj.setdefault(c["rs"], {"n": 0, "w": 0, "net": 0}); b["n"] += 1; b["w"] += c["net"] > 0; b["net"] += c["net"]
@@ -868,10 +867,10 @@ class Engine:
         sl = d.get("sl") or (px * (1 - (float(self.envs[rs].get("STOPCAP", self.envs[rs].get("STOP", "4.5"))) / 100) * d["side"]))   # 判一 pts 停損價模擬器沒印,用上限 3% 當外圍(真正的停損由平倉通知來)
         qty = max(1, int(self.cap // (px * 1000)))
         # 2026-10-30 01:55 使用者「超過限額的股票 也要出現在訊息通知欄裡 只是註記“超額”不交易 給強制進場提供一個發揮的平台」:一張就超過多空上限 → 照推、張數改寫「超額」(中繼看到不自動進場)
-        over = px * 1000 > self.cap and rs != "七"
+        over = px * 1000 > self.cap
         title = f"{nm} {code} {side}{'強訊號' if d['strong'] else ''}進場 {px:.2f}"
         body = f"{tm} {d['text']} · 停利 {tp:.2f} 停損 {sl:.2f} · {'超額' if over else str(qty) + '張'} · {j}"
-        if rs == "七": body = f"{tm} {d['text']} · 停利 {tp:.2f} 停損 {sl:.2f} · 觀察 · {d.get('note', '')} · {j}"   # 2026-11-09 觀察版判七:不寫張數(不下單、不佔額度),帶 12/06 驗證用的三個數字
+        if rs == "七": body = f"{tm} {d['text']} · 停利 {tp:.2f} 停損 {sl:.2f} · {'超額' if over else str(qty) + '張'} · {d.get('note', '')} · {j}"   # 2026-11-09 判七帶 12/06 驗證用的三個數字(15:28 解凍上線:照張數下單)
         it = {"d": self.day, "t": at, "title": title, "body": body, "kind": "long" if d["side"] > 0 else "short", "key": self.key_of(code, title, rs)}
         y = self.prev.get(code)
         if y: it["prev"] = y
