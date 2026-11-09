@@ -55,19 +55,19 @@
 "code": "1303",
 "name": "南亞",
 "market": "twse",
-"lots": 50972
+"lots": 57247
+},
+{
+"code": "2317",
+"name": "鴻海",
+"market": "twse",
+"lots": 50352
 },
 {
 "code": "6770",
 "name": "力積電",
 "market": "twse",
 "lots": 49855
-},
-{
-"code": "2317",
-"name": "鴻海",
-"market": "twse",
-"lots": 48975
 },
 {
 "code": "2610",
@@ -97,7 +97,7 @@
 "code": "2408",
 "name": "南亞科",
 "market": "twse",
-"lots": 41361
+"lots": 41561
 },
 {
 "code": "3231",
@@ -109,7 +109,7 @@
 "code": "2344",
 "name": "華邦電",
 "market": "twse",
-"lots": 37781
+"lots": 37941
 },
 {
 "code": "2353",
@@ -166,16 +166,16 @@
 "lots": 24977
 },
 {
+"code": "2412",
+"name": "中華電",
+"market": "twse",
+"lots": 24349
+},
+{
 "code": "1605",
 "name": "華新",
 "market": "twse",
 "lots": 24329
-},
-{
-"code": "2412",
-"name": "中華電",
-"market": "twse",
-"lots": 24222
 },
 {
 "code": "3605",
@@ -196,16 +196,16 @@
 "lots": 20512
 },
 {
+"code": "2382",
+"name": "廣達",
+"market": "twse",
+"lots": 20473
+},
+{
 "code": "8042",
 "name": "金山電",
 "market": "tpex",
 "lots": 20315
-},
-{
-"code": "2382",
-"name": "廣達",
-"market": "twse",
-"lots": 19200
 },
 {
 "code": "5314",
@@ -229,13 +229,13 @@
 "code": "2327",
 "name": "國巨*",
 "market": "twse",
-"lots": 17088
+"lots": 17251
 },
 {
 "code": "3036",
 "name": "文曄",
 "market": "twse",
-"lots": 16816
+"lots": 17025
 },
 {
 "code": "2609",
@@ -298,6 +298,12 @@
 "lots": 13008
 },
 {
+"code": "3702",
+"name": "大聯大",
+"market": "twse",
+"lots": 12802
+},
+{
 "code": "3026",
 "name": "禾伸堂",
 "market": "twse",
@@ -314,12 +320,6 @@
 "name": "台郡",
 "market": "twse",
 "lots": 12516
-},
-{
-"code": "3702",
-"name": "大聯大",
-"market": "twse",
-"lots": 12490
 },
 {
 "code": "4967",
@@ -530,6 +530,12 @@
 "name": "聯強",
 "market": "twse",
 "lots": 7174
+},
+{
+"code": "2033",
+"name": "佳大",
+"market": "twse",
+"lots": 7130
 },
 {
 "code": "2436",
