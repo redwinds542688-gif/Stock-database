@@ -183,7 +183,7 @@ class Trader:
         #   到 TRADE_PREHANG_DEADLINE(13:24)還沒成交 → 取消那張、程式照舊漲停 / 跌停平倉。0 = 關(照舊 13:20 全部取消)
         # 2026-11-08 01:08 使用者「13點20分也要取消所有元大預掛」:預設 13:24 → 13:20(盤中照舊讓位給預掛;13:20 預掛和條件單、委託全部取消,程式平倉)
         self.prehang_deadline = cfg.get("TRADE_PREHANG_DEADLINE", "13:20").strip()
-        self.j2_brcap = [(float(a_), int(b_)) for a_, b_ in (x.split(":") for x in cfg.get("TRADE_J2_BRCAP", "0.9:1,0.8:2").split(",") if ":" in x)]   # 2026-11-09 判二大盤分級檔數(見 reset_day 說明)
+        self.j2_brcap = [(float(a_), int(b_)) for a_, b_ in (x.split(":") for x in cfg.get("TRADE_J2_BRCAP", "0.92:0").split(",") if ":" in x)]   # 2026-11-09 判二大盤分級檔數(見 reset_day 說明)
         self.br_file = Path(cfg.get("TRADE_BR_FILE") or (Path(__file__).resolve().parent / "engine_data" / "breadth.json")); self._br = (0.0, None)
         self.prehang = {}   # code → 保留的手動預掛委託書號 [no, …]
         self.del_q = []     # 2026-11-08 20:50 等元大確認刪除的條件單編號
@@ -218,6 +218,7 @@ class Trader:
         # 2026-11-09 14:45 判二第二十四次修改(使用者「上漲家數大於90%只限制做一檔 80%二檔 70%沒限制」→「解鎖 改」):
         #   判二進場那一刻看名單上漲家數比例(engine_data/breadth.json,和判二 / 判三 / 判四同一份):≥ 90% → 今天判二最多 1 檔、≥ 80% → 2 檔、以下不限;
         #   檔數只算真的有送單變成部位的(太晚了 / 超額 / 沒成交放棄的不算);TRADE_J2_BRCAP="0.9:1,0.8:2",空字串 = 關
+        #   15:02 判二第二十五次修改(使用者「92%以上不做 其他都做呢」→「解鎖 改」):改成 TRADE_J2_BRCAP="0.92:0" = 上漲家數 ≥ 92% 判二多空都不進,其他照做
         self.skipped = set()       # 2026-11-02 今天沒變成部位的進場訊號(代碼|判別式|訊號那根),手機標「未交易」
         # 2026-11-03 和益 1709 判三 OBV 停利平倉卡在主程式訊息欄不見(使用者「和益 已經平倉 進場資訊欄 沒顯示平倉」):
         #   手機收到平倉通知才問 ?trade=pos,電腦已經照同一則通知平完 → 手機以為元大根本沒這檔、把平倉卡藏了。
@@ -1662,7 +1663,7 @@ class Trader:
                 n2 = sum(1 for k in self.traded_keys if k.split("|")[1:2] == ["判二"])
                 for th, cap in self.j2_brcap:
                     if b >= th - 1e-9:
-                        if n2 >= cap: return f"大盤上漲家數 {b:.0%} ≥ {th:.0%},判二今天已做 {n2} 檔(上限 {cap})"
+                        if n2 >= cap: return f"大盤上漲家數 {b:.0%} ≥ {th:.0%},判二不做" if cap == 0 else f"大盤上漲家數 {b:.0%} ≥ {th:.0%},判二今天已做 {n2} 檔(上限 {cap})"
                         break
         return None
 
