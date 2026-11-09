@@ -136,7 +136,7 @@ async function usGet(env, force) {
   let v = null; try { v = env.HUB ? await hubOf(env).kvGet("usmkt") : null; } catch (e) {}
   const t = new Date(Date.now() + 8 * 3600e3), d = t.toISOString().slice(0, 10), hm = t.toISOString().slice(11, 16), wd = t.getUTCDay();
   const ok = v && v.d === d && v.idx && v.idx.length >= US_IDX.length && v.idx.every(x => x.close != null);
-  const pm = wd >= 1 && wd <= 5 && hm >= "14:40", okPm = !pm || (v && v.hm >= "14:40");   // 2026-11-09 14:32 使用者「台股 美股 韓股 日股 都要逐日更新」:早上 08:30 抓美股(前一晚收盤);平日 14:40 後再抓一次,換上台股 / 日經 / 韓國當天收盤和走勢線   // 2026-11-07 加 S&P 500 後,舊快取少一張要重抓
+  const stp = wd >= 1 && wd <= 5 ? ["14:40", "13:40"].find(x => hm >= x) : null, okPm = !stp || (v && v.hm >= stp);   // 2026-11-09 15:08 使用者「13.40 改」:平日 13:40 再加一次(台股 13:30 收盤);日經 / 韓國還在交易的那天不會拿(只拿已收盤),14:40 那次才換   // 2026-11-09 14:32 使用者「台股 美股 韓股 日股 都要逐日更新」:早上 08:30 抓美股(前一晚收盤);平日 14:40 後再抓一次,換上台股 / 日經 / 韓國當天收盤和走勢線   // 2026-11-07 加 S&P 500 後,舊快取少一張要重抓
   if (force || ((!ok || !okPm) && hm >= "08:30")) {   // 2026-11-07 15:03 使用者「不用隨時抓 每天早上8.30抓一次即可 除非抓不到」:08:30 前不抓;今天抓齊就整天用快取   // 2026-11-06 16:11 週六、週日也抓(手機來問時;星期六 08:20 起顯示到星期一 09:00)
     const c = MC.get("usfetch"); if (!force && c && Date.now() - c < 300e3) return v;   // 手機來問、今天還沒有:最多 5 分鐘抓一次
     MC.set("usfetch", Date.now());
