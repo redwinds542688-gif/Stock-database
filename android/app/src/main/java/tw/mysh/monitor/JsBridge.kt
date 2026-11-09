@@ -74,7 +74,7 @@ open class JsBridge(private val ctx: Context, private val tag: String, private v
             ensureChannels(ctx)
             val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             // 2026-10-19 使用者:「在這點選泰鼎,程式就直接跳到泰鼎 K 線圖畫面」→ 通知帶代號 / 名稱,點了 MainActivity 直接開那檔的圖;每則用不同 requestCode 才不會互相蓋掉
-            val m = Regex("^(?:⚠⚠ |⚠ |✅ )?(\\S+) (\\d{4,6}[A-Z]*)").find(title ?: "")
+            val m = Regex("^(?:[^\\p{L}\\p{N}\\s]+\\s*)*(\\S+) (\\d{4,6}[A-Z]*)").find(title ?: "")   // 2026-11-09 使用者「改」:標題前面不管是什麼符號(📌 ↩ ⚠⚠ ✅ …)都跳過,抓得到名稱 + 代號
             val id = seq.incrementAndGet()
             val open = Intent(ctx, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
