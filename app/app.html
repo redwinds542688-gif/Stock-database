@@ -317,7 +317,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611090901">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611090908">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2424,6 +2424,8 @@ window.fitBands = fitBands;
     const n = new Date(), wd = n.getDay(), hm = n.getHours() * 60 + n.getMinutes();
     const hours = wd >= 1 && wd <= 5 && hm >= 8 * 60 + 45 && hm <= 13 * 60 + 35;
     let run = false; try{ run = !!(window.Android && Android.monitorRunning && Android.monitorRunning()); }catch(e){}
+    // 2026-11-09 09:06 使用者「判別未啟動」「電腦版」:電腦 / 看盤版沒有 Android 背景監控 → 改看電腦引擎心跳(engine=get,3 分鐘內有算 = 在跑)
+    if (!window.Android){ try{ run = engineOn(); }catch(e){} }
     menu.querySelectorAll('.rsm').forEach(x => { const k = x.dataset.rs, on = rsOn(k);
       if (k === 'key'){ x.classList.toggle('g', !!appKey.get()); x.classList.remove('r'); x.classList.remove('off'); x.classList.remove('sel'); return; }   // 2026-10-29 鑰匙列:有鑰匙綠燈
       if (k === 'help'){ x.classList.remove('g'); x.classList.remove('r'); x.classList.remove('off'); x.classList.remove('sel'); return; }
@@ -7177,7 +7179,7 @@ function engineOn(){ return !!(ENGINE.on && Date.now() - ENGINE.at < 3 * 60000);
 window.engineOn = engineOn;
 function engPoll(force){
   try{
-    if (!liveOn() || vwOnly()) return; const now = Date.now(); if (!force && now - ENGINE.chk < 60000) return; ENGINE.chk = now;
+    if (!liveOn()) return; const now = Date.now(); if (!force && now - ENGINE.chk < 60000) return; ENGINE.chk = now;   // 2026-11-09 看盤版也讀電腦心跳(只拿來亮燈)
     fetch(BASE.liveUrl.replace(/\/$/, '') + '/?engine=get&_=' + Math.floor(now / 20000), {signal: AbortSignal.timeout(8000)}).then(r => r.ok ? r.json() : null).then(j => {
       if (!j || typeof j !== 'object') return; const today = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
       const was = engineOn(); ENGINE.on = !!(j.on && j.d === today); ENGINE.at = +j.at || 0; ENGINE.hm = j.hm || ''; ENGINE.msg = j.msg || '';
@@ -7189,12 +7191,13 @@ function engPoll(force){
         if (fresh && !j.on && j.msg) warn.push('電腦引擎暫停(' + String(j.msg).replace(/\s*規則\w+$/, '').slice(0, 40) + '),改由手機計算');
         if (was && !engineOn() && !fresh) warn.push('電腦引擎心跳停了 3 分鐘,改由手機計算,請看電腦');
         const wk = warn.join('|');
-        if (wk && wk !== ENGINE.warned && inSession()){ ENGINE.warned = wk; fmToast('⚠ ' + warn.join(';'), 8000); bgLog('[公式] ' + wk); }
+        if (wk && wk !== ENGINE.warned && inSession() && !vwOnly()){ ENGINE.warned = wk; fmToast('⚠ ' + warn.join(';'), 8000); bgLog('[公式] ' + wk); }
         if (!wk) ENGINE.warned = ''; }catch(e){}
     }).catch(() => {});
   }catch(e){}
 }
 window.engPoll = engPoll;
+if (!window.Android){ setTimeout(() => { try{ engPoll(true); }catch(e){} }, 2000); setInterval(() => { try{ engPoll(); }catch(e){} }, 30000); }   // 2026-11-09 09:07 電腦 / 看盤版:定時讀電腦引擎心跳,判一~五燈號才會在開盤時亮綠
 /* 2026-10-31 使用者「要有慶祝的通知」:電腦推「當天賺到 N 萬」(kind win1~win5)時,App 開在前景就灑彩帶 + 中間一行大字,級數越高彩帶越多、越久 */
 function celebrate(title, n){
   if (document.visibilityState === 'hidden' || (window.Android && Android.isService && Android.isService())) return;
