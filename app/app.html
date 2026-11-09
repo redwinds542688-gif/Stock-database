@@ -331,7 +331,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611092156">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611092159">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1808,7 +1808,7 @@ function yLegMerge(legs){
   }catch(e){ return legs; }
 }
 const fillAmt = rows => { let a = 0; try{ for (const r of (rows || [])){ const q = +r.lots || 0, o = +r.open || 0; a += ((+r.buy || 0) * (q + Math.max(o, 0)) + (+r.sell || 0) * (q + Math.max(-o, 0))) * 1000; } }catch(e){} return a; };   // 2026-11-04 元大成交明細的實際成交金額(買 + 賣)
-const yFillsOf = dd => { try{ const j = JSON.parse(localStorage.getItem('mysh.yfills.' + dd) || 'null'); return j && Array.isArray(j.rows) ? j : null; }catch(e){ return null; } };
+const yFillsOf = dd => { if (dd && dd < '2026-11-10') return null; /* 2026-11-09 22:00 使用者「明細 燈號也不對」:22 天重寫後元大真實成交從 11/10 起,之前的日子(燈號 / 明細 / 進場)一律看重算的 */ try{ const j = JSON.parse(localStorage.getItem('mysh.yfills.' + dd) || 'null'); return j && Array.isArray(j.rows) ? j : null; }catch(e){ return null; } };
 function fmToast(msg, ms){ try{ let t = el('fmToast'); if (!t){ t = document.createElement('div'); t.id = 'fmToast'; document.body.appendChild(t); }
   t.textContent = msg; t.classList.add('on'); clearTimeout(t.__h); t.__h = setTimeout(() => t.classList.remove('on'), ms || 2600); }catch(e){} }
 const fmPin = { get(){ try{ return localStorage.getItem('mysh.tpin') || ''; }catch(e){ return ''; } }, set(v){ try{ v ? localStorage.setItem('mysh.tpin', v) : localStorage.removeItem('mysh.tpin'); }catch(e){} } };
@@ -7707,11 +7707,11 @@ window.bgTick = bgTick; window.BG = BG;
           let pt = 0; try{ let C = {fee: 0, tax: 0}; try{ C = cost(); }catch(e){} const {open} = posOpen(); for (const o of open){ const lt = lotsOf(o), dr = o.side === 'long' ? 1 : -1, ent = +o.entP, cu = +(((LIVE.get(o.code) || {}).z) || 0) || ent;
             pt += (cu - ent) * dr * lt * 1000 - (dr > 0 ? costAmt(ent * lt * 1000, cu * lt * 1000, C) : costAmt(cu * lt * 1000, ent * lt * 1000, C)); } }catch(e){}
           let dt = netOf(cards.filter(o => o.type === 'exit' && !o._hide && !o.over && !(o.rs === '元三' || o.rs === '強三')))[0];
-          try{ if (!vwOnly()){ const F = window.__tfills, yf = F && F.ok && F.d === today && Array.isArray(F.rows) && Date.now() - (F.at || 0) < 10 * 60000 ? F : yFillsOf(today);
+          try{ if (!vwOnly() && today >= '2026-11-10'){ const F = window.__tfills, yf = F && F.ok && F.d === today && Array.isArray(F.rows) && Date.now() - (F.at || 0) < 10 * 60000 ? F : yFillsOf(today);
             if (yf && Array.isArray(yf.rows) && (yf === F || yf.rows.some(r => r.lots > 0))) dt = yf.rows.reduce((a, r) => a + (r.lots > 0 ? +r.net || 0 : 0), 0); } }catch(e){}
           let nE = en.length, nX = en.filter(o => o._alert === 'exit' || o.__phM).length;
           // 2026-11-05 01:56 使用者「我是永久會員 明天訊號燈接通元大」:永久版問得到元大成交明細 → 進場 = 今天元大有成交的檔數、平倉 = 已經沖銷完(沒有未平倉張數)的檔數
-          try{ const F0 = window.__tfills, F = F0 && F0.ok && F0.d === today && Array.isArray(F0.rows) && Date.now() - (F0.at || 0) < 10 * 60000 ? F0 : (!inSession() && today >= '2026-11-05' ? yFillsOf(today) : null); if (!vwOnly() && F && Array.isArray(F.rows)){ const R = F.rows.filter(r => (+r.lots || 0) > 0 || (+r.open || 0) !== 0); if (R.length || !en.length){ nE = R.length; nX = R.filter(r => (+r.lots || 0) > 0 && !(+r.open || 0)).length; } } }catch(e){}
+          try{ const F0 = window.__tfills, F = F0 && F0.ok && F0.d === today && Array.isArray(F0.rows) && Date.now() - (F0.at || 0) < 10 * 60000 ? F0 : (!inSession() && today >= '2026-11-05' ? yFillsOf(today) : null); if (!vwOnly() && today >= '2026-11-10' && F && Array.isArray(F.rows)){ const R = F.rows.filter(r => (+r.lots || 0) > 0 || (+r.open || 0) !== 0); if (R.length || !en.length){ nE = R.length; nX = R.filter(r => (+r.lots || 0) > 0 && !(+r.open || 0)).length; } } }catch(e){}
           lampBtn('refreshBtn', '進場', 'cnt', Math.max(0, nE - nX), nX);   /* 2026-11-05 13:03 使用者「進場如果已經平倉 進場這邊就要退一個燈號」:黃 = 還在場上的檔數(進場 − 已平倉),藍 = 已平倉 */ lampBtn('btnState', usLabel(), 'amt', pt); lampBtn('btnRules', '明細', 'amt', dt);
         } }catch(e){}
       if (!inSession()){ lampBtn('refreshBtn', '進場'); lampBtn('btnState', usLabel());
