@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-09 13:07(實際時間)監控清單:做多 / 做空的股票,前面指針改成部位輸贏指針反白(贏紅底、輸綠底、白針;1% = 9°)(使用者「改」)
   · 2026-11-09 12:50(實際時間)App 1.5.66:點手機通知開 K 圖,標題前面任何符號都跳過(📌 預掛、↩ 預掛沒了也開得到圖)(使用者「改」;要裝新版 APK)
   · 2026-11-09 12:43(實際時間)監控清單:進場還沒平倉的股票,「監控中」改成紅底「做多」/ 綠底「做空」(跟當沖同一份部位)(使用者「有進場未平倉的股票 監控中 要改為 做多 或是 做空」)
   · 2026-11-09 12:38(實際時間)當沖照進場時間排,最晚進來的在最上面(使用者「當沖顯示 最晚進來排最上面」)
@@ -322,7 +323,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611091250">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611091307">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -768,6 +769,7 @@
   .row .posline .pos.attn{background:#4A2A12;color:#F5A623;font-weight:700}      /* (判別式相關說明已移到私人庫) */
   .row.holding{background:rgba(201,162,39,.06)}
   /* 未平倉:名次依部位方向上色 */
+  .row .rank svg.pinv{background:#FF3B3B;border-radius:5px;padding:2px 3px;box-sizing:content-box}.row .rank svg.pinv.plose{background:#1DD75B}.row .rank svg.pinv circle:nth-of-type(2){fill:#FF3B3B}.row .rank svg.pinv.plose circle:nth-of-type(2){fill:#1DD75B}.row .rank svg.pinv circle:nth-of-type(3){fill:#FFFFFF}   /* 2026-11-09 13:07 使用者「做多或做空 股票前面指針 改成 輸贏指針 反白」:贏紅底、輸綠底、白針 */
   .row.holding .rank{font-weight:700}
   .row.hold-long  .rank{color:var(--up)}     /* 做多:紅 */
   .row.hold-short .rank{color:var(--down)}   /* 做空:綠 */
@@ -2180,7 +2182,7 @@ function listLater(key, fn){ if (!listBusy()) return false;
   r.addEventListener('touchstart', () => { L.on = 1; L.t = Date.now(); }, {passive: true});
   const up = () => { L.on = 0; L.t = Date.now(); }; r.addEventListener('touchend', up, {passive: true}); r.addEventListener('touchcancel', up, {passive: true});
   r.addEventListener('scroll', () => { L.t = Date.now(); }, {passive: true}); }; go(); })();
-window.__reList = () => { try{ if (LAST_LIST) render(LAST_LIST); }catch(e){} };   // 2026-11-09 進場 / 平倉變了 → 監控清單馬上換做多 / 做空 / 監控中
+window.__reList = () => { try{ if (LAST_LIST) render(LAST_LIST); window.__needlesNow && __needlesNow(); }catch(e){} };   // 2026-11-09 進場 / 平倉變了 → 監控清單馬上換做多 / 做空 / 監控中
 function render(list){
   LAST_LIST = list;
   if (listLater('render', () => { render(LAST_LIST); applyLiveToList(); })) return;
@@ -3862,7 +3864,7 @@ function applyLiveToList(){
     if (px){ sT(px, r.z.toFixed(2)); sC(px, 'px ' + cls); }
     { const nm = row.querySelector('.nm'); if (nm && r.n && nm.textContent.trim() === row.dataset.code) nm.textContent = r.n; }   // 2026-10-20 名字只有代號的(名單裡沒有),用證交所回的名稱
     if (mv){ sT(mv, d > 0 ? '▲' : d < 0 ? '▼' : '─'); sC(mv, 'mv ' + cls); }
-    { const nd = row.querySelector('.rank svg'); if (nd && nd.__p !== r.chgPct){ nd.__p = r.chgPct; needleSet(nd, r.chgPct); } }   // 2026-10-27 10:50 編號位置的指針:這檔的漲跌 %
+    rowNeedle(row, r);   // 2026-11-09 13:07 有部位 → 輸贏指針反白   // 2026-10-27 10:50 編號位置的指針:這檔的漲跌 %
     const vol = row.querySelector('.vol');            // 成交量改成今天到目前的累積張數
     if (vol && isFinite(r.v)) sT(vol, (r.v / 10000).toFixed(2));   // 萬張
   });
@@ -3990,6 +3992,18 @@ async function idxPoll(force){
 }
 /* 2026-10-27 10:50(實際時間)使用者:「監控股票 編號位置 改顯示 指針」:指針共用——大盤一支、清單每檔一支(漲跌 % × 9°,漲紅跌綠平白,沒資料灰) */
 const NEEDLE_SVG = (id, cls) => `<svg${id ? ' id="' + id + '"' : ''} class="needle${cls ? ' ' + cls : ''}" viewBox="0 0 28 24" overflow="visible"><g class="ndl"><polygon points="7.8,10.4 10.6,10.9 27.5,12 10.6,13.1 7.8,13.6" fill="currentColor"/><circle cx="4.6" cy="12" r="4.6" fill="currentColor"/><circle cx="4.6" cy="12" r="3.1" fill="#E9EDF3"/><circle cx="4.6" cy="12" r="1.3" fill="#8A93A3"/></g></svg>`;
+// 2026-11-09 13:07(實際時間)使用者「股票監控區 做多或做空 股票前面指針 改成 輸贏指針 反白」(看過圖說「改」):
+//   有進場未平倉 → 指針照部位輸贏 %(做多 = 現價比進場漲幾 %,做空反過來;1% = 9°),贏紅底、輸綠底、白針;沒部位照舊當日漲跌
+function rowNeedle(row, r){
+  const nd = row && row.querySelector('.rank svg'); if (!nd || !r) return;
+  const op = window.__openPos && __openPos.get(row.dataset.code);
+  if (op && op.entP > 0 && r.z > 0){
+    const pl = (r.z - op.entP) / op.entP * 100 * (op.side === 'long' ? 1 : -1), k = 'P' + pl.toFixed(3);
+    if (nd.__p === k) return; nd.__p = k; needleSet(nd, pl); nd.classList.add('pinv'); nd.classList.toggle('plose', pl < 0); nd.style.color = '#FFFFFF'; return;
+  }
+  if (nd.__p === r.chgPct) return; nd.__p = r.chgPct; nd.classList.remove('pinv', 'plose'); needleSet(nd, r.chgPct);
+}
+window.__needlesNow = () => { try{ document.querySelectorAll('#bands .row').forEach(row => rowNeedle(row, LIVE.get(row.dataset.code))); }catch(e){} };
 function needleSet(svg, p){
   if (!svg) return; const g = svg.querySelector('.ndl') || svg.querySelector('g') || svg;
   if (p == null || !isFinite(p)){ g.setAttribute('transform', ''); svg.style.color = '#8A93A3'; return; }   // 還沒拿到:灰色朝右
@@ -7658,7 +7672,7 @@ window.bgTick = bgTick; window.BG = BG;
         if (TP && !over){ tfillsPoll(); try{ const F = window.__tfills; if (F && F.ok && F.d === today && Array.isArray(F.rows)) for (const r of F.rows){ const q = +r.open || 0; if (!q || open.some(o => o.code === r.code)) continue;
               open.push({code: r.code, name: r.name || nmOf(r.code), side: q > 0 ? 'long' : 'short', entP: q > 0 ? +r.buy : +r.sell, lots: Math.abs(q), manual: true, t: String(r.t || r.time || '99:99')}); } }catch(e){} }
         open.sort((a, b) => String(b.t || '').localeCompare(String(a.t || '')));
-        try{ const k_ = open.map(o => o.code + o.side).join(','); window.__openSide = new Map(open.map(o => [o.code, o.side])); if (k_ !== window.__openSideK){ window.__openSideK = k_; setTimeout(() => { try{ window.__reList && __reList(); }catch(e){} }, 0); } }catch(e){}   // 2026-11-09 12:43 監控清單:進場還沒平倉的標做多 / 做空   // 2026-11-09 12:37 使用者「當沖顯示 最晚進來排最上面」:照進場時間,最晚的在最上面
+        try{ const k_ = open.map(o => o.code + o.side).join(','); window.__openSide = new Map(open.map(o => [o.code, o.side])); window.__openPos = new Map(open.map(o => [o.code, {side: o.side, entP: +o.entP || 0}])); setTimeout(() => { try{ __needlesNow(); }catch(e){} }, 0); if (k_ !== window.__openSideK){ window.__openSideK = k_; setTimeout(() => { try{ window.__reList && __reList(); }catch(e){} }, 0); } }catch(e){}   // 2026-11-09 12:43 監控清單:進場還沒平倉的標做多 / 做空   // 2026-11-09 12:37 使用者「當沖顯示 最晚進來排最上面」:照進場時間,最晚的在最上面
         return {over, TP, TPL, open}; };
       // 2026-11-05 下排 進場 / 當沖 / 明細 按鍵的燈(開盤中):進場 = 今天真的進場幾檔 / 已平倉幾檔;當沖 = 持倉輸贏;明細 = 今天平倉後輸贏(永久版有元大成交用元大)
       // 2026-11-06 01:09 使用者:燈一直顯示「最近一個交易日」的結果,交易日 08:45 才歸零換成今天(六日 / 休市日照舊顯示前一個交易日)
