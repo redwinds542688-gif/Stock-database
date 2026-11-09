@@ -317,7 +317,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611082051">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611090901">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1510,7 +1510,9 @@ let usWinStart = () => { const n = new Date(Date.now() + 8 * 3600000), wd = n.ge
 /* 2026-11-06 19:58 使用者「現在 未開盤 當沖欄位閒著也是閒著 就恢復顯示美股資訊好了」「只要未開盤時間 就是顯示美國」:
    不再限 08:20~09:00 / 週末 —— 只要不是開盤時間(平日 09:00~13:30)就顯示最近一份美股(4 天內抓的都算);開盤中交回當沖 */
 const usWinStart0 = usWinStart;
-usWinStart = () => { try{ if (inSession()) return 0; }catch(e){} return Date.now() - 4 * 86400000; };
+/* 2026-11-09 09:01 使用者「以後開盤時間 改為8點45到14點」:當沖 / 資訊 切換改看 平日 08:45~14:00(這段顯示當沖,其他時間顯示資訊);判別式、通知等用的開盤時間(inSession 09:00~13:30)不變 */
+const dispSession = (d = new Date()) => { const tw = new Date(d.getTime() + 8 * 3600000), wd = tw.getUTCDay(); if (wd === 0 || wd === 6) return false; const t = tw.getUTCHours() * 60 + tw.getUTCMinutes(); return t >= 8 * 60 + 45 && t < 14 * 60; };
+usWinStart = () => { try{ if (dispSession()) return 0; }catch(e){} return Date.now() - 4 * 86400000; };
 const usLive = () => usWinStart() > 0;   /* 2026-11-06 15:48 使用者「只在當沖通知欄裡顯示到當天9.00 之後交回當沖使用」 */
 const usKey = () => window.__US ? String(window.__US.us || '') : '';   /* 看過的是哪一天的美股(星期六看過,星期日 / 星期一早上同一份就不再閃) */
 const usDot = () => { try{ usBtnTxt(); }catch(e){} try{ const b = document.getElementById('btnState'); if (!b) return; let seen = ''; try{ seen = localStorage.getItem('mysh.usSeen') || ''; }catch(e){}
