@@ -59,7 +59,7 @@ RE_CODE = re.compile(r"\b(\d{4,6})\b")
 RE_TPSL = re.compile(r"停利\s*([\d,]+(?:\.\d+)?)\s*停損\s*([\d,]+(?:\.\d+)?)")
 RE_PX_END = re.compile(r"([\d,]+(?:\.\d+)?)\s*$")      # 標題最後的進場價
 RE_BAR = re.compile(r"^\s*(\d{1,2}:\d{2})")            # 2026-10-29 稽核 #3:通知內容開頭的 K 棒時間(例如「09:05 多✓ · …」)
-RE_JUDGE = re.compile(r"判[一二三四五]")   # 2026-11-05 加判五
+RE_JUDGE = re.compile(r"判[一二三四五七]")   # 2026-11-05 加判五;2026-11-09 加判七(觀察版,只認得、一律不理)
 EXIT_KINDS = ("loss", "profit", "exit")
 
 
@@ -1537,6 +1537,8 @@ class Trader:
             return
         self.seen.add(k)
         title, body, kind = it.get("title", ""), it.get("body", ""), it.get("kind", "")
+        if judge_of(body) == "判七":   # 2026-11-09 觀察版判七:只發通知不下單、不佔額度,進場 / 平倉通知都不理(平倉通知也不能拿去平「接回」的部位)
+            return
         code = code_of(title)
         if not code:
             return
