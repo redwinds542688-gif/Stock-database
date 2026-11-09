@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-09 12:43(實際時間)監控清單:進場還沒平倉的股票,「監控中」改成紅底「做多」/ 綠底「做空」(跟當沖同一份部位)(使用者「有進場未平倉的股票 監控中 要改為 做多 或是 做空」)
   · 2026-11-09 12:38(實際時間)當沖照進場時間排,最晚進來的在最上面(使用者「當沖顯示 最晚進來排最上面」)
   · 2026-11-09 12:35(實際時間)K 圖錯位再修:指標二、乖離圖每條線對齊 K 棒時間點(補空白 / 丟多的),三張圖時間軸一致;抓 bug 多記每條線根數(使用者「抓bug」→「改」)
   · 2026-11-09 11:29(實際時間)當沖每一列的字上下置中(原本偏上)(使用者「當沖三筆 太偏上」「上下置中」)
@@ -320,7 +321,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611091238">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611091243">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2178,6 +2179,7 @@ function listLater(key, fn){ if (!listBusy()) return false;
   r.addEventListener('touchstart', () => { L.on = 1; L.t = Date.now(); }, {passive: true});
   const up = () => { L.on = 0; L.t = Date.now(); }; r.addEventListener('touchend', up, {passive: true}); r.addEventListener('touchcancel', up, {passive: true});
   r.addEventListener('scroll', () => { L.t = Date.now(); }, {passive: true}); }; go(); })();
+window.__reList = () => { try{ if (LAST_LIST) render(LAST_LIST); }catch(e){} };   // 2026-11-09 進場 / 平倉變了 → 監控清單馬上換做多 / 做空 / 監控中
 function render(list){
   LAST_LIST = list;
   if (listLater('render', () => { render(LAST_LIST); applyLiveToList(); })) return;
@@ -2216,6 +2218,7 @@ function render(list){
           s.pos ? `<span class="pos ${s.pos}">${s.pos === 'long' ? '做多' : '做空'}${s.qty ? ' ' + s.qty + '張' : ''}</span>`
                 : (posStatus(s.code) === 'closed' ? '<span class="pos done">已平倉</span>'
                 : (rank.has(s.code) && window.NL_STATUS && NL_STATUS[s.code]) ? `<span class="pos ${NL_STATUS[s.code] === '反彈中' ? 'rebound' : 'attn'}">${NL_STATUS[s.code]}</span>`   // 2026-10-20 反彈中 / 請注意改顯示在這格
+                : (window.__openSide && __openSide.has(s.code)) ? `<span class="pos ${__openSide.get(s.code) === 'long' ? 'long' : 'short'}">${__openSide.get(s.code) === 'long' ? '做多' : '做空'}</span>`   // 2026-11-09 12:43 使用者「有進場未平倉的股票 監控中 要改為 做多 或是 做空」(跟當沖同一份)
                 : rank.has(s.code) ? `<span class="pos watch">${sigTag()}</span>` : `<span class="pos code">${s.code}</span>`)   // 2026-10-27 10:15 使用者:「未 改成 股票代碼」:沒訊號、沒進場的就顯示代碼(原本灰底「未」)   // 今天有買賣訊號、但沒手動記部位 → 監控中;長按結束交易 → 已平倉(2026-10-19 起一直顯示,不再 1 分鐘後變回「未」,因為它仍排在前面)
         }</div>
       </div>
@@ -7653,7 +7656,8 @@ window.bgTick = bgTick; window.BG = BG;
         // 2026-10-29 12:25(實際時間)使用者「既然真實接通 … 顯示元大裡的真實的交易」:元大帳號裡手動進場、還沒沖掉的張數(成交回報 open ≠ 0)也列進當沖(程式的部位已在上面,不重複)
         if (TP && !over){ tfillsPoll(); try{ const F = window.__tfills; if (F && F.ok && F.d === today && Array.isArray(F.rows)) for (const r of F.rows){ const q = +r.open || 0; if (!q || open.some(o => o.code === r.code)) continue;
               open.push({code: r.code, name: r.name || nmOf(r.code), side: q > 0 ? 'long' : 'short', entP: q > 0 ? +r.buy : +r.sell, lots: Math.abs(q), manual: true, t: String(r.t || r.time || '99:99')}); } }catch(e){} }
-        open.sort((a, b) => String(b.t || '').localeCompare(String(a.t || '')));   // 2026-11-09 12:37 使用者「當沖顯示 最晚進來排最上面」:照進場時間,最晚的在最上面
+        open.sort((a, b) => String(b.t || '').localeCompare(String(a.t || '')));
+        try{ const k_ = open.map(o => o.code + o.side).join(','); window.__openSide = new Map(open.map(o => [o.code, o.side])); if (k_ !== window.__openSideK){ window.__openSideK = k_; setTimeout(() => { try{ window.__reList && __reList(); }catch(e){} }, 0); } }catch(e){}   // 2026-11-09 12:43 監控清單:進場還沒平倉的標做多 / 做空   // 2026-11-09 12:37 使用者「當沖顯示 最晚進來排最上面」:照進場時間,最晚的在最上面
         return {over, TP, TPL, open}; };
       // 2026-11-05 下排 進場 / 當沖 / 明細 按鍵的燈(開盤中):進場 = 今天真的進場幾檔 / 已平倉幾檔;當沖 = 持倉輸贏;明細 = 今天平倉後輸贏(永久版有元大成交用元大)
       // 2026-11-06 01:09 使用者:燈一直顯示「最近一個交易日」的結果,交易日 08:45 才歸零換成今天(六日 / 休市日照舊顯示前一個交易日)
