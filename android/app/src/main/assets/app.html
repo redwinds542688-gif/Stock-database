@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-09 12:35(實際時間)K 圖錯位再修:指標二、乖離圖每條線對齊 K 棒時間點(補空白 / 丟多的),三張圖時間軸一致;抓 bug 多記每條線根數(使用者「抓bug」→「改」)
   · 2026-11-09 11:29(實際時間)當沖每一列的字上下置中(原本偏上)(使用者「當沖三筆 太偏上」「上下置中」)
   · 2026-11-08 00:16(實際時間)電腦:打開元大停損停利條件單(二擇一)—— 程式單、強三、元三成交後都掛;手動加碼重掛;元平(手動平倉 / 預掛成交)刪掉,只平一部分照剩下張數重掛;條件單自己觸發不動(使用者「改」;下個交易日生效)
   · 2026-11-07 23:38(實際時間)電腦:強平時取消的預掛成交、回報又漏了 → 每分鐘對帳看到時也馬上再強平,不接成元三(使用者「再補」;電腦下個交易日生效)
@@ -318,7 +319,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611091129">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611091235">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5434,6 +5435,12 @@ function initChart(){
   padB = chartB.addLineSeries({priceScaleId:'left', lineVisible:false, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, autoscaleInfoProvider: () => null});   // 撐時間軸用,看不見、不影響刻度
   kxLine = chartB.addLineSeries({priceScaleId:'left', color:'#D63AF9', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, priceFormat: pxFmt, crosshairMarkerVisible:true});   // 2026-10-21 Ka 穿越 Kb 的點連線(紫)
   kxDnLine = null;   // 2026-10-22 21:07 紅綠兩條撤回
+  /* 2026-11-09 12:34 使用者「抓bug」→「改」(陽明 K 圖跟指標二 / 乖離同一段位置時間差 8~12 根):指標二、乖離圖每條線放資料時一律對齊 K 棒的時間點 ——
+     K 有、它沒有的補空白;它有、K 沒有的丟掉 → 三張圖時間軸一模一樣,不管差在哪一根都不會錯開(K 圖上疊的線 11/06 已經照 K 棒過濾) */
+  { const kT = () => { try{ return candle.data().map(b => b.time); }catch(e){ return null; } };
+    for (const [nm, sr] of [['obv', obvSeries], ['obvMa', obvMaLine], ['obvMa30', obvMa30Line], ['obvMa16', obvMa16Line], ['org', orgLine], ['padB', padB], ['kx', kxLine]]){ if (!sr) continue; const o = sr.setData.bind(sr);
+      sr.setData = arr => { try{ const T = kT(); if (T && T.length && Array.isArray(arr)){ const m = new Map(); for (const q of arr) m.set(q.time, q); let add = 0; const out = T.map(t => { const q = m.get(t); if (q) return q; add++; return {time: t}; }); const drop = arr.length - (T.length - add);
+          if (add || drop) try{ bugAdd('fn', ['mbAlign', nm, add, drop]); }catch(e){} return o(out); } }catch(e){} return o(arr); }; } }
   // 時間軸放在最下面那張圖(元大的時間標籤在 OBV 下方)
   (chartB || chartM).applyOptions({timeScale:{...CHART_OPTS.timeScale, visible:true}});
   chart.applyOptions({timeScale:{...CHART_OPTS.timeScale, visible:false}});
@@ -8081,6 +8088,8 @@ function bugState(){
     const r = c.timeScale().getVisibleLogicalRange(), vr = c.timeScale().getVisibleRange(), dd = sr && sr.data ? sr.data() : [];
     out.c.push({nm, f: r ? +r.from.toFixed(2) : null, t: r ? +r.to.toFixed(2) : null, vf: vr ? hmKey(vr.from) : '', vt: vr ? hmKey(vr.to) : '', dn: dd.length, dl: dd.length ? hmKey(dd[dd.length - 1].time) : '',
       w: c.timeScale().width(), bs: +(c.timeScale().options().barSpacing || 0).toFixed(2), ps: c.priceScale('left').width()}); }catch(e){ out.c.push({nm, err: String(e.message || e)}); } }
+  try{ const L = (sr) => { try{ const d = sr && sr.data ? sr.data() : null; return d ? d.length + '@' + (d.length ? hmKey(d[0].time) : '') : '-'; }catch(e){ return '?'; } };   // 2026-11-09 每條線各幾根、第一根幾點
+    out.sn = {K: [candle, maLine, ma24Line, vwapLine, rfLine, rfChain, rfAll].map(L).join(' '), M: [obvSeries, obvMaLine, obvMa30Line, obvMa16Line].map(L).join(' '), B: [padB, orgLine, kxLine].map(L).join(' ')}; }catch(e){}
   return out; }
 window.bugState = bugState;
 setInterval(() => { try{
