@@ -184,7 +184,12 @@ class Trader:
         #   到 TRADE_PREHANG_DEADLINE(13:24)還沒成交 → 取消那張、程式照舊漲停 / 跌停平倉。0 = 關(照舊 13:20 全部取消)
         # 2026-11-08 01:08 使用者「13點20分也要取消所有元大預掛」:預設 13:24 → 13:20(盤中照舊讓位給預掛;13:20 預掛和條件單、委託全部取消,程式平倉)
         self.prehang_deadline = cfg.get("TRADE_PREHANG_DEADLINE", "13:20").strip()
-        self.j2_brcap = [(float(a_), int(b_)) for a_, b_ in (x.split(":") for x in cfg.get("TRADE_J2_BRCAP", "0.92:0").split(",") if ":" in x)]   # 2026-11-09 判二大盤分級檔數(見 reset_day 說明)
+        self.j2_brcap = [(float(a_), int(b_)) for a_, b_ in (x.split(":") for x in cfg.get("TRADE_J2_BRCAP", "").split(",") if ":" in x)]   # 2026-11-10 01:45 判二第二十六次修改:預設關(改用 TRADE_J2_BRRANGE)
+        # 2026-11-10 01:45 判二第二十六次修改(使用者「判二 贏單 大盤寬度上下多少可以涵蓋所有贏單」→「解鎖 改」):TRADE_J2_BRRANGE="short:0.044:0.881,long:0.106:0.957",空字串 = 關
+        self.j2_brng = {}
+        for x_ in cfg.get("TRADE_J2_BRRANGE", "short:0.044:0.881,long:0.106:0.957").split(","):
+            try: k_, lo_, hi_ = x_.split(":"); self.j2_brng[k_.strip()] = (float(lo_), float(hi_))
+            except Exception: pass   # 2026-11-09 判二大盤分級檔數(見 reset_day 說明)
         self.br_file = Path(cfg.get("TRADE_BR_FILE") or (Path(__file__).resolve().parent / "engine_data" / "breadth.json")); self._br = (0.0, None)
         self.prehang = {}   # code → 保留的手動預掛委託書號 [no, …]
         self.del_q = []     # 2026-11-08 20:50 等元大確認刪除的條件單編號
@@ -1583,7 +1588,7 @@ class Trader:
         age = self.sig_age(it.get("t"))
         if age is not None and age > self.sig_max_age and not it.get("_late"):   # 太晚補進場:原訊號本來就舊了,時間由 late_redo_min 管          # 2026-10-29 稽核 #1:太舊的進場通知(例如重開 / 讀取延遲才看到)不進
             self.log(f"[交易] 不進場 {title}:通知時間 {it.get('t')} 已經過 {age:.0f} 分鐘(上限 {self.sig_max_age:g},TRADE_SIGNAL_MAX_AGE_MIN)"); return
-        why = self.can_enter(code, judge)
+        why = self.can_enter(code, judge, kind)
         if why:
             self.log(f"[交易] 不進場 {title}:{why}"); return
         # 2026-10-30 11:08(實際時間)使用者「2道都做」第 2 道:送單前最後一關 — 電腦開盤前向證交所 / 櫃買查的今天資格(elig.py),
@@ -1632,7 +1637,7 @@ class Trader:
             self.entered_keys.add(ekey); self.save_state()      # 2026-10-29 稽核 #3:送單就記(沒成交也不再追同一個訊號)
         self.send(p, "進場", "B" if d > 0 else "S", lots, price, p["typ"])
 
-    def can_enter(self, code, judge):
+    def can_enter(self, code, judge, kind=None):
         if not self.enabled:
             return "自動交易關閉"
         if not self.auto:
@@ -1656,6 +1661,10 @@ class Trader:
         hm = self.hm()
         if not ("09:00" <= hm < self.last_entry):
             return f"不在 09:00~{self.last_entry}"
+        if judge == "判二" and kind in ("long", "short") and self.j2_brng.get(kind):   # 2026-11-10 01:45 判二第二十六次修改(使用者「解鎖 改」):大盤上漲家數要在 22 天贏單範圍內(空 4.4%~88.1%、多 10.6%~95.7%),取代 ≥ 92% 不做
+            b = self.br_now(); lo_, hi_ = self.j2_brng[kind]
+            if b is not None and not (lo_ - 1e-9 <= b <= hi_ + 1e-9):
+                return f"大盤上漲家數 {b:.1%} 不在判二{'做空' if kind == 'short' else '做多'}範圍 {lo_:.1%}~{hi_:.1%}"
         if judge == "判二" and self.j2_brcap:   # 2026-11-09 判二第二十四次修改:大盤上漲家數分級限制檔數
             b = self.br_now()
             if b is not None:
