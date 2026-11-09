@@ -39,9 +39,9 @@ now_tw = lambda: dt.datetime.now(TW)
 RAW = "https://raw.githubusercontent.com/redwinds542688-gif/Stock-database/main/"
 DATA = Path(os.environ.get("ENGINE_DIR", HERE / "engine_data"))
 SIMD = DATA / "sim"
-RS_ALL = ["一", "二", "三", "四", "五", "七"]   # 2026-11-09 加觀察版判七(只發通知,中繼不下單); 2026-11-05 加判五(使用者「先加 在公式 增加判五」→「完整上線」;模擬器 MODE=fail5)
+RS_ALL = ["一", "二", "三", "四", "五", "六", "七"]   # 2026-11-10 02:30 加觀察版判六(超賣急彈做多,只發通知,中繼不下單;使用者「改 +3%」)   # 2026-11-09 加觀察版判七(只發通知,中繼不下單); 2026-11-05 加判五(使用者「先加 在公式 增加判五」→「完整上線」;模擬器 MODE=fail5)
 _RS_ALL_OLD = ["一", "二", "三", "四"]   # 2026-10-31 使用者「現在把新轉折 直接改名為 判四 加在公式 裡面 燈號啟動 真正的下單也啟動 自動平倉機制也啟動」:判四 = 新轉折做空(模擬器 MODE=turn4)
-JUDGE = {"一": "判一", "二": "判二", "三": "判三", "四": "判四", "五": "判五", "七": "判七"}
+JUDGE = {"一": "判一", "二": "判二", "三": "判三", "四": "判四", "五": "判五", "六": "判六", "七": "判七"}
 J5MAX = 6   # 2026-11-05 判五一天最多 6 筆(17:15 使用者「改限6筆」)(全部股票合計、照出現先後;超額的不算);實際用私人庫 rs_env.J5MAX
 T4MAX = 10   # 判四一天最多幾筆的預設;實際用私人庫 rs_env.py 的 T4MAX(全部股票合計、照出現先後;超額的不算)
 RS_OF = {v: k for k, v in JUDGE.items()}
@@ -412,6 +412,7 @@ RE_FB = re.compile(r"^\s*(\d\d:\d\d) 假突破跌破 Ka.*→ 進場空 ([\d.]+) 
 RE_T4 = re.compile(r"^\s*(\d\d:\d\d) 判四 .*→ 進場空 ([\d.]+) ×(\d+)張,停損 ([\d.]+)")
 RE_T5 = re.compile(r"^\s*(\d\d:\d\d) 判五 .*→ 進場空 ([\d.]+) ×(\d+)張,停損 ([\d.]+)")   # 2026-11-05 判五(衝高失敗、回頭跌破做空)進場   # 2026-10-31 判四(新轉折做空)進場,停損價由模擬器算好
 RE_T7 = re.compile(r"^\s*(\d\d:\d\d) 判七 .*?量縮 ([\d.]+) 離今高 ([\d.]+)% 今高離VWAP ([-\d.]+)% → 進場空 ([\d.]+) ×(\d+)張,停損 ([\d.]+)")   # 2026-11-09 觀察版判七進場(帶量縮 / 離今高 / 今高離 VWAP,12/06 驗證用)
+RE_T6 = re.compile(r"^\s*(\d\d:\d\d) 判六 超賣急彈 低 ([\d.]+).*?彈 ([\d.]+)% RSI ([\d.]+) 跳空 ([-+\d.]+)% → 進場多 ([\d.]+) ×(\d+)張 停損 ([\d.]+)")   # 2026-11-10 觀察版判六(超賣急彈做多)進場
 RE_EXIT = re.compile(r"^\s*(\d\d:\d\d) (.+?) 出 ([\d.]+)\s*$")
 RE_REV = re.compile(r"^\s*(\d\d:\d\d) .*→ (反向確認點|逆勢單遇反向點) 平倉 ([\d.]+)")
 # 2026-11-04 22:40 漏洞修正(使用者「找 判一二三四 漏洞」):判二 11/04 起晚 2 根進場(ENTRYDELAY=2),模擬器的訊號那行改成「→ 2 分鐘後進場(模擬通知延遲)」、
@@ -436,6 +437,10 @@ def parse_events(out):
         m = RE_FB.match(line)
         if m:
             ev.append((m.group(1), "entry", {"side": -1, "strong": False, "sig": float(m.group(2)), "px": float(m.group(2)), "lots": int(m.group(3)), "text": "空✓破", "sl": float(m.group(4))})); continue
+        m = RE_T6.match(line)
+        if m:
+            ev.append((m.group(1), "entry", {"side": 1, "strong": False, "sig": float(m.group(6)), "px": float(m.group(6)), "lots": int(m.group(7)), "text": "多", "sl": float(m.group(8)),
+                                             "tp": round(float(m.group(2)) * (1 + float(os.environ.get("T6RTPL_SHOW", "3")) / 100), 2), "note": f"低 {m.group(2)} 彈 {m.group(3)}% RSI {m.group(4)} 跳空 {m.group(5)}%"})); continue
         m = RE_T7.match(line)
         if m:
             ev.append((m.group(1), "entry", {"side": -1, "strong": False, "sig": float(m.group(5)), "px": float(m.group(5)), "lots": int(m.group(6)), "text": "空", "sl": float(m.group(7)),
@@ -683,6 +688,8 @@ class Engine:
         self.envs = {}
         self.j5max = int(getattr(rs_env, "J5MAX", J5MAX))   # 2026-11-05 判五一天上限(私人庫 rs_env.J5MAX;apply 裡沒有 rs_env 這個名字)
         for rs in RS_ALL: self.envs[rs] = rs_env.env_of(rs, str(DATA / "breadth.json") if rs in ("一", "二", "五") else None)   # 判五:名單平均檔 DATA/mktavg.json(write_breadth 寫)
+        if self.envs.get("六", {}).get("MODE") != "j6r":   # 2026-11-10 私人庫 rs_env.py 還沒有觀察版判六(超賣急彈 J6)→ 判六先不跑
+            self.envs.pop("六", None); log("!! 私人庫 rs_env.py 還沒有觀察版判六(J6 MODE=j6r),判六今天先不跑")
         if self.envs.get("七", {}).get("MODE") != "j7":   # 2026-11-09 私人庫 rs_env.py 還沒有觀察版判七(J7)→ 判七先不跑
             self.envs.pop("七", None); log("!! 私人庫 rs_env.py 還沒有判七(J7),判七今天先不跑")
         if self.envs.get("五", {}).get("MODE") != "fail5":   # 私人庫的 rs_env.py 還是舊版(沒有 J5)→ 判五先不跑(不然會拿判二的參數亂算)
@@ -789,10 +796,10 @@ class Engine:
         def net(sd, e, x, q):
             buy, sell = (e, x) if sd > 0 else (x, e); b = buy * q * 1000; s_ = sell * q * 1000; fr, tx = cost_rates(); fee = lambda a: max(20, int(a * fr + 1e-6))
             return round(s_ - b - fee(b) - fee(s_) - int(s_ * tx + 1e-6))
-        L = []; L7 = []   # 2026-11-09 觀察版判七另外算 → 15:28 判七解凍上線,和其他判別式一起算(L7 留空)
+        L = []; L7 = []; L6 = []   # 2026-11-09 觀察版判七另外算 → 15:28 判七解凍上線,和其他判別式一起算(L7 留空);2026-11-10 觀察版判六另外算(L6)
         for c in self.closed:
             if c.get("over"): continue
-            L.append({**c, "net": net(c["side"], float(c["e"]), float(c["x"]), int(c["lots"]))})
+            (L6 if c.get("rs") == "判六" else L).append({**c, "net": net(c["side"], float(c["e"]), float(c["x"]), int(c["lots"]))})
         byj = {}
         for c in L:
             b = byj.setdefault(c["rs"], {"n": 0, "w": 0, "net": 0}); b["n"] += 1; b["w"] += c["net"] > 0; b["net"] += c["net"]
@@ -802,8 +809,8 @@ class Engine:
                 "list": sorted(L, key=lambda c: c["t"]),
                 "drag": sorted({k.split("|")[1] for k in self.drag}), "lat_med": med(self.lat), "lat_max": max(self.lat) if self.lat else None,
                 "round_med": med(self.rounds), "round_max": max(self.rounds) if self.rounds else None,
-                "obs": {"判七": {"n": len(L7), "w": sum(c["net"] > 0 for c in L7), "net": sum(c["net"] for c in L7), "list": sorted(L7, key=lambda c: c["t"])}} if L7 else {}}
-        if not L and not L7 and not self.lat and not self.drag: log("[檢討] 今天沒有資料(收盤後才開?),不推"); return auto
+                "obs": {k_: {"n": len(v_), "w": sum(c["net"] > 0 for c in v_), "net": sum(c["net"] for c in v_), "list": sorted(v_, key=lambda c: c["t"])} for k_, v_ in (("判七", L7), ("判六", L6)) if v_}}
+        if not L and not L7 and not L6 and not self.lat and not self.drag: log("[檢討] 今天沒有資料(收盤後才開?),不推"); return auto
         if self.dry: log("[檢討] " + json.dumps(auto, ensure_ascii=False)[:300]); return auto
         try:
             r = http(worker_url("review=push"), {"d": self.day, "auto": auto}, key=True)
@@ -863,14 +870,14 @@ class Engine:
     def push_entry(self, rs, code, tm, d, at):
         nm = self.names.get(code, code); j = JUDGE[rs]
         side = "做多" if d["side"] > 0 else "做空"; px = d["px"]
-        tp = px * (1 + (float(self.envs[rs].get("T4TAKE", "9")) if rs == "四" else float(self.envs[rs].get("T5TAKE", "3")) if rs == "五" else float(self.envs[rs].get("T7TAKE", "5.5")) if rs == "七" else _f(self.envs[rs].get("TAKE"), TAKE)) / 100 * d["side"])   # 2026-10-31 22:48 停利 % 改讀私人庫參數(判三改 3%;原本寫死 2.5)   # 2026-10-31 判四不停利(9% 才停,通知要有停利價中繼才收)
+        tp = d.get("tp") or px * (1 + (float(self.envs[rs].get("T4TAKE", "9")) if rs == "四" else float(self.envs[rs].get("T5TAKE", "3")) if rs == "五" else float(self.envs[rs].get("T7TAKE", "5.5")) if rs == "七" else _f(self.envs[rs].get("TAKE"), TAKE)) / 100 * d["side"])   # 2026-10-31 22:48 停利 % 改讀私人庫參數(判三改 3%;原本寫死 2.5)   # 2026-10-31 判四不停利(9% 才停,通知要有停利價中繼才收)
         sl = d.get("sl") or (px * (1 - (float(self.envs[rs].get("STOPCAP", self.envs[rs].get("STOP", "4.5"))) / 100) * d["side"]))   # 判一 pts 停損價模擬器沒印,用上限 3% 當外圍(真正的停損由平倉通知來)
         qty = max(1, int(self.cap // (px * 1000)))
         # 2026-10-30 01:55 使用者「超過限額的股票 也要出現在訊息通知欄裡 只是註記“超額”不交易 給強制進場提供一個發揮的平台」:一張就超過多空上限 → 照推、張數改寫「超額」(中繼看到不自動進場)
         over = px * 1000 > self.cap
         title = f"{nm} {code} {side}{'強訊號' if d['strong'] else ''}進場 {px:.2f}"
         body = f"{tm} {d['text']} · 停利 {tp:.2f} 停損 {sl:.2f} · {'超額' if over else str(qty) + '張'} · {j}"
-        if rs == "七": body = f"{tm} {d['text']} · 停利 {tp:.2f} 停損 {sl:.2f} · {'超額' if over else str(qty) + '張'} · {d.get('note', '')} · {j}"   # 2026-11-09 判七帶 12/06 驗證用的三個數字(15:28 解凍上線:照張數下單)
+        if rs in ("六", "七"): body = f"{tm} {d['text']} · 停利 {tp:.2f} 停損 {sl:.2f} · {'超額' if over else str(qty) + '張'} · {d.get('note', '')} · {j}"   # 2026-11-10 觀察版判六一樣帶研究數字   # 2026-11-09 判七帶 12/06 驗證用的三個數字(15:28 解凍上線:照張數下單)
         it = {"d": self.day, "t": at, "title": title, "body": body, "kind": "long" if d["side"] > 0 else "short", "key": self.key_of(code, title, rs)}
         y = self.prev.get(code)
         if y: it["prev"] = y
