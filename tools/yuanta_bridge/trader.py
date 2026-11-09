@@ -150,6 +150,7 @@ class Trader:
         self.y3_post_delay = float(cfg.get("TRADE_Y3_POST_DELAY", "3"))
         self.y3_near = float(cfg.get("TRADE_Y3_NEAR_PCT", "1.5"))
         self.man_move = float(cfg.get("TRADE_MANUAL_MAX_MOVE_PCT", "8.5"))   # 2026-11-03 13:17 元三 / 強三離昨收 ±8.5% 強制平倉(判一~四照舊 ±6.5%);設成跟 TRADE_MAX_MOVE_PCT 一樣 = 回到原本
+        self.j7_move = float(cfg.get("TRADE_J7_MAX_MOVE_PCT", "8"))   # 2026-11-09 判七空單強平線(離昨收 %);0 = 跟其他判別式一樣用 TRADE_MAX_MOVE_PCT
         self.y3_free_mv = self.man_move > 0
         self.force_block_pct = float(cfg.get("TRADE_FORCE_BLOCK_PCT", "6.5"))   # 2026-11-03 強制進場:跌超過這麼多 % 不給做多、漲超過不給做空(0 = 不擋)   # 2026-11-03 手動單進場時離 ±6.5% 不到這麼多(%)= 已經接近 → 不套 ±6.5%   # 2026-11-03 元三進場卡等分批成交併完再發(秒)
         self.over_wait = {}
@@ -706,7 +707,7 @@ class Trader:
             # 2026-11-03 13:11 使用者「以後如果下跌6.5 不管元買 或是元賣 強買或賣 都不受6.5%管束」:元三(元大手動)、強三(手機強制進場)做多做空都不套 ±6.5%,只用停利 / 停損 / 13:20;判一~四照舊
             #   13:17 使用者「那就改 該股票+-8.5% 為停損」:元三 / 強三改用離昨收 ±8.5%(做多跌到 −8.5%、做空漲到 +8.5%)強制平倉,不是完全不管
             man = p.get("judge") in (MANUAL, FORCED) and self.man_move > 0
-            mm = self.man_move if man else self.max_move
+            mm = self.man_move if man else self.j7_move if p.get("judge") == "判七" and self.j7_move > 0 else self.max_move   # 2026-11-09 15:43 判七第一次修改(使用者「解鎖改」):判七空單漲到昨收 +8% 才強平(其他判別式照舊 ±6.5%)
             hit_mv = (man or not p.get("no_max_move")) and ref > 0 and mm > 0 and ((price <= ref * (1 - mm / 100)) if d > 0 else (price >= ref * (1 + mm / 100)))
             if not (hit_tp or hit_sl or hit_mv):
                 return
