@@ -331,7 +331,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611092122">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611092156">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1588,6 +1588,9 @@ window.rvFit = () => { try{ const f = document.querySelector('#notifLog .rvw'), 
 window.addEventListener('resize', () => window.rvFit && rvFit());
 const rvPoll = async () => { try{ if (!BASE.liveUrl || (!window.VIEWER && !liveOn()) || (window.VIEWER && !(window.appKey && appKey.get()))) return;   /* 12:07 看盤版沒鑰匙(免鑰匙試用)不抓,免得被拒跳出「要鑰匙」 */   /* 2026-11-08 12:01 使用者「(電腦網頁版)沒有 檢討 鍵」:看盤版也去抓;Worker 只給 owner 鑰匙(檢討有判別式內容),別人的看盤版鑰匙被拒 → 照舊沒有檢討鍵 */
   const r = await fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?review=get&_=${Date.now()}`, {cache: 'no-store'}); const j = await r.json();
+  // 2026-11-09 21:58 使用者「檢討與明細不符合」:22 天紀錄照現行判別式重寫後,11/09 以前的檢討數字改用重算的(app/review_rebuilt.json,和明細 bt_fill 同一份);拖輸 / 通知晚幾秒照電腦當天的
+  try{ if (j && j.d && j.d < '2026-11-10'){ if (!window.__RVB){ const rb = await fetch(`${REPO_RAW}/app/review_rebuilt.json?v=${Math.floor(Date.now() / 3600000)}`); if (rb.ok) window.__RVB = await rb.json(); }
+      const X = window.__RVB && window.__RVB[j.d]; if (X) j.auto = Object.assign({}, j.auto || {}, X, {obs: {}}); } }catch(e){}
   if (j && 'd' in j){ const ch = JSON.stringify(j) !== JSON.stringify(window.__RV || null); window.__RV = j; if (ch && window.NL_VIEW === 'pos' && window.nlRender) nlRender(); } }catch(e){} };
 setTimeout(rvPoll, 4000); setInterval(rvPoll, 5 * 60000); window.rvPoll = rvPoll;
 const lampBtn = (id, txt, kind, a, b) => { try{ const e = document.getElementById(id); if (!e) return; let H = '';
