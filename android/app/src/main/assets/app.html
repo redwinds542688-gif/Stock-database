@@ -10,6 +10,7 @@
   · 2026-11-09 13:32(實際時間)下排燈:收盤後 進場 / 當沖 不亮;明細輸贏燈留著顯示當天結果,到下一個交易日 08:45(開盤前 15 分)才拿掉(使用者「明細左右的贏錢燈跟輸錢燈 在開盤前15分鐘取消」)
   · 2026-11-09 13:31(實際時間)13:30 收盤後下排三顆燈(進場藍燈等)確實熄掉:通知欄內容沒變也會在開盤 / 收盤那一刻重畫(使用者「1點半之後 進場右邊的藍燈關閉」)
   · 2026-11-09 13:07(實際時間)監控清單:做多 / 做空的股票,前面指針改成部位輸贏指針反白(贏紅底、輸綠底、白針;1% = 9°)(使用者「改」)
+  · 2026-11-10 12:13(實際時間)撤回 11:39 的當沖點擊改法(進 K 圖再出來會卡住,使用者確認 11:40 起才有),當沖點股票恢復原本寫法
   · 2026-11-10 11:40(實際時間)當沖點股票開 K 圖:當沖每幾秒重畫會把按著的那列換掉、點了沒反應 → 改在外框用按下 / 放開座標判斷(使用者「當沖裡 點擊股票 無法跳k圖」)
   · 2026-11-10 11:34(實際時間)監控區股票下方「做空 / 做多」改字「做空中 / 做多中」(使用者「做空 改 做空中 做多 改 做多中」)
   · 2026-11-10 11:33(實際時間)監控區「預掛」改字「預掛中」(使用者「改 預掛中」)
@@ -338,7 +339,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611101139">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611101212">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7952,14 +7953,7 @@ window.bgTick = bgTick; window.BG = BG;
         fitLines('.tb.done'); if (!jsD) keepBack(); requestAnimationFrame(() => requestAnimationFrame(() => { fitLines('.tb.done'); if (jsD) go0(); else keepBack(); try{ box.dispatchEvent(new Event('scroll')); }catch(e){} }));   /* 11:45 排好列高後再回最上面,欄名那列不會被捲掉 */   // 2026-10-27 11:20 切到明細從最上面(今天)開始看;原本留著訊息欄的捲動位置,一打開就跳到前幾天(10/22)
    // 2026-10-27 04:20 明細字級 = 2 欄寬(一列 38 欄)
       }
-      // 2026-11-10 11:38(實際時間)使用者「當沖裡 點擊股票 無法跳k圖」:當沖每幾秒整張重畫(現價 / 輸贏變),手指按下到放開之間那一列被換掉 → click 不會發生。
-      //   改在外框 box 聽 pointerdown / pointerup(不綁在會被換掉的那一列上),放開時用座標找當下那一列開圖;原本的 click 照留,700 毫秒內已開過就不重開
-      if (!box.__posTap){ box.__posTap = true; let px = 0, py = 0, pt = 0;
-        box.addEventListener('pointerdown', ev => { px = ev.clientX; py = ev.clientY; pt = Date.now(); }, {passive: true});
-        box.addEventListener('pointerup', ev => { try{ if (window.NL_VIEW !== 'pos' || !pt || Date.now() - pt > 550 || Math.hypot(ev.clientX - px, ev.clientY - py) > 10) return; pt = 0;
-          const r = (document.elementFromPoint(ev.clientX, ev.clientY) || {}).closest ? document.elementFromPoint(ev.clientX, ev.clientY).closest('.tb.pos .r[data-code]') : null;
-          if (r){ box.__tapAt = Date.now(); openChart(r.dataset.code, r.dataset.name); } }catch(e){} }, {passive: true}); }
-      box.querySelectorAll('.tb .r[data-code]').forEach(r => { r.addEventListener('click', () => { if (Date.now() - (box.__tapAt || 0) < 700) return; openChart(r.dataset.code, r.dataset.name); });
+      box.querySelectorAll('.tb .r[data-code]').forEach(r => { r.addEventListener('click', () => openChart(r.dataset.code, r.dataset.name));
         if (window.NL_VIEW === 'pos') fmLongPress(r, () => ({code: r.dataset.code, name: r.dataset.name, closeOnly: true})); });   // (判別式相關說明已移到私人庫)
       // 2026-10-27 05:40 使用者:「當沖 通知欄 有文字最大化嗎?」:這裡原本直接 return,下面的 fitAll(標題列放大)沒跑到 → 不 return,往下走(卡片相關的量測沒有卡片會自己略過)
     } else {
