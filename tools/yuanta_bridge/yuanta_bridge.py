@@ -1410,7 +1410,7 @@ def self_update():
        bridge.env AUTO_UPDATE=0 可關。"""
     if CFG.get("AUTO_UPDATE", "1") != "1" or os.environ.get("MYSH_UPDATED"): return
     hm = now_tw().strftime("%H:%M")
-    if "08:45" <= hm < "13:40" and now_tw().weekday() < 5: return          # 盤中不換程式
+    if "09:00" <= hm < "13:40" and now_tw().weekday() < 5: return          # 盤中不換程式(2026-11-11 00:27 使用者「把不更新從 8 點 45 改為 9 點」:原 08:45;電腦 08:45 自動開機也能先更新)
     try:
         want = gh_get("tools/yuanta_bridge/VERSION", timeout=20).decode("utf-8").strip().split()[0]
     except Exception as e:
@@ -1519,7 +1519,7 @@ def main():
                         log("抓今天 1 分 K 失敗", e)
         # 2026-11-02 20:33 使用者「你測電腦是否更新」:中繼一直開著(電腦沒關機)就永遠不會更新(只在啟動時檢查)→ 不在盤中時每 30 分鐘看 GitHub 的 VERSION,
         #   不一樣就結束自己,工作排程(每 5 分鐘檢查一次)重新拉起來時就會更新。盤中(08:40~13:40)和收盤後補查 / 抓 K 進行中不做
-        if not ("08:40" <= hm < "13:40") and CFG.get("AUTO_UPDATE", "1") == "1" and time.time() - getattr(b, "_ver_chk", 0) > 1800:
+        if not ("09:00" <= hm < "13:40") and CFG.get("AUTO_UPDATE", "1") == "1" and time.time() - getattr(b, "_ver_chk", 0) > 1800:   # 2026-11-11 00:27 原 08:40 → 09:00(使用者「改為 9 點」)
             b._ver_chk = time.time()
             try:
                 want = gh_get("tools/yuanta_bridge/VERSION", timeout=20).decode("utf-8").strip().split()[0]
