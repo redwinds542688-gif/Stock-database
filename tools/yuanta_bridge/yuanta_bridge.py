@@ -307,7 +307,13 @@ class Bridge:
                     except Exception as e: log("額度計算失敗", e)
                     return
                 if strIndex == "GetConditionStrategy" and self.resume_buf is not None:
-                    lst = objValue.ConditionStrategyList
+                    try: lst = objValue.ConditionStrategyList
+                    except Exception as e:   # 2026-11-10 回應欄位名稱還沒實盤看過 → 把回應物件的欄位全部記進 log(之後照它改),這次當作沒有條件單
+                        try:
+                            T = objValue.GetType(); names = [f"{x.Name}:{x.PropertyType.Name}" for x in T.GetProperties()] + [f"{x.Name}:{x.FieldType.Name}" for x in T.GetFields()]
+                            log(f"[條件單查詢] 回應 {T.FullName} 沒有 ConditionStrategyList({e});欄位:" + ", ".join(names))
+                        except Exception as e2: log("[條件單查詢] 回應欄位讀不到", e2)
+                        self.resume_buf["got_oco"] = True; self.resume_buf["oco_failed"] = True; return
                     for i in range(lst.Count):
                         x = lst[i]
                         if int(x.StrategyStatus) in (0, 1, 99, 100, 101):          # 建立 / 執行中 / 觸發子單中 = 還有效
@@ -534,8 +540,8 @@ class Bridge:
            失敗時用 .NET 反射把元大元件真正的參數(型別 / 名稱)記進 log,並照型別自動組參數試每一種寫法(查詢,不會下單);試成功的記住,下次直接用"""
         if getattr(self, "_cond_how", None) is not None:
             m, mk = self._cond_how; return m.Invoke(self.api, mk(typ))
-        try:
-            return self.api.GetConditionStrategy(CFG["YT_ACCOUNT"], self.Y.StrategyType(typ), "")
+        try:   # 2026-11-10 16:07 使用者在電腦跑 win_cond_sig.py 讀出元件真正的寫法:GetConditionStrategy(String 帳號, Int32 類別, String 代碼, enumLangType 語言);語言 NORMAL=0 / UTF8=1 / SC=2
+            return self.api.GetConditionStrategy(CFG["YT_ACCOUNT"], int(typ), "", self.Y.enumLangType(0))
         except Exception as e0:
             S = self.System; ms = [m for m in self.api.GetType().GetMethods() if m.Name == "GetConditionStrategy"]
             sigs = ["(" + ", ".join(f"{q.ParameterType.FullName} {q.Name}" for q in m.GetParameters()) + ")" for m in ms]
@@ -1448,6 +1454,14 @@ def main():
         b.printer = log
         b.connect(); b.subscribe([(code, b.Y.enumMarketType.TWSE)])
         time.sleep(60); b.close(); return
+    if cmd == "cond-test":
+        # 2026-11-10 16:10 使用者「現在開元大能找到嗎」:只查詢、不下單 —— 登入 → 查今天委託 / 成交 + 二擇一條件單(新的參數寫法)→ 再查全部類別條件單 → 登出;結果寫進 log
+        b.connect(); time.sleep(2)
+        r = b.query_today(with_oco=True) or {}
+        log(f"[條件單測試] 接回查詢:條件單 {len(r.get('oco') or [])} 張{'(查詢失敗)' if r.get('oco_failed') else ''} {r.get('oco')}")
+        st = b.query_strategies()
+        log(f"[條件單測試] 全部類別有效條件單 {len(st)} 張 {st}")
+        b.close(); return
     if cmd == "kline":
         code, day = sys.argv[2], sys.argv[3]
         mkt = b.Y.enumMarketType.TWOTC if (len(sys.argv) > 4 and sys.argv[4].lower() in ("otc", "tpex", "twotc")) else b.Y.enumMarketType.TWSE
