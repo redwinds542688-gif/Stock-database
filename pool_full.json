@@ -25,13 +25,13 @@
 "code": "1802",
 "name": "台玻",
 "market": "twse",
-"lots": 172131
+"lots": 172431
 },
 {
 "code": "2303",
 "name": "聯電",
 "market": "twse",
-"lots": 162359
+"lots": 163109
 },
 {
 "code": "1815",
@@ -157,7 +157,7 @@
 "code": "6456",
 "name": "GIS-KY",
 "market": "twse",
-"lots": 31977
+"lots": 32277
 },
 {
 "code": "4960",
@@ -289,7 +289,7 @@
 "code": "5347",
 "name": "世界",
 "market": "tpex",
-"lots": 16885
+"lots": 17077
 },
 {
 "code": "6919",
@@ -484,6 +484,12 @@
 "lots": 10372
 },
 {
+"code": "2376",
+"name": "技嘉",
+"market": "twse",
+"lots": 10144
+},
+{
 "code": "2406",
 "name": "國碩",
 "market": "twse",
@@ -524,12 +530,6 @@
 "name": "晉泰",
 "market": "tpex",
 "lots": 9808
-},
-{
-"code": "2376",
-"name": "技嘉",
-"market": "twse",
-"lots": 9598
 },
 {
 "code": "5483",
