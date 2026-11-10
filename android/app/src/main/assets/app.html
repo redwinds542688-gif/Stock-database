@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-10 15:25(實際時間)今天的進場卡下排放回「現」即時現價(使用者「那進場 下面也看 即時價 好了 這樣清晰一些」)
   · 2026-11-10 15:23(實際時間)平倉卡下排「平」改「現」(平倉那一刻的現價);進場卡拿掉即時現價(即時價看當沖)(使用者「下面的 現價 就是 成交那一刻的現價」「即時價 在當沖裡」)
   · 2026-11-10 15:19(實際時間)進場通知卡下排:平倉卡標「平」+平倉價,今天的進場卡(含元三 / 強三)加「現」+即時現價(使用者「所有進場 平倉卡 都要標示 現價」→「那平倉就寫 平」)
   · 2026-11-10 15:12(實際時間)平倉卡也標做多 / 做空(含超額)(使用者「這 南亞科 是做空 平倉時 也要標記 做空」)
@@ -371,7 +372,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611101523">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611101525">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7659,7 +7660,7 @@ window.bgTick = bgTick; window.BG = BG;
       const sideTxt = (o.type !== 'entry' && o.type !== 'turn' && o.type !== 'exit') ? '' : o.type === 'exit' ? (o.side === 'long' ? '做多' : o.side === 'short' ? '做空' : '') : o.add ? '加碼' : o.warnT ? '注意' : o.side === 'long' ? '做多' : o.side === 'short' ? '做空' : '';   // 2026-10-23 轉折卡也顯示做多 / 做空   // 2026-11-10 15:11 使用者「這 南亞科 是做空 平倉時 也要標記 做空」:平倉卡也顯示做多 / 做空(取代 10/19 只有進場卡顯示)   // 2026-10-19 使用者定案:只有進場卡顯示做多 / 做空(第一則已決定方向),之後的平倉 / 反彈 / 注意卡這格留白、只在最右邊顯示警示;沒字就不畫框(之前空框看起來像一條綠線)
       const lots = o.type === 'turn' ? 0 : lotsOf(o);   // 2026-10-23 轉折卡不算張數(只是提醒)
       const entP = o.type === 'entry' ? o.price : (o.entP || o.price);
-      const pxTop = entP ? (+entP).toFixed(2) : '', pxBot = (o.type !== 'entry' && o.type !== 'turn' && o.price) ? '<b class="pxl">現</b>' + (+o.price).toFixed(2) : '';   /* 2026-11-10 15:22 使用者「做空 前面 顯示的就是做空成交價 下面的 現價 就是 成交那一刻的現價」「即時價 在當沖裡」:平倉卡下排標「現」= 平倉那一刻的現價(固定);進場卡不放即時價(上排就是成交價,即時價看當沖) */   /* 2026-11-10 15:17 使用者「那平倉就寫 平」(15:15「所有進場 平倉卡 都要標示 現價」):平倉卡下排 = 平 + 平倉價;今天的進場卡下排 = 現 + 即時現價(每 3 秒跟報價更新) */
+      const pxTop = entP ? (+entP).toFixed(2) : '', pxBot = (o.type !== 'entry' && o.type !== 'turn' && o.price) ? '<b class="pxl">現</b>' + (+o.price).toFixed(2) : (o.type === 'entry' && dd === today && !o.phNew) ? (() => { const z = +(((LIVE.get(o.code) || {}).z) || 0); return `<b class="pxl">現</b><span class="nowp" data-c="${esc(o.code)}">${z > 0 ? z.toFixed(2) : '—'}</span>`; })() : '';   /* 2026-11-10 15:25 使用者「那進場 下面也看 即時價 好了 這樣清晰一些」:今天的進場卡下排 = 現 + 即時現價(每 3 秒跟報價更新) */   /* 2026-11-10 15:22 使用者「做空 前面 顯示的就是做空成交價 下面的 現價 就是 成交那一刻的現價」「即時價 在當沖裡」:平倉卡下排標「現」= 平倉那一刻的現價(固定);進場卡不放即時價(上排就是成交價,即時價看當沖) */   /* 2026-11-10 15:17 使用者「那平倉就寫 平」(15:15「所有進場 平倉卡 都要標示 現價」):平倉卡下排 = 平 + 平倉價;今天的進場卡下排 = 現 + 即時現價(每 3 秒跟報價更新) */
       // 2026-10-18 使用者:名稱、價格顏色和下面清單一致 → 名稱白字;價格比昨收高紅、低綠、平白。昨收:雲端紀錄自帶 prev;今天的用即時報價的昨收,沒有就用清單的昨收
       const prevC = o.prev || (dd === today ? (((LIVE.get(o.code) || {}).y) || (() => { const sn = SNAPSHOT.find(q => q.code === o.code); return sn && sn.date < today ? +sn.close : 0; })()) : 0);
       const ud = v => !prevC || !v ? '' : v > prevC ? ' up' : v < prevC ? ' down' : ' flat';
