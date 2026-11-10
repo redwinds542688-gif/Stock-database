@@ -1137,7 +1137,7 @@ export default {
       }
       if (bq0 === "list") { let out = []; try { if (env.HUB) out = await hubOf(env).bugList(); } catch (e) {} try { const l = await env.LOGS.list({ prefix: "bug:" }); out = out.concat(l.keys.map(x => ({ k: x.name, size: x.metadata && x.metadata.size }))); } catch (e) {} return J(out); }
       // 2026-10-29 安全修補:只准讀 bug: 開頭的鍵(原本 k 可指任何 KV 鍵,例如 pick:取件碼);k 不是 bug: 開頭就讀最新一份
-      if (bq0 === "get") { const bk0 = url.searchParams.get("bk") || url.searchParams.get("k") || "";   // 2026-11-10 bk=:k= 跟鑰匙參數撞名(讀指定那份會被當成鑰匙擋掉) let v = null;
+      if (bq0 === "get") { const bk0 = url.searchParams.get("bk") || url.searchParams.get("k") || ""; let v = null;   // 2026-11-10 bk=:k= 跟鑰匙參數撞名(讀指定那份會被當成鑰匙擋掉)
         try { if (env.HUB){ const h = hubOf(env); const bk = bk0.startsWith("bug:") ? bk0 : (await h.kvGet("buglast")); if (bk) v = await h.kvGet(bk); } } catch (e) {}   // 2026-11-03 先找 Hub(新的存那裡)
         if (v == null) v = await env.LOGS.get(bk0.startsWith("bug:") ? bk0 : ((await env.LOGS.get("buglast")) || "bug:none"));
         return v ? new Response(v, { headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } }) : J({ error: "沒有" }, 404); }
