@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-10 15:19(實際時間)進場通知卡下排:平倉卡標「平」+平倉價,今天的進場卡(含元三 / 強三)加「現」+即時現價(使用者「所有進場 平倉卡 都要標示 現價」→「那平倉就寫 平」)
   · 2026-11-10 15:12(實際時間)平倉卡也標做多 / 做空(含超額)(使用者「這 南亞科 是做空 平倉時 也要標記 做空」)
   · 2026-11-10 15:10(實際時間)檢討分 元大 / 虛擬 兩份:標題列切換鍵(黃元大、紫虛擬,看盤版只有虛擬);元大數字用元大真實成交,虛擬用電腦收盤推的;重大發現 real / virt 各一份,虛擬那份不寫判別式條件(使用者「虛擬寫虛擬的檢討 不可透露判別式的密碼 / 元大寫元大的檢討」→「改」)
   · 2026-11-10 14:56(實際時間)資訊六張卡:名稱後面加資料日期(台灣加權 11/10、費城半導體 11/09…)(使用者「台灣加權 後面加上日期 其他也一樣」)
@@ -369,7 +370,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611101517">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611101519">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -656,6 +657,7 @@
   #notifLog .rvw .rvh{color:#ff8c42;font-weight:800;margin-top:4px} #notifLog .rvw ul{margin:0;padding-left:1.2em} #notifLog .rvw li{margin:1px 0} #notifLog .rvw .rv0{color:#8C96AB}
   #notifLog .usk{position:relative;display:grid;grid-template-columns:1fr 31%;column-gap:4px;align-items:stretch;min-height:0;background:linear-gradient(#1E2636,#151A25);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:6px 6px 6px 9px;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
   #notifLog .usk .usl{display:flex;flex-direction:column;justify-content:center;min-width:0}
+  #notifLog .card .ln.sub .pxl{font-weight:600;color:#8C96AB;margin-right:3px;font-size:.92em}
   #notifLog .usk .usn .usdt{font-style:normal;font-weight:600;color:#8C96AB;font-size:.85em;margin-left:3px}   /* 2026-11-10 14:56 使用者「台灣加權 後面加上日期 其他也一樣」:六張卡名稱後面加資料日期(灰色小一點) */
   #notifLog .usk .usn{font-size:clamp(12px,3.4vw,16px);font-weight:700;color:#C9D1E0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
   #notifLog .usk .usv{font-size:clamp(17px,5vw,25px);font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:.2px;line-height:1.2;white-space:nowrap}
@@ -4095,6 +4097,7 @@ function rowNeedle(row, r){
   }
   if (nd.__p === r.chgPct) return; nd.__p = r.chgPct; nd.classList.remove('pinv', 'plose'); needleSet(nd, r.chgPct);
 }
+setInterval(() => { try{ document.querySelectorAll('#notifLog .nowp').forEach(e => { const z = +(((LIVE.get(e.dataset.c) || {}).z) || 0); if (z > 0){ const t = z.toFixed(2); if (e.textContent !== t) e.textContent = t; } }); }catch(e){} }, 3000);   // 2026-11-10 進場卡「現」跟報價更新
 window.__needlesNow = () => { try{ document.querySelectorAll('#bands .row').forEach(row => rowNeedle(row, LIVE.get(row.dataset.code))); }catch(e){} };
 function needleSet(svg, p){
   if (!svg) return; const g = svg.querySelector('.ndl') || svg.querySelector('g') || svg;
@@ -7655,7 +7658,7 @@ window.bgTick = bgTick; window.BG = BG;
       const sideTxt = (o.type !== 'entry' && o.type !== 'turn' && o.type !== 'exit') ? '' : o.type === 'exit' ? (o.side === 'long' ? '做多' : o.side === 'short' ? '做空' : '') : o.add ? '加碼' : o.warnT ? '注意' : o.side === 'long' ? '做多' : o.side === 'short' ? '做空' : '';   // 2026-10-23 轉折卡也顯示做多 / 做空   // 2026-11-10 15:11 使用者「這 南亞科 是做空 平倉時 也要標記 做空」:平倉卡也顯示做多 / 做空(取代 10/19 只有進場卡顯示)   // 2026-10-19 使用者定案:只有進場卡顯示做多 / 做空(第一則已決定方向),之後的平倉 / 反彈 / 注意卡這格留白、只在最右邊顯示警示;沒字就不畫框(之前空框看起來像一條綠線)
       const lots = o.type === 'turn' ? 0 : lotsOf(o);   // 2026-10-23 轉折卡不算張數(只是提醒)
       const entP = o.type === 'entry' ? o.price : (o.entP || o.price);
-      const pxTop = entP ? (+entP).toFixed(2) : '', pxBot = (o.type !== 'entry' && o.type !== 'turn' && o.price) ? (+o.price).toFixed(2) : '';
+      const pxTop = entP ? (+entP).toFixed(2) : '', pxBot = (o.type !== 'entry' && o.type !== 'turn' && o.price) ? '<b class="pxl">平</b>' + (+o.price).toFixed(2) : (o.type === 'entry' && dd === today && !o.phNew) ? (() => { const z = +(((LIVE.get(o.code) || {}).z) || 0); return `<b class="pxl">現</b><span class="nowp" data-c="${esc(o.code)}">${z > 0 ? z.toFixed(2) : '—'}</span>`; })() : '';   /* 2026-11-10 15:17 使用者「那平倉就寫 平」(15:15「所有進場 平倉卡 都要標示 現價」):平倉卡下排 = 平 + 平倉價;今天的進場卡下排 = 現 + 即時現價(每 3 秒跟報價更新) */
       // 2026-10-18 使用者:名稱、價格顏色和下面清單一致 → 名稱白字;價格比昨收高紅、低綠、平白。昨收:雲端紀錄自帶 prev;今天的用即時報價的昨收,沒有就用清單的昨收
       const prevC = o.prev || (dd === today ? (((LIVE.get(o.code) || {}).y) || (() => { const sn = SNAPSHOT.find(q => q.code === o.code); return sn && sn.date < today ? +sn.close : 0; })()) : 0);
       const ud = v => !prevC || !v ? '' : v > prevC ? ' up' : v < prevC ? ' down' : ' flat';
