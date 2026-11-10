@@ -39,7 +39,10 @@ now_tw = lambda: dt.datetime.now(TW)
 RAW = "https://raw.githubusercontent.com/redwinds542688-gif/Stock-database/main/"
 DATA = Path(os.environ.get("ENGINE_DIR", HERE / "engine_data"))
 SIMD = DATA / "sim"
-RS_ALL = ["一", "二", "三", "四", "五", "六", "七"]   # 2026-11-10 02:30 加觀察版判六(超賣急彈做多,只發通知,中繼不下單;使用者「改 +3%」)   # 2026-11-09 加觀察版判七(只發通知,中繼不下單); 2026-11-05 加判五(使用者「先加 在公式 增加判五」→「完整上線」;模擬器 MODE=fail5)
+RS_ALL = ["一", "二", "三", "四", "五", "六", "七"]
+# 2026-11-10 14:03(實際時間)使用者「同時被選 以勝率決定誰進場」:同一分鐘同一檔被兩個以上判別式選中 → 勝率高的先算、先發通知(中繼照先到的進場,後面的「這檔已經有部位」不進);
+#   22 天(10/06~11/09)不限額度勝率:判五 91%、判七 88%、判一 86%、判三 83%、判四 81%、判二 70%;判六觀察版放最後。私人庫 rs_env.RS_PRIORITY 有設就用它
+RS_PRIORITY = ["五", "七", "一", "三", "四", "二", "六"]   # 2026-11-10 02:30 加觀察版判六(超賣急彈做多,只發通知,中繼不下單;使用者「改 +3%」)   # 2026-11-09 加觀察版判七(只發通知,中繼不下單); 2026-11-05 加判五(使用者「先加 在公式 增加判五」→「完整上線」;模擬器 MODE=fail5)
 _RS_ALL_OLD = ["一", "二", "三", "四"]   # 2026-10-31 使用者「現在把新轉折 直接改名為 判四 加在公式 裡面 燈號啟動 真正的下單也啟動 自動平倉機制也啟動」:判四 = 新轉折做空(模擬器 MODE=turn4)
 JUDGE = {"一": "判一", "二": "判二", "三": "判三", "四": "判四", "五": "判五", "六": "判六", "七": "判七"}
 J5MAX = 6   # 2026-11-05 判五一天最多 6 筆(17:15 使用者「改限6筆」)(全部股票合計、照出現先後;超額的不算);實際用私人庫 rs_env.J5MAX
@@ -686,6 +689,7 @@ class Engine:
         import importlib
         if "rs_env" in sys.modules: rs_env = importlib.reload(sys.modules["rs_env"])
         else: rs_env = importlib.import_module("rs_env")
+        self.rs_pri = getattr(rs_env, "RS_PRIORITY", None)   # 2026-11-10 同一分鐘同一檔的判別式優先順序(勝率);私人庫沒設就用 engine 的 RS_PRIORITY
         self.envs = {}
         self.j5max = int(getattr(rs_env, "J5MAX", J5MAX))   # 2026-11-05 判五一天上限(私人庫 rs_env.J5MAX;apply 裡沒有 rs_env 這個名字)
         for rs in RS_ALL: self.envs[rs] = rs_env.env_of(rs, str(DATA / "breadth.json") if rs in ("一", "二", "五") else None)   # 判五:名單平均檔 DATA/mktavg.json(write_breadth 寫)
@@ -900,7 +904,8 @@ class Engine:
         #   (對帳那邊本來就不會發,算了也白算);ENGINE_SKIP_IDLE=0 全部照算
         skip_on = CFG.get("ENGINE_SKIP_IDLE", "1") == "1"
         full = {"四": len(self.j4) >= int(_f(self.envs.get("四", {}).get("T4MAX"), T4MAX)), "五": len(self.j5) >= getattr(self, "j5max", J5MAX)}
-        for rs in RS_ALL:
+        pri = list(getattr(self, "rs_pri", None) or RS_PRIORITY)
+        for rs in sorted(RS_ALL, key=lambda x: pri.index(x) if x in pri else 99):   # 2026-11-10 同一分鐘同一檔:勝率高的判別式先算、先發
             if rs not in self.envs: continue   # 2026-11-05 判五規則還沒到
             # 2026-11-06 加速:過了這個判別式最後進場時間 + 11 分鐘(10 分鐘內的進場還會補發),只算還開著虛擬部位的股票
             e_ = self.envs[rs]; last_ = e_.get("NOENTRYAFTER") or e_.get("T5TO") or e_.get("T4NOENTRY") or ""
