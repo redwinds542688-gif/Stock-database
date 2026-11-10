@@ -10,6 +10,7 @@
   · 2026-11-09 13:32(實際時間)下排燈:收盤後 進場 / 當沖 不亮;明細輸贏燈留著顯示當天結果,到下一個交易日 08:45(開盤前 15 分)才拿掉(使用者「明細左右的贏錢燈跟輸錢燈 在開盤前15分鐘取消」)
   · 2026-11-09 13:31(實際時間)13:30 收盤後下排三顆燈(進場藍燈等)確實熄掉:通知欄內容沒變也會在開盤 / 收盤那一刻重畫(使用者「1點半之後 進場右邊的藍燈關閉」)
   · 2026-11-09 13:07(實際時間)監控清單:做多 / 做空的股票,前面指針改成部位輸贏指針反白(贏紅底、輸綠底、白針;1% = 9°)(使用者「改」)
+  · 2026-11-10 12:18(實際時間)公式載入修正(使用者「改」):開 App 先下載最新公式再裝(8 秒內拿不到才用手機存的);這一頁裝過以後的新版只存起來、下次開 App 生效,不再塞進同一頁(原本盤中公式一改就 'dStartOf' 重複宣告、整份被拒,手機一直用舊版)
   · 2026-11-10 12:13(實際時間)撤回 11:39 的當沖點擊改法(進 K 圖再出來會卡住,使用者確認 11:40 起才有),當沖點股票恢復原本寫法
   · 2026-11-10 11:40(實際時間)當沖點股票開 K 圖:當沖每幾秒重畫會把按著的那列換掉、點了沒反應 → 改在外框用按下 / 放開座標判斷(使用者「當沖裡 點擊股票 無法跳k圖」)
   · 2026-11-10 11:34(實際時間)監控區股票下方「做空 / 做多」改字「做空中 / 做多中」(使用者「做空 改 做空中 做多 改 做多中」)
@@ -339,7 +340,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611101212">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611101216">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3478,20 +3479,33 @@ const LOGIC = { at: 0, ok: false };
 function logicApply(code){ try{ try{ window.__stg && __stg('logic-apply'); }catch(_){} window.LOGIC_LOADED = false; const __vb = window.VIEWER ? {t: bgTick, r: bgRebuild, x: bgExit} : null; const el = document.createElement('script'); el.text = code; document.head.appendChild(el);
   if (__vb){ bgTick = window.bgTick = __vb.t; bgRebuild = window.bgRebuild = __vb.r; bgExit = window.bgExit = __vb.x; }   /* 2026-11-08 主人鑰匙的看盤版也載判別式(K 圖標記、規則),但背景監控維持看盤版(只讀雲端通知,不自己算、不寫通知) */ LOGIC.ok = !!window.LOGIC_LOADED; try{ window.__stg && __stg('logic-done ' + LOGIC.ok); }catch(_){} return LOGIC.ok; }catch(e){ try{ bgLog && bgLog('[公式] 載入失敗 ' + e.message); }catch(_){} return false; } }
 async function logicLoad(force){
+  // 2026-11-10 12:15(實際時間)使用者「改」:公式在盤中改過,App 把新的一份再塞進同一頁 → 'dStartOf' has already been declared,整份被拒、一直顯示沒載入(手機一直用舊版在算)。
+  //   改成:① 開 App 先下載最新的(8 秒內),拿到就裝,拿不到才用手機存的上一份;② 這一頁已經裝過一份之後,新版只存起來(下次開 App 才換),不再塞進同一頁
+  if (LOGIC.busy) return 'busy'; LOGIC.busy = true;
   try{
     if (vwOnly() || !liveOn()) return 'viewer';
-    if (!LOGIC.ok){ let c = ''; try{ c = localStorage.getItem('mysh.logic') || ''; }catch(e){} const okc = c.length > 1000 && logicApply(c); if (okc) LOGIC.src = 'cache'; LOGIC.trace = 'cache ' + c.length + (c.length > 1000 ? (okc ? ' ok' : ' 裝不上') : ' 沒有'); try{ bugAdd('logic', LOGIC.trace); }catch(_){} }
-    if (!appKey.get()){ LOGIC.res = 'nokey'; return 'nokey'; }
-    const now = Date.now(); if (!force && now - LOGIC.at < (LOGIC.ok ? 30 * 60000 : 60000)) return LOGIC.ok ? 'ok' : 'wait'; LOGIC.at = now;   // 2026-10-29 漏洞修正:還沒載入成功 → 每分鐘重試(原本 30 分鐘)
-    const r = await fetch(BASE.liveUrl.replace(/\/$/, '') + '/?gh=raw&repo=logic&path=judge.js&_=' + Math.floor(now / 60000), {cache: 'no-store', signal: AbortSignal.timeout(15000)});
-    if (!r.ok){ LOGIC.res = 'http ' + r.status; return LOGIC.res; }
-    const code = await r.text(); if (code.length < 1000 || !/replaySignals/.test(code)){ LOGIC.res = 'bad 下載內容 ' + code.length; return 'bad'; }
+    const url = () => BASE.liveUrl.replace(/\/$/, '') + '/?gh=raw&repo=logic&path=judge.js&_=' + Math.floor(Date.now() / 60000);
+    const good = c => c && c.length >= 1000 && /replaySignals/.test(c);
     let old = ''; try{ old = localStorage.getItem('mysh.logic') || ''; }catch(e){}
-    if (code !== old || !LOGIC.ok){ if (logicApply(code)){ try{ localStorage.setItem('mysh.logic', code); }catch(e){} LOGIC.src = 'worker'; try{ if (window.rsLampUpd) rsLampUpd(); }catch(e){} }
-      else if (old.length > 1000 && code !== old){ logicApply(old); try{ bgLog && bgLog('[公式] 新的一份載入失敗,改用手機存的上一份'); }catch(_){} } }   // 2026-10-29 漏洞修正:新版跑壞 → 退回上一份
-    LOGIC.res = LOGIC.ok ? 'ok' : 'bad 下載的裝不上 ' + code.length; return LOGIC.ok ? 'ok' : 'bad';
+    if (!LOGIC.applied){
+      let fresh = '';
+      if (appKey.get()){ try{ LOGIC.at = Date.now(); const r = await fetch(url(), {cache: 'no-store', signal: AbortSignal.timeout(8000)}); if (r.ok){ const c = await r.text(); if (good(c)) fresh = c; else LOGIC.res = 'bad 下載內容 ' + c.length; } else LOGIC.res = 'http ' + r.status; }catch(e){ LOGIC.res = 'err ' + (e && e.message); } }
+      if (fresh && logicApply(fresh)){ LOGIC.applied = true; LOGIC.src = 'worker'; LOGIC.res = 'ok'; LOGIC.trace = 'start 下載 ' + fresh.length + ' ok'; try{ localStorage.setItem('mysh.logic', fresh); }catch(e){} }
+      else if (!LOGIC.tried && good(old) && logicApply(old)){ LOGIC.applied = true; LOGIC.src = 'cache'; LOGIC.trace = 'start 快取 ' + old.length + ' ok(下載 ' + (LOGIC.res || '沒鑰匙') + ')'; }
+      else LOGIC.trace = 'start 都裝不上(下載 ' + (LOGIC.res || '沒鑰匙') + ',快取 ' + old.length + ')';
+      LOGIC.tried = true; try{ bugAdd('logic', LOGIC.trace); }catch(_){}
+      try{ if (LOGIC.ok && window.rsLampUpd) rsLampUpd(); }catch(e){}
+      return LOGIC.ok ? 'ok' : 'bad';
+    }
+    // 已經裝過一份:每 30 分鐘看有沒有新版,有就只存起來(下次開 App 生效),這一頁照舊用現在這份
+    if (!appKey.get()) return LOGIC.ok ? 'ok' : 'nokey';
+    const now = Date.now(); if (!force && now - LOGIC.at < 30 * 60000) return 'ok'; LOGIC.at = now;
+    const r = await fetch(url(), {cache: 'no-store', signal: AbortSignal.timeout(15000)}); if (!r.ok) return 'http ' + r.status;
+    const c = await r.text(); if (!good(c)) return 'bad';
+    if (c !== old){ try{ localStorage.setItem('mysh.logic', c); }catch(e){} LOGIC.pending = true; try{ bgLog && bgLog('[公式] 有新版,已存起來,下次開 App 生效'); bugAdd('logic', '新版存起來 ' + c.length); }catch(_){} }
+    return 'ok';
   }catch(e){ LOGIC.res = 'err ' + (e && e.message); return LOGIC.res; }
-  finally{ try{ if (!vwOnly() && liveOn() && appKey.get() && !LOGIC.ok && !LOGIC.warned){ LOGIC.warned = true; try{ bgLog && bgLog('[公式] 還沒載入,每分鐘重試'); }catch(_){} try{ const why = '公式未載入:' + (LOGIC.trace || '') + ' / 下載 ' + (LOGIC.res || '還沒試') + ' / 鑰匙 ' + (appKey.get() ? '有' : '沒有'); bugAdd('logic', why); setTimeout(() => { try{ bugUploadNow(why); }catch(_){} }, 3000); }catch(_){} /* 2026-11-10 09:55 使用者「抓bug 要自己啟動」:公式沒載入 → 自動抓 bug 上傳(帶快取 / 下載 / 鑰匙各一步的結果)*/ /* 2026-11-10 09:51 使用者「可不可以不用顯示什麼判123那個」:不跳提醒,只記在紀錄裡 */ } if (LOGIC.ok) LOGIC.warned = false; }catch(e){} }
+  finally{ LOGIC.busy = false; try{ if (!vwOnly() && liveOn() && appKey.get() && !LOGIC.ok && !LOGIC.warned){ LOGIC.warned = true; try{ bgLog && bgLog('[公式] 還沒載入,每分鐘重試'); }catch(_){} try{ const why = '公式未載入:' + (LOGIC.trace || '') + ' / 鑰匙 ' + (appKey.get() ? '有' : '沒有'); bugAdd('logic', why); setTimeout(() => { try{ bugUploadNow(why); }catch(_){} }, 3000); }catch(_){} } if (LOGIC.ok) LOGIC.warned = false; }catch(e){} }
 }
 window.logicLoad = logicLoad;
 // 2026-10-29 23:41 使用者「免費者不用輸入金鑰」:看盤版沒鑰匙 = 免費使用者,不再一打開就跳鑰匙視窗(付費的到「公式 → 鑰匙」輸入)
