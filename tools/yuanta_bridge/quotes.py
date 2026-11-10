@@ -23,7 +23,7 @@ class QuoteBook:
         """序號 −1(清盤)那筆:成交價欄位 = 開盤參考價(= 昨收)"""
         if ref_price and ref_price > 0:
             with self.lock:
-                self.meta.setdefault(code, {"n": "", "ex": "tse", "y": None})["y"] = ref_price
+                m = self.meta.setdefault(code, {"n": "", "ex": "tse", "y": None}); m["y"] = ref_price; m["yref"] = ref_price   # 2026-11-10 yref = 元大清盤給的參考價(除權息已扣),電腦引擎昨收第一優先
 
     def on_tick(self, code, day, hh, mm, ss, price, vol, bid=None, ask=None):
         if not (price > 0):

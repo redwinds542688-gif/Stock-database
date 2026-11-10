@@ -1242,7 +1242,7 @@ class Bridge:
         day = now_tw().strftime("%Y-%m-%d")
         self.book = BarBook(vol_mult=int(CFG.get("VOL_MULT", "1000"))); self.sent = set(); self.n_ticks = 0
         self.quotes.q.clear()            # 新的一天:即時價從頭累計
-        for m in self.quotes.meta.values(): m["y"] = None   # 2026-10-28 平倉檢查 #10:昨收每天重抓(不在今天名單的股票不會留著前幾天的)
+        for m in self.quotes.meta.values(): m["y"] = None; m["yref"] = None   # 2026-10-28 平倉檢查 #10:昨收每天重抓(不在今天名單的股票不會留著前幾天的)
         self.codes = self.load_codes_safe()
         self.trader = self.make_trader()
         self.trader.prime(fetch_signals(CFG["WORKER_URL"], day, CFG.get("PUSH_KEY", "")))
@@ -1333,6 +1333,14 @@ class Bridge:
                     self._flush_hm = _hm
                     self.flush(day)
                     if k % 10 == 0: self.flush_ticks(day)
+                # 2026-11-10 17:26(實際時間)使用者「官方昨收 應該要有備用補齊通道」→「改」:元大清盤給的參考價(除權息已扣)每 30 秒寫 engine_data/ref_<日期>.json,電腦引擎昨收第一優先用它
+                if k % 30 == 0:
+                    try:
+                        _rf = {c: m["yref"] for c, m in list(self.quotes.meta.items()) if m.get("yref")}
+                        if _rf and _rf != getattr(self, "_ref_last", None):
+                            self._ref_last = dict(_rf); _p = Path(os.environ.get("ENGINE_DIR", HERE / "engine_data")) / f"ref_{day}.json"
+                            _p.parent.mkdir(parents=True, exist_ok=True); _t = _p.with_suffix(".tmp"); _t.write_text(json.dumps(_rf), encoding="utf-8"); os.replace(_t, _p)
+                    except Exception as e: log("參考價寫檔失敗", e)
                 # 2026-10-30 引擎看門狗:盤中引擎行程結束了(當掉 / 被關)→ 重新開(一天最多 5 次);13:30 後不管
                 if CFG.get("ENGINE", "0") == "1" and k % 30 == 0 and "08:45" <= hm_now < "13:30" and getattr(self, "engine", None) is not None and self.engine.poll() is not None:
                     self.eng_restarts = getattr(self, "eng_restarts", 0) + 1

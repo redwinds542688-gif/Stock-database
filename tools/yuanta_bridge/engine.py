@@ -679,6 +679,54 @@ class Engine:
     def set_universe(self, uni):
         self.uni = uni; self.codes = uni["codes"]; self.names = uni["names"]; self.prev = uni["prev"]; self.mkts = uni["mkts"]
         self.canshort = uni["canshort"]; self.no_new = uni["no_new"]
+        try: self.apply_refs(force=True)
+        except Exception as e: log("昨收對照失敗", repr(e))
+
+    def apply_refs(self, force=False):
+        """2026-11-10 17:26(實際時間)使用者「官方昨收 應該要有備用補齊通道」→「改」:今天每檔的昨收(=交易所參考價,除權息已扣)依序取
+           ① 中繼寫的 ref_<日期>.json(元大清盤參考價)② Worker ?codes 的 y(證交所 / 櫃買即時報價的昨收,10 分鐘最多問一次)③ 名單昨收 ④ 模擬器自己的 K 線(最後備援)。
+           ①② 拿到的寫進 pool_today.json(prev、date=今天、ref_src),所有判別式的模擬器、通知都用同一份;和名單昨收差 > 0.5% 的記 log、推一則提醒(一天一次)"""
+        if not getattr(self, "codes", None): return
+        R = self.__dict__.setdefault("_ref", {"map": {}, "src": {}, "w_at": 0.0, "warned": set()})
+        try: yt = json.loads((DATA / f"ref_{self.day}.json").read_text(encoding="utf-8")) or {}
+        except Exception: yt = {}
+        for c, v in yt.items():
+            try:
+                if float(v) > 0: R["map"][c] = float(v); R["src"][c] = "元大"
+            except Exception: pass
+        miss = [c for c in self.codes if c not in R["map"]]
+        if miss and (force or time.time() - R["w_at"] > 600):
+            R["w_at"] = time.time()
+            for i in range(0, len(miss), 40):
+                cs = miss[i:i + 40]
+                try:
+                    for m in http(worker_url("codes=" + ",".join(cs) + "&mkt=" + ",".join(self.mkts.get(c, "tse") for c in cs)), timeout=15).get("msgArray", []):
+                        c, y = str(m.get("c", "")), _f(m.get("y"), 0)
+                        if c and y > 0 and R["src"].get(c) != "元大": R["map"][c] = y; R["src"][c] = "證交所"
+                except Exception as e: log("昨收備援(證交所)抓不到", repr(e))
+        if not R["map"]: return
+        try: pj = json.loads((DATA / "pool_today.json").read_text(encoding="utf-8"))
+        except Exception: return
+        changed = False; diff = []
+        for s_ in pj.get("pool", []):
+            c = str(s_.get("code", "")); v = R["map"].get(c)
+            if not v: continue
+            p0 = s_.get("close") if str(s_.get("date") or pj.get("date", "")) < self.day else s_.get("prev")
+            if s_.get("ref_src"): p0 = s_.get("pool_prev", p0)
+            if p0 and abs(v / float(p0) - 1) > 0.005: diff.append((c, s_.get("name", ""), float(p0), v, R["src"][c]))
+            if s_.get("prev") != v or s_.get("date") != self.day or s_.get("ref_src") != R["src"][c]:
+                if not s_.get("ref_src"): s_["pool_prev"] = p0
+                s_["prev"] = v; s_["date"] = self.day; s_["ref_src"] = R["src"][c]; changed = True
+            if c in self.prev: self.prev[c] = v
+        if changed: write_atomic(DATA / "pool_today.json", json.dumps(pj, ensure_ascii=False))
+        new = [x for x in diff if x[0] not in R["warned"]]
+        if new:
+            for x in new: R["warned"].add(x[0])
+            txt = "、".join(f"{n or c} {c} 名單 {p0:g} → 參考價 {v:g}({(v / p0 - 1) * 100:+.1f}%,{sr})" for c, n, p0, v, sr in new[:12])
+            log(f"!! 昨收和名單不同 {len(new)} 檔(除權息或名單資料錯,判別式改用參考價):{txt}")
+            if not self.dry:
+                try: http(worker_url("log=add"), {"d": self.day, "t": now_tw().strftime("%H:%M"), "title": f"ℹ 今天昨收和名單不同 {len(new)} 檔", "body": txt + " · 元大中繼", "kind": "pc", "key": f"refdiff|{len(R['warned'])}"}, key=True)
+                except Exception as e: log("昨收提醒推不上去", repr(e))
 
     def carried(self):
         held = {c for _, c in self.pos}
@@ -1162,6 +1210,8 @@ def live():
                 for c, rows in bars.items():
                     if rows: r = max(rows); eng.px[c] = r[4]; eng.last_hm[c] = r[0]
                 for c, r in forming.items(): eng.px[c] = r[4]; eng.last_hm[c] = max(eng.last_hm.get(c, ""), r[0])
+                try: eng.apply_refs()   # 2026-11-10 每分鐘對一次昨收(中繼的元大參考價檔有新的就套上)
+                except Exception as e: log("昨收對照失敗", repr(e))
                 # 寬度每分鐘(稽核 #1)
                 _ths[0].join(35); ok, nbr, blast = _bg.get("br", (False, 0, ""))
                 if ok: br.update(ok_at=time.time(), last=blast)
