@@ -937,7 +937,7 @@ class Bridge:
                 time.sleep(1.2)                                                         # 帳務 / 查詢類一秒最多 3 次
                 try: self.api.GetConditionStrategy(CFG["YT_ACCOUNT"], self.Y.StrategyType(3), "")   # 3 = 二擇一;空字串 = 全部股票
                 except Exception as e:   # 2026-10-29 12:03 正式環境實測:No method matches given arguments (str, StrategyType, str) → 參數型別 / 順序和文件不同,先當作沒有條件單,不讓它把整個查詢弄掛(TRADE_BROKER_STOP=0 本來就不掛條件單)
-                    self.resume_buf["got_oco"] = True; log("查二擇一條件單失敗(當作沒有):", e)
+                    self.resume_buf["got_oco"] = True; self.resume_buf["oco_failed"] = True; log("查二擇一條件單失敗(改用狀態檔存的編號):", e)
             for _ in range(30):
                 if self.resume_buf["got_rpt"] and self.resume_buf["got_oco"]: break
                 time.sleep(0.5)
@@ -1052,7 +1052,7 @@ class Bridge:
             r = self.query_today()
             if not r:
                 log("!! 接回:查不到今天的成交回報,不接回(有部位請用投資先生手動處理)"); return
-            self.trader.resume(r["trades"], r["tags"], r["oco"], fetch_signals(CFG["WORKER_URL"], day, CFG.get("PUSH_KEY", "")), r.get("working", []), r.get("types"))
+            self.trader.resume(r["trades"], r["tags"], None if r.get("oco_failed") else r["oco"], fetch_signals(CFG["WORKER_URL"], day, CFG.get("PUSH_KEY", "")), r.get("working", []), r.get("types"))
         except Exception as e:
             log("接回失敗", e)
 

@@ -272,6 +272,7 @@ class Trader:
             return
         try:
             js = {"day": self.now().strftime("%Y-%m-%d"), "locked": sorted(self.locked),
+                  "oco": {c: p["oco_no"] for c, p in self.positions.items() if p.get("oco_live") and p.get("oco_no")},   # 2026-11-10 15:16 使用者「改」:元大條件單查詢一直失敗(簽章不合)→ 掛著的條件單編號存檔,中繼重開接回時用它,不重複掛
                   "forced": {c: {"tp_pct": p.get("tp_pct"), "sl_pct": p.get("sl_pct")} for c, p in self.positions.items() if p.get("forced")}}
             old = self.load_state()
             for c, v in (old.get("forced") or {}).items():
@@ -323,6 +324,7 @@ class Trader:
         strategies:[{no, code, status}](有效的條件單);signals:手機今天的通知(找停利 / 停損價)。
         只接「程式送的單」(BasketNo 以 T = 自動 / F = 強制 開頭)開的部位;手動在投資先生做的不管。今天已做筆數、已實現損益也一起算回來。
         2026-10-28 改成全部接回(最多 5 檔 + 強制單),回傳接回的代碼清單"""
+        self._oco_saved = dict(self.load_state().get("oco") or {})   # 2026-11-10 開頭先讀(接回過程中存檔會蓋掉)
         with self.lock:
             st = self.load_state()
             self.locked |= set(st.get("locked") or [])
@@ -424,7 +426,12 @@ class Trader:
                     self.log(f"[交易] {c} {p['judge']} 程式沒在跑時已經發過平倉通知 → 接回後馬上平倉")
                     self.sub(p); self.exit_pos(p, rx, self.last_px.get(c, avg)); continue
                 self.sub(p)
-                oco = [x for x in strategies if x.get("code") == c]
+                if strategies is None:   # 2026-11-10 15:16 元大條件單查詢失敗 → 用狀態檔存下的編號(重開前程式掛的那張),不再當作沒有、重掛一張(兩張同時在,碰停損會平兩次)
+                    sv = self._oco_saved.get(c)
+                    oco = [{"code": c, "no": str(sv)}] if sv else []
+                    self.log(f"[交易] 接回:{c} 元大條件單查不到 → " + (f"用存下的編號 {sv}" if sv else "狀態檔也沒有,當作沒有條件單"))
+                else:
+                    oco = [x for x in strategies if x.get("code") == c]
                 if oco:
                     p["oco_no"] = oco[-1]["no"]; p["oco_live"] = True
                 self.log(f"[交易] 接回部位 {c} {p['judge']} {'多' if d > 0 else '空'} {abs(n)} 張 均價 {avg:.2f} 停利 {p['tp'] or '?'} 停損 {p['sl'] or '?'};"
@@ -1106,6 +1113,7 @@ class Trader:
                 self.log(f"[交易] {c} 等元大確認刪掉 {p['oco_no']} 再掛新的條件單(這段由程式盯停損停利)")
                 self.gw.delete_oco(p["oco_no"]); return
             self.gw.delete_oco(p["oco_no"])
+        self.save_state()   # 2026-11-10 刪掉的條件單編號從狀態檔拿掉
         if p["state"] == HOLDING and p["qty"] > 0 and p.get("tp") and p.get("sl") and self.positions.get(c) is p and self.oco_ok(c):
             p["oco_no"] = None; self.oco_q.append(c); p.pop("oco_noted", None); p.pop("oco_hit_at", None)
             n = self.oco_lots(c); self.gw.place_oco(c, p["mkt"], p["dir"], n, p["tp"], p["sl"])
@@ -1145,6 +1153,7 @@ class Trader:
             if ok and strategy_no:
                 p["oco_no"] = str(strategy_no).strip(); p["oco_live"] = True
                 self.log(f"[交易] {c} 元大條件單(OCO)已掛:策略編號 {p['oco_no']}(停利 {p['tp']} / 停損 {p['sl']})")
+                self.save_state()   # 2026-11-10 條件單編號存檔(重開接回用)
                 if p.pop("oco_redo", False): self.oco_refresh(p, "等回應時部位變了")
                 elif p["state"] != HOLDING or p["qty"] <= 0 or self.positions.get(c) is not p or not self.oco_ok(c):   # 掛上去前部位已經在平 / 平完了 / 有預掛 / 過 13:20 → 刪掉
                     self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False; self.log(f"[交易] {c} 條件單掛好時部位已經不在持倉 → 刪除 {p['oco_no']}")
