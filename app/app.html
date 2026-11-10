@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-10 14:56(實際時間)資訊六張卡:名稱後面加資料日期(台灣加權 11/10、費城半導體 11/09…)(使用者「台灣加權 後面加上日期 其他也一樣」)
   · 2026-11-10 14:40(實際時間)資訊六張卡:視窗矮時字跟著卡片高度縮,漲跌那行不再被切(使用者「各圖 漲跌多少 被切了」)
   · 2026-11-10 12:25(實際時間)進場卡加碼張數:「加4張」改成「+4張」(使用者「加碼的 不用 加 這字 用 +」)
   · 2026-11-09 15:08(實際時間)資訊:平日 13:40 加抓一次,台股收盤後 10 分鐘就換成當天(日經 / 韓國 14:40)(使用者「13.40 改」)
@@ -364,7 +365,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611101450">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611101456">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -651,6 +652,7 @@
   #notifLog .rvw .rvh{color:#ff8c42;font-weight:800;margin-top:4px} #notifLog .rvw ul{margin:0;padding-left:1.2em} #notifLog .rvw li{margin:1px 0} #notifLog .rvw .rv0{color:#8C96AB}
   #notifLog .usk{position:relative;display:grid;grid-template-columns:1fr 31%;column-gap:4px;align-items:stretch;min-height:0;background:linear-gradient(#1E2636,#151A25);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:6px 6px 6px 9px;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
   #notifLog .usk .usl{display:flex;flex-direction:column;justify-content:center;min-width:0}
+  #notifLog .usk .usn .usdt{font-style:normal;font-weight:600;color:#8C96AB;font-size:.85em;margin-left:3px}   /* 2026-11-10 14:56 使用者「台灣加權 後面加上日期 其他也一樣」:六張卡名稱後面加資料日期(灰色小一點) */
   #notifLog .usk .usn{font-size:clamp(12px,3.4vw,16px);font-weight:700;color:#C9D1E0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
   #notifLog .usk .usv{font-size:clamp(17px,5vw,25px);font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:.2px;line-height:1.2;white-space:nowrap}
   #notifLog .usk .usd{font-size:clamp(10px,2.9vw,13px);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;line-height:1.3} #notifLog .usk .usd b{font-weight:800}
@@ -1597,7 +1599,7 @@ const usCards = () => { const U = window.__US; if (!U) return '';
   let h = '<div class="usx">';
   for (const x of (U.idx || [])){ const up = (x.pct || 0) > 0, dn = (x.pct || 0) < 0, c = up ? 'up' : dn ? 'dn' : '';
     const nm = String(NM[x.name] || x.name).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-    h += `<div class="usk ${c}${x.name === '台股' ? ' tw' : ''}"><div class="usl"><div class="usn">${nm}</div><div class="usv">${f(x.close)}</div>`
+    h += `<div class="usk ${c}${x.name === '台股' ? ' tw' : ''}"><div class="usl"><div class="usn">${nm}${x.date ? ` <i class="usdt">${String(x.date).slice(5).replace('-', '/')}</i>` : ''}</div><div class="usv">${f(x.close)}</div>`
       + `<div class="usd">${x.pct == null ? '' : (up ? '▲' : dn ? '▼' : '') + (x.chg != null ? f(Math.abs(x.chg)) : '') + ` <b>${Math.abs(x.pct).toFixed(2)}%</b>`}</div></div>`
       + `<div class="usc">${usSpark(x.spark, x.prev, up)}</div></div>`; }
   return h + '</div>'; };
