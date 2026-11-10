@@ -10,6 +10,8 @@
   · 2026-11-09 15:08(實際時間)資訊:平日 13:40 加抓一次,台股收盤後 10 分鐘就換成當天(日經 / 韓國 14:40)(使用者「13.40 改」)
   · 2026-11-09 14:33(實際時間)資訊:台股 / 日經 / 韓國 平日 14:40 後再抓一次當天收盤和走勢線(早上 08:30 抓美股),標題日期 = 最新那天(使用者「台股 美股 韓股 日股 都要逐日更新」)
   · 2026-11-09 13:32(實際時間)下排燈:收盤後 進場 / 當沖 不亮;明細輸贏燈留著顯示當天結果,到下一個交易日 08:45(開盤前 15 分)才拿掉(使用者「明細左右的贏錢燈跟輸錢燈 在開盤前15分鐘取消」)
+  · 2026-11-10 14:58(實際時間)平板開機卡頓修正(使用者「改」;平板紀錄開機 15 秒卡 9.2 秒,電腦模擬量到前 6 秒有 4.7 秒在通知欄量字級):① 量字級改成 40 列一次量完(原本改一列量一列,整欄重排 40 次)② 通知欄畫面外的卡片先不排版(content-visibility,約 350 張卡 7 千多個元素),位置 / 高度和原本完全一樣。模擬開機:量字級 4.7 秒 → 0.5 秒
+  · 2026-11-10 14:49(實際時間)平板開機卡頓追查第二步:加 long-animation-frame 紀錄(每段卡 ≥0.5 秒記是哪支程式、哪一行、排版花多久),跟著自動上傳
   · 2026-11-10 14:47(實際時間)平板開機卡頓追查(使用者「改」):開機每一步記時間(K 線套件、pool、主程式、公式下載)、前 30 秒 localStorage / JSON 解析 ≥50 毫秒也記;開機 15 秒內卡 ≥4 秒自動上傳;開 App 先下載公式(逾時 8→10 秒),K 線預抓等公式好了再開始(最多等 12 秒)
   · 2026-11-09 13:31(實際時間)13:30 收盤後下排三顆燈(進場藍燈等)確實熄掉:通知欄內容沒變也會在開盤 / 收盤那一刻重畫(使用者「1點半之後 進場右邊的藍燈關閉」)
   · 2026-11-10 14:08(實際時間)電腦引擎:同一分鐘同一檔被兩個以上判別式選中 → 勝率高的先算先發(判五 91% > 判七 88% > 判一 86% > 判三 83% > 判四 81% > 判二 70%,判六觀察版最後),中繼照先到的進場(使用者「同時被選 以勝率決定誰進場」)
@@ -327,6 +329,9 @@
   try{ new PerformanceObserver(function(l){ l.getEntries().forEach(function(x){ if (x.duration >= 500 && E.lt.length < 100) E.lt.push([Math.round(x.startTime + performance.timeOrigin - E.t0), Math.round(x.duration)]); }); }).observe({type: 'longtask', buffered: true}); }catch(_){}
   // 2026-11-10 14:43(實際時間)使用者「改」(平板開機前 11 秒卡 9.6 秒,記錄到的函式加起來才 0.1 秒):開機每一步記時間(__bm),前 30 秒 localStorage 讀取 / JSON 解析超過 50 毫秒也記(哪個鍵、多大、多久);
   //   開機 15 秒內長任務加起來 ≥ 4 秒 → 自動抓 bug 上傳(30 分鐘最多一次)
+  // 2026-11-10 14:48 平板開機卡的那幾段不是記錄到的函式 → 加 long-animation-frame:每個卡 ≥ 500 毫秒的畫面,記是哪支程式(函式名 / 觸發來源 / 位置)、排版花多少
+  E.loaf = []; try{ new PerformanceObserver(function(l){ l.getEntries().forEach(function(x){ if (x.duration < 500 || E.loaf.length >= 40) return; var sc = (x.scripts || []).slice().sort(function(a, b){ return b.duration - a.duration; }).slice(0, 3).map(function(q){ return [Math.round(q.duration), q.invokerType || '', String(q.invoker || '').slice(0, 60), String(q.sourceFunctionName || '').slice(0, 40), q.sourceCharPosition, Math.round(q.forcedStyleAndLayoutDuration || 0)]; });
+    E.loaf.push([Math.round(x.startTime + performance.timeOrigin - E.t0), Math.round(x.duration), Math.round(x.styleAndLayoutStart ? x.startTime + x.duration - x.styleAndLayoutStart : 0), Math.round(x.blockingDuration || 0), sc]); }); }).observe({type: 'long-animation-frame', buffered: true}); }catch(_){}
   E.boot = []; window.__bm = function(n){ try{ if (E.boot.length < 80) E.boot.push([n, Date.now() - E.t0]); }catch(_){} };
   E.io = []; try{ var _gi = Storage.prototype.getItem, _jp = JSON.parse;
     Storage.prototype.getItem = function(k){ var t = performance.now(), v = _gi.call(this, k), d = performance.now() - t; if (d >= 50 && E.io.length < 60 && Date.now() - E.t0 < 30000) E.io.push(['ls', String(k).slice(0, 40), v ? v.length : 0, Math.round(d), Date.now() - E.t0]); return v; };
@@ -334,7 +339,7 @@
     setTimeout(function(){ Storage.prototype.getItem = _gi; JSON.parse = _jp; }, 30000); }catch(_){}
   setTimeout(function(){ try{ var tot = 0; E.lt.forEach(function(x){ if (x[0] < 15000) tot += x[1]; }); if (tot < 4000) return; var la = +(localStorage.getItem('mysh.bootSlowAt') || 0); if (Date.now() - la < 1800000) return; localStorage.setItem('mysh.bootSlowAt', String(Date.now()));
     if (window.bugUploadNow) bugUploadNow('自動:開機卡頓 ' + (tot / 1000).toFixed(1) + ' 秒'); }catch(_){} }, 16000);
-  window.__perfDump = function(){ var t = Object.keys(E.tot).map(function(k){ return [k, Math.round(E.tot[k])]; }).sort(function(a, b){ return b[1] - a[1]; }).slice(0, 30); return {slow: E.slow, lt: E.lt, tot: t, on: E.perfOn, ms: Date.now() - E.t0, boot: E.boot, io: E.io}; };
+  window.__perfDump = function(){ var t = Object.keys(E.tot).map(function(k){ return [k, Math.round(E.tot[k])]; }).sort(function(a, b){ return b[1] - a[1]; }).slice(0, 30); return {slow: E.slow, lt: E.lt, tot: t, on: E.perfOn, ms: Date.now() - E.t0, boot: E.boot, io: E.io, loaf: E.loaf}; };
   E.trk = []; window.__mk = function(s){ try{ if (!E.w || Date.now() - E.t0 > 60000) return; E.trk.push(s + '@' + (Date.now() - E.t0)); if (E.trk.length > 40) E.trk.shift(); E.w.postMessage({stage: E.stage + ' | ' + E.trk.join(' ')}); }catch(e){} };
   addEventListener('error', function(e){ try{ E.errs.push([Date.now() - E.t0, String(e.message || (e.target && e.target.src ? '載入失敗 ' + e.target.src : '')), e.filename || '', e.lineno || 0, e.colno || 0]); }catch(_){} }, true);
   addEventListener('unhandledrejection', function(e){ try{ E.errs.push([Date.now() - E.t0, 'rej ' + String(e.reason && (e.reason.message || e.reason) || '')]); }catch(_){} });
@@ -359,7 +364,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611101444">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611101450">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -471,6 +476,7 @@
   #notifLog .row.mine{outline:1px solid #FFD54F;outline-offset:-1px}   /* 長按記「我有做」 */
   /* 2026-10-17 18:30 三列卡片 */
   #notifLog .card{margin:3px 0;padding:2px 2px 1px;border-radius:0;cursor:pointer}
+  #notifLog .card:nth-child(n+12),#notifLog .dsep:nth-child(n+12){content-visibility:auto;contain-intrinsic-size:auto 60px}   /* 2026-11-10 14:55 平板開機卡頓:通知欄一次掛了 10 天約 350 張卡(7 千多個元素),每次量字級都要整欄排版;畫面外的卡先不排版(捲到才排),前 11 個照常 */
   #notifLog.snap{scroll-snap-type:y mandatory} #notifLog.snap .card,#notifLog.snap .dsep,#notifLog.snap .e845{scroll-snap-align:start}   /* 2026-11-06 08:45 空白那塊也是停點,不然被吸到下面 11/05 */
   #notifLog.snap .card,#notifLog.snap .dsep{border-top:0;border-bottom:1px solid rgba(255,255,255,.28)}   /* 2026-10-27 08:20 使用者:「通知訊息之間要有1px的間隔」:每一列(卡片、日期分隔列)底下一條 1px 的淡線隔開 */   /* 2026-10-27 07:00 五列制:一列一列停,最下面那列不切半 */   /* 2026-10-19 使用者:「通知訊息的外框都拿掉,有三種都拿掉」→ 白框、黃框、藍框全部取消 */
   /* 2026-10-18 使用者:做多淺紫色網狀底、做空淺藍色網狀底(原本做多淺紅、做空淺綠) */
@@ -8083,13 +8089,12 @@ window.bgTick = bgTick; window.BG = BG;
       const meas = lns.slice(0, 40);   // 2026-10-27 前幾天的卡也在同一欄,量最前面 40 列就夠(字級全部一致)
       let fs = 40;   // 全部列用同一個字級(取最擠那列算出來的),欄位才會上下對齊;2026-10-19 使用者「文字在訊息裡最大化」:上限由 21 放到 40,實際由最擠那列塞滿寬度決定
       const Z = window.__textZoomTest || 1;   // 測試用:模擬手機系統字體放大(真機為 1,放大由 WebView 自己做)
-      for (const ln of meas){
-        // 量「內容本身」需要多寬:先把整列設成 max-content(不受容器寬度影響,符號欄不會被壓縮),量完再放回去
-        ln.style.fontSize = (18 * Z) + 'px'; ln.style.width = 'max-content';
-        const need = ln.getBoundingClientRect().width; ln.style.width = '';
-        const avail = ln.parentElement.clientWidth - 6; if (!need || !avail) continue;
-        fs = Math.min(fs, Math.floor(18 * avail / need * 2) / 2);
-      }
+      // 2026-11-10 14:52(實際時間)平板開機卡頓(使用者「改」;電腦模擬量到開機前 6 秒有 4.7 秒花在這裡):原本 40 列「改一列、量一列」,每量一次整個通知欄重新排版 40 次;
+      //   改成 40 列先全部設好、一次量完、再全部放回 → 只排版一次,量到的數字和原本一樣
+      for (const ln of meas){ ln.style.fontSize = (18 * Z) + 'px'; ln.style.width = 'max-content'; }   // 量「內容本身」需要多寬(max-content 不受容器寬度影響)
+      const needs = meas.map(ln => ln.getBoundingClientRect().width), avails = meas.map(ln => ln.parentElement.clientWidth - 6);
+      for (const ln of meas) ln.style.width = '';
+      for (let q = 0; q < meas.length; q++){ const need = needs[q], avail = avails[q]; if (!need || !avail) continue; fs = Math.min(fs, Math.floor(18 * avail / need * 2) / 2); }
       fs = Math.max(10, Math.min(40, fs));
       for (const ln of lns) ln.style.fontSize = (fs * Z) + 'px';
       // 2026-10-27 07:00 使用者:「通知欄分五列 不要切到最下面那列的顯示」(取代 10/19「剛好容納 4 張卡」);2026-10-27 08:05 改四列:標題列以下的高度平均分 3 列,
