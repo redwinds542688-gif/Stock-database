@@ -529,6 +529,35 @@ class Bridge:
     def delete_oco(self, no):
         self.delete_strategy(3, no)                                                     # 3 二擇一
 
+    def get_cond(self, typ):
+        """2026-11-10 15:31(實際時間)使用者「如何解決」:GetConditionStrategy 用 (帳號, StrategyType, 代碼) 一直「No method matches given arguments」→
+           失敗時用 .NET 反射把元大元件真正的參數(型別 / 名稱)記進 log,並照型別自動組參數試每一種寫法(查詢,不會下單);試成功的記住,下次直接用"""
+        if getattr(self, "_cond_how", None) is not None:
+            m, mk = self._cond_how; return m.Invoke(self.api, mk(typ))
+        try:
+            return self.api.GetConditionStrategy(CFG["YT_ACCOUNT"], self.Y.StrategyType(typ), "")
+        except Exception as e0:
+            S = self.System; ms = [m for m in self.api.GetType().GetMethods() if m.Name == "GetConditionStrategy"]
+            sigs = ["(" + ", ".join(f"{q.ParameterType.FullName} {q.Name}" for q in m.GetParameters()) + ")" for m in ms]
+            if not getattr(self, "_cond_logged", False): self._cond_logged = True; log(f"[條件單查詢] 元大元件的 GetConditionStrategy 有 {len(ms)} 種寫法:" + " | ".join(sigs))
+            for m in ms:
+                ps = list(m.GetParameters())
+                def mk(t, ps=ps):
+                    out = []
+                    for q in ps:
+                        ty = q.ParameterType; nm = str(q.Name).lower(); tn = str(ty.FullName)
+                        if ty.IsEnum: out.append(S.Enum.ToObject(ty, int(t)))
+                        elif tn == "System.String": out.append(CFG["YT_ACCOUNT"] if ("acc" in nm or "acct" in nm) else "")
+                        elif tn in ("System.Int32", "System.Int16", "System.Int64", "System.Byte"): out.append(S.Convert.ChangeType(int(t), ty))
+                        elif tn == "System.Boolean": out.append(True)
+                        else: raise TypeError("不會組 " + tn)
+                    return S.Array[S.Object](out)
+                try:
+                    r = m.Invoke(self.api, mk(typ)); self._cond_how = (m, mk)
+                    log(f"[條件單查詢] 這種寫法成功:{sigs[ms.index(m)]}(之後都用它)"); return r
+                except Exception as e1: log(f"[條件單查詢] {sigs[ms.index(m)]} 也不行:{str(e1)[:120]}")
+            raise e0
+
     def delete_strategy(self, typ, no):
         Y = self.Y
         x = Y.DeleteStrategy(); x.Account = CFG["YT_ACCOUNT"]; x.StrategyType = Y.StrategyType(int(typ)); x.StrategyNo = str(no).strip()
@@ -935,7 +964,7 @@ class Bridge:
             self.api.GetOrderTradeReport(True, CFG["YT_ACCOUNT"])                       # True = 不列出取消單
             if with_oco:
                 time.sleep(1.2)                                                         # 帳務 / 查詢類一秒最多 3 次
-                try: self.api.GetConditionStrategy(CFG["YT_ACCOUNT"], self.Y.StrategyType(3), "")   # 3 = 二擇一;空字串 = 全部股票
+                try: self.get_cond(3)   # 3 = 二擇一;2026-11-10 改走 get_cond(失敗時自動找對的參數寫法)
                 except Exception as e:   # 2026-10-29 12:03 正式環境實測:No method matches given arguments (str, StrategyType, str) → 參數型別 / 順序和文件不同,先當作沒有條件單,不讓它把整個查詢弄掛(TRADE_BROKER_STOP=0 本來就不掛條件單)
                     self.resume_buf["got_oco"] = True; self.resume_buf["oco_failed"] = True; log("查二擇一條件單失敗(改用狀態檔存的編號):", e)
             for _ in range(30):
@@ -953,7 +982,7 @@ class Bridge:
         self.resume_buf = {"trades": [], "tags": {}, "oco": [], "working": [], "got_rpt": True, "got_oco": False, "want_oco": len(types), "n_oco": 0}
         try:
             for t in types:
-                try: self.api.GetConditionStrategy(CFG["YT_ACCOUNT"], self.Y.StrategyType(t), ""); time.sleep(1.2)   # 查詢類一秒最多 3 次
+                try: self.get_cond(t); time.sleep(1.2)   # 查詢類一秒最多 3 次
                 except Exception as e:   # 2026-10-29 同上:簽章不合就當作沒有條件單
                     self.resume_buf["got_oco"] = True; log("查條件單失敗(當作沒有):", e); break
             for _ in range(20):
