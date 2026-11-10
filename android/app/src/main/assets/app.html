@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-10 17:58(實際時間)剛開 App 時今天通知卡的價格紅綠不對、十幾秒後才變對:即時報價一到就校正顏色(使用者影片「進場通知欄 10秒後才顯示真正正確的股價」)
   · 2026-11-10 15:25(實際時間)今天的進場卡下排放回「現」即時現價(使用者「那進場 下面也看 即時價 好了 這樣清晰一些」)
   · 2026-11-10 15:23(實際時間)平倉卡下排「平」改「現」(平倉那一刻的現價);進場卡拿掉即時現價(即時價看當沖)(使用者「下面的 現價 就是 成交那一刻的現價」「即時價 在當沖裡」)
   · 2026-11-10 15:19(實際時間)進場通知卡下排:平倉卡標「平」+平倉價,今天的進場卡(含元三 / 強三)加「現」+即時現價(使用者「所有進場 平倉卡 都要標示 現價」→「那平倉就寫 平」)
@@ -377,7 +378,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611101738">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611101758">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4104,6 +4105,9 @@ function rowNeedle(row, r){
   }
   if (nd.__p === r.chgPct) return; nd.__p = r.chgPct; nd.classList.remove('pinv', 'plose'); needleSet(nd, r.chgPct);
 }
+setInterval(() => { try{   /* 2026-11-10 17:57 使用者(影片)「進場通知欄 10秒後才顯示真正正確的股價」:剛開時即時報價的昨收還沒到,卡片價格顏色先用舊快照的昨收(可能紅綠顛倒),通知內容沒變就不重畫 → 等十幾秒才對;改成報價一到就每 3 秒直接把今天卡片的價格顏色校正(比昨收高紅、低綠、平白) */
+  document.querySelectorAll('#notifLog [data-pc]').forEach(e => { const y = +(((LIVE.get(e.dataset.pc) || {}).y) || 0), v = +e.dataset.pv; if (!(y > 0) || !(v > 0)) return; const c = 'px' + (v > y ? ' up' : v < y ? ' down' : ' flat'); if (e.className !== c) e.className = c; });
+  }catch(e){} }, 3000);
 setInterval(() => { try{ document.querySelectorAll('#notifLog .nowp').forEach(e => { const z = +(((LIVE.get(e.dataset.c) || {}).z) || 0); if (z > 0){ const t = z.toFixed(2); if (e.textContent !== t) e.textContent = t; } }); }catch(e){} }, 3000);   // 2026-11-10 進場卡「現」跟報價更新
 window.__needlesNow = () => { try{ document.querySelectorAll('#bands .row').forEach(row => rowNeedle(row, LIVE.get(row.dataset.code))); }catch(e){} };
 function needleSet(svg, p){
@@ -7682,7 +7686,7 @@ window.bgTick = bgTick; window.BG = BG;
       const al = (o.type === 'entry' || o.type === 'turn') ? '' : o._alert, alT = o._alertT || '';
       const fresh = dd === today && alT && (() => { const [h, mi] = alT.split(':').map(Number); const n = new Date(Date.now() + 8 * 3600000); return (n.getUTCHours() * 60 + n.getUTCMinutes()) - (h * 60 + mi) < 10; })();
       const rs = (o.type === 'entry' && (o.ph > 0 || o.phNew)) ? '<span class="rs al al-ph">預掛</span>' : (o.type === 'entry' && o.phFc) ? '<span class="rs al al-exit"><b class="fz">強</b>平</span>' : al ? `<span class="rs al al-${al}">${al === 'exit' && o.fc ? (o.yp ? '<b class="fz">元</b>平' : '<b class="fz">強</b>平') : AL[al]}</span>` : '<span class="rs"></span>';   // 2026-10-28 強平:「強」紅色   // 2026-10-19 使用者:「反彈 / 平倉 / 注意一直閃太干擾,不要閃了」→ 拿掉 blink,只用顏色,不再閃爍(fresh 保留給之後可能用)
-      return `<div class="ln"><span class="nmblk"><span class="nm">${esc(o.name)}</span></span><span class="px${ud(+entP)}">${pxTop}</span><span class="sd${sideTxt ? (o.side === 'long' ? ' win' : ' lose') : ''}">${sideTxt}</span><span class="qt">${o.over ? '<b style="color:#FFD24D;font-weight:700">超額</b>' : o.notrade ? '<b style="color:#8C96AB;font-weight:700">未交易</b>' : (o.madd && lots) ? '<b style="color:#FFD54F;font-weight:700">+</b>' + lots + '張' : lots ? lots + '張' : (o.type === 'turn' && (o.add || o.warnT) && o.side) ? `<b class="tsd ${o.side === 'long' ? 'win' : 'lose'}">${o.side === 'long' ? '做多' : '做空'}</b>` : ''}</span><span class="exm">${ex}</span>${rs}</div>`
+      return `<div class="ln"><span class="nmblk"><span class="nm">${esc(o.name)}</span></span><span class="px${ud(+entP)}"${!o.prev && dd === today && entP ? ` data-pc="${esc(o.code)}" data-pv="${+entP}"` : ''}>${pxTop}</span><span class="sd${sideTxt ? (o.side === 'long' ? ' win' : ' lose') : ''}">${sideTxt}</span><span class="qt">${o.over ? '<b style="color:#FFD24D;font-weight:700">超額</b>' : o.notrade ? '<b style="color:#8C96AB;font-weight:700">未交易</b>' : (o.madd && lots) ? '<b style="color:#FFD54F;font-weight:700">+</b>' + lots + '張' : lots ? lots + '張' : (o.type === 'turn' && (o.add || o.warnT) && o.side) ? `<b class="tsd ${o.side === 'long' ? 'win' : 'lose'}">${o.side === 'long' ? '做多' : '做空'}</b>` : ''}</span><span class="exm">${ex}</span>${rs}</div>`
            + `<div class="ln sub"><span class="nmblk"><span class="cd">${esc(o.code)}</span></span><span class="px${ud(+o.price)}"><i class="s">${pxBot}</i></span><span class="sd"><i class="s rsb">${o.rs === '強三' ? '<b class="fz">強</b>三' : o.rs === '元三' ? '<b class="fz">元</b>三' : (o.rs || '')}</i></span><span class="qt">${o.t ? `<i class="s tm">${esc(o.t)}</i>` : ''}</span><span class="exm"></span><span class="rs">${al === 'exit' && o._win != null ? `<i class="s wl ${o._win ? 'win' : 'lose'}">${o._win ? '贏' : '輸'}</i>` : ''}</span></div>`;   // 2026-10-18 使用者:平倉下面顯示 輸 / 贏,加框
     };
     // 2026-11-02 13:53 使用者選「標未交易 不寫原因」:電腦說沒變成部位的進場訊號(?trade=pos 的 skipped:代碼|判別式|訊號那根),進場卡和同一筆的平倉卡標「未交易」;
