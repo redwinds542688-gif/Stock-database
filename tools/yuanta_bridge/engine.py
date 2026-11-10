@@ -885,7 +885,7 @@ class Engine:
             try:   # 2026-11-07 收盤檢討:進場通知比訊號那根 K 收完晚幾秒
                 n_ = now_tw(); self.lat.append(round((n_.hour * 3600 + n_.minute * 60 + n_.second) - (int(tm[:2]) * 3600 + int(tm[3:5]) * 60 + 60)))
             except Exception: pass
-            self.pos[(rs, code)] = {"side": d["side"], "t": tm, "px": px, "lots": qty, "text": d["text"], "over": over}
+            self.pos[(rs, code)] = {"side": d["side"], "t": tm, "px": px, "lots": qty, "text": d["text"], "over": over, "tp": round(tp, 2), "sl": round(sl, 2), "ver": RULES.get("ver", "")}   # 2026-11-10 記停利 / 停損 / 規則版本(訊號因資料微調消失時續抱用)
             if rs == "四" and not over: self.j4.add(code)
             if rs == "五" and not over: self.j5.add(code)
             return True
@@ -948,7 +948,17 @@ class Engine:
             tr = trades.get(p["t"])
             if tr is None or tr[0]["side"] != p["side"]:
                 have = self.last_hm.get(code, "") >= hm_add(p["t"], 1) and p["t"] < upto and "無資料" not in out   # 這檔今天的 K 沒到 / 不夠 → 不是訊號消失,是資料缺
-                if allow_phantom and have:
+                # 2026-11-10 12:55(實際時間)使用者「要改善修正」→ 選「不平倉,照停利停損走」(富喬 11:30 判四:進場價離 VWAP −4.06% 剛好過門檻,
+                #   下一分鐘元大 K 補了幾筆成交、VWAP 變 −4.09% → 訊號消失被平倉 −287):規則沒改版(進場時和現在同一版)= 資料微調 → 不推平倉,
+                #   部位續抱,照進場時的停利 / 停損 / 13:20 出場(這裡用最新價判斷、推平倉通知;中繼本來也自己盯停利停損、條件單)。
+                #   規則改版造成的消失(群創 09:47 那種)照使用者 09:50「以後就照新規定走」→ 照舊推平倉
+                same_rule = bool(p.get("ver")) and p.get("ver") == RULES.get("ver") and p.get("tp") and p.get("sl")
+                if allow_phantom and have and same_rule:
+                    if not p.get("orphan"): p["orphan"] = 1; log(f"!! {JUDGE[rs]} {code} {p['t']} 已推的進場在重算裡不見了,但規則沒改版(資料微調)→ 不平倉,照停利 {p['tp']} / 停損 {p['sl']} / 13:20 續抱")
+                    px_ = self.px.get(code, p["px"]); sd = p["side"]
+                    hit = "停損" if (px_ - p["sl"]) * sd <= 0 else "停利" if (px_ - p["tp"]) * sd >= 0 else ("13:20 強制平倉" if upto >= "13:20" else "")
+                    if hit and self.push_exit(rs, code, p, upto, px_, hit, upto): self.pos.pop(k)
+                elif allow_phantom and have:
                     log(f"!! {JUDGE[rs]} {code} {p['t']} 已推的進場在重算裡不見了 → 推平倉")
                     if self.push_exit(rs, code, p, upto, self.px.get(code, p["px"]), "", upto, phantom=True): self.pos.pop(k)
                 elif (k, p["t"]) not in self.held_note:
