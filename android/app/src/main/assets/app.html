@@ -10,6 +10,7 @@
   · 2026-11-09 14:33(實際時間)資訊:台股 / 日經 / 韓國 平日 14:40 後再抓一次當天收盤和走勢線(早上 08:30 抓美股),標題日期 = 最新那天(使用者「台股 美股 韓股 日股 都要逐日更新」)
   · 2026-11-09 13:32(實際時間)下排燈:收盤後 進場 / 當沖 不亮;明細輸贏燈留著顯示當天結果,到下一個交易日 08:45(開盤前 15 分)才拿掉(使用者「明細左右的贏錢燈跟輸錢燈 在開盤前15分鐘取消」)
   · 2026-11-09 13:31(實際時間)13:30 收盤後下排三顆燈(進場藍燈等)確實熄掉:通知欄內容沒變也會在開盤 / 收盤那一刻重畫(使用者「1點半之後 進場右邊的藍燈關閉」)
+  · 2026-11-10 13:43(實際時間)當沖點股票開 K 圖:手指按在當沖上時(最多 5 秒)先不重畫、放開 0.35 秒後補畫,按著的那列不會被換掉;點一下開 K 圖、長按強制平倉照原本寫法(使用者「改」)
   · 2026-11-10 13:40(實際時間)中繼:元三進場卡發出後又分批 / 另一張同方向成交 → 用同一個鍵(同一分鐘)改寫那張卡:總張數、新均價、新停利停損(友達 10:22 卡寫 2 張實際 8 張)(使用者「改」)
   · 2026-11-10 13:36(實際時間)電腦引擎:今天還沒有任何成交(沒有 K)的股票先不算,不再報假錯誤(11/10 2412、3605 09:02 才第一筆 → 09:01~02「錯誤 14/462」)(使用者「修」)
   · 2026-11-10 12:57(實際時間)電腦引擎:已推的進場在重算裡不見了,但規則沒改版(資料微調)→ 不平倉,照停利 / 停損 / 13:20 續抱;規則改版造成的照舊平倉(使用者「要改善修正」選「不平倉,照停利停損走」,富喬 11:30 判四 VWAP −4.06%→−4.09%)。中繼盤後 13:40 後自動更新
@@ -346,7 +347,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611101338">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611101341">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7904,7 +7905,9 @@ window.bgTick = bgTick; window.BG = BG;
           const fitU = () => { try{ const ux = box.querySelector('.usx'), hh = box.querySelector('.hd'); if (ux && !box.classList.contains('usm')) ux.style.height = Math.max(150, box.clientHeight - (hh ? hh.offsetHeight : 0) - 2) + 'px'; }catch(e){} };
           fitU(); requestAnimationFrame(() => requestAnimationFrame(fitU)); }
         else {
-        { const __H = hdPos + `<div class="tb pos">` + body + (cnt ? (late ? `<div class="late-note">⚠ 已過 13:20,這 ${cnt} 檔還沒收到平倉通知,請到投資先生確認已贖回</div>` : '') : __ub ? '' : `<div class="empty">${over || !TP || !TP.ok ? '目前沒有進場中的股票' : '目前沒有已成交的部位'}</div>`) + `</div>`; if (nlSame(__H)){ if (__snapPrev[0]) box.classList.add('snapdt'); box.style.scrollPaddingTop = __snapPrev[1]; return; } nlPut(__H); }
+        { const __H = hdPos + `<div class="tb pos">` + body + (cnt ? (late ? `<div class="late-note">⚠ 已過 13:20,這 ${cnt} 檔還沒收到平倉通知,請到投資先生確認已贖回</div>` : '') : __ub ? '' : `<div class="empty">${over || !TP || !TP.ok ? '目前沒有進場中的股票' : '目前沒有已成交的部位'}</div>`) + `</div>`; if (nlSame(__H)){ if (__snapPrev[0]) box.classList.add('snapdt'); box.style.scrollPaddingTop = __snapPrev[1]; return; } if (box.__tDown && Date.now() - box.__tDown < 5000){ box.__pend = true; return; } nlPut(__H); }   /* 2026-11-10 13:41 使用者「當沖裡 點擊股票 無法跳k圖」→「改」:手指按在當沖上(最多 5 秒)先不重畫,放開 0.35 秒後再補畫 —— 按著的那一列不會被換掉,點一下開 K 圖、長按強制平倉都照原本的寫法 */
+        if (!box.__tHook){ box.__tHook = true; const up = () => { box.__tDown = 0; if (box.__pend){ box.__pend = false; setTimeout(() => { try{ window.nlRender && nlRender(); }catch(e){} }, 350); } };
+          box.addEventListener('pointerdown', () => { box.__tDown = Date.now(); }, {passive: true}); box.addEventListener('pointerup', up, {passive: true}); box.addEventListener('pointercancel', up, {passive: true}); }
         try{ const tb = box.querySelector('.tb.pos'); const u = fitW(tb.clientWidth || box.clientWidth) / 40; tb.style.fontSize = Math.max(12, Math.floor(u * 2 * 0.96)) + 'px'; }catch(e){}
         // 2026-10-27 11:10 使用者(當沖 4 檔,「和桐下面切到」):整張表放不下 → 先把每列上下留白縮小,還放不下再整張表一起把字縮小(最小 12px,整表同字級,欄位照樣對齊);再多才用捲的
         { const fitPos = () => { try{ const tb = box.querySelector('.tb.pos'), fit = () => box.scrollHeight <= box.clientHeight + 1;
