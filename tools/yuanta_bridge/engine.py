@@ -42,7 +42,7 @@ SIMD = DATA / "sim"
 RS_ALL = ["一", "二", "三", "四", "五", "六", "七"]
 # 2026-11-10 14:03(實際時間)使用者「同時被選 以勝率決定誰進場」:同一分鐘同一檔被兩個以上判別式選中 → 勝率高的先算、先發通知(中繼照先到的進場,後面的「這檔已經有部位」不進);
 #   22 天(10/06~11/09)不限額度勝率:判五 91%、判七 88%、判一 86%、判三 83%、判四 81%、判二 70%;判六觀察版放最後。私人庫 rs_env.RS_PRIORITY 有設就用它
-RS_PRIORITY = ["五", "七", "一", "三", "四", "二", "六"]   # 2026-11-10 02:30 加觀察版判六(超賣急彈做多,只發通知,中繼不下單;使用者「改 +3%」)   # 2026-11-09 加觀察版判七(只發通知,中繼不下單); 2026-11-05 加判五(使用者「先加 在公式 增加判五」→「完整上線」;模擬器 MODE=fail5)
+RS_PRIORITY = ["五", "七", "一", "三", "四", "二", "六"]   # 2026-11-10 23:05 判六改成午盤 Ka 穿 VWAP 追多(觀察版)   # 2026-11-10 02:30 加觀察版判六(超賣急彈做多,只發通知,中繼不下單;使用者「改 +3%」)   # 2026-11-09 加觀察版判七(只發通知,中繼不下單); 2026-11-05 加判五(使用者「先加 在公式 增加判五」→「完整上線」;模擬器 MODE=fail5)
 _RS_ALL_OLD = ["一", "二", "三", "四"]   # 2026-10-31 使用者「現在把新轉折 直接改名為 判四 加在公式 裡面 燈號啟動 真正的下單也啟動 自動平倉機制也啟動」:判四 = 新轉折做空(模擬器 MODE=turn4)
 JUDGE = {"一": "判一", "二": "判二", "三": "判三", "四": "判四", "五": "判五", "六": "判六", "七": "判七"}
 J5MAX = 6   # 2026-11-05 判五一天最多 6 筆(17:15 使用者「改限6筆」)(全部股票合計、照出現先後;超額的不算);實際用私人庫 rs_env.J5MAX
@@ -416,6 +416,7 @@ RE_T4 = re.compile(r"^\s*(\d\d:\d\d) 判四 .*→ 進場空 ([\d.]+) ×(\d+)張,
 RE_T5 = re.compile(r"^\s*(\d\d:\d\d) 判五 .*→ 進場空 ([\d.]+) ×(\d+)張,停損 ([\d.]+)")   # 2026-11-05 判五(衝高失敗、回頭跌破做空)進場   # 2026-10-31 判四(新轉折做空)進場,停損價由模擬器算好
 RE_T7 = re.compile(r"^\s*(\d\d:\d\d) 判七 .*?量縮 ([\d.]+) 離今高 ([\d.]+)% 今高離VWAP ([-\d.]+)% → 進場空 ([\d.]+) ×(\d+)張,停損 ([\d.]+)")   # 2026-11-09 觀察版判七進場(帶量縮 / 離今高 / 今高離 VWAP,12/06 驗證用)
 RE_T6 = re.compile(r"^\s*(\d\d:\d\d) 判六 超賣急彈 低 ([\d.]+).*?彈 ([\d.]+)% RSI ([\d.]+) 跳空 ([-+\d.]+)% → 進場多 ([\d.]+) ×(\d+)張 停損 ([\d.]+)")   # 2026-11-10 觀察版判六(超賣急彈做多)進場
+RE_T6K = re.compile(r"^\s*(\d\d:\d\d) 判六 午盤Ka穿VWAP 離低 ([\d.]+)% Oa−Ob ([-\d.]+)% RSI ([\d.]+) → 進場多 ([\d.]+) ×(\d+)張 停利 ([\d.]+) 停損 ([\d.]+)")   # 2026-11-10 23:05 判六改成「午盤 Ka 穿 VWAP 追多」(使用者「改為判六 原判六封存」;觀察版,中繼不下單)
 RE_EXIT = re.compile(r"^\s*(\d\d:\d\d) (.+?) 出 ([\d.]+)\s*$")
 RE_REV = re.compile(r"^\s*(\d\d:\d\d) .*→ (反向確認點|逆勢單遇反向點) 平倉 ([\d.]+)")
 # 2026-11-04 22:40 漏洞修正(使用者「找 判一二三四 漏洞」):判二 11/04 起晚 2 根進場(ENTRYDELAY=2),模擬器的訊號那行改成「→ 2 分鐘後進場(模擬通知延遲)」、
@@ -440,6 +441,10 @@ def parse_events(out):
         m = RE_FB.match(line)
         if m:
             ev.append((m.group(1), "entry", {"side": -1, "strong": False, "sig": float(m.group(2)), "px": float(m.group(2)), "lots": int(m.group(3)), "text": "空✓破", "sl": float(m.group(4))})); continue
+        m = RE_T6K.match(line)
+        if m:
+            ev.append((m.group(1), "entry", {"side": 1, "strong": False, "sig": float(m.group(5)), "px": float(m.group(5)), "lots": int(m.group(6)), "text": "多", "tp": float(m.group(7)), "sl": float(m.group(8)),
+                                             "note": f"午盤Ka穿VWAP 離低 {m.group(2)}% Oa−Ob {m.group(3)}% RSI {m.group(4)}"})); continue
         m = RE_T6.match(line)
         if m:
             ev.append((m.group(1), "entry", {"side": 1, "strong": False, "sig": float(m.group(6)), "px": float(m.group(6)), "lots": int(m.group(7)), "text": "多", "sl": float(m.group(8)),
@@ -740,9 +745,9 @@ class Engine:
         self.rs_pri = getattr(rs_env, "RS_PRIORITY", None)   # 2026-11-10 同一分鐘同一檔的判別式優先順序(勝率);私人庫沒設就用 engine 的 RS_PRIORITY
         self.envs = {}
         self.j5max = int(getattr(rs_env, "J5MAX", J5MAX))   # 2026-11-05 判五一天上限(私人庫 rs_env.J5MAX;apply 裡沒有 rs_env 這個名字)
-        for rs in RS_ALL: self.envs[rs] = rs_env.env_of(rs, str(DATA / "breadth.json") if rs in ("一", "二", "五") else None)   # 判五:名單平均檔 DATA/mktavg.json(write_breadth 寫)
-        if self.envs.get("六", {}).get("MODE") != "j6r":   # 2026-11-10 私人庫 rs_env.py 還沒有觀察版判六(超賣急彈 J6)→ 判六先不跑
-            self.envs.pop("六", None); log("!! 私人庫 rs_env.py 還沒有觀察版判六(J6 MODE=j6r),判六今天先不跑")
+        for rs in RS_ALL: self.envs[rs] = rs_env.env_of(rs, str(DATA / "breadth.json") if rs in ("一", "二", "五", "六") else None)   # 2026-11-10 23:05 判六(午盤 Ka 穿 VWAP)要寬度 10 分鐘變化   # 判五:名單平均檔 DATA/mktavg.json(write_breadth 寫)
+        if self.envs.get("六", {}).get("MODE") not in ("j6k", "j6r"):   # 2026-11-10 23:05 判六 = 午盤 Ka 穿 VWAP(j6k;舊超賣急彈 j6r 封存但還認得);私人庫沒有 → 判六先不跑
+            self.envs.pop("六", None); log("!! 私人庫 rs_env.py 還沒有觀察版判六(J6 MODE=j6k),判六今天先不跑")
         if self.envs.get("七", {}).get("MODE") != "j7":   # 2026-11-09 私人庫 rs_env.py 還沒有觀察版判七(J7)→ 判七先不跑
             self.envs.pop("七", None); log("!! 私人庫 rs_env.py 還沒有判七(J7),判七今天先不跑")
         if self.envs.get("五", {}).get("MODE") != "fail5":   # 私人庫的 rs_env.py 還是舊版(沒有 J5)→ 判五先不跑(不然會拿判二的參數亂算)
