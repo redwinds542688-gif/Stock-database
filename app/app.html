@@ -331,7 +331,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611100232">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611100925">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1090,7 +1090,7 @@
   <div class="grid head">
     <div class="h-dot"><svg id="mkArrow" viewBox="0 0 28 24" overflow="visible" aria-label="大盤"><g id="mkNeedle" class="ndl"><polygon points="7.8,10.4 10.6,10.9 27.5,12 10.6,13.1 7.8,13.6" fill="currentColor"/><circle cx="4.6" cy="12" r="4.6" fill="currentColor"/><circle cx="4.6" cy="12" r="3.1" fill="#E9EDF3"/><circle cx="4.6" cy="12" r="1.3" fill="#8A93A3"/></g></svg></div>   <!-- 2026-10-27 12:30 使用者(手錶指針圖):「大盤指針 用這個」:圓軸心(外圈 = 指針顏色、白盤、中心小圓)+ 往右尖的針,繞軸心轉 -->   <!-- 2026-10-27 11:00 使用者:「用這種箭頭顯示大盤的漲跌」:10:45 的紅點換成箭頭,平盤白色朝右、漲紅往上翹(1% = 9°)、跌綠往下 -->
     <div></div>
-    <div class="h-nm">股票<span id="listCnt" style="margin-left:.35em;opacity:.7"></span></div>   <!-- 2026-10-30 00:00 使用者「在監控股票區最上面 股票的後面 顯示監控的股票數量」 -->
+    <div class="h-nm">股票<span id="listCnt" style="margin-left:.35em;opacity:.7"></span><span id="listBr" class="num" style="margin-left:.4em;font-size:.85em"></span></div>   <!-- 2026-11-10 09:24 使用者「在監控 66 後面加一個上漲家% 不取小數點 96.5 就顯示紅色96%」:大盤上漲家數比例(Worker ?breadth 最新一筆),無條件捨去;≥ 50% 紅、< 50% 綠 -->   <!-- 2026-10-30 00:00 使用者「在監控股票區最上面 股票的後面 顯示監控的股票數量」 -->
     <div></div>
     <div class="h-px lsrt" data-k="px">成交價<span class="srtA"><i class="u"></i><i class="d"></i></span></div>   <!-- 2026-11-04 23:03 使用者「成交價 右邊出現上下箭頭…」「成交量旁邊也是這樣的邏輯」:按一次高→低(上亮)、再按低→高(下亮)、再按恢復 -->
     <div></div>
@@ -3748,7 +3748,7 @@ async function loadBreadth(d){
     else if (!inc) BREADTH.arr = add;
     if (inc && addA.length){ const t0 = addA[0][0]; BREADTH.av = BREADTH.av.filter(x => x[0] < t0).concat(addA); }
     else if (!inc) BREADTH.av = addA;
-    BREADTH.d = d; BREADTH.base = base; BREADTH.err = '';
+    BREADTH.d = d; BREADTH.base = base; BREADTH.err = '';   try{ brBadge(); }catch(e){}
   }catch(e){ BREADTH.err = e.message; }
 }
 function breadthAt(t){   // t 那分鐘(含)以前最近的寬度;不是今天的 K → null
@@ -3760,6 +3760,13 @@ function mktAvgAt(t){   // 2026-11-05 判五:t 那分鐘(含)以前最近的名�
   let r = null; for (const [bt, v] of BREADTH.av){ if (bt > t) break; r = v; } return r;
 }
 window.mktAvgAt = mktAvgAt;
+function brBadge(){ try{ const el = document.getElementById('listBr'); if (!el) return;   // 2026-11-10 09:24 監控股票數後面的上漲家數 %
+  const a = BREADTH.arr, ok = a && a.length && BREADTH.d === todayTW();
+  if (!ok){ el.textContent = ''; return; }
+  const v = +a[a.length - 1][1]; if (!isFinite(v)){ el.textContent = ''; return; }
+  const p = Math.floor(v * 100 + 1e-9); el.textContent = p + '%'; el.style.color = p >= 50 ? '#FF3B3B' : '#1DD75B';
+}catch(e){} }
+window.brBadge = brBadge; setInterval(brBadge, 15000);
 window.BREADTH = BREADTH;
 async function loadTodayBars(code, force){
   const cached = TODAY_BARS.get(code);
