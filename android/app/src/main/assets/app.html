@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-10 15:10(實際時間)檢討分 元大 / 虛擬 兩份:標題列切換鍵(黃元大、紫虛擬,看盤版只有虛擬);元大數字用元大真實成交,虛擬用電腦收盤推的;重大發現 real / virt 各一份,虛擬那份不寫判別式條件(使用者「虛擬寫虛擬的檢討 不可透露判別式的密碼 / 元大寫元大的檢討」→「改」)
   · 2026-11-10 14:56(實際時間)資訊六張卡:名稱後面加資料日期(台灣加權 11/10、費城半導體 11/09…)(使用者「台灣加權 後面加上日期 其他也一樣」)
   · 2026-11-10 14:40(實際時間)資訊六張卡:視窗矮時字跟著卡片高度縮,漲跌那行不再被切(使用者「各圖 漲跌多少 被切了」)
   · 2026-11-10 12:25(實際時間)進場卡加碼張數:「加4張」改成「+4張」(使用者「加碼的 不用 加 這字 用 +」)
@@ -366,7 +367,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611101502">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611101510">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1609,15 +1610,21 @@ const rvKey = () => { const R = window.__RV; return R && R.d ? R.d : ''; };   //
 const rvHas = () => { const R = window.__RV; return !!(R && R.d && (R.auto || R.notes)) && !inSession(); };   /* 2026-11-08 看盤版拿得到(owner 鑰匙)就顯示 */   // 2026-11-07 14:59 使用者「開盤時段還是隱藏好了」
 const rvBtn = () => { if (!rvHas()) return ''; let seen = ''; try{ seen = localStorage.getItem('mysh.rvSeen') || ''; }catch(e){}
   return `<button class="vbtn rvb${window.__rvOn ? ' on' : ''}${!window.__rvOn && seen !== rvKey() ? ' dot' : ''}" type="button">檢討</button>`; };
-const rvHtml = () => { const R = window.__RV || {}, A = R.auto || {}, N = R.notes || {}, e = x => String(x == null ? '' : x).replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]));
+/* 2026-11-10 15:07 使用者「虛擬寫虛擬的檢討 不可透露判別式的密碼 / 元大寫元大的檢討 永久會員 說判別式沒關係」→「改」:
+   檢討分 元大 / 虛擬 兩份(標題列切換鍵,和明細一樣黃 = 元大、紫 = 虛擬);看盤版只有虛擬。
+   元大:數字用明細「元大」那份(元大真實成交,判別式從那天的進場通知對;對不到 = 手動),重大發現 notes.real(舊格式 {findings} 也當元大);
+   虛擬:數字用電腦收盤推的虛擬交易(auto),重大發現 notes.virt(不寫判別式條件 / 門檻 / 參數) */
+try{ if (localStorage.getItem('mysh.rvReal') === '0') window.RV_REAL = false; }catch(e){}
+const rvIsReal = () => !vwOnly() && window.RV_REAL !== false;
+const rvHtml = (Y) => { const RR = window.__RV || {}, real = rvIsReal(), N0 = RR.notes || {}, R = real && Y && !Y.none ? Object.assign({}, RR, {auto: Y}) : real && !((RR.d || '') < '2026-11-10') ? Object.assign({}, RR, {auto: null}) : RR, A = R.auto || {}, N = (real ? (N0.real || (Array.isArray(N0.findings) ? N0 : null)) : N0.virt) || {}, e = x => String(x == null ? '' : x).replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]));
   const m = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(Math.round(v || 0)).toLocaleString('en-US'), cl = v => v > 0 ? 'up' : v < 0 ? 'dn' : '';
-  let h = `<div class="rvw"><div class="rvt"><span>${e((R.d || '').slice(5).replace('-', '/'))} 收盤檢討</span></div>`;   // 2026-11-07 16:00 使用者「虛擬電腦通知那個不用顯示」
+  let h = `<div class="rvw"><div class="rvt"><span>${e((R.d || '').slice(5).replace('-', '/'))} ${real ? '元大' : '虛擬'}收盤檢討</span></div>`;   // 2026-11-07 16:00 使用者「虛擬電腦通知那個不用顯示」
   if (R.auto){ h += `<div class="rvr"><span>今日輸贏</span><b class="${cl(A.net)}">${m(A.net)}</b><span>${A.n || 0} 筆 ${A.w || 0} 贏 ${(A.n || 0) - (A.w || 0)} 輸</span></div>`;
     const by = Object.entries(A.by || {}).sort((x, y) => '一二三四五七'.indexOf(x[0].slice(-1)) - '一二三四五七'.indexOf(y[0].slice(-1))); if (by.length) h += `<div class="rvs">${by.map(([j, b]) => `${e(j)} <span class="${cl(b.net)}">${m(b.net)}</span>`).join('　')}</div>`;
-    if (A.best || A.worst) h += `<div class="rvs">${A.best ? `最大贏 ${e(A.best.name)} <span class="${cl(A.best.net)}">${m(A.best.net)}</span>` : ''}${A.worst ? `　最大輸 ${e(A.worst.name)} <span class="${cl(A.worst.net)}">${m(A.worst.net)}</span>` : ''}</div>`;
-    { for (const k_ of ['判六', '判七']){ const J7 = (A.obs || {})[k_]; if (J7 && J7.n) h += `<div class="rvs">${k_}(觀察,沒下單)${J7.n} 筆 ${J7.w} 贏 <span class="${cl(J7.net)}">${m(J7.net)}</span></div>`; } }   /* 2026-11-10 加觀察版判六 */   // 2026-11-09 觀察版判七另外列
-    h += `<div class="rvs">拖輸提示 ${(A.drag || []).length} 筆${A.lat_med != null ? `　進場通知中位晚 ${A.lat_med} 秒` : ''}${A.round_med != null ? `　每輪 ${A.round_med} 秒` : ''}</div>`; }
-  else h += `<div class="rv0">電腦收盤數字還沒上來</div>`;
+    if (A.best || A.worst) h += `<div class="rvs">${A.best ? `最大贏 ${e(A.best.name)} <span class="${cl(A.best.net)}">${m(A.best.net)}</span>` : ''}${A.worst ? `${A.best ? '　' : ''}最大輸 ${e(A.worst.name)} <span class="${cl(A.worst.net)}">${m(A.worst.net)}</span>` : ''}</div>`;
+    if (!real) { for (const k_ of ['判六', '判七']){ const J7 = (A.obs || {})[k_]; if (J7 && J7.n) h += `<div class="rvs">${k_}(觀察,沒下單)${J7.n} 筆 ${J7.w} 贏 <span class="${cl(J7.net)}">${m(J7.net)}</span></div>`; } }   /* 2026-11-10 加觀察版判六 */   // 2026-11-09 觀察版判七另外列
+    if (!real) h += `<div class="rvs">拖輸提示 ${(A.drag || []).length} 筆${A.lat_med != null ? `　進場通知中位晚 ${A.lat_med} 秒` : ''}${A.round_med != null ? `　每輪 ${A.round_med} 秒` : ''}</div>`; }
+  else h += `<div class="rv0">${real ? '這天的元大成交還沒拿到(電腦連上會自動補)' : '電腦收盤數字還沒上來'}</div>`;
   h += `<div class="rvh">⚠ 重大發現</div>`;
   if (Array.isArray(N.findings) && N.findings.length) h += `<ul>${N.findings.map(x => `<li>${e(x)}</li>`).join('')}</ul>`; else h += `<div class="rv0">這天沒有寫重大發現</div>`;
   if (N.tomorrow) h += `<div class="rvs">明天注意:${e(N.tomorrow)}</div>`;
@@ -7925,8 +7932,17 @@ window.bgTick = bgTick; window.BG = BG;
         window.__posWin = window.__posWinTmp || []; window.__posWinTP = !!TP;
         const __usx = !!(__ub && !open.length);
         box.classList.toggle('usm', __usx);
-        if (__usx){ const __rb = rvBtn(); if (!__rb) window.__rvOn = false; const __H = (__rb ? hdPos.replace(/<\/div>$/, __rb + '</div>') : hdPos) + (window.__rvOn && __rb ? rvHtml() : usCards()); if (!nlSame(__H)) nlPut(__H);
-          if (!box.__rvDel){ box.__rvDel = 1; box.addEventListener('pointerdown', ev => { try{ const b = ev.target && ev.target.closest && ev.target.closest('.hd .rvb'); if (!b || window.NL_VIEW !== 'pos') return; ev.preventDefault(); ev.stopPropagation();
+        if (__usx){ const __rb = rvBtn(); if (!__rb) window.__rvOn = false;
+          // 2026-11-10 15:07 檢討 元大 / 虛擬:元大那份的數字從元大真實成交算(和明細元大同一份;判別式從那天的進場通知對,對不到 = 手動)
+          const __rvY = (() => { if (!window.__rvOn || !rvIsReal()) return null; const dd = (window.__RV || {}).d; if (!dd) return null; try{ yfillsFix(dd); const yf = yFillsOf(dd); if (!yf) return {none: 1};
+            const r0 = Array.isArray(yf.legs) && (yf.legs.length || !(yf.rows || []).some(r => r.lots > 0)) ? yf.legs : yf.rows, rows = (r0 === yf.legs ? yLegMerge(r0) : (r0 || [])).filter(r => r.lots > 0);
+            let ents = []; try{ ents = prep(itemsFor(dd)).filter(o => o.type === 'entry' && o.rs); }catch(e){}
+            const L = rows.map(r => { const sd = r.dir === '做多' ? 'long' : 'short', en = ents.find(o => o.code === r.code && o.side === sd); return {name: r.name || SIG_NAMES.get(r.code) || r.code, net: +r.net || 0, rs: (en && en.rs) || '手動'}; });
+            if (!L.length) return {none: 1}; const by = {}; for (const x of L){ const b = by[x.rs] || (by[x.rs] = {n: 0, w: 0, net: 0}); b.n++; b.w += x.net > 0; b.net += x.net; }
+            const so = [...L].sort((a, b) => b.net - a.net); return {n: L.length, w: L.filter(x => x.net > 0).length, net: L.reduce((a, x) => a + x.net, 0), by, best: so[0].net > 0 ? so[0] : null, worst: so[so.length - 1].net < 0 ? so[so.length - 1] : null}; }catch(e){ return {none: 1}; } })();
+          const __ry = window.__rvOn && __rb && !vwOnly() ? `<button class="vbtn rvy on${rvIsReal() ? '' : ' virt'}" type="button">${rvIsReal() ? '元大' : '虛擬'}</button>` : '';
+          const __H = (__rb ? hdPos.replace(/<\/div>$/, __rb + __ry + '</div>') : hdPos) + (window.__rvOn && __rb ? rvHtml(__rvY) : usCards()); if (!nlSame(__H)) nlPut(__H);
+          if (!box.__rvDel){ box.__rvDel = 1; box.addEventListener('pointerdown', ev => { try{ const b = ev.target && ev.target.closest && ev.target.closest('.hd .rvb'); if (!b && ev.target.closest && ev.target.closest('.hd .rvy') && window.NL_VIEW === 'pos'){ ev.preventDefault(); ev.stopPropagation(); window.RV_REAL = !rvIsReal(); try{ localStorage.setItem('mysh.rvReal', window.RV_REAL ? '1' : '0'); }catch(e){} if (window.nlRender) nlRender(); return; } if (!b || window.NL_VIEW !== 'pos') return; ev.preventDefault(); ev.stopPropagation();
             window.__rvOn = !window.__rvOn; try{ localStorage.setItem('mysh.rvSeen', rvKey()); }catch(e){} if (window.nlRender) nlRender(); }catch(e){} }, true); }
           const fitU = () => { try{ const ux = box.querySelector('.usx'), hh = box.querySelector('.hd'); if (ux && !box.classList.contains('usm')) ux.style.height = Math.max(150, box.clientHeight - (hh ? hh.offsetHeight : 0) - 2) + 'px'; }catch(e){} };
           fitU(); requestAnimationFrame(() => requestAnimationFrame(fitU)); }

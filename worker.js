@@ -1005,7 +1005,11 @@ export default {
         const last = await hubOf(env).kvGet("review:last"); if (!last || !last.d || last.d <= b.d) await hubOf(env).kvPut("review:last", { d: b.d, prev: last && last.d && last.d < b.d ? last.d : ((last && last.prev) || "") });
         return J({ ok: true });
       }
-      if (!(pushOk || (KI && KI.role === "owner"))) return J({ error: KI ? "這把鑰匙不能看檢討" : "要鑰匙", badKey: !KI }, 403);
+      // 2026-11-10 15:07 使用者「虛擬寫虛擬的檢討 不可透露判別式的密碼 / 元大寫元大的檢討 永久會員 說判別式沒關係」→「改」:
+      //   重大發現分兩份 notes.real(元大,可寫判別式條件)/ notes.virt(虛擬,不寫判別式條件、門檻、參數);舊格式 {findings, tomorrow} 當元大那份
+      //   owner 鑰匙 / 中繼金鑰 → 全部;看盤版鑰匙 → 只給虛擬數字 + notes.virt(元大那份和舊格式都不給)
+      const rvOwner = pushOk || (KI && KI.role === "owner");
+      if (!rvOwner && !(KI && KI.on)) return J({ error: "要鑰匙", badKey: !KI }, 403);
       // 2026-11-07 14:56 使用者「統一14.00顯示A+B 一直顯示到下一則最新的A+B出現」:今天的檢討 14:00 起、而且重大發現(B)也寫好了才放出來
       //   (B 沒寫好最晚等到 15:00 就只放 A);在那之前一律給上一份
       const rvNotes = async dd => { try { if (env.GH_TOKEN) { const r = await ghRaw(env, `review/${dd}.json`, GH_REF, 60, GH_REPO_LOGIC); if (r.ok) return await r.json(); } } catch (e) {} return null; };
@@ -1019,6 +1023,7 @@ export default {
       if (!d) return J({ d: "", auto: null, notes: null });
       const v = await hubOf(env).kvGet("review:" + d);
       if (!notes) notes = await rvNotes(d);
+      if (!rvOwner) notes = notes && notes.virt ? { virt: notes.virt } : null;
       return new Response(JSON.stringify({ d, auto: (v && v.auto) || null, at: (v && v.at) || 0, notes }), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
     }
     const exq = url.searchParams.get("extra");
