@@ -199,7 +199,7 @@ class Trader:
         self.ph_cancel = {}  # 2026-11-07 23:34 強平時程式取消掉的手動委託書號 → 時間;取消前一兩秒它還是成交了 → 多出來的部位程式馬上再強平
         self.noshort = dict(self.load_state().get("noshort") or {})   # 2026-11-06 今天元大回 21352(無券)的股票 → 原因;之後的空單訊號不再送
         self.alert = lambda title, body="", kind="pc": None      # bridge 會換成「發提醒到手機」(kind:pc = 一般、lv1~lv5 = 虧損分級)
-        self.post = lambda title, body, kind: None    # bridge 會換成「寫一則交易訊息到手機的訊息欄」(強三進出場、強平)
+        self.post = lambda title, body, kind, t=None: None    # bridge 會換成「寫一則交易訊息到手機的訊息欄」(強三進出場、強平)
         self.ref_of = lambda code: None                # bridge 會換成「這檔的昨收」(±6.5% 用)
         self.name_of = lambda code: code               # bridge 會換成「這檔的名稱」
         self.want_sub = lambda code: None              # 2026-10-28 平倉檢查 #7:bridge 會換成「這檔補訂閱逐筆、回傳市場」(元三 / 接回的股票不在名單上也盯得到價)
@@ -864,6 +864,14 @@ class Trader:
                 if p.get("tp"): p["tp"] = round(p["entry"] * p["tp"] / e0, 2)
                 if p.get("sl"): p["sl"] = round(p["entry"] * p["sl"] / e0, 2)
             self.log(f"[交易] {p['judge']} {code} 元大手動同方向成交 {lots} 張(委託 {order_no})→ 併進程式部位,共 {tot} 張 均價 {p['entry']:.2f} 停利 {p['tp']} 停損 {p['sl']}")
+            if p.get("y3_card") and p.get("judge") == MANUAL:
+                # 2026-11-10 13:37(實際時間)使用者「改」:元三進場卡發出後同一張 / 另一張同方向又成交(友達 10:22 卡寫 2 張、實際 8 張)
+                #   → 用同一個鍵(同一分鐘 + 同標題去掉數字)重寫那張卡:總張數、新均價、新停利停損;Worker 同鍵覆蓋,不會多一張
+                try:
+                    dd = p["dir"]; self.post(f"{self.name_of(code)} {code} {'做多' if dd > 0 else '做空'}進場 {p['entry']:.2f}",
+                                             f"{p.get('t0', '')} 元大 · 停利 {(p.get('tp') or 0):.2f} 停損 {(p.get('sl') or 0):.2f} · {p['qty']}張 · {MANUAL}", "long" if dd > 0 else "short", t=p["y3_card"]["t"])
+                    self.log(f"[交易] 元三 {code} 進場卡改寫:{p['qty']} 張 均價 {p['entry']:.2f}")
+                except Exception as e: self.log(f"[交易] 元三 {code} 進場卡改寫失敗 {e}")
             if p["state"] == HOLDING: self.oco_refresh(p, "手動加碼")
             if self.prehang.get(code):   # 2026-11-08 01:00 預掛期間又加碼 → 預掛張數不夠了,提醒
                 ph = sum((self.man_meta.get(n) or {}).get("lots", 0) - (self.man_meta.get(n) or {}).get("fl", 0) for n in self.prehang[code])
@@ -930,8 +938,9 @@ class Trader:
                         if p.get("y3_posted"): return
                         p["y3_posted"] = True; n = p.get("y3_lots") or p.get("qty") or lots; px = p.get("y3_px") or price
                         tp, sl, t0 = p.get("tp") or 0, p.get("sl") or 0, p.get("t0", "")
+                    tc = self.hm(); p["y3_card"] = {"t": tc}   # 2026-11-10 記下發卡那分鐘:之後又分批成交 → 用同一個鍵(同一分鐘)重寫這張卡
                     self.post(f"{self.name_of(code)} {code} {'做多' if d > 0 else '做空'}進場 {px:.2f}",
-                              f"{t0} 元大 · 停利 {tp:.2f} 停損 {sl:.2f} · {n}張 · {MANUAL}", "long" if d > 0 else "short")
+                              f"{t0} 元大 · 停利 {tp:.2f} 停損 {sl:.2f} · {n}張 · {MANUAL}", "long" if d > 0 else "short", t=tc)
                     with self.lock: self.oco_refresh(p, "元三進場")   # 2026-11-08 元三也掛元大停損停利條件單(分批成交併完才掛)
                 if self.y3_post_delay > 0: threading.Timer(self.y3_post_delay, _post_y3).start()
                 else: _post_y3()

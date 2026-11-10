@@ -841,12 +841,13 @@ class Bridge:
                 time.sleep(0.03)
         log(f"[名單外] {code} 補的 K 推上 Worker {ok}/{n} 分鐘")
 
-    def trade_post(self, title, body, kind):
+    def trade_post(self, title, body, kind, t=None):
         """2026-10-28 強三進出場、強平 → 寫一則交易訊息到手機的訊息欄(Worker ?log=add,和手機自己發的同一套)"""
         try:
             n = now_tw(); m = re.match(r"^\S+ (\d{4,6})", title); code = m.group(1) if m else ""
             rs = (re.search(r"· (判[一二三四])\s*$", body) or [None, ""])[1]
-            it = {"d": n.strftime("%Y-%m-%d"), "t": n.strftime("%H:%M"), "title": title, "body": body, "kind": kind,
+            it = {"d": n.strftime("%Y-%m-%d"), "t": t or n.strftime("%H:%M"), "title": title,   # 2026-11-10 t:元三進場卡改寫時用原本那分鐘(同鍵覆蓋)
+                  "body": body, "kind": kind,
                   "key": code + "|" + re.sub(r"[0-9.,+−%↑↓\s⚠✅-]", "", title) + "|" + rs}   # 鍵和手機一樣:代碼|標題去掉數字|判別式
             y = (self.quotes.meta.get(code) or {}).get("y")
             if y: it["prev"] = y

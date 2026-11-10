@@ -23,7 +23,7 @@ def mk(gw=GW, prime=True, **kw):
     NMK[0] += 1   # 2026-10-29 每個測試自己的狀態檔(今天進場過的訊號會存檔,不要互相影響)
     cfg = {"TRADE_BROKER_STOP": "0", "TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0", "TRADE_Y3_TP_PCT": "2.5"}; cfg.update(kw)
     g = gw(); t = Trader(cfg, g, logs.append, lambda: NOW[0]); g.t = t; t.posts = []; t.alerts = []
-    t.post = lambda a, b, k: t.posts.append((a, b, k)); t.akinds = []; t.alert = lambda a, b="", k="pc": (t.alerts.append(a), t.akinds.append(k))
+    t.post = lambda a, b, k, t_=None, **kw: t.posts.append((a, b, k)); t.akinds = []; t.alert = lambda a, b="", k="pc": (t.alerts.append(a), t.akinds.append(k))
     if prime: t.prime([])   # 2026-10-29 稽核 #1:跟 bridge 一樣,啟動時讀到通知(這裡是空的)才算準備好
     return t, g
 sig = lambda k, kind, title, body: {"_k": k, "kind": kind, "title": title, "body": body}
@@ -241,7 +241,7 @@ ok(tg.positions_view()[0]["code"] == "6269" and tg.positions_view()[0]["judge"] 
 ty, gy = mk(); ty.name_of = lambda c: "友達"
 ty.on_report(51, "M100", 0, 1000, 40.0, basket="", code="2409", bs="B"); py = ty.positions["2409"]
 ok(py["judge"] == "元三" and py["tp"] == 41.0 and py["sl"] == 38.2 and ty.posts[-1][1].endswith("· 1張 · 元三") and ty.posts[-1][2] == "long", py, ty.posts)
-ty.on_report(51, "M100", 0, 1000, 40.2, basket="", code="2409", bs="B"); ok(py["qty"] == 2 and abs(py["entry"] - 40.1) < 1e-9 and len(ty.posts) == 1)
+ty.on_report(51, "M100", 0, 1000, 40.2, basket="", code="2409", bs="B"); ok(py["qty"] == 2 and abs(py["entry"] - 40.1) < 1e-9 and len(ty.posts) == 2 and ty.posts[-1][1].endswith("· 2張 · 元三") and "40.10" in ty.posts[-1][0], ty.posts)   # 2026-11-10 發卡後又成交 → 同鍵改寫進場卡(2 張、均價 40.10)
 ty.on_report(51, "M200", 0, 1000, 40.3, basket="", code="2409", bs="B"); ok(py["qty"] == 3 and abs(py["entry"] - 40.5 / 1 + 0.3333333) < 1e-3 or py["qty"] == 3, py)   # 2026-10-28 平倉檢查 #5:另一張同方向手動單也併進元三
 ty.on_tick("2409", 38.0); ok(py["state"] == EXITING and gy.sent[-1] == ("2409", "S", 3, 0, "0", "0", "L"), gy.sent)
 ty.on_report(51, "A0001", 0, 3000, 38.0); ok("2409" not in ty.positions and ty.posts[-1][1].endswith("· 3張 · 元三") and "停損" in ty.posts[-1][0], ty.posts[-1])
