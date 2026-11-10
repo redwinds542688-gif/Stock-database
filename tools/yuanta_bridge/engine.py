@@ -652,6 +652,7 @@ class Engine:
         self.j4 = set()       # 2026-10-31 判四今天已進場(推了、或雲端已有,超額的不算)的股票:一天最多 T4MAX 檔
         self.closed = []; self.lat = []; self.rounds = []   # 2026-11-07 收盤檢討(A):今天平倉的部位、進場通知晚幾秒、每輪幾秒
         self.drag = set()     # 2026-11-07 已發過「可能拖輸」提示的部位(判別式|代碼|進場時間)
+        self.no_bar_note = set()   # 2026-11-10 今天還沒成交、先不算的股票(log 只寫一次)
         self.sent = []; self.px = {}; self.last_hm = {}; self.held_note = set()   # px / last_hm:每檔最新價、今天 K 到哪一分鐘(判定「訊號消失」前要確認這檔的 K 有到)
         self.state_f = DATA / f"engine_state_{day}.json" if state else None
         if self.state_f:
@@ -908,6 +909,11 @@ class Engine:
                 if only is not None and (rs, c) not in only: continue
                 if idle and (rs, c) not in self.pos: continue
                 if skip_on and only is None and (rs, c) not in self.pos and (c in self.fclosed or (full.get(rs) and c not in (self.j4 if rs == "四" else self.j5))): continue
+                # 2026-11-10 13:35(實際時間)使用者「修」:今天還沒有任何成交(元大第一根 K 還沒出來,例:11/10 中華電 2412、3605 09:02 才第一筆)的股票先不算 ——
+                #   原本模擬器找不到今天的 K 會退到 Yahoo 備用檔(引擎沒有)→ FileNotFoundError,log 出現假的「錯誤 14/462」;沒成交本來就不會有訊號
+                if self.last_hm and c not in self.last_hm and (rs, c) not in self.pos:
+                    if c not in self.no_bar_note: self.no_bar_note.add(c); log(f"{c} 今天還沒有成交(沒有 K)→ 先不算,有 K 了再算")
+                    continue
                 env = dict(self.envs[rs])
                 if not self.canshort.get(c, False): env["CANSHORT"] = "0"   # 2026-10-29 稽核 #3:不能先賣 → 空單只記錄
                 jobs.append((c, self.names.get(c, c), rs, env, self.day))
