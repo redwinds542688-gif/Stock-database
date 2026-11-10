@@ -771,8 +771,8 @@ class Engine:
         y = self.prev.get(code)
         if y: it["prev"] = y
         ok = self.push(it)
-        if ok and not phantom:
-            try: self.closed.append({"rs": j, "code": code, "name": nm, "side": p["side"], "t": p["t"], "e": p["px"], "xt": tm, "x": ex, "lots": p.get("lots") or 1, "over": bool(p.get("over")), "why": exit_text(why)})
+        if ok:   # 2026-11-10 15:01(實際時間)使用者「金額對不上」(明細虛擬 +4,934、檢討 +2,961):「訊號重算消失」的平倉(群創 +1,260、富喬 +713)明細有算、檢討沒算 → 一起算進檢討
+            try: self.closed.append({"rs": j, "code": code, "name": nm, "side": p["side"], "t": p["t"], "e": p["px"], "xt": tm, "x": ex, "lots": p.get("lots") or 1, "over": bool(p.get("over")), "why": "訊號消失" if phantom else exit_text(why)})
             except Exception: pass
         return ok
 
