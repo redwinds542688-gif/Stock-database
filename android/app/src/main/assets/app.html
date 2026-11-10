@@ -10,6 +10,7 @@
   · 2026-11-09 14:33(實際時間)資訊:台股 / 日經 / 韓國 平日 14:40 後再抓一次當天收盤和走勢線(早上 08:30 抓美股),標題日期 = 最新那天(使用者「台股 美股 韓股 日股 都要逐日更新」)
   · 2026-11-09 13:32(實際時間)下排燈:收盤後 進場 / 當沖 不亮;明細輸贏燈留著顯示當天結果,到下一個交易日 08:45(開盤前 15 分)才拿掉(使用者「明細左右的贏錢燈跟輸錢燈 在開盤前15分鐘取消」)
   · 2026-11-09 13:31(實際時間)13:30 收盤後下排三顆燈(進場藍燈等)確實熄掉:通知欄內容沒變也會在開盤 / 收盤那一刻重畫(使用者「1點半之後 進場右邊的藍燈關閉」)
+  · 2026-11-10 12:40(實際時間)修「進 K 圖再出來 / 換股票就當機」(使用者「你自己跑看看」,電腦重現:第二、三次開圖整頁卡死):換股票那一刻刻度範圍還是亂的,K 圖價格刻度、格線、乖離圖刻度三個迴圈一格要跑上千萬次 → 格數超過 200 那一格先不畫
   · 2026-11-09 13:07(實際時間)監控清單:做多 / 做空的股票,前面指針改成部位輸贏指針反白(贏紅底、輸綠底、白針;1% = 9°)(使用者「改」)
   · 2026-11-10 12:20(實際時間)K 圖錯位偵測:三張圖畫面上的時間範圍一樣就不算錯位(內部根數編號差 1 的誤報,華邦電 12:14;使用者「立刻修」)
   · 2026-11-10 12:18(實際時間)公式載入修正(使用者「改」):開 App 先下載最新公式再裝(8 秒內拿不到才用手機存的);這一頁裝過以後的新版只存起來、下次開 App 生效,不再塞進同一頁(原本盤中公式一改就 'dStartOf' 重複宣告、整份被拒,手機一直用舊版)
@@ -342,7 +343,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611101225">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611101239">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4459,7 +4460,7 @@ function wiDevDraw(wp, r){
   // 左邊價格刻度(和 K 圖一樣:比昨收高紅、低綠、平白),刻度間距取好讀的檔位
   { const nice = [0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 5, 10, 20, 50]; let st = nice[nice.length - 1]; for (const v of nice){ if (v * sy >= 26){ st = v; break; } }
     g.font = '11px ui-monospace,Menlo,monospace'; g.textAlign = 'right'; g.textBaseline = 'middle';
-    for (let v = Math.ceil(lo / st) * st; v <= hi + 1e-9; v += st){ const y = yOf(v); if (y < 6 || y > H - 6) continue;
+    if (isFinite(lo) && isFinite(hi) && (hi - lo) / st <= 200) for (let v = Math.ceil(lo / st) * st; v <= hi + 1e-9; v += st){   /* 2026-11-10 12:40 換股票那一刻範圍亂掉(格數上千萬)會卡死整頁 → 格數太多不畫刻度 */ const y = yOf(v); if (y < 6 || y > H - 6) continue;
       g.strokeStyle = '#1C1C1C'; g.beginPath(); g.moveTo(ox, Math.round(y) + 0.5); g.lineTo(W, Math.round(y) + 0.5); g.stroke();
       const vv = +v.toFixed(2); g.fillStyle = PX_AXIS_COL; /* 2026-11-01 使用者「都改成 黃字」→「把 黃色 換 藍色」 */ g.fillText(vv.toFixed(2), ox - 4, y); }
     g.strokeStyle = '#3A3A3A'; g.beginPath(); g.moveTo(ox + 0.5, 0); g.lineTo(ox + 0.5, H); g.stroke(); }
@@ -5332,6 +5333,7 @@ function pxAxisAttach(ch, box, getSeries, isOn, xcAt){
         if (tt != null){ const i = barIdx(tt); if (i >= 0){ const v = xcAt(i); if (v != null) xc = s.priceToCoordinate(v); } } }catch(e){}
       const key = [aw, H, pT.toFixed(4), pB.toFixed(4), y0, xc == null ? '' : Math.round(xc)].join('|'); if (key === memo) return; memo = key;
       const range = pT - pB; let step = STEPS[STEPS.length - 1]; for (const st of STEPS){ if (st / range * H >= 30){ step = st; break; } }
+      if (!isFinite(range) || !(step > 0) || range / step > 200) return;   // 2026-11-10 12:35 刻度亂掉(換股票那一刻)時格數太多,迴圈跑上千萬次卡死整頁 → 這一格先不畫
       const dec = step < 0.1 ? 2 : step < 1 ? (Math.round(step * 100) % 10 ? 2 : 1) : 0, dp = Math.max(2, dec);
       const g = [], l = [];
       for (let p = Math.ceil(pB / step - 1e-9) * step; p <= pT + 1e-9; p += step){
@@ -5411,6 +5413,7 @@ function initChart(){
         memoXc = xc;
         const key = [aw, H, pT.toFixed(4), pB.toFixed(4), y0, xc == null ? '' : Math.round(xc)].join('|'); if (key === memo) return; memo = key;
         const range = pT - pB; let step = STEPS[STEPS.length - 1]; for (const st of STEPS){ if (st / range * H >= 30){ step = st; break; } }
+        if (!isFinite(range) || !(step > 0) || range / step > 200) return;   // 2026-11-10 12:35 使用者「進 K 圖再出來就當機」:換股票那一刻刻度還是亂的(上下價差極大)→ 這個迴圈要跑上千萬次、每一格都跑 → 整頁卡死;格數太多這一格先不畫
         const dec = step < 0.1 ? 2 : step < 1 ? (Math.round(step * 100) % 10 ? 2 : 1) : 0, dp = Math.max(2, dec);
         const g = [], l = [];
         for (let p = Math.ceil(pB / step - 1e-9) * step; p <= pT + 1e-9; p += step){
