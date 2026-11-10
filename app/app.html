@@ -10,6 +10,7 @@
   · 2026-11-09 15:08(實際時間)資訊:平日 13:40 加抓一次,台股收盤後 10 分鐘就換成當天(日經 / 韓國 14:40)(使用者「13.40 改」)
   · 2026-11-09 14:33(實際時間)資訊:台股 / 日經 / 韓國 平日 14:40 後再抓一次當天收盤和走勢線(早上 08:30 抓美股),標題日期 = 最新那天(使用者「台股 美股 韓股 日股 都要逐日更新」)
   · 2026-11-09 13:32(實際時間)下排燈:收盤後 進場 / 當沖 不亮;明細輸贏燈留著顯示當天結果,到下一個交易日 08:45(開盤前 15 分)才拿掉(使用者「明細左右的贏錢燈跟輸錢燈 在開盤前15分鐘取消」)
+  · 2026-11-10 14:47(實際時間)平板開機卡頓追查(使用者「改」):開機每一步記時間(K 線套件、pool、主程式、公式下載)、前 30 秒 localStorage / JSON 解析 ≥50 毫秒也記;開機 15 秒內卡 ≥4 秒自動上傳;開 App 先下載公式(逾時 8→10 秒),K 線預抓等公式好了再開始(最多等 12 秒)
   · 2026-11-09 13:31(實際時間)13:30 收盤後下排三顆燈(進場藍燈等)確實熄掉:通知欄內容沒變也會在開盤 / 收盤那一刻重畫(使用者「1點半之後 進場右邊的藍燈關閉」)
   · 2026-11-10 14:08(實際時間)電腦引擎:同一分鐘同一檔被兩個以上判別式選中 → 勝率高的先算先發(判五 91% > 判七 88% > 判一 86% > 判三 83% > 判四 81% > 判二 70%,判六觀察版最後),中繼照先到的進場(使用者「同時被選 以勝率決定誰進場」)
   · 2026-11-10 13:43(實際時間)當沖點股票開 K 圖:手指按在當沖上時(最多 5 秒)先不重畫、放開 0.35 秒後補畫,按著的那列不會被換掉;點一下開 K 圖、長按強制平倉照原本寫法(使用者「改」)
@@ -324,7 +325,16 @@
   // 2026-11-09 21:10 使用者「平板超卡、一分多鐘才開好」→「改」:卡頓記錄。開機 3 分鐘內 ① 瀏覽器長任務(≥ 500 毫秒)記開始時間和長度 ② 每個頂層函式單次 ≥ 300 毫秒記名稱 / 開始 / 長度 / 層數 ③ 最外層累計耗時;抓 bug 和開機自動回報一起上傳(perf)
   E.slow = []; E.lt = []; E.tot = {}; E.perfOn = true; setTimeout(function(){ E.perfOn = false; }, 180000);
   try{ new PerformanceObserver(function(l){ l.getEntries().forEach(function(x){ if (x.duration >= 500 && E.lt.length < 100) E.lt.push([Math.round(x.startTime + performance.timeOrigin - E.t0), Math.round(x.duration)]); }); }).observe({type: 'longtask', buffered: true}); }catch(_){}
-  window.__perfDump = function(){ var t = Object.keys(E.tot).map(function(k){ return [k, Math.round(E.tot[k])]; }).sort(function(a, b){ return b[1] - a[1]; }).slice(0, 30); return {slow: E.slow, lt: E.lt, tot: t, on: E.perfOn, ms: Date.now() - E.t0}; };
+  // 2026-11-10 14:43(實際時間)使用者「改」(平板開機前 11 秒卡 9.6 秒,記錄到的函式加起來才 0.1 秒):開機每一步記時間(__bm),前 30 秒 localStorage 讀取 / JSON 解析超過 50 毫秒也記(哪個鍵、多大、多久);
+  //   開機 15 秒內長任務加起來 ≥ 4 秒 → 自動抓 bug 上傳(30 分鐘最多一次)
+  E.boot = []; window.__bm = function(n){ try{ if (E.boot.length < 80) E.boot.push([n, Date.now() - E.t0]); }catch(_){} };
+  E.io = []; try{ var _gi = Storage.prototype.getItem, _jp = JSON.parse;
+    Storage.prototype.getItem = function(k){ var t = performance.now(), v = _gi.call(this, k), d = performance.now() - t; if (d >= 50 && E.io.length < 60 && Date.now() - E.t0 < 30000) E.io.push(['ls', String(k).slice(0, 40), v ? v.length : 0, Math.round(d), Date.now() - E.t0]); return v; };
+    JSON.parse = function(x, r){ var t = performance.now(), v = _jp.call(JSON, x, r), d = performance.now() - t; if (d >= 50 && E.io.length < 60 && Date.now() - E.t0 < 30000) E.io.push(['json', '', x ? x.length : 0, Math.round(d), Date.now() - E.t0]); return v; };
+    setTimeout(function(){ Storage.prototype.getItem = _gi; JSON.parse = _jp; }, 30000); }catch(_){}
+  setTimeout(function(){ try{ var tot = 0; E.lt.forEach(function(x){ if (x[0] < 15000) tot += x[1]; }); if (tot < 4000) return; var la = +(localStorage.getItem('mysh.bootSlowAt') || 0); if (Date.now() - la < 1800000) return; localStorage.setItem('mysh.bootSlowAt', String(Date.now()));
+    if (window.bugUploadNow) bugUploadNow('自動:開機卡頓 ' + (tot / 1000).toFixed(1) + ' 秒'); }catch(_){} }, 16000);
+  window.__perfDump = function(){ var t = Object.keys(E.tot).map(function(k){ return [k, Math.round(E.tot[k])]; }).sort(function(a, b){ return b[1] - a[1]; }).slice(0, 30); return {slow: E.slow, lt: E.lt, tot: t, on: E.perfOn, ms: Date.now() - E.t0, boot: E.boot, io: E.io}; };
   E.trk = []; window.__mk = function(s){ try{ if (!E.w || Date.now() - E.t0 > 60000) return; E.trk.push(s + '@' + (Date.now() - E.t0)); if (E.trk.length > 40) E.trk.shift(); E.w.postMessage({stage: E.stage + ' | ' + E.trk.join(' ')}); }catch(e){} };
   addEventListener('error', function(e){ try{ E.errs.push([Date.now() - E.t0, String(e.message || (e.target && e.target.src ? '載入失敗 ' + e.target.src : '')), e.filename || '', e.lineno || 0, e.colno || 0]); }catch(_){} }, true);
   addEventListener('unhandledrejection', function(e){ try{ E.errs.push([Date.now() - E.t0, 'rej ' + String(e.reason && (e.reason.message || e.reason) || '')]); }catch(_){} });
@@ -349,7 +359,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611101440">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611101444">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1128,8 +1138,9 @@
 </div>
 <div id="resultFrame" class="hidden"></div>   <!-- 2026-10-27 09:45 使用者:「股票監控區 一樣用黃色框起來」:蓋在清單區上面的黃框(不佔清單寬度,欄位不會被擠),top 由 sync 跟著 #result -->
 
+<script>window.__bm && __bm('lib-start');</script>
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
-<script>
+<script>window.__bm && __bm('lib-end');
 /* ══ settings.js 內嵌 ══ */
 /* ══════════════════════════════════════════════════════
    監控調整數值初始
@@ -1248,8 +1259,9 @@ window.MONITOR_BASE = {
 };
 
 </script>
+<script>window.__bm && __bm('pool-start');</script>
 <script src="pool.js"></script>
-<script>
+<script>window.__bm && __bm('main-start');
 try{ window.__stg && __stg('main-start'); }catch(e){}
 /* 2026-10-29 15:10(實際時間)看盤版(使用者:「如果 程式給別人用 但我要控制判123在手上」→「先做1.2.3」第 1 項):
    tools/make_viewer.py 把這個檔裡 @@STRIP:名@@ 到 @@END:名@@ 標記(寫在區塊註解裡)之間的判一二三程式碼(參數、進出場規則、轉折、背景監控的判斷)整段拿掉、換成空殼,
@@ -3188,6 +3200,7 @@ const KIDB = (() => { let dbp = null;
 })();
 const KPRE = { busy: false };
 async function kPrefetchAll(){
+  try{ if (!LOGIC.tried && !vwOnly() && liveOn() && appKey.get() && Date.now() - window.__EARLY.t0 < 12000){ setTimeout(() => { try{ kPrefetchAll(); }catch(e){} }, 1000); return; } }catch(e){}   // 2026-11-10 14:43 公式先下載(平板開機一起抓 K 會讓公式下載逾時),最多等 12 秒
   if (KPRE.busy || !LIST_CODES.length) return;
   try{ if (window.Android && Android.isService && Android.isService()) return; }catch(e){}   // 背景服務那份網頁不抓(不開圖)
   KPRE.busy = true;
@@ -3499,11 +3512,12 @@ async function logicLoad(force){
     let old = ''; try{ old = localStorage.getItem('mysh.logic') || ''; }catch(e){}
     if (!LOGIC.applied){
       let fresh = '';
-      if (appKey.get()){ try{ LOGIC.at = Date.now(); const r = await fetch(url(), {cache: 'no-store', signal: AbortSignal.timeout(8000)}); if (r.ok){ const c = await r.text(); if (good(c)) fresh = c; else LOGIC.res = 'bad 下載內容 ' + c.length; } else LOGIC.res = 'http ' + r.status; }catch(e){ LOGIC.res = 'err ' + (e && e.message); } }
+      try{ window.__bm && __bm('logic-dl-start'); }catch(_){}
+      if (appKey.get()){ try{ LOGIC.at = Date.now(); const r = await fetch(url(), {cache: 'no-store', signal: AbortSignal.timeout(10000)}); if (r.ok){ const c = await r.text(); if (good(c)) fresh = c; else LOGIC.res = 'bad 下載內容 ' + c.length; } else LOGIC.res = 'http ' + r.status; }catch(e){ LOGIC.res = 'err ' + (e && e.message); } }
       if (fresh && logicApply(fresh)){ LOGIC.applied = true; LOGIC.src = 'worker'; LOGIC.res = 'ok'; LOGIC.trace = 'start 下載 ' + fresh.length + ' ok'; try{ localStorage.setItem('mysh.logic', fresh); }catch(e){} }
       else if (!LOGIC.tried && good(old) && logicApply(old)){ LOGIC.applied = true; LOGIC.src = 'cache'; LOGIC.trace = 'start 快取 ' + old.length + ' ok(下載 ' + (LOGIC.res || '沒鑰匙') + ')'; }
       else LOGIC.trace = 'start 都裝不上(下載 ' + (LOGIC.res || '沒鑰匙') + ',快取 ' + old.length + ')';
-      LOGIC.tried = true; try{ bugAdd('logic', LOGIC.trace); }catch(_){}
+      LOGIC.tried = true; try{ bugAdd('logic', LOGIC.trace); window.__bm && __bm('logic-done ' + (LOGIC.src || 'x')); }catch(_){}
       try{ if (LOGIC.ok && window.rsLampUpd) rsLampUpd(); }catch(e){}
       return LOGIC.ok ? 'ok' : 'bad';
     }
@@ -8308,7 +8322,7 @@ const svcCheck = () => { try{
 svcCheck(); setInterval(svcCheck, 60000);   // 2026-10-27 14:10 每分鐘再看一次(盤中有持倉先不重開,沒持倉了就換)
 setInterval(() => { poolWatch().catch(() => {}); }, 60000);   // 2026-10-19 每分鐘看一次要不要去雲端比對名單(poolWatch 自己管 14:30~21:00 每 10 分、08:15~09:50 每 5 分)
 setTimeout(() => loadEligPC(true), 2500); setInterval(() => { try{ const n = new Date(Date.now() + 8 * 3600000), hm = n.getUTCHours() * 60 + n.getUTCMinutes(), wd = n.getUTCDay(); if (wd >= 1 && wd <= 5 && hm >= 8 * 60 + 15 && hm <= 13 * 60 + 30) loadEligPC(false); }catch(e){} }, 60000);   // 電腦開盤前複檢結果:08:15~13:30 每 5 分鐘讀一次
-window.__MAIN_OK = true; try{ window.__stg && __stg('main-end'); }catch(e){}   // 2026-10-31 開機自動回報:主程式跑完
+window.__MAIN_OK = true; try{ window.__bm && __bm('main-end'); window.__stg && __stg('main-end'); }catch(e){}   // 2026-10-31 開機自動回報:主程式跑完
 try{ setTimeout(() => logicLoad(true), 0); setInterval(() => logicLoad(false), 60000); }catch(e){}   // 2026-10-29 18:19 開啟就載判一二三(owner 鑰匙),之後每 30 分鐘看一次有沒有新版
 </script>
 <div id="wiPanel"></div>
