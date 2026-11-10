@@ -331,7 +331,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611100934">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611100936">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3761,12 +3761,16 @@ function mktAvgAt(t){   // 2026-11-05 判五:t 那分鐘(含)以前最近的名�
 }
 window.mktAvgAt = mktAvgAt;
 function brBadge(){ try{ const el = document.getElementById('listBr'); if (!el) return;   // 2026-11-10 09:24 監控股票數後面的上漲家數 %
+  // 09:36 使用者「那就盤中不要用顯示66 改顯示 上漲家 取小數點一位」:盤中藏檔數、只顯示上漲家數(小數一位、無條件捨去);盤後照舊顯示檔數
+  const cn = document.getElementById('listCnt'), ses = typeof inSession === 'function' && inSession();
+  if (!ses){ if (cn) cn.style.display = ''; el.textContent = ''; return; }
   const a = BREADTH.arr, ok = a && a.length && BREADTH.d === todayTW();
-  if (!ok){ el.textContent = '';   // 09:35 使用者「還沒有顯示 上漲家」:還沒抓過今天的寬度 → 自己抓(最多每分鐘一次),不等 K 線那條路
+  if (!ok){ el.textContent = ''; if (cn) cn.style.display = '';   // 09:35 使用者「還沒有顯示 上漲家」:還沒抓過今天的寬度 → 自己抓(最多每分鐘一次),不等 K 線那條路
     if (typeof liveOn === 'function' && liveOn() && Date.now() - (brBadge._at || 0) > 60000){ brBadge._at = Date.now(); loadBreadth(todayTW()).then(() => { if (BREADTH.arr.length && BREADTH.d === todayTW()) brBadge(); }).catch(() => {}); }
     return; }
   const v = +a[a.length - 1][1]; if (!isFinite(v)){ el.textContent = ''; return; }
-  const p = Math.floor(v * 100 + 1e-9); el.textContent = p + '%'; el.style.color = p >= 50 ? '#FF3B3B' : '#1DD75B';
+  const p = Math.floor(v * 1000 + 1e-9) / 10; el.textContent = p.toFixed(1) + '%'; el.style.color = p >= 50 ? '#FF3B3B' : '#1DD75B';
+  if (cn) cn.style.display = 'none'; el.style.marginLeft = '.35em'; el.style.fontSize = '';
 }catch(e){} }
 window.brBadge = brBadge; setInterval(brBadge, 15000); setTimeout(brBadge, 3000);
 window.BREADTH = BREADTH;
