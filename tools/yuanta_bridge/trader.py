@@ -102,6 +102,7 @@ def lot_tier_qty(px):
     cap, mx = (160000, 3) if px <= 80 else (250000, 2)
     return max(1, min(mx, int(cap // (px * 1000))))
 IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG, IRON_BRX_L, IRON_BRX_E = 5.0, 6.5, "09:30", "12:30", "12:32", 1.5, 0.15
+IRON_EXIT, JUDGES_ALL = "13:20", ("判一", "判二", "判三", "判四", "判五", "判六", "判七")   # 2026-11-11 22:25 使用者「改13」:設定檔的開關不能關掉鐵律保護
 RE_IRON_EXIT = re.compile(r"超過?\s*[\d.]+\s*%|總停損|移動停損利|鐵律|強制平倉")   # 2026-11-11 21:34 鐵律平倉(含引擎平倉通知標題):有權取消手動預掛、立即平
 IRON_CAP, IRON_AMOUNT, IRON_MTSL = 250000, 5000000.0, 3.0   # ⑤ IRON_CAP = 固定張數模式(cap=0)時的一張上限;2026-11-11 22:24 使用者「針對 2項 改鐵律」:一張上限改以主導機多空上限為準,不再固定最多 25 萬   # 原:一張上限 25 萬(超過 = 超額)、一天總額度 500 萬   # 鐵律(2026-11-11 15:42),見 __init__
 MANUAL = "元三"      # 2026-10-28 使用者:在元大(投資先生)自己下的單,成交後交給判三管
@@ -209,6 +210,10 @@ class Trader:
         self.ent_pct = _lo(self.ent_pct, IRON_PCT); self.force_block_pct = _lo(self.force_block_pct, IRON_PCT)
         self.max_move = _lo(self.max_move, IRON_MOVE); self.j7_move = _lo(self.j7_move, IRON_MOVE); self.man_move = _lo(self.man_move, IRON_MOVE)
         self.j_from = max(self.j_from, IRON_FROM); self.j_to = min(self.j_to, IRON_TO_SIG); self.force_to = min(self.force_to, IRON_TO)
+        # 2026-11-11 22:25 使用者「改13」:設定檔的開關不能關掉鐵律保護:元三一律接手(TRADE_Y3=0 無效)、13:20 一律強制平倉(TRADE_FORCE_EXIT 寫更晚拉回)、TRADE_JUDGES 留空 = 預設判一~七
+        self.y3_cfg_off = not self.y3; self.y3 = True
+        self.force_exit = min(self.force_exit, IRON_EXIT) if self.force_exit else IRON_EXIT
+        if not self.judges: self.judges = set(JUDGES_ALL)
         self.brx_l = _lo(self.brx_l, IRON_BRX_L); self.brx_e = _lo(self.brx_e, IRON_BRX_E); self.mtsl = _lo(self.mtsl, IRON_MTSL)   # ⑥ 移動停損利
         # ⑤ 張數分級 + 500 萬額度(2026-11-11 19:29 使用者「這套 也加入 鐵律」):lot_tier_qty(≤ 80 元 最多 3 張且 ≤ 16 萬、80~250 元 最多 2 張且 ≤ 25 萬;一張超過 25 萬 = 超額不做);一天成交總額度 500 萬(買 + 賣、持倉漲停預留)
         self.lot_tier = True if Trader.IRON_LOTS else self.lot_tier; self.cap = max(self.cap, 0); self.max_amount = _lo(self.max_amount, IRON_AMOUNT)   # ④ 總停損(2026-11-11 19:21 使用者「把這套 叫做 總停損 寫進鐵律 監控所有判別式」)
@@ -1282,6 +1287,10 @@ class Trader:
         with self.lock:
             hm = self.hm()
             if not getattr(self, "_carry_done", False) and "09:00" <= hm < self.force_exit: self._carry_done = True; self.load_carry()
+            if not getattr(self, "_ign_noted", False) and "08:30" <= hm < self.force_exit:   # 2026-11-11 22:25 使用者「改13」:設定檔的開關不能關掉鐵律保護:不管名單(留倉 / 借券)每天開盤前提醒一次,不會悄悄關掉保護
+                self._ign_noted = True; ig = sorted(c for c in self.ignore if c != "YY0070")
+                if ig: self.alert(f"ℹ 今天不受程式管的股票:{'、'.join(ig)}", "在 ignore_codes.txt(留倉 / 借券);程式自己接管的部位照鐵律管,其他手動單不接;處理完請把這行刪掉")
+                if self.y3_cfg_off: self.log("[交易] 設定檔 TRADE_Y3=0 無效:元大手動單一律由程式接手(鐵律)")
             fe = self.force_exit
             if self.cancel_all:                                   # 13:20 由 bridge 先取消全部掛單再平倉;這裡晚 1 分鐘當備援
                 h, m = map(int, fe.split(":")); fe = f"{h + (m + 1) // 60:02d}:{(m + 1) % 60:02d}"
@@ -1906,6 +1915,8 @@ class Trader:
             return "自動進場關閉(TRADE_AUTO=0,只管元三 / 強制模式)"
         if self.stop_file.exists():
             return "緊急停止(STOP 檔案存在)"
+        if not judge:   # 2026-11-11 22:25 使用者「改13」:設定檔的開關不能關掉鐵律保護:通知裡找不到判別式 → 不知道套哪條規則,不進
+            return "通知裡找不到判別式(判一~七),不進場"
         if self.judges and judge not in self.judges:
             return f"{judge} 不在 TRADE_JUDGES"
         if code in self.positions:
