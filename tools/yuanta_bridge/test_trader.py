@@ -249,7 +249,7 @@ ty.on_report(51, "A0001", 0, 3000, 38.0); ok("2409" not in ty.positions and ty.p
 # Y1b) 2026-11-02 判二部位(程式進場 1 張 @86.1)→ 元大手動再做空 2 張 @86.4 → 併進程式部位:3 張、均價 86.3、停利停損照原本 % 從新均價重算(84.25 / 88.91);碰停利全部 3 張一起買回
 tm, gm = mk(); tm.name_of = lambda c: "台郡"; tm.on_tick("6269", 86.2); tm.step([ENT]); tm.on_report(51, "A0001", 0, 1000, 86.1); pm = tm.positions["6269"]
 tm.on_report(51, "M900", 0, 2000, 86.4, basket="", code="6269", bs="S")
-ok(pm["qty"] == 3 and abs(pm["entry"] - 86.3) < 1e-9 and pm["tp"] == round(86.3 * 84.05 / 86.1, 2) and pm["sl"] == round(86.3 * 88.70 / 86.1, 2) and pm["judge"] == "判二" and "手動加碼" in tm.alerts[-1], pm, tm.alerts)
+ok(pm["qty"] == 3 and abs(pm["entry"] - 86.3) < 1e-9 and pm["tp"] == round(86.3 * (1 - tm.y3_tp / 100), 2) and pm["sl"] == round(86.3 * (1 + tm.y3_sl / 100), 2) and pm["judge"] == "元三" and pm["judge0"] == "判二" and "手動加碼" in tm.alerts[-1], pm, tm.alerts)   # 2026-11-11 16:49 被手動加碼 → 改由判三管(停利 3% / 停損 4.5% 從新均價)
 import time as _tt; _tt.sleep(0.05 + max(0.0, tm.y3_post_delay)); ok(any("· 加碼 · 共 3 張 均價 86.30 · 2張 · 元三" in b and t.startswith("台郡 6269 做空進場 86.40") for t, b, k in tm.posts), tm.posts)   # 2026-11-05 手動加碼也發進場卡
 tm.on_tick("6269", 84.0); ok(pm["state"] == EXITING and gm.sent[-1][:3] == ("6269", "B", 3), gm.sent[-1])
 tm.on_report(51, "A0002", 0, 3000, 84.1); ok("6269" not in tm.positions)
@@ -545,6 +545,8 @@ s25.on_tick("3006", 251.0); s25.step([]); ok(not s25.over_list() and not s25.ove
 s25.on_tick("3006", 249.0); s25.step([]); r = s25.over_confirm("3006", "c1")
 ok(r[0] and "3006" in s25.positions and s25.positions["3006"]["tp"] == 234.3 and s25.positions["3006"]["sl"] == 266.44 and "3006" not in s25.over_wait, (r, s25.positions.get("3006")))
 ok(s25.over_confirm("3006", "c1") == r and sum(1 for x in g25.sent if x[0] == "3006") == 1)          # 重送同一個確認不會再下
+s25.on_report(51, "A0001", 0, 1000, 249.0); p25 = s25.positions["3006"]   # 2026-11-11 16:49 超額補進場改由判三管:記強三、停利 / 停損照判三 % 從成交價算
+ok(p25["judge"] == "強三" and p25["judge0"] and p25["tp"] == round(249.0 * (1 - s25.y3_tp / 100), 2) and p25["sl"] == round(249.0 * (1 + s25.y3_sl / 100), 2), p25)
 s25b, g25b = mk(TRADE_CAP="250000", TRADE_MAX_MOVE_PCT="99"); s25b.on_tick("3006", 257.5); s25b.step([OV("k25b")])
 s25b.step([sig("x25b", "exit", "晶豪科 3006 停利 +5% 立即平倉", "11:00 · 判四")]); ok("3006" not in s25b.over_wait)   # 判四先平倉 → 取消
 s25c, _ = mk(TRADE_CAP="250000", TRADE_MAX_MOVE_PCT="99"); s25c.on_tick("3006", 257.5); s25c.step([OV("k25c")]); s25c.on_tick("3006", 233.0); s25c.step([]); ok("3006" not in s25c.over_wait)   # 已過停利取消

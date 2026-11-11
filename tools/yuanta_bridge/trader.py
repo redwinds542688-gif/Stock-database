@@ -885,6 +885,9 @@ class Trader:
             tot = p["qty"] + lots; e0 = p["entry"]
             p["entry"] = (p["entry"] * p["qty"] + price * lots) / tot; p["qty"] = tot; self.amount_today += price * lots * 1000
             p["y3_lots"] = max(p.get("y3_lots") or 0, tot); p["y3_px"] = p["entry"]
+            if p.get("judge") not in (MANUAL, FORCED):   # 2026-11-11 16:49 使用者「手動進場或加碼 … 都受判三管轄」:判別式部位被手動加碼 → 整個部位改由判三管(記「元三」,停利 / 停損照判三 % 從新均價算)
+                self.log(f"[交易] {code} {p.get('judge')} 部位被手動加碼 → 改由判三管(元三,停利 {self.y3_tp:g}% / 停損 {self.y3_sl:g}%)")
+                p.update({"judge0": p.get("judge"), "judge": MANUAL, "tp_pct": self.y3_tp, "sl_pct": self.y3_sl})
             if p.get("judge") in (MANUAL, FORCED) and (p.get("tp_pct") or p.get("sl_pct")): self.set_forced_tpsl(p, p["entry"])
             elif e0 > 0:   # 2026-11-02 11:45 使用者「這邊需要重新再算過停利跟停損」:判一~四照原本停利 / 停損離進場價的 % 不變,從新均價重算
                 if p.get("tp"): p["tp"] = round(p["entry"] * p["tp"] / e0, 2)
@@ -902,8 +905,8 @@ class Trader:
             if self.prehang.get(code):   # 2026-11-08 01:00 預掛期間又加碼 → 預掛張數不夠了,提醒
                 ph = sum((self.man_meta.get(n) or {}).get("lots", 0) - (self.man_meta.get(n) or {}).get("fl", 0) for n in self.prehang[code])
                 self.alert(f"ℹ {self.name_of(code)} {code} 加碼後預掛只蓋住一部分", f"部位 {tot} 張、預掛 {ph} 張;沒預掛的 {max(0, tot - ph)} 張程式管(條件單已照這個張數重掛),預掛的等成交({self.prehang_deadline} 前沒成交由程式平)")   # 2026-11-08 18:58 跟著 18:30 部分預掛規則改字
-            if p.get("judge") != MANUAL:
-                self.alert(f"✅ {self.name_of(code)} {code} 手動加碼 {lots} 張已交給程式", f"共 {tot} 張 均價 {p['entry']:.2f}(停利 {p['tp']} / 停損 {p['sl']}),平倉時全部一起平")
+            if p.get("judge") != MANUAL or p.get("judge0"):
+                self.alert(f"✅ {self.name_of(code)} {code} 手動加碼 {lots} 張已交給程式{'(改由判三管)' if p.get('judge0') else ''}", f"共 {tot} 張 均價 {p['entry']:.2f}(停利 {p['tp']} / 停損 {p['sl']}),平倉時全部一起平")
             # 2026-11-05 12:33 使用者「我是永久會員 這手動單 要加入進場」(宏碁手動加買 3 張,當沖有、進場沒有):手動加碼也在進場欄發一張卡(標「加碼」,張數 = 這次加的);
             #   同一張委託分批成交等 3 秒併成一張卡
             try:
@@ -1680,6 +1683,8 @@ class Trader:
             if fit < lots:
                 self.log(f"[交易] 額度只夠 {fit} 張(今天成交金額 {self.amount_today:,.0f} / 上限 {self.max_amount:,.0f}),{lots} 張改掛 {fit} 張"); lots = fit
         p = self.new_pos(code, d, judge, title, tp=tp_sig, sl=sl_sig)
+        if it.get("_over"):   # 2026-11-11 16:49 使用者「超額補進場 手動進場或加碼 強制進場 都受判三管轄」:超額補進場改由判三管(停利 / 停損照判三 %,成交後從實際均價算;記「強三」)
+            p.update({"judge0": judge, "judge": FORCED, "tp_pct": self.y3_tp, "sl_pct": self.y3_sl, "over3": True})
         p["px_sig"] = px_sig                                       # 2026-10-31 改 C:補單前檢查現價離訊號價多遠
         p["no_max_move"] = False   # 2026-11-11 14:17 使用者「全改」:假突破空單也套 ±6.5%(進場已限 ±5%)   # 原 "✓破" in body   # 2026-10-28 使用者選「元大那邊對假突破空單不套 6.5%」:判三「假突破跌破 Ka 空」(通知帶「空✓破」)常在離昨收 +6.5% 以上才進場,不套 ±6.5% 強制平倉(停利 / 停損 / 13:20 / 手機平倉通知照舊)
         if ekey:
@@ -1973,6 +1978,7 @@ class Trader:
                 c = p["code"]
                 self.post(f"{self.name_of(c)} {c} {'做多' if p['dir'] > 0 else '做空'}進場 {avg:.2f}",
                           f"{p['t0']} 強制 · 停利 {p['tp']:.2f} 停損 {p['sl']:.2f} · {lots}張 · {FORCED}", "long" if p["dir"] > 0 else "short")
+            if p.get("over3"): self.set_forced_tpsl(p, avg)   # 2026-11-11 16:49 超額補進場:判三 % 從實際均價算
             self.log(f"[交易] 持倉 {p['code']} {p['judge']} {'多' if p['dir'] > 0 else '空'} {lots} 張 均價 {avg:.2f} 停利 {p['tp']} 停損 {p['sl']}")
             if self.oco_ok(p["code"]) and p["tp"] and p["sl"]:
                 p["oco_no"] = None; self.oco_q.append(p["code"])
