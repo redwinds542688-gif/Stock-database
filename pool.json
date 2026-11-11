@@ -20,6 +20,7 @@
  },
  "disposed": [
   "2360",
+  "2455",
   "2466",
   "3189",
   "3374",
@@ -2939,8 +2940,8 @@
      4.62
     ]
    ],
-   "daytrade": 1,
-   "short_first": 1
+   "daytrade": 0,
+   "short_first": 0
   },
   {
    "code": "6209",
@@ -5737,5 +5738,11 @@
    "daytrade": 1,
    "short_first": 1
   }
- ]
+ ],
+ "elig_checked_at": "2026-11-11 08:21",
+ "elig_source_today": [
+  "上市",
+  "上櫃"
+ ],
+ "elig_checked": "2026-11-11"
 }
