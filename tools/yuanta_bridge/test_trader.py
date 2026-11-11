@@ -866,4 +866,14 @@ Trader.IRON_LOTS = True
 at(10, 0); tv, gv = mk(TRADE_QTY="5"); tv.on_tick("6269", 86.2); tv.step([ENT]); ok(gv.sent[-1][2] == 2, gv.sent)   # 86.2 元最多 2 張
 tw5, _ = mk(TRADE_CAP="900000", TRADE_LOT_TIER="0", TRADE_MAX_AMOUNT="9000000"); ok(tw5.cap == 250000 and tw5.lot_tier and tw5.max_amount == 5000000, (tw5.cap, tw5.lot_tier, tw5.max_amount))
 ok(tw5.lots_for(20.0) == 3 and tw5.lots_for(60.0) == 2 and tw5.lots_for(100.0) == 2 and tw5.lots_for(200.0) == 1)
+# 2026-11-11 19:50 鐵律 ⑥ 移動停損利(強三):Ka(10 個已收完分鐘收盤均)從最低回升 > 3% → 平倉;設定關不掉、放不寬
+at(10, 0); tm6, _ = mk(); tm6.ref_of = lambda c: 100.0; tm6.on_tick("2330", 100.0); ok(tm6.force_enter("2330", -1, 1)[0]); tm6.on_report(51, "A0001", 0, 1000, 100.0); p6 = tm6.positions["2330"]
+for mm_, px_ in [(m, 100.0) for m in range(1, 11)] + [(m, 98.0) for m in range(11, 21)]:
+    at(10, mm_); tm6.on_tick("2330", px_)
+ok(p6["state"] == HOLDING and p6["mt_a"] < 98.5, (p6["state"], p6.get("mt_a")))
+for mm_ in range(21, 30):
+    at(10, mm_); tm6.on_tick("2330", 103.5)
+    if p6["state"] != HOLDING: break
+ok(p6["state"] == EXITING and p6["exit_why"] == "移動停損利" and mm_ >= 26, (p6["state"], p6.get("exit_why"), mm_))
+tm7, _ = mk(TRADE_MTSL_PCT="0"); ok(tm7.mtsl == 3.0); tm8, _ = mk(TRADE_MTSL_PCT="2"); ok(tm8.mtsl == 2.0); at(10, 0)
 print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7 + 判七上線 2 + 判六上線 4 + 判七 +8% 強平 2 + 判二大盤分級檔數 7 + 判二寬度範圍 11 + 條件單編號存檔 3 + 沒昨收不進 3)")

@@ -102,7 +102,7 @@ def lot_tier_qty(px):
     cap, mx = (160000, 3) if px <= 80 else (250000, 2)
     return max(1, min(mx, int(cap // (px * 1000))))
 IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG, IRON_BRX_L, IRON_BRX_E = 5.0, 6.5, "09:30", "12:30", "12:32", 1.5, 0.15
-IRON_CAP, IRON_AMOUNT = 250000, 5000000.0   # ⑤ 一張上限 25 萬(超過 = 超額)、一天總額度 500 萬   # 鐵律(2026-11-11 15:42),見 __init__
+IRON_CAP, IRON_AMOUNT, IRON_MTSL = 250000, 5000000.0, 3.0   # ⑤ 一張上限 25 萬(超過 = 超額)、一天總額度 500 萬   # 鐵律(2026-11-11 15:42),見 __init__
 MANUAL = "元三"      # 2026-10-28 使用者:在元大(投資先生)自己下的單,成交後交給判三管
 
 
@@ -163,6 +163,7 @@ class Trader:
         self.man_move = float(cfg.get("TRADE_MANUAL_MAX_MOVE_PCT", "6.5"))   # 2026-11-11 15:36 使用者「所有的判別式都需要受到 ±5% 進場限制跟 ±6.5% 的強力限制 沒有任何特殊可以例外」:元三 / 強三 8.5 → 6.5   # 2026-11-03 13:17 元三 / 強三離昨收 ±8.5% 強制平倉(判一~四照舊 ±6.5%);設成跟 TRADE_MAX_MOVE_PCT 一樣 = 回到原本
         self.j7_move = float(cfg.get("TRADE_J7_MAX_MOVE_PCT", "6.5"))   # 2026-11-11 14:17 使用者「做空 漲跌幅限制+-5% 停損+-6.5」→「做多做空都一樣 解鎖 全改」:判四 / 五 / 七 8% → 6.5%(和其他判別式一樣)
         self.ent_pct = float(cfg.get("TRADE_ENTRY_PCT", "5"))   # 同上:進場時現價離昨收超過 ±5% 不進(多空一樣;0 = 不看)   # 2026-11-11 10:40 判四 / 判五也用這條(使用者「判四判五 都跟判七一樣」→「解鎖 改」)   # 2026-11-09 判七空單強平線(離昨收 %);0 = 跟其他判別式一樣用 TRADE_MAX_MOVE_PCT
+        self.mtsl = float(cfg.get("TRADE_MTSL_PCT", "3")); self._mc = {}   # 2026-11-11 19:50 鐵律 ⑥ 移動停損利(Ka 從最有利點回頭 > 3% → 平倉)
         self.brx_l = float(cfg.get("TRADE_BRX_LOSS_PCT", "1.5")); self.brx_e = float(cfg.get("TRADE_BRX_DIFF", "0.15"))   # 2026-11-11 19:16 使用者「解鎖 改」:寬度反向停損(帳面虧 > 1.5% 且大盤上漲比例比進場時反向 ≥ 0.15 → 平倉)
         self.lot_tier = cfg.get("TRADE_LOT_TIER", "1") == "1"   # 2026-11-11 14:49 使用者「70 元以內 3 張、150 元以內 2 張、超過 150 元到 250 元 1 張」→「解鎖 都改」(超過 25 萬 = 超額照舊不做)
         self.force_to = cfg.get("TRADE_FORCE_TO", "12:30")   # 2026-11-11 15:38 強制進場也 09:30~12:30
@@ -199,7 +200,7 @@ class Trader:
         self.ent_pct = _lo(self.ent_pct, IRON_PCT); self.force_block_pct = _lo(self.force_block_pct, IRON_PCT)
         self.max_move = _lo(self.max_move, IRON_MOVE); self.j7_move = _lo(self.j7_move, IRON_MOVE); self.man_move = _lo(self.man_move, IRON_MOVE)
         self.j_from = max(self.j_from, IRON_FROM); self.j_to = min(self.j_to, IRON_TO_SIG); self.force_to = min(self.force_to, IRON_TO)
-        self.brx_l = _lo(self.brx_l, IRON_BRX_L); self.brx_e = _lo(self.brx_e, IRON_BRX_E)
+        self.brx_l = _lo(self.brx_l, IRON_BRX_L); self.brx_e = _lo(self.brx_e, IRON_BRX_E); self.mtsl = _lo(self.mtsl, IRON_MTSL)   # ⑥ 移動停損利
         # ⑤ 張數分級 + 500 萬額度(2026-11-11 19:29 使用者「這套 也加入 鐵律」):lot_tier_qty(≤ 80 元 最多 3 張且 ≤ 16 萬、80~250 元 最多 2 張且 ≤ 25 萬;一張超過 25 萬 = 超額不做);一天成交總額度 500 萬(買 + 賣、持倉漲停預留)
         self.lot_tier = True if Trader.IRON_LOTS else self.lot_tier; self.cap = min(self.cap, IRON_CAP) if self.cap > 0 else 0; self.max_amount = _lo(self.max_amount, IRON_AMOUNT)   # ④ 總停損(2026-11-11 19:21 使用者「把這套 叫做 總停損 寫進鐵律 監控所有判別式」)
         self.recheck_times = [x.strip() for x in cfg.get("TRADE_RECHECK", "13:22,13:23,13:24").split(",") if x.strip()]
@@ -728,6 +729,11 @@ class Trader:
 
     def on_tick(self, code, price):
         self.last_px[code] = price
+        try:   # 2026-11-11 19:50 鐵律 ⑥ 移動停損利:每檔每分鐘最後一個價 = 那分鐘收盤(算 Ka 用)
+            mc = self._mc.setdefault(code, {}); mc[self.hm()] = price
+            if len(mc) > 40:
+                for k_ in sorted(mc)[:-40]: mc.pop(k_, None)
+        except Exception: pass
         self.check_kill()
         with self.lock:
             p = self.positions.get(code)
@@ -747,16 +753,22 @@ class Trader:
             man = p.get("judge") in (MANUAL, FORCED) and self.man_move > 0
             mm = self.man_move if man else self.j7_move if p.get("judge") in ("判七", "判四", "判五") and self.j7_move > 0 else self.max_move   # 2026-11-09 15:43 判七第一次修改(使用者「解鎖改」):判七空單漲到昨收 +8% 才強平(其他判別式照舊 ±6.5%)
             hit_mv = (man or not p.get("no_max_move")) and ref > 0 and mm > 0 and ((price <= ref * (1 - mm / 100)) if d > 0 else (price >= ref * (1 + mm / 100)))
-            hit_br = False
+            hit_br = False; hit_mt = False
+            if man and self.mtsl > 0 and not (hit_tp or hit_sl or hit_mv):   # 2026-11-11 19:50 鐵律 ⑥ 移動停損利(強三 / 元三等程式自己管的部位;判別式部位由引擎平倉通知)
+                ka = self.ka_now(code)
+                if ka is not None:
+                    a = p.get("mt_a")
+                    if a is None or (d < 0 and ka < a) or (d > 0 and ka > a): p["mt_a"] = a = ka
+                    if (d < 0 and ka > a * (1 + self.mtsl / 100) + 1e-12) or (d > 0 and ka < a * (1 - self.mtsl / 100) - 1e-12): hit_mt = True
             if man and self.brx_l > 0 and not (hit_tp or hit_sl or hit_mv) and p.get("entry"):   # 2026-11-11 19:16 寬度反向停損(強三 / 元三 / 超額 / 手動加碼也照判三;判別式部位由引擎平倉通知)
                 if p.get("br0") is None: p["br0"] = self.br_now()
                 if p.get("br0") is not None and (p["entry"] - price) / p["entry"] * 100 * d > self.brx_l + 1e-9:
                     b = self.br_now()
                     if b is not None and ((p["br0"] - b) if d > 0 else (b - p["br0"])) >= self.brx_e - 1e-9: hit_br = True
-            if not (hit_tp or hit_sl or hit_mv or hit_br):
+            if not (hit_tp or hit_sl or hit_mv or hit_br or hit_mt):
                 return
-            why = f"超{mm:g}%" if hit_mv else "停利" if hit_tp else "停損" if hit_sl else "總停損"
-            if p.get("oco_live") and not hit_mv and not hit_br:
+            why = f"超{mm:g}%" if hit_mv else "停利" if hit_tp else "停損" if hit_sl else "總停損" if hit_br else "移動停損利"
+            if p.get("oco_live") and not hit_mv and not hit_br and not hit_mt:
                 if not p.get("oco_noted"):
                     p["oco_noted"] = True; p["oco_hit_at"] = time.time(); p["oco_hit_why"] = why
                     self.log(f"[交易] {code} 價格 {price} 碰到{why},由元大條件單(OCO)平倉" + (f"({self.oco_grace:g} 秒內沒平掉由程式平)" if self.oco_grace > 0 else ""))
@@ -1718,6 +1730,13 @@ class Trader:
             return nsl
         except Exception:
             return sl
+
+    def ka_now(self, code):
+        """鐵律 ⑥:Ka = 最近 10 個「已收完」分鐘的收盤平均(這分鐘還在形成的不算);不到 10 分鐘回 None"""
+        try:
+            mc = self._mc.get(code) or {}; hm = self.hm(); ks = sorted(k for k in mc if k < hm)[-10:]
+            return sum(mc[k] for k in ks) / 10 if len(ks) >= 10 else None
+        except Exception: return None
 
     def lots_for(self, px):
         """2026-11-11 14:49 張數分級:≤ 70 元 3 張、≤ 150 元 2 張、其他 1 張(TRADE_LOT_TIER=0 → 原本 多空上限 ÷ 一張)"""
