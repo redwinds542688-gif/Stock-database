@@ -488,8 +488,8 @@ def sim_trades(ev, upto):
 
 def exit_text(why):
     if why.startswith("停利"): return "停利"
-    if "總停損" in why: return "總停損"           # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 5:鐵律出場照原名寫進通知標題,中繼才認得(有權取消預掛立即平)
-    if "移動停損利" in why: return "移動停損利"
+    if "總停損" in why: return "總平"           # 2026-11-11 22:47 使用者「總停損 =總平 移動停損利=移平」:通知標題用短名(原「總停損」)   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 5:鐵律出場照原名寫進通知標題,中繼才認得(有權取消預掛立即平)
+    if "移動停損利" in why: return "移平"
     if "停損" in why: return "停損"
     if why.startswith("OBV"): return "OBV"
     if "量縮轉折" in why: return "量縮轉折"   # 2026-11-06 判四第十九次修改:反向量縮轉折出場

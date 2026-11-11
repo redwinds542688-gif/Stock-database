@@ -584,7 +584,7 @@ tp_.prehang = {"6269": ["M77"]}; n0 = len(gp_.sent)
 tp_.exit_pos(pp_, "13:20 強制平倉", 86.0, force_limit=True); ok(pp_["state"] == EXITING and gp_.sent[n0] == ("cancel", "M77", "6269", "B") and gp_.sent[n0 + 1][:3] == ("6269", "B", 1) and not tp_.prehang, gp_.sent[n0:])
 NOW[0] = NOW0
 # PI) 2026-11-11 21:34 使用者「鐵律檢測到平倉訊息 有權取消預掛 立即平倉」:盤中有預掛,碰 6.5% / 總停損 / 移動停損利 / 引擎鐵律平倉通知 → 取消預掛、立即平;一般停損照舊讓位
-for _why in ("超6.5%", "總停損", "移動停損利", "鐵律", "手機平倉通知:⚠⚠ 台郡 6269 總停損 -1.8% 立即平倉", "手機平倉通知:台郡 6269 出場 -6.6%:超過 6.5%"):
+for _why in ("超6.5%", "總停損", "移動停損利", "總平", "移平", "手機平倉通知:⚠⚠ 台郡 6269 總平 -1.8% 立即平倉", "鐵律", "手機平倉通知:⚠⚠ 台郡 6269 總停損 -1.8% 立即平倉", "手機平倉通知:台郡 6269 出場 -6.6%:超過 6.5%"):
     ti_, gi_ = mk(); ti_.on_tick("6269", 86.2); ti_.step([ENT]); ti_.on_report(51, "A0001", 0, 1000, 86.1); pi_ = ti_.positions["6269"]
     ti_.prehang = {"6269": ["M79"]}; ni_ = len(gi_.sent); ti_.exit_pos(pi_, _why, 92.0, force_limit=True)
     ok(pi_["state"] == EXITING and ("cancel", "M79", "6269", "B") in gi_.sent[ni_:] and any(x[:3] == ("6269", "B", 1) for x in gi_.sent[ni_:]) and any("鐵律平倉" in a for a in ti_.alerts), (_why, gi_.sent[ni_:]))
@@ -865,7 +865,7 @@ at(10, 0); tb_, gb_ = mk(); tb_.ref_of = lambda c: 100.0; tb_.on_tick("2330", 10
 ok(tb_.force_enter("2330", 1, 1)[0]); tb_.on_report(51, "A0001", 0, 1000, 100.0); pb_ = tb_.positions["2330"]; tb_.on_tick("2330", 100.0); ok(pb_["br0"] == 0.60, pb_.get("br0"))
 BRV[0] = 0.50; tb_.on_tick("2330", 98.4); ok(pb_["state"] == HOLDING, pb_["state"])                 # 反向 0.10 不到 0.15
 BRV[0] = 0.44; tb_.on_tick("2330", 98.6); ok(pb_["state"] == HOLDING, pb_["state"])                 # 虧 1.4% 不到 1.5%
-tb_.on_tick("2330", 98.4); ok(pb_["state"] == EXITING and pb_["exit_why"] == "總停損", (pb_["state"], pb_.get("exit_why")))
+tb_.on_tick("2330", 98.4); ok(pb_["state"] == EXITING and pb_["exit_why"] == "總平", (pb_["state"], pb_.get("exit_why")))
 # 2026-11-11 19:29 鐵律 ⑤:張數分級 + 500 萬額度關不掉、放不寬
 Trader.IRON_LOTS = True
 # PJ) 2026-11-11 21:34 使用者「一定要在主導機的多空限額裡面才能交易」:主導機多空上限 30 萬、20 萬 → 一般判別式訊號一張超過就不進(沒標超額也一樣);強制進場同
@@ -886,7 +886,7 @@ ok(p6["state"] == HOLDING and p6["mt_a"] < 98.5, (p6["state"], p6.get("mt_a")))
 for mm_ in range(21, 30):
     at(10, mm_); tm6.on_tick("2330", 103.5)
     if p6["state"] != HOLDING: break
-ok(p6["state"] == EXITING and p6["exit_why"] == "移動停損利" and mm_ >= 26, (p6["state"], p6.get("exit_why"), mm_))
+ok(p6["state"] == EXITING and p6["exit_why"] == "移平" and mm_ >= 26, (p6["state"], p6.get("exit_why"), mm_))
 tm7, _ = mk(TRADE_MTSL_PCT="0"); ok(tm7.mtsl == 3.0); tm8, _ = mk(TRADE_MTSL_PCT="2"); ok(tm8.mtsl == 2.0); at(10, 0)
 # 2026-11-11 19:59 鐵律 ⑤ 強制進場也照張數分級 / 超額 / 500 萬額度
 at(10, 0); tf5, gf5 = mk(TRADE_CAP="250000"); tf5.ref_of = lambda c: 50.0; tf5.on_tick("2330", 50.0); r5 = tf5.force_enter("2330", 1, 10); ok(r5[0] and gf5.sent[-1][2] == 3 and "3 張" in r5[1], (r5, gf5.sent))   # 手機送 10 張 → 50 元最多 3 張
@@ -896,7 +896,7 @@ tf8, gf8 = mk(TRADE_CAP="250000", TRADE_MAX_AMOUNT="100000"); tf8.ref_of = lambd
 # 2026-11-11 20:25 ② 判別式部位中繼也盯總停損(備援)③ 起點存檔、重開接回
 at(10, 0); tj2, gj2 = mk(); BRJ = [0.6]; tj2.br_now = lambda: BRJ[0]; tj2.on_tick("2330", 50.0); tj2.step([sig("k2j2", "long", "股2330 2330 做多進場 50.0", "10:00 多✓ · 停利 52.00 停損 47.80 · 判二")]); tj2.on_report(51, "A0001", 0, 1000, 50.0)
 pj2 = tj2.positions["2330"]; tj2.on_tick("2330", 50.0); ok(pj2["br0"] == 0.6 and pj2["judge"] == "判二", pj2.get("br0"))
-BRJ[0] = 0.40; tj2.on_tick("2330", 49.2); ok(pj2["state"] == EXITING and pj2["exit_why"] == "總停損", (pj2["state"], pj2.get("exit_why")))
+BRJ[0] = 0.40; tj2.on_tick("2330", 49.2); ok(pj2["state"] == EXITING and pj2["exit_why"] == "總平", (pj2["state"], pj2.get("exit_why")))
 sf = tmp / "prot_test.json"; ta3, _ = mk(TRADE_STATE_FILE=str(sf)); BR3 = [0.7]; ta3.br_now = lambda: BR3[0]; ta3.on_tick("2330", 50.0); ta3.step([ENTX("2330", 50.0, judge="判二")]); ta3.on_report(51, "A0001", 0, 1000, 50.0)
 ta3.on_tick("2330", 50.0); ta3._prot_t = 0; ta3.prot_save(ta3.positions["2330"])
 tb3, _ = mk(TRADE_STATE_FILE=str(sf)); BR3[0] = 0.5; tb3.br_now = lambda: BR3[0]; pb3 = tb3.new_pos("2330", 1, "判二", "接回"); pb3.update({"qty": 1, "entry": 50.0, "state": HOLDING})
@@ -982,7 +982,7 @@ tr3, gr3 = mk(TRADE_CAP="250000"); tr3.ref_of = lambda c: 110.0; tr3.on_tick("23
 tr4, _ = mk(TRADE_CAP="0"); tr4.master_cap = 150000; ok(tr4.cap_lim() == 150000)
 # 5) 引擎鐵律出場寫進通知標題
 import engine as _eng
-ok(_eng.exit_text("總停損") == "總停損" and _eng.exit_text("移動停損利") == "移動停損利" and _eng.exit_text("停損 1.5%") == "停損")
+ok(_eng.exit_text("總停損") == "總平" and _eng.exit_text("移動停損利") == "移平" and _eng.exit_text("停損 1.5%") == "停損")
 # 2026-11-11 全改
 # 9) 委託價(現價讓 2 檔)超過昨收 ±5% → 不進:昨收 50、現價 52.4(+4.8%)→ 委託 52.6(+5.2%)
 t9_, g9_ = mk(TRADE_CAP="250000"); t9_.ref_of = lambda c: 50.0; t9_.on_tick("2330", 52.4); t9_.step([ENTX("2330", 52.4)]); ok("2330" not in t9_.positions and not g9_.sent, g9_.sent)

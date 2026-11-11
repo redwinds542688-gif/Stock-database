@@ -104,7 +104,7 @@ def lot_tier_qty(px):
 IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG, IRON_BRX_L, IRON_BRX_E = 5.0, 6.5, "09:30", "12:30", "12:32", 1.5, 0.15
 IRON_CAP_MAX = 250000   # 2026-11-11 22:46 使用者「最多上限改25萬」:多空上限(設定檔 / 主導機)最多 25 萬   # 原 500000 # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:設定檔的多空上限最多 50 萬(和主導機能設的範圍一樣)
 IRON_EXIT, JUDGES_ALL = "13:20", ("判一", "判二", "判三", "判四", "判五", "判六", "判七")   # 2026-11-11 22:25 使用者「改13」:設定檔的開關不能關掉鐵律保護
-RE_IRON_EXIT = re.compile(r"超過?\s*[\d.]+\s*%|總停損|移動停損利|鐵律|強制平倉")   # 2026-11-11 21:34 鐵律平倉(含引擎平倉通知標題):有權取消手動預掛、立即平
+RE_IRON_EXIT = re.compile(r"超過?\s*[\d.]+\s*%|總停損|移動停損利|總平|移平|鐵律|強制平倉")   # 2026-11-11 22:47 使用者「總停損 =總平 移動停損利=移平」:加短名 總平 / 移平   # 2026-11-11 21:34 鐵律平倉(含引擎平倉通知標題):有權取消手動預掛、立即平
 IRON_CAP, IRON_AMOUNT, IRON_MTSL = 250000, 5000000.0, 3.0   # ⑤ IRON_CAP = 固定張數模式(cap=0)時的一張上限;2026-11-11 22:24 使用者「針對 2項 改鐵律」:一張上限改以主導機多空上限為準,不再固定最多 25 萬   # 原:一張上限 25 萬(超過 = 超額)、一天總額度 500 萬   # 鐵律(2026-11-11 15:42),見 __init__
 MANUAL = "元三"      # 2026-10-28 使用者:在元大(投資先生)自己下的單,成交後交給判三管
 
@@ -814,7 +814,7 @@ class Trader:
                     if b is not None and ((p["br0"] - b) if d > 0 else (b - p["br0"])) >= self.brx_e - 1e-9: hit_br = True
             if not (hit_tp or hit_sl or hit_mv or hit_br or hit_mt):
                 return
-            why = f"超{mm:g}%" if hit_mv else "停利" if hit_tp else "停損" if hit_sl else "總停損" if hit_br else "移動停損利"
+            why = f"超{mm:g}%" if hit_mv else "停利" if hit_tp else "停損" if hit_sl else "總平" if hit_br else "移平"   # 2026-11-11 22:47 使用者「總停損 =總平 移動停損利=移平」
             if p.get("oco_live") and not hit_mv and not hit_br and not hit_mt:
                 if not p.get("oco_noted"):
                     p["oco_noted"] = True; p["oco_hit_at"] = time.time(); p["oco_hit_why"] = why
@@ -1925,12 +1925,12 @@ class Trader:
                 if ka is not None:
                     a = p.get("mt_a")
                     if a is None or (d < 0 and ka < a) or (d > 0 and ka > a): p["mt_a"] = a = ka
-                    if (d < 0 and ka > a * (1 + self.mtsl / 100) + 1e-12) or (d > 0 and ka < a * (1 - self.mtsl / 100) - 1e-12): return "移動停損利"
+                    if (d < 0 and ka > a * (1 + self.mtsl / 100) + 1e-12) or (d > 0 and ka < a * (1 - self.mtsl / 100) - 1e-12): return "移平"
             if self.brx_l > 0 and avg > 0:
                 if p.get("br0") is None: p["br0"] = self.br_now()
                 if p.get("br0") is not None and (avg - price) / avg * 100 * d > self.brx_l + 1e-9:
                     b = self.br_now()
-                    if b is not None and ((p["br0"] - b) if d > 0 else (b - p["br0"])) >= self.brx_e - 1e-9: return "總停損"
+                    if b is not None and ((p["br0"] - b) if d > 0 else (b - p["br0"])) >= self.brx_e - 1e-9: return "總平"
         except Exception as e: self.log(f"[交易] 進場中鐵律檢查失敗 {e!r}")
         return ""
 
