@@ -202,6 +202,7 @@ class Trader:
                     if c_: self.ignore.add(c_)
         except Exception: pass
         self.last_entry = cfg.get("TRADE_LAST_ENTRY", "13:10")
+        self.over_min = min(float(cfg.get("TRADE_OVER_MIN", "10") or 10), 10.0)   # 2026-11-11 22:22 使用者「超額 補進 照程式最初發布時間為準的10分鐘內 10分鐘後自動取消 假設12.29發布 12.39即失效」(最多 10 分鐘)
         # ═══ 鐵律(2026-11-11 15:42 使用者「這三個 寫成鐵律 任何判別式都不可以違背」):設定只能收緊、不能放寬(bridge.env 寫更鬆也會被拉回)═══
         #   ① 進場時現價離昨收 ±5% 以內   ② 部位離昨收不利 6.5% 強制平倉(判別式 / 元三 / 強三都一樣)   ③ 只在 09:30~12:30 進場(判別式通知最晚 12:32 到)   ④ 總停損:虧 > 1.5% 且大盤寬度反向 ≥ 0.15 → 平倉
         _lo = lambda v, cap: v if 0 < v <= cap else cap
@@ -1346,6 +1347,7 @@ class Trader:
         """超額訊號現在能不能補進(回 (能?, 現價, 取消原因))"""
         if code in self.positions: return False, None, "已經有部位"
         if self.hm() >= self.last_entry: return False, None, f"已過最後進場時間 {self.last_entry}"
+        if w.get("until_hm") and self.hm() >= w["until_hm"]: return False, None, f"超過原訊號發布後 {self.over_min:g} 分鐘({w['until_hm']} 失效)"   # 2026-11-11 22:22 使用者「超額 補進 照程式最初發布時間為準的10分鐘內 10分鐘後自動取消 假設12.29發布 12.39即失效」
         last = self.last_px.get(code)
         if not last or self.cap <= 0: return False, last, ""
         if not ((w["sl"] < last < w["tp"]) if w["kind"] == "long" else (w["tp"] < last < w["sl"])):
@@ -1391,7 +1393,7 @@ class Trader:
                 if not w.get("ready"): continue
                 last = self.last_px.get(code) or 0
                 out.append({"code": code, "name": self.name_of(code), "dir": 1 if w["kind"] == "long" else -1, "px": w["px"], "tp": w["tp"], "sl": w["sl"], "judge": w["judge"],
-                            "last": last, "lots": self.lots_for(last) if last and self.cap > 0 else 1})
+                            "last": last, "lots": self.lots_for(last) if last and self.cap > 0 else 1, "until": w.get("until_hm", "")})
             return out
 
     def over_confirm(self, code, cmd_id=None):
@@ -1727,13 +1729,17 @@ class Trader:
             self.log(f"[交易] 不進場 {title}:超額(一張就超過多空上限),只通知;要做請用強制進場")
             tpsl = RE_TPSL.search(body); mp = RE_PX_END.search(title)
             if self.over_redo and self.cap > 0 and tpsl and mp and code not in self.positions:
-                self.over_wait[code] = {"it": dict(it), "judge": judge, "kind": kind, "px": num(mp.group(1)), "tp": num(tpsl.group(1)), "sl": num(tpsl.group(2))}
+                m0 = minutes_of(it.get("t")) if it.get("t") else None
+                if m0 is None: n_ = self.now(); m0 = n_.hour * 60 + n_.minute
+                m1 = m0 + int(self.over_min)   # 2026-11-11 22:22 使用者「超額 補進 照程式最初發布時間為準的10分鐘內 10分鐘後自動取消 假設12.29發布 12.39即失效」
+                self.over_wait[code] = {"it": dict(it), "judge": judge, "kind": kind, "px": num(mp.group(1)), "tp": num(tpsl.group(1)), "sl": num(tpsl.group(2)),
+                                        "until_hm": f"{m1 // 60:02d}:{m1 % 60:02d}"}
                 self.log(f"[交易] {code} 超額先記著:現價回到一張 ≤ 多空上限 {self.cap:,.0f} 時補進場(停利 {num(tpsl.group(1))} / 停損 {num(tpsl.group(2))})")
             return
         age = self.sig_age(it.get("t"))
         if age is not None and age > self.sig_max_age and not it.get("_late"):   # 太晚補進場:原訊號本來就舊了,時間由 late_redo_min 管          # 2026-10-29 稽核 #1:太舊的進場通知(例如重開 / 讀取延遲才看到)不進
             self.log(f"[交易] 不進場 {title}:通知時間 {it.get('t')} 已經過 {age:.0f} 分鐘(上限 {self.sig_max_age:g},TRADE_SIGNAL_MAX_AGE_MIN)"); return
-        why = self.can_enter(code, judge, kind)
+        why = self.can_enter(code, judge, kind, over=bool(it.get("_over")))
         if why:
             self.log(f"[交易] 不進場 {title}:{why}"); return
         # 2026-10-30 11:08(實際時間)使用者「2道都做」第 2 道:送單前最後一關 — 電腦開盤前向證交所 / 櫃買查的今天資格(elig.py),
@@ -1887,7 +1893,7 @@ class Trader:
         if self.lot_tier: return lot_tier_qty(px)
         return max(1, int(self.cap // (px * 1000)))
 
-    def can_enter(self, code, judge, kind=None):
+    def can_enter(self, code, judge, kind=None, over=False):
         if not self.enabled:
             return "自動交易關閉"
         if code in self.ignore:   # 2026-11-11 20:44 庫存裡有留倉 / 借券的股票不自動進場(和庫存混在一起)
@@ -1913,7 +1919,7 @@ class Trader:
         hm = self.hm()
         if not ("09:00" <= hm < self.last_entry):
             return f"不在 09:00~{self.last_entry}"
-        if judge and judge.startswith("判") and not (self.j_from <= hm <= self.j_to):   # 2026-11-11 14:49 判別式自動進場只在 09:30~12:30(訊號那根;推到這裡最晚 12:32)
+        if judge and judge.startswith("判") and not over and not (self.j_from <= hm <= self.j_to):   # 超額補進場:時間照原訊號發布後 10 分鐘(over_ok 管)   # 2026-11-11 14:49 判別式自動進場只在 09:30~12:30(訊號那根;推到這裡最晚 12:32)
             return f"判別式只在 {self.j_from}~{self.j_to} 進場"
         if judge == "判二" and kind in ("long", "short") and self.j2_brng.get(kind):   # 2026-11-10 01:45 判二第二十六次修改(使用者「解鎖 改」):大盤上漲家數要在 22 天贏單範圍內(空 4.4%~88.1%、多 10.6%~92%),取代 ≥ 92% 不做
             b = self.br_now(); lo_, hi_ = self.j2_brng[kind]
