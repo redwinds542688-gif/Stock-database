@@ -575,6 +575,13 @@ def stock_ok(s, j, R):
     return None
 
 
+def set_desc(j, cap):
+    """2026-11-11 17:02 使用者「主導機 明明設6000 成交K 明明設250 怎麼電腦自己變了」→ 開工 / 重選時把實際用的選股設定寫進紀錄(讀沒讀到主導機一看就知道)"""
+    try:
+        R = pool_rules(j if isinstance(j, dict) else {"pool": j}, cap); src = "主導機" if CLOUD_SET else "讀不到主導機,用預設"
+        return f"選股設定({src}):{R['lo']:g}~{R['hi']:g} 元、振幅 ≥{R['amp']:g}%、張數 ≥{R['lots']:g}、成交K棒 ≥{R['bars']:g}、連續 {R['days']} 天、監控 {R['cnt']} 檔、多空上限 {cap:,}"
+    except Exception as e: return f"選股設定(寫紀錄失敗 {e!r})"
+
 def build_universe(j, day, cap, held=(), noted=(), old_src=None):
     """名單 → 今天要算的股票。held = 已推進場還開著的;noted = 今天推過通知的(和手機 scan 一樣不受篩選、不佔檔數)
        回傳 dict:codes / names / prev / mkts / canshort / no_new(今天通知過但現在不合格 → 只算平倉、不發新進場)/ src / stamp / why"""
@@ -1134,6 +1141,7 @@ def live():
     eng = Engine(day, uni)
     eng.sync_cloud()
     log(f"公式在電腦:{len(eng.codes)} 檔 × 判一二三四,每分鐘重算;名單 {uni['stamp']},篩掉 {uni['why']};規則 {RULES['ver']};心跳 ?engine")
+    log(set_desc(j, cap))
     err_max = float(CFG.get("ENGINE_ERR_MAX", "0.2")); rules_every = float(CFG.get("ENGINE_RULES_MIN", "30")) * 60; bar_wait = float(CFG.get("ENGINE_BAR_WAIT", "15"))
     done = set(); pool_chk = time.time(); pool_906 = False; late_n = 0; br = {"ok_at": 0.0, "last": ""}
     # 2026-10-30 01:40 使用者「能夠預判嗎 … 股價已經來到判一二三的臨界點啟動預判」→「做法一」:每分鐘第 ENGINE_PRE_SEC(45)秒先用本機 K「假設這根用現價收」全部算一遍,
@@ -1192,6 +1200,7 @@ def live():
                         add = [c for c in nu["codes"] if c not in eng.codes]
                         if add: prep_day(day, add)
                         log(f"主導機選股設定改了({old} → { {k: CLOUD_SET.get(k) for k in keys} }):重選 {len(nu['codes'])} 檔,新增 {len(add)} 檔")
+                        log(set_desc(eng.uni.get("j") or j, cap))
                         eng.set_universe(nu)
                 except Exception as e: log("開盤前讀主導機設定失敗", repr(e))
             if hm < "09:01" or n.second < start_sec or hm in done:   # 2026-11-07 中繼換分鐘第 1 秒就推 K → 開算從第 4 秒提早到第 2 秒(ENGINE_START_SEC;下面還是會等 hm-1 那根到齊)
