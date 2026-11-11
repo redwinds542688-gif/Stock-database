@@ -102,7 +102,7 @@ def lot_tier_qty(px):
     cap, mx = (160000, 3) if px <= 80 else (250000, 2)
     return max(1, min(mx, int(cap // (px * 1000))))
 IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG, IRON_BRX_L, IRON_BRX_E = 5.0, 6.5, "09:30", "12:30", "12:32", 1.5, 0.15
-IRON_CAP_MAX = 500000   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:設定檔的多空上限最多 50 萬(和主導機能設的範圍一樣)
+IRON_CAP_MAX = 250000   # 2026-11-11 22:46 使用者「最多上限改25萬」:多空上限(設定檔 / 主導機)最多 25 萬   # 原 500000 # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:設定檔的多空上限最多 50 萬(和主導機能設的範圍一樣)
 IRON_EXIT, JUDGES_ALL = "13:20", ("判一", "判二", "判三", "判四", "判五", "判六", "判七")   # 2026-11-11 22:25 使用者「改13」:設定檔的開關不能關掉鐵律保護
 RE_IRON_EXIT = re.compile(r"超過?\s*[\d.]+\s*%|總停損|移動停損利|鐵律|強制平倉")   # 2026-11-11 21:34 鐵律平倉(含引擎平倉通知標題):有權取消手動預掛、立即平
 IRON_CAP, IRON_AMOUNT, IRON_MTSL = 250000, 5000000.0, 3.0   # ⑤ IRON_CAP = 固定張數模式(cap=0)時的一張上限;2026-11-11 22:24 使用者「針對 2項 改鐵律」:一張上限改以主導機多空上限為準,不再固定最多 25 萬   # 原:一張上限 25 萬(超過 = 超額)、一天總額度 500 萬   # 鐵律(2026-11-11 15:42),見 __init__
@@ -2090,7 +2090,7 @@ class Trader:
     def cap_lim(self):
         """鐵律 ⑤ 一張上限 = 主導機的多空上限(cap);cap = 0(固定張數)時用 25 萬(2026-11-11 22:24 使用者「針對 2項 改鐵律」:不再固定最多 25 萬)"""
         if not Trader.IRON_LOTS: return self.cap
-        return self.cap if self.cap > 0 else (self.master_cap or IRON_CAP)   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:固定張數模式也照主導機
+        return min(self.cap if self.cap > 0 else (self.master_cap or IRON_CAP), IRON_CAP_MAX)   # 2026-11-11 22:46 使用者「最多上限改25萬」   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:固定張數模式也照主導機
 
     def prehang_wait(self, code):
         """這檔有保留的手動預掛平倉單、還沒到期限 → True(程式先不平)"""

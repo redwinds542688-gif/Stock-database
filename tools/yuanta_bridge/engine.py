@@ -126,7 +126,7 @@ def cloud_cap(cur):
         j = http(worker_url(f"cap=get&_={int(time.time())}"), key=True, timeout=8)
         if isinstance(j.get("set"), dict): CLOUD_SET.clear(); CLOUD_SET.update(j["set"])
         v = int(j.get("cap") or 0)
-        return v if 50000 <= v <= 500000 else cur
+        return min(v, 250000) if 50000 <= v <= 500000 else cur   # 2026-11-11 22:46 使用者「最多上限改25萬」:最多 25 萬(和中繼一樣,超額標記才對得上)
     except Exception:
         return cur
 
@@ -693,7 +693,7 @@ class Engine:
                 if self.pos or self.emitted: log(f"接回狀態:開著 {len(self.pos)} 筆、處理過的進場 {len(self.emitted)} 個")
             except FileNotFoundError: pass
             except Exception as e: log("!! 狀態檔讀不懂(當作沒有;雲端通知會再對一次)", e)
-        self.cap = int(CFG.get("ENGINE_CAP", "250000")) if dry else cloud_cap(int(CFG.get("ENGINE_CAP", "250000")))   # 2026-11-02 跟 5861 主導機(回放 --dry 不讀雲端);手機的多空上限(通知裡的張數);2026-10-29 手機設 25 萬
+        self.cap = min(int(CFG.get("ENGINE_CAP", "250000")) if dry else cloud_cap(int(CFG.get("ENGINE_CAP", "250000"))), 250000)   # 2026-11-11 使用者「最多上限改25萬」   # 2026-11-02 跟 5861 主導機(回放 --dry 不讀雲端);手機的多空上限(通知裡的張數);2026-10-29 手機設 25 萬
         self.set_universe(uni)
         self.upto_hm = ""   # 2026-11-06 這輪算到幾點(compute 用來判斷判別式是不是已過進場時段)
         self.reload_envs()

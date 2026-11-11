@@ -1078,6 +1078,7 @@ class Bridge:
         """2026-11-02 多空上限主控(使用者:「其他二隻跟電腦偵測到 都自動改成與5861這隻一樣的金額」):讀雲端主導機的值改 trader.cap(之後新進場的張數照它算);
            TRADE_CAP=0(固定張數)不動;讀不到維持原值(bridge.env 的 TRADE_CAP / ENGINE_CAP)"""
         v = fetch_cap(CFG["WORKER_URL"], CFG.get("PUSH_KEY", ""))
+        if v: v = min(v, 250000)   # 2026-11-11 22:46 使用者「最多上限改25萬」
         if v: self.trader.master_cap = v; self.cap_ok_day = time.strftime("%Y-%m-%d", time.gmtime(time.time() + 8 * 3600))   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:讀到了(今天)
         if self.trader.cap <= 0: return
         if v and v != self.trader.cap:

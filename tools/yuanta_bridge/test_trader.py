@@ -869,14 +869,14 @@ tb_.on_tick("2330", 98.4); ok(pb_["state"] == EXITING and pb_["exit_why"] == "�
 # 2026-11-11 19:29 鐵律 ⑤:張數分級 + 500 萬額度關不掉、放不寬
 Trader.IRON_LOTS = True
 # PJ) 2026-11-11 21:34 使用者「一定要在主導機的多空限額裡面才能交易」:主導機多空上限 30 萬、20 萬 → 一般判別式訊號一張超過就不進(沒標超額也一樣);強制進場同
-for _cap, _px, _in in ((300000, 280.0, True), (300000, 310.0, False), (200000, 210.0, False), (200000, 190.0, True)):   # 2026-11-11 改鐵律 ⑤:一張上限 = 主導機多空上限(不再固定 25 萬)
+for _cap, _px, _in in ((300000, 280.0, False), (300000, 240.0, True), (200000, 210.0, False), (200000, 190.0, True)):   # 2026-11-11 一張上限 = 主導機多空上限,最多 25 萬(使用者「最多上限改25萬」)
     tj_, gj_ = mk(TRADE_MAX_MOVE_PCT="99"); tj_.cap = _cap; tj_.ref_of = lambda c, _p=_px: _p; tj_.on_tick("2345", _px)
     tj_.step([sig(f"pj{_cap}{_px}", "long", f"股 2345 做多進場 {_px:.2f}", f"10:30 多 · 停利 {_px * 1.03:.2f} 停損 {_px * 0.96:.2f} · 1張 · 判四")])
     ok(("2345" in tj_.positions) == _in, (_cap, _px, tj_.positions.get("2345")))
-tj_, gj_ = mk(); tj_.cap = 400000; tj_.ref_of = lambda c: 300.0; tj_.on_tick("2346", 300.0); ok(tj_.force_enter("2346", 1, 1)[0])   # 主導機 40 萬:一張 30 萬可以強制進場(改鐵律 ⑤)
+tj_, gj_ = mk(); tj_.cap = 400000; tj_.ref_of = lambda c: 300.0; tj_.on_tick("2346", 300.0); ok(not tj_.force_enter("2346", 1, 1)[0])   # 主導機 40 萬:最多 25 萬,一張 30 萬不給進
 tj_, gj_ = mk(); tj_.cap = 250000; tj_.ref_of = lambda c: 300.0; tj_.on_tick("2346", 300.0); ok(not tj_.force_enter("2346", 1, 1)[0])   # 主導機 25 萬:一張 30 萬不給進
 at(10, 0); tv, gv = mk(TRADE_QTY="5"); tv.on_tick("6269", 86.2); tv.step([ENT]); ok(gv.sent[-1][2] == 2, gv.sent)   # 86.2 元最多 2 張
-tw5, _ = mk(TRADE_CAP="900000", TRADE_LOT_TIER="0", TRADE_MAX_AMOUNT="9000000"); ok(tw5.cap == 500000 and tw5.cap_lim() == 500000 and tw5.lot_tier and tw5.max_amount == 5000000, (tw5.cap, tw5.lot_tier, tw5.max_amount))
+tw5, _ = mk(TRADE_CAP="900000", TRADE_LOT_TIER="0", TRADE_MAX_AMOUNT="9000000"); ok(tw5.cap == 250000 and tw5.cap_lim() == 250000 and tw5.lot_tier and tw5.max_amount == 5000000, (tw5.cap, tw5.lot_tier, tw5.max_amount))
 ok(tw5.lots_for(20.0) == 3 and tw5.lots_for(60.0) == 2 and tw5.lots_for(100.0) == 2 and tw5.lots_for(200.0) == 1)
 # 2026-11-11 19:50 鐵律 ⑥ 移動停損利(強三):Ka(10 個已收完分鐘收盤均)從最低回升 > 3% → 平倉;設定關不掉、放不寬
 at(10, 0); tm6, _ = mk(); tm6.ref_of = lambda c: 100.0; tm6.on_tick("2330", 100.0); ok(tm6.force_enter("2330", -1, 1)[0]); tm6.on_report(51, "A0001", 0, 1000, 100.0); p6 = tm6.positions["2330"]
