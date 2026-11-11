@@ -161,6 +161,7 @@ class Trader:
         self.man_move = float(cfg.get("TRADE_MANUAL_MAX_MOVE_PCT", "6.5"))   # 2026-11-11 15:36 使用者「所有的判別式都需要受到 ±5% 進場限制跟 ±6.5% 的強力限制 沒有任何特殊可以例外」:元三 / 強三 8.5 → 6.5   # 2026-11-03 13:17 元三 / 強三離昨收 ±8.5% 強制平倉(判一~四照舊 ±6.5%);設成跟 TRADE_MAX_MOVE_PCT 一樣 = 回到原本
         self.j7_move = float(cfg.get("TRADE_J7_MAX_MOVE_PCT", "6.5"))   # 2026-11-11 14:17 使用者「做空 漲跌幅限制+-5% 停損+-6.5」→「做多做空都一樣 解鎖 全改」:判四 / 五 / 七 8% → 6.5%(和其他判別式一樣)
         self.ent_pct = float(cfg.get("TRADE_ENTRY_PCT", "5"))   # 同上:進場時現價離昨收超過 ±5% 不進(多空一樣;0 = 不看)   # 2026-11-11 10:40 判四 / 判五也用這條(使用者「判四判五 都跟判七一樣」→「解鎖 改」)   # 2026-11-09 判七空單強平線(離昨收 %);0 = 跟其他判別式一樣用 TRADE_MAX_MOVE_PCT
+        self.brx_l = float(cfg.get("TRADE_BRX_LOSS_PCT", "1.5")); self.brx_e = float(cfg.get("TRADE_BRX_DIFF", "0.15"))   # 2026-11-11 19:16 使用者「解鎖 改」:寬度反向停損(帳面虧 > 1.5% 且大盤上漲比例比進場時反向 ≥ 0.15 → 平倉)
         self.lot_tier = cfg.get("TRADE_LOT_TIER", "1") == "1"   # 2026-11-11 14:49 使用者「70 元以內 3 張、150 元以內 2 張、超過 150 元到 250 元 1 張」→「解鎖 都改」(超過 25 萬 = 超額照舊不做)
         self.force_to = cfg.get("TRADE_FORCE_TO", "12:30")   # 2026-11-11 15:38 強制進場也 09:30~12:30
         self.j_from = cfg.get("TRADE_JUDGE_FROM", "09:30"); self.j_to = cfg.get("TRADE_JUDGE_TO", "12:32")   # 同上「所有判別式 9:30 到 12:30 才能進場」(訊號 12:30 那根 12:31 才推,留 1 分鐘)
@@ -741,10 +742,16 @@ class Trader:
             man = p.get("judge") in (MANUAL, FORCED) and self.man_move > 0
             mm = self.man_move if man else self.j7_move if p.get("judge") in ("判七", "判四", "判五") and self.j7_move > 0 else self.max_move   # 2026-11-09 15:43 判七第一次修改(使用者「解鎖改」):判七空單漲到昨收 +8% 才強平(其他判別式照舊 ±6.5%)
             hit_mv = (man or not p.get("no_max_move")) and ref > 0 and mm > 0 and ((price <= ref * (1 - mm / 100)) if d > 0 else (price >= ref * (1 + mm / 100)))
-            if not (hit_tp or hit_sl or hit_mv):
+            hit_br = False
+            if man and self.brx_l > 0 and not (hit_tp or hit_sl or hit_mv) and p.get("entry"):   # 2026-11-11 19:16 寬度反向停損(強三 / 元三 / 超額 / 手動加碼也照判三;判別式部位由引擎平倉通知)
+                if p.get("br0") is None: p["br0"] = self.br_now()
+                if p.get("br0") is not None and (p["entry"] - price) / p["entry"] * 100 * d > self.brx_l + 1e-9:
+                    b = self.br_now()
+                    if b is not None and ((p["br0"] - b) if d > 0 else (b - p["br0"])) >= self.brx_e - 1e-9: hit_br = True
+            if not (hit_tp or hit_sl or hit_mv or hit_br):
                 return
-            why = f"超{mm:g}%" if hit_mv else "停利" if hit_tp else "停損"
-            if p.get("oco_live") and not hit_mv:
+            why = f"超{mm:g}%" if hit_mv else "停利" if hit_tp else "停損" if hit_sl else "寬度反向"
+            if p.get("oco_live") and not hit_mv and not hit_br:
                 if not p.get("oco_noted"):
                     p["oco_noted"] = True; p["oco_hit_at"] = time.time(); p["oco_hit_why"] = why
                     self.log(f"[交易] {code} 價格 {price} 碰到{why},由元大條件單(OCO)平倉" + (f"({self.oco_grace:g} 秒內沒平掉由程式平)" if self.oco_grace > 0 else ""))
