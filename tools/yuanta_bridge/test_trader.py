@@ -552,23 +552,23 @@ s26, g26 = mk(TRADE_Y3_POST_DELAY="0.3"); s26.on_tick("3481", 41.75)
 for q in (1000, 1000, 1000, 2000): s26.on_report(51, "i00QX", 0, q, 41.75, basket="", code="3481", bs="B")
 ok(s26.positions["3481"]["qty"] == 5 and not s26.posts, (s26.positions.get("3481"), s26.posts))
 time.sleep(0.6); ok(len(s26.posts) == 1 and "· 5張 · 元三" in s26.posts[0][1] and "41.75" in s26.posts[0][0], s26.posts)
-# S27) 2026-11-03 手動單進場時已跌超過 5%(群創 −6.4%,做多)→ 不套 ±6.5%;離得遠的照舊
+# S27) 2026-11-11 15:36 沒有例外:元三 / 強三一律 ±6.5%(原 8.5%、群創那種已接近 −6.5% 的手動單原本不套);強制進場多空都照 ±5% 擋
 s27, _ = mk(); s27.ref_of = lambda c: 44.6; s27.on_tick("3481", 41.75)
 s27.on_report(51, "i00QX", 0, 5000, 41.75, basket="", code="3481", bs="B"); p27 = s27.positions["3481"]
-ok(p27.get("no_max_move") and p27["judge"] == "元三", p27)
-s27.on_tick("3481", 41.65); ok(s27.positions["3481"]["state"] == HOLDING, s27.positions["3481"])          # 原本這裡就被平掉
+ok(not p27.get("no_max_move") and p27["judge"] == "元三", p27)
+s27.on_tick("3481", 41.65); ok(s27.positions["3481"]["state"] == EXITING, s27.positions["3481"])          # 44.6 × 0.935 = 41.70 以下平倉
 s27b, _ = mk(); s27b.ref_of = lambda c: 44.6; s27b.on_tick("3481", 43.0)
 s27b.on_report(51, "i00QY", 0, 1000, 43.0, basket="", code="3481", bs="B"); ok(not s27b.positions["3481"].get("no_max_move"))
-s27b.on_tick("3481", 41.65); ok(s27b.positions["3481"]["state"] == HOLDING)                               # 13:11 起元三一律不套 ±6.5%
-s27c, g27c = mk(); s27c.ref_of = lambda c: 100.0; s27c.force_enter("3002", -1, 1); s27c.on_report(51, "A0001", 0, 1000, 101.0); s27c.on_tick("3002", 108.0); ok(s27c.positions["3002"]["state"] == HOLDING)   # 強三做空 +8% 也不平
-s27c.on_tick("3002", 108.5); ok(s27c.positions["3002"]["state"] == EXITING and s27c.positions["3002"]["exit_why"] == "超8.5%", s27c.positions["3002"])   # 13:17 強三做空 +8.5% 平倉
-s27.on_tick("3481", 40.80); ok(s27.positions["3481"]["state"] == EXITING and s27.positions["3481"]["exit_why"] == "超8.5%", s27.positions["3481"])   # 元三做多 44.6 × 0.915 = 40.81 以下平倉
+ok(s27b.positions["3481"]["sl"] == 41.75, s27b.positions["3481"]["sl"]); s27b.on_tick("3481", 41.8); ok(s27b.positions["3481"]["state"] == HOLDING); s27b.on_tick("3481", 41.75); ok(s27b.positions["3481"]["state"] == EXITING)   # 停損 41.07 收到線 41.75
+s27c, g27c = mk(); s27c.ref_of = lambda c: 100.0; s27c.force_enter("3002", -1, 1); s27c.on_report(51, "A0001", 0, 1000, 101.0); ok(s27c.positions["3002"]["sl"] <= 106.5, s27c.positions["3002"]["sl"])
+s27c.on_tick("3002", 106.5); ok(s27c.positions["3002"]["state"] == EXITING, s27c.positions["3002"])   # 強三做空最晚 +6.5% 出
+s27e, _ = mk(); s27e.ref_of = lambda c: 100.0; s27e.on_tick("3003", 105.2); ok("±5" in s27e.force_block("3003", -1) and "±5" in s27e.force_block("3003", 1)); s27e.on_tick("3003", 104.9); ok(s27e.force_block("3003", -1) == "")
 s27d, _ = mk(TRADE_MANUAL_MAX_MOVE_PCT="6.5"); s27d.ref_of = lambda c: 44.6; s27d.on_tick("3481", 43.0); s27d.on_report(51, "i00QZ", 0, 1000, 43.0, basket="", code="3481", bs="B"); s27d.on_tick("3481", 41.65); ok(s27d.positions["3481"]["state"] == EXITING)   # 開關關掉照舊
-# S28) 2026-11-03 強制進場:離昨收 −6.5% 以下不給做多、+6.5% 以上不給做空(反方向可以)
-s28, g28 = mk(); s28.ref_of = lambda c: 100.0; s28.on_tick("2330", 93.4)
+# S28) 2026-11-11 15:36 強制進場:離昨收超過 ±5% 多空都不給做(原 −6.5% 不做多、+6.5% 不做空)
+s28, g28 = mk(); s28.ref_of = lambda c: 100.0; s28.on_tick("2330", 94.9)
 r = s28.force_enter("2330", 1, 1); ok(not r[0] and "不能強制做多" in r[1] and "2330" not in s28.positions, r)
-ok(s28.force_enter("2330", -1, 1)[0])
-s28b, _ = mk(); s28b.ref_of = lambda c: 100.0; s28b.on_tick("2331", 106.6); ok(not s28b.force_enter("2331", -1, 1)[0] and s28b.force_enter("2331", 1, 1)[0])
+ok(not s28.force_enter("2330", -1, 1)[0])
+s28b, _ = mk(); s28b.ref_of = lambda c: 100.0; s28b.on_tick("2331", 104.9); ok(s28b.force_enter("2331", -1, 1)[0])
 # PH) 2026-11-05 13:20 保留手動預掛平倉:期限前 exit_pos 不平、複查看到掛著的不補單;期限到了才平
 import datetime as _dt
 tp_, gp_ = mk(TRADE_PREHANG_DEADLINE="13:24"); tp_.on_tick("6269", 86.2); tp_.step([ENT]); tp_.on_report(51, "A0001", 0, 1000, 86.1); pp_ = tp_.positions["6269"]

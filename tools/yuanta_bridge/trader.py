@@ -151,13 +151,13 @@ class Trader:
         self.late_wait = {}
         self.y3_post_delay = float(cfg.get("TRADE_Y3_POST_DELAY", "3"))
         self.y3_near = float(cfg.get("TRADE_Y3_NEAR_PCT", "1.5"))
-        self.man_move = float(cfg.get("TRADE_MANUAL_MAX_MOVE_PCT", "8.5"))   # 2026-11-03 13:17 元三 / 強三離昨收 ±8.5% 強制平倉(判一~四照舊 ±6.5%);設成跟 TRADE_MAX_MOVE_PCT 一樣 = 回到原本
+        self.man_move = float(cfg.get("TRADE_MANUAL_MAX_MOVE_PCT", "6.5"))   # 2026-11-11 15:36 使用者「所有的判別式都需要受到 ±5% 進場限制跟 ±6.5% 的強力限制 沒有任何特殊可以例外」:元三 / 強三 8.5 → 6.5   # 2026-11-03 13:17 元三 / 強三離昨收 ±8.5% 強制平倉(判一~四照舊 ±6.5%);設成跟 TRADE_MAX_MOVE_PCT 一樣 = 回到原本
         self.j7_move = float(cfg.get("TRADE_J7_MAX_MOVE_PCT", "6.5"))   # 2026-11-11 14:17 使用者「做空 漲跌幅限制+-5% 停損+-6.5」→「做多做空都一樣 解鎖 全改」:判四 / 五 / 七 8% → 6.5%(和其他判別式一樣)
         self.ent_pct = float(cfg.get("TRADE_ENTRY_PCT", "5"))   # 同上:進場時現價離昨收超過 ±5% 不進(多空一樣;0 = 不看)   # 2026-11-11 10:40 判四 / 判五也用這條(使用者「判四判五 都跟判七一樣」→「解鎖 改」)   # 2026-11-09 判七空單強平線(離昨收 %);0 = 跟其他判別式一樣用 TRADE_MAX_MOVE_PCT
         self.lot_tier = cfg.get("TRADE_LOT_TIER", "1") == "1"   # 2026-11-11 14:49 使用者「70 元以內 3 張、150 元以內 2 張、超過 150 元到 250 元 1 張」→「解鎖 都改」(超過 25 萬 = 超額照舊不做)
         self.j_from = cfg.get("TRADE_JUDGE_FROM", "09:30"); self.j_to = cfg.get("TRADE_JUDGE_TO", "12:32")   # 同上「所有判別式 9:30 到 12:30 才能進場」(訊號 12:30 那根 12:31 才推,留 1 分鐘)
         self.y3_free_mv = self.man_move > 0
-        self.force_block_pct = float(cfg.get("TRADE_FORCE_BLOCK_PCT", "6.5"))   # 2026-11-03 強制進場:跌超過這麼多 % 不給做多、漲超過不給做空(0 = 不擋)   # 2026-11-03 手動單進場時離 ±6.5% 不到這麼多(%)= 已經接近 → 不套 ±6.5%   # 2026-11-03 元三進場卡等分批成交併完再發(秒)
+        self.force_block_pct = float(cfg.get("TRADE_FORCE_BLOCK_PCT", "5"))   # 2026-11-11 15:36 同上:強制進場也照 ±5%(多空都擋,原本只擋不利方向 6.5%)   # 2026-11-03 強制進場:跌超過這麼多 % 不給做多、漲超過不給做空(0 = 不擋)   # 2026-11-03 手動單進場時離 ±6.5% 不到這麼多(%)= 已經接近 → 不套 ±6.5%   # 2026-11-03 元三進場卡等分批成交併完再發(秒)
         self.over_wait = {}
         self.fill_wait = float(cfg.get("TRADE_FILL_WAIT", "8"))    # 自動進場(限價 IOC)送單後等成交回報幾秒
         # 2026-10-29 稽核 #5:IOC 等 fill_wait 秒沒回報 → 不馬上拿掉部位,改「等確認」再等 TRADE_CONFIRM_WAIT 秒(晚到的 T 成交照樣接成持倉)
@@ -938,7 +938,7 @@ class Trader:
                 ref0 = self.ref_of(code) or 0
                 #   群創實際是 −6.4% 進場(還差一點才到 −6.5%)、20 秒後跌到 −6.6% 被平 → 「已經接近」也算:進場時往不利方向已經超過 ±(6.5 − 1.5)= ±5%(TRADE_Y3_NEAR_PCT)就不套
                 mv0 = self.max_move - self.y3_near
-                if ref0 > 0 and self.max_move > 0 and ((price <= ref0 * (1 - mv0 / 100)) if d > 0 else (price >= ref0 * (1 + mv0 / 100))):
+                if False and ref0 > 0 and self.max_move > 0 and ((price <= ref0 * (1 - mv0 / 100)) if d > 0 else (price >= ref0 * (1 + mv0 / 100))):   # 2026-11-11 15:36 沒有例外:元三一律套 ±6.5%
                     p["no_max_move"] = True; self.log(f"[交易] 元三 {code} 進場時已經離昨收 {(price / ref0 - 1) * 100:+.1f}%(超過 ±{mv0:g}%)→ 這筆不套 ±{self.max_move:g}%,只用停利 / 停損")
                 self.set_forced_tpsl(p, price); self.amount_today += price * lots * 1000; self.save_state()
                 self.sub(p)
@@ -1403,6 +1403,7 @@ class Trader:
         d = p["dir"]; tpp, slp = p.get("tp_pct"), p.get("sl_pct")
         p["tp"] = round(avg * (1 + float(tpp) / 100 * d), 2) if tpp else 0.0
         p["sl"] = round(avg * (1 - float(slp) / 100 * d), 2) if slp else 0.0
+        if p["sl"]: p["sl"] = self.cap_sl(p["code"], d, p.get("judge"), p["sl"])   # 2026-11-11 15:36 元三 / 強三停損也收到 ±6.5% 線
 
     def force_enter(self, code, d, lots, tp_pct=None, sl_pct=None, mkt=None, cmd_id=None, ref=None, px=None):
         """2026-10-28 強制進場:做多掛漲停買、做空掛跌停賣(ROD,一定成交);不佔 5 檔名額、不受虧損上限 / STOP 檔限制。回傳 (成功?, 訊息)"""
@@ -1448,8 +1449,7 @@ class Trader:
         y = y or (self.ref_of(code) or 0); last = self.last_px.get(code) or 0; lim = self.force_block_pct
         if not (y > 0 and last > 0 and lim > 0): return ""
         ch = (last / y - 1) * 100
-        if d > 0 and ch <= -lim: return f"現價 {last} 已跌 {ch:.1f}%(超過 −{lim:g}%),不能強制做多"
-        if d < 0 and ch >= lim: return f"現價 {last} 已漲 {ch:+.1f}%(超過 +{lim:g}%),不能強制做空"
+        if abs(ch) > lim + 1e-9: return f"現價 {last} 離昨收 {ch:+.1f}%(超過 ±{lim:g}%),不能強制{'做多' if d > 0 else '做空'}"   # 2026-11-11 15:36 多空都照 ±5%
         return ""
 
     def force_close(self, code, cmd_id=None):
@@ -1668,9 +1668,9 @@ class Trader:
         """2026-11-11 14:57 使用者「缺口 一樣要跟剛剛設定的進出場範圍一樣」:判別式部位的停損價不超過昨收 ±強平線(6.5%),
            元大條件單也掛在這條線上(電腦斷線時一樣在 6.5% 停損);做空往下取、做多往上取到升降單位"""
         try:
-            if not sl or not str(judge or "").startswith("判"): return sl
+            if not sl or not (str(judge or "").startswith("判") or judge in (MANUAL, FORCED)): return sl   # 2026-11-11 15:36 元三 / 強三也收
             ref = self.ref_of(code) or 0
-            mm = self.j7_move if judge in ("判七", "判四", "判五") and self.j7_move > 0 else self.max_move
+            mm = self.man_move if judge in (MANUAL, FORCED) and self.man_move > 0 else self.j7_move if judge in ("判七", "判四", "判五") and self.j7_move > 0 else self.max_move
             if ref <= 0 or mm <= 0: return sl
             v = ref * (1 - d * mm / 100); t = tick_size(v)
             lim = round(math.floor(v / t + 1e-6) * t if d < 0 else math.ceil(v / t - 1e-6) * t, 2)
