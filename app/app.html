@@ -28,6 +28,7 @@
   · 2026-11-10 15:05(實際時間)電腦引擎檢討:「訊號重算消失」的平倉也算進檢討(原本明細虛擬有算、檢討沒算 → 11/10 明細 +4,934 / 檢討 +2,961 對不上;使用者「金額對不上」),11/10 檢討已重推 7 筆 +4,934
   · 2026-11-09 13:32(實際時間)下排燈:收盤後 進場 / 當沖 不亮;明細輸贏燈留著顯示當天結果,到下一個交易日 08:45(開盤前 15 分)才拿掉(使用者「明細左右的贏錢燈跟輸錢燈 在開盤前15分鐘取消」)
   · 2026-11-10 14:58(實際時間)平板開機卡頓修正(使用者「改」;平板紀錄開機 15 秒卡 9.2 秒,電腦模擬量到前 6 秒有 4.7 秒在通知欄量字級):① 量字級改成 40 列一次量完(原本改一列量一列,整欄重排 40 次)② 通知欄畫面外的卡片先不排版(content-visibility,約 350 張卡 7 千多個元素),位置 / 高度和原本完全一樣。模擬開機:量字級 4.7 秒 → 0.5 秒
+  · 2026-11-11 11:48(實際時間)通知欄卡片下排「現」:這檔現在漲停 → 「漲」紅底、跌停 → 「跌」綠底(每 3 秒跟報價更新;使用者「和益 已經漲停 現 要改成 漲 紅底 反之 亦然」)
   · 2026-11-11 11:42(實際時間)進場通知欄(永久會員)改照元大實際成交:進場價、張數、平倉價用元大成交均價 / 實際張數;元大還沒沖掉的平倉卡標「平倉中」、不算進今天輸贏(使用者「永久會員 進場就是元大的真實情況 虛擬的歸虛擬 元大歸元大」)
   · 2026-11-11 11:37(實際時間)進場通知欄:平倉通知發了但元大還有這檔部位(平倉單還沒成交,例如和益鎖漲停)→ 標「平倉中」,真的買回 / 賣出後才顯示「平倉」(使用者「和益 哪有平倉 還有一張」)
   · 2026-11-11 11:33(實際時間)股票監控區有部位的輸贏指針改樣式(使用者選「2 加指針變大」):紅底 / 綠底改成只留外框,贏紅框紅針、輸綠框綠針,指針放大
@@ -392,7 +393,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611111143">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611111148">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -681,6 +682,7 @@
   #notifLog .usk{position:relative;display:grid;grid-template-columns:1fr 31%;column-gap:4px;align-items:stretch;min-height:0;background:linear-gradient(#1E2636,#151A25);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:6px 6px 6px 9px;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
   #notifLog .usk .usl{display:flex;flex-direction:column;justify-content:center;min-width:0}
   #notifLog .card .ln.sub .pxl{font-weight:600;color:#8C96AB;margin-right:3px;font-size:.92em}
+  #notifLog .card .ln.sub .pxl.lu{background:#FF3B3B;color:#fff;border-radius:3px;padding:0 2px}#notifLog .card .ln.sub .pxl.ld{background:#1DD75B;color:#0b0d10;border-radius:3px;padding:0 2px}   /* 2026-11-11 11:48 使用者「和益 已經漲停 現價那個地方 現 要改成 漲 紅底 反之 亦然」 */
   #notifLog .usk .usn .usdt{font-style:normal;font-weight:600;color:#8C96AB;font-size:.85em;margin-left:3px}   /* 2026-11-10 14:56 使用者「台灣加權 後面加上日期 其他也一樣」:六張卡名稱後面加資料日期(灰色小一點) */
   #notifLog .usk .usn{font-size:clamp(12px,3.4vw,16px);font-weight:700;color:#C9D1E0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
   #notifLog .usk .usv{font-size:clamp(17px,5vw,25px);font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:.2px;line-height:1.2;white-space:nowrap}
@@ -4128,6 +4130,13 @@ function rowNeedle(row, r){
 setInterval(() => { try{   /* 2026-11-10 17:57 使用者(影片)「進場通知欄 10秒後才顯示真正正確的股價」:剛開時即時報價的昨收還沒到,卡片價格顏色先用舊快照的昨收(可能紅綠顛倒),通知內容沒變就不重畫 → 等十幾秒才對;改成報價一到就每 3 秒直接把今天卡片的價格顏色校正(比昨收高紅、低綠、平白) */
   document.querySelectorAll('#notifLog [data-pc]').forEach(e => { const y = +(((LIVE.get(e.dataset.pc) || {}).y) || 0), v = +e.dataset.pv; if (!(y > 0) || !(v > 0)) return; const c = 'px' + (v > y ? ' up' : v < y ? ' down' : ' flat'); if (e.className !== c) e.className = c; });
   }catch(e){} }, 3000);
+// 2026-11-11 11:48(實際時間)使用者「通知欄上 和益 已經漲停 現價那個地方 現 要改成 漲 紅底 反之 亦然」:今天的卡片,這檔現價在漲停 → 「漲」紅底、跌停 → 「跌」綠底,其他照舊「現」
+function twTick(p){ return p < 10 ? 0.01 : p < 50 ? 0.05 : p < 100 ? 0.1 : p < 500 ? 0.5 : p < 1000 ? 1 : 5; }
+function limState(code){ try{ const L = LIVE.get(code) || {}, z = +L.z || 0, y = +L.y || 0; if (!(z > 0) || !(y > 0)) return '';
+  let u = y * 1.1; u = Math.floor(u / twTick(u) + 1e-6) * twTick(u); let dn = y * 0.9; dn = Math.ceil(dn / twTick(dn) - 1e-6) * twTick(dn);
+  return z >= u - 1e-6 ? 'lu' : z <= dn + 1e-6 ? 'ld' : ''; }catch(e){ return ''; } }
+function pxlTag(code){ const k = limState(code); return `<b class="pxl${k ? ' ' + k : ''}" data-lc="${esc(code)}">${k === 'lu' ? '漲' : k === 'ld' ? '跌' : '現'}</b>`; }
+setInterval(() => { try{ document.querySelectorAll('#notifLog .pxl[data-lc]').forEach(e => { const k = limState(e.dataset.lc), t = k === 'lu' ? '漲' : k === 'ld' ? '跌' : '現', c = 'pxl' + (k ? ' ' + k : ''); if (e.className !== c) e.className = c; if (e.textContent !== t) e.textContent = t; }); }catch(e){} }, 3000);
 setInterval(() => { try{ document.querySelectorAll('#notifLog .nowp').forEach(e => { const z = +(((LIVE.get(e.dataset.c) || {}).z) || 0); if (z > 0){ const t = z.toFixed(2); if (e.textContent !== t) e.textContent = t; } }); }catch(e){} }, 3000);   // 2026-11-10 進場卡「現」跟報價更新
 window.__needlesNow = () => { try{ document.querySelectorAll('#bands .row').forEach(row => rowNeedle(row, LIVE.get(row.dataset.code))); }catch(e){} };
 function needleSet(svg, p){
@@ -7691,7 +7700,7 @@ window.bgTick = bgTick; window.BG = BG;
       const sideTxt = (o.type !== 'entry' && o.type !== 'turn' && o.type !== 'exit') ? '' : o.type === 'exit' ? (o.side === 'long' ? '做多' : o.side === 'short' ? '做空' : '') : o.add ? '加碼' : o.warnT ? '注意' : o.side === 'long' ? '做多' : o.side === 'short' ? '做空' : '';   // 2026-10-23 轉折卡也顯示做多 / 做空   // 2026-11-10 15:11 使用者「這 南亞科 是做空 平倉時 也要標記 做空」:平倉卡也顯示做多 / 做空(取代 10/19 只有進場卡顯示)   // 2026-10-19 使用者定案:只有進場卡顯示做多 / 做空(第一則已決定方向),之後的平倉 / 反彈 / 注意卡這格留白、只在最右邊顯示警示;沒字就不畫框(之前空框看起來像一條綠線)
       const lots = o.type === 'turn' ? 0 : lotsOf(o);   // 2026-10-23 轉折卡不算張數(只是提醒)
       const entP = o.type === 'entry' ? o.price : (o.entP || o.price);
-      const pxTop = entP ? (+entP).toFixed(2) : '', pxBot = (o.type !== 'entry' && o.type !== 'turn' && o.price) ? '<b class="pxl">現</b>' + (+o.price).toFixed(2) : (o.type === 'entry' && dd === today && !o.phNew) ? (() => { const z = +(((LIVE.get(o.code) || {}).z) || 0); return `<b class="pxl">現</b><span class="nowp" data-c="${esc(o.code)}">${z > 0 ? z.toFixed(2) : '—'}</span>`; })() : '';   /* 2026-11-10 15:25 使用者「那進場 下面也看 即時價 好了 這樣清晰一些」:今天的進場卡下排 = 現 + 即時現價(每 3 秒跟報價更新) */   /* 2026-11-10 15:22 使用者「做空 前面 顯示的就是做空成交價 下面的 現價 就是 成交那一刻的現價」「即時價 在當沖裡」:平倉卡下排標「現」= 平倉那一刻的現價(固定);進場卡不放即時價(上排就是成交價,即時價看當沖) */   /* 2026-11-10 15:17 使用者「那平倉就寫 平」(15:15「所有進場 平倉卡 都要標示 現價」):平倉卡下排 = 平 + 平倉價;今天的進場卡下排 = 現 + 即時現價(每 3 秒跟報價更新) */
+      const pxTop = entP ? (+entP).toFixed(2) : '', pxBot = (o.type !== 'entry' && o.type !== 'turn' && o.price) ? (dd === today ? pxlTag(o.code) : '<b class="pxl">現</b>') + (+o.price).toFixed(2) : (o.type === 'entry' && dd === today && !o.phNew) ? (() => { const z = +(((LIVE.get(o.code) || {}).z) || 0); return `${pxlTag(o.code)}<span class="nowp" data-c="${esc(o.code)}">${z > 0 ? z.toFixed(2) : '—'}</span>`; })() : '';   /* 2026-11-10 15:25 使用者「那進場 下面也看 即時價 好了 這樣清晰一些」:今天的進場卡下排 = 現 + 即時現價(每 3 秒跟報價更新) */   /* 2026-11-10 15:22 使用者「做空 前面 顯示的就是做空成交價 下面的 現價 就是 成交那一刻的現價」「即時價 在當沖裡」:平倉卡下排標「現」= 平倉那一刻的現價(固定);進場卡不放即時價(上排就是成交價,即時價看當沖) */   /* 2026-11-10 15:17 使用者「那平倉就寫 平」(15:15「所有進場 平倉卡 都要標示 現價」):平倉卡下排 = 平 + 平倉價;今天的進場卡下排 = 現 + 即時現價(每 3 秒跟報價更新) */
       // 2026-10-18 使用者:名稱、價格顏色和下面清單一致 → 名稱白字;價格比昨收高紅、低綠、平白。昨收:雲端紀錄自帶 prev;今天的用即時報價的昨收,沒有就用清單的昨收
       const prevC = o.prev || (dd === today ? (((LIVE.get(o.code) || {}).y) || (() => { const sn = SNAPSHOT.find(q => q.code === o.code); return sn && sn.date < today ? +sn.close : 0; })()) : 0);
       const ud = v => !prevC || !v ? '' : v > prevC ? ' up' : v < prevC ? ' down' : ' flat';
