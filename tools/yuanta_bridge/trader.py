@@ -102,6 +102,7 @@ def lot_tier_qty(px):
     cap, mx = (160000, 3) if px <= 80 else (250000, 2)
     return max(1, min(mx, int(cap // (px * 1000))))
 IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG, IRON_BRX_L, IRON_BRX_E = 5.0, 6.5, "09:30", "12:30", "12:32", 1.5, 0.15
+RE_IRON_EXIT = re.compile(r"超過?\s*[\d.]+\s*%|總停損|移動停損利|鐵律|強制平倉")   # 2026-11-11 21:34 鐵律平倉(含引擎平倉通知標題):有權取消手動預掛、立即平
 IRON_CAP, IRON_AMOUNT, IRON_MTSL = 250000, 5000000.0, 3.0   # ⑤ 一張上限 25 萬(超過 = 超額)、一天總額度 500 萬   # 鐵律(2026-11-11 15:42),見 __init__
 MANUAL = "元三"      # 2026-10-28 使用者:在元大(投資先生)自己下的單,成交後交給判三管
 
@@ -217,6 +218,7 @@ class Trader:
         #   到 TRADE_PREHANG_DEADLINE(13:24)還沒成交 → 取消那張、程式照舊漲停 / 跌停平倉。0 = 關(照舊 13:20 全部取消)
         # 2026-11-08 01:08 使用者「13點20分也要取消所有元大預掛」:預設 13:24 → 13:20(盤中照舊讓位給預掛;13:20 預掛和條件單、委託全部取消,程式平倉)
         self.prehang_deadline = cfg.get("TRADE_PREHANG_DEADLINE", "13:20").strip()
+        if self.prehang_deadline not in ("", "0") and self.prehang_deadline > self.force_exit: self.prehang_deadline = self.force_exit   # 2026-11-11 21:34 使用者「13.20程式必須取消所有預掛 包含元大手動預掛」:預掛最晚等到 13:20(設定寫更晚也拉回)
         self.j2_brcap = [(float(a_), int(b_)) for a_, b_ in (x.split(":") for x in cfg.get("TRADE_J2_BRCAP", "").split(",") if ":" in x)]   # 2026-11-10 01:45 判二第二十六次修改:預設關(改用 TRADE_J2_BRRANGE)
         # 2026-11-10 01:45 判二第二十六次修改(使用者「判二 贏單 大盤寬度上下多少可以涵蓋所有贏單」→「解鎖 改」):TRADE_J2_BRRANGE="short:0.044:0.881,long:0.106:0.92",空字串 = 關(01:52 使用者「解鎖改 判二做多:10.6%~92%」做多上限 95.7% → 92%)
         self.j2_brng = {}
@@ -1331,7 +1333,7 @@ class Trader:
         if not last or self.cap <= 0: return False, last, ""
         if not ((w["sl"] < last < w["tp"]) if w["kind"] == "long" else (w["tp"] < last < w["sl"])):
             return False, last, f"現價 {last} 已不在停利 {w['tp']} / 停損 {w['sl']} 之間"
-        return last * 1000 <= self.cap, last, ""
+        return last * 1000 <= self.cap_lim(), last, ""
 
     def over_check(self):
         """超額訊號(見 over_redo):每一輪 step 看一次;條件到了標 ready、發提醒到手機,等手機按「確認補進場」"""
@@ -1534,7 +1536,7 @@ class Trader:
         pr = self._force_px(code, d, px)
         if not Trader.IRON_LOTS: return ""
         if pr <= 0: return "還沒有這檔的元大即時價,算不出鐵律張數,不給強制進場"
-        if self.cap > 0 and pr * 1000 > self.cap: return f"一張 {pr * 1000:,.0f} 超過 {self.cap:,.0f}(超額),鐵律不給進"
+        if self.cap_lim() > 0 and pr * 1000 > self.cap_lim(): return f"一張 {pr * 1000:,.0f} 超過 {self.cap_lim():,.0f}(超額),鐵律不給進"
         if self.force_lots(code, d, lots, px) < 1: return f"今天 500 萬額度剩下的不夠 1 張(鐵律 ⑤)"
         return ""
 
@@ -1742,6 +1744,10 @@ class Trader:
         ref_e = self.ref_of(code) or 0
         if self.ent_pct > 0 and not ref_e > 0:   # 2026-11-11 16:28 鐵律檢查(使用者「檢查 鐵律」→「改」):沒有昨收就沒辦法確認 ±5%(也沒有 6.5% 保護)→ 不進
             self.log(f"[交易] 不進場 {title}:還沒有 {code} 的昨收,沒辦法確認鐵律 ±{self.ent_pct:g}%"); return
+        lim = self.cap_lim()   # 2026-11-11 21:34 使用者「一定要在主導機的多空限額裡面才能交易」:一張超過主導機多空上限(最多 25 萬)= 超額,不進(原本只看通知有沒有標「超額」)
+        pck = last if it.get("_over") else max(last, px_sig)   # 超額補進場:本來就是現價回到上限內才補,看現價
+        if lim > 0 and pck * 1000 > lim + 1e-6:
+            self.log(f"[交易] 不進場 {title}:一張 {pck * 1000:,.0f} 超過多空上限 {lim:,.0f}(超額,鐵律 ⑤)"); return
         # 2026-11-11 14:17 使用者「做多做空都一樣 解鎖 全改」:現價離昨收超過 ±TRADE_ENTRY_PCT(5)% 不進
         if self.ent_pct > 0 and ref_e > 0 and abs(last / ref_e - 1) * 100 > self.ent_pct + 1e-9:
             self.log(f"[交易] 不進場 {title}:現價 {last} 離昨收 {ref_e} {(last / ref_e - 1) * 100:+.2f}%,超過 ±{self.ent_pct:g}%"); return
@@ -1979,6 +1985,11 @@ class Trader:
             self.log(f"[交易] {p['code']} {why}:先取消手動預掛 {no}")
         p["forced_close"] = True; p["force_limit"] = True
 
+    def cap_lim(self):
+        """鐵律 ⑤ 一張上限:主導機的多空上限(cap),最多 25 萬;cap = 0(固定張數)時用 25 萬"""
+        if not Trader.IRON_LOTS: return self.cap
+        return min(self.cap, IRON_CAP) if self.cap > 0 else IRON_CAP
+
     def prehang_wait(self, code):
         """這檔有保留的手動預掛平倉單、還沒到期限 → True(程式先不平)"""
         return bool(self.prehang.get(code)) and self.prehang_deadline not in ("", "0") and self.hm() < self.prehang_deadline
@@ -1986,10 +1997,13 @@ class Trader:
     def exit_pos(self, p, why, px, force_limit=False, kill_ph=False):
         if not p or p["state"] != HOLDING:
             return
-        if self.prehang.get(p["code"]) and (str(why).startswith("強平") or kill_ph):   # 2026-11-08 00:55 緊急 / 虧損全平也先取消預掛(條件單下面刪)   # 手機強平:先取消預掛再平,不讓位
-            for no in self.prehang.pop(p["code"], []):
+        iron = bool(RE_IRON_EXIT.search(str(why)))   # 2026-11-11 21:34 使用者「鐵律檢測到平倉訊息 有權取消預掛 立即平倉」:6.5% / 總停損 / 移動停損利 / 手動單違反鐵律 / 13:20 → 先取消預掛(含元大手動預掛)再平,不讓位
+        if self.prehang.get(p["code"]) and (str(why).startswith("強平") or kill_ph or iron):   # 2026-11-08 00:55 緊急 / 虧損全平也先取消預掛(條件單下面刪)   # 手機強平:先取消預掛再平,不讓位
+            nos = self.prehang.pop(p["code"], [])
+            for no in nos:
                 m = self.man_meta.pop(no, {}); self.gw.cancel(no, p["code"], m.get("bs") or close_side(p["dir"]), m.get("typ") or p["typ"]); self.ph_cancel[no] = time.time()
-                self.log(f"[交易] {p['code']} 強平:先取消手動預掛 {no}")
+                self.log(f"[交易] {p['code']} {why}:先取消手動預掛 {no}")
+            if iron and nos: self.alert(f"⛔ {self.name_of(p['code'])} {p['code']} 鐵律平倉:{why}", f"已取消你的預掛 {len(nos)} 筆,程式立即平倉 {p['qty']} 張")
         if self.prehang_wait(p["code"]):
             # 2026-11-08 18:26 使用者「進場6張 我預掛兩張」→「改」:預掛只蓋住一部分 → 沒預掛的張數程式照停利 / 停損平掉,預掛的照樣留著等成交
             #   (不掛元大條件單,維持「預掛跟條件單不同時存在」;平完剩預掛張數 → 回持倉中繼續等預掛)

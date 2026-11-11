@@ -575,16 +575,21 @@ s28, g28 = mk(); s28.ref_of = lambda c: 100.0; s28.on_tick("2330", 94.9)
 r = s28.force_enter("2330", 1, 1); ok(not r[0] and "不能強制做多" in r[1] and "2330" not in s28.positions, r)
 ok(not s28.force_enter("2330", -1, 1)[0])
 s28b, _ = mk(); s28b.ref_of = lambda c: 100.0; s28b.on_tick("2331", 104.9); ok(s28b.force_enter("2331", -1, 1)[0])
-# PH) 2026-11-05 13:20 保留手動預掛平倉:期限前 exit_pos 不平、複查看到掛著的不補單;期限到了才平
+# PH) 2026-11-11 21:34 使用者「13.20程式必須取消所有預掛 包含元大手動預掛」(取代 11-05 保留預掛到期限):期限設更晚也拉回 13:20;13:20 有預掛 → 先取消再平
 import datetime as _dt
-tp_, gp_ = mk(TRADE_PREHANG_DEADLINE="13:24"); tp_.on_tick("6269", 86.2); tp_.step([ENT]); tp_.on_report(51, "A0001", 0, 1000, 86.1); pp_ = tp_.positions["6269"]
+tp_, gp_ = mk(TRADE_PREHANG_DEADLINE="13:24"); ok(tp_.prehang_deadline == "13:20", tp_.prehang_deadline)
+tp_.on_tick("6269", 86.2); tp_.step([ENT]); tp_.on_report(51, "A0001", 0, 1000, 86.1); pp_ = tp_.positions["6269"]
 NOW0 = NOW[0]; NOW[0] = NOW0.replace(hour=13, minute=20, second=30)
 tp_.prehang = {"6269": ["M77"]}; n0 = len(gp_.sent)
-tp_.exit_pos(pp_, "13:20 強制平倉", 86.0, force_limit=True); ok(pp_["state"] == HOLDING and len(gp_.sent) == n0, gp_.sent[n0:])
-ok(tp_.recheck([{"code": "6269", "bs": "S", "lots": 1}], [{"code": "6269", "bs": "B", "lots": 1, "no": "M77"}], "13:22") == [] and len(gp_.sent) == n0)
-NOW[0] = NOW0.replace(hour=13, minute=24, second=5); tp_.prehang = {}
-tp_.recheck([{"code": "6269", "bs": "S", "lots": 1}], [], "13:24"); ok(pp_["state"] == EXITING and gp_.sent[-1][:3] == ("6269", "B", 1), gp_.sent[-1])
+tp_.exit_pos(pp_, "13:20 強制平倉", 86.0, force_limit=True); ok(pp_["state"] == EXITING and gp_.sent[n0] == ("cancel", "M77", "6269", "B") and gp_.sent[n0 + 1][:3] == ("6269", "B", 1) and not tp_.prehang, gp_.sent[n0:])
 NOW[0] = NOW0
+# PI) 2026-11-11 21:34 使用者「鐵律檢測到平倉訊息 有權取消預掛 立即平倉」:盤中有預掛,碰 6.5% / 總停損 / 移動停損利 / 引擎鐵律平倉通知 → 取消預掛、立即平;一般停損照舊讓位
+for _why in ("超6.5%", "總停損", "移動停損利", "鐵律", "手機平倉通知:⚠⚠ 台郡 6269 總停損 -1.8% 立即平倉", "手機平倉通知:台郡 6269 出場 -6.6%:超過 6.5%"):
+    ti_, gi_ = mk(); ti_.on_tick("6269", 86.2); ti_.step([ENT]); ti_.on_report(51, "A0001", 0, 1000, 86.1); pi_ = ti_.positions["6269"]
+    ti_.prehang = {"6269": ["M79"]}; ni_ = len(gi_.sent); ti_.exit_pos(pi_, _why, 92.0, force_limit=True)
+    ok(pi_["state"] == EXITING and ("cancel", "M79", "6269", "B") in gi_.sent[ni_:] and any(x[:3] == ("6269", "B", 1) for x in gi_.sent[ni_:]) and any("鐵律平倉" in a for a in ti_.alerts), (_why, gi_.sent[ni_:]))
+ti_, gi_ = mk(); ti_.on_tick("6269", 86.2); ti_.step([ENT]); ti_.on_report(51, "A0001", 0, 1000, 86.1); pi_ = ti_.positions["6269"]
+ti_.prehang = {"6269": ["M80"]}; ni_ = len(gi_.sent); ti_.exit_pos(pi_, "停損", 88.8); ok(pi_["state"] == HOLDING and len(gi_.sent) == ni_ and ti_.prehang, gi_.sent[ni_:])   # 一般停損:照舊讓位給預掛
 # 2026-11-08 01:08 預設 13:20 全部取消預掛:13:21 有預掛也不讓位,直接平
 tp2, gp2 = mk(); tp2.on_tick("6269", 86.2); tp2.step([ENT]); tp2.on_report(51, "A0001", 0, 1000, 86.1); NOW[0] = NOW0.replace(hour=13, minute=21, second=5)
 tp2.prehang = {"6269": ["M78"]}; tp2.step(); ok(tp2.positions["6269"]["state"] == EXITING and tp2.prehang_deadline == "13:20"); NOW[0] = NOW0
@@ -863,6 +868,12 @@ BRV[0] = 0.44; tb_.on_tick("2330", 98.6); ok(pb_["state"] == HOLDING, pb_["state
 tb_.on_tick("2330", 98.4); ok(pb_["state"] == EXITING and pb_["exit_why"] == "總停損", (pb_["state"], pb_.get("exit_why")))
 # 2026-11-11 19:29 鐵律 ⑤:張數分級 + 500 萬額度關不掉、放不寬
 Trader.IRON_LOTS = True
+# PJ) 2026-11-11 21:34 使用者「一定要在主導機的多空限額裡面才能交易」:主導機多空上限 30 萬、20 萬 → 一般判別式訊號一張超過就不進(沒標超額也一樣);強制進場同
+for _cap, _px, _in in ((300000, 280.0, False), (200000, 210.0, False), (200000, 190.0, True)):
+    tj_, gj_ = mk(TRADE_MAX_MOVE_PCT="99"); tj_.cap = _cap; tj_.ref_of = lambda c, _p=_px: _p; tj_.on_tick("2345", _px)
+    tj_.step([sig(f"pj{_cap}{_px}", "long", f"股 2345 做多進場 {_px:.2f}", f"10:30 多 · 停利 {_px * 1.03:.2f} 停損 {_px * 0.96:.2f} · 1張 · 判四")])
+    ok(("2345" in tj_.positions) == _in, (_cap, _px, tj_.positions.get("2345")))
+tj_, gj_ = mk(); tj_.cap = 400000; tj_.ref_of = lambda c: 300.0; tj_.on_tick("2346", 300.0); ok(not tj_.force_enter("2346", 1, 1)[0])   # 主導機 40 萬:鐵律仍是一張最多 25 萬
 at(10, 0); tv, gv = mk(TRADE_QTY="5"); tv.on_tick("6269", 86.2); tv.step([ENT]); ok(gv.sent[-1][2] == 2, gv.sent)   # 86.2 元最多 2 張
 tw5, _ = mk(TRADE_CAP="900000", TRADE_LOT_TIER="0", TRADE_MAX_AMOUNT="9000000"); ok(tw5.cap == 250000 and tw5.lot_tier and tw5.max_amount == 5000000, (tw5.cap, tw5.lot_tier, tw5.max_amount))
 ok(tw5.lots_for(20.0) == 3 and tw5.lots_for(60.0) == 2 and tw5.lots_for(100.0) == 2 and tw5.lots_for(200.0) == 1)
