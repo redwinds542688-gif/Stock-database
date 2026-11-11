@@ -101,7 +101,7 @@ def lot_tier_qty(px):
     if px <= 0: return 1
     cap, mx = (160000, 3) if px <= 80 else (250000, 2)
     return max(1, min(mx, int(cap // (px * 1000))))
-IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG = 5.0, 6.5, "09:30", "12:30", "12:32"   # 鐵律(2026-11-11 15:42),見 __init__
+IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG, IRON_BRX_L, IRON_BRX_E = 5.0, 6.5, "09:30", "12:30", "12:32", 1.5, 0.15   # 鐵律(2026-11-11 15:42),見 __init__
 MANUAL = "元三"      # 2026-10-28 使用者:在元大(投資先生)自己下的單,成交後交給判三管
 
 
@@ -192,11 +192,12 @@ class Trader:
         self.ignore = set(x.strip() for x in cfg.get("TRADE_IGNORE_CODES", "YY0070").split(",") if x.strip())   # 2026-10-28 庫存裡下市、不能賣的股票:元三不接、13:22 複查不平
         self.last_entry = cfg.get("TRADE_LAST_ENTRY", "13:10")
         # ═══ 鐵律(2026-11-11 15:42 使用者「這三個 寫成鐵律 任何判別式都不可以違背」):設定只能收緊、不能放寬(bridge.env 寫更鬆也會被拉回)═══
-        #   ① 進場時現價離昨收 ±5% 以內   ② 部位離昨收不利 6.5% 強制平倉(判別式 / 元三 / 強三都一樣)   ③ 只在 09:30~12:30 進場(判別式通知最晚 12:32 到)
+        #   ① 進場時現價離昨收 ±5% 以內   ② 部位離昨收不利 6.5% 強制平倉(判別式 / 元三 / 強三都一樣)   ③ 只在 09:30~12:30 進場(判別式通知最晚 12:32 到)   ④ 總停損:虧 > 1.5% 且大盤寬度反向 ≥ 0.15 → 平倉
         _lo = lambda v, cap: v if 0 < v <= cap else cap
         self.ent_pct = _lo(self.ent_pct, IRON_PCT); self.force_block_pct = _lo(self.force_block_pct, IRON_PCT)
         self.max_move = _lo(self.max_move, IRON_MOVE); self.j7_move = _lo(self.j7_move, IRON_MOVE); self.man_move = _lo(self.man_move, IRON_MOVE)
         self.j_from = max(self.j_from, IRON_FROM); self.j_to = min(self.j_to, IRON_TO_SIG); self.force_to = min(self.force_to, IRON_TO)
+        self.brx_l = _lo(self.brx_l, IRON_BRX_L); self.brx_e = _lo(self.brx_e, IRON_BRX_E)   # ④ 總停損(2026-11-11 19:21 使用者「把這套 叫做 總停損 寫進鐵律 監控所有判別式」)
         self.recheck_times = [x.strip() for x in cfg.get("TRADE_RECHECK", "13:22,13:23,13:24").split(",") if x.strip()]
         self.recheck_at = self.recheck_times[0] if self.recheck_times else "13:23"
         self.recheck_close = cfg.get("TRADE_RECHECK_CLOSE", "all")
@@ -750,7 +751,7 @@ class Trader:
                     if b is not None and ((p["br0"] - b) if d > 0 else (b - p["br0"])) >= self.brx_e - 1e-9: hit_br = True
             if not (hit_tp or hit_sl or hit_mv or hit_br):
                 return
-            why = f"超{mm:g}%" if hit_mv else "停利" if hit_tp else "停損" if hit_sl else "寬度反向"
+            why = f"超{mm:g}%" if hit_mv else "停利" if hit_tp else "停損" if hit_sl else "總停損"
             if p.get("oco_live") and not hit_mv and not hit_br:
                 if not p.get("oco_noted"):
                     p["oco_noted"] = True; p["oco_hit_at"] = time.time(); p["oco_hit_why"] = why

@@ -847,6 +847,7 @@ at(10, 0); tf11, _ = mk(TRADE_JUDGE_FROM="09:30", TRADE_FORCE_TO="12:30"); tf11.
 # 2026-11-11 15:42 鐵律:bridge.env 寫更鬆也會被拉回(±5% / 6.5% / 09:30~12:30)
 ti, _ = mk(TRADE_ENTRY_PCT="9", TRADE_MAX_MOVE_PCT="10", TRADE_J7_MAX_MOVE_PCT="8", TRADE_MANUAL_MAX_MOVE_PCT="8.5", TRADE_FORCE_BLOCK_PCT="0", TRADE_JUDGE_FROM="09:00", TRADE_JUDGE_TO="13:10", TRADE_FORCE_TO="13:10")
 ok((ti.ent_pct, ti.max_move, ti.j7_move, ti.man_move, ti.force_block_pct, ti.j_from, ti.j_to, ti.force_to) == (5.0, 6.5, 6.5, 6.5, 5.0, "09:30", "12:32", "12:30"), (ti.ent_pct, ti.max_move, ti.j_from, ti.j_to))
+tz, _ = mk(TRADE_BRX_LOSS_PCT="3", TRADE_BRX_DIFF="0"); ok(tz.brx_l == 1.5 and tz.brx_e == 0.15, (tz.brx_l, tz.brx_e))   # ④ 總停損關不掉、放不寬
 tj, _ = mk(TRADE_ENTRY_PCT="3", TRADE_MAX_MOVE_PCT="5"); ok(tj.ent_pct == 3.0 and tj.max_move == 5.0)   # 更嚴的照設定
 # 2026-11-11 16:28 鐵律檢查「改」:沒有昨收 → 不進場、不給強制進場
 at(10, 0); tq, gq = mk(); tq.ref_of = lambda c: None; tq.on_tick("6269", 86.2); tq.step([ENT]); ok("6269" not in tq.positions, "沒昨收不進")
@@ -857,5 +858,5 @@ at(10, 0); tb_, gb_ = mk(); tb_.ref_of = lambda c: 100.0; tb_.on_tick("2330", 10
 ok(tb_.force_enter("2330", 1, 1)[0]); tb_.on_report(51, "A0001", 0, 1000, 100.0); pb_ = tb_.positions["2330"]; tb_.on_tick("2330", 100.0); ok(pb_["br0"] == 0.60, pb_.get("br0"))
 BRV[0] = 0.50; tb_.on_tick("2330", 98.4); ok(pb_["state"] == HOLDING, pb_["state"])                 # 反向 0.10 不到 0.15
 BRV[0] = 0.44; tb_.on_tick("2330", 98.6); ok(pb_["state"] == HOLDING, pb_["state"])                 # 虧 1.4% 不到 1.5%
-tb_.on_tick("2330", 98.4); ok(pb_["state"] == EXITING and pb_["exit_why"] == "寬度反向", (pb_["state"], pb_.get("exit_why")))
+tb_.on_tick("2330", 98.4); ok(pb_["state"] == EXITING and pb_["exit_why"] == "總停損", (pb_["state"], pb_.get("exit_why")))
 print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7 + 判七上線 2 + 判六上線 4 + 判七 +8% 強平 2 + 判二大盤分級檔數 7 + 判二寬度範圍 11 + 條件單編號存檔 3 + 沒昨收不進 3)")
