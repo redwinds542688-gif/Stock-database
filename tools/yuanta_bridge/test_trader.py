@@ -333,12 +333,15 @@ ok(not [x for x in ga1.sent if x[0] == "cancel"]); ta1.on_report(50, "X7", 0, 0,
 ta2, ga2 = mk(gw=GWN); pa2 = y3(ta2, "2330", "B", 2, 100.0); ta2.on_tick("2330", 95.4); ta2.on_report(51, "M2", 0, 1000, 95.4, "", "2330", "S"); pa2["order"]["at"] -= 31
 ta2.verify([{"no": "X8", "tag": ga2.tags[-1], "code": "2330", "bs": "S", "lots": 2}], [], {}); ok(ga2.sent[-1] == ("cancel", "X8", "2330", "S"), ga2.sent)
 ta3, ga3 = mk(gw=GWN); ta3.force_enter("2330", 1, 1); ta3.force_close("2330"); ta3.on_report(50, "X9", 0, 0, 0, ga3.tags[-1]); ok(ga3.sent[-1] == ("cancel", "X9", "2330", "B"), ga3.sent)
-# FB) 2026-10-28 判三假突破空單(通知帶「空✓破」):離昨收 +6.5% 以上不強制平倉,停損照通知的價;一般判三空單照樣 ±6.5%
+# FB) 2026-11-11 14:17 全改:現價離昨收超過 ±5% 不進(+7% 假突破空單不進);假突破空單也套 ±6.5%
 tf, gf = mk(); tf.ref_of = lambda c: 100.0; tf.on_tick("3003", 107.0)
-tf.step([sig("10:40:3003|假突破", "short", "股3003 3003 做空進場 107.00", "10:40 空✓破 · 停利 104.33 停損 109.00 · 3張 · 判三")]); pf = tf.positions["3003"]
-ok(pf["no_max_move"] and pf["judge"] == "判三"); tf.on_report(51, "A0001", 0, 1000, 107.0); ok(pf["state"] == HOLDING)
-tf.on_tick("3003", 108.5); ok(pf["state"] == HOLDING, "假突破空單 +8.5% 不該被 6.5% 平倉")
-tf.on_tick("3003", 109.0); ok(pf["state"] == EXITING, "碰通知的停損 109 要平倉")
+tf.step([sig("10:40:3003|假突破", "short", "股3003 3003 做空進場 107.00", "10:40 空✓破 · 停利 104.33 停損 109.00 · 3張 · 判三")]); ok("3003" not in tf.positions, "+7% 不該進")
+tf2, gf2 = mk(); tf2.ref_of = lambda c: 100.0; tf2.on_tick("3013", 104.0)
+tf2.step([sig("10:40:3013|假突破", "short", "股3013 3013 做空進場 104.00", "10:40 空✓破 · 停利 101.40 停損 108.00 · 3張 · 判三")]); pf = tf2.positions["3013"]
+ok(not pf["no_max_move"] and pf["judge"] == "判三"); tf2.on_report(51, "A0001", 0, 1000, 104.0); ok(pf["state"] == HOLDING)
+tf2.on_tick("3013", 106.5); ok(pf["state"] == EXITING, "假突破空單 +6.5% 也要平倉")
+tl, gl = mk(); tl.ref_of = lambda c: 100.0; tl.on_tick("3023", 94.8)
+tl.step([sig("10:40:3023|多", "long", "股3023 3023 做多進場 94.80", "10:40 多✓ · 停利 97.00 停損 93.00 · 3張 · 判一")]); ok("3023" not in tl.positions, "做多 −5.2% 也不進")
 tn, gn = mk(); tn.ref_of = lambda c: 100.0; tn.on_tick("3004", 105.0)
 tn.step([sig("10:40:3004|壓線", "short", "股3004 3004 做空進場 105.00", "10:40 空✓ · 停利 102.38 停損 109.73 · 3張 · 判三")]); pn = tn.positions["3004"]
 ok(not pn["no_max_move"]); tn.on_report(51, "A0001", 0, 1000, 105.0); tn.on_tick("3004", 106.5); ok(pn["state"] == EXITING, "一般判三空單 +6.5% 要強制平倉")
@@ -394,7 +397,7 @@ TR4 = [{"code": "2330", "bs": "B", "lots": 1, "price": 50.0, "time": "09:10:05",
        {"code": "6269", "bs": "S", "lots": 1, "price": 86.1, "time": "10:37:02", "order_no": "A3"}, {"code": "2409", "bs": "B", "lots": 1, "price": 37.3, "time": "10:00:04", "order_no": "A4"}]
 s4.resume(TR4, {"A1": "T091005001", "A2": "T092003002", "A3": "T103702003", "A4": "T100004004"}, [], SG4)
 ok(s4.positions["2330"]["judge"] == "接回" and s4.positions["2330"]["tp"] == 0, s4.positions["2330"])
-ok(s4.positions["3003"]["no_max_move"] and s4.positions["3003"]["judge"] == "判三")
+ok(not s4.positions["3003"]["no_max_move"] and s4.positions["3003"]["judge"] == "判三")
 ok(s4.positions["6269"]["judge"] == "判二" and s4.positions["6269"]["tp"] == 84.05, s4.positions["6269"])
 ok(s4.positions["2409"]["state"] == EXITING and gs4.sent[-1] == ("2409", "S", 1, 0, "0", "0", "L"), gs4.sent)
 # S5) IOC 8 秒沒回報 → 不拿掉,等確認;晚到的成交 → 轉持倉(停利停損照通知);部分成交後晚到的 → 併進去;等 60 秒還是 0 → 拿掉
@@ -779,11 +782,11 @@ ok(t7.positions.get("6269", {}).get("judge") == "判七", t7.positions)   # 判�
 at(10, 0); t8, g8 = mk(); t8.on_tick("6269", 86.2); t8.step([ENT])
 t8.step([sig("10:30:6269|七出", "loss", "⚠⚠ 台郡 6269 停損 -4.0% 立即平倉", "10:30 做空 10:00 進 86.20 → 現價 89.65 · 2張 · 判七")])
 ok(t8.positions["6269"]["judge"] == "判二" and t8.positions["6269"]["state"] != EXITING, t8.positions["6269"]["state"])   # 判七平倉通知不平判二部位
-# 2026-11-09 15:43 判七第一次修改:判七空單 +7% 不強平(其他判別式 +6.5% 就平)、+8% 才強平
-at(10, 0); t9, g9 = mk(); t9.on_tick("6269", 86.2); t9.ref_of = lambda c: 80.0
+# 2026-11-11 14:17 全改:判七也和其他判別式一樣 +6.5% 強平(原 +8%)
+at(10, 0); t9, g9 = mk(); t9.on_tick("6269", 86.2); t9.ref_of = lambda c: 83.0
 t9.step([sig("10:00:6269|七b", "short", "台郡 6269 做空進場 86.20", "10:00 空 · 停利 81.46 停損 89.65 · 2張 · 判七")]); t9.on_report(51, "A0001", 0, 1000, 86.2)
-t9.on_tick("6269", 85.6); ok(t9.positions["6269"]["state"] == HOLDING, t9.positions["6269"]["state"])   # 80 × 1.07 = 85.6:判七不平
-t9.on_tick("6269", 86.4); ok(t9.positions["6269"]["state"] == EXITING, t9.positions["6269"]["state"])   # 80 × 1.08 = 86.4:判七強平
+t9.on_tick("6269", 88.3); ok(t9.positions["6269"]["state"] == HOLDING, t9.positions["6269"]["state"])   # 83 × 1.065 = 88.395 前不平
+t9.on_tick("6269", 88.4); ok(t9.positions["6269"]["state"] == EXITING, t9.positions["6269"]["state"])   # 88.4 ≥ 88.395:判七強平
 # 2026-11-09 判二第二十四次修改:大盤上漲家數 ≥ 90% 判二今天最多 1 檔、≥ 80% 2 檔;判一不受影響
 for br_, want, cap_ in ((0.95, ["2330"], "0.9:1,0.8:2"), (0.85, ["2330", "2303"], "0.9:1,0.8:2"), (0.6, ["2330", "2303", "1101"], "0.9:1,0.8:2"), (0.93, [], "0.92:0"), (0.91, ["2330", "2303", "1101"], "0.92:0")):
     at(10, 0); tb, gb = mk(TRADE_J2_BRCAP=cap_, TRADE_J2_BRRANGE=""); tb.br_now = lambda b=br_: b

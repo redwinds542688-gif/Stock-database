@@ -152,7 +152,8 @@ class Trader:
         self.y3_post_delay = float(cfg.get("TRADE_Y3_POST_DELAY", "3"))
         self.y3_near = float(cfg.get("TRADE_Y3_NEAR_PCT", "1.5"))
         self.man_move = float(cfg.get("TRADE_MANUAL_MAX_MOVE_PCT", "8.5"))   # 2026-11-03 13:17 元三 / 強三離昨收 ±8.5% 強制平倉(判一~四照舊 ±6.5%);設成跟 TRADE_MAX_MOVE_PCT 一樣 = 回到原本
-        self.j7_move = float(cfg.get("TRADE_J7_MAX_MOVE_PCT", "8"))   # 2026-11-11 10:40 判四 / 判五也用這條(使用者「判四判五 都跟判七一樣」→「解鎖 改」)   # 2026-11-09 判七空單強平線(離昨收 %);0 = 跟其他判別式一樣用 TRADE_MAX_MOVE_PCT
+        self.j7_move = float(cfg.get("TRADE_J7_MAX_MOVE_PCT", "6.5"))   # 2026-11-11 14:17 使用者「做空 漲跌幅限制+-5% 停損+-6.5」→「做多做空都一樣 解鎖 全改」:判四 / 五 / 七 8% → 6.5%(和其他判別式一樣)
+        self.ent_pct = float(cfg.get("TRADE_ENTRY_PCT", "5"))   # 同上:進場時現價離昨收超過 ±5% 不進(多空一樣;0 = 不看)   # 2026-11-11 10:40 判四 / 判五也用這條(使用者「判四判五 都跟判七一樣」→「解鎖 改」)   # 2026-11-09 判七空單強平線(離昨收 %);0 = 跟其他判別式一樣用 TRADE_MAX_MOVE_PCT
         self.y3_free_mv = self.man_move > 0
         self.force_block_pct = float(cfg.get("TRADE_FORCE_BLOCK_PCT", "6.5"))   # 2026-11-03 強制進場:跌超過這麼多 % 不給做多、漲超過不給做空(0 = 不擋)   # 2026-11-03 手動單進場時離 ±6.5% 不到這麼多(%)= 已經接近 → 不套 ±6.5%   # 2026-11-03 元三進場卡等分批成交併完再發(秒)
         self.over_wait = {}
@@ -417,7 +418,7 @@ class Trader:
                         if judge != "接回":                                   # 這則進場通知之後(斷線期間)同一判別式、同一檔已經發過平倉通知 → 接回後馬上平
                             exit_it = next((x for x in signals[i0 + 1:] if x.get("kind") in EXIT_KINDS and code_of(x.get("title")) == c and judge_of(x.get("body")) == judge), None)
                     p = self.new_pos(c, d, judge, title or "接回部位", tp=tp, sl=sl)
-                    p["no_max_move"] = "✓破" in body                         # 2026-10-29 稽核 #4:假突破空單接回後一樣不套 ±6.5%
+                    p["no_max_move"] = False   # 2026-11-11 14:17 全改:假突破也套 ±6.5%   # 原 "✓破" in body   # 2026-10-29 稽核 #4:假突破空單接回後一樣不套 ±6.5%
                     if exit_it: p["resume_exit"] = "接回:斷線期間已有平倉通知 " + exit_it.get("title", "")
                 p["qty"], p["entry"], p["state"] = abs(n), avg, HOLDING
                 p["t0"] = ""
@@ -1636,6 +1637,9 @@ class Trader:
                 self.late_wait[code] = {"it": dict(it), "judge": judge, "kind": kind, "px": px_sig, "tp": tp_sig, "sl": sl_sig, "until": time.time() + self.late_redo_min * 60}
                 self.log(f"[交易] {code} 太晚了先記著:{self.late_redo_min:g} 分鐘內現價回到 {px_sig} ±{self.max_dev:g}% 且沒碰停利 {tp_sig} / 停損 {sl_sig} → 自動補進場")
             return
+        ref_e = self.ref_of(code) or 0   # 2026-11-11 14:17 使用者「做多做空都一樣 解鎖 全改」:現價離昨收超過 ±TRADE_ENTRY_PCT(5)% 不進
+        if self.ent_pct > 0 and ref_e > 0 and abs(last / ref_e - 1) * 100 > self.ent_pct + 1e-9:
+            self.log(f"[交易] 不進場 {title}:現價 {last} 離昨收 {ref_e} {(last / ref_e - 1) * 100:+.2f}%,超過 ±{self.ent_pct:g}%"); return
         if not ((sl_sig < last < tp_sig) if kind == "long" else (tp_sig < last < sl_sig)):   # 2026-11-08 15:57 使用者「改」:現價已經碰到停利 / 停損就不進(太晚 / 超額補進場本來就有這關)
             self.log(f"[交易] 不進場 {title}:現價 {last} 已不在停利 {tp_sig} / 停損 {sl_sig} 之間"); return
         d = 1 if kind == "long" else -1
@@ -1652,7 +1656,7 @@ class Trader:
                 self.log(f"[交易] 額度只夠 {fit} 張(今天成交金額 {self.amount_today:,.0f} / 上限 {self.max_amount:,.0f}),{lots} 張改掛 {fit} 張"); lots = fit
         p = self.new_pos(code, d, judge, title, tp=tp_sig, sl=sl_sig)
         p["px_sig"] = px_sig                                       # 2026-10-31 改 C:補單前檢查現價離訊號價多遠
-        p["no_max_move"] = "✓破" in body   # 2026-10-28 使用者選「元大那邊對假突破空單不套 6.5%」:判三「假突破跌破 Ka 空」(通知帶「空✓破」)常在離昨收 +6.5% 以上才進場,不套 ±6.5% 強制平倉(停利 / 停損 / 13:20 / 手機平倉通知照舊)
+        p["no_max_move"] = False   # 2026-11-11 14:17 使用者「全改」:假突破空單也套 ±6.5%(進場已限 ±5%)   # 原 "✓破" in body   # 2026-10-28 使用者選「元大那邊對假突破空單不套 6.5%」:判三「假突破跌破 Ka 空」(通知帶「空✓破」)常在離昨收 +6.5% 以上才進場,不套 ±6.5% 強制平倉(停利 / 停損 / 13:20 / 手機平倉通知照舊)
         if ekey:
             self.entered_keys.add(ekey); self.save_state()      # 2026-10-29 稽核 #3:送單就記(沒成交也不再追同一個訊號)
         self.send(p, "進場", "B" if d > 0 else "S", lots, price, p["typ"])
