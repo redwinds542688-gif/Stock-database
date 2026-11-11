@@ -24,6 +24,7 @@ def mk(gw=GW, prime=True, **kw):
     cfg = {"TRADE_LOT_TIER": "0", "TRADE_BROKER_STOP": "0", "TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0", "TRADE_Y3_TP_PCT": "2.5"}; cfg.update(kw)
     g = gw(); t = Trader(cfg, g, logs.append, lambda: NOW[0]); g.t = t; t.posts = []; t.alerts = []
     t.post = lambda a, b, k, t_=None, **kw: t.posts.append((a, b, k)); t.akinds = []; t.alert = lambda a, b="", k="pc": (t.alerts.append(a), t.akinds.append(k))
+    t.ref_of = lambda c, t=t: t.last_px.get(c)   # 2026-11-11 16:28 鐵律:沒有昨收不進場 → 測試預設昨收 = 現價(要測 ±5% / 6.5% 的自己設)
     if prime: t.prime([])   # 2026-10-29 稽核 #1:跟 bridge 一樣,啟動時讀到通知(這裡是空的)才算準備好
     return t, g
 sig = lambda k, kind, title, body: {"_k": k, "kind": kind, "title": title, "body": body}
@@ -187,7 +188,7 @@ ti.on_tick("3001", 100.0); ti.step([ENTX("3001", 100.0, k="m1")]); ti.on_report(
 ti.on_tick("3001", 93.6); ok(pi["state"] == HOLDING)
 at(8, 59); ti.on_tick("3001", 93.0); ok(pi["state"] == HOLDING); at(10, 0)
 ti.on_tick("3001", 93.5); ok(pi["state"] == EXITING and pi["exit_why"] == "超6.5%" and gi.sent[-1][6] == "L" and ti.alerts, pi)
-tj, gj = mk(TRADE_MANUAL_MAX_MOVE_PCT="6.5"); tj.ref_of = lambda c: 100.0; tj.force_enter("3002", -1, 1); tj.on_report(51, "A0001", 0, 1000, 101.0); pj = tj.positions["3002"]
+tj, gj = mk(TRADE_MANUAL_MAX_MOVE_PCT="6.5"); tj.ref_of = lambda c: 100.0; tj.on_tick("3002", 101.0); tj.force_enter("3002", -1, 1); tj.on_report(51, "A0001", 0, 1000, 101.0); pj = tj.positions["3002"]
 tj.on_tick("3002", 106.4); ok(pj["state"] == HOLDING); tj.on_tick("3002", 106.5); ok(pj["state"] == EXITING and gj.sent[-1][6] == "H")
 # F6) 30 秒檢查:平倉單還掛著 → 繼續等;元大沒有這張單、這張單沒成交 → 重送;只看這張單自己的成交(同檔手動交易不算)
 tk, gk = mk(); tk.on_tick("6269", 86.2); tk.step([ENT]); tk.on_report(51, "A0001", 0, 1000, 86.1); tk.on_tick("6269", 84.0); pk = tk.positions["6269"]
@@ -207,16 +208,16 @@ tq.on_report(51, "A0002", 0, 1000, 84.1); pq["order"]["at"] -= 31
 tq.verify([], [{"code": "6269", "bs": "S", "lots": 3, "price": 86.1, "order_no": "A0001"}, {"code": "6269", "bs": "B", "lots": 1, "price": 84.1, "order_no": "A0002"}])
 ok(gq.sent[-1][:3] == ("6269", "B", 2) and pq["qty"] == 2, gq.sent[-1], pq["qty"])
 # F6c) 元大一直拒絕平倉 → 最多重送 3 次,之後推播請手動
-tr_, gr_ = mk(GWN); tr_.force_enter("2330", 1, 1); tr_.on_report(51, "", 0, 1000, 600.0, basket=gr_.tags[-1]); tr_.force_close("2330")
+tr_, gr_ = mk(GWN); tr_.on_tick("2330", 600.0); tr_.force_enter("2330", 1, 1); tr_.on_report(51, "", 0, 1000, 600.0, basket=gr_.tags[-1]); tr_.force_close("2330")
 for k in range(4): tr_.on_order_reply("", False, "E999 系統忙碌", tag=gr_.tags[-1])
 ok(len([x for x in gr_.sent if x[1] == "S"]) == 4 and tr_.positions["2330"].get("stuck") and "平倉失敗" in tr_.alerts[-1], gr_.sent, tr_.alerts)
 # F7) 強制進場 30 秒沒回報:元大沒有也沒成交 → 不重送、推播;元大有成交 → 照元大接上
-tl, gl = mk(); tl.force_enter("2330", 1, 1, 2.5, 1.5); tl.positions["2330"]["order"]["at"] -= 31
+tl, gl = mk(); tl.on_tick("2330", (tl.ref_of("2330") or 100.0)); tl.force_enter("2330", 1, 1, 2.5, 1.5); tl.positions["2330"]["order"]["at"] -= 31
 tl.verify([], []); ok("2330" not in tl.positions and len(gl.sent) == 1 and "沒有送到元大" in tl.alerts[-1])
 tl.force_enter("2330", 1, 1, 2.5, 1.5); tl.positions["2330"]["order"]["at"] -= 31
 tl.verify([], [{"code": "2330", "bs": "B", "lots": 1, "price": 601.0, "order_no": "A0002"}]); ok(tl.positions["2330"]["state"] == HOLDING and tl.positions["2330"]["entry"] == 601.0)
 # F8) 平倉單被元大拒絕 → 推播並馬上重送(有次數上限)
-tm, gm = mk(GWN); tm.force_enter("2330", 1, 1); tm.on_report(51, "", 0, 1000, 600.0, basket=gm.tags[-1]); tm.force_close("2330")
+tm, gm = mk(GWN); tm.on_tick("2330", 600.0); tm.force_enter("2330", 1, 1); tm.on_report(51, "", 0, 1000, 600.0, basket=gm.tags[-1]); tm.force_close("2330")
 tm.on_order_reply("", False, "E999 系統忙碌", tag=gm.tags[-1]); pm = tm.positions["2330"]; ok(pm["state"] == EXITING and "被元大拒絕" in tm.alerts[-1] and gm.sent[-1][:3] == ("2330", "S", 1) and gm.sent[-1][6] == "L")
 # F8b) 程式重開時平倉單還掛著(鎖跌停)→ 接成平倉中,不送第二張;強制進場單還掛著 → 進場中
 tw, gw_ = mk(); tw.state_file.write_text('{"day": "2026-10-22", "forced": {"3008": {"tp_pct": 2.5, "sl_pct": 1.5}}}', encoding="utf-8")
@@ -226,14 +227,14 @@ ok(tw.positions["6269"]["state"] == EXITING and tw.positions["3008"]["state"] ==
 tw.on_tick("6269", 80.0); at(13, 21); tw.step(); at(10, 0); ok(not gw_.sent)
 tw.on_report(51, "A2", 0, 1000, 85.0, basket="T101000002"); ok("6269" not in tw.positions)
 # F8c) 強制進場:電腦沒有昨收時用手機帶來的昨收做 ±6.5%
-tz, gz = mk(TRADE_MANUAL_MAX_MOVE_PCT="6.5"); tz.force_enter("4000", 1, 1, ref=50.0); tz.on_report(51, "A0001", 0, 1000, 50.0); tz.on_tick("4000", 46.7); ok(tz.positions["4000"]["state"] == EXITING)
+tz, gz = mk(TRADE_MANUAL_MAX_MOVE_PCT="6.5"); tz.on_tick("4000", 50.0); tz.force_enter("4000", 1, 1, ref=50.0); tz.on_report(51, "A0001", 0, 1000, 50.0); tz.on_tick("4000", 46.7); ok(tz.positions["4000"]["state"] == EXITING)
 # F9) 強制進場不受當天虧損上限;自動受
 tn, gn = mk(); tn.pnl = -30000; tn.on_tick("6269", 86.2); tn.step([ENT]); ok("6269" not in tn.positions and "已虧" in logs[-1]); ok(tn.force_enter("6269", -1, 1)[0])
 # F10) 強制平倉:進場還沒成交 → 不行;已在平倉中 → 記強平(之後寫強平訊息)
-to, go = mk(); to.force_enter("2330", 1, 1); ok(to.force_close("2330")[0] and go.sent[-1][:2] == ("cancel", "A0001"), go.sent)   # 2026-10-28 進場中按強平:取消進場單
+to, go = mk(); to.on_tick("2330", (to.ref_of("2330") or 100.0)); to.force_enter("2330", 1, 1); ok(to.force_close("2330")[0] and go.sent[-1][:2] == ("cancel", "A0001"), go.sent)   # 2026-10-28 進場中按強平:取消進場單
 to.on_report(51, "A0001", 0, 1000, 600.0); ok(to.positions["2330"]["state"] == EXITING and go.sent[-1][:3] == ("2330", "S", 1), go.sent)   # 取消前已成交 → 馬上平掉
 to.on_report(51, "A0002", 0, 1000, 599.0); ok(to.posts[-1][1].endswith("· 強平 · 強三") and "2330" not in to.positions, to.posts[-1])
-to2, go2 = mk(); to2.force_enter("2330", 1, 1); to2.on_report(51, "A0001", 0, 1000, 600.0); to2.positions["2330"]["tp"] = 601; to2.on_tick("2330", 601.0); ok(to2.positions["2330"]["state"] == EXITING)
+to2, go2 = mk(); to2.on_tick("2330", 600.0); to2.force_enter("2330", 1, 1); to2.on_report(51, "A0001", 0, 1000, 600.0); to2.positions["2330"]["tp"] = 601; to2.on_tick("2330", 601.0); ok(to2.positions["2330"]["state"] == EXITING)
 ok(to2.force_close("2330") == (True, "已經在平倉中")); to2.on_report(51, "A0002", 0, 1000, 601.0); ok(to2.posts[-1][1].endswith("· 強平 · 強三"), to2.posts[-1])
 # F11) positions_view 給手機
 ok(tg.positions_view()[0]["code"] == "6269" and tg.positions_view()[0]["judge"] == "強三")
@@ -277,7 +278,7 @@ tn2, gn2 = mk(TRADE_ENABLE="0"); tn2.on_report(51, "M1", 0, 1000, 50.0, basket="
 ta, ga = mk(TRADE_AUTO="0"); ta.on_tick("6269", 86.2); ta.step([ENT]); ok("6269" not in ta.positions and not ga.sent, ga.sent)
 ta.on_report(51, "M1", 0, 1000, 50.0, basket="", code="3001", bs="B"); ok(ta.positions["3001"]["judge"] == "元三")
 ta.on_tick("3001", 47.7); ok(ta.positions["3001"]["state"] == EXITING and ga.sent[-1][:3] == ("3001", "S", 1), ga.sent)
-ok(ta.force_enter("2409", 1, 1, None, None, "0")[0])
+ta.on_tick("2409", (ta.ref_of("2409") or 100.0)); ok(ta.force_enter("2409", 1, 1, None, None, "0")[0])
 # A2) 沒設 TRADE_AUTO = 預設關
 tb2 = Trader({"TRADE_ENABLE": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / "a2.json")}, GW(), logs.append, lambda: NOW[0]); ok(tb2.auto is False)
 # ── 2026-10-28 平倉檢查 1~10 ──
@@ -325,14 +326,14 @@ t6b, g6b = mk(); p6b = y3(t6b, "2002", "S", 1, 20.0, typ="3"); t6b.on_tick("2002
 # P7) 元三 / 接回的股票會叫 bridge 補訂閱
 t7, g7 = mk(); subs = []; t7.want_sub = lambda c: subs.append(c) or "TWOTC"; p7 = y3(t7, "5483", "B", 1, 100.0); ok(subs == ["5483"] and p7["mkt"] == "TWOTC")
 # P10) 強三的 ±6.5% 先用手機帶來的昨收(電腦留著的舊昨收不算)
-t10b, g10b = mk(TRADE_MANUAL_MAX_MOVE_PCT="6.5"); t10b.ref_of = lambda c: 200.0; t10b.force_enter("2330", 1, 1, None, None, "TWSE", None, 100.0); t10b.on_report(51, "A0001", 0, 1000, 100.0)
+t10b, g10b = mk(TRADE_MANUAL_MAX_MOVE_PCT="6.5"); t10b.ref_of = lambda c: 200.0; t10b.on_tick("2330", 100.0); t10b.force_enter("2330", 1, 1, None, None, "TWSE", None, 100.0); t10b.on_report(51, "A0001", 0, 1000, 100.0)
 t10b.on_tick("2330", 93.4); ok(t10b.positions["2330"]["state"] == EXITING, t10b.positions["2330"]["state"])
 # PA) 二次檢查 A:委託回報(50)比下單回應先到 → 要取消的單照樣取消;回應整個沒回來 → 30 秒複查從元大清單拿書號再取消
 ta1, ga1 = mk(gw=GWN); pa1 = y3(ta1, "2330", "B", 2, 100.0); ta1.on_tick("2330", 95.4); ta1.on_report(51, "M2", 0, 2000, 95.4, "", "2330", "S")
 ok(not [x for x in ga1.sent if x[0] == "cancel"]); ta1.on_report(50, "X7", 0, 0, 0, ga1.tags[-1]); ok(ga1.sent[-1] == ("cancel", "X7", "2330", "S"), ga1.sent)
 ta2, ga2 = mk(gw=GWN); pa2 = y3(ta2, "2330", "B", 2, 100.0); ta2.on_tick("2330", 95.4); ta2.on_report(51, "M2", 0, 1000, 95.4, "", "2330", "S"); pa2["order"]["at"] -= 31
 ta2.verify([{"no": "X8", "tag": ga2.tags[-1], "code": "2330", "bs": "S", "lots": 2}], [], {}); ok(ga2.sent[-1] == ("cancel", "X8", "2330", "S"), ga2.sent)
-ta3, ga3 = mk(gw=GWN); ta3.force_enter("2330", 1, 1); ta3.force_close("2330"); ta3.on_report(50, "X9", 0, 0, 0, ga3.tags[-1]); ok(ga3.sent[-1] == ("cancel", "X9", "2330", "B"), ga3.sent)
+ta3, ga3 = mk(gw=GWN); ta3.on_tick("2330", (ta3.ref_of("2330") or 100.0)); ta3.force_enter("2330", 1, 1); ta3.force_close("2330"); ta3.on_report(50, "X9", 0, 0, 0, ga3.tags[-1]); ok(ga3.sent[-1] == ("cancel", "X9", "2330", "B"), ga3.sent)
 # FB) 2026-11-11 14:17 全改:現價離昨收超過 ±5% 不進(+7% 假突破空單不進);假突破空單也套 ±6.5%
 tf, gf = mk(); tf.ref_of = lambda c: 100.0; tf.on_tick("3003", 107.0)
 tf.step([sig("10:40:3003|假突破", "short", "股3003 3003 做空進場 107.00", "10:40 空✓破 · 停利 104.33 停損 109.00 · 3張 · 判三")]); ok("3003" not in tf.positions, "+7% 不該進")
@@ -365,9 +366,9 @@ ok(fetch_signals("http://127.0.0.1:9", "2026-10-22") is None)
 s1, gs1 = mk(prime=False); s1.prime(None); ok(not s1.primed)
 s1.on_tick("6269", 86.2); s1.step(None); s1.step([ENT]); ok(s1.primed and "6269" not in s1.positions and not gs1.sent, gs1.sent)
 s1.step([ENT]); ok("6269" not in s1.positions)                                              # 已標看過
-s1b, gs1b = mk(prime=False); s1b.prime(None); s1b.force_enter("2330", 1, 1); s1b.on_report(51, "A0001", 0, 1000, 600.0); pb = s1b.positions["2330"]
+s1b, gs1b = mk(prime=False); s1b.prime(None); s1b.on_tick("2330", 600.0); s1b.force_enter("2330", 1, 1); s1b.on_report(51, "A0001", 0, 1000, 600.0); pb = s1b.positions["2330"]
 old_x = sigt("o1", "exit", "台積電 2330 出場:出", "… · 判三", "09:50"); new_x = sigt("n1", "exit", "台積電 2330 出場:出", "… · 判三", "10:01")
-s1c, gs1c = mk(prime=False); s1c.force_enter("2330", 1, 1); s1c.on_report(51, "A0001", 0, 1000, 600.0)   # 10:00 啟動
+s1c, gs1c = mk(prime=False); s1c.on_tick("2330", 600.0); s1c.force_enter("2330", 1, 1); s1c.on_report(51, "A0001", 0, 1000, 600.0)   # 10:00 啟動
 at(10, 2); s1b.step([old_x]); ok(pb["state"] == HOLDING)                                    # 啟動前的平倉通知:不理
 s1c.step([old_x, new_x]); ok(s1c.positions["2330"]["state"] == EXITING)                    # 啟動後才來的:照做
 at(10, 0)
@@ -491,6 +492,7 @@ s19c.on_order_reply("", False, "E101 委託價格超過漲跌幅", tag=g19c.tags
 # S20) 2026-10-31 虧損級距通知:合計(已平倉 + 帳面)虧到 1 萬 / 2 萬 … 各推一次;回升再跌不重發;一次跳兩級只發大的;重開還記得;到全部平倉那級不另發
 s20, g20_ = mk(TRADE_CAP="250000", TRADE_MAX_MOVE_PCT="99")
 s20.on_tick("2401", 50.0); s20.step([sig("k201", "short", "股2401 2401 做空進場 50.0", "10:00 空 · 停利 45.50 停損 60.00 · 5張 · 判四")])
+s20.ref_of = lambda c: None; s20.positions["2401"]["ref"] = 0; s20.positions["2401"]["sl"] = 60.0   # 2026-11-11 這個測試只測虧損級距,不要 6.5% 強平(進場要昨收,進場後拿掉)
 s20.on_report(51, "", 0, s20.positions["2401"]["order"]["want"], s20.positions["2401"]["order"]["price"], basket=g20_.tags[-1])
 n0 = len(s20.alerts); s20.on_tick("2401", 51.5); ok(len(s20.alerts) == n0, s20.alerts[n0:])         # 帳面約 −7,700:還沒到 1 萬
 s20.on_tick("2401", 52.2); ok(len(s20.alerts) == n0 + 1 and "1 萬" in s20.alerts[-1], s20.alerts[n0:])
@@ -534,7 +536,7 @@ ok(s24.close_all("手機全部平倉", lock=True) == 1 and "2401" in s24.locked 
 s24.on_tick("2402", 60.0); s24.step([sig("k24b", "long", "股2402 2402 做多進場 60.0", "10:01 多 · 停利 65.0 停損 50.0 · 3張 · 判四")]); oo = s24.positions["2402"]["order"]
 ok(s24.close_all("手機全部平倉", lock=True) >= 1 and g24.sent[-1][0] == "cancel" and s24.positions["2402"].get("close_after_entry") and "2402" in s24.locked, g24.sent[-1])
 # S25) 2026-11-03 超額訊號:價格回到一張 ≤ 多空上限 → 等手機確認(redo)才補進場一次;判別式先平倉 / 過停利就取消
-s25, g25 = mk(TRADE_CAP="250000", TRADE_MAX_MOVE_PCT="99"); s25.on_tick("3006", 257.5)
+s25, g25 = mk(TRADE_CAP="250000", TRADE_MAX_MOVE_PCT="99"); s25.ref_of = lambda c: 252.0; s25.on_tick("3006", 257.5)
 OV = lambda k, t="10:24": sig(k, "short", "晶豪科 3006 做空進場 257.50", f"{t} 空 · 停利 234.30 停損 266.44 · 1張 · 超額 · 判四")
 s25.step([OV("k25")]); ok("3006" not in s25.positions and "3006" in s25.over_wait and not s25.over_list(), s25.over_wait)
 s25.on_tick("3006", 252.0); s25.step([]); ok(not s25.over_list())                                   # 一張 252,000 還超過
@@ -560,7 +562,7 @@ s27.on_tick("3481", 41.65); ok(s27.positions["3481"]["state"] == EXITING, s27.po
 s27b, _ = mk(); s27b.ref_of = lambda c: 44.6; s27b.on_tick("3481", 43.0)
 s27b.on_report(51, "i00QY", 0, 1000, 43.0, basket="", code="3481", bs="B"); ok(not s27b.positions["3481"].get("no_max_move"))
 ok(s27b.positions["3481"]["sl"] == 41.75, s27b.positions["3481"]["sl"]); s27b.on_tick("3481", 41.8); ok(s27b.positions["3481"]["state"] == HOLDING); s27b.on_tick("3481", 41.75); ok(s27b.positions["3481"]["state"] == EXITING)   # 停損 41.07 收到線 41.75
-s27c, g27c = mk(); s27c.ref_of = lambda c: 100.0; s27c.force_enter("3002", -1, 1); s27c.on_report(51, "A0001", 0, 1000, 101.0); ok(s27c.positions["3002"]["sl"] <= 106.5, s27c.positions["3002"]["sl"])
+s27c, g27c = mk(); s27c.ref_of = lambda c: 100.0; s27c.on_tick("3002", 101.0); s27c.force_enter("3002", -1, 1); s27c.on_report(51, "A0001", 0, 1000, 101.0); ok(s27c.positions["3002"]["sl"] <= 106.5, s27c.positions["3002"]["sl"])
 s27c.on_tick("3002", 106.5); ok(s27c.positions["3002"]["state"] == EXITING, s27c.positions["3002"])   # 強三做空最晚 +6.5% 出
 s27e, _ = mk(); s27e.ref_of = lambda c: 100.0; s27e.on_tick("3003", 105.2); ok("±5" in s27e.force_block("3003", -1) and "±5" in s27e.force_block("3003", 1)); s27e.on_tick("3003", 104.9); ok(s27e.force_block("3003", -1) == "")
 s27d, _ = mk(TRADE_MANUAL_MAX_MOVE_PCT="6.5"); s27d.ref_of = lambda c: 44.6; s27d.on_tick("3481", 43.0); s27d.on_report(51, "i00QZ", 0, 1000, 43.0, basket="", code="3481", bs="B"); s27d.on_tick("3481", 41.65); ok(s27d.positions["3481"]["state"] == EXITING)   # 開關關掉照舊
@@ -844,4 +846,8 @@ at(10, 0); tf11, _ = mk(TRADE_JUDGE_FROM="09:30", TRADE_FORCE_TO="12:30"); tf11.
 ti, _ = mk(TRADE_ENTRY_PCT="9", TRADE_MAX_MOVE_PCT="10", TRADE_J7_MAX_MOVE_PCT="8", TRADE_MANUAL_MAX_MOVE_PCT="8.5", TRADE_FORCE_BLOCK_PCT="0", TRADE_JUDGE_FROM="09:00", TRADE_JUDGE_TO="13:10", TRADE_FORCE_TO="13:10")
 ok((ti.ent_pct, ti.max_move, ti.j7_move, ti.man_move, ti.force_block_pct, ti.j_from, ti.j_to, ti.force_to) == (5.0, 6.5, 6.5, 6.5, 5.0, "09:30", "12:32", "12:30"), (ti.ent_pct, ti.max_move, ti.j_from, ti.j_to))
 tj, _ = mk(TRADE_ENTRY_PCT="3", TRADE_MAX_MOVE_PCT="5"); ok(tj.ent_pct == 3.0 and tj.max_move == 5.0)   # 更嚴的照設定
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7 + 判七上線 2 + 判六上線 4 + 判七 +8% 強平 2 + 判二大盤分級檔數 7 + 判二寬度範圍 11 + 條件單編號存檔 3)")
+# 2026-11-11 16:28 鐵律檢查「改」:沒有昨收 → 不進場、不給強制進場
+at(10, 0); tq, gq = mk(); tq.ref_of = lambda c: None; tq.on_tick("6269", 86.2); tq.step([ENT]); ok("6269" not in tq.positions, "沒昨收不進")
+ok(any("沒辦法確認鐵律" in x for x in logs[-5:]), "沒昨收記錄原因")
+tq2, _ = mk(); tq2.ref_of = lambda c: None; tq2.on_tick("2330", 100.0); r = tq2.force_enter("2330", 1, 1); ok(not r[0] and "鐵律" in r[1], "沒昨收不給強制進場", r)
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7 + 判七上線 2 + 判六上線 4 + 判七 +8% 強平 2 + 判二大盤分級檔數 7 + 判二寬度範圍 11 + 條件單編號存檔 3 + 沒昨收不進 3)")

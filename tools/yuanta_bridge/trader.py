@@ -1429,8 +1429,8 @@ class Trader:
                 r = (False, "這檔已經有部位(只能強制平倉)")
             elif d not in (1, -1) or lots < 1:
                 r = (False, "方向或張數不對")
-            elif self.force_block(code, d, ref):
-                r = (False, self.force_block(code, d, ref))
+            elif self.force_block(code, d, ref, px):
+                r = (False, self.force_block(code, d, ref, px))
             else:
                 if mkt: self.mkt_of[code] = mkt
                 p = self.new_pos(code, d, FORCED, f"強制{'做多' if d > 0 else '做空'} {code}", forced=True)
@@ -1452,12 +1452,15 @@ class Trader:
             if cmd_id: self.cmd_seen[cmd_id] = r
             return r
 
-    def force_block(self, code, d, ref=None):
+    def force_block(self, code, d, ref=None, px=None):
         """2026-11-03 13:21 使用者「加 強制進場 該股票-6.5%不做多 反之亦然」:現價離昨收 ≤ −6.5% 不給強制做多、≥ +6.5% 不給強制做空;回擋下的原因(沒擋回空字串)"""
         try: y = float(ref) if ref else 0.0
         except Exception: y = 0.0
         y = y or (self.ref_of(code) or 0); last = self.last_px.get(code) or 0; lim = self.force_block_pct
-        if not (y > 0 and last > 0 and lim > 0): return ""
+        try: last = last or float(px or 0)   # 2026-11-11 16:28 還沒有元大即時價 → 用手機指定的委託價判斷 ±5%
+        except Exception: pass
+        if not lim > 0: return ""
+        if not (y > 0 and last > 0): return f"還沒有{'昨收' if not y > 0 else '元大即時價'},沒辦法確認鐵律 ±{lim:g}%,不能強制{'做多' if d > 0 else '做空'}"   # 2026-11-11 16:28 鐵律檢查「改」:確認不了就不給進
         ch = (last / y - 1) * 100
         if abs(ch) > lim + 1e-9: return f"現價 {last} 離昨收 {ch:+.1f}%(超過 ±{lim:g}%),不能強制{'做多' if d > 0 else '做空'}"   # 2026-11-11 15:36 多空都照 ±5%
         return ""
@@ -1650,7 +1653,10 @@ class Trader:
                 self.late_wait[code] = {"it": dict(it), "judge": judge, "kind": kind, "px": px_sig, "tp": tp_sig, "sl": sl_sig, "until": time.time() + self.late_redo_min * 60}
                 self.log(f"[交易] {code} 太晚了先記著:{self.late_redo_min:g} 分鐘內現價回到 {px_sig} ±{self.max_dev:g}% 且沒碰停利 {tp_sig} / 停損 {sl_sig} → 自動補進場")
             return
-        ref_e = self.ref_of(code) or 0   # 2026-11-11 14:17 使用者「做多做空都一樣 解鎖 全改」:現價離昨收超過 ±TRADE_ENTRY_PCT(5)% 不進
+        ref_e = self.ref_of(code) or 0
+        if self.ent_pct > 0 and not ref_e > 0:   # 2026-11-11 16:28 鐵律檢查(使用者「檢查 鐵律」→「改」):沒有昨收就沒辦法確認 ±5%(也沒有 6.5% 保護)→ 不進
+            self.log(f"[交易] 不進場 {title}:還沒有 {code} 的昨收,沒辦法確認鐵律 ±{self.ent_pct:g}%"); return
+        # 2026-11-11 14:17 使用者「做多做空都一樣 解鎖 全改」:現價離昨收超過 ±TRADE_ENTRY_PCT(5)% 不進
         if self.ent_pct > 0 and ref_e > 0 and abs(last / ref_e - 1) * 100 > self.ent_pct + 1e-9:
             self.log(f"[交易] 不進場 {title}:現價 {last} 離昨收 {ref_e} {(last / ref_e - 1) * 100:+.2f}%,超過 ±{self.ent_pct:g}%"); return
         if not ((sl_sig < last < tp_sig) if kind == "long" else (tp_sig < last < sl_sig)):   # 2026-11-08 15:57 使用者「改」:現價已經碰到停利 / 停損就不進(太晚 / 超額補進場本來就有這關)
