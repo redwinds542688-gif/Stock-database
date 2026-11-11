@@ -1553,8 +1553,8 @@ class Trader:
                 r = (False, "方向或張數不對")
             elif not self.last_px.get(code):   # 2026-11-11 23:05 使用者「全改」(第三輪) 4:還沒有元大即時價 → 不給強制進場(不再用手機的價格判斷 ±5%)
                 r = (False, "電腦還沒收到這檔的元大即時價,沒辦法確認鐵律 ±5%,請過幾秒再試")
-            elif (px in (None, "") or not float(px or 0)) and self.force_block(code, d, ref, shift(self.last_px[code], self.slip * d)):   # 2026-11-11 23:05 使用者「全改」(第三輪) 3:沒指定價 = 現價讓 2 檔限價,超過 ±5% 不進
-                r = (False, self.force_block(code, d, ref, shift(self.last_px[code], self.slip * d)))
+            elif (px in (None, "") or not float(px or 0)) and not (px := shift(self.last_px[code], self.slip * d)):   # 2026-11-11 00:16 第四輪檢查:沒指定價 → 先算好「現價讓 2 檔」當委託價,後面 ±5% / 一張上限 / 張數 / 額度都用它算(原本張數和上限用現價)
+                r = (False, "算不出委託價")
             elif self.force_block(code, d, ref, px):
                 r = (False, self.force_block(code, d, ref, px))
             elif self.force_lots_why(code, d, lots, px):   # 2026-11-11 19:59 使用者「分級張數 鎖定 監控所有判別式的進場」:強制進場也照鐵律 ⑤(超額不做、額度不夠不進)
