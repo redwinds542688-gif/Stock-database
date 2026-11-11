@@ -898,4 +898,13 @@ igf = tmp / "ign.txt"; igf.write_text("1709  # 和益 借券\n", encoding="utf-8
 ti9, gi9 = mk(TRADE_IGNORE_FILE=str(igf)); ok("1709" in ti9.ignore and "YY0070" in ti9.ignore)
 ti9.on_tick("1709", 49.0); ti9.step([ENTX("1709", 49.0, judge="判三", kind="short")]); ok("1709" not in ti9.positions and not gi9.sent)
 ok(not ti9.force_enter("1709", 1, 1)[0]); ti9.on_report(51, "M1", 0, 1000, 49.0, basket="", code="1709", bs="B"); ok("1709" not in ti9.positions)
+# 2026-11-11 20:53 元大手動單違反鐵律 → 接起來馬上全部平掉(⑥ 不能例外)
+def man_(h, m, px, n, ref=50.0):
+    at(h, m); t_, g_ = mk(TRADE_CAP="250000", TRADE_Y3_POST_DELAY="0"); t_.ref_of = lambda c: ref; t_.on_tick("2330", px)
+    t_.on_report(51, "M9", 0, n * 1000, px, basket="", code="2330", bs="B"); return t_, g_
+tA, gA = man_(10, 0, 50.0, 3); ok(tA.positions["2330"]["state"] == HOLDING)                          # 50 元 3 張:合規,照管
+tB, gB = man_(10, 0, 50.0, 4); ok(tB.positions["2330"]["state"] == EXITING and tB.positions["2330"]["exit_why"] == "鐵律", tB.positions["2330"].get("exit_why"))   # 4 張超過分級
+tC, gC = man_(9, 20, 50.0, 1); ok(tC.positions["2330"]["state"] == EXITING)                         # 09:20 不在時段
+tD, gD = man_(10, 0, 53.0, 1); ok(tD.positions["2330"]["state"] == EXITING)                         # +6%
+at(10, 0)
 print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7 + 判七上線 2 + 判六上線 4 + 判七 +8% 強平 2 + 判二大盤分級檔數 7 + 判二寬度範圍 11 + 條件單編號存檔 3 + 沒昨收不進 3)")

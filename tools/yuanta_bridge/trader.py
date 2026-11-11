@@ -947,6 +947,7 @@ class Trader:
                     self.log(f"[交易] 元三 {code} 進場卡改寫:{p['qty']} 張 均價 {p['entry']:.2f}")
                 except Exception as e: self.log(f"[交易] 元三 {code} 進場卡改寫失敗 {e}")
             if p["state"] == HOLDING: self.oco_refresh(p, "手動加碼")
+            if p["state"] == HOLDING and self.iron_manual(p, price, lots, "手動加碼"): return   # 2026-11-11 20:53 加碼後違反鐵律 → 整個部位平掉
             if self.prehang.get(code):   # 2026-11-08 01:00 預掛期間又加碼 → 預掛張數不夠了,提醒
                 ph = sum((self.man_meta.get(n) or {}).get("lots", 0) - (self.man_meta.get(n) or {}).get("fl", 0) for n in self.prehang[code])
                 self.alert(f"ℹ {self.name_of(code)} {code} 加碼後預掛只蓋住一部分", f"部位 {tot} 張、預掛 {ph} 張;沒預掛的 {max(0, tot - ph)} 張程式管(條件單已照這個張數重掛),預掛的等成交({self.prehang_deadline} 前沒成交由程式平)")   # 2026-11-08 18:58 跟著 18:30 部分預掛規則改字
@@ -1004,6 +1005,7 @@ class Trader:
                     p["no_max_move"] = True; self.log(f"[交易] 元三 {code} 進場時已經離昨收 {(price / ref0 - 1) * 100:+.1f}%(超過 ±{mv0:g}%)→ 這筆不套 ±{self.max_move:g}%,只用停利 / 停損")
                 self.set_forced_tpsl(p, price); self.amount_today += price * lots * 1000; self.save_state()
                 self.sub(p)
+                if self.iron_manual(p, price, lots, "手動進場"): return   # 2026-11-11 20:53 鐵律沒有例外:元大手動單違反鐵律 → 接起來馬上全部平掉
                 self.log(f"[交易] 元三:元大手動{'買進' if d > 0 else '賣出'} {code} {lots} 張 @ {price}(委託種類 {typ or '?'})→ 交給判三管(停利 {p['tp']} 停損 {p['sl']})")
                 # 2026-11-03 13:00 使用者「我做多是5張 訊息寫一張」:同一張委託分批成交(1+1+1+2)時,原本第一筆成交就發卡(寫 1 張)→ 等 3 秒把分批成交併完再發,寫總張數 / 均價
                 p["y3_lots"], p["y3_px"] = lots, price
@@ -1763,6 +1765,26 @@ class Trader:
         if ekey:
             self.entered_keys.add(ekey); self.save_state()      # 2026-10-29 稽核 #3:送單就記(沒成交也不再追同一個訊號)
         self.send(p, "進場", "B" if d > 0 else "S", lots, price, p["typ"])
+
+    def iron_manual(self, p, price, lots, what):
+        """2026-11-11 20:53 使用者「5.6不是沒做」(⑥ 元大 App 自己下的單也不能例外):手動進場 / 加碼成交後檢查鐵律
+           ① 離昨收 ±5% ③ 09:30~12:30 ⑤ 張數分級(整個部位)/ 500 萬額度 —— 違反任何一項 → 推通知 + 整個部位馬上漲停 / 跌停平掉。回 True = 已平"""
+        try:
+            if not Trader.IRON_LOTS: return False
+            why = []; hm = self.hm(); ref = self.ref_of(p["code"]) or 0
+            if not (self.j_from <= hm <= self.force_to): why.append(f"{hm} 不在 {self.j_from}~{self.force_to}")
+            if ref > 0 and abs(price / ref - 1) * 100 > self.ent_pct + 1e-9: why.append(f"成交價離昨收 {(price / ref - 1) * 100:+.1f}%(超過 ±{self.ent_pct:g}%)")
+            if p["entry"] * 1000 > IRON_CAP: why.append(f"一張 {p['entry'] * 1000:,.0f} 超過 25 萬")
+            elif p["qty"] > lot_tier_qty(p["entry"]): why.append(f"共 {p['qty']} 張,超過分級 {lot_tier_qty(p['entry'])} 張")
+            if self.max_amount > 0 and self.amount_today > self.max_amount + 1e-6: why.append(f"今天成交 {self.amount_today:,.0f} 超過 500 萬")
+            if not why: return False
+            w = "、".join(why); code = p["code"]
+            self.log(f"[交易] !! {code} 元大{what} {lots} 張 @ {price} 違反鐵律({w})→ 整個部位 {p['qty']} 張馬上平掉")
+            self.alert(f"⛔ {self.name_of(code)} {code} 手動單違反鐵律,已全部平倉", f"{what} {lots} 張 @ {price}:{w}")
+            self.exit_pos(p, "鐵律", self.last_px.get(code, price), force_limit=True)
+            return True
+        except Exception as e:
+            self.log(f"[交易] 鐵律檢查手動單失敗 {e!r}"); return False
 
     def cap_sl(self, code, d, judge, sl):
         """2026-11-11 14:57 使用者「缺口 一樣要跟剛剛設定的進出場範圍一樣」:判別式部位的停損價不超過昨收 ±強平線(6.5%),
