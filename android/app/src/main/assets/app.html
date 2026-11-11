@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-11 09:39(實際時間)監控區排序:有進場未平倉(做多中 / 做空中)一律排最前面,超額 / 未交易 / 監控中在後(使用者「超額 或 未成交的 監控區排序 不可以在有進場的前面」)
   · 2026-11-11 00:42(實際時間)資訊六張卡:指數數字改黃色;字再縮一點,漲跌那行不被切(使用者「指數用黃色顯示 指數下面的漲跌似乎有切到」)
   · 2026-11-10 17:58(實際時間)剛開 App 時今天通知卡的價格紅綠不對、十幾秒後才變對:即時報價一到就校正顏色(使用者影片「進場通知欄 10秒後才顯示真正正確的股價」)
   · 2026-11-10 15:25(實際時間)今天的進場卡下排放回「現」即時現價(使用者「那進場 下面也看 即時價 好了 這樣清晰一些」)
@@ -384,7 +385,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611110042">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611110939">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2268,7 +2269,9 @@ function render(list){
   const R = s => rank.has(s.code) ? rank.get(s.code) : 1e9;
   // 2026-10-21 使用者:「股票怎麼沒有按成交量排序」:原本照名單的成交量(昨天)排,右邊顯示的卻是今天即時累計量 → 有即時量就照今天的量排
   const LV = s => { const r = LIVE.get(s.code); return r && isFinite(r.v) && r.v > 0 ? r.v * 1000 : (s.vol || 0); };
-  list = list.map((s, i) => [s, i]).sort((a, b) => (R(a[0]) - R(b[0])) || (LV(b[0]) - LV(a[0])) || (a[1] - b[1])).map(x => x[0]);
+  // 2026-11-11 09:39 使用者「超額 或 未成交的 監控區排序 不可以在有進場的前面」:有進場未平倉(做多中 / 做空中)的一律排最前面,超額 / 未交易 / 監控中 排在後面
+  const HD = s => (s.pos || (window.__openSide && __openSide.has(s.code))) ? 0 : 1;
+  list = list.map((s, i) => [s, i]).sort((a, b) => (HD(a[0]) - HD(b[0])) || (R(a[0]) - R(b[0])) || (LV(b[0]) - LV(a[0])) || (a[1] - b[1])).map(x => x[0]);
   // 2026-11-04 23:03 使用者按成交價 / 成交量排序(LSORT.d 1 = 高→低、-1 = 低→高;沒按 = 原本的排序)
   { const S = window.LSORT || {}; if (S.k){ const f = S.k === 'px' ? lsrtPx : LV; list = list.map((s, i) => [s, i]).sort((a, b) => ((f(b[0]) - f(a[0])) * S.d) || (a[1] - b[1])).map(x => x[0]); } }
 
