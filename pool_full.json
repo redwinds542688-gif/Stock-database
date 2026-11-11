@@ -598,6 +598,12 @@
 "lots": 7582
 },
 {
+"code": "5013",
+"name": "強新",
+"market": "tpex",
+"lots": 7548
+},
+{
 "code": "6239",
 "name": "力成",
 "market": "twse",
@@ -620,12 +626,6 @@
 "name": "啟碁",
 "market": "twse",
 "lots": 7398
-},
-{
-"code": "5013",
-"name": "強新",
-"market": "tpex",
-"lots": 7308
 },
 {
 "code": "5483",
