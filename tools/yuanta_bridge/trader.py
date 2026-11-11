@@ -265,6 +265,7 @@ class Trader:
         return self.now().strftime("%H:%M")
 
     def new_pos(self, code, d, judge, title, forced=False, tp=0.0, sl=0.0):
+        sl = self.cap_sl(code, d, judge, sl)
         p = {"code": code, "mkt": self.mkt_of.get(code, "TWSE"), "dir": d, "qty": 0, "entry": 0.0, "tp": tp, "sl": sl, "judge": judge,
              "typ": self.type_long if d > 0 else self.type_short, "title": title, "state": ENTERING, "order": None, "forced": forced,
              "closed_lots": 0, "closed_cost": 0.0}
@@ -873,7 +874,7 @@ class Trader:
             if p.get("judge") in (MANUAL, FORCED) and (p.get("tp_pct") or p.get("sl_pct")): self.set_forced_tpsl(p, p["entry"])
             elif e0 > 0:   # 2026-11-02 11:45 使用者「這邊需要重新再算過停利跟停損」:判一~四照原本停利 / 停損離進場價的 % 不變,從新均價重算
                 if p.get("tp"): p["tp"] = round(p["entry"] * p["tp"] / e0, 2)
-                if p.get("sl"): p["sl"] = round(p["entry"] * p["sl"] / e0, 2)
+                if p.get("sl"): p["sl"] = self.cap_sl(p["code"], p["dir"], p["judge"], round(p["entry"] * p["sl"] / e0, 2))
             self.log(f"[交易] {p['judge']} {code} 元大手動同方向成交 {lots} 張(委託 {order_no})→ 併進程式部位,共 {tot} 張 均價 {p['entry']:.2f} 停利 {p['tp']} 停損 {p['sl']}")
             if p.get("y3_card") and p.get("judge") == MANUAL:
                 # 2026-11-10 13:37(實際時間)使用者「改」:元三進場卡發出後同一張 / 另一張同方向又成交(友達 10:22 卡寫 2 張、實際 8 張)
@@ -1663,6 +1664,22 @@ class Trader:
             self.entered_keys.add(ekey); self.save_state()      # 2026-10-29 稽核 #3:送單就記(沒成交也不再追同一個訊號)
         self.send(p, "進場", "B" if d > 0 else "S", lots, price, p["typ"])
 
+    def cap_sl(self, code, d, judge, sl):
+        """2026-11-11 14:57 使用者「缺口 一樣要跟剛剛設定的進出場範圍一樣」:判別式部位的停損價不超過昨收 ±強平線(6.5%),
+           元大條件單也掛在這條線上(電腦斷線時一樣在 6.5% 停損);做空往下取、做多往上取到升降單位"""
+        try:
+            if not sl or not str(judge or "").startswith("判"): return sl
+            ref = self.ref_of(code) or 0
+            mm = self.j7_move if judge in ("判七", "判四", "判五") and self.j7_move > 0 else self.max_move
+            if ref <= 0 or mm <= 0: return sl
+            v = ref * (1 - d * mm / 100); t = tick_size(v)
+            lim = round(math.floor(v / t + 1e-6) * t if d < 0 else math.ceil(v / t - 1e-6) * t, 2)
+            nsl = min(sl, lim) if d < 0 else max(sl, lim)
+            if abs(nsl - sl) > 1e-9: self.log(f"[交易] {code} {judge} 停損 {sl} 超過昨收 {ref} ±{mm:g}% → 改 {nsl}(元大條件單同一價)")
+            return nsl
+        except Exception:
+            return sl
+
     def lots_for(self, px):
         """2026-11-11 14:49 張數分級:≤ 70 元 3 張、≤ 150 元 2 張、其他 1 張(TRADE_LOT_TIER=0 → 原本 多空上限 ÷ 一張)"""
         if self.cap <= 0: return self.qty
@@ -1872,7 +1889,7 @@ class Trader:
         if p.get("forced"): self.set_forced_tpsl(p, avg)
         elif base:
             if p.get("tp"): p["tp"] = round(avg * p["tp"] / base, 2)
-            if p.get("sl"): p["sl"] = round(avg * p["sl"] / base, 2)
+            if p.get("sl"): p["sl"] = self.cap_sl(p["code"], p["dir"], p["judge"], round(avg * p["sl"] / base, 2))
         p.update({"qty": ml, "entry": avg, "state": HOLDING, "t0": self.hm()}); self.amount_today += mc; self.n_trades += 1; self.save_state()
         self.log(f"[交易] {p['code']} {why},但有手動同方向成交 {ml} 張 → 接成程式部位 {p['judge']} 均價 {avg:.2f} 停利 {p['tp']} 停損 {p['sl']}")
         self.alert(f"✅ {self.name_of(p['code'])} {p['code']} 手動 {ml} 張已交給程式", f"均價 {avg:.2f}(停利 {p['tp']} / 停損 {p['sl']})")
@@ -1899,7 +1916,7 @@ class Trader:
             o["cost"] += mc; lots += ml; avg = o["cost"] / (lots * 1000)
             if not p.get("forced") and base:
                 if p.get("tp"): p["tp"] = round(avg * p["tp"] / base, 2)
-                if p.get("sl"): p["sl"] = round(avg * p["sl"] / base, 2)
+                if p.get("sl"): p["sl"] = self.cap_sl(p["code"], p["dir"], p["judge"], round(avg * p["sl"] / base, 2))
             self.log(f"[交易] {p['code']} 進場單成交 {lots - ml} 張 + 手動 {ml} 張 → 併成 {lots} 張 均價 {avg:.2f}")
             self.alert(f"✅ {self.name_of(p['code'])} {p['code']} 手動 {ml} 張已交給程式", f"共 {lots} 張 均價 {avg:.2f}")
         if o["purpose"] == "進場":
