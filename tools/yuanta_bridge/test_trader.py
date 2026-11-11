@@ -828,7 +828,7 @@ tc.resume([{"code": "6269", "bs": "S", "lots": 1, "price": 86.1, "time": "10:00"
 ok(any(x[0] == "oco" for x in gc.sent), gc.sent)
 # 2026-11-11 14:49 張數分級 + 判別式只在 09:30~12:32 進場
 at(10, 0); tq, gq = mk(TRADE_CAP="250000", TRADE_LOT_TIER="1", TRADE_JUDGE_FROM="09:30", TRADE_JUDGE_TO="12:32")
-ok(tq.lots_for(20.6) == 3 and tq.lots_for(70) == 3 and tq.lots_for(70.1) == 2 and tq.lots_for(150) == 2 and tq.lots_for(150.5) == 1 and tq.lots_for(249) == 1)
+ok(tq.lots_for(20.6) == 3 and tq.lots_for(53) == 3 and tq.lots_for(53.4) == 2 and tq.lots_for(80) == 2 and tq.lots_for(80.5) == 2 and tq.lots_for(125) == 2 and tq.lots_for(125.5) == 1 and tq.lots_for(249) == 1 and tq.lots_for(5) == 3, [tq.lots_for(x) for x in (20.6, 53, 53.4, 80, 80.5, 125, 125.5, 249, 5)])   # 2026-11-11 16:43 ≤80 元 3 張 ≤16 萬;80~250 元 2 張 ≤25 萬
 tq.on_tick("2330", 50.0); tq.step([ENTX("2330", 50.0, judge="判四")]); ok("2330" in tq.positions and gq.sent[-1][:3] == ("2330", "B", 3), gq.sent)   # 50 元 → 3 張(原 25 萬 ÷ 5 萬 = 5 張)
 at(9, 20); tr_, gr_ = mk(TRADE_CAP="250000", TRADE_LOT_TIER="1", TRADE_JUDGE_FROM="09:30", TRADE_JUDGE_TO="12:32"); tr_.on_tick("2330", 50.0); tr_.step([ENTX("2330", 50.0, judge="判四")]); ok("2330" not in tr_.positions, "09:20 判別式不進")
 at(12, 33); tr2, gr2 = mk(TRADE_CAP="250000", TRADE_LOT_TIER="1", TRADE_JUDGE_FROM="09:30", TRADE_JUDGE_TO="12:32"); tr2.on_tick("2330", 50.0); tr2.step([ENTX("2330", 50.0, judge="判四")]); ok("2330" not in tr2.positions, "12:33 判別式不進")

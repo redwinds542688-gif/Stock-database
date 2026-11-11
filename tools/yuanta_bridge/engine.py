@@ -52,6 +52,15 @@ TAKE = 2.5
 RULE_FILES = (("backtest/sim_day.py", "sys.argv"), ("backtest/chk/rs_env.py", "def env_of"))   # 2026-10-29 只從私人庫 Stock-logic 抓(公開庫 tools/backtest/ 已刪,不再退回);第二欄 = 內容一定要有的字(擋 Worker 回錯誤頁)
 
 
+
+def lot_tier_qty(px):
+    """2026-11-11 16:43 使用者「股價10-80元最多一筆買3張且金額不超過16萬 80到250最多不超過2張且金額不超過25萬」→「改」(和中繼 trader.lot_tier_qty 同一套):
+       ≤ 80 元 最多 3 張且 ≤ 16 萬;80~250 元 最多 2 張且 ≤ 25 萬;至少 1 張"""
+    px = float(px or 0)
+    if px <= 0: return 1
+    cap, mx = (160000, 3) if px <= 80 else (250000, 2)
+    return max(1, min(mx, int(cap // (px * 1000))))
+
 def load_env():
     cfg = {}
     f = Path(os.environ.get("BRIDGE_ENV", HERE / "bridge.env"))
@@ -937,7 +946,7 @@ class Engine:
                 _lim = round(_m.floor(_v / _t + 1e-6) * _t if d["side"] < 0 else _m.ceil(_v / _t - 1e-6) * _t, 2)
                 sl = min(sl, _lim) if d["side"] < 0 else max(sl, _lim)
         except Exception: pass
-        qty = (3 if px <= 70 else 2 if px <= 150 else 1) if CFG.get("TRADE_LOT_TIER", "1") == "1" else max(1, int(self.cap // (px * 1000)))   # 2026-11-11 14:49 張數分級(和中繼一樣):≤ 70 元 3 張、≤ 150 元 2 張、其他 1 張;一張超過多空上限照舊「超額」
+        qty = lot_tier_qty(px) if CFG.get("TRADE_LOT_TIER", "1") == "1" else max(1, int(self.cap // (px * 1000)))   # 2026-11-11 14:49 張數分級(和中繼一樣):≤ 70 元 3 張、≤ 150 元 2 張、其他 1 張;一張超過多空上限照舊「超額」
         # 2026-10-30 01:55 使用者「超過限額的股票 也要出現在訊息通知欄裡 只是註記“超額”不交易 給強制進場提供一個發揮的平台」:一張就超過多空上限 → 照推、張數改寫「超額」(中繼看到不自動進場)
         over = px * 1000 > self.cap
         title = f"{nm} {code} {side}{'強訊號' if d['strong'] else ''}進場 {px:.2f}"

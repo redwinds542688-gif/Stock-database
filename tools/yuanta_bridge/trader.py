@@ -95,6 +95,12 @@ def minutes_of(s):
         return int(m.group(1)) * 60 + int(m.group(2))
     return None
 FORCED = "強三"
+def lot_tier_qty(px):
+    """2026-11-11 16:43 張數分級:≤ 80 元 最多 3 張且 ≤ 16 萬;80~250 元 最多 2 張且 ≤ 25 萬;至少 1 張(超過 250 元一張 > 25 萬 = 超額,另外管)"""
+    px = float(px or 0)
+    if px <= 0: return 1
+    cap, mx = (160000, 3) if px <= 80 else (250000, 2)
+    return max(1, min(mx, int(cap // (px * 1000))))
 IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG = 5.0, 6.5, "09:30", "12:30", "12:32"   # 鐵律(2026-11-11 15:42),見 __init__
 MANUAL = "元三"      # 2026-10-28 使用者:在元大(投資先生)自己下的單,成交後交給判三管
 
@@ -1699,7 +1705,8 @@ class Trader:
     def lots_for(self, px):
         """2026-11-11 14:49 張數分級:≤ 70 元 3 張、≤ 150 元 2 張、其他 1 張(TRADE_LOT_TIER=0 → 原本 多空上限 ÷ 一張)"""
         if self.cap <= 0: return self.qty
-        if self.lot_tier: return 3 if px <= 70 else 2 if px <= 150 else 1
+        # 2026-11-11 16:43 使用者「股價10-80元最多一筆買3張且金額不超過16萬 80到250最多不超過2張且金額不超過25萬」→「改」(10 元以下同 10~80;超過 250 元照舊超額)
+        if self.lot_tier: return lot_tier_qty(px)
         return max(1, int(self.cap // (px * 1000)))
 
     def can_enter(self, code, judge, kind=None):
