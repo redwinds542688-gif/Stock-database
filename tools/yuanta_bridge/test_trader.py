@@ -21,7 +21,7 @@ class GWN(GW):
 tmp = Path(tempfile.mkdtemp()); stop = tmp / "STOP"; NMK = [0]
 def mk(gw=GW, prime=True, **kw):
     NMK[0] += 1   # 2026-10-29 每個測試自己的狀態檔(今天進場過的訊號會存檔,不要互相影響)
-    cfg = {"TRADE_LOT_TIER": "0", "TRADE_JUDGE_FROM": "09:00", "TRADE_JUDGE_TO": "13:10", "TRADE_BROKER_STOP": "0", "TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0", "TRADE_Y3_TP_PCT": "2.5"}; cfg.update(kw)
+    cfg = {"TRADE_LOT_TIER": "0", "TRADE_JUDGE_FROM": "09:00", "TRADE_JUDGE_TO": "13:10", "TRADE_FORCE_TO": "13:10", "TRADE_BROKER_STOP": "0", "TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0", "TRADE_Y3_TP_PCT": "2.5"}; cfg.update(kw)
     g = gw(); t = Trader(cfg, g, logs.append, lambda: NOW[0]); g.t = t; t.posts = []; t.alerts = []
     t.post = lambda a, b, k, t_=None, **kw: t.posts.append((a, b, k)); t.akinds = []; t.alert = lambda a, b="", k="pc": (t.alerts.append(a), t.akinds.append(k))
     if prime: t.prime([])   # 2026-10-29 稽核 #1:跟 bridge 一樣,啟動時讀到通知(這裡是空的)才算準備好
@@ -836,4 +836,8 @@ tc.step([sig("10:34:2313|七", "short", "華通 2313 做空進場 187.50", "10:3
 ok(tc.positions["2313"]["sl"] == 191.5, tc.positions["2313"]["sl"])   # 180 × 1.065 = 191.7 → 往下取 0.5 = 191.5
 at(10, 30); tc2, gc2 = mk(TRADE_CAP="250000"); tc2.ref_of = lambda c: 50.0; tc2.on_tick("2330", 50.0); tc2.step([ENTX("2330", 50.0)])
 ok(tc2.positions["2330"]["sl"] == 49.25, tc2.positions["2330"]["sl"])   # 停損本來就在線內:不動
+# 2026-11-11 15:38 強制進場也只在 09:30~12:30
+at(9, 20); tf9, _ = mk(TRADE_JUDGE_FROM="09:30", TRADE_FORCE_TO="12:30"); tf9.ref_of = lambda c: 100.0; tf9.on_tick("2330", 100.0); r9 = tf9.force_enter("2330", 1, 1); ok(not r9[0] and "09:30~12:30" in r9[1], r9)
+at(12, 31); tf10, _ = mk(TRADE_JUDGE_FROM="09:30", TRADE_FORCE_TO="12:30"); tf10.ref_of = lambda c: 100.0; tf10.on_tick("2330", 100.0); ok(not tf10.force_enter("2330", 1, 1)[0])
+at(10, 0); tf11, _ = mk(TRADE_JUDGE_FROM="09:30", TRADE_FORCE_TO="12:30"); tf11.ref_of = lambda c: 100.0; tf11.on_tick("2330", 100.0); ok(tf11.force_enter("2330", 1, 1)[0])
 print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7 + 判七上線 2 + 判六上線 4 + 判七 +8% 強平 2 + 判二大盤分級檔數 7 + 判二寬度範圍 11 + 條件單編號存檔 3)")

@@ -155,6 +155,7 @@ class Trader:
         self.j7_move = float(cfg.get("TRADE_J7_MAX_MOVE_PCT", "6.5"))   # 2026-11-11 14:17 使用者「做空 漲跌幅限制+-5% 停損+-6.5」→「做多做空都一樣 解鎖 全改」:判四 / 五 / 七 8% → 6.5%(和其他判別式一樣)
         self.ent_pct = float(cfg.get("TRADE_ENTRY_PCT", "5"))   # 同上:進場時現價離昨收超過 ±5% 不進(多空一樣;0 = 不看)   # 2026-11-11 10:40 判四 / 判五也用這條(使用者「判四判五 都跟判七一樣」→「解鎖 改」)   # 2026-11-09 判七空單強平線(離昨收 %);0 = 跟其他判別式一樣用 TRADE_MAX_MOVE_PCT
         self.lot_tier = cfg.get("TRADE_LOT_TIER", "1") == "1"   # 2026-11-11 14:49 使用者「70 元以內 3 張、150 元以內 2 張、超過 150 元到 250 元 1 張」→「解鎖 都改」(超過 25 萬 = 超額照舊不做)
+        self.force_to = cfg.get("TRADE_FORCE_TO", "12:30")   # 2026-11-11 15:38 強制進場也 09:30~12:30
         self.j_from = cfg.get("TRADE_JUDGE_FROM", "09:30"); self.j_to = cfg.get("TRADE_JUDGE_TO", "12:32")   # 同上「所有判別式 9:30 到 12:30 才能進場」(訊號 12:30 那根 12:31 才推,留 1 分鐘)
         self.y3_free_mv = self.man_move > 0
         self.force_block_pct = float(cfg.get("TRADE_FORCE_BLOCK_PCT", "5"))   # 2026-11-11 15:36 同上:強制進場也照 ±5%(多空都擋,原本只擋不利方向 6.5%)   # 2026-11-03 強制進場:跌超過這麼多 % 不給做多、漲超過不給做空(0 = 不擋)   # 2026-11-03 手動單進場時離 ±6.5% 不到這麼多(%)= 已經接近 → 不套 ±6.5%   # 2026-11-03 元三進場卡等分批成交併完再發(秒)
@@ -1413,6 +1414,8 @@ class Trader:
             lots = int(lots or 0)
             if not self.enabled:
                 r = (False, "電腦的自動交易沒有開(TRADE_ENABLE / TRADE_ALLOW_PROD)")
+            elif not (self.j_from <= self.hm() <= self.force_to):     # 2026-11-11 15:38 使用者「進場時間 9 點半到 12 點半 這也是」:強制進場也只在 09:30~12:30
+                r = (False, f"強制進場只在 {self.j_from}~{self.force_to}(現在 {self.hm()})")
             elif self.hm() >= self.last_entry:                         # 2026-10-29 稽核 #8:強制進場原本沒有時間限制(13:20 前一刻進場馬上又被平)
                 r = (False, f"已過最後進場時間 {self.last_entry}(TRADE_LAST_ENTRY),不接受強制進場")
             elif code in self.positions:
