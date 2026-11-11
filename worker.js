@@ -630,7 +630,7 @@ const PWA_FILES = { "/app": "app/viewer.html", "/app/": "app/viewer.html", "/poo
 //   3) 還是沒有(額度用完前沒備份到的鑰匙):用 KV list(另一個額度)確認鑰匙存在;使用者的手機鑰匙(含 5861 或結尾在 EMER_OWN)當 owner,其他當 viewer;不寫回 KV
 const MC = globalThis.__mc || (globalThis.__mc = new Map());
 const EMER_OWN = ["d2a2"];
-const EMER_QURL = "https://refined-civilian-ones-prozac.trycloudflare.com";   // 2026-11-02 08:36 電腦登記的通道(KV 讀不到時用;電腦重開會重新登記)
+const EMER_QURL = null;   // 2026-11-11 22:42 使用者「全改」:拿掉寫死的 11/02 舊通道(網址可能已換人用,KV 讀不到時會把電腦金鑰送過去);KV 讀不到改用 Hub 備份(kvGetC)   // 原 "https://refined-civilian-ones-prozac.trycloudflare.com"
 async function kvGetC(env, key, ttlMs) {
   const c = MC.get(key); if (c && Date.now() - c.at < ttlMs) return c.v;
   let v;
@@ -683,7 +683,7 @@ async function keyInfo(env, k) {
   if (!emo || Date.now() - emo.at > (emo.v ? 600e3 : 15e3)) {   // 2026-11-02 14:50 還不是 owner 的結果只記 15 秒(別的執行個體剛認出來時,這邊不會 10 分鐘都當看盤 → 一直跳鑰匙視窗)
   let v = false; try { v = env.HUB ? !!(await hubOf(env).kvGet("emo:" + k)) : false; } catch (e) {} emo = { v, at: Date.now() }; MC.set("emo:" + k, emo); }
   const own = k.includes("5861") || EMER_OWN.some(s => k.endsWith(s)) || emo.v;
-  return { role: own ? "owner" : "viewer", on: true, name: "緊急(KV 額度用完)", emer: true };
+  return { role: own ? "owner" : "viewer", on: true, name: "緊急(KV 額度用完)", emer: true, emoP: !!(emo.v && !(k.includes("5861") || EMER_OWN.some(s => k.endsWith(s)))) };   // 2026-11-11 22:42 使用者「全改」:緊急模式「認出來」的 owner(emoP)只能看、不能下單 / 寫通知
 }
 function newKey() {   // 2026-11-03 新鑰匙不會剛好含 5861(含 5861 = 主導機)或結尾是緊急模式的 owner 尾碼
   for (;;) { const a = new Uint8Array(12); crypto.getRandomValues(a); const k = [...a].map(b => b.toString(16).padStart(2, "0")).join("");
@@ -765,7 +765,7 @@ export default {
     //   讀的端點(gh=raw 更新等)照舊不要求 dv,避免 Page.kt 偏好裡沒有 dev 時更新失敗
     if (KI && KI.emer && KI.role !== "owner" && (url.searchParams.get("cap") === "get" || ["pos", "fills"].includes(url.searchParams.get("trade") || "") || url.searchParams.get("repo") === "logic" || (url.searchParams.get("gh") === "raw" && /^app\/app\.html/.test(url.searchParams.get("path") || ""))) && dv && env.HUB) {   // 主程式的手機 → 記成 owner(緊急模式才有)
       try { await hubOf(env).kvPut("emo:" + kq, { dv, at: Date.now() }); } catch (e) {}
-      MC.set("emo:" + kq, { v: true, at: Date.now() }); KI = { ...KI, role: "owner" };
+      MC.set("emo:" + kq, { v: true, at: Date.now() }); KI = { ...KI, role: "owner", emoP: true };
     }
     const ownerKI = !!(KI && KI.role === "owner" && (!KI.dev || dv));
     const keysQ = url.searchParams.get("keys");
@@ -912,6 +912,7 @@ export default {
     // 2026-10-29 安全修補:拿掉「KV 讀 keys:owners 失敗 / 沒有 keys:owners 就放行」—— KV 一出錯外人就能塞假訊號、下單。
     //   owner 鑰匙已上線(交接說明:兩支手機都輸入 owner 鑰匙;App 用 owner 鑰匙讀 judge.js),中繼 / engine 都帶 X-Push-Key,所以一律要鑰匙,不再讀 KV
     const ownerOk = async () => pushOk || ownerKI;
+    const ownerW = async () => pushOk || (ownerKI && !(KI && KI.emoP));   // 2026-11-11 22:42 使用者「全改」:下單 / 寫通知 / 刪通知要「真的」owner(緊急模式自動認出來的不行)
 
     // ── 第五條路:?bars=YYYY-MM-DD[&codes=…][&since=HH:MM] → 雲端 1 分K ──
     const bd = url.searchParams.get("bars");
@@ -1155,7 +1156,8 @@ export default {
     const tq = url.searchParams.get("trade");
     if (tq === "pos" || tq === "cmd" || tq === "fills") {   // 2026-10-29 fills:今天元大帳號的成交 + 每檔輸贏(含手動單;使用者「現在真實贏多少」)
       if (!env || !env.LOGS || !env.YT_PUSH_KEY) return J({ ok: false, msg: "Worker 沒有設定通道金鑰" }, 503);
-      if (!(await ownerOk())) return J({ ok: false, msg: "下單 / 查部位要 owner 鑰匙(設定裡輸入)", badKey: true }, 403);   // 2026-10-29 鑰匙:看盤版不能下單
+      if (!(await ownerOk())) return J({ ok: false, msg: "下單 / 查部位要 owner 鑰匙(設定裡輸入)", badKey: true }, 403);
+      if (tq === "cmd" && !(await ownerW())) return J({ ok: false, msg: "雲端資料庫暫時故障,這把鑰匙暫時不能下單(請用主導機或投資先生)" }, 403);   // 2026-11-11 22:42 使用者「全改」   // 2026-10-29 鑰匙:看盤版不能下單
       const qu = (await kvGetC(env, "yquote:url", 60000)) || (kvDown() ? EMER_QURL : null);
       if (!qu) return J({ ok: false, msg: "電腦沒有連上(沒有登記通道,請確認電腦開機、元大中繼在跑)" }, 503);
       try {
@@ -1246,7 +1248,7 @@ export default {
       const okDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d || "");
       if (lg === "add") {
         if (request.method !== "POST") return J({ error: "log=add 要用 POST" }, 405);
-        if (!(await ownerOk())) return J({ error: "寫通知要 owner 鑰匙", badKey: true }, 403);   // 2026-10-29 鑰匙:看盤版 / 外人不能塞假訊號(自動交易會照通知下單)
+        if (!(await ownerW())) return J({ error: "寫通知要 owner 鑰匙", badKey: true }, 403);   // 2026-10-29 鑰匙:看盤版 / 外人不能塞假訊號(自動交易會照通知下單)
         let it; try { it = await request.json(); } catch (e) { return J({ error: "body 不是 JSON" }, 400); }
         if (!it || !okDate(it.d) || !/^\d{2}:\d{2}$/.test(it.t || "") || !it.title) return J({ error: "缺 d / t / title" }, 400);
         const item = { t: it.t, title: String(it.title).slice(0, 200), body: String(it.body || "").slice(0, 500), kind: String(it.kind || "").slice(0, 10) };
@@ -1328,7 +1330,7 @@ export default {
         return JL(scrub(out));
       }
       if (lg === "del") {
-        if (!(await ownerOk())) return J({ error: "刪通知要 owner 鑰匙", badKey: true }, 403);   // 2026-10-29 鑰匙
+        if (!(await ownerW())) return J({ error: "刪通知要 owner 鑰匙", badKey: true }, 403);   // 2026-10-29 鑰匙
         const d = url.searchParams.get("d"), t = url.searchParams.get("t") || "", code = url.searchParams.get("code") || "";
         if (!okDate(d) || !/^\d{2}:\d{2}$/.test(t) || !/^\d{4,6}[A-Z]*$/.test(code)) return J({ error: "要 d=YYYY-MM-DD、t=HH:MM、code=代號" }, 400);
         if (d >= DO_SINCE && env.HUB) return J({ ok: true, deleted: await hubOf(env).logDel(d, `log:${d}:${t}:${code}|`) });

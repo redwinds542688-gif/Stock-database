@@ -813,6 +813,9 @@ class Bridge:
                     m2 = self.Y.enumMarketType.TWOTC; r2 = self.kline_query(code, m2, d)
                     if r2: rows = r2; mkt = m2; self.pending_sub.append((code, m2)); log(f"[名單外] {code} 是上櫃股,改上櫃訂閱")
                 if rows: got[d] = rows
+                if i == 0 and rows and self.trader:   # 2026-11-11 22:44 使用者「全改」 11:臨時訂閱的股票補今天 1 分 K → 移動停損利馬上有 Ka
+                    try: self.trader.seed_mc(code, rows)
+                    except Exception as e: log("補 Ka 失敗", e)
                 if d != day and rows: n_trade += 1
                 if n_trade >= 5: break
             if not got:
@@ -1089,8 +1092,18 @@ class Bridge:
             if not r:
                 log("!! 接回:查不到今天的成交回報,不接回(有部位請用投資先生手動處理)"); return
             self.trader.resume(r["trades"], r["tags"], None if r.get("oco_failed") else r["oco"], fetch_signals(CFG["WORKER_URL"], day, CFG.get("PUSH_KEY", "")), r.get("working", []), r.get("types"))
+            if "09:00" <= now_tw().strftime("%H:%M") < "13:25":   # 2026-11-11 22:44 使用者「全改」 11:盤中重開 → 接回的部位補今天的 1 分 K(移動停損利不用等 10 分鐘)
+                cs = list(self.trader.positions)
+                if cs: threading.Thread(target=self.seed_ka, args=(cs, day), daemon=True).start()
         except Exception as e:
             log("接回失敗", e)
+
+    def seed_ka(self, codes, day):
+        for c in codes:
+            try:
+                m = self.mkt_of_code(c); rows = self.kline_query(c, m, day)
+                if rows: self.trader.seed_mc(c, rows)
+            except Exception as e: log(f"補 {c} 1 分 K 失敗", e)
 
     def recheck_positions(self, at):
         """2026-10-22 使用者:「13:23 分要再確認一次 還有沒有未沖銷的股票」→「13:22 / 13:23 / 13:24 確認三次 以保安全」"""
