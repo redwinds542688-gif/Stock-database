@@ -1154,6 +1154,7 @@ class Trader:
     def oco_ok(self, c):
         """2026-11-08 00:55 使用者:13:20 以後一律處在平倉狀態(接回 / 加碼都不再掛條件單);手動預掛跟條件單不會同時存在(有預掛就不掛)
            2026-11-08 18:30 使用者「取消4張條件單 再改掛6張條件單」:預掛只蓋住一部分 → 沒預掛的張數照掛條件單(同一張不會同時有預掛和條件單)"""
+        if (self.positions.get(c) or {}).get("carry"): return False   # 留倉部位不掛條件單(條件單是當沖委託種類),程式自己盯
         return self.broker_stop and self.hm() < self.force_exit and self.oco_lots(c) > 0
 
     def oco_lots(self, c):
@@ -1271,6 +1272,7 @@ class Trader:
         self.check_kill()
         with self.lock:
             hm = self.hm()
+            if not getattr(self, "_carry_done", False) and "09:00" <= hm < self.force_exit: self._carry_done = True; self.load_carry()
             fe = self.force_exit
             if self.cancel_all:                                   # 13:20 由 bridge 先取消全部掛單再平倉;這裡晚 1 分鐘當備援
                 h, m = map(int, fe.split(":")); fe = f"{h + (m + 1) // 60:02d}:{(m + 1) % 60:02d}"
@@ -1765,6 +1767,25 @@ class Trader:
         if ekey:
             self.entered_keys.add(ekey); self.save_state()      # 2026-10-29 稽核 #3:送單就記(沒成交也不再追同一個訊號)
         self.send(p, "進場", "B" if d > 0 else "S", lots, price, p["typ"])
+
+    def load_carry(self):
+        """2026-11-11 20:55 使用者「和益 明天由程式繼續接管」:前一天沒沖掉、留在庫存的部位寫在 carry_positions.json
+           [{"code","dir","lots","entry","typ","judge"}] → 開盤接成程式部位(判三停利 / 停損 % 從原進場價算,停損收到今天昨收 ±6.5%),
+           照鐵律盯(停利 / 停損 / 6.5% / 總停損 / 移動停損利 / 13:20);平倉委託種類照檔案(和益借券 → 0 現股買回)。不掛元大條件單。"""
+        try:
+            f = Path(self.cfg.get("TRADE_CARRY_FILE", str(Path(__file__).with_name("carry_positions.json"))))
+            if not f.exists(): return
+            for it in json.loads(f.read_text(encoding="utf-8")) or []:
+                c = str(it["code"]); d = int(it["dir"]); n = int(it["lots"]); e = float(it["entry"])
+                if c in self.positions or n < 1: continue
+                p = self.new_pos(c, d, FORCED, f"留倉接回 {c}", forced=True)
+                p.update({"qty": n, "entry": e, "state": HOLDING, "t0": self.hm(), "tp_pct": self.y3_tp, "sl_pct": self.y3_sl, "carry": True, "judge0": it.get("judge", "")})
+                if it.get("typ") is not None: p["typ"] = str(it["typ"])
+                self.set_forced_tpsl(p, e); self.sub(p)
+                self.log(f"[交易] 留倉接回 {c} {'多' if d > 0 else '空'} {n} 張 均價 {e}(委託種類 {p['typ']})→ 程式照判三 / 鐵律管:停利 {p['tp']} 停損 {p['sl']},13:20 前平掉")
+                self.alert(f"↪ {self.name_of(c)} {c} 留倉部位交給程式", f"{'多' if d > 0 else '空'} {n} 張 均價 {e},停利 {p['tp']} / 停損 {p['sl']},13:20 前一定平掉")
+        except Exception as ex:
+            self.log(f"[交易] 留倉接回失敗 {ex!r}")
 
     def iron_manual(self, p, price, lots, what):
         """2026-11-11 20:53 使用者「5.6不是沒做」(⑥ 元大 App 自己下的單也不能例外):手動進場 / 加碼成交後檢查鐵律
