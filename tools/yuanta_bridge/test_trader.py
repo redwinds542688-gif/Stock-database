@@ -19,6 +19,8 @@ class GW:
 class GWN(GW):
     def send(s, *a): GW.send(s, *a); return None          # 真的通道:委託書號從回應事件來
 tmp = Path(tempfile.mkdtemp()); stop = tmp / "STOP"; NMK = [0]
+Trader.IRON_LOTS = False   # 舊案例用固定張數(TRADE_QTY);鐵律 ⑤ 的檢查在檔案最後另外測
+
 def mk(gw=GW, prime=True, **kw):
     NMK[0] += 1   # 2026-10-29 每個測試自己的狀態檔(今天進場過的訊號會存檔,不要互相影響)
     cfg = {"TRADE_LOT_TIER": "0", "TRADE_BROKER_STOP": "0", "TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0", "TRADE_Y3_TP_PCT": "2.5"}; cfg.update(kw)
@@ -437,7 +439,7 @@ s9c.reconcile([], []); s9c.reconcile([], []); ok("6269" not in s9c.positions and
 s10, gs10 = mk(); s10.on_tick("3008", 1035.0)
 s10.step([sig("k101", "long", "大立光 3008 做多進場 1,035.00", "10:00 多✓ · 停利 1,060.00 停損 1,020.00 · 超額 · 判一")])
 ok("3008" not in s10.positions and "超額" in logs[-1] and not gs10.sent, logs[-1])
-# S11) 張數照多空上限:和桐 17.45、上限 25 萬 → 14 張
+# S11) 張數照多空上限:和桐 17.45、上限 25 萬 → 14 張(舊案例;鐵律 ⑤ 的分級在檔案最後測)
 s11, gs11 = mk(TRADE_CAP="250000"); s11.on_tick("1714", 17.45)
 s11.step([sig("k111", "short", "和桐 1714 做空進場 17.45", "10:00 空✓ · 停利 17.01 停損 18.00 · 14張 · 判二")])
 ok(gs11.sent and gs11.sent[-1][2] == 14, gs11.sent)
@@ -859,4 +861,9 @@ ok(tb_.force_enter("2330", 1, 1)[0]); tb_.on_report(51, "A0001", 0, 1000, 100.0)
 BRV[0] = 0.50; tb_.on_tick("2330", 98.4); ok(pb_["state"] == HOLDING, pb_["state"])                 # 反向 0.10 不到 0.15
 BRV[0] = 0.44; tb_.on_tick("2330", 98.6); ok(pb_["state"] == HOLDING, pb_["state"])                 # 虧 1.4% 不到 1.5%
 tb_.on_tick("2330", 98.4); ok(pb_["state"] == EXITING and pb_["exit_why"] == "總停損", (pb_["state"], pb_.get("exit_why")))
+# 2026-11-11 19:29 鐵律 ⑤:張數分級 + 500 萬額度關不掉、放不寬
+Trader.IRON_LOTS = True
+at(10, 0); tv, gv = mk(TRADE_QTY="5"); tv.on_tick("6269", 86.2); tv.step([ENT]); ok(gv.sent[-1][2] == 2, gv.sent)   # 86.2 元最多 2 張
+tw5, _ = mk(TRADE_CAP="900000", TRADE_LOT_TIER="0", TRADE_MAX_AMOUNT="9000000"); ok(tw5.cap == 250000 and tw5.lot_tier and tw5.max_amount == 5000000, (tw5.cap, tw5.lot_tier, tw5.max_amount))
+ok(tw5.lots_for(20.0) == 3 and tw5.lots_for(60.0) == 2 and tw5.lots_for(100.0) == 2 and tw5.lots_for(200.0) == 1)
 print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7 + 判七上線 2 + 判六上線 4 + 判七 +8% 強平 2 + 判二大盤分級檔數 7 + 判二寬度範圍 11 + 條件單編號存檔 3 + 沒昨收不進 3)")

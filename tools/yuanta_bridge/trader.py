@@ -101,11 +101,13 @@ def lot_tier_qty(px):
     if px <= 0: return 1
     cap, mx = (160000, 3) if px <= 80 else (250000, 2)
     return max(1, min(mx, int(cap // (px * 1000))))
-IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG, IRON_BRX_L, IRON_BRX_E = 5.0, 6.5, "09:30", "12:30", "12:32", 1.5, 0.15   # 鐵律(2026-11-11 15:42),見 __init__
+IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG, IRON_BRX_L, IRON_BRX_E = 5.0, 6.5, "09:30", "12:30", "12:32", 1.5, 0.15
+IRON_CAP, IRON_AMOUNT = 250000, 5000000.0   # ⑤ 一張上限 25 萬(超過 = 超額)、一天總額度 500 萬   # 鐵律(2026-11-11 15:42),見 __init__
 MANUAL = "元三"      # 2026-10-28 使用者:在元大(投資先生)自己下的單,成交後交給判三管
 
 
 class Trader:
+    IRON_LOTS = True   # 鐵律 ⑤(測試舊案例用固定張數時才由 test_trader.py 關掉;bridge.env 沒有開關)
     def __init__(self, cfg, gateway, log, now):
         """gateway:send(code, mkt, side 'B'/'S', qty 張, price, order_type, tif, tag, price_flag ' '限價 / H 漲停 / L 跌停) -> 委託書號或 None;cancel(order_no, code)
            place_oco(code, mkt, dir, 張, 停利價, 停損價)(結果從 on_strategy_reply 回來);delete_oco(策略編號)
@@ -197,7 +199,9 @@ class Trader:
         self.ent_pct = _lo(self.ent_pct, IRON_PCT); self.force_block_pct = _lo(self.force_block_pct, IRON_PCT)
         self.max_move = _lo(self.max_move, IRON_MOVE); self.j7_move = _lo(self.j7_move, IRON_MOVE); self.man_move = _lo(self.man_move, IRON_MOVE)
         self.j_from = max(self.j_from, IRON_FROM); self.j_to = min(self.j_to, IRON_TO_SIG); self.force_to = min(self.force_to, IRON_TO)
-        self.brx_l = _lo(self.brx_l, IRON_BRX_L); self.brx_e = _lo(self.brx_e, IRON_BRX_E)   # ④ 總停損(2026-11-11 19:21 使用者「把這套 叫做 總停損 寫進鐵律 監控所有判別式」)
+        self.brx_l = _lo(self.brx_l, IRON_BRX_L); self.brx_e = _lo(self.brx_e, IRON_BRX_E)
+        # ⑤ 張數分級 + 500 萬額度(2026-11-11 19:29 使用者「這套 也加入 鐵律」):lot_tier_qty(≤ 80 元 最多 3 張且 ≤ 16 萬、80~250 元 最多 2 張且 ≤ 25 萬;一張超過 25 萬 = 超額不做);一天成交總額度 500 萬(買 + 賣、持倉漲停預留)
+        self.lot_tier = True if Trader.IRON_LOTS else self.lot_tier; self.cap = min(self.cap, IRON_CAP) if self.cap > 0 else 0; self.max_amount = _lo(self.max_amount, IRON_AMOUNT)   # ④ 總停損(2026-11-11 19:21 使用者「把這套 叫做 總停損 寫進鐵律 監控所有判別式」)
         self.recheck_times = [x.strip() for x in cfg.get("TRADE_RECHECK", "13:22,13:23,13:24").split(",") if x.strip()]
         self.recheck_at = self.recheck_times[0] if self.recheck_times else "13:23"
         self.recheck_close = cfg.get("TRADE_RECHECK_CLOSE", "all")
@@ -1717,7 +1721,7 @@ class Trader:
 
     def lots_for(self, px):
         """2026-11-11 14:49 張數分級:≤ 70 元 3 張、≤ 150 元 2 張、其他 1 張(TRADE_LOT_TIER=0 → 原本 多空上限 ÷ 一張)"""
-        if self.cap <= 0: return self.qty
+        if self.cap <= 0: return min(self.qty, lot_tier_qty(px)) if Trader.IRON_LOTS else self.qty   # 鐵律 ⑤:固定張數也不能超過分級(IRON_LOTS 只有測試程式能關,設定檔關不掉)
         # 2026-11-11 16:43 使用者「股價10-80元最多一筆買3張且金額不超過16萬 80到250最多不超過2張且金額不超過25萬」→「改」(10 元以下同 10~80;超過 250 元照舊超額)
         if self.lot_tier: return lot_tier_qty(px)
         return max(1, int(self.cap // (px * 1000)))

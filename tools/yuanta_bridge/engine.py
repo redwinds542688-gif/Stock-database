@@ -953,7 +953,7 @@ class Engine:
                 _lim = round(_m.floor(_v / _t + 1e-6) * _t if d["side"] < 0 else _m.ceil(_v / _t - 1e-6) * _t, 2)
                 sl = min(sl, _lim) if d["side"] < 0 else max(sl, _lim)
         except Exception: pass
-        qty = lot_tier_qty(px) if CFG.get("TRADE_LOT_TIER", "1") == "1" else max(1, int(self.cap // (px * 1000)))   # 2026-11-11 14:49 張數分級(和中繼一樣):≤ 70 元 3 張、≤ 150 元 2 張、其他 1 張;一張超過多空上限照舊「超額」
+        qty = lot_tier_qty(px)   # 鐵律 ⑤(2026-11-11 19:29):張數分級關不掉   # 2026-11-11 14:49 張數分級(和中繼一樣):≤ 70 元 3 張、≤ 150 元 2 張、其他 1 張;一張超過多空上限照舊「超額」
         # 2026-10-30 01:55 使用者「超過限額的股票 也要出現在訊息通知欄裡 只是註記“超額”不交易 給強制進場提供一個發揮的平台」:一張就超過多空上限 → 照推、張數改寫「超額」(中繼看到不自動進場)
         over = px * 1000 > self.cap
         title = f"{nm} {code} {side}{'強訊號' if d['strong'] else ''}進場 {px:.2f}"
