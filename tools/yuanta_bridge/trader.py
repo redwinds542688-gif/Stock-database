@@ -95,6 +95,7 @@ def minutes_of(s):
         return int(m.group(1)) * 60 + int(m.group(2))
     return None
 FORCED = "強三"
+IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG = 5.0, 6.5, "09:30", "12:30", "12:32"   # 鐵律(2026-11-11 15:42),見 __init__
 MANUAL = "元三"      # 2026-10-28 使用者:在元大(投資先生)自己下的單,成交後交給判三管
 
 
@@ -183,6 +184,12 @@ class Trader:
         self.force_exit = cfg.get("TRADE_FORCE_EXIT", "13:20")
         self.ignore = set(x.strip() for x in cfg.get("TRADE_IGNORE_CODES", "YY0070").split(",") if x.strip())   # 2026-10-28 庫存裡下市、不能賣的股票:元三不接、13:22 複查不平
         self.last_entry = cfg.get("TRADE_LAST_ENTRY", "13:10")
+        # ═══ 鐵律(2026-11-11 15:42 使用者「這三個 寫成鐵律 任何判別式都不可以違背」):設定只能收緊、不能放寬(bridge.env 寫更鬆也會被拉回)═══
+        #   ① 進場時現價離昨收 ±5% 以內   ② 部位離昨收不利 6.5% 強制平倉(判別式 / 元三 / 強三都一樣)   ③ 只在 09:30~12:30 進場(判別式通知最晚 12:32 到)
+        _lo = lambda v, cap: v if 0 < v <= cap else cap
+        self.ent_pct = _lo(self.ent_pct, IRON_PCT); self.force_block_pct = _lo(self.force_block_pct, IRON_PCT)
+        self.max_move = _lo(self.max_move, IRON_MOVE); self.j7_move = _lo(self.j7_move, IRON_MOVE); self.man_move = _lo(self.man_move, IRON_MOVE)
+        self.j_from = max(self.j_from, IRON_FROM); self.j_to = min(self.j_to, IRON_TO_SIG); self.force_to = min(self.force_to, IRON_TO)
         self.recheck_times = [x.strip() for x in cfg.get("TRADE_RECHECK", "13:22,13:23,13:24").split(",") if x.strip()]
         self.recheck_at = self.recheck_times[0] if self.recheck_times else "13:23"
         self.recheck_close = cfg.get("TRADE_RECHECK_CLOSE", "all")

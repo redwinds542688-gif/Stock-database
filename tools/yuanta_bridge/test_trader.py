@@ -21,7 +21,7 @@ class GWN(GW):
 tmp = Path(tempfile.mkdtemp()); stop = tmp / "STOP"; NMK = [0]
 def mk(gw=GW, prime=True, **kw):
     NMK[0] += 1   # 2026-10-29 每個測試自己的狀態檔(今天進場過的訊號會存檔,不要互相影響)
-    cfg = {"TRADE_LOT_TIER": "0", "TRADE_JUDGE_FROM": "09:00", "TRADE_JUDGE_TO": "13:10", "TRADE_FORCE_TO": "13:10", "TRADE_BROKER_STOP": "0", "TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0", "TRADE_Y3_TP_PCT": "2.5"}; cfg.update(kw)
+    cfg = {"TRADE_LOT_TIER": "0", "TRADE_BROKER_STOP": "0", "TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0", "TRADE_Y3_TP_PCT": "2.5"}; cfg.update(kw)
     g = gw(); t = Trader(cfg, g, logs.append, lambda: NOW[0]); g.t = t; t.posts = []; t.alerts = []
     t.post = lambda a, b, k, t_=None, **kw: t.posts.append((a, b, k)); t.akinds = []; t.alert = lambda a, b="", k="pc": (t.alerts.append(a), t.akinds.append(k))
     if prime: t.prime([])   # 2026-10-29 稽核 #1:跟 bridge 一樣,啟動時讀到通知(這裡是空的)才算準備好
@@ -77,7 +77,7 @@ at(10, 0); t7b, g7b = mk(TRADE_CANCEL_ALL="0"); t7b.on_tick("6269", 86.2); t7b.s
 at(13, 20); t7b.step(); ok(t7b.positions["6269"]["state"] == EXITING and "13:20 強制平倉" in t7b.positions["6269"]["exit_why"]); at(10, 0)
 # 8) 現價離訊號價太遠 → 不追;13:10 以後自動不進
 t8, g8 = mk(); t8.on_tick("6269", 87.0); t8.step([ENT]); ok("6269" not in t8.positions and "太晚" in logs[-1])
-at(13, 12); t8b, g8b = mk(); t8b.on_tick("6269", 86.2); t8b.step([ENT]); ok("6269" not in t8b.positions and "13:10" in logs[-1]); at(10, 0)
+at(13, 12); t8b, g8b = mk(); t8b.on_tick("6269", 86.2); t8b.step([ENT]); ok("6269" not in t8b.positions and ("13:10" in logs[-1] or "12:32" in logs[-1])); at(10, 0)   # 鐵律:12:32 後判別式不進
 # 9) 啟動時舊通知不進場;同一則不重複
 t9, g9 = mk(); t9.prime([ENT]); t9.on_tick("6269", 86.2); t9.step([ENT]); ok("6269" not in t9.positions and not g9.sent)
 # 10) 沒開啟 → 不交易(強制也不行)
@@ -141,7 +141,7 @@ t19, g19 = mk(TRADE_BROKER_STOP="1"); t19.on_tick("6269", 86.2); t19.step([ENT])
 at(13, 20); n2 = len(g19.sent); t19.step(); ok(len(g19.sent) == n2)
 t19.prepare_close_all(); ok(g19.sent[-1] == ("del_oco", "K9"))
 t19.recheck([{"code": "6269", "bs": "S", "lots": 1}], [], at="13:20"); ok(t19.positions["6269"]["state"] == EXITING and g19.sent[-1][:3] == ("6269", "B", 1))
-at(13, 9); t19b, g19b = mk(); t19b.on_tick("6269", 86.2); t19b.step([ENT]); at(13, 20); t19b.prepare_close_all(); ok(g19b.sent[-1] == ("cancel", "A0001", "6269", "S"), g19b.sent[-1])
+at(12, 29); t19b, g19b = mk(); t19b.on_tick("6269", 86.2); t19b.step([ENT]); at(13, 20); t19b.prepare_close_all(); ok(g19b.sent[-1] == ("cancel", "A0001", "6269", "S"), g19b.sent[-1])
 t19b.recheck([], [], at="13:20"); ok("6269" not in t19b.positions); at(10, 0)
 # 20) 進場被拒(額度)→ 退 1 張再掛;原因不是額度 → 放棄
 t20, g20 = mk(GWN, TRADE_QTY="5"); t20.on_tick("6269", 86.2); t20.step([ENT]); ok(g20.sent[-1][2] == 5)
@@ -421,7 +421,7 @@ s7.step([sig("k71", "long", "大立光 3008 做多進場 1,035.00", "10:00 多�
 ok(s7.positions["3008"]["tp"] == 1060.0 and s7.positions["3008"]["sl"] == 1020.0, s7.positions.get("3008"))
 s7.on_tick("2409", 37.25); s7.step([sig("k72", "long", "股 2409 做多進場 37.25", "10:00 多✓ · 停利 36.00 停損 38.00 · 判一")]); ok("2409" not in s7.positions and "順序不合理" in logs[-1], logs[-1])
 # S8) 強制進場過了 TRADE_LAST_ENTRY(13:10)→ 拒絕
-at(13, 10); s8, gs8 = mk(); r8 = s8.force_enter("2330", 1, 1); ok(not r8[0] and "最後進場時間" in r8[1] and not gs8.sent, r8); at(10, 0)
+at(13, 10); s8, gs8 = mk(); r8 = s8.force_enter("2330", 1, 1); ok(not r8[0] and ("最後進場時間" in r8[1] or "12:30" in r8[1]) and not gs8.sent, r8); at(10, 0)
 # S9) 等確認中對帳:元大連續兩次有同方向 1 張 → 當成成交轉持倉(停利停損照通知);元大連續兩次 0 張 → 拿掉
 s9, gs9 = mk(); s9.on_tick("6269", 86.2); s9.step([ENT]); s9.positions["6269"]["order"]["at"] -= 9; s9.step(); p9 = s9.positions["6269"]
 T9 = [{"code": "6269", "bs": "S", "lots": 1, "price": 86.0, "time": "10:00", "order_no": "A0001"}]
@@ -840,4 +840,8 @@ ok(tc2.positions["2330"]["sl"] == 49.25, tc2.positions["2330"]["sl"])   # 停損
 at(9, 20); tf9, _ = mk(TRADE_JUDGE_FROM="09:30", TRADE_FORCE_TO="12:30"); tf9.ref_of = lambda c: 100.0; tf9.on_tick("2330", 100.0); r9 = tf9.force_enter("2330", 1, 1); ok(not r9[0] and "09:30~12:30" in r9[1], r9)
 at(12, 31); tf10, _ = mk(TRADE_JUDGE_FROM="09:30", TRADE_FORCE_TO="12:30"); tf10.ref_of = lambda c: 100.0; tf10.on_tick("2330", 100.0); ok(not tf10.force_enter("2330", 1, 1)[0])
 at(10, 0); tf11, _ = mk(TRADE_JUDGE_FROM="09:30", TRADE_FORCE_TO="12:30"); tf11.ref_of = lambda c: 100.0; tf11.on_tick("2330", 100.0); ok(tf11.force_enter("2330", 1, 1)[0])
+# 2026-11-11 15:42 鐵律:bridge.env 寫更鬆也會被拉回(±5% / 6.5% / 09:30~12:30)
+ti, _ = mk(TRADE_ENTRY_PCT="9", TRADE_MAX_MOVE_PCT="10", TRADE_J7_MAX_MOVE_PCT="8", TRADE_MANUAL_MAX_MOVE_PCT="8.5", TRADE_FORCE_BLOCK_PCT="0", TRADE_JUDGE_FROM="09:00", TRADE_JUDGE_TO="13:10", TRADE_FORCE_TO="13:10")
+ok((ti.ent_pct, ti.max_move, ti.j7_move, ti.man_move, ti.force_block_pct, ti.j_from, ti.j_to, ti.force_to) == (5.0, 6.5, 6.5, 6.5, 5.0, "09:30", "12:32", "12:30"), (ti.ent_pct, ti.max_move, ti.j_from, ti.j_to))
+tj, _ = mk(TRADE_ENTRY_PCT="3", TRADE_MAX_MOVE_PCT="5"); ok(tj.ent_pct == 3.0 and tj.max_move == 5.0)   # 更嚴的照設定
 print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7 + 判七上線 2 + 判六上線 4 + 判七 +8% 強平 2 + 判二大盤分級檔數 7 + 判二寬度範圍 11 + 條件單編號存檔 3)")

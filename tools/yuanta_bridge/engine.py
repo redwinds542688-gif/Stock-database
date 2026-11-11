@@ -931,7 +931,7 @@ class Engine:
         tp = d.get("tp") or px * (1 + (float(self.envs[rs].get("T4TAKE", "9")) if rs == "四" else float(self.envs[rs].get("T5TAKE", "3")) if rs == "五" else float(self.envs[rs].get("T7TAKE", "5.5")) if rs == "七" else _f(self.envs[rs].get("TAKE"), TAKE)) / 100 * d["side"])   # 2026-10-31 22:48 停利 % 改讀私人庫參數(判三改 3%;原本寫死 2.5)   # 2026-10-31 判四不停利(9% 才停,通知要有停利價中繼才收)
         sl = d.get("sl") or (px * (1 - (float(self.envs[rs].get("STOPCAP", self.envs[rs].get("STOP", "4.5"))) / 100) * d["side"]))   # 判一 pts 停損價模擬器沒印,用上限 3% 當外圍(真正的停損由平倉通知來)
         try:   # 2026-11-11 14:57 使用者「缺口 一樣要跟剛剛設定的進出場範圍一樣」:通知上的停損價不超過昨收 ±6.5%(和中繼 / 元大條件單同一價)
-            _y = float(self.prev.get(code) or 0); _mm = float(CFG.get("TRADE_MAX_MOVE_PCT", "6.5") or 0)
+            _y = float(self.prev.get(code) or 0); _mm = float(CFG.get("TRADE_MAX_MOVE_PCT", "6.5") or 0); _mm = _mm if 0 < _mm <= 6.5 else 6.5   # 鐵律 6.5%
             if _y > 0 and _mm > 0:
                 import math as _m; _v = _y * (1 - d["side"] * _mm / 100); _t = 0.01 if _v < 10 else 0.05 if _v < 50 else 0.1 if _v < 100 else 0.5 if _v < 500 else 1 if _v < 1000 else 5
                 _lim = round(_m.floor(_v / _t + 1e-6) * _t if d["side"] < 0 else _m.ceil(_v / _t - 1e-6) * _t, 2)
