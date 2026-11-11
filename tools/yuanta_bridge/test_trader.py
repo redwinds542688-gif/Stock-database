@@ -893,4 +893,9 @@ tb3.on_tick("2330", 50.0); ok(pb3["br0"] == 0.7, pb3.get("br0"))   # 重開後�
 at(10, 0); to7, go7 = mk(TRADE_BROKER_STOP="1"); to7.on_tick("6269", 86.2); to7.step([ENT]); to7.on_report(51, "A0001", 0, 1000, 86.1); to7.on_strategy_reply("S1", True, ""); po7 = to7.positions["6269"]
 n7 = len(go7.sent); to7.on_report(50, "YA00S", 0, 1000, 94.8, "smart-56;TW;B-7602", "6269", "B", "9")
 ok(not to7.prehang and not [x for x in go7.sent[n7:] if x[0] in ("oco_del", "del_oco", "delete_oco")] and po7["state"] == HOLDING, (to7.prehang, go7.sent[n7:]))
+# 2026-11-11 20:44 庫存留倉 / 借券的股票(ignore_codes.txt):不自動進場、不給強制進場、手動買回不接成元三
+igf = tmp / "ign.txt"; igf.write_text("1709  # 和益 借券\n", encoding="utf-8"); at(10, 0)
+ti9, gi9 = mk(TRADE_IGNORE_FILE=str(igf)); ok("1709" in ti9.ignore and "YY0070" in ti9.ignore)
+ti9.on_tick("1709", 49.0); ti9.step([ENTX("1709", 49.0, judge="判三", kind="short")]); ok("1709" not in ti9.positions and not gi9.sent)
+ok(not ti9.force_enter("1709", 1, 1)[0]); ti9.on_report(51, "M1", 0, 1000, 49.0, basket="", code="1709", bs="B"); ok("1709" not in ti9.positions)
 print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7 + 判七上線 2 + 判六上線 4 + 判七 +8% 強平 2 + 判二大盤分級檔數 7 + 判二寬度範圍 11 + 條件單編號存檔 3 + 沒昨收不進 3)")

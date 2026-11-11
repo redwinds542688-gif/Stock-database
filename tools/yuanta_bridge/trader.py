@@ -193,6 +193,13 @@ class Trader:
         self.y3_sl = float(cfg.get("TRADE_Y3_SL_PCT", "4.5"))
         self.force_exit = cfg.get("TRADE_FORCE_EXIT", "13:20")
         self.ignore = set(x.strip() for x in cfg.get("TRADE_IGNORE_CODES", "YY0070").split(",") if x.strip())   # 2026-10-28 庫存裡下市、不能賣的股票:元三不接、13:22 複查不平
+        try:   # 2026-11-11 20:44 使用者「和益 已經借券交割 但還在庫存裡面」:隔日留倉 / 借券的股票寫在 ignore_codes.txt(一行一檔,# 後是說明)→ 程式不接成元三、不平、不自動進場
+            _ig = Path(cfg.get("TRADE_IGNORE_FILE", str(Path(__file__).with_name("ignore_codes.txt"))))
+            if _ig.exists():
+                for ln in _ig.read_text(encoding="utf-8").splitlines():
+                    c_ = ln.split("#")[0].strip()
+                    if c_: self.ignore.add(c_)
+        except Exception: pass
         self.last_entry = cfg.get("TRADE_LAST_ENTRY", "13:10")
         # ═══ 鐵律(2026-11-11 15:42 使用者「這三個 寫成鐵律 任何判別式都不可以違背」):設定只能收緊、不能放寬(bridge.env 寫更鬆也會被拉回)═══
         #   ① 進場時現價離昨收 ±5% 以內   ② 部位離昨收不利 6.5% 強制平倉(判別式 / 元三 / 強三都一樣)   ③ 只在 09:30~12:30 進場(判別式通知最晚 12:32 到)   ④ 總停損:虧 > 1.5% 且大盤寬度反向 ≥ 0.15 → 平倉
@@ -1474,6 +1481,8 @@ class Trader:
                 r = (False, f"已過最後進場時間 {self.last_entry}(TRADE_LAST_ENTRY),不接受強制進場")
             elif code in self.positions:
                 r = (False, "這檔已經有部位(只能強制平倉)")
+            elif code in self.ignore:
+                r = (False, "這檔庫存有留倉 / 借券(不管的名單),不給強制進場,請在元大自己處理")
             elif d not in (1, -1) or lots < 1:
                 r = (False, "方向或張數不對")
             elif self.force_block(code, d, ref, px):
@@ -1803,6 +1812,8 @@ class Trader:
     def can_enter(self, code, judge, kind=None):
         if not self.enabled:
             return "自動交易關閉"
+        if code in self.ignore:   # 2026-11-11 20:44 庫存裡有留倉 / 借券的股票不自動進場(和庫存混在一起)
+            return "這檔在不管的名單(庫存留倉 / 借券,TRADE_IGNORE_CODES / ignore_codes.txt)"
         if not self.auto:
             return "自動進場關閉(TRADE_AUTO=0,只管元三 / 強制模式)"
         if self.stop_file.exists():
