@@ -1464,7 +1464,10 @@ class Trader:
                 r = (False, "方向或張數不對")
             elif self.force_block(code, d, ref, px):
                 r = (False, self.force_block(code, d, ref, px))
+            elif self.force_lots_why(code, d, lots, px):   # 2026-11-11 19:59 使用者「分級張數 鎖定 監控所有判別式的進場」:強制進場也照鐵律 ⑤(超額不做、額度不夠不進)
+                r = (False, self.force_lots_why(code, d, lots, px))
             else:
+                lots = self.force_lots(code, d, lots, px)   # 鐵律 ⑤:張數收到分級 / 剩餘額度
                 if mkt: self.mkt_of[code] = mkt
                 p = self.new_pos(code, d, FORCED, f"強制{'做多' if d > 0 else '做空'} {code}", forced=True)
                 p["tp_pct"], p["sl_pct"] = tp_pct, sl_pct
@@ -1484,6 +1487,29 @@ class Trader:
                 r = (True, f"已送出強制{'做多' if d > 0 else '做空'} {lots} 張({how})")
             if cmd_id: self.cmd_seen[cmd_id] = r
             return r
+
+    def _force_px(self, code, d, px):
+        try: lp = float(px) if px not in (None, "") else 0.0
+        except Exception: lp = 0.0
+        return lp if lp > 0 else (self.last_px.get(code) or 0)
+
+    def force_lots(self, code, d, lots, px=None):
+        """鐵律 ⑤(2026-11-11 19:59):強制進場張數 = min(手機送來的, 分級, 剩餘額度夠的張數)"""
+        pr = self._force_px(code, d, px)
+        if pr <= 0: return lots
+        n = min(int(lots), lot_tier_qty(pr) if Trader.IRON_LOTS else int(lots))
+        if self.max_amount > 0 and Trader.IRON_LOTS:
+            room = self.max_amount - self.amount_today - self.hold_reserve() - self.pend_reserve(); lu = self.lu_of(code, pr)
+            n = min(n, int(room // ((pr + lu) * 1000)))
+        return n
+
+    def force_lots_why(self, code, d, lots, px=None):
+        pr = self._force_px(code, d, px)
+        if not Trader.IRON_LOTS: return ""
+        if pr <= 0: return "還沒有這檔的元大即時價,算不出鐵律張數,不給強制進場"
+        if self.cap > 0 and pr * 1000 > self.cap: return f"一張 {pr * 1000:,.0f} 超過 {self.cap:,.0f}(超額),鐵律不給進"
+        if self.force_lots(code, d, lots, px) < 1: return f"今天 500 萬額度剩下的不夠 1 張(鐵律 ⑤)"
+        return ""
 
     def force_block(self, code, d, ref=None, px=None):
         """2026-11-03 13:21 使用者「加 強制進場 該股票-6.5%不做多 反之亦然」:現價離昨收 ≤ −6.5% 不給強制做多、≥ +6.5% 不給強制做空;回擋下的原因(沒擋回空字串)"""

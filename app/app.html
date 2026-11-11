@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-11 20:05(實際時間)強制進場也照鐵律 ⑤ 張數分級(≤ 80 元 3 張 ≤ 16 萬、80~250 元 2 張 ≤ 25 萬;一張超過 25 萬不給進;500 萬額度不夠就不進),手機視窗的張數和電腦都照這個
   · 2026-11-11 20:00(實際時間)🔒 鐵律 ⑥ 移動停損利(使用者「解鎖 改」):Ka 從最有利點回頭超過 3% → 平倉,監控所有判別式 + 強三 / 元三;固定停利照留,和總停損誰先碰到誰出
   · 2026-11-11 19:40(實際時間)🔒 鐵律 ⑤ 張數分級 + 500 萬額度(使用者「這套 也加入 鐵律」):≤ 80 元最多 3 張且 ≤ 16 萬、80~250 元最多 2 張且 ≤ 25 萬,一天總額度 500 萬;設定關不掉、放不寬
   · 2026-11-11 17:02(實際時間)電腦引擎開工 / 開盤前重選時,把實際用的選股設定(主導機或預設、價格、振幅、張數、成交K棒、天數、檔數、多空上限)寫進紀錄(使用者「主導機 明明設6000 成交K 明明設250 怎麼電腦自己變了」→「改」)
@@ -409,7 +410,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611111953">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611112000">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1950,8 +1951,8 @@ async function forceOpen(code, name, closeOnly){
   if (!(z > 0)){ fmToast('拿不到 ' + code + ' 的股價', 3000); return; }
   const cap = capFund(), one = z * 1000, left = (window.__fundLeft != null ? window.__fundLeft : 5000000);   /* 2026-10-31 14:57 使用者「490萬 改成500萬」 */
   if (left < one) return;                                   // 使用者:「強制當下如果資金已經不足 直接沒有作用就好 不用再出現這視窗」
-  let lots = Math.floor(cap / one), over = false;
-  if (lots < 1){ lots = 1; over = true; }
+  // 2026-11-11 19:59 鐵律 ⑤(使用者「分級張數 鎖定 監控所有判別式的進場」):強制進場張數照分級 —— ≤ 80 元 最多 3 張且 ≤ 16 萬、80~250 元 最多 2 張且 ≤ 25 萬;一張超過 25 萬 = 超額(電腦會擋)
+  let lots = z <= 80 ? Math.max(1, Math.min(3, Math.floor(160000 / one))) : Math.max(1, Math.min(2, Math.floor(250000 / one))), over = one > 250000;
   fmShow({act: 'enter', code, name, z, y, cap, lots, over, left, enabled: j.enabled, pxOk: !!j.pxOk});
 }
 window.forceOpen = forceOpen;

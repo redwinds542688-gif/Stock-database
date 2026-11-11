@@ -876,4 +876,9 @@ for mm_ in range(21, 30):
     if p6["state"] != HOLDING: break
 ok(p6["state"] == EXITING and p6["exit_why"] == "移動停損利" and mm_ >= 26, (p6["state"], p6.get("exit_why"), mm_))
 tm7, _ = mk(TRADE_MTSL_PCT="0"); ok(tm7.mtsl == 3.0); tm8, _ = mk(TRADE_MTSL_PCT="2"); ok(tm8.mtsl == 2.0); at(10, 0)
+# 2026-11-11 19:59 鐵律 ⑤ 強制進場也照張數分級 / 超額 / 500 萬額度
+at(10, 0); tf5, gf5 = mk(TRADE_CAP="250000"); tf5.ref_of = lambda c: 50.0; tf5.on_tick("2330", 50.0); r5 = tf5.force_enter("2330", 1, 10); ok(r5[0] and gf5.sent[-1][2] == 3 and "3 張" in r5[1], (r5, gf5.sent))   # 手機送 10 張 → 50 元最多 3 張
+tf6, gf6 = mk(TRADE_CAP="250000"); tf6.ref_of = lambda c: 300.0; tf6.on_tick("3008", 300.0); r6 = tf6.force_enter("3008", 1, 1); ok(not r6[0] and "超額" in r6[1], r6)
+tf7, gf7 = mk(TRADE_CAP="250000", TRADE_MAX_AMOUNT="300000"); tf7.ref_of = lambda c: 50.0; tf7.on_tick("2330", 50.0); r7 = tf7.force_enter("2330", 1, 3); ok(r7[0] and gf7.sent[-1][2] == 2, (r7, gf7.sent))   # 額度 30 萬:每張預留 50 + 漲停 55 → 2 張
+tf8, gf8 = mk(TRADE_CAP="250000", TRADE_MAX_AMOUNT="100000"); tf8.ref_of = lambda c: 50.0; tf8.on_tick("2330", 50.0); r8 = tf8.force_enter("2330", 1, 3); ok(not r8[0] and "額度" in r8[1] and not gf8.sent, r8)
 print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7 + 判七上線 2 + 判六上線 4 + 判七 +8% 強平 2 + 判二大盤分級檔數 7 + 判二寬度範圍 11 + 條件單編號存檔 3 + 沒昨收不進 3)")
