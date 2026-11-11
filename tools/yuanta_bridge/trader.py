@@ -1757,7 +1757,7 @@ class Trader:
             if w and (judge is None or judge == w["judge"]):
                 self.late_wait.pop(code, None); self.log(f"[交易] {code} 太晚了等補進場取消:{w['judge']} 已發平倉通知")
             p = self.positions.get(code)
-            if p and self.exit_match(p, judge):
+            if p and (self.exit_match(p, judge) or (p.get("over3") and judge and judge == p.get("judge0") and RE_IRON_EXIT.search(title or ""))):   # 2026-11-11 00:20 使用者「加」:超額補進場(記強三)的部位,原判別式的鐵律平倉通知(超 6.5% / 總平 / 移平)也照平;一般停利停損照判三
                 if p["state"] == HOLDING:
                     self.exit_pos(p, "手機平倉通知:" + title, self.last_px.get(code, p["entry"]))
                 elif p["state"] == ENTERING:
