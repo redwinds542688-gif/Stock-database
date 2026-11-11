@@ -101,7 +101,7 @@ def lot_tier_qty(px):
     if px <= 0: return 1
     cap, mx = (160000, 3) if px <= 80 else (250000, 2)
     return max(1, min(mx, int(cap // (px * 1000))))
-IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG, IRON_BRX_L, IRON_BRX_E = 5.0, 6.5, "09:30", "12:30", "12:32", 1.5, 0.15
+IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG, IRON_BRX_L, IRON_BRX_E = 5.0, 6.5, "09:15", "12:30", "12:32", 1.5, 0.15   # 2026-11-11 23:38 鐵律 ③ 09:30 → 09:15(使用者「把鐵律 9點30分進場 改成9點15分進場 解鎖改」)
 IRON_CAP_MAX = 250000   # 2026-11-11 22:46 使用者「最多上限改25萬」:多空上限(設定檔 / 主導機)最多 25 萬   # 原 500000 # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:設定檔的多空上限最多 50 萬(和主導機能設的範圍一樣)
 IRON_EXIT, JUDGES_ALL = "13:20", ("判一", "判二", "判三", "判四", "判五", "判六", "判七")   # 2026-11-11 22:25 使用者「改13」:設定檔的開關不能關掉鐵律保護
 RE_IRON_EXIT = re.compile(r"超過?\s*[\d.]+\s*%|總停損|移動停損利|總平|移平|鐵律|強制平倉")   # 2026-11-11 22:47 使用者「總停損 =總平 移動停損利=移平」:加短名 總平 / 移平   # 2026-11-11 21:34 鐵律平倉(含引擎平倉通知標題):有權取消手動預掛、立即平
@@ -170,7 +170,7 @@ class Trader:
         self.brx_l = float(cfg.get("TRADE_BRX_LOSS_PCT", "1.5")); self.brx_e = float(cfg.get("TRADE_BRX_DIFF", "0.15"))   # 2026-11-11 19:16 使用者「解鎖 改」:寬度反向停損(帳面虧 > 1.5% 且大盤上漲比例比進場時反向 ≥ 0.15 → 平倉)
         self.lot_tier = cfg.get("TRADE_LOT_TIER", "1") == "1"   # 2026-11-11 14:49 使用者「70 元以內 3 張、150 元以內 2 張、超過 150 元到 250 元 1 張」→「解鎖 都改」(超過 25 萬 = 超額照舊不做)
         self.force_to = cfg.get("TRADE_FORCE_TO", "12:30")   # 2026-11-11 15:38 強制進場也 09:30~12:30
-        self.j_from = cfg.get("TRADE_JUDGE_FROM", "09:30"); self.j_to = cfg.get("TRADE_JUDGE_TO", "12:32")   # 同上「所有判別式 9:30 到 12:30 才能進場」(訊號 12:30 那根 12:31 才推,留 1 分鐘)
+        self.j_from = cfg.get("TRADE_JUDGE_FROM", "09:15"); self.j_to = cfg.get("TRADE_JUDGE_TO", "12:32")   # 同上「所有判別式 9:30 到 12:30 才能進場」(訊號 12:30 那根 12:31 才推,留 1 分鐘)
         self.y3_free_mv = self.man_move > 0
         self.force_block_pct = float(cfg.get("TRADE_FORCE_BLOCK_PCT", "5"))   # 2026-11-11 15:36 同上:強制進場也照 ±5%(多空都擋,原本只擋不利方向 6.5%)   # 2026-11-03 強制進場:跌超過這麼多 % 不給做多、漲超過不給做空(0 = 不擋)   # 2026-11-03 手動單進場時離 ±6.5% 不到這麼多(%)= 已經接近 → 不套 ±6.5%   # 2026-11-03 元三進場卡等分批成交併完再發(秒)
         self.over_wait = {}
