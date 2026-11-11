@@ -154,6 +154,8 @@ class Trader:
         self.man_move = float(cfg.get("TRADE_MANUAL_MAX_MOVE_PCT", "8.5"))   # 2026-11-03 13:17 元三 / 強三離昨收 ±8.5% 強制平倉(判一~四照舊 ±6.5%);設成跟 TRADE_MAX_MOVE_PCT 一樣 = 回到原本
         self.j7_move = float(cfg.get("TRADE_J7_MAX_MOVE_PCT", "6.5"))   # 2026-11-11 14:17 使用者「做空 漲跌幅限制+-5% 停損+-6.5」→「做多做空都一樣 解鎖 全改」:判四 / 五 / 七 8% → 6.5%(和其他判別式一樣)
         self.ent_pct = float(cfg.get("TRADE_ENTRY_PCT", "5"))   # 同上:進場時現價離昨收超過 ±5% 不進(多空一樣;0 = 不看)   # 2026-11-11 10:40 判四 / 判五也用這條(使用者「判四判五 都跟判七一樣」→「解鎖 改」)   # 2026-11-09 判七空單強平線(離昨收 %);0 = 跟其他判別式一樣用 TRADE_MAX_MOVE_PCT
+        self.lot_tier = cfg.get("TRADE_LOT_TIER", "1") == "1"   # 2026-11-11 14:49 使用者「70 元以內 3 張、150 元以內 2 張、超過 150 元到 250 元 1 張」→「解鎖 都改」(超過 25 萬 = 超額照舊不做)
+        self.j_from = cfg.get("TRADE_JUDGE_FROM", "09:30"); self.j_to = cfg.get("TRADE_JUDGE_TO", "12:32")   # 同上「所有判別式 9:30 到 12:30 才能進場」(訊號 12:30 那根 12:31 才推,留 1 分鐘)
         self.y3_free_mv = self.man_move > 0
         self.force_block_pct = float(cfg.get("TRADE_FORCE_BLOCK_PCT", "6.5"))   # 2026-11-03 強制進場:跌超過這麼多 % 不給做多、漲超過不給做空(0 = 不擋)   # 2026-11-03 手動單進場時離 ±6.5% 不到這麼多(%)= 已經接近 → 不套 ±6.5%   # 2026-11-03 元三進場卡等分批成交併完再發(秒)
         self.over_wait = {}
@@ -1303,7 +1305,7 @@ class Trader:
                 if not w.get("ready"): continue
                 last = self.last_px.get(code) or 0
                 out.append({"code": code, "name": self.name_of(code), "dir": 1 if w["kind"] == "long" else -1, "px": w["px"], "tp": w["tp"], "sl": w["sl"], "judge": w["judge"],
-                            "last": last, "lots": max(1, int(self.cap // (last * 1000))) if last and self.cap > 0 else 1})
+                            "last": last, "lots": self.lots_for(last) if last and self.cap > 0 else 1})
             return out
 
     def over_confirm(self, code, cmd_id=None):
@@ -1644,8 +1646,8 @@ class Trader:
             self.log(f"[交易] 不進場 {title}:現價 {last} 已不在停利 {tp_sig} / 停損 {sl_sig} 之間"); return
         d = 1 if kind == "long" else -1
         price = shift(last, self.slip * d)                     # 買進往上讓、賣出往下讓
-        lots = max(1, int(self.cap // (px_sig * 1000))) if self.cap > 0 else self.qty   # 2026-10-30 張數照多空上限(訊號價算,和通知上的張數一樣)
-        if it.get("_over") and self.cap > 0: lots = max(1, int(self.cap // (last * 1000)))   # 超額補進場:照現價算張數
+        lots = self.lots_for(px_sig)   # 2026-11-11 14:49 張數分級   # 原 max(1, int(self.cap // (px_sig * 1000)))   # 2026-10-30 張數照多空上限(訊號價算,和通知上的張數一樣)
+        if it.get("_over") and self.cap > 0: lots = self.lots_for(last)   # 超額補進場:照現價算張數
         if self.max_amount > 0:                                 # 2026-10-27 一天成交總金額上限(買 + 賣都算):剩的額度夠幾張就掛幾張
             hold = self.hold_reserve(); lu = self.lu_of(code, price); pend = self.pend_reserve()
             room = self.max_amount - self.amount_today - hold - pend   # 2026-11-02 照元大:持倉的部位先用漲停價扣贖回額度;2026-11-08 手動預掛還掛著的也先扣
@@ -1660,6 +1662,12 @@ class Trader:
         if ekey:
             self.entered_keys.add(ekey); self.save_state()      # 2026-10-29 稽核 #3:送單就記(沒成交也不再追同一個訊號)
         self.send(p, "進場", "B" if d > 0 else "S", lots, price, p["typ"])
+
+    def lots_for(self, px):
+        """2026-11-11 14:49 張數分級:≤ 70 元 3 張、≤ 150 元 2 張、其他 1 張(TRADE_LOT_TIER=0 → 原本 多空上限 ÷ 一張)"""
+        if self.cap <= 0: return self.qty
+        if self.lot_tier: return 3 if px <= 70 else 2 if px <= 150 else 1
+        return max(1, int(self.cap // (px * 1000)))
 
     def can_enter(self, code, judge, kind=None):
         if not self.enabled:
@@ -1685,6 +1693,8 @@ class Trader:
         hm = self.hm()
         if not ("09:00" <= hm < self.last_entry):
             return f"不在 09:00~{self.last_entry}"
+        if judge and judge.startswith("判") and not (self.j_from <= hm <= self.j_to):   # 2026-11-11 14:49 判別式自動進場只在 09:30~12:30(訊號那根;推到這裡最晚 12:32)
+            return f"判別式只在 {self.j_from}~{self.j_to} 進場"
         if judge == "判二" and kind in ("long", "short") and self.j2_brng.get(kind):   # 2026-11-10 01:45 判二第二十六次修改(使用者「解鎖 改」):大盤上漲家數要在 22 天贏單範圍內(空 4.4%~88.1%、多 10.6%~92%),取代 ≥ 92% 不做
             b = self.br_now(); lo_, hi_ = self.j2_brng[kind]
             if b is not None and not (lo_ - 1e-9 <= b <= hi_ + 1e-9):
