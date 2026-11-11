@@ -881,4 +881,16 @@ at(10, 0); tf5, gf5 = mk(TRADE_CAP="250000"); tf5.ref_of = lambda c: 50.0; tf5.o
 tf6, gf6 = mk(TRADE_CAP="250000"); tf6.ref_of = lambda c: 300.0; tf6.on_tick("3008", 300.0); r6 = tf6.force_enter("3008", 1, 1); ok(not r6[0] and "超額" in r6[1], r6)
 tf7, gf7 = mk(TRADE_CAP="250000", TRADE_MAX_AMOUNT="300000"); tf7.ref_of = lambda c: 50.0; tf7.on_tick("2330", 50.0); r7 = tf7.force_enter("2330", 1, 3); ok(r7[0] and gf7.sent[-1][2] == 2, (r7, gf7.sent))   # 額度 30 萬:每張預留 50 + 漲停 55 → 2 張
 tf8, gf8 = mk(TRADE_CAP="250000", TRADE_MAX_AMOUNT="100000"); tf8.ref_of = lambda c: 50.0; tf8.on_tick("2330", 50.0); r8 = tf8.force_enter("2330", 1, 3); ok(not r8[0] and "額度" in r8[1] and not gf8.sent, r8)
+# 2026-11-11 20:25 ② 判別式部位中繼也盯總停損(備援)③ 起點存檔、重開接回
+at(10, 0); tj2, gj2 = mk(); BRJ = [0.6]; tj2.br_now = lambda: BRJ[0]; tj2.on_tick("2330", 50.0); tj2.step([sig("k2j2", "long", "股2330 2330 做多進場 50.0", "10:00 多✓ · 停利 52.00 停損 47.80 · 判二")]); tj2.on_report(51, "A0001", 0, 1000, 50.0)
+pj2 = tj2.positions["2330"]; tj2.on_tick("2330", 50.0); ok(pj2["br0"] == 0.6 and pj2["judge"] == "判二", pj2.get("br0"))
+BRJ[0] = 0.40; tj2.on_tick("2330", 49.2); ok(pj2["state"] == EXITING and pj2["exit_why"] == "總停損", (pj2["state"], pj2.get("exit_why")))
+sf = tmp / "prot_test.json"; ta3, _ = mk(TRADE_STATE_FILE=str(sf)); BR3 = [0.7]; ta3.br_now = lambda: BR3[0]; ta3.on_tick("2330", 50.0); ta3.step([ENTX("2330", 50.0, judge="判二")]); ta3.on_report(51, "A0001", 0, 1000, 50.0)
+ta3.on_tick("2330", 50.0); ta3._prot_t = 0; ta3.prot_save(ta3.positions["2330"])
+tb3, _ = mk(TRADE_STATE_FILE=str(sf)); BR3[0] = 0.5; tb3.br_now = lambda: BR3[0]; pb3 = tb3.new_pos("2330", 1, "判二", "接回"); pb3.update({"qty": 1, "entry": 50.0, "state": HOLDING})
+tb3.on_tick("2330", 50.0); ok(pb3["br0"] == 0.7, pb3.get("br0"))   # 重開後用存檔的 0.7,不是現在的 0.5
+# ⑦ 2026-11-11 20:25 元大條件單觸發的平倉委託(書號 YA…、編號 smart-…)不是手動預掛:不刪條件單、不讓位
+at(10, 0); to7, go7 = mk(TRADE_BROKER_STOP="1"); to7.on_tick("6269", 86.2); to7.step([ENT]); to7.on_report(51, "A0001", 0, 1000, 86.1); to7.on_strategy_reply("S1", True, ""); po7 = to7.positions["6269"]
+n7 = len(go7.sent); to7.on_report(50, "YA00S", 0, 1000, 94.8, "smart-56;TW;B-7602", "6269", "B", "9")
+ok(not to7.prehang and not [x for x in go7.sent[n7:] if x[0] in ("oco_del", "del_oco", "delete_oco")] and po7["state"] == HOLDING, (to7.prehang, go7.sent[n7:]))
 print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7 + 判七上線 2 + 判六上線 4 + 判七 +8% 強平 2 + 判二大盤分級檔數 7 + 判二寬度範圍 11 + 條件單編號存檔 3 + 沒昨收不進 3)")

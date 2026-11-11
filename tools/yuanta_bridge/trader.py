@@ -163,7 +163,7 @@ class Trader:
         self.man_move = float(cfg.get("TRADE_MANUAL_MAX_MOVE_PCT", "6.5"))   # 2026-11-11 15:36 使用者「所有的判別式都需要受到 ±5% 進場限制跟 ±6.5% 的強力限制 沒有任何特殊可以例外」:元三 / 強三 8.5 → 6.5   # 2026-11-03 13:17 元三 / 強三離昨收 ±8.5% 強制平倉(判一~四照舊 ±6.5%);設成跟 TRADE_MAX_MOVE_PCT 一樣 = 回到原本
         self.j7_move = float(cfg.get("TRADE_J7_MAX_MOVE_PCT", "6.5"))   # 2026-11-11 14:17 使用者「做空 漲跌幅限制+-5% 停損+-6.5」→「做多做空都一樣 解鎖 全改」:判四 / 五 / 七 8% → 6.5%(和其他判別式一樣)
         self.ent_pct = float(cfg.get("TRADE_ENTRY_PCT", "5"))   # 同上:進場時現價離昨收超過 ±5% 不進(多空一樣;0 = 不看)   # 2026-11-11 10:40 判四 / 判五也用這條(使用者「判四判五 都跟判七一樣」→「解鎖 改」)   # 2026-11-09 判七空單強平線(離昨收 %);0 = 跟其他判別式一樣用 TRADE_MAX_MOVE_PCT
-        self.mtsl = float(cfg.get("TRADE_MTSL_PCT", "3")); self._mc = {}   # 2026-11-11 19:50 鐵律 ⑥ 移動停損利(Ka 從最有利點回頭 > 3% → 平倉)
+        self.mtsl = float(cfg.get("TRADE_MTSL_PCT", "3")); self._mc = {}; self._prot0 = None; self._prot_t = 0.0; self._br_warn = 0.0   # 2026-11-11 19:50 鐵律 ⑥ 移動停損利(Ka 從最有利點回頭 > 3% → 平倉)
         self.brx_l = float(cfg.get("TRADE_BRX_LOSS_PCT", "1.5")); self.brx_e = float(cfg.get("TRADE_BRX_DIFF", "0.15"))   # 2026-11-11 19:16 使用者「解鎖 改」:寬度反向停損(帳面虧 > 1.5% 且大盤上漲比例比進場時反向 ≥ 0.15 → 平倉)
         self.lot_tier = cfg.get("TRADE_LOT_TIER", "1") == "1"   # 2026-11-11 14:49 使用者「70 元以內 3 張、150 元以內 2 張、超過 150 元到 250 元 1 張」→「解鎖 都改」(超過 25 萬 = 超額照舊不做)
         self.force_to = cfg.get("TRADE_FORCE_TO", "12:30")   # 2026-11-11 15:38 強制進場也 09:30~12:30
@@ -310,7 +310,8 @@ class Trader:
             js["closed_ok"] = sorted(set(old.get("closed_ok") or []) | getattr(self, "closed_ok", set()))   # 2026-11-03 程式自己平掉的部位(手機照常顯示平倉卡)
             js["noshort"] = {**(old.get("noshort") or {}), **getattr(self, "noshort", {})}   # 2026-11-06 元大 21352 無券
             js["brk_block"] = {**(old.get("brk_block") or {}), **getattr(self, "brk_block", {})}   # 2026-10-31 元大拒絕(資格)的股票
-            js["traded"] = sorted(getattr(self, "traded_keys", set()))   # 2026-11-09 判二大盤分級檔數
+            js["traded"] = sorted(getattr(self, "traded_keys", set()))
+            js["prot"] = {**(old.get("prot") or {}), **(getattr(self, "_prot0", None) or {})}   # ③ 2026-11-11 20:25 總停損 / 移動停損利的起點   # 2026-11-09 判二大盤分級檔數
             self.state_file.write_text(json.dumps(js, ensure_ascii=False), encoding="utf-8")
         except Exception as e:
             self.log(f"[交易] 存狀態檔失敗 {e}")
@@ -754,14 +755,20 @@ class Trader:
             mm = self.man_move if man else self.j7_move if p.get("judge") in ("判七", "判四", "判五") and self.j7_move > 0 else self.max_move   # 2026-11-09 15:43 判七第一次修改(使用者「解鎖改」):判七空單漲到昨收 +8% 才強平(其他判別式照舊 ±6.5%)
             hit_mv = (man or not p.get("no_max_move")) and ref > 0 and mm > 0 and ((price <= ref * (1 - mm / 100)) if d > 0 else (price >= ref * (1 + mm / 100)))
             hit_br = False; hit_mt = False
-            if man and self.mtsl > 0 and not (hit_tp or hit_sl or hit_mv):   # 2026-11-11 19:50 鐵律 ⑥ 移動停損利(強三 / 元三等程式自己管的部位;判別式部位由引擎平倉通知)
+            if self.mtsl > 0 and not (hit_tp or hit_sl or hit_mv):   # 2026-11-11 19:50 鐵律 ⑥ 移動停損利;20:25 使用者「123478改」② 所有部位都由中繼即時盯一份(判別式部位引擎也會推平倉通知,誰先到誰平)
                 ka = self.ka_now(code)
                 if ka is not None:
                     a = p.get("mt_a")
-                    if a is None or (d < 0 and ka < a) or (d > 0 and ka > a): p["mt_a"] = a = ka
+                    if a is None: a = self.prot_get(p, "mt_a")   # ③ 重開接回:用存檔的 a
+                    if a is None or (d < 0 and ka < a) or (d > 0 and ka > a):
+                        p["mt_a"] = a = ka; self.prot_save(p)
+                    else: p["mt_a"] = a
                     if (d < 0 and ka > a * (1 + self.mtsl / 100) + 1e-12) or (d > 0 and ka < a * (1 - self.mtsl / 100) - 1e-12): hit_mt = True
-            if man and self.brx_l > 0 and not (hit_tp or hit_sl or hit_mv) and p.get("entry"):   # 2026-11-11 19:16 寬度反向停損(強三 / 元三 / 超額 / 手動加碼也照判三;判別式部位由引擎平倉通知)
-                if p.get("br0") is None: p["br0"] = self.br_now()
+            if self.brx_l > 0 and not (hit_tp or hit_sl or hit_mv) and p.get("entry"):   # 2026-11-11 19:16 總停損;20:25 ② 所有部位都由中繼即時盯一份
+                if p.get("br0") is None:
+                    p["br0"] = self.prot_get(p, "br0")   # ③ 重開接回:用存檔的進場寬度
+                    if p["br0"] is None: p["br0"] = self.br_now()
+                    if p["br0"] is not None: self.prot_save(p)
                 if p.get("br0") is not None and (p["entry"] - price) / p["entry"] * 100 * d > self.brx_l + 1e-9:
                     b = self.br_now()
                     if b is not None and ((p["br0"] - b) if d > 0 else (b - p["br0"])) >= self.brx_e - 1e-9: hit_br = True
@@ -810,6 +817,13 @@ class Trader:
                         self.log(f"[交易] {code} 程式舊委託({str(basket).strip()})晚到的成交 {qty_shares // 1000} 張 @ {price},只記錄(13:22 複查以元大為準)")
                         return
                     self.on_other_fill(str(code).strip(), bs, qty_shares, price, str(order_no or "").strip(), typ)
+                elif rpt_type == 50 and code and (str(basket or "").strip().lower().startswith("smart") or str(order_no or "").strip().upper().startswith("YA")):
+                    # ⑦ 2026-11-11 20:25 使用者「123478改」:元大條件單(OCO)觸發後送出的平倉委託(書號 YA…、編號 smart-…)不是手動預掛 →
+                    #   不刪條件單、不讓位;成交(51)照「條件單平倉」處理(on_other_fill)。原本被當成手動預掛,把條件單刪掉(和益 11/11 10:22)
+                    p_ = self.positions.get(str(code).strip())
+                    if status == 0 and p_ and not p_.get("_oco_fire_log"):
+                        p_["_oco_fire_log"] = True; self.log(f"[交易] {code} 元大條件單觸發,送出平倉委託 {qty_shares // 1000} 張 @ {price}(書號 {str(order_no).strip()})→ 等成交,不當成手動預掛")
+                    return
                 elif rpt_type == 50 and code and str(basket or "").strip()[:1] not in ("T", "F", "R"):
                     self.man_order(str(code).strip(), str(order_no or "").strip(), status, qty_shares, price, bs, typ)
                 return
@@ -1757,6 +1771,21 @@ class Trader:
         except Exception:
             return sl
 
+    def prot_get(self, p, k):
+        """③ 2026-11-11 20:25:總停損的進場寬度 a(br0)/ 移動停損利的 a(mt_a)存檔,重開接回同一筆(代碼 + 均價一樣)才用"""
+        try:
+            m = (self._prot0 if self._prot0 is not None else self.load_state().get("prot") or {}).get(p["code"]) or {}
+            if self._prot0 is None: self._prot0 = self.load_state().get("prot") or {}
+            return m.get(k) if m and abs(float(m.get("e") or 0) - float(p.get("entry") or 0)) < 1e-6 else None
+        except Exception: return None
+
+    def prot_save(self, p):
+        try:
+            if self._prot0 is None: self._prot0 = self.load_state().get("prot") or {}
+            self._prot0[p["code"]] = {"e": p.get("entry"), "br0": p.get("br0"), "mt_a": p.get("mt_a")}
+            if time.time() - self._prot_t > 20: self._prot_t = time.time(); self.save_state()
+        except Exception: pass
+
     def ka_now(self, code):
         """鐵律 ⑥:Ka = 最近 10 個「已收完」分鐘的收盤平均(這分鐘還在形成的不算);不到 10 分鐘回 None"""
         try:
@@ -1818,6 +1847,12 @@ class Trader:
                 d = json.loads(self.br_file.read_text(encoding="utf-8")).get(self.now().strftime("%Y-%m-%d")) or {}
                 hm = self.hm(); ks = [k for k in d if k <= hm and d[k] is not None]
                 self._br = (time.time(), float(d[max(ks)]) if ks else None)
+                try:   # ④ 2026-11-11 20:25 大盤寬度 3 分鐘沒更新(盤中、有部位)→ 推警告:總停損暫時沒作用
+                    lag = (int(hm[:2]) * 60 + int(hm[3:5])) - ((int(max(ks)[:2]) * 60 + int(max(ks)[3:5])) if ks else 9 * 60)
+                    if "09:03" <= hm < self.force_exit and lag > 3 and self.positions and time.time() - self._br_warn > 600:
+                        self._br_warn = time.time(); self.log(f"[交易] !! 大盤寬度 {lag} 分鐘沒更新(最後 {max(ks) if ks else '—'})→ 總停損暫時沒作用")
+                        self.alert("⚠ 大盤寬度沒更新", f"已經 {lag} 分鐘沒新資料,總停損暫時沒作用(其他停損照常)")
+                except Exception: pass
             return self._br[1]
         except Exception:
             self._br = (time.time(), None); return None

@@ -1527,7 +1527,7 @@ def main():
                 if want and want != cur:
                     log(f"有新版 {cur} → {want}:結束自己,讓工作排程重開時更新"); os._exit(0)
             except Exception as e: log("檢查新版失敗", e)
-        if n.weekday() < 5 and "08:45" <= hm < "13:36":
+        if n.weekday() < 5 and CFG.get("DAY_START", "08:30") <= hm < "13:36":   # ⑧ 2026-11-11 20:25 使用者「123478改」:08:45 → 08:30 連線訂閱,收得到元大開盤前的清盤參考價(昨收,除權息已扣;原本 08:45 才訂閱就錯過了,ref 檔一直寫不出來)
             try:
                 b.run_day()
             except Exception as e:
