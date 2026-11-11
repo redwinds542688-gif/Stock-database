@@ -226,7 +226,7 @@ tw, gw_ = mk(); tw.state_file.write_text('{"day": "2026-10-22", "forced": {"3008
 tw.resume([{"code": "6269", "bs": "B", "lots": 1, "price": 86.1, "time": "10:00", "order_no": "A1"}], {"A1": "T100000001"}, [], [],
           working=[{"code": "6269", "bs": "S", "lots": 1, "no": "A2", "typ": "0", "tag": "T101000002"}, {"code": "3008", "bs": "B", "lots": 1, "no": "A3", "typ": "0", "tag": "F101000003"}])
 ok(tw.positions["6269"]["state"] == EXITING and tw.positions["3008"]["state"] == ENTERING and not gw_.sent, tw.positions)
-tw.on_tick("6269", 80.0); at(13, 21); tw.step(); at(10, 0); ok(not gw_.sent)
+tw.on_tick("6269", 80.0); at(13, 21); tw.step(); at(10, 0); ok(gw_.sent == [("cancel", "A3", "3008", "B")], gw_.sent)   # 平倉中不送第二張;強制進場單過 12:30 取消(鐵律 ③)
 tw.on_report(51, "A2", 0, 1000, 85.0, basket="T101000002"); ok("6269" not in tw.positions)
 # F8c) 強制進場:電腦沒有昨收時用手機帶來的昨收做 ±6.5%
 tz, gz = mk(TRADE_MANUAL_MAX_MOVE_PCT="6.5"); tz.on_tick("4000", 50.0); tz.force_enter("4000", 1, 1, ref=50.0); tz.on_report(51, "A0001", 0, 1000, 50.0); tz.on_tick("4000", 46.7); ok(tz.positions["4000"]["state"] == EXITING)
@@ -923,4 +923,28 @@ cf = tmp / "carry.json"; cf.write_text('[{"code":"1709","dir":-1,"lots":1,"entry
 at(9, 1); tc9, gc9 = mk(TRADE_CARRY_FILE=str(cf), TRADE_BROKER_STOP="1"); tc9.ref_of = lambda c: 50.1; tc9.on_tick("1709", 50.0); tc9.step([])
 pc9 = tc9.positions["1709"]; ok(pc9["state"] == HOLDING and pc9["carry"] and pc9["typ"] == "0" and not [x for x in gc9.sent if x[0] == "oco"], (pc9, gc9.sent))
 at(13, 21); tc9.on_tick("1709", 50.0); tc9.step([]); ok(pc9["state"] == EXITING and gc9.sent[-1][:3] == ("1709", "B", 1) and gc9.sent[-1][4] == "0", gc9.sent[-1]); at(10, 0)
-print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7 + 判七上線 2 + 判六上線 4 + 判七 +8% 強平 2 + 判二大盤分級檔數 7 + 判二寬度範圍 11 + 條件單編號存檔 3 + 沒昨收不進 3)")
+# 2026-11-11 使用者「5 ,6,7手動依舊受程式管束」「8不管進場部位如何 都受程式管束」
+# 5) 程式進場中手動同方向成交 5 張 + 程式 3 張 = 8 張 > 分級 3 張 → 下一秒整個部位平掉
+at(10, 0); t5_, g5_ = mk(TRADE_CAP="250000"); t5_.ref_of = lambda c: 50.0; t5_.on_tick("2330", 50.0); t5_.step([ENTX("2330", 50.0)]); p5_ = t5_.positions["2330"]
+t5_.on_report(51, "M5", 0, 5000, 50.0, basket="", code="2330", bs="B"); t5_.on_report(51, "A0001", 0, p5_["order"]["want"], 50.0, basket=p5_["order"]["tag"])
+ok(p5_["state"] == HOLDING and p5_["qty"] == 8, p5_); t5_.step([]); ok(p5_["state"] == EXITING and p5_["exit_why"] == "鐵律", p5_.get("exit_why"))
+# 5b) 程式進場沒成交、只有手動 4 張(> 3)→ 接成部位後平掉
+t5b, g5b = mk(TRADE_CAP="250000", TRADE_ENTRY_FALLBACK="0"); t5b.ref_of = lambda c: 50.0; t5b.on_tick("2330", 50.0); t5b.step([ENTX("2330", 50.0)])
+t5b.on_report(51, "M6", 0, 4000, 50.0, basket="", code="2330", bs="B"); t5b.on_report(50, "A0001", 25, 0, 0); t5b.step([]); ok(t5b.positions["2330"]["state"] == EXITING, t5b.positions["2330"])
+# 6) 重開接回元三:12:50 手動成交 → 平掉;10:00 成交 2 張 → 照管;成交時間看不懂 → 不看時間(不誤平)
+for _tm, _n, _bad in (("2026/11/11 下午 12:50:03", 2, True), ("2026/11/11 上午 10:00:03", 2, False), ("", 2, False), ("10:00", 4, True)):
+    at(13, 0); t6_, g6_ = mk(TRADE_CAP="250000"); t6_.ref_of = lambda c: 50.0; t6_.on_tick("2330", 50.0)
+    t6_.resume([{"code": "2330", "bs": "B", "lots": _n, "price": 50.0, "time": _tm, "order_no": "M7"}], {}, [], [])
+    p6_ = t6_.positions["2330"]; ok(p6_["judge"] == "元三" and p6_["state"] == HOLDING, p6_); t6_.step([])
+    ok((p6_["state"] == EXITING) == _bad, (_tm, _n, p6_["state"]))
+at(10, 0)
+# 7) 強制進場指定限價:離昨收超過 ±5% 不給進;合規的 ROD 過了 12:30 還沒成交完 → 取消
+at(11, 0); t7_, g7_ = mk(TRADE_CAP="250000"); t7_.ref_of = lambda c: 50.0; t7_.on_tick("2330", 50.0)
+r7_ = t7_.force_enter("2330", 1, 1, px=46.8); ok(not r7_[0] and "指定價" in r7_[1], r7_)
+ok(t7_.force_enter("2330", 1, 1, px=49.5)[0]); o7_ = t7_.positions["2330"]["order"]; o7_["no"] = o7_["no"] or "A0001"
+at(12, 30); t7_.step([]); ok(not any(x[0] == "cancel" for x in g7_.sent))
+at(12, 31); t7_.step([]); ok(("cancel", o7_["no"], "2330", "B") in g7_.sent, g7_.sent); at(10, 0)
+# 8) 進場補單限價最遠到昨收 ±5%:做多訊號 52.4(昨收 50,+4.8%)→ +1% = 52.9 → 收到 52.5
+t8_, g8_ = mk(TRADE_CAP="250000"); t8_.ref_of = lambda c: 50.0; t8_.on_tick("2330", 52.4); t8_.step([ENTX("2330", 52.4)]); t8_.on_report(50, "A0001", 25, 0, 0)
+ok(g8_.sent[-1][:2] == ("2330", "B") and g8_.sent[-1][3] == 52.5, g8_.sent)
+print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7 + 判七上線 2 + 判六上線 4 + 判七 +8% 強平 2 + 判二大盤分級檔數 7 + 判二寬度範圍 11 + 條件單編號存檔 3 + 沒昨收不進 3 + 預掛鐵律 9 + 主導機上限 4 + 手動受管束 13)")

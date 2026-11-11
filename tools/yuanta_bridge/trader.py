@@ -365,6 +365,7 @@ class Trader:
             st = self.load_state()
             self.locked |= set(st.get("locked") or [])
             net, cost, by, otyp, t_open = {}, {}, {}, {}, {}
+            ofl = {}   # 2026-11-11 22:20 開倉 / 加碼的成交(時間, 價)→ 接回元三時檢查鐵律
             order_types = order_types or {}
             signals = signals or []                                  # 2026-10-29 稽核 #1:讀通知失敗(None)當作沒有
             for t in sorted(trades, key=lambda x: x.get("time", "")):
@@ -376,10 +377,12 @@ class Trader:
                     by[c] = "F" if tag.startswith("F") else "T" if tag.startswith("T") else ""
                     otyp[c] = str(order_types.get(t["order_no"], "") or "").strip()   # 開倉那張單的委託種類(元三平倉用同一種;判斷是不是賣庫存)
                     t_open[c] = t.get("time", "")                    # 2026-10-29 稽核 #4:開倉成交時間(找最接近的進場通知)
+                    ofl[c] = [(t.get("time", ""), t["price"])]
                     if by[c]: self.n_trades += 1
                     self.amount_today += t["price"] * abs(q) * 1000
                 elif n0 != 0 and (n0 > 0) == (q > 0):                       # 同方向加碼
                     cost[c][0] += abs(q); cost[c][1] += t["price"] * abs(q); self.amount_today += t["price"] * abs(q) * 1000
+                    ofl.setdefault(c, []).append((t.get("time", ""), t["price"]))
                 elif n0 != 0:                                               # 平倉
                     self.amount_today += t["price"] * min(abs(q), abs(n0)) * 1000
                     if by.get(c):
@@ -423,6 +426,7 @@ class Trader:
                         if mo: p["oco_no"] = mo[-1]["no"]; p["oco_live"] = True
                         self.oco_refresh(p, "接回元三")   # 2026-11-08 01:00 元三接回也照規則掛 / 刪條件單
                     self.log(f"[交易] 接回元三 {c} {'多' if d > 0 else '空'} {abs(n)} 張 均價 {avg:.2f}(停利 {p['tp']} 停損 {p['sl']})")
+                    if p["state"] == HOLDING: p["_iron_pending"] = {"px": avg, "lots": abs(n), "what": "手動單(重開接回)", "fills": ofl.get(c) or []}
             elif manual:
                 self.log(f"[交易] 接回:{', '.join(manual)} 有未平部位但不是程式開的(手動),不管")
             if not open_mine:
@@ -598,6 +602,7 @@ class Trader:
                     self.set_forced_tpsl(p, p["entry"]); self.sub(p); p["y3_posted"] = True; self.oco_refresh(p, "對帳接回元三")
                     self.log(f"[交易] 對帳:{c} 元大有手動 {abs(n)} 張{'多' if d > 0 else '空'}單、程式沒收到回報 → 接成元三(均價 {p['entry']:.2f})")
                     self.alert(f"⚠ {c} 對帳接回元三 {abs(n)} 張", "斷線時漏了回報,程式已接手(停利 / 停損照判三)")
+                    p["_iron_pending"] = {"px": p["entry"], "lots": abs(n), "what": "手動單(對帳接回)", "fills": [(t.get("time", ""), t["price"]) for t in cs]}
 
     def prepare_close_all(self):
         """13:20 取消全部掛單的第一步:刪程式自己的條件單、取消還在等的委託;部位以之後查到的元大成交回報為準"""
@@ -981,6 +986,7 @@ class Trader:
             # 2026-11-02 11:47 使用者「不管是誰做的 只要有成交 程式一律接管」:程式的進場單還在送時手動同方向成交 → 先記著,進場單結束時一起併成同一個部位
             #   (程式的進場單沒成交也照樣把手動這幾張接成部位,停利 / 停損照訊號的 % 從手動均價算)
             p["man_lots"] = p.get("man_lots", 0) + lots; p["man_cost"] = p.get("man_cost", 0.0) + price * lots * 1000
+            p.setdefault("man_fills", []).append((self.hm(), price))   # 2026-11-11 22:20 併進去後檢查鐵律
             self.log(f"[交易] {p['judge']} {code} 進場中又有手動同方向成交 {lots} 張 @ {price}(委託 {order_no})→ 進場單結束時一起併進程式部位")
             return
         if p and bs != close_side(p["dir"]):
@@ -1279,6 +1285,17 @@ class Trader:
             if self.cancel_all:                                   # 13:20 由 bridge 先取消全部掛單再平倉;這裡晚 1 分鐘當備援
                 h, m = map(int, fe.split(":")); fe = f"{h + (m + 1) // 60:02d}:{(m + 1) % 60:02d}"
             for p in list(self.positions.values()):
+                ip = p.get("_iron_pending")   # 2026-11-11 22:20 使用者「手動依舊受程式管束」:手動單併入 / 接回後檢查鐵律(違反 → 整個部位平掉)
+                if ip and p["state"] == HOLDING:
+                    p.pop("_iron_pending", None)
+                    fills = [(t_, px_) for t_, px_ in ip["fills"]] if ip.get("fills") else None
+                    if self.iron_manual(p, ip["px"], ip["lots"], ip["what"], fills=fills): continue
+                o = p.get("order")   # 2026-11-11 22:20 強制進場指定限價 ROD:過了 12:30 還沒成交完 → 取消剩下的(成交的照常接手)
+                if (p["state"] == ENTERING and p.get("forced") and o and o["purpose"] == "進場" and not o.get("dead") and o.get("no")
+                        and hm > self.force_to and not o.get("exp_cut")):
+                    o["exp_cut"] = True; self.gw.cancel(o["no"], p["code"], o["side"], o["typ"])
+                    self.log(f"[交易] {p['code']} 強制進場單 {o['no']} 過了 {self.force_to} 還沒成交完 → 取消(鐵律 ③)")
+                    self.alert(f"⏰ {self.name_of(p['code'])} {p['code']} 強制進場過了 {self.force_to}", "還沒成交的張數已取消(鐵律 ③ 只在 09:30~12:30 進場)")
                 w = p.get("oco_del")
                 if w and time.time() - w["at"] > 5:   # 2026-11-08 20:50 刪條件單 5 秒沒回應 → 再刪一次(最多 3 次);還是沒回應就不掛新的,程式自己盯
                     if w["tries"] < 3:
@@ -1551,6 +1568,9 @@ class Trader:
         if not (y > 0 and last > 0): return f"還沒有{'昨收' if not y > 0 else '元大即時價'},沒辦法確認鐵律 ±{lim:g}%,不能強制{'做多' if d > 0 else '做空'}"   # 2026-11-11 16:28 鐵律檢查「改」:確認不了就不給進
         ch = (last / y - 1) * 100
         if abs(ch) > lim + 1e-9: return f"現價 {last} 離昨收 {ch:+.1f}%(超過 ±{lim:g}%),不能強制{'做多' if d > 0 else '做空'}"   # 2026-11-11 15:36 多空都照 ±5%
+        try: lp = float(px) if px not in (None, "") else 0.0
+        except Exception: lp = 0.0
+        if lp > 0 and abs(lp / y - 1) * 100 > lim + 1e-9: return f"指定價 {lp} 離昨收 {(lp / y - 1) * 100:+.1f}%(超過 ±{lim:g}%),不能強制{'做多' if d > 0 else '做空'}"   # 2026-11-11 22:20 指定限價也要在 ±5% 內
         return ""
 
     def force_close(self, code, cmd_id=None):
@@ -1793,15 +1813,24 @@ class Trader:
         except Exception as ex:
             self.log(f"[交易] 留倉接回失敗 {ex!r}")
 
-    def iron_manual(self, p, price, lots, what):
+    def iron_manual(self, p, price, lots, what, fills=None):
         """2026-11-11 20:53 使用者「5.6不是沒做」(⑥ 元大 App 自己下的單也不能例外):手動進場 / 加碼成交後檢查鐵律
            ① 離昨收 ±5% ③ 09:30~12:30 ⑤ 張數分級(整個部位)/ 500 萬額度 —— 違反任何一項 → 推通知 + 整個部位馬上漲停 / 跌停平掉。回 True = 已平"""
         try:
             if not Trader.IRON_LOTS: return False
             why = []; hm = self.hm(); ref = self.ref_of(p["code"]) or 0
-            if not (self.j_from <= hm <= self.force_to): why.append(f"{hm} 不在 {self.j_from}~{self.force_to}")
-            if ref > 0 and abs(price / ref - 1) * 100 > self.ent_pct + 1e-9: why.append(f"成交價離昨收 {(price / ref - 1) * 100:+.1f}%(超過 ±{self.ent_pct:g}%)")
-            if p["entry"] * 1000 > IRON_CAP: why.append(f"一張 {p['entry'] * 1000:,.0f} 超過 25 萬")
+            # 2026-11-11 22:20 使用者「手動依舊受程式管束」:併入 / 對帳接回 / 重開接回也檢查;fills = [(成交時間, 成交價)],時間看不懂的不看時間(重開接回不能拿現在時間誤判)
+            if fills is None: fl = [(hm, price)]
+            else:
+                fl = []
+                for t_, px_ in fills:
+                    m_ = minutes_of(t_) if t_ else None
+                    fl.append((f"{m_ // 60:02d}:{m_ % 60:02d}" if m_ is not None else None, float(px_ or 0)))
+            bad_t = sorted({t_ for t_, _ in fl if t_ and not (self.j_from <= t_ <= self.force_to)})
+            if bad_t: why.append(f"{'、'.join(bad_t)} 不在 {self.j_from}~{self.force_to}")
+            bad_p = [px_ for _, px_ in fl if ref > 0 and px_ > 0 and abs(px_ / ref - 1) * 100 > self.ent_pct + 1e-9]
+            if bad_p: why.append(f"成交價離昨收 {(bad_p[0] / ref - 1) * 100:+.1f}%(超過 ±{self.ent_pct:g}%)")
+            if p["entry"] * 1000 > self.cap_lim(): why.append(f"一張 {p['entry'] * 1000:,.0f} 超過多空上限 {self.cap_lim():,.0f}")
             elif p["qty"] > lot_tier_qty(p["entry"]): why.append(f"共 {p['qty']} 張,超過分級 {lot_tier_qty(p['entry'])} 張")
             if self.max_amount > 0 and self.amount_today > self.max_amount + 1e-6: why.append(f"今天成交 {self.amount_today:,.0f} 超過 500 萬")
             if not why: return False
@@ -2060,7 +2089,12 @@ class Trader:
         p.pop("wait_confirm", None)
         side = "B" if p["dir"] > 0 else "S"
         sig = p.get("px_sig") or p["entry"] or self.last_px.get(p["code"])
-        px = fb_price(sig, p["dir"], self.ref_of(p["code"]) or 0, self.fb_pct)   # 2026-11-08 16:09 使用者「改」:補單不再掛漲停 / 跌停(買方 / 賣方很少時會一路吃下去),改掛訊號價 ±1% 限價
+        px = fb_price(sig, p["dir"], self.ref_of(p["code"]) or 0, self.fb_pct)
+        rf = self.ref_of(p["code"]) or 0   # 2026-11-11 22:20 使用者「不管進場部位如何 都受程式管束」:補單限價最遠到昨收 ±5%(做多往下取、做空往上取)
+        if rf > 0 and self.ent_pct > 0:
+            v_ = rf * (1 + p["dir"] * self.ent_pct / 100); t_ = tick_size(v_)
+            e_ = round(math.floor(v_ / t_ + 1e-6) * t_ if p["dir"] > 0 else math.ceil(v_ / t_ - 1e-6) * t_, 2)
+            if (p["dir"] > 0 and px > e_) or (p["dir"] < 0 and px < e_): self.log(f"[交易] {p['code']} 補單限價 {px} 超過昨收 ±{self.ent_pct:g}% → 改 {e_}"); px = e_   # 2026-11-08 16:09 使用者「改」:補單不再掛漲停 / 跌停(買方 / 賣方很少時會一路吃下去),改掛訊號價 ±1% 限價
         self.log(f"[交易] {p['code']} 進場 IOC 成交 {o['filled'] // 1000}/{o['want'] // 1000} 張 → 剩 {left} 張改掛{'買' if side == 'B' else '賣'} {px}(訊號 {sig} {'+' if side == 'B' else '−'}{self.fb_pct:g}%,ROD,{self.fill_wait:.0f} 秒沒成交完取消)補進場")
         p["ioc_tag"] = o["tag"]
         self.send(p, "進場", side, left, px, p["typ"], " ", "0")
@@ -2079,6 +2113,7 @@ class Trader:
             if p.get("tp"): p["tp"] = round(avg * p["tp"] / base, 2)
             if p.get("sl"): p["sl"] = self.cap_sl(p["code"], p["dir"], p["judge"], round(avg * p["sl"] / base, 2))
         p.update({"qty": ml, "entry": avg, "state": HOLDING, "t0": self.hm()}); self.amount_today += mc; self.n_trades += 1; self.save_state()
+        p["_iron_pending"] = {"px": avg, "lots": ml, "what": "手動進場", "fills": p.pop("man_fills", None)}   # 2026-11-11 22:20 使用者「手動依舊受程式管束」
         self.log(f"[交易] {p['code']} {why},但有手動同方向成交 {ml} 張 → 接成程式部位 {p['judge']} 均價 {avg:.2f} 停利 {p['tp']} 停損 {p['sl']}")
         self.alert(f"✅ {self.name_of(p['code'])} {p['code']} 手動 {ml} 張已交給程式", f"均價 {avg:.2f}(停利 {p['tp']} / 停損 {p['sl']})")
         return True
@@ -2106,6 +2141,7 @@ class Trader:
                 if p.get("tp"): p["tp"] = round(avg * p["tp"] / base, 2)
                 if p.get("sl"): p["sl"] = self.cap_sl(p["code"], p["dir"], p["judge"], round(avg * p["sl"] / base, 2))
             self.log(f"[交易] {p['code']} 進場單成交 {lots - ml} 張 + 手動 {ml} 張 → 併成 {lots} 張 均價 {avg:.2f}")
+            p["_iron_pending"] = {"px": mc / (ml * 1000), "lots": ml, "what": "手動加碼(進場中)", "fills": p.pop("man_fills", None)}   # 2026-11-11 22:20 整個部位(程式 + 手動)照鐵律檢查
             self.alert(f"✅ {self.name_of(p['code'])} {p['code']} 手動 {ml} 張已交給程式", f"共 {lots} 張 均價 {avg:.2f}")
         if o["purpose"] == "進場":
             if lots == 0:
