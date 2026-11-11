@@ -839,7 +839,7 @@ ok(any(x[0] == "oco" for x in gc.sent), gc.sent)
 at(10, 0); tq, gq = mk(TRADE_CAP="250000", TRADE_LOT_TIER="1", TRADE_JUDGE_FROM="09:30", TRADE_JUDGE_TO="12:32")
 ok(tq.lots_for(20.6) == 3 and tq.lots_for(53) == 3 and tq.lots_for(53.4) == 2 and tq.lots_for(80) == 2 and tq.lots_for(80.5) == 2 and tq.lots_for(125) == 2 and tq.lots_for(125.5) == 1 and tq.lots_for(249) == 1 and tq.lots_for(5) == 3, [tq.lots_for(x) for x in (20.6, 53, 53.4, 80, 80.5, 125, 125.5, 249, 5)])   # 2026-11-11 16:43 ≤80 元 3 張 ≤16 萬;80~250 元 2 張 ≤25 萬
 tq.on_tick("2330", 50.0); tq.step([ENTX("2330", 50.0, judge="判四")]); ok("2330" in tq.positions and gq.sent[-1][:3] == ("2330", "B", 3), gq.sent)   # 50 元 → 3 張(原 25 萬 ÷ 5 萬 = 5 張)
-at(9, 10); tr_, gr_ = mk(TRADE_CAP="250000", TRADE_LOT_TIER="1", TRADE_JUDGE_FROM="09:15", TRADE_JUDGE_TO="12:32"); tr_.on_tick("2330", 50.0); tr_.step([ENTX("2330", 50.0, judge="判四")]); ok("2330" not in tr_.positions, "09:20 判別式不進")
+at(9, 20); tr_, gr_ = mk(TRADE_CAP="250000", TRADE_LOT_TIER="1", TRADE_JUDGE_FROM="09:30", TRADE_JUDGE_TO="12:32"); tr_.on_tick("2330", 50.0); tr_.step([ENTX("2330", 50.0, judge="判四")]); ok("2330" not in tr_.positions, "09:20 判別式不進")
 at(12, 33); tr2, gr2 = mk(TRADE_CAP="250000", TRADE_LOT_TIER="1", TRADE_JUDGE_FROM="09:30", TRADE_JUDGE_TO="12:32"); tr2.on_tick("2330", 50.0); tr2.step([ENTX("2330", 50.0, judge="判四")]); ok("2330" not in tr2.positions, "12:33 判別式不進")
 # 2026-11-11 14:57 停損價不超過昨收 ±6.5%(元大條件單同一價)
 at(10, 30); tc, gc = mk(TRADE_CAP="250000"); tc.ref_of = lambda c: 180.0; tc.on_tick("2313", 187.5)
@@ -848,12 +848,12 @@ ok(tc.positions["2313"]["sl"] == 191.5, tc.positions["2313"]["sl"])   # 180 × 1
 at(10, 30); tc2, gc2 = mk(TRADE_CAP="250000"); tc2.ref_of = lambda c: 50.0; tc2.on_tick("2330", 50.0); tc2.step([ENTX("2330", 50.0)])
 ok(tc2.positions["2330"]["sl"] == 49.25, tc2.positions["2330"]["sl"])   # 停損本來就在線內:不動
 # 2026-11-11 15:38 強制進場也只在 09:30~12:30
-at(9, 10); tf9, _ = mk(TRADE_JUDGE_FROM="09:15", TRADE_FORCE_TO="12:30"); tf9.ref_of = lambda c: 100.0; tf9.on_tick("2330", 100.0); r9 = tf9.force_enter("2330", 1, 1); ok(not r9[0] and "09:15~12:30" in r9[1], r9)
+at(9, 20); tf9, _ = mk(TRADE_JUDGE_FROM="09:30", TRADE_FORCE_TO="12:30"); tf9.ref_of = lambda c: 100.0; tf9.on_tick("2330", 100.0); r9 = tf9.force_enter("2330", 1, 1); ok(not r9[0] and "09:30~12:30" in r9[1], r9)
 at(12, 31); tf10, _ = mk(TRADE_JUDGE_FROM="09:30", TRADE_FORCE_TO="12:30"); tf10.ref_of = lambda c: 100.0; tf10.on_tick("2330", 100.0); ok(not tf10.force_enter("2330", 1, 1)[0])
 at(10, 0); tf11, _ = mk(TRADE_JUDGE_FROM="09:30", TRADE_FORCE_TO="12:30"); tf11.ref_of = lambda c: 100.0; tf11.on_tick("2330", 100.0); ok(tf11.force_enter("2330", 1, 1)[0])
 # 2026-11-11 15:42 鐵律:bridge.env 寫更鬆也會被拉回(±5% / 6.5% / 09:30~12:30)
 ti, _ = mk(TRADE_ENTRY_PCT="9", TRADE_MAX_MOVE_PCT="10", TRADE_J7_MAX_MOVE_PCT="8", TRADE_MANUAL_MAX_MOVE_PCT="8.5", TRADE_FORCE_BLOCK_PCT="0", TRADE_JUDGE_FROM="09:00", TRADE_JUDGE_TO="13:10", TRADE_FORCE_TO="13:10")
-ok((ti.ent_pct, ti.max_move, ti.j7_move, ti.man_move, ti.force_block_pct, ti.j_from, ti.j_to, ti.force_to) == (5.0, 6.5, 6.5, 6.5, 5.0, "09:15", "12:32", "12:30"), (ti.ent_pct, ti.max_move, ti.j_from, ti.j_to))
+ok((ti.ent_pct, ti.max_move, ti.j7_move, ti.man_move, ti.force_block_pct, ti.j_from, ti.j_to, ti.force_to) == (5.0, 6.5, 6.5, 6.5, 5.0, "09:30", "12:32", "12:30"), (ti.ent_pct, ti.max_move, ti.j_from, ti.j_to))
 tz, _ = mk(TRADE_BRX_LOSS_PCT="3", TRADE_BRX_DIFF="0"); ok(tz.brx_l == 1.5 and tz.brx_e == 0.15, (tz.brx_l, tz.brx_e))   # ④ 總停損關不掉、放不寬
 tj, _ = mk(TRADE_ENTRY_PCT="3", TRADE_MAX_MOVE_PCT="5"); ok(tj.ent_pct == 3.0 and tj.max_move == 5.0)   # 更嚴的照設定
 # 2026-11-11 16:28 鐵律檢查「改」:沒有昨收 → 不進場、不給強制進場
@@ -916,7 +916,7 @@ def man_(h, m, px, n, ref=50.0):
     t_.on_report(51, "M9", 0, n * 1000, px, basket="", code="2330", bs="B"); return t_, g_
 tA, gA = man_(10, 0, 50.0, 3); ok(tA.positions["2330"]["state"] == HOLDING)                          # 50 元 3 張:合規,照管
 tB, gB = man_(10, 0, 50.0, 4); ok(tB.positions["2330"]["state"] == EXITING and tB.positions["2330"]["exit_why"] == "鐵律", tB.positions["2330"].get("exit_why"))   # 4 張超過分級
-tC, gC = man_(9, 10, 50.0, 1); ok(tC.positions["2330"]["state"] == EXITING)                         # 09:10 不在時段(鐵律 ③ 09:15 起)
+tC, gC = man_(9, 20, 50.0, 1); ok(tC.positions["2330"]["state"] == EXITING)                         # 09:20 不在時段
 tD, gD = man_(10, 0, 53.0, 1); ok(tD.positions["2330"]["state"] == EXITING)                         # +6%
 at(10, 0)
 # 2026-11-11 20:55 留倉接回(和益 1709 借券空 1 張 @49.35):開盤接成程式部位,現股(0)買回;不掛條件單;13:20 平
@@ -1021,6 +1021,6 @@ u4, h4 = mk(TRADE_CAP="250000"); u4.ref_of = lambda c: 50.0; ok(not u4.force_ent
 u4.on_tick("2330", 50.0); ok(u4.force_enter("2330", 1, 1)[0]); o4 = u4.positions["2330"]["order"]; u4.on_report(51, "A0001", 0, 1000, 52.8, basket=o4["tag"]); u4.step([]); ok(u4.positions["2330"]["state"] == EXITING, u4.positions["2330"])
 # 6) 委託價一張超過上限:現價 249.5、委託 250.5 → 不進
 u6, h6 = mk(TRADE_CAP="250000"); u6.ref_of = lambda c: 249.0; u6.on_tick("2330", 249.5); u6.step([ENTX("2330", 249.5)]); ok("2330" not in u6.positions and not h6.sent, h6.sent)
-# 8) 訊號那根 09:13 → 不進(鐵律 ③ 23:38 起 09:15)
-at(9, 15); u8, h8 = mk(TRADE_CAP="250000"); u8.on_tick("6269", 86.2); u8.step([sig("u8", "short", "台郡 6269 做空進場 86.20", "09:13 空✓ · 停利 84.05 停損 88.70 · 判二")]); ok("6269" not in u8.positions); at(10, 0)
+# 8) 訊號那根 09:28 → 不進
+at(9, 30); u8, h8 = mk(TRADE_CAP="250000"); u8.on_tick("6269", 86.2); u8.step([sig("u8", "short", "台郡 6269 做空進場 86.20", "09:28 空✓ · 停利 84.05 停損 88.70 · 判二")]); ok("6269" not in u8.positions); at(10, 0)
 print("trader.py 測試通過(32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7 + 判七上線 2 + 判六上線 4 + 判七 +8% 強平 2 + 判二大盤分級檔數 7 + 判二寬度範圍 11 + 條件單編號存檔 3 + 沒昨收不進 3 + 預掛鐵律 9 + 主導機上限 4 + 手動受管束 13 + 超額補進 10 分鐘 6 + 太晚補進 10 分鐘 3 + 設定關不掉保護 4 + 第二輪 1~5 9 + 全改 9 + 第三輪 9)")
