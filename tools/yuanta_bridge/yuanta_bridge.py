@@ -1077,7 +1077,7 @@ class Bridge:
         if self.trader.cap <= 0: return
         v = fetch_cap(CFG["WORKER_URL"], CFG.get("PUSH_KEY", ""))
         if v and v != self.trader.cap:
-            log(f"多空上限 {self.trader.cap:,} → {v:,}(5861 主導機)"); self.trader.cap = v   # 以主導機為準;鐵律 ⑤ 一張最多 25 萬由 trader.cap_lim() 把關
+            log(f"多空上限 {self.trader.cap:,} → {v:,}(5861 主導機)"); self.trader.cap = v   # 以主導機為準(鐵律 ⑤ 一張上限 = 主導機多空上限,2026-11-11 22:24 使用者「針對 2項 改鐵律」:一張上限改以主導機多空上限為準,不再固定最多 25 萬)
 
     def resume_positions(self, day):
         """2026-10-22 使用者:「加 啟動時接回部位」:查元大今天的委託成交回報 + 有效的二擇一條件單,交給 trader 接回程式開的未平部位"""

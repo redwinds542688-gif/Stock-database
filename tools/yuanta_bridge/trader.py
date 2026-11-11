@@ -103,7 +103,7 @@ def lot_tier_qty(px):
     return max(1, min(mx, int(cap // (px * 1000))))
 IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG, IRON_BRX_L, IRON_BRX_E = 5.0, 6.5, "09:30", "12:30", "12:32", 1.5, 0.15
 RE_IRON_EXIT = re.compile(r"超過?\s*[\d.]+\s*%|總停損|移動停損利|鐵律|強制平倉")   # 2026-11-11 21:34 鐵律平倉(含引擎平倉通知標題):有權取消手動預掛、立即平
-IRON_CAP, IRON_AMOUNT, IRON_MTSL = 250000, 5000000.0, 3.0   # ⑤ 一張上限 25 萬(超過 = 超額)、一天總額度 500 萬   # 鐵律(2026-11-11 15:42),見 __init__
+IRON_CAP, IRON_AMOUNT, IRON_MTSL = 250000, 5000000.0, 3.0   # ⑤ IRON_CAP = 固定張數模式(cap=0)時的一張上限;2026-11-11 22:24 使用者「針對 2項 改鐵律」:一張上限改以主導機多空上限為準,不再固定最多 25 萬   # 原:一張上限 25 萬(超過 = 超額)、一天總額度 500 萬   # 鐵律(2026-11-11 15:42),見 __init__
 MANUAL = "元三"      # 2026-10-28 使用者:在元大(投資先生)自己下的單,成交後交給判三管
 
 
@@ -211,7 +211,7 @@ class Trader:
         self.j_from = max(self.j_from, IRON_FROM); self.j_to = min(self.j_to, IRON_TO_SIG); self.force_to = min(self.force_to, IRON_TO)
         self.brx_l = _lo(self.brx_l, IRON_BRX_L); self.brx_e = _lo(self.brx_e, IRON_BRX_E); self.mtsl = _lo(self.mtsl, IRON_MTSL)   # ⑥ 移動停損利
         # ⑤ 張數分級 + 500 萬額度(2026-11-11 19:29 使用者「這套 也加入 鐵律」):lot_tier_qty(≤ 80 元 最多 3 張且 ≤ 16 萬、80~250 元 最多 2 張且 ≤ 25 萬;一張超過 25 萬 = 超額不做);一天成交總額度 500 萬(買 + 賣、持倉漲停預留)
-        self.lot_tier = True if Trader.IRON_LOTS else self.lot_tier; self.cap = min(self.cap, IRON_CAP) if self.cap > 0 else 0; self.max_amount = _lo(self.max_amount, IRON_AMOUNT)   # ④ 總停損(2026-11-11 19:21 使用者「把這套 叫做 總停損 寫進鐵律 監控所有判別式」)
+        self.lot_tier = True if Trader.IRON_LOTS else self.lot_tier; self.cap = max(self.cap, 0); self.max_amount = _lo(self.max_amount, IRON_AMOUNT)   # ④ 總停損(2026-11-11 19:21 使用者「把這套 叫做 總停損 寫進鐵律 監控所有判別式」)
         self.recheck_times = [x.strip() for x in cfg.get("TRADE_RECHECK", "13:22,13:23,13:24").split(",") if x.strip()]
         self.recheck_at = self.recheck_times[0] if self.recheck_times else "13:23"
         self.recheck_close = cfg.get("TRADE_RECHECK_CLOSE", "all")
@@ -1774,7 +1774,7 @@ class Trader:
         ref_e = self.ref_of(code) or 0
         if self.ent_pct > 0 and not ref_e > 0:   # 2026-11-11 16:28 鐵律檢查(使用者「檢查 鐵律」→「改」):沒有昨收就沒辦法確認 ±5%(也沒有 6.5% 保護)→ 不進
             self.log(f"[交易] 不進場 {title}:還沒有 {code} 的昨收,沒辦法確認鐵律 ±{self.ent_pct:g}%"); return
-        lim = self.cap_lim()   # 2026-11-11 21:34 使用者「一定要在主導機的多空限額裡面才能交易」:一張超過主導機多空上限(最多 25 萬)= 超額,不進(原本只看通知有沒有標「超額」)
+        lim = self.cap_lim()   # 2026-11-11 21:34 使用者「一定要在主導機的多空限額裡面才能交易」:一張超過主導機多空上限 = 超額,不進(原本只看通知有沒有標「超額」)
         pck = last if it.get("_over") else max(last, px_sig)   # 超額補進場:本來就是現價回到上限內才補,看現價
         if lim > 0 and pck * 1000 > lim + 1e-6:
             self.log(f"[交易] 不進場 {title}:一張 {pck * 1000:,.0f} 超過多空上限 {lim:,.0f}(超額,鐵律 ⑤)"); return
@@ -2025,9 +2025,9 @@ class Trader:
         p["forced_close"] = True; p["force_limit"] = True
 
     def cap_lim(self):
-        """鐵律 ⑤ 一張上限:主導機的多空上限(cap),最多 25 萬;cap = 0(固定張數)時用 25 萬"""
+        """鐵律 ⑤ 一張上限 = 主導機的多空上限(cap);cap = 0(固定張數)時用 25 萬(2026-11-11 22:24 使用者「針對 2項 改鐵律」:不再固定最多 25 萬)"""
         if not Trader.IRON_LOTS: return self.cap
-        return min(self.cap, IRON_CAP) if self.cap > 0 else IRON_CAP
+        return self.cap if self.cap > 0 else IRON_CAP
 
     def prehang_wait(self, code):
         """這檔有保留的手動預掛平倉單、還沒到期限 → True(程式先不平)"""
