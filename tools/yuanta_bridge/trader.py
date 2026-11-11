@@ -640,8 +640,19 @@ class Trader:
                 net[t["code"]] = net.get(t["code"], 0) + t["lots"] * (1 if t["bs"] == "B" else -1)
             for c, p in list(self.positions.items()):
                 o = p.get("order")
+                if p.get("carry"):   # 2026-11-11 23:05 使用者「全改」(第三輪) 1/5:留倉接回 → 元大實際剩 = 留倉張數 + 今天成交;沒了(手動買回、回報漏了)→ 結束不再平;還在、平倉單被 13:20 取消 → 馬上重送
+                    live = o and not o.get("dead"); rem = p["dir"] * int(p.get("carry0") or p["qty"]) + net.get(c, 0)
+                    if rem == 0 and not live:
+                        self.log(f"[交易] {at} 複查:留倉 {c} 元大已經沒有部位(留倉 + 今天成交 = 0)→ 程式這邊結束,不再平"); del self.positions[c]; continue
+                    if live or (rem > 0) != (p["dir"] > 0):
+                        if not live: self.alert(f"⚠ {self.name_of(c)} {c} 留倉部位對不上", f"元大剩 {rem:+d} 張,和程式記的方向不一樣,請在投資先生確認")
+                        continue
+                    p["qty"] = abs(rem)
+                    if p["state"] == EXITING: p["state"] = HOLDING; p["order"] = None; self.log(f"[交易] {at} 複查:留倉 {c} 平倉單被取消了,還剩 {abs(rem)} 張 → 重送平倉")
+                    if p["state"] == HOLDING and self.hm() >= self.force_exit: self.exit_pos(p, f"{self.force_exit} 強制平倉", self.last_px.get(c, p["entry"]), force_limit=True, kill_ph=True)
+                    continue
                 if net.get(c, 0) == 0 and not (o and not o.get("dead")):
-                    if p.get("carry") or c in self.ignore:   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 1:留倉接回(昨天的部位,今天沒成交 → 淨 0)不是「已經沒有部位」,留著給 13:21 平
+                    if c in self.ignore:   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 1:留倉接回(昨天的部位,今天沒成交 → 淨 0)不是「已經沒有部位」,留著給 13:21 平
                         self.log(f"[交易] {at} 複查:{c} 是留倉接回 / 不管名單的部位,今天成交淨 0 不代表沒部位 → 保留,照程式部位平"); continue
                     self.log(f"[交易] {at} 複查:元大顯示 {c} 已經沒有部位 → 程式這邊結束"); del self.positions[c]
             left = []
@@ -1540,6 +1551,10 @@ class Trader:
                 r = (False, "這檔庫存有留倉 / 借券(不管的名單),不給強制進場,請在元大自己處理")
             elif d not in (1, -1) or lots < 1:
                 r = (False, "方向或張數不對")
+            elif not self.last_px.get(code):   # 2026-11-11 23:05 使用者「全改」(第三輪) 4:還沒有元大即時價 → 不給強制進場(不再用手機的價格判斷 ±5%)
+                r = (False, "電腦還沒收到這檔的元大即時價,沒辦法確認鐵律 ±5%,請過幾秒再試")
+            elif (px in (None, "") or not float(px or 0)) and self.force_block(code, d, ref, shift(self.last_px[code], self.slip * d)):   # 2026-11-11 23:05 使用者「全改」(第三輪) 3:沒指定價 = 現價讓 2 檔限價,超過 ±5% 不進
+                r = (False, self.force_block(code, d, ref, shift(self.last_px[code], self.slip * d)))
             elif self.force_block(code, d, ref, px):
                 r = (False, self.force_block(code, d, ref, px))
             elif self.force_lots_why(code, d, lots, px):   # 2026-11-11 19:59 使用者「分級張數 鎖定 監控所有判別式的進場」:強制進場也照鐵律 ⑤(超額不做、額度不夠不進)
@@ -1557,9 +1572,10 @@ class Trader:
                 if lp > 0:
                     self.send(p, "進場", "B" if d > 0 else "S", lots, lp, p["typ"], " ", "0")
                     how = f"限價 {lp:.2f}"
-                else:
-                    self.send(p, "進場", "B" if d > 0 else "S", lots, 0, p["typ"], "H" if d > 0 else "L", "0")
-                    how = "漲停買" if d > 0 else "跌停賣"
+                else:   # 2026-11-11 23:05 使用者「全改」(第三輪) 3:原「漲停買 / 跌停賣」(成交價可能超過 ±5%)→ 現價讓 2 檔限價 ROD(和一般進場一樣,超過 ±5% 前面已擋)
+                    lp = shift(self.last_px[code], self.slip * d)
+                    self.send(p, "進場", "B" if d > 0 else "S", lots, lp, p["typ"], " ", "0")
+                    how = f"限價 {lp:.2f}(現價讓 {self.slip} 檔)"
                 self.save_state()
                 self.log(f"[交易] 強制進場 {code} {'做多' if d > 0 else '做空'}({how}){lots} 張")
                 r = (True, f"已送出強制{'做多' if d > 0 else '做空'} {lots} 張({how})")
@@ -1594,8 +1610,7 @@ class Trader:
         try: y = float(ref) if ref else 0.0
         except Exception: y = 0.0
         y = (self.ref_of(code) or 0) or y; last = self.last_px.get(code) or 0; lim = self.force_block_pct   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 3:先用元大 / 電腦的昨收,手機的只在電腦沒有時用
-        try: last = last or float(px or 0)   # 2026-11-11 16:28 還沒有元大即時價 → 用手機指定的委託價判斷 ±5%
-        except Exception: pass
+        # 2026-11-11 23:05 使用者「全改」(第三輪) 4:不再用手機指定價代替元大即時價(force_enter 沒有即時價就不給進)
         if not lim > 0: return ""
         if not (y > 0 and last > 0): return f"還沒有{'昨收' if not y > 0 else '元大即時價'},沒辦法確認鐵律 ±{lim:g}%,不能強制{'做多' if d > 0 else '做空'}"   # 2026-11-11 16:28 鐵律檢查「改」:確認不了就不給進
         ch = (last / y - 1) * 100
@@ -1755,6 +1770,10 @@ class Trader:
             return
         if kind == "short" and self.noshort.get(code):
             self.log(f"[交易] 不進場 {title}:{self.noshort[code]},今天這檔不能空"); return
+        if re.search(r"·\s*超額\s*·", body):                   # 2026-11-11 23:05 使用者「全改」(第三輪) 2:超額訊號一樣要在時段內(訊號那根 09:30~12:30、收到 ≤ 12:32)才記著等補
+            mb = RE_BAR.match(body or ""); bar = (mb.group(1).zfill(5) if mb else "")
+            if (bar and not (self.j_from <= bar <= IRON_TO)) or not (self.j_from <= self.hm() <= self.j_to):
+                self.log(f"[交易] 不進場 {title}:超額訊號不在進場時段(訊號 {bar or '?'}、現在 {self.hm()};鐵律 ③ {self.j_from}~{IRON_TO}),不記著補"); return
         if re.search(r"·\s*超額\s*·", body):                   # 2026-10-30 使用者「超過限額的股票 … 只是註記“超額”不交易」:只通知,要做請用手機強制進場
             self.log(f"[交易] 不進場 {title}:超額(一張就超過多空上限),只通知;要做請用強制進場")
             tpsl = RE_TPSL.search(body); mp = RE_PX_END.search(title)
@@ -1769,6 +1788,7 @@ class Trader:
         age = self.sig_age(it.get("t"))
         if age is not None and age > self.sig_max_age and not it.get("_late"):   # 太晚補進場:原訊號本來就舊了,時間由 late_redo_min 管          # 2026-10-29 稽核 #1:太舊的進場通知(例如重開 / 讀取延遲才看到)不進
             self.log(f"[交易] 不進場 {title}:通知時間 {it.get('t')} 已經過 {age:.0f} 分鐘(上限 {self.sig_max_age:g},TRADE_SIGNAL_MAX_AGE_MIN)"); return
+        mb_ = RE_BAR.match(body or ""); self._bar_now = mb_.group(1).zfill(5) if mb_ else ""   # 2026-11-11 23:05 使用者「全改」(第三輪) 8
         why = self.can_enter(code, judge, kind, over=bool(it.get("_over") or it.get("_late")))
         if why:
             self.log(f"[交易] 不進場 {title}:{why}"); return
@@ -1817,6 +1837,8 @@ class Trader:
         price = shift(last, self.slip * d)                     # 買進往上讓、賣出往下讓
         if self.ent_pct > 0 and ref_e > 0 and abs(price / ref_e - 1) * 100 > self.ent_pct + 1e-9:   # 2026-11-11 22:44 使用者「全改」 9:「進場規則就是不超過+-5 如果讓2檔超過 就不進行交易」
             self.log(f"[交易] 不進場 {title}:委託價 {price}(現價 {last} 讓 {self.slip} 檔)離昨收 {ref_e} {(price / ref_e - 1) * 100:+.2f}%,超過 ±{self.ent_pct:g}%"); return
+        if lim > 0 and price * 1000 > lim + 1e-6:   # 2026-11-11 23:06 使用者「全改」(第三輪) 6:一張上限也看委託價(現價讓 2 檔)
+            self.log(f"[交易] 不進場 {title}:委託價 {price} 一張 {price * 1000:,.0f} 超過多空上限 {lim:,.0f}(超額,鐵律 ⑤)"); return
         lots = self.lots_for(max(px_sig, price))   # 2026-11-11 22:44 使用者「全改」 10:張數分級照訊號價和委託價較高的算(金額不超過 16 萬 / 25 萬)   # 2026-11-11 14:49 張數分級   # 原 max(1, int(self.cap // (px_sig * 1000)))   # 2026-10-30 張數照多空上限(訊號價算,和通知上的張數一樣)
         if it.get("_over") and self.cap > 0: lots = self.lots_for(max(last, price))   # 超額補進場:照現價(和委託價較高的)算張數
         if self.max_amount > 0:                                 # 2026-10-27 一天成交總金額上限(買 + 賣都算):剩的額度夠幾張就掛幾張
@@ -1847,7 +1869,7 @@ class Trader:
                 c = str(it["code"]); d = int(it["dir"]); n = int(it["lots"]); e = float(it["entry"])
                 if c in self.positions or n < 1: continue
                 p = self.new_pos(c, d, FORCED, f"留倉接回 {c}", forced=True)
-                p.update({"qty": n, "entry": e, "state": HOLDING, "t0": self.hm(), "tp_pct": self.y3_tp, "sl_pct": self.y3_sl, "carry": True, "judge0": it.get("judge", "")})
+                p.update({"qty": n, "entry": e, "state": HOLDING, "t0": self.hm(), "tp_pct": self.y3_tp, "sl_pct": self.y3_sl, "carry": True, "carry0": n, "judge0": it.get("judge", "")})
                 if it.get("typ") is not None: p["typ"] = str(it["typ"])
                 self.set_forced_tpsl(p, e); self.sub(p)
                 self.log(f"[交易] 留倉接回 {c} {'多' if d > 0 else '空'} {n} 張 均價 {e}(委託種類 {p['typ']})→ 程式照判三 / 鐵律管:停利 {p['tp']} 停損 {p['sl']},13:20 前平掉")
@@ -1986,6 +2008,8 @@ class Trader:
         hm = self.hm()
         if not ("09:00" <= hm < self.last_entry):
             return f"不在 09:00~{self.last_entry}"
+        if judge and judge.startswith("判") and getattr(self, "_bar_now", "") and not (self.j_from <= self._bar_now <= IRON_TO):   # 2026-11-11 23:05 使用者「全改」(第三輪) 8:訊號那根 K 的時間也要在 09:30~12:30
+            return f"訊號那根 {self._bar_now} 不在 {self.j_from}~{IRON_TO}(鐵律 ③)"
         if judge and judge.startswith("判") and not over and not (self.j_from <= hm <= self.j_to):   # 超額 / 太晚補進場:時間照原訊號發布後 10 分鐘(over_ok / late_check 管)   # 2026-11-11 14:49 判別式自動進場只在 09:30~12:30(訊號那根;推到這裡最晚 12:32)
             return f"判別式只在 {self.j_from}~{self.j_to} 進場"
         if judge == "判二" and kind in ("long", "short") and self.j2_brng.get(kind):   # 2026-11-10 01:45 判二第二十六次修改(使用者「解鎖 改」):大盤上漲家數要在 22 天贏單範圍內(空 4.4%~88.1%、多 10.6%~92%),取代 ≥ 92% 不做
@@ -2143,6 +2167,7 @@ class Trader:
         c = p["code"]; last = self.last_px.get(c); sig = p.get("px_sig") or p["entry"] or last
         why = ("自動交易關閉" if not self.enabled else "緊急停止" if self.stop_file.exists() else
                "今天已全部平倉過" if getattr(self, "killed", False) else f"已過 {self.last_entry}" if self.hm() >= self.last_entry else
+               f"已過 {self.j_to}(鐵律 ③)" if (not p.get("forced") and self.hm() > self.j_to and not (p.get("until_hm") and self.hm() < p["until_hm"])) else   # 2026-11-11 23:05 使用者「全改」(第三輪) 7
                "沒有即時價" if not last else f"現價 {last} 離訊號價 {sig} 超過 {self.max_dev}%" if sig and abs(last - sig) / sig * 100 > self.max_dev else "")
         if why:
             self.log(f"[交易] {c} 進場 IOC 沒成交 {left} 張,不補單:{why}"); return 0
@@ -2243,6 +2268,7 @@ class Trader:
                 self.exit_pos(p, why, self.last_px.get(p["code"], avg)); return
             self.n_trades += 1
             if p.get("forced"):
+                if not p.get("carry"): p["_iron_pending"] = {"px": avg, "lots": lots, "what": "強制進場", "fills": None}   # 2026-11-11 23:05 使用者「全改」(第三輪) 4:強制進場成交價也照鐵律檢查(離昨收 ±5%)
                 self.set_forced_tpsl(p, avg); self.save_state()
                 c = p["code"]
                 self.post(f"{self.name_of(c)} {c} {'做多' if p['dir'] > 0 else '做空'}進場 {avg:.2f}",

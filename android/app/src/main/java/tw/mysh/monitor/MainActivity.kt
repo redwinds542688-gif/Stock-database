@@ -105,6 +105,8 @@ class MainActivity : AppCompatActivity() {
 
     /** 測試鉤子(adb):am start -n tw.mysh.monitor/.MainActivity --es test notify|tick|replay */
     private fun handleTest(intent: Intent?) {
+        // 2026-11-11 23:07 使用者「全改」(第三輪):測試鉤子只在 debug 版有效(正式版主畫面對外開放,別的程式可以叫「重播今天所有訊號」→ 舊訊號被當新的)
+        if ((applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0) return
         when (intent?.getStringExtra("test")) {
             "notify" -> { JsBridge(this, "test").notify("測試 群創 3481 做空進場 49.40", "10:24 空✓ · 停利 47.42 停損 50.14", "short")
                           JsBridge(this, "test").notify("⚠⚠ 測試 麗正 2302 停損 -1.5% 立即賣出", "09:49 09:37 進 46.00 → 現價 45.35", "loss") }

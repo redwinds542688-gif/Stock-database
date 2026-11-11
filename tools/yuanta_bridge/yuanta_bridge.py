@@ -691,9 +691,7 @@ class Bridge:
             if code not in [c for c, _ in self.codes]:               # 不在名單上:主迴圈補訂閱逐筆,才盯得到停利停損
                 self.codes.append((code, mkt)); self.pending_sub.append((code, mkt))
             ref = cmd.get("ref")
-            if ref and not (self.quotes.meta.get(code) or {}).get("y"):
-                try: self.quotes.meta.setdefault(code, {"n": cmd.get("name", "") or code, "ex": "tse", "y": None})["y"] = float(ref)   # 手機帶來的昨收
-                except Exception: pass
+            # 2026-11-11 23:06 使用者「全改」(第三輪) 4:手機帶來的昨收不再寫進電腦的昨收(原本會被這檔之後的判別式 ±5% / 6.5% 拿去用);只給 force_enter 在電腦沒有昨收時用
             ok, msg = t.force_enter(code, int(cmd.get("dir", 0)), int(cmd.get("lots", 0)), cmd.get("tpPct"), cmd.get("slPct"), str(mkt), cid, ref, cmd.get("px"))   # 2026-11-03 px = 手機指定的委託價
         else:
             return {"ok": False, "msg": "不認得的指令"}
