@@ -102,6 +102,7 @@ def lot_tier_qty(px):
     cap, mx = (160000, 3) if px <= 80 else (250000, 2)
     return max(1, min(mx, int(cap // (px * 1000))))
 IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG, IRON_BRX_L, IRON_BRX_E = 5.0, 6.5, "09:30", "12:30", "12:32", 1.5, 0.15
+IRON_CAP_MAX = 500000   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:設定檔的多空上限最多 50 萬(和主導機能設的範圍一樣)
 IRON_EXIT, JUDGES_ALL = "13:20", ("判一", "判二", "判三", "判四", "判五", "判六", "判七")   # 2026-11-11 22:25 使用者「改13」:設定檔的開關不能關掉鐵律保護
 RE_IRON_EXIT = re.compile(r"超過?\s*[\d.]+\s*%|總停損|移動停損利|鐵律|強制平倉")   # 2026-11-11 21:34 鐵律平倉(含引擎平倉通知標題):有權取消手動預掛、立即平
 IRON_CAP, IRON_AMOUNT, IRON_MTSL = 250000, 5000000.0, 3.0   # ⑤ IRON_CAP = 固定張數模式(cap=0)時的一張上限;2026-11-11 22:24 使用者「針對 2項 改鐵律」:一張上限改以主導機多空上限為準,不再固定最多 25 萬   # 原:一張上限 25 萬(超過 = 超額)、一天總額度 500 萬   # 鐵律(2026-11-11 15:42),見 __init__
@@ -216,7 +217,7 @@ class Trader:
         if not self.judges: self.judges = set(JUDGES_ALL)
         self.brx_l = _lo(self.brx_l, IRON_BRX_L); self.brx_e = _lo(self.brx_e, IRON_BRX_E); self.mtsl = _lo(self.mtsl, IRON_MTSL)   # ⑥ 移動停損利
         # ⑤ 張數分級 + 500 萬額度(2026-11-11 19:29 使用者「這套 也加入 鐵律」):lot_tier_qty(≤ 80 元 最多 3 張且 ≤ 16 萬、80~250 元 最多 2 張且 ≤ 25 萬;一張超過 25 萬 = 超額不做);一天成交總額度 500 萬(買 + 賣、持倉漲停預留)
-        self.lot_tier = True if Trader.IRON_LOTS else self.lot_tier; self.cap = max(self.cap, 0); self.max_amount = _lo(self.max_amount, IRON_AMOUNT)   # ④ 總停損(2026-11-11 19:21 使用者「把這套 叫做 總停損 寫進鐵律 監控所有判別式」)
+        self.lot_tier = True if Trader.IRON_LOTS else self.lot_tier; self.cap = min(max(self.cap, 0), IRON_CAP_MAX); self.master_cap = 0; self.max_amount = _lo(self.max_amount, IRON_AMOUNT)   # ④ 總停損(2026-11-11 19:21 使用者「把這套 叫做 總停損 寫進鐵律 監控所有判別式」)
         self.recheck_times = [x.strip() for x in cfg.get("TRADE_RECHECK", "13:22,13:23,13:24").split(",") if x.strip()]
         self.recheck_at = self.recheck_times[0] if self.recheck_times else "13:23"
         self.recheck_close = cfg.get("TRADE_RECHECK_CLOSE", "all")
@@ -633,6 +634,8 @@ class Trader:
             for c, p in list(self.positions.items()):
                 o = p.get("order")
                 if net.get(c, 0) == 0 and not (o and not o.get("dead")):
+                    if p.get("carry") or c in self.ignore:   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 1:留倉接回(昨天的部位,今天沒成交 → 淨 0)不是「已經沒有部位」,留著給 13:21 平
+                        self.log(f"[交易] {at} 複查:{c} 是留倉接回 / 不管名單的部位,今天成交淨 0 不代表沒部位 → 保留,照程式部位平"); continue
                     self.log(f"[交易] {at} 複查:元大顯示 {c} 已經沒有部位 → 程式這邊結束"); del self.positions[c]
             left = []
             for c, n in net.items():
@@ -758,6 +761,16 @@ class Trader:
         self.check_kill()
         with self.lock:
             p = self.positions.get(code)
+            if p and p["state"] == ENTERING and p.get("forced") and self.hm() >= "09:00":   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 2:強制進場限價只成交一部分(還在進場中)→ 已成交的張數也照 6.5% / 總停損 / 移動停損利盯
+                o = p.get("order")
+                if o and o.get("purpose") == "進場" and o.get("filled", 0) >= 1000 and not o.get("dead") and not p.get("close_after_entry"):
+                    why = self.iron_hit_part(p, code, price, o["cost"] / o["filled"])
+                    if why:
+                        p["forced_close"] = True; p["close_after_entry"] = True
+                        if o.get("no") and not o.get("cancel_sent"): o["cancel_sent"] = True; self.gw.cancel(o["no"], code, o["side"], o["typ"])
+                        self.log(f"[交易] !! {code} 強制進場還在進場中(已成交 {o['filled'] // 1000} 張)碰到{why} → 取消剩下的,已成交的馬上平")
+                        self.alert(f"⛔ {self.name_of(code)} {code} 鐵律平倉:{why}", f"強制進場已成交 {o['filled'] // 1000} 張,剩下的取消、已成交的馬上平")
+                return
             if not p or p["state"] != HOLDING:
                 return
             if self.hm() < "09:00":                                   # 2026-10-28 開盤前的試撮價不算
@@ -765,7 +778,7 @@ class Trader:
             d = p["dir"]
             hit_tp = p["tp"] > 0 and ((price >= p["tp"]) if d > 0 else (price <= p["tp"]))
             hit_sl = p["sl"] > 0 and ((price <= p["sl"]) if d > 0 else (price >= p["sl"]))
-            ref = p.get("ref") or self.ref_of(code) or 0             # 平倉檢查 #10:強三先用手機帶來的昨收(電腦的可能是前幾天留下的)
+            ref = self.ref_of(code) or p.get("ref") or 0             # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 3:先用元大 / 電腦的昨收,手機帶來的只在電腦沒有時用(原:強三先用手機的)
             if not ref and not p.get("ref_warned"):
                 p["ref_warned"] = True; self.log(f"[交易] !! {code} 沒有昨收,±{self.max_move:g}% 保護這檔暫時沒作用")
                 if p.get("forced"): self.alert(f"⚠ {code} 沒有昨收", f"±{self.max_move:g}% 保護暫時沒作用,停利 / 停損 / 13:20 照常")
@@ -1572,7 +1585,7 @@ class Trader:
         """2026-11-03 13:21 使用者「加 強制進場 該股票-6.5%不做多 反之亦然」:現價離昨收 ≤ −6.5% 不給強制做多、≥ +6.5% 不給強制做空;回擋下的原因(沒擋回空字串)"""
         try: y = float(ref) if ref else 0.0
         except Exception: y = 0.0
-        y = y or (self.ref_of(code) or 0); last = self.last_px.get(code) or 0; lim = self.force_block_pct
+        y = (self.ref_of(code) or 0) or y; last = self.last_px.get(code) or 0; lim = self.force_block_pct   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 3:先用元大 / 電腦的昨收,手機的只在電腦沒有時用
         try: last = last or float(px or 0)   # 2026-11-11 16:28 還沒有元大即時價 → 用手機指定的委託價判斷 ±5%
         except Exception: pass
         if not lim > 0: return ""
@@ -1892,6 +1905,25 @@ class Trader:
             if time.time() - self._prot_t > 20: self._prot_t = time.time(); self.save_state()
         except Exception: pass
 
+    def iron_hit_part(self, p, code, price, avg):
+        """2026-11-11 22:35 使用者「改 1 2 3 4 5」 2:進場中已成交部分的鐵律出場(6.5% / 移動停損利 / 總停損);回原因或空字串"""
+        try:
+            d = p["dir"]; ref = self.ref_of(code) or p.get("ref") or 0; mm = self.man_move if self.man_move > 0 else self.max_move
+            if ref > 0 and mm > 0 and ((price <= ref * (1 - mm / 100)) if d > 0 else (price >= ref * (1 + mm / 100))): return f"超{mm:g}%"
+            if self.mtsl > 0:
+                ka = self.ka_now(code)
+                if ka is not None:
+                    a = p.get("mt_a")
+                    if a is None or (d < 0 and ka < a) or (d > 0 and ka > a): p["mt_a"] = a = ka
+                    if (d < 0 and ka > a * (1 + self.mtsl / 100) + 1e-12) or (d > 0 and ka < a * (1 - self.mtsl / 100) - 1e-12): return "移動停損利"
+            if self.brx_l > 0 and avg > 0:
+                if p.get("br0") is None: p["br0"] = self.br_now()
+                if p.get("br0") is not None and (avg - price) / avg * 100 * d > self.brx_l + 1e-9:
+                    b = self.br_now()
+                    if b is not None and ((p["br0"] - b) if d > 0 else (b - p["br0"])) >= self.brx_e - 1e-9: return "總停損"
+        except Exception as e: self.log(f"[交易] 進場中鐵律檢查失敗 {e!r}")
+        return ""
+
     def ka_now(self, code):
         """鐵律 ⑥:Ka = 最近 10 個「已收完」分鐘的收盤平均(這分鐘還在形成的不算);不到 10 分鐘回 None"""
         try:
@@ -2038,7 +2070,7 @@ class Trader:
     def cap_lim(self):
         """鐵律 ⑤ 一張上限 = 主導機的多空上限(cap);cap = 0(固定張數)時用 25 萬(2026-11-11 22:24 使用者「針對 2項 改鐵律」:不再固定最多 25 萬)"""
         if not Trader.IRON_LOTS: return self.cap
-        return self.cap if self.cap > 0 else IRON_CAP
+        return self.cap if self.cap > 0 else (self.master_cap or IRON_CAP)   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:固定張數模式也照主導機
 
     def prehang_wait(self, code):
         """這檔有保留的手動預掛平倉單、還沒到期限 → True(程式先不平)"""
