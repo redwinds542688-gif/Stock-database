@@ -1326,57 +1326,61 @@ class Trader:
             if self.cancel_all:                                   # 13:20 由 bridge 先取消全部掛單再平倉;這裡晚 1 分鐘當備援
                 h, m = map(int, fe.split(":")); fe = f"{h + (m + 1) // 60:02d}:{(m + 1) % 60:02d}"
             for p in list(self.positions.values()):
-                ip = p.get("_iron_pending")   # 2026-11-11 22:20 使用者「手動依舊受程式管束」:手動單併入 / 接回後檢查鐵律(違反 → 整個部位平掉)
-                if ip and p["state"] == HOLDING:
-                    p.pop("_iron_pending", None)
-                    fills = [(t_, px_) for t_, px_ in ip["fills"]] if ip.get("fills") else None
-                    if self.iron_manual(p, ip["px"], ip["lots"], ip["what"], fills=fills): continue
-                o = p.get("order")   # 2026-11-11 22:20 強制進場指定限價 ROD:過了 12:30 還沒成交完 → 取消剩下的(成交的照常接手)
-                if (p["state"] == ENTERING and p.get("forced") and o and o["purpose"] == "進場" and not o.get("dead") and o.get("no")
-                        and hm > self.force_to and (not o.get("exp_cut") or (o["exp_cut"] < 4 and time.time() - o.get("exp_at", 0) > 10))):   # 2026-11-11 22:44 使用者「全改」 12:取消 10 秒還沒結束 → 再送(最多 4 次)
-                    o["exp_cut"] = (o.get("exp_cut") or 0) + 1; o["exp_at"] = time.time(); self.gw.cancel(o["no"], p["code"], o["side"], o["typ"])
-                    if o["exp_cut"] > 1: self.log(f"[交易] {p['code']} 強制進場單 {o['no']} 取消還沒結束 → 再取消一次(第 {o['exp_cut']} 次)"); continue
-                    self.log(f"[交易] {p['code']} 強制進場單 {o['no']} 過了 {self.force_to} 還沒成交完 → 取消(鐵律 ③)")
-                    self.alert(f"⏰ {self.name_of(p['code'])} {p['code']} 強制進場過了 {self.force_to}", "還沒成交的張數已取消(鐵律 ③ 只在 09:30~12:30 進場)")
-                w = p.get("oco_del")
-                if w and time.time() - w["at"] > 5:   # 2026-11-08 20:50 刪條件單 5 秒沒回應 → 再刪一次(最多 3 次);還是沒回應就不掛新的,程式自己盯
-                    if w["tries"] < 3:
-                        w["tries"] += 1; w["at"] = time.time()
-                        if w["no"] not in self.del_q: self.del_q.append(w["no"])
-                        self.gw.delete_oco(w["no"]); self.log(f"[交易] {p['code']} 刪條件單 {w['no']} 沒回應,再刪一次(第 {w['tries']} 次)")
-                    else:
-                        p.pop("oco_del", None)
-                        self.alert(f"⚠ {self.name_of(p['code'])} {p['code']} 元大條件單刪除沒回應", f"舊條件單 {w['no']} 刪了 3 次沒回應,先不掛新的(程式自己盯停損停利);請在投資先生確認條件單")
-                if (p["state"] == HOLDING and p.get("oco_live") and p.get("oco_hit_at") and self.oco_grace > 0
-                        and time.time() - p["oco_hit_at"] >= self.oco_grace and hm < fe):
-                    # 2026-11-08 01:26 條件單保險:碰到停利 / 停損 N 秒了部位還在 → 條件單沒觸發,程式先刪條件單再自己平(漲停 / 跌停)
-                    w = p.pop("oco_hit_why", "停利停損"); p.pop("oco_hit_at", None)
-                    self.log(f"[交易] !! {p['code']} 碰到{w} {self.oco_grace:g} 秒元大條件單還沒平 → 程式刪條件單自己平")
-                    self.alert(f"⚠ {self.name_of(p['code'])} {p['code']} 元大條件單沒觸發", f"碰到{w} {self.oco_grace:g} 秒還沒平,程式已自己平倉")
-                    self.exit_pos(p, f"{w}(條件單沒觸發)", self.last_px.get(p["code"], p["entry"]), force_limit=True)
-                if p["state"] == HOLDING and hm >= fe:
-                    self.exit_pos(p, f"{self.force_exit} 強制平倉", self.last_px.get(p["code"], p["entry"]), force_limit=True)
-                o = p.get("order")
-                if (o and not o.get("dead") and o.get("fallback") and o["purpose"] == "進場" and not o.get("fb_cut")
-                        and time.time() - o["at"] > self.fill_wait):
-                    # 2026-11-08 15:57 使用者「改」:進場補單(漲停買 / 跌停賣 ROD)N 秒沒成交完 → 剩下的取消不追(鎖漲跌停時排隊,晚很久才成交、價格早就離訊號很遠)
-                    #   取消回報回來 → after_report 照已成交的張數(IOC + 補單)轉持倉,0 張就放棄;回報沒來由 30 秒複查(verify)照元大處理
-                    o["fb_cut"] = True
-                    if o.get("no") and not o.get("cancel_sent"): o["cancel_sent"] = True; self.gw.cancel(o["no"], p["code"], o["side"], o["typ"])
-                    else: o["cancel_after"] = True
-                    self.log(f"[交易] {p['code']} 進場補單 {self.fill_wait:.0f} 秒沒成交完(已成交 {o['filled'] // 1000}/{o['want'] // 1000} 張),取消剩下的不追")
-                if o and not o.get("dead") and o.get("tif") != "0" and time.time() - o["at"] > self.fill_wait:
-                    if o.get("no"):
-                        self.log(f"[交易] {p['code']} {o['purpose']} 委託 {self.fill_wait:.0f} 秒沒成交完,取消剩餘"); self.gw.cancel(o["no"], p["code"], o["side"], o["typ"])
-                    if o["purpose"] == "進場":
-                        o["timeout"] = True                            # 2026-10-29 稽核 #5:是程式自己等到逾時(不是元大回報結束)→ after_report 改「等確認」
-                    o["dead"] = True; self.after_report(p)
-                if p.get("wait_confirm") and p["state"] == ENTERING and time.time() - p["wait_confirm"] > self.confirm_wait:
-                    oo = p.get("order")
-                    if not (oo and oo.get("filled")):
-                        if not self.man_only(p, "進場單等確認逾時沒成交"):
-                            self.log(f"[交易] {p['code']} 進場單等確認 {self.confirm_wait:.0f} 秒還是沒有成交回報 → 確定沒成交,放棄(對帳 / 13:22 複查仍以元大為準)")
-                            p["order"] = None; self.positions.pop(p["code"], None); self.mark_skip(p)
+              try:   # 2026-11-12 00:24 使用者「還有什麼漏洞」:一筆部位出錯不能讓其他部位(和 13:20 平倉)整個停掉
+                  ip = p.get("_iron_pending")   # 2026-11-11 22:20 使用者「手動依舊受程式管束」:手動單併入 / 接回後檢查鐵律(違反 → 整個部位平掉)
+                  if ip and p["state"] == HOLDING:
+                      p.pop("_iron_pending", None)
+                      fills = [(t_, px_) for t_, px_ in ip["fills"]] if ip.get("fills") else None
+                      if self.iron_manual(p, ip["px"], ip["lots"], ip["what"], fills=fills): continue
+                  o = p.get("order")   # 2026-11-11 22:20 強制進場指定限價 ROD:過了 12:30 還沒成交完 → 取消剩下的(成交的照常接手)
+                  if (p["state"] == ENTERING and p.get("forced") and o and o["purpose"] == "進場" and not o.get("dead") and o.get("no")
+                          and hm > self.force_to and (not o.get("exp_cut") or (o["exp_cut"] < 4 and time.time() - o.get("exp_at", 0) > 10))):   # 2026-11-11 22:44 使用者「全改」 12:取消 10 秒還沒結束 → 再送(最多 4 次)
+                      o["exp_cut"] = (o.get("exp_cut") or 0) + 1; o["exp_at"] = time.time(); self.gw.cancel(o["no"], p["code"], o["side"], o["typ"])
+                      if o["exp_cut"] > 1: self.log(f"[交易] {p['code']} 強制進場單 {o['no']} 取消還沒結束 → 再取消一次(第 {o['exp_cut']} 次)"); continue
+                      self.log(f"[交易] {p['code']} 強制進場單 {o['no']} 過了 {self.force_to} 還沒成交完 → 取消(鐵律 ③)")
+                      self.alert(f"⏰ {self.name_of(p['code'])} {p['code']} 強制進場過了 {self.force_to}", "還沒成交的張數已取消(鐵律 ③ 只在 09:30~12:30 進場)")
+                  w = p.get("oco_del")
+                  if w and time.time() - w["at"] > 5:   # 2026-11-08 20:50 刪條件單 5 秒沒回應 → 再刪一次(最多 3 次);還是沒回應就不掛新的,程式自己盯
+                      if w["tries"] < 3:
+                          w["tries"] += 1; w["at"] = time.time()
+                          if w["no"] not in self.del_q: self.del_q.append(w["no"])
+                          self.gw.delete_oco(w["no"]); self.log(f"[交易] {p['code']} 刪條件單 {w['no']} 沒回應,再刪一次(第 {w['tries']} 次)")
+                      else:
+                          p.pop("oco_del", None)
+                          self.alert(f"⚠ {self.name_of(p['code'])} {p['code']} 元大條件單刪除沒回應", f"舊條件單 {w['no']} 刪了 3 次沒回應,先不掛新的(程式自己盯停損停利);請在投資先生確認條件單")
+                  if (p["state"] == HOLDING and p.get("oco_live") and p.get("oco_hit_at") and self.oco_grace > 0
+                          and time.time() - p["oco_hit_at"] >= self.oco_grace and hm < fe):
+                      # 2026-11-08 01:26 條件單保險:碰到停利 / 停損 N 秒了部位還在 → 條件單沒觸發,程式先刪條件單再自己平(漲停 / 跌停)
+                      w = p.pop("oco_hit_why", "停利停損"); p.pop("oco_hit_at", None)
+                      self.log(f"[交易] !! {p['code']} 碰到{w} {self.oco_grace:g} 秒元大條件單還沒平 → 程式刪條件單自己平")
+                      self.alert(f"⚠ {self.name_of(p['code'])} {p['code']} 元大條件單沒觸發", f"碰到{w} {self.oco_grace:g} 秒還沒平,程式已自己平倉")
+                      self.exit_pos(p, f"{w}(條件單沒觸發)", self.last_px.get(p["code"], p["entry"]), force_limit=True)
+                  if p["state"] == HOLDING and hm >= fe:
+                      self.exit_pos(p, f"{self.force_exit} 強制平倉", self.last_px.get(p["code"], p["entry"]), force_limit=True)
+                  o = p.get("order")
+                  if (o and not o.get("dead") and o.get("fallback") and o["purpose"] == "進場" and not o.get("fb_cut")
+                          and time.time() - o["at"] > self.fill_wait):
+                      # 2026-11-08 15:57 使用者「改」:進場補單(漲停買 / 跌停賣 ROD)N 秒沒成交完 → 剩下的取消不追(鎖漲跌停時排隊,晚很久才成交、價格早就離訊號很遠)
+                      #   取消回報回來 → after_report 照已成交的張數(IOC + 補單)轉持倉,0 張就放棄;回報沒來由 30 秒複查(verify)照元大處理
+                      o["fb_cut"] = True
+                      if o.get("no") and not o.get("cancel_sent"): o["cancel_sent"] = True; self.gw.cancel(o["no"], p["code"], o["side"], o["typ"])
+                      else: o["cancel_after"] = True
+                      self.log(f"[交易] {p['code']} 進場補單 {self.fill_wait:.0f} 秒沒成交完(已成交 {o['filled'] // 1000}/{o['want'] // 1000} 張),取消剩下的不追")
+                  if o and not o.get("dead") and o.get("tif") != "0" and time.time() - o["at"] > self.fill_wait:
+                      if o.get("no"):
+                          self.log(f"[交易] {p['code']} {o['purpose']} 委託 {self.fill_wait:.0f} 秒沒成交完,取消剩餘"); self.gw.cancel(o["no"], p["code"], o["side"], o["typ"])
+                      if o["purpose"] == "進場":
+                          o["timeout"] = True                            # 2026-10-29 稽核 #5:是程式自己等到逾時(不是元大回報結束)→ after_report 改「等確認」
+                      o["dead"] = True; self.after_report(p)
+                  if p.get("wait_confirm") and p["state"] == ENTERING and time.time() - p["wait_confirm"] > self.confirm_wait:
+                      oo = p.get("order")
+                      if not (oo and oo.get("filled")):
+                          if not self.man_only(p, "進場單等確認逾時沒成交"):
+                              self.log(f"[交易] {p['code']} 進場單等確認 {self.confirm_wait:.0f} 秒還是沒有成交回報 → 確定沒成交,放棄(對帳 / 13:22 複查仍以元大為準)")
+                              p["order"] = None; self.positions.pop(p["code"], None); self.mark_skip(p)
+              except Exception as e_:
+                self.log(f"[交易] !! {p.get('code')} 每秒檢查出錯 {e_!r},跳過這筆、其他部位照常")
+                if time.time() - getattr(self, "_step_err_at", 0) > 300: self._step_err_at = time.time(); self.alert(f"⚠ 電腦檢查部位出錯 {p.get('code')}", f"{e_!r}"[:120] + ";其他部位照常,這檔請在投資先生確認")
             if signals is not None and not self.primed:               # 2026-10-29 稽核 #1:啟動時沒讀到通知 → 第一次讀成功的這批先當「啟動時已有」,不拿來進場
                 self.prime(signals); signals = None
             for it in (signals or []):
@@ -1553,7 +1557,7 @@ class Trader:
                 r = (False, "方向或張數不對")
             elif not self.last_px.get(code):   # 2026-11-11 23:05 使用者「全改」(第三輪) 4:還沒有元大即時價 → 不給強制進場(不再用手機的價格判斷 ±5%)
                 r = (False, "電腦還沒收到這檔的元大即時價,沒辦法確認鐵律 ±5%,請過幾秒再試")
-            elif (px in (None, "") or not float(px or 0)) and not (px := shift(self.last_px[code], self.slip * d)):   # 2026-11-11 00:16 第四輪檢查:沒指定價 → 先算好「現價讓 2 檔」當委託價,後面 ±5% / 一張上限 / 張數 / 額度都用它算(原本張數和上限用現價)
+            elif (px in (None, "") or not float(px or 0)) and not (px := shift(self.last_px[code], self.slip * d)):   # 2026-11-12 00:16 第四輪檢查:沒指定價 → 先算好「現價讓 2 檔」當委託價,後面 ±5% / 一張上限 / 張數 / 額度都用它算(原本張數和上限用現價)
                 r = (False, "算不出委託價")
             elif self.force_block(code, d, ref, px):
                 r = (False, self.force_block(code, d, ref, px))
@@ -1757,7 +1761,7 @@ class Trader:
             if w and (judge is None or judge == w["judge"]):
                 self.late_wait.pop(code, None); self.log(f"[交易] {code} 太晚了等補進場取消:{w['judge']} 已發平倉通知")
             p = self.positions.get(code)
-            if p and (self.exit_match(p, judge) or (p.get("over3") and judge and judge == p.get("judge0") and RE_IRON_EXIT.search(title or ""))):   # 2026-11-11 00:20 使用者「加」:超額補進場(記強三)的部位,原判別式的鐵律平倉通知(超 6.5% / 總平 / 移平)也照平;一般停利停損照判三
+            if p and (self.exit_match(p, judge) or (p.get("over3") and judge and judge == p.get("judge0") and RE_IRON_EXIT.search(title or ""))):   # 2026-11-12 00:20 使用者「加」:超額補進場(記強三)的部位,原判別式的鐵律平倉通知(超 6.5% / 總平 / 移平)也照平;一般停利停損照判三
                 if p["state"] == HOLDING:
                     self.exit_pos(p, "手機平倉通知:" + title, self.last_px.get(code, p["entry"]))
                 elif p["state"] == ENTERING:

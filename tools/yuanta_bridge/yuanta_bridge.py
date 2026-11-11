@@ -1316,7 +1316,10 @@ class Bridge:
                 if self.trader.enabled and getattr(self.trader, "primed", False):
                     loc = self.local_signals(day)
                     if loc: sig = loc + (sig or []) if sig is not None else loc
-                self.trader.step(sig)
+                try: self.trader.step(sig)   # 2026-11-12 00:24 使用者「還有什麼漏洞」:trader 出錯不能讓整個主迴圈斷線重連(那段時間所有部位都沒人盯)
+                except Exception as e:
+                    log("[交易] !! trader.step 出錯", e)
+                    if time.time() - getattr(self, "_step_err", 0) > 300: self._step_err = time.time(); self.phone_alert("⚠ 電腦交易程式出錯", f"{e!r}"[:150] + ";程式照樣繼續跑,請看電腦紀錄")
                 _tw = time.gmtime(time.time() + 8 * 3600)   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:盤中重開 / 開盤前沒讀到 → 盤中也每分鐘讀,讀到為止(主導機盤中禁改,讀到一次就好)
                 if k % 60 == 1 and (time.strftime("%H:%M", _tw) < "09:00" or getattr(self, "cap_ok_day", "") != time.strftime("%Y-%m-%d", _tw)): threading.Thread(target=self.cap_sync, daemon=True).start()   # 2026-11-07 19:32「開盤中不用追蹤主導機設定」09:03 → 09:00 前;2026-11-02 跟 5861 主導機的多空上限:開盤前每分鐘讀,盤中設定禁改 → 09:03 後不讀
                 # 2026-10-29 額度(使用者「我現在要做的是2」):沒開自動交易時沒有人查今天的委託成交 → 每 QUOTA_SEC(60)秒查一次,查到就由 quota_from_report 推上雲端
