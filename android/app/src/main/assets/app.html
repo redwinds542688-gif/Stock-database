@@ -27,6 +27,7 @@
   · 2026-11-10 15:05(實際時間)電腦引擎檢討:「訊號重算消失」的平倉也算進檢討(原本明細虛擬有算、檢討沒算 → 11/10 明細 +4,934 / 檢討 +2,961 對不上;使用者「金額對不上」),11/10 檢討已重推 7 筆 +4,934
   · 2026-11-09 13:32(實際時間)下排燈:收盤後 進場 / 當沖 不亮;明細輸贏燈留著顯示當天結果,到下一個交易日 08:45(開盤前 15 分)才拿掉(使用者「明細左右的贏錢燈跟輸錢燈 在開盤前15分鐘取消」)
   · 2026-11-10 14:58(實際時間)平板開機卡頓修正(使用者「改」;平板紀錄開機 15 秒卡 9.2 秒,電腦模擬量到前 6 秒有 4.7 秒在通知欄量字級):① 量字級改成 40 列一次量完(原本改一列量一列,整欄重排 40 次)② 通知欄畫面外的卡片先不排版(content-visibility,約 350 張卡 7 千多個元素),位置 / 高度和原本完全一樣。模擬開機:量字級 4.7 秒 → 0.5 秒
+  · 2026-11-11 10:15(實際時間)修 K 圖時間軸錯位(使用者「Bug」→「改」):看 K 線圖時,漲跌圖 / 轉折圖的隱藏線還留著舊資料(矽格 1903 根、K 只有 1881 根),K 圖時間標籤整段錯開(10:00 顯示成 09:18);改成看 K 線圖時清空隱藏線,切到漲跌 / 轉折圖再用目前的 K 重算
   · 2026-11-11 00:28(實際時間)中繼自動更新的「盤中不換程式」從 08:45 改成 09:00 開始(使用者「把不更新從 8 點 45 改為 9 點」):電腦 08:45 自動開機時也會先更新到最新版再開工
   · 2026-11-11 00:20(實際時間)判六上線(使用者「把判六啟動 加入明天進場行列」):中繼照判六通知自動下單(多單、停利 +4% 停損 −2%、13:20),明細 / 當沖 / 檢討和其他判別式一起算;同時被選判六優先(23 天 23 筆全勝)
   · 2026-11-11 00:10(實際時間)判六第二次修改(使用者「改」):加早盤量佔比 0.13~0.60(09:00~09:29 的量 ÷ 開盤到訊號的總量;量集中在早盤、之後縮量的不做,濱川 10/22 0.62);23 天 23 筆全勝 +117,935
@@ -385,7 +386,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611110939">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611111015">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6406,13 +6407,13 @@ function rfBias(bars, ma, ma24, ob, obma){
   }
   return out;
 }
-let RF_KEY = '';   // 2026-10-23 10:45 使用者「十字虛線不太順暢」:盤中每 5 秒重畫一次,漲跌圖 / 轉折圖的點、連線、燈號每次都重算重畫(約 100ms)→ 同一根 K 還沒收完就不重算,換新的一根才算
+let RF_KEY = '', RF_CLR = false;   // 2026-10-23 10:45 使用者「十字虛線不太順暢」:盤中每 5 秒重畫一次,漲跌圖 / 轉折圖的點、連線、燈號每次都重算重畫(約 100ms)→ 同一根 K 還沒收完就不重算,換新的一根才算
 function rfDraw(){
   if (!rfLine || !RF_ARGS || RF_ARGS.done === RF_VIEW) return;
   const {bars, sBars, sMa, sOb, sObma, ma24} = RF_ARGS; RF_ARGS.done = RF_VIEW;
   const key = RF_VIEW + ':' + bars.length + ':' + (bars.length ? bars[bars.length - 1].time : 0) + ':' + sBars.length + ':' + (YH.kbPeriod || 28) + ':' + (YH.ocPeriod || 28);
   if (key === RF_KEY) return;   // 和上次一樣的 K(只有最後一根還在跳動)→ 點不會變,不重算
-  RF_KEY = key;
+  RF_KEY = key; RF_CLR = false;
   if (RF_VIEW === 2) return turnDraw(bars, sBars, sMa, ma24, sOb);
   try{
     const sMa24 = sBars === bars ? ma24 : sma(sBars, YH.kbPeriod || 28, 'close', false);
@@ -6500,7 +6501,7 @@ function turnDraw(bars, sBars, sMa, ma24, sOb){
 function rfSetView(v){   // 2026-11-01 從訊息欄進圖時直接指定哪一張(0 K 線圖 / 1 漲跌圖 / 2 轉折圖)
   if (v === RF_VIEW) return;
   RF_VIEW = v; RF_MODE = RF_VIEW > 0; try{ localStorage.setItem('rfMode', String(RF_VIEW)); }catch(e){}
-  if (RF_ARGS) RF_ARGS.done = RF_VIEW;   // 上一檔的資料不重畫(進新的一檔會重算)
+  if (RF_ARGS) RF_ARGS.done = RF_CLR ? -1 : RF_VIEW;   // 上一檔的資料不重畫(進新的一檔會重算);2026-11-11 隱藏線已清空(RF_CLR)→ 切過去要重算
   try{ applyRfMode(); }catch(e){}
 }
 function applyRfMode(){
@@ -6831,6 +6832,7 @@ function drawBars0(bars, code, srcLabel, keepView){
   // 2026-10-22 19:10 使用者:「現在進入k圖 非常慢」:漲跌圖的點和連線只在切到漲跌圖時才算(看 K 線圖時不算)
   RF_ARGS = {bars, sBars, sMa: sMaX, sOb: obCA, sObma: obmaCA, ma24, done: -1, j2: {ma: sMa, ob: sOb, obma: sObma, prevClose, dtShort: src ? !!src.dtShort : undefined}};   // j2 = 判二重算用(和 K 圖訊號同一份參數)   // done = 已經畫好的是哪一張(1 漲跌圖 / 2 轉折圖)
   if (RF_MODE) rfDraw();
+  else if (rfLine && !RF_CLR){ try{ rfLine.setMarkers([]); rfLine.setData([]); if (rfChain) rfChain.setData([]); if (rfAll) rfAll.setData([]); }catch(_){} RF_CLR = true; RF_KEY = ''; }   // 2026-11-11 10:15(實際時間)使用者「Bug」→「改」:看 K 線圖時漲跌 / 轉折的隱藏線還留著舊資料(矽格 1903 根 vs K 1881 根),K 圖時間軸是所有線合起來的 → 時間標籤整段錯位(M時間 / B時間);改成看 K 線圖時清空,切到漲跌 / 轉折圖再用這一檔現在的 K 重算
   const cyc = YH.exitRule ? rpSig.state : null;    // 訊號循環(不受 3.5% 限制),只用來寫小字
   const trade = YH.exitRule ? rp.state : null;     // 真正的交易循環
   const lastMa = maMap.get(last.time);
