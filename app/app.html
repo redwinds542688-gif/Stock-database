@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-11 23:22(實際時間)通知加速:① 電腦在算時,手機先讀電腦的通知,不再等手機自己把整份名單重算完(原本最慢拖好幾秒)② 每分鐘前 25 秒(訊號都在這段出來)每 1.5~2 秒讀一次,其他時間照舊 5 秒 ③ 電腦網頁版同樣 ④ App 1.5.68 背景服務加一個每 2 秒只讀通知的計時(要裝新 APK;沒裝也有 ①)(使用者「幫忙 加速 程式 程式通知」)
   · 2026-11-11 23:07(實際時間)鐵律第三輪全改:留倉部位 13:20 平倉單被取消會馬上重送、手動買回漏回報不會再多買;超額訊號不在 09:30~12:30 不記著補;強制進場沒指定價改「現價讓 2 檔」限價(超過 ±5% 不給進,原本漲停買 / 跌停賣)、電腦沒有元大即時價不給強制進場、成交價超過 ±5% 平掉、手機昨收不再寫進電腦;委託價一張超過上限不進;12:32 後不補單;訊號那根 K 不在 09:30~12:30 不進;App 1.5.67 測試開關只在測試版有效;判四圖總平 / 移平出場價改開盤價(使用者「全改」)
   · 2026-11-11 22:47(實際時間)平倉名稱改短:總停損 → 「總平」、移動停損利 → 「移平」(引擎通知標題、電腦中繼、手機訊號、明細原因都一樣;電腦照樣認得是鐵律平倉,有權取消預掛立即平)(使用者「總停損 =總平 移動停損利=移平」)
   · 2026-11-11 22:46(實際時間)🔒 鐵律 ⑤ 多空上限最多 25 萬:一張上限照主導機,但最多 25 萬(主導機 / 設定檔設更高也用 25 萬);電腦中繼、電腦引擎(超額標記)、手機強制進場視窗、手機訊號都一樣(使用者「最多上限改25萬」)
@@ -425,7 +426,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611112307">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611112322">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7455,7 +7456,7 @@ async function realGone(x){
 }
 async function cloudNotifyNew(force){
   try{
-    const now = Date.now(); if (!force && now - (BG.vAt || 0) < (vwOnly() ? 15000 : 5000)) return 'ok ' + (BG.vN || 0);   // 2026-11-07 使用者「看看還有什麼會拖慢速度的 再檢查」:自己的 App(永久版)讀電腦通知 15 → 5 秒(看盤版維持 15 秒,省 Worker 請求)
+    const now = Date.now(), sec_ = new Date(now).getSeconds(); if (!force && now - (BG.vAt || 0) < (vwOnly() ? 15000 : sec_ < 25 ? 1500 : 5000)) return 'ok ' + (BG.vN || 0);   /* 2026-11-11 23:21 使用者「幫忙 加速 程式 程式通知」:每分鐘前 25 秒(電腦換分鐘第 2 秒開算、訊號都在這段出來)每 1.5 秒讀一次,其他時間照舊 5 秒 */   // 2026-11-07 使用者「看看還有什麼會拖慢速度的 再檢查」:自己的 App(永久版)讀電腦通知 15 → 5 秒(看盤版維持 15 秒,省 Worker 請求)
     BG.vAt = now;
     const d = new Date(now + 8 * 3600000).toISOString().slice(0, 10);
     const r = await fetch(cloudLogUrl() + 'get&d=' + d + '&_=' + now, {cache: 'no-store', signal: AbortSignal.timeout(9000)});
@@ -7472,6 +7473,7 @@ async function cloudNotifyNew(force){
   }catch(e){ return 'err ' + (e && e.message); }
 }
 window.cloudNotifyNew = cloudNotifyNew;
+window.fastNotify = function(){ try{ if (!inSession() || !(window.appKey && appKey.get())) return 'off'; if (vwOnly() || (window.engineOn && engineOn())) { cloudNotifyNew(); return 'ok'; } }catch(e){} return 'skip'; };   /* 2026-11-11 23:21 使用者「幫忙 加速 程式 程式通知」:App 背景服務在每分鐘前 25 秒每 2 秒叫一次(只讀通知,不重算) */
 /* 2026-11-09 09:58 使用者「查一下 電腦版 跟 手機板還有什麼不同」→「改」:電腦版(沒有 Android App)收到新通知
    ① 右下角跳 Windows 通知(第一次點畫面時問「允許通知」);虧損 lv2 以上 / 賠錢平倉的通知停在畫面上,要按掉才消失
    ② 放分級音效(webSnd;Chrome 規定開網頁後要先點一下畫面才能出聲)
@@ -7485,7 +7487,7 @@ function pcNotify(title, body, kind){ try{
 window.pcNotify = pcNotify;
 if (!window.Android){
   ['pointerdown', 'keydown'].forEach(t => document.addEventListener(t, () => { try{ if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); }catch(e){} }, {capture: true, passive: true}));
-  setInterval(() => { try{ if (document.visibilityState === 'hidden' && !dispSession()) return; if (!dispSession() || !(window.appKey && appKey.get())) return; cloudNotifyNew(); }catch(e){} }, 5000);
+  setInterval(() => { try{ if (document.visibilityState === 'hidden' && !dispSession()) return; if (!dispSession() || !(window.appKey && appKey.get())) return; cloudNotifyNew(); }catch(e){} }, 1000);   /* 2026-11-11 23:21 使用者「幫忙 加速 程式 程式通知」:每秒看一次,實際讀不讀由 cloudNotifyNew 決定(前 25 秒 1.5 秒、其他 5 秒) */
 }
 /* (判別式相關說明已移到私人庫) */
 const BG_STATE_KEY = 'mysh.bgstate';

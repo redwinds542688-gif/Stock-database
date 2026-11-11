@@ -68,6 +68,17 @@ class MonitorService : Service() {
     private var pendingReload = false  // 盤中下載了新版、但還有持倉,等沒持倉再重載
     private val dot by lazy { OverlayDot(this) }
 
+    // 2026-11-11 23:21 使用者「幫忙 加速 程式 程式通知」:每分鐘前 25 秒(電腦換分鐘第 2 秒開算,進出場訊號都在這段)每 2 秒只讀一次電腦的通知(不重算),其他時間交給原本 5 秒的 tick
+    private val fastTick = object : Runnable {
+        override fun run() {
+            try {
+                val w = web
+                if (w != null && pageReady && inSession() && ZonedDateTime.now(TZ).second < 25) w.evaluateJavascript("(function(){ try{ return window.fastNotify ? fastNotify() : ''; }catch(e){ return ''; } })()", null)
+            } catch (e: Exception) {}
+            handler.postDelayed(this, 2000L)
+        }
+    }
+
     private val tick = object : Runnable {
         override fun run() {
             val w = web
@@ -123,7 +134,7 @@ class MonitorService : Service() {
         wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "mysh:monitor").apply { acquire() }
         createWeb()
         dot.show()
-        handler.post(tick)
+        handler.post(tick); handler.removeCallbacks(fastTick); handler.postDelayed(fastTick, 2000L)
         running = true; instance = this
         Watchdog.schedule(this)
         NotifLog.add(this, "背景監控啟動", "", "sys")
@@ -153,7 +164,7 @@ class MonitorService : Service() {
         這裡再保險一次:已經在跑(web != null)就什麼都不做,不會重建 WebView、不會多一組計時器 */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) { stopSelf(); return START_NOT_STICKY }
-        if (web != null) Log.d("mysh", "service already running, ignore duplicate start") else { createWeb(); handler.removeCallbacks(tick); handler.post(tick) }
+        if (web != null) Log.d("mysh", "service already running, ignore duplicate start") else { createWeb(); handler.removeCallbacks(tick); handler.post(tick); handler.removeCallbacks(fastTick); handler.postDelayed(fastTick, 2000L) }
         return START_STICKY
     }
 
@@ -181,7 +192,7 @@ class MonitorService : Service() {
     override fun onDestroy() {
         running = false; status = "已停止"; instance = null
         NotifLog.add(this, "背景監控停止", "", "sys")
-        handler.removeCallbacks(tick)
+        handler.removeCallbacks(tick); handler.removeCallbacks(fastTick)
         dot.hide()
         try { web?.destroy() } catch (e: Exception) {}
         web = null
