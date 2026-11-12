@@ -1168,6 +1168,22 @@ export default {
       return resp;
     }
 
+    // ── 2026-11-12 22:06 使用者「那就改用元大參考價來算」:元大清盤參考價(除權息已扣)每天存一份,回測昨收用它
+    //   POST ?yref=push {d, ref:{代號: 參考價}}(中繼,要金鑰,變了才推、5 分鐘最多一次);GET ?yref=日期(14:30 save_cloud_bars.py 存進 kline_yuanta/_ref/)
+    const yr = url.searchParams.get("yref");
+    if (yr) {
+      if (yr === "push") {
+        if (!pushOk) return J({ error: "要金鑰" }, 403);
+        let b = {}; try { b = await request.json(); } catch (e) {}
+        const d = String(b.d || "").slice(0, 10), ref = b.ref && typeof b.ref === "object" ? b.ref : null;
+        if (!/^\d{4}-\d\d-\d\d$/.test(d) || !ref) return J({ error: "格式不對" }, 400);
+        const o = (await hubOf(env).kvGet("yref:" + d)) || {}; let n = 0;
+        for (const c in ref) { const v = +ref[c]; if (/^\d{4,6}[A-Z]?$/.test(c) && v > 0) { o[c] = v; n++; } }
+        await hubOf(env).kvPut("yref:" + d, o); return J({ ok: true, n, total: Object.keys(o).length });
+      }
+      if (!/^\d{4}-\d\d-\d\d$/.test(yr)) return J({ error: "日期格式 YYYY-MM-DD" }, 400);
+      return J({ d: yr, ref: (await hubOf(env).kvGet("yref:" + yr)) || {} });
+    }
     // ── 2026-10-29 當沖額度(使用者「我說的可用資金是訊息右上那個」):POST ?quota=push {d,hm,fill,work,total}(中繼程式每 ~30 秒,要金鑰);
     //    GET ?quota=get → 最近一筆(邊緣快取 10 秒);手機訊息右上角「資金」= total − fill − work − hold ──
     const qt = url.searchParams.get("quota");

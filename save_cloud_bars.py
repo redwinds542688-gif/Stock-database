@@ -69,6 +69,18 @@ def save_yuanta(d):
         n += 1
     print(f"{d} 元大 1 分K 存了 {n} 檔")
 
+def save_yref(d):
+    """2026-11-12 22:06 使用者「那就改用元大參考價來算」:元大清盤參考價(除權息已扣,中繼推到 Worker ?yref)存成 kline_yuanta/_ref/<日期>.json,回測昨收第一優先用它"""
+    try:
+        req = urllib.request.Request(f"{WORKER}/?yref={d}&_={int(datetime.datetime.now().timestamp())}", headers={"User-Agent": "mysh-save-cloud"})
+        ref = (json.loads(urllib.request.urlopen(req, timeout=60).read().decode("utf-8")) or {}).get("ref") or {}
+    except Exception as e:
+        print("參考價抓不到", e); return 0
+    if not ref: print(f"{d} 沒有元大參考價"); return 0
+    out = os.path.join(ROOT, "kline_yuanta", "_ref"); os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, f"{d}.json"), "w", encoding="utf-8") as f: json.dump(dict(sorted(ref.items())), f, ensure_ascii=False)
+    print(f"{d} 元大參考價 {len(ref)} 檔"); return len(ref)
+
 def back_days(d):
     """2026-10-25 使用者「新進榜的股票 要回溯五天抓k」:桌機補抓的前幾天也推到 Worker 了,這裡把今天以前 8 天內 Worker 有的日子一起存(多 1 次請求 + 每天 1 次)"""
     try:
@@ -85,6 +97,7 @@ def main():
     for b in back_days(d):
         save_yuanta(b)
     save_yuanta(d)
+    save_yref(d)   # 2026-11-12 元大參考價(回測昨收)
     url = f"{WORKER}/?bars={d}&_={int(datetime.datetime.now().timestamp())}"
     req = urllib.request.Request(url, headers={"User-Agent": "mysh-save-cloud"})
     with urllib.request.urlopen(req, timeout=60) as r:

@@ -1458,6 +1458,15 @@ class Bridge:
                             self._ref_last = dict(_rf); _p = Path(os.environ.get("ENGINE_DIR", HERE / "engine_data")) / f"ref_{day}.json"
                             _p.parent.mkdir(parents=True, exist_ok=True); _t = _p.with_suffix(".tmp"); _t.write_text(json.dumps(_rf), encoding="utf-8"); os.replace(_t, _p)
                     except Exception as e: log("參考價寫檔失敗", e)
+                    # 2026-11-12 22:06 使用者「那就改用元大參考價來算」:參考價也推一份到 Worker(?yref=push,變了才推、5 分鐘最多一次),14:30 存進 GitHub 給回測當昨收
+                    try:
+                        _rf2 = {c: m["yref"] for c, m in list(self.quotes.meta.items()) if m.get("yref")}
+                        if _rf2 and _rf2 != getattr(self, "_ref_pushed", None) and time.time() - getattr(self, "_ref_push_t", 0) > 300 and CFG.get("PUSH_KEY") and CFG.get("WORKER_URL"):
+                            self._ref_push_t = time.time()
+                            _rq = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?yref=push", data=json.dumps({"d": day, "ref": _rf2}).encode(), method="POST",
+                                                         headers={"Content-Type": "application/json", "X-Push-Key": CFG["PUSH_KEY"], "User-Agent": "yuanta-bridge"})
+                            if json.loads(urllib.request.urlopen(_rq, timeout=15).read().decode()).get("ok"): self._ref_pushed = dict(_rf2)
+                    except Exception as e: log("參考價推 Worker 失敗", e)
                 # 2026-10-30 引擎看門狗:盤中引擎行程結束了(當掉 / 被關)→ 重新開(一天最多 5 次);13:30 後不管
                 if CFG.get("ENGINE", "0") == "1" and k % 30 == 0 and "08:45" <= hm_now < "13:30" and getattr(self, "engine", None) is not None and self.engine.poll() is not None:
                     self.eng_restarts = getattr(self, "eng_restarts", 0) + 1
