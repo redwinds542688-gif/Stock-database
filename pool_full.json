@@ -55,7 +55,7 @@
 "code": "2344",
 "name": "華邦電",
 "market": "twse",
-"lots": 77303
+"lots": 77463
 },
 {
 "code": "6443",
@@ -73,7 +73,7 @@
 "code": "2408",
 "name": "南亞科",
 "market": "twse",
-"lots": 59958
+"lots": 60653
 },
 {
 "code": "1528",
@@ -211,7 +211,7 @@
 "code": "2382",
 "name": "廣達",
 "market": "twse",
-"lots": 32762
+"lots": 32912
 },
 {
 "code": "6148",
@@ -532,6 +532,12 @@
 "lots": 11808
 },
 {
+"code": "5347",
+"name": "世界",
+"market": "tpex",
+"lots": 11420
+},
+{
 "code": "2376",
 "name": "技嘉",
 "market": "twse",
@@ -578,12 +584,6 @@
 "name": "信昌電",
 "market": "tpex",
 "lots": 10560
-},
-{
-"code": "5347",
-"name": "世界",
-"market": "tpex",
-"lots": 10420
 },
 {
 "code": "8111",
