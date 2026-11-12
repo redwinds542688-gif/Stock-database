@@ -717,7 +717,8 @@ export default {
     const what = SLOTS[key];
     if (what) { const r = await dispatch(env, what); console.log(`cron ${event.cron} 台灣 ${key} → ${what}: ${r.msg}`); }
     // 2026-11-07 15:03 改 08:30 抓一次;08:45 只在 08:30 沒抓齊時補抓(usGet 有今天完整的就不抓)
-    if (key === "8:30" || key === "8:45") { try { const v = await usGet(env, false); console.log(`cron 台灣 ${key} 美股:${v ? v.us + " " + v.idx.map(x => x.name + " " + x.pct + "%").join(" ") : "抓不到"}`); } catch (e) { console.log("美股失敗 " + e); } }
+    // 2026-11-12 17:11 使用者「日本韓國 沒有更新」(14:13 請求額度用完,14:40 沒有手機來問就不會重抓)→ 13:40 / 14:40 也由排程自己抓,不靠手機
+    if (key === "8:30" || key === "8:45" || key === "13:40" || key === "14:40" || key === "14:50") { try { const v = await usGet(env, false); console.log(`cron 台灣 ${key} 美股:${v ? v.us + " " + v.idx.map(x => x.name + " " + x.pct + "%").join(" ") : "抓不到"}`); } catch (e) { console.log("美股失敗 " + e); } }
     let snap = ""; try { const r = await snapshotBars(env, true, event.scheduledTime); snap = String(r || ""); if (r !== "off-hours") console.log(`cron 台灣 ${key} 分K:${r}`); } catch (e) { console.log("分K 快照失敗 " + e); }
     try { await pcWatch(env, snap); } catch (e) { console.log("電腦斷線偵測失敗 " + e); }
   },
