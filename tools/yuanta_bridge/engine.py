@@ -825,16 +825,18 @@ class Engine:
             if re.search(r"·\s*強平\s*·", it.get("body", "")):   # 2026-11-02 10:23 使用者「這檔已經平倉者 就不用再通知顯示停利或其他了」
                 mf = re.search(r"\b(\d{4,6})\b", it.get("title", ""))
                 if mf and mf.group(1) not in self.fclosed: self.fclosed.add(mf.group(1)); log(f"{mf.group(1)} 手機強平過 → 今天這檔不再發通知")
-            mj = re.search(r"判[一二三四五七]", it.get("body", "")); rs = RS_OF.get(mj.group(0)) if mj else None
+            mj = re.search(r"判[一二三四五六七]", it.get("body", "")); rs = RS_OF.get(mj.group(0)) if mj else None   # 2026-11-13 00:02 使用者「改 A B」 A:判六也對帳(原本漏掉,重開又沒狀態檔時判六會重發、做空一天 5 檔上限接不回來)
             if not rs: continue
+            if rs == "六" and (it.get("kind") == "short" or (it.get("kind") not in ("long", "short") and re.search(r"做空\s+\d\d:\d\d\s+進", it.get("body", "")))): rs = "六3"   # B:判六做空(進場 kind=short、平倉內容「做空 HH:MM 進」)對回 六3
             if it.get("kind") in ("long", "short"):
                 mc = re.search(r"\b(\d{4,6})\b", it.get("title", "")); mt = re.match(r"\s*(\d\d:\d\d)", it.get("body", ""))
                 if mc and mt: self.cloud_in[(rs, mc.group(1), mt.group(1))] = it
                 if mc and rs == "四" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j4.add(mc.group(1))
-                if mc and rs == "五" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j5.add(mc.group(1))   # 2026-10-31 手機 / 上一個 engine 發過的判四也算進一天上限
+                if mc and rs == "五" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j5.add(mc.group(1))
+                if mc and rs == "六3" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j63.add(mc.group(1))   # A:判六做空一天上限也從雲端接回   # 2026-10-31 手機 / 上一個 engine 發過的判四也算進一天上限
             elif it.get("pos"):
                 p = str(it["pos"]).split("|")
-                if len(p) == 3 and p[0] in RS_OF: self.cloud_out.add((RS_OF[p[0]], p[1], p[2]))
+                if len(p) == 3 and p[0] in RS_OF: self.cloud_out.add(("六3" if rs == "六3" else RS_OF[p[0]], p[1], p[2]))   # B:判六做空的平倉記成 六3
         return True
 
     def push_exit(self, rs, code, p, tm, ex, why, at, phantom=False):
