@@ -1,0 +1,45 @@
+name: 查 Cloudflare Worker 用量(只讀)
+
+# 2026-11-12 14:57 使用者「進程式 太慢 看 bug」:Worker 回 429 / error 1027(免費方案一天 10 萬次請求用完)。
+# 用 GraphQL Analytics 查每小時請求數(不打 Worker、不吃額度);手動 Run workflow。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  usage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 查每小時請求數
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          AID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          AID="$(printf '%s' "$AID" | tr -d '[:space:]')"
+          python3 - <<'PY'
+          import os, json, urllib.request, datetime as dt
+          T = os.environ["TOKEN"].strip(); A = os.environ["AID"]
+          now = dt.datetime.utcnow(); since = (now - dt.timedelta(hours=60)).strftime("%Y-%m-%dT%H:00:00Z"); until = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+          q = """query($a:String!,$s:Time!,$u:Time!){viewer{accounts(filter:{accountTag:$a}){
+            w:workersInvocationsAdaptive(limit:500,filter:{datetime_geq:$s,datetime_leq:$u}){sum{requests subrequests errors}dimensions{datetimeHour scriptName status}}
+          }}}"""
+          req = urllib.request.Request("https://api.cloudflare.com/client/v4/graphql", data=json.dumps({"query": q, "variables": {"a": A, "s": since, "u": until}}).encode(),
+                                       headers={"Authorization": "Bearer " + T, "Content-Type": "application/json"})
+          try: r = json.load(urllib.request.urlopen(req, timeout=30))
+          except Exception as e: print("查詢失敗", e); raise SystemExit(0)
+          if r.get("errors"): print("錯誤", json.dumps(r["errors"], ensure_ascii=False)[:800]); raise SystemExit(0)
+          rows = r["data"]["viewer"]["accounts"][0]["w"]
+          agg = {}
+          for x in rows:
+              d = x["dimensions"]; tw = (dt.datetime.strptime(d["datetimeHour"], "%Y-%m-%dT%H:%M:%SZ") + dt.timedelta(hours=8)).strftime("%m-%d %H")
+              k = (tw, d["scriptName"]); a = agg.setdefault(k, [0, 0, 0]); a[0] += x["sum"]["requests"]; a[1] += x["sum"]["errors"]; a[2] += x["sum"]["subrequests"]
+          day = {}
+          for (h, sc), v in sorted(agg.items()):
+              print(f"台北 {h} 時 {sc:20s} 請求 {v[0]:7,} 錯誤 {v[1]:6,} 子請求 {v[2]:7,}")
+              dd = h[:5]; day[(dd, sc)] = day.get((dd, sc), 0) + v[0]
+          print("--- 每天(UTC 日界 = 台北 08:00)大約:")
+          for k, v in sorted(day.items()): print(k, f"{v:,}")
+          PY
