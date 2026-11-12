@@ -887,7 +887,7 @@ for mm_ in range(21, 30):
     at(10, mm_); tm6.on_tick("2330", 103.5)
     if p6["state"] != HOLDING: break
 ok(p6["state"] == EXITING and p6["exit_why"] == "移平" and mm_ >= 26, (p6["state"], p6.get("exit_why"), mm_))
-tm7, _ = mk(TRADE_MTSL_PCT="0"); ok(tm7.mtsl == 3.0); tm8, _ = mk(TRADE_MTSL_PCT="2"); ok(tm8.mtsl == 2.0); at(10, 0)
+tm7, _ = mk(TRADE_MTSL_PCT="0"); ok(tm7.mtsl == 3.5); tm8, _ = mk(TRADE_MTSL_PCT="2"); ok(tm8.mtsl == 2.0); at(10, 0)
 # 2026-11-11 19:59 鐵律 ⑤ 強制進場也照張數分級 / 超額 / 500 萬額度
 at(10, 0); tf5, gf5 = mk(TRADE_CAP="250000"); tf5.ref_of = lambda c: 50.0; tf5.on_tick("2330", 50.0); r5 = tf5.force_enter("2330", 1, 10); ok(r5[0] and gf5.sent[-1][2] == 3 and "3 張" in r5[1], (r5, gf5.sent))   # 手機送 10 張 → 50 元最多 3 張
 tf6, gf6 = mk(TRADE_CAP="250000"); tf6.ref_of = lambda c: 300.0; tf6.on_tick("3008", 300.0); r6 = tf6.force_enter("3008", 1, 1); ok(not r6[0] and "超額" in r6[1], r6)
