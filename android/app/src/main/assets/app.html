@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-12 12:50(實際時間)通知欄最上面一律是最新的訊息:預掛成交的進場卡、強平 / 元平卡都放到發生那一刻的位置(原本留在進場那格)(使用者「強制平倉的通知卡 手動平倉的通知卡 也都要這樣子做 通知欄上最前面就是顯示最新的訊息」)
   · 2026-11-12 12:48(實際時間)預掛時,那張進場卡(黃色預掛)搬到通知欄最上面(預掛那一刻的位置),之後元平也在同一位置(使用者「這張預掛卡 必須在預掛的當下 排在通知欄最前面」)
   · 2026-11-12 09:05(實際時間)留倉回補在明細顯示成做空、已沖銷(和益 11/12 回補被當成「做多 1 張」);留倉檔加 date / done,回補過的電腦重開也不會再接、再買(使用者「和益是做空的 怎麼寫做多」)
   · 2026-11-12 08:36(實際時間)🔒 鐵律 ⑥ 移動停損利 3% → 3.5%(使用者「解鎖 改 3.5%」):Ka 從最有利點回頭超過 3.5% 才平倉
@@ -436,7 +437,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611121248">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611121250">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7711,14 +7712,14 @@ window.bgTick = bgTick; window.BG = BG;
       const pend = new Map();   // 2026-11-07 code|side → 還沒成交的手動預掛卡
       for (let k = cards.length - 1; k >= 0; k--){ const o = cards[k]; const kk = o.code + '|' + (o.rs || '');
         if (o.type === 'entry' && o.phNew){ pend.set(o.code + '|' + o.side, o); o.__ki = keep.length; keep.push(o); continue; }
-        if (o.type === 'entry'){ const pk = o.code + '|' + o.side, pv = pend.get(pk); if (pv && keep[pv.__ki] === pv){ pend.delete(pk); keep[pv.__ki] = o;   // 預掛成交:同一個位置換成真的進場卡
-            if (!o.madd && !open.has(kk)){ open.set(kk, o); o.__ki = pv.__ki; } continue; } }
+        if (o.type === 'entry'){ const pk = o.code + '|' + o.side, pv = pend.get(pk); if (pv && keep[pv.__ki] === pv){ pend.delete(pk); keep[pv.__ki] = null; const ki_ = keep.length; keep.push(o);   /* 2026-11-12 12:50 使用者「強制平倉的通知卡 手動平倉的通知卡 也都要這樣子做 通知欄上最前面就是顯示最新的訊息」:預掛成交的進場卡放到成交那一刻(最上面),原位置拿掉 */   // 預掛成交:同一個位置換成真的進場卡
+            if (!o.madd && !open.has(kk)){ open.set(kk, o); o.__ki = ki_; } continue; } }
         if (o.type === 'warn' && o.phEnd){ o._hide = true; const pv = [...pend.values()].reverse().find(q => q.code === o.code);
           if (pv){ pend.delete(pv.code + '|' + pv.side); pv._hide = true; } else { const e = [...open.values()].reverse().find(q => q.code === o.code && q.ph); if (e) e.ph = 0; }
           keep.push(o); continue; }
         if (o.type === 'entry' && o.madd){ /* 2026-11-05 手動加碼卡:不蓋掉原本的進場卡,自己也不被蓋 */ }
         else if (o.type === 'entry'){ if (open.has(kk)){ o._hide = true; } else { open.set(kk, o); o.__ki = keep.length; } }
-        else if (o.type === 'exit'){ const e = open.get(kk); if (e && e.ph){ e.ph = 0; open.delete(kk); if (o.fc && keep[e.__ki] === e){ keep[e.__ki] = o; o.__phM = true; continue; } } open.delete(kk); }   /* 2026-11-06 12:25 使用者「如果預掛在元大裡面成交了 就把這張卡片後面預掛改成強平」「是同一張卡片 不是又多一張」:預掛成交的平倉卡直接取代原本那張進場卡(同一個位置),不另外多一張 */   // 2026-11-06 12:22 使用者「如果預掛在元大裡面成交了 就把這張卡片後面預掛改成強平」
+        else if (o.type === 'exit'){ const e = open.get(kk); if (e && e.ph){ e.ph = 0; open.delete(kk); if (o.fc && keep[e.__ki] === e){ keep[e.__ki] = null; keep.push(o); o.__phM = true; continue; }   /* 2026-11-12 12:50 強平 / 元平卡放在平倉那一刻(最上面),進場卡那格拿掉(還是同一張,不多一張) */ } open.delete(kk); }   /* 2026-11-06 12:25 使用者「如果預掛在元大裡面成交了 就把這張卡片後面預掛改成強平」「是同一張卡片 不是又多一張」:預掛成交的平倉卡直接取代原本那張進場卡(同一個位置),不另外多一張 */   // 2026-11-06 12:22 使用者「如果預掛在元大裡面成交了 就把這張卡片後面預掛改成強平」
         else if (o.type === 'warn'){ o._hide = true;
           /* 2026-11-06 12:20 使用者「我在元大預掛的股票進場那邊也要顯示預掛」→ 選 A:電腦發的「預掛」卡不單獨顯示,掛到同一筆進場卡上(右邊「預掛」+ 預掛價);之後平倉了就拿掉 */
           const pm = /預掛(?:買回|賣出)\s*([\d.]+)/.exec((o.x && o.x.title) || ''); if (pm){ const e = open.get(kk) || [...open.entries()].reverse().find(([k2]) => k2.startsWith(o.code + '|'))?.[1]; if (e){ e.ph = +pm[1];
