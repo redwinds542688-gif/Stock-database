@@ -928,7 +928,7 @@ at(13, 21); tc9.on_tick("1709", 50.0); tc9.step([]); ok(pc9["state"] == EXITING 
 # 5) 程式進場中手動同方向成交 5 張 + 程式 3 張 = 8 張 > 分級 3 張 → 下一秒整個部位平掉
 at(10, 0); t5_, g5_ = mk(TRADE_CAP="250000"); t5_.ref_of = lambda c: 50.0; t5_.on_tick("2330", 50.0); t5_.step([ENTX("2330", 50.0)]); p5_ = t5_.positions["2330"]
 t5_.on_report(51, "M5", 0, 5000, 50.0, basket="", code="2330", bs="B"); t5_.on_report(51, "A0001", 0, p5_["order"]["want"], 50.0, basket=p5_["order"]["tag"])
-ok(p5_["state"] == HOLDING and p5_["qty"] == 8, p5_); t5_.step([]); ok(p5_["state"] == EXITING and p5_["exit_why"] == "鐵律", p5_.get("exit_why"))
+ok(p5_["state"] == HOLDING and p5_["qty"] == 8, p5_); t5_.step([]); ok(p5_["state"] == HOLDING, p5_.get("exit_why"))   # 2026-11-12 11:55「解鎖 改:只有手動加碼」:加碼不看分級 → 不平
 # 5b) 程式進場沒成交、只有手動 4 張(> 3)→ 接成部位後平掉
 t5b, g5b = mk(TRADE_CAP="250000", TRADE_ENTRY_FALLBACK="0"); t5b.ref_of = lambda c: 50.0; t5b.on_tick("2330", 50.0); t5b.step([ENTX("2330", 50.0)])
 t5b.on_report(51, "M6", 0, 4000, 50.0, basket="", code="2330", bs="B"); t5b.on_report(50, "A0001", 25, 0, 0); t5b.step([]); ok(t5b.positions["2330"]["state"] == EXITING, t5b.positions["2330"])
@@ -991,11 +991,11 @@ t10_, g10_ = mk(TRADE_CAP="250000"); t10_.ref_of = lambda c: 53.0; t10_.on_tick(
 # 6) 對帳發現張數變多(漏了手動加碼回報):判二 2 張 → 元大 6 張(手動 4 張,超過分級)→ 整個部位平
 at(10, 0); t6r, g6r = mk(TRADE_CAP="250000"); t6r.ref_of = lambda c: 86.2; t6r.on_tick("6269", 86.2); t6r.step([ENT]); t6r.on_report(51, "A0001", 0, 2000, 86.1)
 tg6 = {"A0001": t6r.positions["6269"].get("entry_tag") or "T1"}; tr6 = [{"code": "6269", "bs": "S", "lots": 2, "price": 86.1, "time": "10:00", "order_no": "A0001"}, {"code": "6269", "bs": "S", "lots": 4, "price": 86.0, "time": "10:01", "order_no": "M66"}]
-t6r.reconcile(tr6, [], tg6); t6r.reconcile(tr6, [], tg6); ok(t6r.positions["6269"]["qty"] == 6, t6r.positions["6269"]["qty"]); t6r.step([]); ok(t6r.positions["6269"]["state"] == EXITING, t6r.positions["6269"])
+t6r.reconcile(tr6, [], tg6); t6r.reconcile(tr6, [], tg6); ok(t6r.positions["6269"]["qty"] == 6, t6r.positions["6269"]["qty"]); t6r.step([]); ok(t6r.positions["6269"]["state"] == HOLDING, t6r.positions["6269"])   # 2026-11-12 11:55 手動加碼不看分級
 # 7) 重開接回程式部位,裡面有 12:50 的手動加碼 → 平
 at(13, 0); t7r, g7r = mk(TRADE_CAP="250000"); t7r.ref_of = lambda c: 86.2; t7r.on_tick("6269", 86.2)
 t7r.resume([{"code": "6269", "bs": "S", "lots": 1, "price": 86.1, "time": "10:00", "order_no": "A1"}, {"code": "6269", "bs": "S", "lots": 1, "price": 86.0, "time": "12:50", "order_no": "M2"}], {"A1": "T100000001"}, [], [ENT])
-ok(t7r.positions["6269"]["qty"] == 2); t7r.step([]); ok(t7r.positions["6269"]["state"] == EXITING, t7r.positions["6269"]); at(10, 0)
+ok(t7r.positions["6269"]["qty"] == 2); t7r.step([]); ok(t7r.positions["6269"]["state"] == HOLDING, t7r.positions["6269"]); at(10, 0)   # 2026-11-12 11:55 手動加碼不看時間
 # 11) 補今天 1 分 K → 移動停損利馬上有 Ka
 t11_, _ = mk(); at(10, 30); t11_.seed_mc("2330", [("2026-10-22", f"10:{m:02d}", 0, 0, 0, 100.0 + m, 0) for m in range(12)]); ok(t11_.ka_now("2330") is not None); at(10, 0)
 # 12) 強制進場 12:30 取消沒結束 → 10 秒後再送
@@ -1042,7 +1042,9 @@ at(13, 21); t4c.step([]); ok(g4c.sent[-1][:3] == ("1709", "S", 1), g4c.sent); at
 # 2026-11-12 11:40 使用者「如果以後發現手動單違規 程式這邊就直接取消預掛」:台表科 240 元判四空 1 張,手動預掛加碼空 1 張 → 成交後 2 張超過分級 → 一看到預掛就取消
 at(11, 14); tq1, gq1 = mk(TRADE_CAP="250000"); tq1.ref_of = lambda c: 238.5; tq1.on_tick("6278", 238.0); tq1.step([sig("q1", "short", "台表科 6278 做空進場 238.00", "11:14 空 · 停利 224.91 停損 247.52 · 1張 · 判四")])
 tq1.on_report(51, "A0001", 0, 1000, 238.0, basket=tq1.positions["6278"]["order"]["tag"]); ok(tq1.positions["6278"]["state"] == HOLDING and tq1.positions["6278"]["qty"] == 1, tq1.positions["6278"])
-tq1.on_tick("6278", 243.0); tq1.on_report(50, "M77", 0, 1000, 243.0, "", "6278", "S", "9"); ok(("cancel", "M77", "6278", "S") in gq1.sent and any("違反鐵律,已取消" in a for a in tq1.alerts), (gq1.sent, tq1.alerts))
+tq1.on_tick("6278", 243.0); tq1.on_report(50, "M77", 0, 1000, 243.0, "", "6278", "S", "9"); ok(not [x for x in gq1.sent if x[0] == "cancel"], gq1.sent)   # 11:55「解鎖 改:只有手動加碼」:加碼預掛不取消
+tq1.on_report(51, "M77", 0, 1000, 243.0, "", "6278", "S", "9"); pq1 = tq1.positions["6278"]; tq1.step([]); ok(pq1["state"] == HOLDING and pq1["qty"] == 2 and pq1["judge"] == "元三", pq1)   # 成交 → 2 張由判三管、不平
+tq1.amount_today = 4990000; tq1.on_report(50, "M76", 0, 1000, 243.0, "", "6278", "S", "9"); ok(("cancel", "M76", "6278", "S") in gq1.sent, gq1.sent)   # 加碼超過 500 萬額度 → 一樣取消
 # 沒違反的預掛(80 元一張、空倉)照舊不取消;12:31 以後的新預掛取消;ignore_codes 的不管
 tq2, gq2 = mk(TRADE_CAP="250000"); tq2.ref_of = lambda c: 50.0; tq2.on_tick("2330", 50.0); tq2.on_report(50, "M78", 0, 1000, 50.0, "", "2330", "B", "0"); ok(not [x for x in gq2.sent if x[0] == "cancel"], gq2.sent)
 at(12, 31); tq2.on_report(50, "M79", 0, 1000, 50.0, "", "2331", "B", "0"); ok(("cancel", "M79", "2331", "B") in gq2.sent, gq2.sent)
