@@ -712,6 +712,15 @@ class Bridge:
         if r is None:
             return {"ok": False, "msg": "查不到元大成交回報"}
         names = {k: (v or {}).get("n", "") for k, v in self.quotes.meta.items()}
+        try:   # 2026-11-12 09:01 使用者「和益是做空的 怎麼寫做多」:留倉部位(carry_positions.json,前一天的賣出)今天回補 → 明細只看到今天的買進,被當成「做多 1 張沒沖」
+            #   → 把留倉那筆前一天的成交當成今天第一筆放進來,今天回補就和它配成一趟(顯示做空、已沖銷、輸贏照前一天賣價算)
+            _cf = HERE / "carry_positions.json"
+            if _cf.exists():
+                _td = now_tw().strftime("%Y-%m-%d")
+                _carry = [{"code": str(it["code"]), "bs": "S" if int(it["dir"]) < 0 else "B", "lots": int(it["lots"]), "price": float(it["entry"]), "time": "00:00:00", "order_no": "CARRY"}
+                          for it in (json.loads(_cf.read_text(encoding="utf-8")) or []) if it.get("date", _td) == _td]   # 只放「今天」接回的那筆
+                if _carry: r = dict(r, trades=_carry + list(r["trades"]))
+        except Exception as _e: log("留倉放進明細失敗", _e)
         out = fills_pnl(r["trades"], names, disc=float(CFG.get("FEE_DISC", "0.25")), minfee=int(CFG.get("FEE_MIN", "20")))
         try: out["legs"] = fills_legs(r["trades"], names, disc=float(CFG.get("FEE_DISC", "0.25")), minfee=int(CFG.get("FEE_MIN", "20")))   # 2026-10-29 12:45 每一趟一列(使用者「要改」)
         except Exception as e: log(f"成交配對失敗 {e!r}"); out["legs"] = None

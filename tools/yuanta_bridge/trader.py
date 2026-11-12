@@ -1873,6 +1873,7 @@ class Trader:
             for it in json.loads(f.read_text(encoding="utf-8")) or []:
                 c = str(it["code"]); d = int(it["dir"]); n = int(it["lots"]); e = float(it["entry"])
                 if c in self.positions or n < 1: continue
+                if it.get("done") or (it.get("date") and it["date"] != self.now().strftime("%Y-%m-%d")): continue   # done = 已經回補過(電腦重開也不會再接、再買)   # 2026-11-12 09:01 只接寫明「今天」的留倉(和益 11/12 回補過了,明天不再接、不再買)
                 p = self.new_pos(c, d, FORCED, f"留倉接回 {c}", forced=True)
                 p.update({"qty": n, "entry": e, "state": HOLDING, "t0": self.hm(), "tp_pct": self.y3_tp, "sl_pct": self.y3_sl, "carry": True, "carry0": n, "judge0": it.get("judge", "")})
                 if it.get("typ") is not None: p["typ"] = str(it["typ"])
