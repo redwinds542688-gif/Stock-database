@@ -1,0 +1,37 @@
+name: 雲端自我檢查(推送 / 每日備份 / AI 檢討)
+
+# 2026-11-12 21:00 使用者「都改」:手動按 Run workflow → 用中繼金鑰測 ?log=wait(長輪詢)、跑一次 ?arch=run(R2 / D1 / AI 檢討)、讀回 AI 檢討
+on:
+  workflow_dispatch:
+    inputs:
+      d: { description: 日期 YYYY-MM-DD(空白 = 今天), required: false, default: "" }
+      arch: { description: 要不要重跑每日備份(會發一則 AI 檢討通知), required: false, default: "yes" }
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          K: ${{ secrets.YT_PUSH_KEY }}
+          D: ${{ inputs.d }}
+          A: ${{ inputs.arch }}
+        run: |
+          python3 - <<'PY'
+          import os, json, time, datetime, urllib.request
+          B = "https://twse-proxy.redwinds542688.workers.dev/"; H = {"X-Push-Key": os.environ["K"], "User-Agent": "selftest/1"}
+          d = os.environ.get("D") or (datetime.datetime.utcnow() + datetime.timedelta(hours=8)).strftime("%Y-%m-%d")
+          def get(q, to=60):
+              t = time.time()
+              try: r = urllib.request.urlopen(urllib.request.Request(B + q, headers=H), timeout=to); return r.status, r.read().decode()[:3000], round(time.time() - t, 2)
+              except urllib.error.HTTPError as e: return e.code, e.read().decode()[:500], round(time.time() - t, 2)
+          s, t, sec = get(f"?log=wait&d={d}&v="); print("長輪詢(第一次,應該馬上回)", s, t, sec, "秒")
+          v = json.loads(t).get("v", "") if s == 200 else ""
+          s, t, sec = get(f"?log=wait&d={d}&v={v}"); print("長輪詢(沒有新通知,應該等約 25 秒)", s, t, sec, "秒")
+          if os.environ.get("A", "yes") == "yes":
+              s, t, sec = get(f"?arch=run&d={d}", 120); print("每日備份", s, t, sec, "秒")
+          s, t, sec = get(f"?ai=review&d={d}"); print("AI 檢討", s); print(json.loads(t).get("text", t) if s == 200 else t)
+          PY
