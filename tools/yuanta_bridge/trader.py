@@ -642,7 +642,7 @@ class Trader:
             for c, p in list(self.positions.items()):
                 o = p.get("order")
                 if p.get("carry"):   # 2026-11-11 23:05 使用者「全改」(第三輪) 1/5:留倉接回 → 元大實際剩 = 留倉張數 + 今天成交;沒了(手動買回、回報漏了)→ 結束不再平;還在、平倉單被 13:20 取消 → 馬上重送
-                    live = o and not o.get("dead"); rem = p["dir"] * int(p.get("carry0") or p["qty"]) + net.get(c, 0)
+                    live = o and not o.get("dead"); rem = p["dir"] * int(p["carry0"] if p.get("carry0") is not None else p["qty"]) + net.get(c, 0)
                     if rem == 0 and not live:
                         self.log(f"[交易] {at} 複查:留倉 {c} 元大已經沒有部位(留倉 + 今天成交 = 0)→ 程式這邊結束,不再平"); del self.positions[c]; continue
                     if live or (rem > 0) != (p["dir"] > 0):
@@ -1875,7 +1875,7 @@ class Trader:
                 if c in self.positions or n < 1: continue
                 if it.get("done") or (it.get("date") and it["date"] != self.now().strftime("%Y-%m-%d")): continue   # done = 已經回補過(電腦重開也不會再接、再買)   # 2026-11-12 09:01 只接寫明「今天」的留倉(和益 11/12 回補過了,明天不再接、不再買)
                 p = self.new_pos(c, d, FORCED, f"留倉接回 {c}", forced=True)
-                p.update({"qty": n, "entry": e, "state": HOLDING, "t0": self.hm(), "tp_pct": self.y3_tp, "sl_pct": self.y3_sl, "carry": True, "carry0": n, "judge0": it.get("judge", "")})
+                p.update({"qty": n, "entry": e, "state": HOLDING, "t0": self.hm(), "tp_pct": self.y3_tp, "sl_pct": self.y3_sl, "carry": True, "carry0": 0 if it.get("nofill") else n, "judge0": it.get("judge", "")})   # 2026-11-12 09:25 nofill = 今天自己的成交(元大明細裡已經有)→ 複查不再加一次(不然和益會算成 2 張、平 2 張)
                 if it.get("typ") is not None: p["typ"] = str(it["typ"])
                 self.set_forced_tpsl(p, e); self.sub(p)
                 self.log(f"[交易] 留倉接回 {c} {'多' if d > 0 else '空'} {n} 張 均價 {e}(委託種類 {p['typ']})→ 程式照判三 / 鐵律管:停利 {p['tp']} 停損 {p['sl']},13:20 前平掉")
