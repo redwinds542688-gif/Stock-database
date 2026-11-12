@@ -105,7 +105,7 @@ IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG, IRON_BRX_L, IRON_BRX_E = 5
 IRON_CAP_MAX = 250000   # 2026-11-11 22:46 使用者「最多上限改25萬」:多空上限(設定檔 / 主導機)最多 25 萬   # 原 500000 # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:設定檔的多空上限最多 50 萬(和主導機能設的範圍一樣)
 IRON_EXIT, JUDGES_ALL = "13:20", ("判一", "判二", "判三", "判四", "判五", "判六", "判七")   # 2026-11-11 22:25 使用者「改13」:設定檔的開關不能關掉鐵律保護
 RE_IRON_EXIT = re.compile(r"超過?\s*[\d.]+\s*%|總停損|移動停損利|總平|移平|鐵律|強制平倉")   # 2026-11-11 22:47 使用者「總停損 =總平 移動停損利=移平」:加短名 總平 / 移平   # 2026-11-11 21:34 鐵律平倉(含引擎平倉通知標題):有權取消手動預掛、立即平
-IRON_CAP, IRON_AMOUNT, IRON_MTSL = 250000, 5000000.0, 3.5   # ⑥ 2026-11-12 08:34 3 → 3.5   # ⑤ IRON_CAP = 固定張數模式(cap=0)時的一張上限;2026-11-11 22:24 使用者「針對 2項 改鐵律」:一張上限改以主導機多空上限為準,不再固定最多 25 萬   # 原:一張上限 25 萬(超過 = 超額)、一天總額度 500 萬   # 鐵律(2026-11-11 15:42),見 __init__
+IRON_CAP, IRON_AMOUNT, IRON_MTSL = 250000, 5000000.0, 3.0   # ⑥ 2026-11-13 02:37 🔓 使用者「解鎖 改」:改用股價、3%(2026-11-12 08:34 3 → 3.5)   # ⑤ IRON_CAP = 固定張數模式(cap=0)時的一張上限;2026-11-11 22:24 使用者「針對 2項 改鐵律」:一張上限改以主導機多空上限為準,不再固定最多 25 萬   # 原:一張上限 25 萬(超過 = 超額)、一天總額度 500 萬   # 鐵律(2026-11-11 15:42),見 __init__
 MANUAL = "元三"      # 2026-10-28 使用者:在元大(投資先生)自己下的單,成交後交給判三管
 
 
@@ -166,7 +166,7 @@ class Trader:
         self.man_move = float(cfg.get("TRADE_MANUAL_MAX_MOVE_PCT", "6.5"))   # 2026-11-11 15:36 使用者「所有的判別式都需要受到 ±5% 進場限制跟 ±6.5% 的強力限制 沒有任何特殊可以例外」:元三 / 強三 8.5 → 6.5   # 2026-11-03 13:17 元三 / 強三離昨收 ±8.5% 強制平倉(判一~四照舊 ±6.5%);設成跟 TRADE_MAX_MOVE_PCT 一樣 = 回到原本
         self.j7_move = float(cfg.get("TRADE_J7_MAX_MOVE_PCT", "6.5"))   # 2026-11-11 14:17 使用者「做空 漲跌幅限制+-5% 停損+-6.5」→「做多做空都一樣 解鎖 全改」:判四 / 五 / 七 8% → 6.5%(和其他判別式一樣)
         self.ent_pct = float(cfg.get("TRADE_ENTRY_PCT", "5"))   # 同上:進場時現價離昨收超過 ±5% 不進(多空一樣;0 = 不看)   # 2026-11-11 10:40 判四 / 判五也用這條(使用者「判四判五 都跟判七一樣」→「解鎖 改」)   # 2026-11-09 判七空單強平線(離昨收 %);0 = 跟其他判別式一樣用 TRADE_MAX_MOVE_PCT
-        self.mtsl = float(cfg.get("TRADE_MTSL_PCT", "3.5"));   # 2026-11-12 08:34 使用者「解鎖 改 3.5%」
+        self.mtsl = float(cfg.get("TRADE_MTSL_PCT", "3"));   # 2026-11-12 08:34 使用者「解鎖 改 3.5%」
         self._mc = {}; self._prot0 = None; self._prot_t = 0.0; self._br_warn = 0.0   # 2026-11-11 19:50 鐵律 ⑥ 移動停損利(Ka 從最有利點回頭 > 3% → 平倉)
         self.brx_l = float(cfg.get("TRADE_BRX_LOSS_PCT", "1.5")); self.brx_e = float(cfg.get("TRADE_BRX_DIFF", "0.15"))   # 2026-11-11 19:16 使用者「解鎖 改」:寬度反向停損(帳面虧 > 1.5% 且大盤上漲比例比進場時反向 ≥ 0.15 → 平倉)
         self.lot_tier = cfg.get("TRADE_LOT_TIER", "1") == "1"   # 2026-11-11 14:49 使用者「70 元以內 3 張、150 元以內 2 張、超過 150 元到 250 元 1 張」→「解鎖 都改」(超過 25 萬 = 超額照舊不做)
@@ -808,14 +808,7 @@ class Trader:
             hit_mv = (man or not p.get("no_max_move")) and ref > 0 and mm > 0 and ((price <= ref * (1 - mm / 100)) if d > 0 else (price >= ref * (1 + mm / 100)))
             hit_br = False; hit_mt = False
             if self.mtsl > 0 and not (hit_tp or hit_sl or hit_mv):   # 2026-11-11 19:50 鐵律 ⑥ 移動停損利;20:25 使用者「123478改」② 所有部位都由中繼即時盯一份(判別式部位引擎也會推平倉通知,誰先到誰平)
-                ka = self.ka_now(code)
-                if ka is not None:
-                    a = p.get("mt_a")
-                    if a is None: a = self.prot_get(p, "mt_a")   # ③ 重開接回:用存檔的 a
-                    if a is None or (d < 0 and ka < a) or (d > 0 and ka > a):
-                        p["mt_a"] = a = ka; self.prot_save(p)
-                    else: p["mt_a"] = a
-                    if (d < 0 and ka > a * (1 + self.mtsl / 100) + 1e-12) or (d > 0 and ka < a * (1 - self.mtsl / 100) - 1e-12): hit_mt = True
+                hit_mt = self.mt_px_hit(p, price, d, p.get("entry"))   # 2026-11-13 02:37 鐵律 ⑥ 改用股價(使用者「解鎖 改」)
             if self.brx_l > 0 and not (hit_tp or hit_sl or hit_mv) and p.get("entry"):   # 2026-11-11 19:16 總停損;20:25 ② 所有部位都由中繼即時盯一份
                 if p.get("br0") is None:
                     p["br0"] = self.prot_get(p, "br0")   # ③ 重開接回:用存檔的進場寬度
@@ -1961,6 +1954,21 @@ class Trader:
         except Exception:
             return sl
 
+    def mt_px_hit(self, p, price, d, entry):
+        """2026-11-13 02:37 鐵律 ⑥ 移動停損利改版(使用者「進場後最高價 246.0 × (1 − 3.5%) … 股價一跌破就出場 … 就是這樣」「3.5% 改成 3%」→「解鎖 改」):
+           用股價不用 Ka。最有利價 mt_px 起點 = 進場均價(不含進場前),做多 = 進場後最高價、做空 = 最低價;
+           現價跌破 mt_px × (1 − 3%)(空:漲破 mt_px × (1 + 3%))→ 平倉;先用之前的最有利價判斷,再把這個價算進去。重開接回用存檔的 mt_px"""
+        try:
+            if not (self.mtsl > 0) or not entry or not price: return False
+            a = p.get("mt_px")
+            if a is None: a = self.prot_get(p, "mt_px")
+            if a is None: a = float(entry)
+            hit = (price <= a * (1 - self.mtsl / 100) + 1e-12) if d > 0 else (price >= a * (1 + self.mtsl / 100) - 1e-12)
+            na = max(a, float(price)) if d > 0 else min(a, float(price))
+            if p.get("mt_px") != na: p["mt_px"] = na; self.prot_save(p)
+            return hit
+        except Exception: return False
+
     def prot_get(self, p, k):
         """③ 2026-11-11 20:25:總停損的進場寬度 a(br0)/ 移動停損利的 a(mt_a)存檔,重開接回同一筆(代碼 + 均價一樣)才用"""
         try:
@@ -1972,7 +1980,7 @@ class Trader:
     def prot_save(self, p):
         try:
             if self._prot0 is None: self._prot0 = self.load_state().get("prot") or {}
-            self._prot0[p["code"]] = {"e": p.get("entry"), "br0": p.get("br0"), "mt_a": p.get("mt_a")}
+            self._prot0[p["code"]] = {"e": p.get("entry"), "br0": p.get("br0"), "mt_a": p.get("mt_a"), "mt_px": p.get("mt_px")}
             if time.time() - self._prot_t > 20: self._prot_t = time.time(); self.save_state()
         except Exception: pass
 
@@ -1981,12 +1989,7 @@ class Trader:
         try:
             d = p["dir"]; ref = self.ref_of(code) or p.get("ref") or 0; mm = self.man_move if self.man_move > 0 else self.max_move
             if ref > 0 and mm > 0 and ((price <= ref * (1 - mm / 100)) if d > 0 else (price >= ref * (1 + mm / 100))): return f"超{mm:g}%"
-            if self.mtsl > 0:
-                ka = self.ka_now(code)
-                if ka is not None:
-                    a = p.get("mt_a")
-                    if a is None or (d < 0 and ka < a) or (d > 0 and ka > a): p["mt_a"] = a = ka
-                    if (d < 0 and ka > a * (1 + self.mtsl / 100) + 1e-12) or (d > 0 and ka < a * (1 - self.mtsl / 100) - 1e-12): return "移平"
+            if self.mtsl > 0 and self.mt_px_hit(p, price, d, avg): return "移平"   # 2026-11-13 02:37 ⑥ 改用股價
             if self.brx_l > 0 and avg > 0:
                 if p.get("br0") is None: p["br0"] = self.br_now()
                 if p.get("br0") is not None and (avg - price) / avg * 100 * d > self.brx_l + 1e-9:

@@ -4,6 +4,7 @@ import time
 import datetime as dt, tempfile, os, time
 from pathlib import Path
 from trader import Trader, shift, tick_size, ENTERING, HOLDING, EXITING, amount_reject, fetch_signals
+_MTPX0 = Trader.mt_px_hit; Trader.mt_px_hit = lambda self, *a: _MTPX0(self, *a) if getattr(self, "_mt_test", False) else False   # 2026-11-13 ⑥ 改股價 3% 後會蓋過其他測試的停損情境:只在 ⑥ 專用測試打開
 
 TW = dt.timezone(dt.timedelta(hours=8)); NOW = [dt.datetime(2026, 10, 22, 10, 0, tzinfo=TW)]
 def at(h, m): NOW[0] = dt.datetime(2026, 10, 22, h, m, tzinfo=TW)
@@ -878,16 +879,18 @@ tj_, gj_ = mk(); tj_.cap = 250000; tj_.ref_of = lambda c: 300.0; tj_.on_tick("23
 at(10, 0); tv, gv = mk(TRADE_QTY="5"); tv.on_tick("6269", 86.2); tv.step([ENT]); ok(gv.sent[-1][2] == 2, gv.sent)   # 86.2 元最多 2 張
 tw5, _ = mk(TRADE_CAP="900000", TRADE_LOT_TIER="0", TRADE_MAX_AMOUNT="9000000"); ok(tw5.cap == 250000 and tw5.cap_lim() == 250000 and tw5.lot_tier and tw5.max_amount == 5000000, (tw5.cap, tw5.lot_tier, tw5.max_amount))
 ok(tw5.lots_for(20.0) == 3 and tw5.lots_for(60.0) == 2 and tw5.lots_for(100.0) == 2 and tw5.lots_for(200.0) == 1)
-# 2026-11-11 19:50 鐵律 ⑥ 移動停損利(強三):Ka(10 個已收完分鐘收盤均)從最低回升 > 3% → 平倉;設定關不掉、放不寬
-at(10, 0); tm6, _ = mk(); tm6.ref_of = lambda c: 100.0; tm6.on_tick("2330", 100.0); ok(tm6.force_enter("2330", -1, 1)[0]); tm6.on_report(51, "A0001", 0, 1000, 100.0); p6 = tm6.positions["2330"]
-for mm_, px_ in [(m, 100.0) for m in range(1, 11)] + [(m, 98.0) for m in range(11, 21)]:
+# 2026-11-13 02:37 鐵律 ⑥ 移動停損利改版(強三):用股價,進場後最低價(空)回升 ≥ 3% → 平倉;起點 = 進場價;設定關不掉、放不寬
+at(10, 0); tm6, _ = mk(); tm6.ref_of = lambda c: 100.0; tm6.on_tick("2330", 100.0); ok(tm6.force_enter("2330", -1, 1)[0]); tm6.on_report(51, "A0001", 0, 1000, 100.0); p6 = tm6.positions["2330"]; tm6._mt_test = True
+for mm_, px_ in [(1, 99.0), (2, 97.0), (3, 96.0), (4, 97.5), (5, 98.8)]:
     at(10, mm_); tm6.on_tick("2330", px_)
-ok(p6["state"] == HOLDING and p6["mt_a"] < 98.5, (p6["state"], p6.get("mt_a")))
-for mm_ in range(21, 30):
-    at(10, mm_); tm6.on_tick("2330", 103.5)
-    if p6["state"] != HOLDING: break
-ok(p6["state"] == EXITING and p6["exit_why"] == "移平" and mm_ >= 26, (p6["state"], p6.get("exit_why"), mm_))
-tm7, _ = mk(TRADE_MTSL_PCT="0"); ok(tm7.mtsl == 3.5); tm8, _ = mk(TRADE_MTSL_PCT="2"); ok(tm8.mtsl == 2.0); at(10, 0)
+ok(p6["state"] == HOLDING and abs(p6["mt_px"] - 96.0) < 1e-9, (p6["state"], p6.get("mt_px")))   # 96 × 1.03 = 98.88,98.8 還沒到
+at(10, 6); tm6.on_tick("2330", 98.9)
+ok(p6["state"] == EXITING and p6["exit_why"] == "移平", (p6["state"], p6.get("exit_why")))
+at(10, 0); tm9, _ = mk(); tm9.ref_of = lambda c: 100.0; tm9.on_tick("2331", 100.0); ok(tm9.force_enter("2331", 1, 1)[0]); tm9.on_report(51, "A0001", 0, 1000, 100.0); p9 = tm9.positions["2331"]; tm9._mt_test = True
+at(10, 1); tm9.on_tick("2331", 97.1); ok(p9["state"] == HOLDING, p9["state"])   # 做多:起點 100,97.1 > 97.0 不出
+at(10, 2); tm9.on_tick("2331", 104.0); at(10, 3); tm9.on_tick("2331", 101.0); ok(p9["state"] == HOLDING and p9["mt_px"] == 104.0, (p9["state"], p9.get("mt_px")))   # 最高 104 → 線 100.88
+at(10, 4); tm9.on_tick("2331", 100.8); ok(p9["state"] == EXITING and p9["exit_why"] == "移平", (p9["state"], p9.get("exit_why")))
+tm7, _ = mk(TRADE_MTSL_PCT="0"); ok(tm7.mtsl == 3.0); tm7b, _ = mk(TRADE_MTSL_PCT="3.5"); ok(tm7b.mtsl == 3.0); tm8, _ = mk(TRADE_MTSL_PCT="2"); ok(tm8.mtsl == 2.0); at(10, 0)
 # 2026-11-11 19:59 鐵律 ⑤ 強制進場也照張數分級 / 超額 / 500 萬額度
 at(10, 0); tf5, gf5 = mk(TRADE_CAP="250000"); tf5.ref_of = lambda c: 50.0; tf5.on_tick("2330", 50.0); r5 = tf5.force_enter("2330", 1, 10); ok(r5[0] and gf5.sent[-1][2] == 3 and "3 張" in r5[1], (r5, gf5.sent))   # 手機送 10 張 → 50 元最多 3 張
 tf6, gf6 = mk(TRADE_CAP="250000"); tf6.ref_of = lambda c: 300.0; tf6.on_tick("3008", 300.0); r6 = tf6.force_enter("3008", 1, 1); ok(not r6[0] and "超額" in r6[1], r6)
