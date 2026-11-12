@@ -917,6 +917,15 @@ class Trader:
                 what = ("預掛加碼" if p and p["dir"] == d else "預掛") + ("做多" if d > 0 else "做空")
                 self.man_cards[no] = {"lots": lots, "px": price, "d": d, "fl": 0, "code": code}
                 self.log(f"[交易] {code} 看到手動{what} {lots} 張 @ {price or '市價'}(書號 {no})→ 進場欄發預掛卡,成交後變元三")
+                _iw = self.man_iron_why(code, d, lots, price)
+                if _iw:   # 2026-11-12 11:40 使用者「如果以後發現手動單違規 程式這邊就直接取消預掛」:新進場 / 加碼預掛一看到就檢查鐵律,違反 → 直接取消(不等成交後整個部位平掉)
+                    self.man_cards[no]["iron"] = _iw
+                    self.log(f"[交易] !! {code} 手動{what} {lots} 張 @ {price or '市價'} 違反鐵律({_iw})→ 直接取消這張預掛(書號 {no})")
+                    try: self.gw.cancel(no, code, bs, typ)
+                    except Exception as e: self.log(f"[交易] 取消違規預掛失敗 {e!r}")
+                    try: self.alert(f"⛔ {self.name_of(code)} {code} 手動{what}違反鐵律,已取消", f"{lots} 張 @ {price or '市價'}:{_iw}")
+                    except Exception: pass
+                    return
                 try: self.post(f"{self.name_of(code)} {code} {what} {price:g}" if price else f"{self.name_of(code)} {code} {what} 市價",
                                f"{self.hm()} {'做多' if d > 0 else '做空'} · {lots}張 · 預掛 · 元三", "warn")
                 except Exception as e: self.log(f"[交易] 預掛卡發送失敗 {e!r}")
@@ -1882,6 +1891,24 @@ class Trader:
                 self.alert(f"↪ {self.name_of(c)} {c} 留倉部位交給程式", f"{'多' if d > 0 else '空'} {n} 張 均價 {e},停利 {p['tp']} / 停損 {p['sl']},13:20 前一定平掉")
         except Exception as ex:
             self.log(f"[交易] 留倉接回失敗 {ex!r}")
+
+    def man_iron_why(self, code, d, lots, price):
+        """2026-11-12 11:40 手動新進場 / 加碼預掛(還沒成交)照鐵律先檢查:③ 09:30~12:30 ① 委託價離昨收 ±5% ⑤ 成交後整個部位張數分級 / 一張 25 萬 / 500 萬額度;
+           回違反原因(空字串 = 沒違反)。不管名單(ignore_codes)裡的股票不檢查"""
+        try:
+            if not Trader.IRON_LOTS or code in self.ignore: return ""
+            why = []; hm = self.hm(); ref = self.ref_of(code) or 0
+            px = float(price or 0) or float(self.last_px.get(code) or 0)
+            if not (self.j_from <= hm <= self.force_to): why.append(f"{hm} 不在 {self.j_from}~{self.force_to}")
+            if ref > 0 and px > 0 and abs(px / ref - 1) * 100 > self.ent_pct + 1e-9: why.append(f"價格離昨收 {(px / ref - 1) * 100:+.1f}%(超過 ±{self.ent_pct:g}%)")
+            if px > 0:
+                p = self.positions.get(code); have = p["qty"] if p and p["dir"] == d else 0
+                if px * 1000 > self.cap_lim(): why.append(f"一張 {px * 1000:,.0f} 超過多空上限 {self.cap_lim():,.0f}")
+                elif have + lots > lot_tier_qty(px): why.append(f"成交後共 {have + lots} 張,超過分級 {lot_tier_qty(px)} 張")
+                if self.max_amount > 0 and self.amount_today + px * lots * 1000 > self.max_amount + 1e-6: why.append("成交後超過今天 500 萬額度")
+            return "、".join(why)
+        except Exception as e:
+            self.log(f"[交易] 預掛鐵律檢查失敗 {e!r}"); return ""
 
     def iron_manual(self, p, price, lots, what, fills=None):
         """2026-11-11 20:53 使用者「5.6不是沒做」(⑥ 元大 App 自己下的單也不能例外):手動進場 / 加碼成交後檢查鐵律
