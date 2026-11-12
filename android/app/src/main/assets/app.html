@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-12 14:55(實際時間)監控區收盤後:元大真的有成交的寫「已交易」,有訊號沒成交的(超額 / 資金不夠)寫「未交易」並排在已交易後面(使用者「金居 根本沒交易 不能寫 已交易 要寫 未交易 排序要在 已交易的後面」)
   · 2026-11-12 12:50(實際時間)通知欄最上面一律是最新的訊息:預掛成交的進場卡、強平 / 元平卡都放到發生那一刻的位置(原本留在進場那格)(使用者「強制平倉的通知卡 手動平倉的通知卡 也都要這樣子做 通知欄上最前面就是顯示最新的訊息」)
   · 2026-11-12 12:48(實際時間)預掛時,那張進場卡(黃色預掛)搬到通知欄最上面(預掛那一刻的位置),之後元平也在同一位置(使用者「這張預掛卡 必須在預掛的當下 排在通知欄最前面」)
   · 2026-11-12 09:05(實際時間)留倉回補在明細顯示成做空、已沖銷(和益 11/12 回補被當成「做多 1 張」);留倉檔加 date / done,回補過的電腦重開也不會再接、再買(使用者「和益是做空的 怎麼寫做多」)
@@ -437,7 +438,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611121250">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611121455">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2289,8 +2290,20 @@ window.fmShow = fmShow;
 
 /* 2026-10-30 00:26 使用者「開盤時 顯示監控中 關盤後一直到下一個有交易當天開盤前15分鐘 再消失」「關盤後顯示 已交易」:
    交易日 09:00~13:30 寫「監控中」,其他時間(收盤後、週末、休市,到下一個交易日 08:45 換成新的一天為止)寫「已交易」 */
-function sigTag(){ try{ const n = new Date(Date.now() + 8 * 3600000), hm = n.getUTCHours() * 60 + n.getUTCMinutes(), wd = n.getUTCDay(), hol = window.TW_HOL && TW_HOL.has(n.toISOString().slice(0, 10));
-  return (wd >= 1 && wd <= 5 && !hol && hm >= 9 * 60 && hm <= 13 * 60 + 30) ? '監控中' : '已交易'; }catch(e){ return '監控中'; } }
+/* 2026-11-12 14:54 使用者「股票監控區 像那個 金居 根本沒交易 不能寫 已交易 要寫 未交易 排序要在 已交易的後面」:
+   收盤後:永久會員看元大真的有成交的才寫「已交易」,其他有訊號的寫「未交易」(超額 / 資金不夠 / 沒成交);看盤版照舊 */
+function yTraded(code){ try{
+  if (window.VIEWER || (typeof vwOnly === 'function' && vwOnly())) return true;
+  const C = yTraded.c || (yTraded.c = {t: 0, s: null});
+  if (!C.s || Date.now() - C.t > 30000){
+    let ks = []; try{ for (let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if (/^mysh\.yfills\.\d{4}-\d\d-\d\d$/.test(k)) ks.push(k.slice(12)); } }catch(e){}
+    const tw = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10), d = ks.filter(x => x <= tw).sort().pop();
+    const yf = d ? yFillsOf(d) : null; C.s = new Set([...(yf && yf.rows || []), ...(yf && yf.legs || [])].map(r => String(r.code))); C.t = Date.now(); C.ok = !!yf;
+  }
+  return C.ok ? C.s.has(String(code)) : true;   // 拿不到元大成交就不亂改(照舊寫已交易)
+}catch(e){ return true; } }
+function sigTag(code){ try{ const n = new Date(Date.now() + 8 * 3600000), hm = n.getUTCHours() * 60 + n.getUTCMinutes(), wd = n.getUTCDay(), hol = window.TW_HOL && TW_HOL.has(n.toISOString().slice(0, 10));
+  return (wd >= 1 && wd <= 5 && !hol && hm >= 9 * 60 && hm <= 13 * 60 + 30) ? '監控中' : (code == null || yTraded(code)) ? '已交易' : '未交易'; }catch(e){ return '監控中'; } }
 /* 2026-11-02 22:58 使用者「下面監控股票上下滑動也要順暢」:手指在清單上或清單還在慣性捲動時,不重排、不重畫、不更新價錢(會讓捲動卡一下或跳位);停下來 0.5 秒後再一次補上 */
 window.__ls = window.__ls || {t: 0, on: 0};
 /* 2026-11-03 15:25 使用者「把按鍵左邊的日期時間 改成滾輪式的」:明細標題的日期改成上下轉的滾輪,轉到哪天,下面清單就跳到哪天;清單捲動,滾輪也跟著轉 */
@@ -2327,7 +2340,7 @@ function render(list){
   // 2026-10-21 使用者:「股票怎麼沒有按成交量排序」:原本照名單的成交量(昨天)排,右邊顯示的卻是今天即時累計量 → 有即時量就照今天的量排
   const LV = s => { const r = LIVE.get(s.code); return r && isFinite(r.v) && r.v > 0 ? r.v * 1000 : (s.vol || 0); };
   // 2026-11-11 09:39 使用者「超額 或 未成交的 監控區排序 不可以在有進場的前面」:有進場未平倉(做多中 / 做空中)的一律排最前面,超額 / 未交易 / 監控中 排在後面
-  const HD = s => (s.pos || (window.__openSide && __openSide.has(s.code))) ? 0 : 1;
+  const HD = s => (s.pos || (window.__openSide && __openSide.has(s.code))) ? 0 : !rank.has(s.code) ? 3 : sigTag(s.code) === '未交易' ? 2 : 1;   // 2026-11-12 收盤後 未交易 排在 已交易 後面
   list = list.map((s, i) => [s, i]).sort((a, b) => (HD(a[0]) - HD(b[0])) || (R(a[0]) - R(b[0])) || (LV(b[0]) - LV(a[0])) || (a[1] - b[1])).map(x => x[0]);
   // 2026-11-04 23:03 使用者按成交價 / 成交量排序(LSORT.d 1 = 高→低、-1 = 低→高;沒按 = 原本的排序)
   { const S = window.LSORT || {}; if (S.k){ const f = S.k === 'px' ? lsrtPx : LV; list = list.map((s, i) => [s, i]).sort((a, b) => ((f(b[0]) - f(a[0])) * S.d) || (a[1] - b[1])).map(x => x[0]); } }
@@ -2360,7 +2373,7 @@ function render(list){
                 : (posStatus(s.code) === 'closed' ? '<span class="pos done">已平倉</span>'
                 : (rank.has(s.code) && window.NL_STATUS && NL_STATUS[s.code]) ? `<span class="pos ${NL_STATUS[s.code] === '反彈中' ? 'rebound' : NL_STATUS[s.code] === '預掛中' ? 'ph' : 'attn'}">${NL_STATUS[s.code]}</span>`   // 2026-10-20 反彈中 / 請注意改顯示在這格
                 : (window.__openSide && __openSide.has(s.code)) ? `<span class="pos ${__openSide.get(s.code) === 'long' ? 'long' : 'short'}">${__openSide.get(s.code) === 'long' ? '做多中' : '做空中'}</span>`   // 2026-11-09 12:43 使用者「有進場未平倉的股票 監控中 要改為 做多 或是 做空」(跟當沖同一份)
-                : rank.has(s.code) ? `<span class="pos watch">${sigTag()}</span>` : `<span class="pos code">${s.code}</span>`)   // 2026-10-27 10:15 使用者:「未 改成 股票代碼」:沒訊號、沒進場的就顯示代碼(原本灰底「未」)   // 今天有買賣訊號、但沒手動記部位 → 監控中;長按結束交易 → 已平倉(2026-10-19 起一直顯示,不再 1 分鐘後變回「未」,因為它仍排在前面)
+                : rank.has(s.code) ? `<span class="pos watch">${sigTag(s.code)}</span>` : `<span class="pos code">${s.code}</span>`)   // 2026-10-27 10:15 使用者:「未 改成 股票代碼」:沒訊號、沒進場的就顯示代碼(原本灰底「未」)   // 今天有買賣訊號、但沒手動記部位 → 監控中;長按結束交易 → 已平倉(2026-10-19 起一直顯示,不再 1 分鐘後變回「未」,因為它仍排在前面)
         }</div>
       </div>
       <div></div>
