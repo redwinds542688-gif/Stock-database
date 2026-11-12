@@ -66,7 +66,7 @@ jobs:
           cp wrangler.toml wrangler.base.toml
           if wrangler r2 bucket list 2>/dev/null | grep -q "stock-backup" || wrangler r2 bucket create stock-backup 2>&1 | tee /tmp/r2.txt | grep -qiE "created|already"; then
             printf '\n[[r2_buckets]]\nbinding = "R2"\nbucket_name = "stock-backup"\n' >> wrangler.toml; echo "R2 綁定好"
-          else echo "::warning::R2 建不起來(Token 要 Workers R2 Storage:Edit,且帳號要開通 R2)"; cat /tmp/r2.txt 2>/dev/null | tail -5; fi
+          else echo "::warning::R2 建不起來(Token 要 Workers R2 Storage:Edit,且帳號要開通 R2)"; grep -v "^\s*$" /tmp/r2.txt 2>/dev/null | grep -iE "error|enable|code|✘|auth" | head -8; fi
           DID="$(wrangler d1 list --json 2>/dev/null | python3 -c 'import sys,json; a=json.load(sys.stdin); print(next((x.get("uuid","") for x in a if x.get("name")=="stock-trades"),""))' 2>/dev/null || true)"
           if [ -z "$DID" ]; then OUT="$(wrangler d1 create stock-trades 2>&1 || true)"; echo "$OUT" | tail -8
             DID="$(printf '%s' "$OUT" | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)"; fi
