@@ -658,6 +658,20 @@ function kvCounted(env, ctx) {
     list: (...a) => { bump("list"); return L.list(...a); }, put: (...a) => { bump("put"); return L.put(...a); }, delete: (...a) => { bump("del"); return L.delete(...a); } };
   return Object.assign(Object.create(env), { LOGS: W, __kvc: true });
 }
+// 2026-11-12 15:10 請求計數(使用者「進程式 太慢 看 bug」→ 每天 10 萬次請求額度用完 → 「改」):
+//   每種請求(誰 | 哪個接口)在這個執行個體記憶體累加,滿 300 次或 2 分鐘才寫一次 Hub(一天幾百次 Hub 請求,不吃 KV);日界照台灣日期(額度是 UTC 日界 = 台灣 08:00)
+function reqCount(env, ctx, request, url) {
+  try {
+    const C = globalThis.__reqcnt || (globalThis.__reqcnt = { m: {}, n: 0, at: Date.now() });
+    const sp = url.searchParams, who = request.headers.get("X-Push-Key") ? "pc" : sp.get("k") ? "key" : sp.get("dv") ? "free" : "none";
+    let ep = url.pathname !== "/" ? url.pathname.split("/").slice(0, 2).join("/") : ([...sp.keys()].find(k => !["k", "dv", "_", "d", "mkt", "t"].includes(k)) || "(root)");
+    if (ep === "gh") ep = "gh:" + String(sp.get("path") || "").replace(/^\/+/, "").split("/").slice(0, 2).join("/").replace(/\d{4}-\d\d-\d\d.*$/, "*").slice(0, 40);
+    else if (sp.get(ep) && sp.get(ep).length <= 12 && !/^\d/.test(sp.get(ep))) ep += "=" + sp.get(ep);
+    const key = who + "|" + ep; C.m[key] = (C.m[key] || 0) + 1; C.n++;
+    if ((C.n >= 300 || Date.now() - C.at > 120e3) && env.HUB) { const d = C.m; C.m = {}; C.n = 0; C.at = Date.now();
+      const p = hubOf(env).kvInc("reqcount:" + ymdOf(twNow()), d).catch(() => {}); if (ctx && ctx.waitUntil) ctx.waitUntil(p); }
+  } catch (e) {}
+}
 const kvDown = () => globalThis.__kvDown && Date.now() - globalThis.__kvDown < 10 * 60000;
 const SEENW = new Map();
 const BUGIP = new Map();   // 2026-11-03 抓 bug 上傳不要鑰匙後,每個 IP 每分鐘最多 6 次   // 2026-11-03 鑰匙「最後使用時間」這個執行個體上次試著寫 KV 的時間
@@ -713,6 +727,13 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
 
     const url = new URL(request.url);
+    reqCount(env, ctx, request, url);   // 2026-11-12 15:10 使用者「改」:每天 10 萬次請求額度 14:13 用完(error 1027)→ 記每種請求各幾次,?usage=get 看
+    if (url.searchParams.get("usage") === "get") {
+      const d = (url.searchParams.get("d") || ymdOf(twNow())).slice(0, 10);
+      let v = {}; try { v = (await hubOf(env).kvGet("reqcount:" + d)) || {}; } catch (e) { v = { err: String(e) }; }
+      const tot = Object.values(v).reduce((a, b) => a + (+b || 0), 0);
+      return new Response(JSON.stringify({ d, tot, top: Object.entries(v).sort((a, b) => b[1] - a[1]) }), { headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
+    }
     // 2026-11-01 iPhone 網頁版 App(看盤版):/app = 看盤版網頁,加上 manifest / sw.js / 圖示(公開庫的檔,不用鑰匙;內容和 Android 看盤版一樣)
     if (request.method === "GET" && PWA_FILES[url.pathname] && env && env.GH_TOKEN) {
       const r = await ghRaw(env, PWA_FILES[url.pathname], GH_REF, 60);

@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-12 15:11(實際時間)省雲端額度(14:13 一天 10 萬次請求用完,error 1027):收盤後 / 開盤前畫面在背景不問雲端;盤外 K 線預抓只在開 App 時一輪;Worker 加請求計數 ?usage=get(使用者「進程式 太慢 看 bug」→「改」)
   · 2026-11-12 14:55(實際時間)監控區收盤後:元大真的有成交的寫「已交易」,有訊號沒成交的(超額 / 資金不夠)寫「未交易」並排在已交易後面(使用者「金居 根本沒交易 不能寫 已交易 要寫 未交易 排序要在 已交易的後面」)
   · 2026-11-12 12:50(實際時間)通知欄最上面一律是最新的訊息:預掛成交的進場卡、強平 / 元平卡都放到發生那一刻的位置(原本留在進場那格)(使用者「強制平倉的通知卡 手動平倉的通知卡 也都要這樣子做 通知欄上最前面就是顯示最新的訊息」)
   · 2026-11-12 12:48(實際時間)預掛時,那張進場卡(黃色預掛)搬到通知欄最上面(預掛那一刻的位置),之後元平也在同一位置(使用者「這張預掛卡 必須在預掛的當下 排在通知欄最前面」)
@@ -438,7 +439,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611121455">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611121511">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3310,6 +3311,7 @@ const KPRE = { busy: false };
 async function kPrefetchAll(){
   try{ if (!LOGIC.tried && !vwOnly() && liveOn() && appKey.get() && Date.now() - window.__EARLY.t0 < 12000){ setTimeout(() => { try{ kPrefetchAll(); }catch(e){} }, 1000); return; } }catch(e){}   // 2026-11-10 14:43 公式先下載(平板開機一起抓 K 會讓公式下載逾時),最多等 12 秒
   if (KPRE.busy || !LIST_CODES.length) return;
+  try{ if (!inSession() && KPRE.offOnce) return; KPRE.offOnce = !inSession(); }catch(e){}   // 2026-11-12 15:10 省雲端額度:盤外只在打開 App 時預抓一輪(原本每小時整批重抓),盤中照舊
   try{ if (window.Android && Android.isService && Android.isService()) return; }catch(e){}   // 背景服務那份網頁不抓(不開圖)
   KPRE.busy = true;
   try{ const ver = SRC_DATE || hourKey();
@@ -3469,6 +3471,10 @@ function freeDev(){ try{ let a = (window.Android && Android.androidId) ? String(
   if (/^[0-9a-f]{1,16}$/.test(a) && a !== '9774d56d682e549c' && !/^0+$/.test(a)) return a.padStart(16, '0'); }catch(e){} return appDev; }
 (function(){ const f0 = window.fetch; let askAt = 0;
   window.fetch = function(u, o){
+    /* 2026-11-12 15:10 使用者「改」(雲端一天 10 萬次請求額度 14:13 用完 → 進程式很慢):不在盤中、而且畫面在背景(App 沒開在前面 / 背景服務 / 電腦視窗縮小)→ 問雲端的 GET 先不送
+       (盤中照常;畫面一回到前面就照常;寫入 / POST 照常) */
+    try{ if (typeof u === 'string' && !(o && o.method && o.method !== 'GET') && document.visibilityState === 'hidden' && !inSession() && BASE.liveUrl && u.startsWith(BASE.liveUrl.replace(/\/$/, '')) && !/[?&](log=add|bug=)/.test(u))
+      return Promise.reject(new Error('收盤後背景不問雲端(省額度)')); }catch(e){}
     try{ if (typeof u === 'string' && liveOn() && u.startsWith(BASE.liveUrl.replace(/\/$/, '')) && !/[?&]k=/.test(u)){ const k = appKey.get(); if (k) u += (u.includes('?') ? '&' : '?') + 'k=' + encodeURIComponent(k) + '&dv=' + appDev; else if (/[?&]log=get/.test(u)) u += '&dv=' + freeDev(); } }catch(e){}   // 2026-10-30 免費(沒鑰匙)讀通知也帶手機識別碼,Worker 算 7 天
     const pr = f0.call(this, u, o);
     // 2026-11-01 免鑰匙 30 天(使用者「免鑰匙 30天使用權 7天交易通知」「第 8~30 天 … 也能看到平倉後的結果」「30天後也不能使用了」→「改」):
