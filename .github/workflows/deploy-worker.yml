@@ -57,15 +57,54 @@ jobs:
           printf '\n[[kv_namespaces]]\nbinding = "LOGS"\nid = "%s"\n' "$ID" >> wrangler.toml
           echo "KV LOGS id=$ID"; tail -4 wrangler.toml
 
+      # 2026-11-12 21:00 使用者「都改」(Cloudflare 2 R2 / 3 D1 / 5 Workers AI):沒有就建、有就沿用,綁定接到 wrangler.toml。
+      #   Token 沒權限建不起來 → 只警告、不綁,Worker 照常部署(每日備份那幾項顯示「沒有綁定」)
+      - name: 建立 / 綁定 R2(stock-backup)、D1(stock-trades)、Workers AI
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          cp wrangler.toml wrangler.base.toml
+          if wrangler r2 bucket list 2>/dev/null | grep -q "stock-backup" || wrangler r2 bucket create stock-backup 2>&1 | tee /tmp/r2.txt | grep -qiE "created|already"; then
+            printf '\n[[r2_buckets]]\nbinding = "R2"\nbucket_name = "stock-backup"\n' >> wrangler.toml; echo "R2 綁定好"
+          else echo "::warning::R2 建不起來(Token 要 Workers R2 Storage:Edit,且帳號要開通 R2)"; cat /tmp/r2.txt 2>/dev/null | tail -5; fi
+          DID="$(wrangler d1 list --json 2>/dev/null | python3 -c 'import sys,json; a=json.load(sys.stdin); print(next((x.get("uuid","") for x in a if x.get("name")=="stock-trades"),""))' 2>/dev/null || true)"
+          if [ -z "$DID" ]; then OUT="$(wrangler d1 create stock-trades 2>&1 || true)"; echo "$OUT" | tail -8
+            DID="$(printf '%s' "$OUT" | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)"; fi
+          if [ -n "$DID" ]; then printf '\n[[d1_databases]]\nbinding = "DB"\ndatabase_name = "stock-trades"\ndatabase_id = "%s"\n' "$DID" >> wrangler.toml; echo "D1 綁定好 $DID"
+          else echo "::warning::D1 建不起來(Token 要 D1:Edit)"; fi
+          printf '\n[ai]\nbinding = "AI"\n' >> wrangler.toml
+          tail -15 wrangler.toml
+
       # 2026-11-07 20:41 使用者同意「雲端程式更新失敗推通知」:先用 Node 以模組模式檢查語法(11/07 註解吃掉程式碼那次 node --check 沒抓到)
       - name: 檢查 worker.js 語法
         run: node --input-type=module --check < worker.js
 
       - name: 部署到 Cloudflare Workers
+        id: dep
+        continue-on-error: true
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           command: deploy
+
+      # 2026-11-12 21:00 加了 R2 / D1 / AI 綁定部署失敗(權限不夠)→ 拿掉這三個綁定再部署一次(核心功能不能因為加料停擺)
+      - name: 部署失敗 → 不帶 R2 / D1 / AI 再試一次
+        if: steps.dep.outcome == 'failure'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          echo "::warning::帶 R2 / D1 / AI 綁定部署失敗,改用基本設定部署"
+          python3 - <<'PY'
+          s = open("wrangler.toml", encoding="utf-8").read()
+          for tag in ("\n[[r2_buckets]]", "\n[[d1_databases]]", "\n[ai]"):
+              i = s.find(tag)
+              if i >= 0:
+                  j = s.find("\n[", i + len(tag))
+                  s = s[:i] + (s[j:] if j >= 0 else "\n")
+          open("wrangler.toml", "w", encoding="utf-8").write(s)
+          PY
+          tail -12 wrangler.toml
+          wrangler deploy
 
       # 2026-10-25 使用者「做」:元大中繼程式推 K 線(?ybars=push)要 Worker 密鑰 YT_PUSH_KEY;金鑰只放 GitHub Secrets,這裡帶給 Worker
       - name: 帶上 YT_PUSH_KEY 密鑰(GitHub Secrets 有設才做)

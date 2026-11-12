@@ -1,0 +1,29 @@
+name: 電腦警報
+
+# 2026-11-12 21:00 使用者「都改」(Cloudflare 4 電腦停住發 Email):Worker 偵測電腦斷線 / 資料停住時叫這個 workflow 跑一次、故意失敗,
+# GitHub 會寄「Run failed」信到你 GitHub 帳號的 Email(信件標題就是警報內容)。手機 App 被系統關掉也收得到。
+# 收不到信:GitHub → Settings → Notifications → Actions 勾 Email、「Only notify for failed workflows」。
+run-name: ${{ inputs.title }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      title: { description: 標題, required: true, default: 電腦警報 }
+      body: { description: 內容, required: false, default: "" }
+
+permissions:
+  contents: read
+
+jobs:
+  alert:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: 警報(故意失敗才會寄信)
+        env:
+          T: ${{ inputs.title }}
+          B: ${{ inputs.body }}
+        run: |
+          echo "::error title=${T}::${B}"
+          echo "$T"; echo "$B"
+          exit 1

@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-12 21:00(實際時間)通知改推送(使用者「都改」Cloudflare 1):開盤時段 App / 電腦版連一條 WebSocket 到雲端,電腦發通知或手機下指令,雲端 0.1 秒內推「有新的」過來 → 馬上讀;推送連著時輪詢只剩保險 15 秒(看盤版 30 秒),斷了自動重連並照舊每秒讀
   · 2026-11-12 20:41(實際時間)電腦版通知加快(使用者「電腦版呢」):電腦用主人鑰匙,讀通知速度和手機永久版一樣(前 25 秒每 1 秒、其他 3 秒);另外加背景 Worker 每秒叫醒,瀏覽器縮小 / 被蓋住也不會被 Chrome 壓成 1 分鐘一次
   · 2026-11-12 20:36(實際時間)永久會員通知加快(使用者「先把 永久會員 加快 這最重要」,已升級 Cloudflare Workers Paid):自己的 App 讀電腦通知改成每分鐘前 25 秒每 1 秒、其他時間每 3 秒(原本一律 5 秒);背景服務 2 → 1 秒(APK 1.5.69);看盤版照舊 15 秒
   · 2026-11-12 17:11(實際時間)資訊:13:40 台股、14:40 日韓改由雲端排程自己抓(原本要等手機來問才抓;今天額度用完沒人問到 → 日韓停在 11/11)(使用者「日本韓國 沒有更新」)
@@ -443,7 +444,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611122039">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611122057">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7504,9 +7505,27 @@ async function realGone(x){
     bgLog('[通知·元大已沒有 ' + code + ' 部位,不跳] ' + x.title + ' | ' + x.body); return true;
   }catch(e){ return false; }
 }
+/* 2026-11-12 21:00 使用者「都改」(Cloudflare 1 通知改推送):開盤時段連一條 WebSocket 到雲端(?ws=log),電腦發通知 / 手機下指令,雲端立刻推「有新的」過來
+   → 馬上讀一次 ?log=get(內容、看盤版過濾照舊)。斷線自動重連(3 秒起、最多 1 分鐘);連不上就照舊每秒輪詢,不會漏。電腦版分頁縮小也收得到 */
+const WSN = { ws: null, ok: false, at: 0, fail: 0, v: '' };
+function wsEnsure(){
+  try{
+    const want = dispSession() && window.appKey && appKey.get() && liveOn() && typeof WebSocket !== 'undefined';
+    if (!want){ if (WSN.ws){ try{ WSN.ws.close(); }catch(e){} WSN.ws = null; WSN.ok = false; } return; }
+    if (WSN.ws || Date.now() - WSN.at < Math.min(60000, 3000 * Math.pow(2, WSN.fail))) return;
+    WSN.at = Date.now();
+    const ws = new WebSocket(BASE.liveUrl.replace(/\/$/, '').replace(/^http/, 'ws') + '/?ws=log&k=' + encodeURIComponent(appKey.get()) + '&dv=' + appDev);
+    WSN.ws = ws; let pg = null;
+    ws.onopen = () => { WSN.ok = true; WSN.fail = 0; pg = setInterval(() => { try{ ws.send('ping'); }catch(e){} }, 30000); };
+    ws.onmessage = ev => { try{ if (ev.data === 'pong') return; const j = JSON.parse(ev.data); if (j && j.v && j.v !== WSN.v){ WSN.v = j.v; cloudNotifyNew(true); } }catch(e){} };
+    ws.onclose = ws.onerror = () => { clearInterval(pg); if (WSN.ws === ws){ WSN.ws = null; if (!WSN.ok) WSN.fail++; WSN.ok = false; } };
+  }catch(e){}
+}
+window.wsNotify = WSN;
+setInterval(wsEnsure, 2000);
 async function cloudNotifyNew(force){
   try{
-    const now = Date.now(), sec_ = new Date(now).getSeconds(); if (!force && now - (BG.vAt || 0) < (vwOnly() ? 15000 : (sec_ < 25 ? 900 : 3000))) return 'ok ' + (BG.vN || 0);   /* 2026-11-12 20:36 使用者「先把 永久會員 加快 這最重要」(已升級 Workers Paid):永久版每分鐘前 25 秒(電腦換分鐘第 2 秒開算、訊號都在這段出來)每 1 秒讀一次,其他時間 3 秒;一台約 1 萬次 / 天;看盤版照舊 15 秒 */   /* 2026-11-11 23:21 使用者「幫忙 加速 程式 程式通知」:每分鐘前 25 秒(電腦換分鐘第 2 秒開算、訊號都在這段出來)每 1.5 秒讀一次,其他時間照舊 5 秒 */   // 2026-11-07 使用者「看看還有什麼會拖慢速度的 再檢查」:自己的 App(永久版)讀電腦通知 15 → 5 秒(看盤版維持 15 秒,省 Worker 請求)
+    const now = Date.now(), sec_ = new Date(now).getSeconds(); if (!force && now - (BG.vAt || 0) < (WSN.ok ? (vwOnly() ? 30000 : 15000) : vwOnly() ? 15000 : (sec_ < 25 ? 900 : 3000))) return 'ok ' + (BG.vN || 0);   /* 2026-11-12 21:00 使用者「都改」(Cloudflare 1):推送連著(WSN.ok)= 有新通知雲端會推過來叫我讀,這裡只剩保險 15 秒(看盤版 30 秒)讀一次;推送斷了才照舊輪詢 */   /* 2026-11-12 20:36 使用者「先把 永久會員 加快 這最重要」(已升級 Workers Paid):永久版每分鐘前 25 秒(電腦換分鐘第 2 秒開算、訊號都在這段出來)每 1 秒讀一次,其他時間 3 秒;一台約 1 萬次 / 天;看盤版照舊 15 秒 */   /* 2026-11-11 23:21 使用者「幫忙 加速 程式 程式通知」:每分鐘前 25 秒(電腦換分鐘第 2 秒開算、訊號都在這段出來)每 1.5 秒讀一次,其他時間照舊 5 秒 */   // 2026-11-07 使用者「看看還有什麼會拖慢速度的 再檢查」:自己的 App(永久版)讀電腦通知 15 → 5 秒(看盤版維持 15 秒,省 Worker 請求)
     BG.vAt = now;   /* 2026-11-12 15:33 使用者「5秒」→「改」:雲端一天 10 萬次請求額度用完(主因是 11/11 23:21 起每分鐘前 25 秒每 1.5 秒問一次)→ 一律每 5 秒問一次(sec_ 不再用) */
     const d = new Date(now + 8 * 3600000).toISOString().slice(0, 10);
     const r = await fetch(cloudLogUrl() + 'get&d=' + d + '&_=' + now, {cache: 'no-store', signal: AbortSignal.timeout(9000)});

@@ -474,7 +474,36 @@ export class Hub extends DurableObject {
     this.sql.exec("CREATE TABLE IF NOT EXISTS ybars (d TEXT, m TEXT, bars TEXT, PRIMARY KEY (d, m))");
     this.sql.exec("CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT)");   // 2026-10-29 小東西(當沖額度)
     this.sql.exec("CREATE TABLE IF NOT EXISTS snaps (k TEXT PRIMARY KEY, v TEXT)");   // 2026-11-02 雲端 K 快照 bar: / bas:(原本 KV,KV 每日讀取額度被它用完)
+    // 2026-11-12 21:00 使用者「都改」(Cloudflare 1 通知改推送):通知一有變動(新增 / 刪除)版本號 +1,
+    //   推給連著的 WebSocket(手機 / 電腦版 App,只推「有新的」不推內容,內容照舊 ?log=get 讀、照舊分身分過濾),也叫醒中繼的長輪詢 ?log=wait
+    this.lv = Math.random().toString(36).slice(2, 8) + ":"; this.ln = 0; this.waiters = [];
+    try { ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong")); } catch (e) {}   // 心跳不用叫醒 Hub
   }
+  logVer() { return this.lv + this.ln; }
+  logBump(d) {
+    this.ln++; const v = this.logVer(), w = this.waiters; this.waiters = [];
+    for (const f of w) { try { f(v); } catch (e) {} }
+    const msg = JSON.stringify({ v, d });
+    for (const ws of this.ctx.getWebSockets()) { try { ws.send(msg); } catch (e) {} }
+  }
+  async logWait(v, ms) {
+    const cur = this.logVer(); if (v !== cur) return cur;
+    return await new Promise(res => { let tm = null; const f = x => { clearTimeout(tm); res(x); };
+      tm = setTimeout(() => { this.waiters = this.waiters.filter(z => z !== f); res(this.logVer()); }, Math.max(1000, Math.min(+ms || 25000, 25000))); this.waiters.push(f); });
+  }
+  wsCount() { return this.ctx.getWebSockets().length; }
+  async fetch(request) {
+    if (request.headers.get("Upgrade") !== "websocket") return new Response("要 WebSocket", { status: 426 });
+    if (this.ctx.getWebSockets().length >= 400) return new Response("連線太多", { status: 503 });
+    const pair = new WebSocketPair(), [c, sv] = Object.values(pair);
+    this.ctx.acceptWebSocket(sv);
+    try { sv.send(JSON.stringify({ v: this.logVer(), hello: 1 })); } catch (e) {}
+    return new Response(null, { status: 101, webSocket: c });
+  }
+  webSocketMessage(ws, m) { try { if (m === "ping") ws.send("pong"); } catch (e) {} }
+  webSocketClose(ws, code) { try { ws.close(code === 1005 ? 1000 : code, "bye"); } catch (e) {} }
+  webSocketError(ws) { try { ws.close(1011, "err"); } catch (e) {} }
+  ybarAll(d) { return this.sql.exec("SELECT m, bars FROM ybars WHERE d = ? ORDER BY m", d).toArray().map(r => ({ m: r.m, bars: r.bars })); }   // 2026-11-12 21:00 每天存 R2 用
   kvPut(k, v) { this.sql.exec("INSERT OR REPLACE INTO kv (k, v) VALUES (?, ?)", k, JSON.stringify(v)); return { ok: true }; }
   kvGet(k) { const r = this.sql.exec("SELECT v FROM kv WHERE k = ?", k).toArray(); return r.length ? JSON.parse(r[0].v) : null; }
   bugList() { return this.sql.exec("SELECT k, length(v) AS n FROM kv WHERE k LIKE 'bug:%' ORDER BY k").toArray().map(r => ({ k: r.k, size: r.n })); }   // 2026-11-03 抓 bug 紀錄改存 Hub
@@ -500,6 +529,7 @@ export class Hub extends DurableObject {
       this.sql.exec("INSERT INTO exited (d, pos) VALUES (?, ?)", d, pos);
     }
     this.sql.exec("INSERT OR REPLACE INTO logs (d, k, t, item) VALUES (?, ?, ?, ?)", d, k, item.t, JSON.stringify(item));
+    this.logBump(d);
     return { ok: true, key: k };
   }
   logGet(d) {
@@ -508,6 +538,7 @@ export class Hub extends DurableObject {
   logDel(d, prefix) {
     const n = this.sql.exec("SELECT COUNT(*) AS n FROM logs WHERE d = ? AND substr(k, 1, ?) = ?", d, prefix.length, prefix).one().n;
     this.sql.exec("DELETE FROM logs WHERE d = ? AND substr(k, 1, ?) = ?", d, prefix.length, prefix);
+    if (n) this.logBump(d);
     return n;
   }
   logImport(d, rows) {   // 2026-10-27 21:45 KV 舊日子搬進 Hub(一次)
@@ -604,6 +635,7 @@ async function pcWatch(env, snap) {
       let ws = null; try { ws = await hub.kvGet("pcwarn"); } catch (e) {}
       if (why.length && (!ws || ws.d !== d || now - (+ws.at || 0) >= 10 * 60e3)) {
         await add("⚠ 電腦資料停住", why.join(";") + "。部位停利停損仍由中繼 / 元大條件單盯著,請看一下電腦");
+        try { await mailAlert(env, "⚠ 電腦資料停住 " + hhmm, why.join(";")); } catch (e) {}
         await hub.kvPut("pcwarn", { d, at: now });
       }
     }
@@ -614,6 +646,7 @@ async function pcWatch(env, snap) {
       const lastTxt = last ? new Date(last + 8 * 3600e3).toISOString().slice(11, 16) : "今天還沒有";
       const posTxt = pos.length ? `最後知道的持倉 ${pos.length} 檔:` + pos.slice(0, 8).map(p => `${p.name || p.code}${p.code && p.name ? " " + p.code : ""} ${p.dir > 0 ? "多" : "空"}${p.qty}張`).join("、") : "最後知道的持倉:沒有(或還沒問到)";
       await add(`⚠⚠ 電腦斷線${st.down ? "(還沒恢復)" : ""}`, `電腦最後回報 ${lastTxt};程式現在沒有在盯停利 / 停損、13:20 也不會自動平倉。${posTxt}。請用投資先生手動處理`);
+      try { await mailAlert(env, `⚠⚠ 電腦斷線 ${hhmm}`, `電腦最後回報 ${lastTxt};程式沒有在盯停利 / 停損。${posTxt}。請用投資先生手動處理`); } catch (e) {}
       st.down = true; st.sent = now; st.n = (st.n || 0) + 1; await hub.kvPut("pcdown", st);
     }
   } else if (st.down){
@@ -621,6 +654,86 @@ async function pcWatch(env, snap) {
     st.down = false; st.sent = 0; st.since = 0; await hub.kvPut("pcdown", st);
   }
   if (st.down && !st.since) { st.since = now; await hub.kvPut("pcdown", st); }
+}
+
+/* 2026-11-12 21:00 使用者「都改」(Cloudflare 4 電腦停住發 Email):Cloudflare 寄信要有自己的網域,改用 GitHub —— 叫 pc-alert.yml 跑一次、故意失敗,
+   GitHub 會寄「Run failed:<標題>」到你 GitHub 帳號的 Email(手機 App 被系統關掉也收得到)。跟手機通知同一個時機(10 分鐘最多一次) */
+async function mailAlert(env, title, body) {
+  if (!env || !env.GH_TOKEN) return { ok: false };
+  try {
+    const r = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/actions/workflows/pc-alert.yml/dispatches`, { method: "POST",
+      headers: { "Authorization": `Bearer ${env.GH_TOKEN}`, "Accept": "application/vnd.github+json", "User-Agent": "mysh-worker", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
+      body: JSON.stringify({ ref: GH_REF, inputs: { title: String(title).slice(0, 90), body: String(body || "").slice(0, 900) } }) });
+    return { ok: r.status === 204, status: r.status };
+  } catch (e) { return { ok: false, err: String(e) }; }
+}
+
+/* 2026-11-12 21:00 使用者「都改」(Cloudflare 2 / 3 / 5):每個交易日台北 14:05 起(沒做完每分鐘再試,做完記 arch:<日期>)
+   2 R2 備份:day/<日期>/logs.json(通知)、ybars.json(元大 1 分 K)、pc_<名稱>.json(電腦雲端備份:大盤寬度、監控名單、引擎狀態、成交、被擋訊號…)
+   3 D1 資料庫:trades(元大每一趟)、notes(通知)、blocked(被擋 / 等回區間的訊號)、reviews(AI 檢討);?db=q&sql=SELECT…(中繼金鑰 / owner)查
+   5 Workers AI 檢討:拿今天元大成交 + 被擋訊號 + 通知,寫 300 字內的檢討 → 存起來(?ai=review&d=)+ 發一則只有自己看得到的通知(結尾「· 元大中繼」,看盤版過濾掉) */
+const AI_MODELS = ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/meta/llama-3.1-8b-instruct"];
+async function aiReview(env, d, legs, net, blocked, logs) {
+  if (!env.AI) return null;
+  const L = [];
+  L.push(`日期 ${d},元大今天實際成交合計淨輸贏 ${net == null ? "未知" : net} 元。`);
+  if (legs && legs.length) { L.push("每一趟(進場時間→出場時間 名稱 方向 進價→出價 張數 淨輸贏):");
+    for (const g of legs.slice(0, 40)) L.push(`${String(g.t0 || "").slice(0, 5)}→${String(g.t || "").slice(0, 5)} ${g.name || g.code} ${g.dir} ${g.ent}→${g.ex} ${g.lots}張 ${g.net}`); }
+  else L.push("今天元大沒有成交。");
+  const ent = (logs || []).filter(x => x.kind === "long" || x.kind === "short"), ex = (logs || []).filter(x => ["loss", "profit", "exit"].includes(x.kind));
+  L.push(`程式通知:進場 ${ent.length} 則、出場 ${ex.length} 則。`);
+  const pcs = (logs || []).filter(x => x.kind === "pc").map(x => x.title).slice(0, 15); if (pcs.length) L.push("電腦提醒:" + pcs.join("、"));
+  if (blocked && blocked.length) { L.push(`被鐵律 / 大盤條件擋下或等回區間的訊號 ${blocked.length} 筆(節錄):`); for (const b of blocked.slice(-25)) L.push(`${b.rs} ${b.name || b.code} ${b.line}`); }
+  const sys = "你是台股當沖程式交易的檢討助理。只能根據使用者給的資料寫,不可以編造沒給的數字或股票。用繁體中文(台灣用語)寫 300 字以內,分四段:1 今天輸贏總結 2 賺最多 / 虧最多的單和原因線索(只從資料推)3 被擋掉的訊號看起來擋得對不對(資料不夠就說不知道)4 明天要注意的一兩件事。不要給投資建議,不要用簡體字。";
+  for (const m of AI_MODELS) {
+    try { const r = await env.AI.run(m, { messages: [{ role: "system", content: sys }, { role: "user", content: L.join("\n").slice(0, 6000) }], max_tokens: 700 });
+      const t = String((r && (r.response || r.result || "")) || "").trim(); if (t) return { text: t, model: m }; } catch (e) { console.log("AI 失敗 " + m + " " + e); }
+  }
+  return null;
+}
+async function dailyArchive(env, d, force) {
+  const hub = hubOf(env), out = { d, at: new Date(Date.now() + 8 * 3600e3).toISOString().slice(11, 19) };
+  if (!force) { let st = null; try { st = await hub.kvGet("arch:" + d); } catch (e) {} if (st && st.done) return { skip: true, ...st }; }
+  let logs = []; try { logs = await hub.logGet(d); } catch (e) {}
+  const pcb = {};
+  for (const nm of ["breadth", "codes", "engine", "state", "pos", "pnl", "blocked", "signals", "fills"]) { try { const x = await hub.kvGet(`pcbk:${d}:${nm}`); if (x && x.v != null) pcb[nm] = x.v; } catch (e) {} }
+  const fills = pcb.fills && pcb.fills.d === d ? pcb.fills : null, legs = fills && Array.isArray(fills.legs) ? fills.legs : [], blocked = Array.isArray(pcb.blocked) ? pcb.blocked : [];
+  // 5 AI 檢討(先做,R2 / D1 一起存)
+  let rv = null;
+  try { const old = await hub.kvGet("aireview:" + d); if (old && old.text && !force) rv = old; } catch (e) {}
+  if (!rv && (legs.length || logs.length)) { rv = await aiReview(env, d, legs, fills ? fills.net : null, blocked, logs);
+    if (rv) { rv.at = out.at; await hub.kvPut("aireview:" + d, rv);
+      const key = `log:${d}:14:05:yt|aireview`;
+      try { await hub.logAdd(d, key, { t: "14:05", title: "📝 今日檢討(AI)", body: rv.text.replace(/\s+/g, " ").slice(0, 420) + " · 元大中繼", kind: "pc" }, ""); } catch (e) {} } }
+  out.ai = rv ? rv.model : (env.AI ? "沒寫(沒有資料或 AI 失敗)" : "沒有綁定 AI");
+  // 2 R2
+  if (env.R2) { try {
+      const put = (k, v) => env.R2.put(`day/${d}/${k}`, typeof v === "string" ? v : JSON.stringify(v), { httpMetadata: { contentType: k.endsWith(".txt") ? "text/plain; charset=utf-8" : "application/json; charset=utf-8" } });
+      await put("logs.json", logs); let n = 1;
+      try { const yb = await hub.ybarAll(d); if (yb.length) { await put("ybars.json", yb); n++; } } catch (e) {}
+      for (const [k, v] of Object.entries(pcb)) { await put(`pc_${k}.json`, v); n++; }
+      if (rv) { await put("review.txt", rv.text); n++; }
+      out.r2 = n; } catch (e) { out.r2 = "失敗 " + String(e).slice(0, 120); } }
+  else out.r2 = "沒有綁定 R2";
+  // 3 D1
+  if (env.DB) { try {
+      const DB = env.DB, P = (q, ...a) => DB.prepare(q).bind(...a);
+      await DB.batch([
+        DB.prepare("CREATE TABLE IF NOT EXISTS trades (d TEXT, code TEXT, name TEXT, dir TEXT, t0 TEXT, t TEXT, ent REAL, ex REAL, lots INTEGER, gross INTEGER, fee INTEGER, tax INTEGER, net INTEGER)"),
+        DB.prepare("CREATE TABLE IF NOT EXISTS notes (d TEXT, t TEXT, kind TEXT, code TEXT, rs TEXT, title TEXT, body TEXT)"),
+        DB.prepare("CREATE TABLE IF NOT EXISTS blocked (d TEXT, t TEXT, rs TEXT, code TEXT, name TEXT, line TEXT)"),
+        DB.prepare("CREATE TABLE IF NOT EXISTS reviews (d TEXT PRIMARY KEY, model TEXT, text TEXT)"),
+        DB.prepare("CREATE INDEX IF NOT EXISTS trades_d ON trades (d)"), DB.prepare("CREATE INDEX IF NOT EXISTS notes_d ON notes (d)"), DB.prepare("CREATE INDEX IF NOT EXISTS blocked_d ON blocked (d)")]);
+      const st = [P("DELETE FROM trades WHERE d = ?", d), P("DELETE FROM notes WHERE d = ?", d), P("DELETE FROM blocked WHERE d = ?", d)];
+      for (const g of legs) st.push(P("INSERT INTO trades VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", d, String(g.code || ""), String(g.name || ""), String(g.dir || ""), String(g.t0 || ""), String(g.t || ""), +g.ent || 0, +g.ex || 0, +g.lots || 0, +g.gross || 0, +g.fee || 0, +g.tax || 0, +g.net || 0));
+      for (const x of logs) st.push(P("INSERT INTO notes VALUES (?,?,?,?,?,?,?)", d, String(x.t || ""), String(x.kind || ""), ((String(x.title || "").match(/(\d{4,6}[A-Z]*)/) || [])[1]) || "", ((String(x.body || "").match(/(判[一二三四五六七])/) || [])[1]) || "", String(x.title || ""), String(x.body || "")));
+      for (const b of blocked) st.push(P("INSERT INTO blocked VALUES (?,?,?,?,?,?)", d, String(b.t || ""), String(b.rs || ""), String(b.code || ""), String(b.name || ""), String(b.line || "")));
+      if (rv) st.push(P("INSERT OR REPLACE INTO reviews VALUES (?,?,?)", d, rv.model || "", rv.text));
+      for (let i = 0; i < st.length; i += 90) await DB.batch(st.slice(i, i + 90));
+      out.db = { trades: legs.length, notes: logs.length, blocked: blocked.length }; } catch (e) { out.db = "失敗 " + String(e).slice(0, 160); } }
+  else out.db = "沒有綁定 D1";
+  out.done = true; await hub.kvPut("arch:" + d, out);
+  return out;
 }
 
 async function pushTier(env, s) {
@@ -738,6 +851,9 @@ export default {
     if (key === "8:30" || key === "8:45" || key === "13:40" || key === "14:40" || key === "14:50") { try { const v = await usGet(env, false); console.log(`cron 台灣 ${key} 美股:${v ? v.us + " " + v.idx.map(x => x.name + " " + x.pct + "%").join(" ") : "抓不到"}`); } catch (e) { console.log("美股失敗 " + e); } }
     let snap = ""; try { const r = await snapshotBars(env, true, event.scheduledTime); snap = String(r || ""); if (r !== "off-hours") console.log(`cron 台灣 ${key} 分K:${r}`); } catch (e) { console.log("分K 快照失敗 " + e); }
     try { await pcWatch(env, snap); } catch (e) { console.log("電腦斷線偵測失敗 " + e); }
+    // 2026-11-12 21:00 使用者「都改」:交易日 14:05~14:59 做每日備份(R2 / D1 / AI 檢討),做完一次就不再做
+    try { const wd = t.getUTCDay(), hm = t.getUTCHours() * 60 + t.getUTCMinutes();
+      if (wd >= 1 && wd <= 5 && hm >= 14 * 60 + 5 && hm < 15 * 60 && snap !== "holiday" && env.HUB) { const r = await dailyArchive(env, ymdOf(t), false); if (!r.skip) console.log("每日備份 " + JSON.stringify(r)); } } catch (e) { console.log("每日備份失敗 " + e); }
   },
 
   async fetch(request, env, ctx) {
@@ -807,6 +923,53 @@ export default {
       MC.set("emo:" + kq, { v: true, at: Date.now() }); KI = { ...KI, role: "owner", emoP: true };
     }
     const ownerKI = !!(KI && KI.role === "owner" && (!KI.dev || dv));
+    // 2026-11-12 21:00 使用者「都改」(Cloudflare 1 通知改推送):
+    //   ?ws=log  → WebSocket 連到 Hub,通知有變動就收到 {v};App 收到馬上 ?log=get(內容、身分過濾照舊)。要鑰匙 / 中繼金鑰 / 手機識別碼
+    //   ?log=wait&v= → 長輪詢(中繼用,中繼金鑰或 owner):版本跟 v 不同就馬上回,不然最多等 25 秒;回 {v}
+    if (url.searchParams.get("ws") === "log") {
+      if (!env || !env.HUB) return J({ error: "沒有 Hub" }, 503);
+      if (!(KI || pushOk || /^[a-f0-9]{16}$/.test(dv))) return J({ error: "要鑰匙", badKey: true }, 403);
+      if (request.headers.get("Upgrade") !== "websocket") return J({ error: "要 WebSocket" }, 426);
+      return hubOf(env).fetch(request);
+    }
+    if (url.searchParams.get("log") === "wait") {
+      if (!env || !env.HUB) return J({ error: "沒有 Hub" }, 503);
+      if (!(pushOk || ownerKI)) return J({ error: "要中繼金鑰或 owner 鑰匙" }, 403);
+      const v = await hubOf(env).logWait(String(url.searchParams.get("v") || ""), 25000);
+      return new Response(JSON.stringify({ v }), { headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
+    }
+    // 2026-11-12 21:00 使用者「都改」:每日備份手動跑 / AI 檢討 / D1 查詢(都只給中繼金鑰或 owner 鑰匙)
+    if (url.searchParams.get("arch") === "run") {
+      if (!(pushOk || ownerKI)) return J({ error: "要中繼金鑰或 owner 鑰匙" }, 403);
+      const d = (url.searchParams.get("d") || ymdOf(twNow())).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return J({ error: "d 要是 YYYY-MM-DD" }, 400);
+      return J(await dailyArchive(env, d, true));
+    }
+    if (url.searchParams.get("ai") === "review") {
+      if (!(pushOk || ownerKI)) return J({ error: "要中繼金鑰或 owner 鑰匙" }, 403);
+      const d = (url.searchParams.get("d") || ymdOf(twNow())).slice(0, 10);
+      return J((await hubOf(env).kvGet("aireview:" + d)) || { error: "這天還沒有檢討" });
+    }
+    if (url.searchParams.get("db") === "q") {
+      if (!(pushOk || ownerKI)) return J({ error: "要中繼金鑰或 owner 鑰匙" }, 403);
+      if (!env.DB) return J({ error: "沒有綁定 D1" }, 503);
+      const q = String(url.searchParams.get("sql") || "").trim().replace(/;\s*$/, "");
+      if (!/^select\s/i.test(q) || q.includes(";") || /\b(insert|update|delete|drop|alter|create|replace|attach|pragma)\b/i.test(q)) return J({ error: "只能 SELECT" }, 400);
+      try { const r = await env.DB.prepare(q).all(); return J({ rows: (r.results || []).slice(0, 2000), n: (r.results || []).length }); } catch (e) { return J({ error: String(e).slice(0, 300) }, 400); }
+    }
+    if (url.searchParams.get("r2") === "list") {
+      if (!(pushOk || ownerKI)) return J({ error: "要中繼金鑰或 owner 鑰匙" }, 403);
+      if (!env.R2) return J({ error: "沒有綁定 R2" }, 503);
+      const r = await env.R2.list({ prefix: String(url.searchParams.get("p") || "day/"), limit: 500 });
+      return J({ n: r.objects.length, objects: r.objects.map(o => ({ k: o.key, size: o.size })) });
+    }
+    if (url.searchParams.get("r2") === "get") {
+      if (!(pushOk || ownerKI)) return J({ error: "要中繼金鑰或 owner 鑰匙" }, 403);
+      if (!env.R2) return J({ error: "沒有綁定 R2" }, 503);
+      const o = await env.R2.get(String(url.searchParams.get("p") || ""));
+      if (!o) return J({ error: "沒有這個檔" }, 404);
+      return new Response(o.body, { headers: { ...CORS, "Content-Type": (o.httpMetadata && o.httpMetadata.contentType) || "application/octet-stream" } });
+    }
     const keysQ = url.searchParams.get("keys");
     // 2026-10-29 17:39 取件碼(使用者:「存在你這 你幫我遮起來 我用手機來複製」→ 鑰匙不經對話):桌機 ?keys=stash(中繼金鑰)把鑰匙存成 6 位數取件碼(10 分鐘、用一次就刪),
     //   手機在鑰匙視窗輸入 6 位數 → ?keys=pick&code= 拿到鑰匙

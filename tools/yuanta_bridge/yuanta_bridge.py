@@ -1127,6 +1127,30 @@ class Bridge:
         except Exception as e:
             log("複查失敗", e)
 
+    def sig_waiter(self, day):
+        """2026-11-12 21:00 使用者「都改」(Cloudflare 1 推送):背景執行緒對 Worker 長輪詢 ?log=wait(最多 25 秒,雲端一有新通知 / 手機指令就回)→ 叫主迴圈馬上讀。
+           回傳 True = 長輪詢正常(主迴圈改成有通知才讀 + 每 15 秒保險讀一次);False = 不通(舊版 Worker / 斷網)→ 主迴圈照舊每秒讀"""
+        if not hasattr(self, "_sig_kick"):
+            self._sig_kick = threading.Event(); self._lp_ok = 0.0
+            def run():
+                v = ""; bad = 0
+                while True:
+                    _n = now_tw()
+                    if _n.weekday() >= 5 or not ("08:30" <= _n.strftime("%H:%M") <= "13:40"): time.sleep(30); continue   # 盤外不問(省額度)
+                    try:
+                        dd = _n.strftime("%Y-%m-%d")
+                        r = urllib.request.urlopen(urllib.request.Request(f"{CFG['WORKER_URL'].rstrip('/')}/?log=wait&d={dd}&v={urllib.parse.quote(v)}", headers={"X-Push-Key": CFG.get("PUSH_KEY", "")}), timeout=40)
+                        js = json.loads(r.read().decode("utf-8")); nv = str(js.get("v") or "")
+                        if not nv: raise ValueError("沒有 v")
+                        if v and nv != v: self._sig_kick.set()
+                        v = nv; self._lp_ok = time.time(); bad = 0
+                    except Exception as e:
+                        bad += 1
+                        if bad in (1, 10) or bad % 60 == 0: log(f"[推送] 長輪詢不通(第 {bad} 次),先照舊每秒讀:{e!r}"[:200])
+                        time.sleep(min(30, 2 * bad))
+            threading.Thread(target=run, daemon=True).start()
+        return time.time() - self._lp_ok < 45
+
     def pc_backup(self, day):
         """2026-11-12 20:22 使用者「改」(升級 Workers Paid 後物盡其用 1):每分鐘一次 POST ?pcbk=put —— 今天的大盤寬度、引擎實際監控的股票、
            中繼部位(含總停損 / 移動停損利的起點)、狀態檔;回測 / 檢討 / 電腦重灌都用同一份。失敗只記紀錄,不影響交易"""
@@ -1384,7 +1408,10 @@ class Bridge:
                     subs, self.pending_sub = self.pending_sub, []
                     try: self.subscribe(subs)
                     except Exception as e: log("補訂閱失敗", e)
-                sig = fetch_signals(CFG["WORKER_URL"], day, CFG.get("PUSH_KEY", "")) if (self.trader.enabled and k % max(1, int(CFG.get("SIG_POLL_SEC", "1") or 1)) == 0) else None   # 手機通知每 SIG_POLL_SEC 秒看一次(2026-11-12 20:22 使用者「改」:升級 Workers Paid 後 3 → 1 秒,手機強制進場 / 強平 1 秒內收到;約 +12,000 次 / 天)
+                _lp = self.sig_waiter(day)   # 2026-11-12 21:00 使用者「都改」(Cloudflare 1):雲端有新通知才讀(長輪詢,手機下單 0.x 秒到);長輪詢不通就照舊每 SIG_POLL_SEC 秒讀
+                _due = (k % max(1, int(CFG.get("SIG_POLL_SEC", "1") or 1)) == 0) if not _lp else (self._sig_kick.is_set() or k % 15 == 0)
+                if _lp and _due: self._sig_kick.clear()
+                sig = fetch_signals(CFG["WORKER_URL"], day, CFG.get("PUSH_KEY", "")) if (self.trader.enabled and _due) else None   # 手機通知每 SIG_POLL_SEC 秒看一次(2026-11-12 20:22 使用者「改」:升級 Workers Paid 後 3 → 1 秒,手機強制進場 / 強平 1 秒內收到;約 +12,000 次 / 天)
                 # 2026-10-30 01:32 使用者「先做A」:電腦引擎寫在本機的通知每秒讀一次,不用等 Worker / 3 秒輪詢(訊號算出來 1 秒內送單);還沒 prime 好不讀(避免舊訊號)
                 if self.trader.enabled and getattr(self.trader, "primed", False):
                     loc = self.local_signals(day)
@@ -1452,6 +1479,8 @@ class Bridge:
             if self.api and self.logged_in.is_set():
                 self._fills_cache = None; fj = self.trade_fills(); log(f"收工前存今天成交:{'好' if fj.get('ok') else fj.get('msg')}")
         except Exception as e: log("收工前存成交失敗", e)
+        try: self.pc_backup(day)   # 2026-11-12 21:00 使用者「都改」(Cloudflare 2/3/5):收工最後一份備份(含今天完整成交),雲端 14:05 存 R2 / D1、寫 AI 檢討
+        except Exception as e: log("收工備份失敗", e)
         log(f"收工:逐筆 {self.n_ticks} 筆,推送 {len(self.sent)} 分鐘;交易 {self.trader.n_trades} 筆 淨 {self.trader.pnl:+,.0f} {self.trader.journal}")
         if getattr(self, "engine", None):
             try:
