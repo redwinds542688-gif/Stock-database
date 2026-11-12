@@ -1,45 +1,86 @@
 name: 查 Cloudflare Worker 用量(只讀)
 
 # 2026-11-12 14:57 使用者「進程式 太慢 看 bug」:Worker 回 429 / error 1027(免費方案一天 10 萬次請求用完)。
-# 用 GraphQL Analytics 查每小時請求數(不打 Worker、不吃額度);手動 Run workflow。
+# 2026-11-12 20:45 使用者「明天之後 把一天使用量算出來」:每天台北 00:07 自動跑,算前一天(台北日界)的
+#   Worker 請求數 + Durable Object 請求數,寫進 app/cf_usage.json 和 Cloudflare用量.md。
+#   用 GraphQL Analytics 查(不打 Worker、不吃額度)。CLOUDFLARE_ACCOUNT_ID 沒設 → 用 token 問 /accounts 拿。
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '7 16 * * *'   # UTC 16:07 = 台北 00:07
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency: { group: cf-usage, cancel-in-progress: false }
 
 jobs:
   usage:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: 查每小時請求數
+      - uses: actions/checkout@v4
+      - name: 查每天請求數
         env:
           TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           AID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          AID="$(printf '%s' "$AID" | tr -d '[:space:]')"
           python3 - <<'PY'
           import os, json, urllib.request, datetime as dt
-          T = os.environ["TOKEN"].strip(); A = os.environ["AID"]
-          now = dt.datetime.utcnow(); since = (now - dt.timedelta(hours=60)).strftime("%Y-%m-%dT%H:00:00Z"); until = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-          q = """query($a:String!,$s:Time!,$u:Time!){viewer{accounts(filter:{accountTag:$a}){
-            w:workersInvocationsAdaptive(limit:500,filter:{datetime_geq:$s,datetime_leq:$u}){sum{requests subrequests errors}dimensions{datetimeHour scriptName status}}
-          }}}"""
-          req = urllib.request.Request("https://api.cloudflare.com/client/v4/graphql", data=json.dumps({"query": q, "variables": {"a": A, "s": since, "u": until}}).encode(),
-                                       headers={"Authorization": "Bearer " + T, "Content-Type": "application/json"})
-          try: r = json.load(urllib.request.urlopen(req, timeout=30))
-          except Exception as e: print("查詢失敗", e); raise SystemExit(0)
-          if r.get("errors"): print("錯誤", json.dumps(r["errors"], ensure_ascii=False)[:800]); raise SystemExit(0)
-          rows = r["data"]["viewer"]["accounts"][0]["w"]
-          agg = {}
-          for x in rows:
-              d = x["dimensions"]; tw = (dt.datetime.strptime(d["datetimeHour"], "%Y-%m-%dT%H:%M:%SZ") + dt.timedelta(hours=8)).strftime("%m-%d %H")
-              k = (tw, d["scriptName"]); a = agg.setdefault(k, [0, 0, 0]); a[0] += x["sum"]["requests"]; a[1] += x["sum"]["errors"]; a[2] += x["sum"]["subrequests"]
-          day = {}
-          for (h, sc), v in sorted(agg.items()):
-              print(f"台北 {h} 時 {sc:20s} 請求 {v[0]:7,} 錯誤 {v[1]:6,} 子請求 {v[2]:7,}")
-              dd = h[:5]; day[(dd, sc)] = day.get((dd, sc), 0) + v[0]
-          print("--- 每天(UTC 日界 = 台北 08:00)大約:")
-          for k, v in sorted(day.items()): print(k, f"{v:,}")
+          from pathlib import Path
+          T = os.environ["TOKEN"].strip(); A = "".join((os.environ.get("AID") or "").split())
+          H = {"Authorization": "Bearer " + T, "Content-Type": "application/json"}
+          def get(u):
+              return json.load(urllib.request.urlopen(urllib.request.Request(u, headers=H), timeout=30))
+          if not A:
+              try: A = get("https://api.cloudflare.com/client/v4/accounts?per_page=5")["result"][0]["id"]
+              except Exception as e: print("拿不到帳號編號", e); raise SystemExit(0)
+          now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+          since = (now - dt.timedelta(hours=80)).strftime("%Y-%m-%dT%H:00:00Z"); until = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+          def gql(q):
+              r = json.load(urllib.request.urlopen(urllib.request.Request("https://api.cloudflare.com/client/v4/graphql",
+                    data=json.dumps({"query": q, "variables": {"a": A, "s": since, "u": until}}).encode(), headers=H), timeout=30))
+              if r.get("errors"): print("錯誤", json.dumps(r["errors"], ensure_ascii=False)[:600])
+              return ((r.get("data") or {}).get("viewer") or {}).get("accounts") or [{}]
+          tw = lambda s: (dt.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ") + dt.timedelta(hours=8))
+          W = {}; E = {}; HR = {}
+          for x in gql("""query($a:String!,$s:Time!,$u:Time!){viewer{accounts(filter:{accountTag:$a}){
+              w:workersInvocationsAdaptive(limit:2000,filter:{datetime_geq:$s,datetime_leq:$u}){sum{requests errors}dimensions{datetimeHour}}}}}""")[0].get("w") or []:
+              t = tw(x["dimensions"]["datetimeHour"]); d = t.strftime("%Y-%m-%d")
+              W[d] = W.get(d, 0) + x["sum"]["requests"]; E[d] = E.get(d, 0) + x["sum"]["errors"]
+              k = (d, t.hour); HR[k] = HR.get(k, 0) + x["sum"]["requests"]
+          D = {}
+          try:
+              for x in gql("""query($a:String!,$s:Time!,$u:Time!){viewer{accounts(filter:{accountTag:$a}){
+                  o:durableObjectsInvocationsAdaptiveGroups(limit:2000,filter:{datetime_geq:$s,datetime_leq:$u}){sum{requests}dimensions{datetimeHour}}}}}""")[0].get("o") or []:
+                  d = tw(x["dimensions"]["datetimeHour"]).strftime("%Y-%m-%d"); D[d] = D.get(d, 0) + x["sum"]["requests"]
+          except Exception as e: print("DO 查詢失敗", e)
+          today = (now + dt.timedelta(hours=8)).strftime("%Y-%m-%d")
+          p = Path("app/cf_usage.json")
+          try: J = json.loads(p.read_text(encoding="utf-8"))
+          except Exception: J = {}
+          for d in sorted(W):
+              if d >= today: continue   # 今天還沒過完不記
+              busy = sorted(((h, n) for (dd, h), n in HR.items() if dd == d), key=lambda z: -z[1])[:3]
+              J[d] = {"worker": W[d], "errors": E.get(d, 0), "do": D.get(d), "top_hours": [f"{h:02d}時 {n:,}" for h, n in busy]}
+          p.write_text(json.dumps(dict(sorted(J.items())), ensure_ascii=False, indent=1), encoding="utf-8")
+          mon = {}
+          for d, v in J.items(): m = mon.setdefault(d[:7], [0, 0]); m[0] += v["worker"]; m[1] += v.get("do") or 0
+          L = ["# Cloudflare 每天用量(台北日界,每天 00:07 自動更新)", "",
+               "額度(Workers Paid,每月):Worker 請求 1,000 萬次;Durable Object 請求 100 萬次(超過 Worker 每 100 萬次 0.30 美元、DO 每 100 萬次 0.15 美元)", "",
+               "| 日期 | Worker 請求 | 錯誤 | Durable Object 請求 | 最忙的時段 |", "|---|---|---|---|---|"]
+          for d, v in sorted(J.items(), reverse=True)[:60]:
+              L.append(f"| {d} | {v['worker']:,} | {v['errors']:,} | {'' if v.get('do') is None else format(v['do'], ',')} | {'、'.join(v.get('top_hours') or [])} |")
+          L += ["", "| 月份 | Worker 合計 | 用掉額度 | DO 合計 | 用掉額度 |", "|---|---|---|---|---|"]
+          for m, (w, o) in sorted(mon.items(), reverse=True):
+              L.append(f"| {m} | {w:,} | {w/1e7*100:.1f}% | {o:,} | {o/1e6*100:.1f}% |")
+          Path("Cloudflare用量.md").write_text("\n".join(L) + "\n", encoding="utf-8")
+          print("\n".join(L))
           PY
+      - name: 存檔
+        run: |
+          git config user.name "github-actions[bot]"; git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add app/cf_usage.json Cloudflare用量.md
+          git diff --cached --quiet && exit 0
+          git commit -m "Cloudflare 每天用量"
+          for i in 1 2 3; do git pull --rebase -q && git push -q && exit 0; sleep 5; done
