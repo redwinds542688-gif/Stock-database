@@ -1023,6 +1023,8 @@ class Engine:
         if err: log(f"模擬器錯誤 {JUDGE[rs]} {code}: {err[:160]}"); return n
         ev = parse_events(out); n = sum(1 for tm, _, _ in ev if tm < upto)
         trades, open_tm = sim_trades(ev, upto); k = (rs, code)
+        try: self.note_blocked(rs, code, out, upto)   # 2026-11-12 20:29 使用者「再來」(物盡其用 4):被鐵律 ⑦ / 大盤條件擋掉、在等回 Ka~Kb 的訊號記下來(中繼備份到雲端)
+        except Exception: pass
         fc = code in self.fclosed   # 2026-11-02 強平過:部位已由中繼平掉,不發新進場
         # 2026-11-04 使用者「我強平過的 當沖最後就不用顯示未平倉的訊息 看盤版就是照程式設定來 該怎麼平倉就怎麼平倉」(一進一出):
         #   還開著的虛擬部位照算到程式自己的出場(停利 / 停損 / 13:20…),平倉卡內容加「· 已強平」—— 永久版 App 藏、不響,中繼不理;Worker 給看盤版時拿掉這個字
@@ -1084,6 +1086,28 @@ class Engine:
             log(f"{JUDGE[rs]} {code} {open_tm} 進場先不發:{why}"); return n   # 不記 emitted:10 分鐘內恢復就照發
         if self.push_entry(rs, code, open_tm, d, upto): self.emitted.add(ek)
         return n
+
+    RE_BLK = re.compile(r"^\s*(\d\d:\d\d) .*(不在 Ka~Kb|沒回 Ka~Kb|Ka~Kb 沒回|大盤寬度|不做多|延遲進場取消|等回 Ka~Kb|回到 Ka~Kb)")
+    def note_blocked(self, rs, code, out, upto):
+        """被擋 / 等待中的訊號(模擬器那行原文)→ engine_data/blocked_<日期>.jsonl,同一行只記一次"""
+        seen = self.__dict__.get("_blk")
+        if seen is None:   # 引擎重開:先讀今天已記過的,避免重複
+            seen = self._blk = set()
+            try:
+                for x in (DATA / f"blocked_{self.day}.jsonl").read_text(encoding="utf-8").splitlines():
+                    try: o = json.loads(x); seen.add((o.get("rsk"), o.get("code"), o.get("line")))
+                    except Exception: pass
+            except Exception: pass
+        new = []
+        for line in out.splitlines():
+            m = self.RE_BLK.match(line)
+            if not m or m.group(1) >= upto: continue
+            key = (rs, code, line.strip())
+            if key in seen: continue
+            seen.add(key); new.append({"t": m.group(1), "rs": JUDGE.get(rs, rs), "rsk": rs, "code": code, "name": self.names.get(code, ""), "line": line.strip()})
+        if new:
+            with open(DATA / f"blocked_{self.day}.jsonl", "a", encoding="utf-8") as f:
+                for x in new: f.write(json.dumps(x, ensure_ascii=False) + "\n")
 
     def candidates(self, res, upto):
         """2026-10-30 預判:模擬器結果裡 upto 前一分鐘(還在形成、假設用現價收)會出新進場的 (判別式, 代碼);已推 / 已處理過的不算"""

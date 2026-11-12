@@ -1140,6 +1140,12 @@ class Bridge:
             except Exception: pass
             try: items["state"] = json.loads(Path(CFG.get("TRADE_STATE_FILE", str(HERE / "trade_state.json"))).read_text(encoding="utf-8"))
             except Exception: pass
+            try: items["blocked"] = [json.loads(x) for x in (ed / f"blocked_{day}.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()][-400:]   # 2026-11-12 20:29 被擋 / 等待中的訊號
+            except Exception: pass
+            try: items["signals"] = [json.loads(x) for x in (ed / f"live_{day}.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()][-300:]   # 引擎發出的通知
+            except Exception: pass
+            try: items["fills"] = (getattr(self, "_fills_cache", None) or (0, None))[1]   # 元大成交明細(手機明細同一份)
+            except Exception: pass
             t = self.trader
             if t is not None:
                 try:
