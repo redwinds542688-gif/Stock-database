@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-12 21:52(實際時間)25 天紀錄重寫(使用者「重寫 25天 進場與明細 補上今日檢討」「元大與虛擬一樣 明天再分流」):10/06~11/12 照上線規則(鐵律 ⑦ 進場區間、判一/二/六 寬度≥0.8 不做多、⑤ 張數級距 + 500 萬)重算,進場 / 明細 / 檢討三份同一套;額度版 293 筆 76% +514,220;永久版元大真實成交改從 11/13 起分流(原本 11/10),11/12 以前元大 / 虛擬同一份
   · 2026-11-12 21:00(實際時間)通知改推送(使用者「都改」Cloudflare 1):開盤時段 App / 電腦版連一條 WebSocket 到雲端,電腦發通知或手機下指令,雲端 0.1 秒內推「有新的」過來 → 馬上讀;推送連著時輪詢只剩保險 15 秒(看盤版 30 秒),斷了自動重連並照舊每秒讀
   · 2026-11-12 20:41(實際時間)電腦版通知加快(使用者「電腦版呢」):電腦用主人鑰匙,讀通知速度和手機永久版一樣(前 25 秒每 1 秒、其他 3 秒);另外加背景 Worker 每秒叫醒,瀏覽器縮小 / 被蓋住也不會被 Chrome 壓成 1 分鐘一次
   · 2026-11-12 20:36(實際時間)永久會員通知加快(使用者「先把 永久會員 加快 這最重要」,已升級 Cloudflare Workers Paid):自己的 App 讀電腦通知改成每分鐘前 25 秒每 1 秒、其他時間每 3 秒(原本一律 5 秒);背景服務 2 → 1 秒(APK 1.5.69);看盤版照舊 15 秒
@@ -444,7 +445,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611122057">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611122148">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1697,7 +1698,7 @@ const rvBtn = () => { if (!rvHas()) return ''; let seen = ''; try{ seen = localS
    虛擬:數字用電腦收盤推的虛擬交易(auto),重大發現 notes.virt(不寫判別式條件 / 門檻 / 參數) */
 try{ if (localStorage.getItem('mysh.rvReal') === '0') window.RV_REAL = false; }catch(e){}
 const rvIsReal = () => !vwOnly() && window.RV_REAL !== false;
-const rvHtml = (Y) => { const RR = window.__RV || {}, real = rvIsReal(), N0 = RR.notes || {}, R = real && Y && !Y.none ? Object.assign({}, RR, {auto: Y}) : real && !((RR.d || '') < '2026-11-10') ? Object.assign({}, RR, {auto: null}) : RR, A = R.auto || {}, N = (real ? (N0.real || (Array.isArray(N0.findings) ? N0 : null)) : N0.virt) || {}, e = x => String(x == null ? '' : x).replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]));
+const rvHtml = (Y) => { const RR = window.__RV || {}, real = rvIsReal(), N0 = RR.notes || {}, R = real && Y && !Y.none ? Object.assign({}, RR, {auto: Y}) : real && !((RR.d || '') < '2026-11-13') ? Object.assign({}, RR, {auto: null}) : RR, A = R.auto || {}, N = (real ? (N0.real || (Array.isArray(N0.findings) ? N0 : null)) : N0.virt) || {}, e = x => String(x == null ? '' : x).replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]));
   const m = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(Math.round(v || 0)).toLocaleString('en-US'), cl = v => v > 0 ? 'up' : v < 0 ? 'dn' : '';
   let h = `<div class="rvw"><div class="rvt"><span>${e((R.d || '').slice(5).replace('-', '/'))} ${real ? '元大' : '虛擬'}收盤檢討</span></div>`;   // 2026-11-07 16:00 使用者「虛擬電腦通知那個不用顯示」
   if (R.auto){ h += `<div class="rvr"><span>今日輸贏</span><b class="${cl(A.net)}">${m(A.net)}</b><span>${A.n || 0} 筆 ${A.w || 0} 贏 ${(A.n || 0) - (A.w || 0)} 輸</span></div>`;
@@ -1717,7 +1718,7 @@ window.addEventListener('resize', () => window.rvFit && rvFit());
 const rvPoll = async () => { try{ if (!BASE.liveUrl || (!window.VIEWER && !liveOn()) || (window.VIEWER && !(window.appKey && appKey.get()))) return;   /* 12:07 看盤版沒鑰匙(免鑰匙試用)不抓,免得被拒跳出「要鑰匙」 */   /* 2026-11-08 12:01 使用者「(電腦網頁版)沒有 檢討 鍵」:看盤版也去抓;Worker 只給 owner 鑰匙(檢討有判別式內容),別人的看盤版鑰匙被拒 → 照舊沒有檢討鍵 */
   const r = await fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?review=get&_=${Date.now()}`, {cache: 'no-store'}); const j = await r.json();
   // 2026-11-09 21:58 使用者「檢討與明細不符合」:22 天紀錄照現行判別式重寫後,11/09 以前的檢討數字改用重算的(app/review_rebuilt.json,和明細 bt_fill 同一份);拖輸 / 通知晚幾秒照電腦當天的
-  try{ if (j && j.d && j.d < '2026-11-10'){ if (!window.__RVB){ const rb = await fetch(`${REPO_RAW}/app/review_rebuilt.json?v=${Math.floor(Date.now() / 3600000)}`); if (rb.ok) window.__RVB = await rb.json(); }
+  try{ if (j && j.d && j.d < '2026-11-13'){ if (!window.__RVB){ const rb = await fetch(`${REPO_RAW}/app/review_rebuilt.json?v=${Math.floor(Date.now() / 3600000)}`); if (rb.ok) window.__RVB = await rb.json(); }
       const X = window.__RVB && window.__RVB[j.d]; if (X) j.auto = Object.assign({}, j.auto || {}, X, {obs: {}}); } }catch(e){}
   if (j && 'd' in j){ const ch = JSON.stringify(j) !== JSON.stringify(window.__RV || null); window.__RV = j; if (ch && window.NL_VIEW === 'pos' && window.nlRender) nlRender(); } }catch(e){} };
 setTimeout(rvPoll, 4000); setInterval(rvPoll, 5 * 60000); window.rvPoll = rvPoll;
@@ -1936,7 +1937,7 @@ function yLegMerge(legs){
   }catch(e){ return legs; }
 }
 const fillAmt = rows => { let a = 0; try{ for (const r of (rows || [])){ const q = +r.lots || 0, o = +r.open || 0; a += ((+r.buy || 0) * (q + Math.max(o, 0)) + (+r.sell || 0) * (q + Math.max(-o, 0))) * 1000; } }catch(e){} return a; };   // 2026-11-04 元大成交明細的實際成交金額(買 + 賣)
-const yFillsOf = dd => { if (dd && dd < '2026-11-10') return null; /* 2026-11-09 22:00 使用者「明細 燈號也不對」:22 天重寫後元大真實成交從 11/10 起,之前的日子(燈號 / 明細 / 進場)一律看重算的 */ try{ const j = JSON.parse(localStorage.getItem('mysh.yfills.' + dd) || 'null'); return j && Array.isArray(j.rows) ? j : null; }catch(e){ return null; } };
+const yFillsOf = dd => { if (dd && dd < '2026-11-13') return null; /* 2026-11-09 22:00 使用者「明細 燈號也不對」:22 天重寫後元大真實成交從 11/10 起,之前的日子(燈號 / 明細 / 進場)一律看重算的 */ try{ const j = JSON.parse(localStorage.getItem('mysh.yfills.' + dd) || 'null'); return j && Array.isArray(j.rows) ? j : null; }catch(e){ return null; } };
 function fmToast(msg, ms){ try{ let t = el('fmToast'); if (!t){ t = document.createElement('div'); t.id = 'fmToast'; document.body.appendChild(t); }
   t.textContent = msg; t.classList.add('on'); clearTimeout(t.__h); t.__h = setTimeout(() => t.classList.remove('on'), ms || 2600); }catch(e){} }
 const fmPin = { get(){ try{ return localStorage.getItem('mysh.tpin') || ''; }catch(e){ return ''; } }, set(v){ try{ v ? localStorage.setItem('mysh.tpin', v) : localStorage.removeItem('mysh.tpin'); }catch(e){} } };
@@ -7635,7 +7636,7 @@ window.bgTick = bgTick; window.BG = BG;
     // 2026-10-18 使用者:「資料不同」(兩支手機的 10/16 紀錄不一樣,因為各自當天跑的版本不同)→ 過去的日子一律以雲端為準,兩支手機看到的一樣
     // 2026-10-19 起過去的日子優先用雲端通知紀錄(手機當天真的發過的,判一 / 判二 都有);沒有才用 app/log_backfill.json(判別式一重跑);今天 = 手機本機 + 雲端合併
     // 2026-11-04 17:15 使用者「重寫進場與明細 用新的 判一到四 包含永久跟開盤 都用虛擬」「包含今天」:有重算紀錄(app/log_backfill.json)的日子一律用它(現行判一~四重算,含超額);今天收盤後也用
-    if (HIST && HIST[d] && (d !== todayStr() || !inSession()) && (vwOnly() || d < '2026-11-10')) return histLim(d);   /* 2026-11-09 21:35 使用者「用現在邏輯 重新寫進場 明細 與檢討 元大虛擬都一樣 明天再接入元大」→「重寫 22天 包含今天」:元大真實成交改從 11/10 起,11/09 以前永久版元大也看重算的 */   // 2026-11-05 16:50 使用者「重寫紀錄 進場 跟 明細 永久會員跟非永久會員都寫到今日11月5號 20天」:永久版 11/05 也看重算的,元大真實從 11/06 起   // 2026-11-04 19:16 永久版 11/05 起進場欄看真的通知(雲端紀錄),看盤版一律看重算的
+    if (HIST && HIST[d] && (d !== todayStr() || !inSession()) && (vwOnly() || d < '2026-11-13')) return histLim(d);   /* 2026-11-09 21:35 使用者「用現在邏輯 重新寫進場 明細 與檢討 元大虛擬都一樣 明天再接入元大」→「重寫 22天 包含今天」:元大真實成交改從 11/10 起,11/09 以前永久版元大也看重算的 */   // 2026-11-05 16:50 使用者「重寫紀錄 進場 跟 明細 永久會員跟非永久會員都寫到今日11月5號 20天」:永久版 11/05 也看重算的,元大真實從 11/06 起   // 2026-11-04 19:16 永久版 11/05 起進場欄看真的通知(雲端紀錄),看盤版一律看重算的
     if (d !== todayStr() && (CLOUD_LOG.items[d] || []).length) return CLOUD_LOG.items[d];
     try{ if (window.Android && Android.logFor){ const a = JSON.parse(Android.logFor(d) || '[]'); if (a.length || !(HIST && HIST[d])) return mergeCloud(a, d); } }catch(e){}
     if (d !== todayStr()) return mergeCloud([], d);
@@ -7998,9 +7999,9 @@ window.bgTick = bgTick; window.BG = BG;
             h += `<div class="r" data-day="${dd}" data-code="${esc(o.code)}" data-name="${esc(o.name)}" style="opacity:.75"><span class="nm"><span class="sd ${dr > 0 ? 'long' : 'short'}">${dr > 0 ? '多' : '空'}</span>${esc(o.name)}</span><span class="num io"><span>${(+o.entP).toFixed(2)}</span><span>→</span><span>${(+o.price).toFixed(2)}</span></span><span class="num">${q}</span><span class="num ${v > 0 ? 'up' : v < 0 ? 'dn' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toLocaleString()}</span></div>`; }
           return c ? [`<div class="r" data-day="${dd}"><span class="nm" style="color:#8C96AB;grid-column:1/-1">判六(觀察,沒下單、不算輸贏)${c} 筆 約 ${t >= 0 ? '+' : ''}${t.toLocaleString()}</span></div>` + h, t, c] : ['', 0, 0]; };
         const dayRows = (dd, src) => dayRows0(dd, src);   /* 2026-11-11 00:20 判六上線:和其他判別式一起列(j6Rows 留著不用) */
-        const dayRows0 = (dd, src) => { if (dd !== today) yfillsFix(dd); const yf = dd === today ? (TF || (inSession() ? null : yFillsOf(dd))) : yFillsOf(dd);   /* 2026-11-02 14:49 收盤後問不到電腦 → 今天用手機存的最後一份元大成交(盤中照舊只認剛問到的) */   /* 2026-10-30 12:20 使用者「當無法連上主機 明細就顯示程式做的股票明細」:今天連不上電腦(沒有新的元大成交)→ 列程式的模擬交易(標「系統」) */ if (yf && vTrade() && dd >= '2026-11-10' && !doneVirt){   /* 2026-11-09 10:50 使用者電腦截圖「聯合再生根本沒交易」:電腦是主人鑰匙的看盤版,原本 !VIEWER 擋掉 → 拿虛擬交易冒充元大;改成主人鑰匙(vTrade)也用元大真實成交 */   /* 2026-11-06 22:21 使用者「以現在最新的判別式 重寫21天 永久會員元大 虛擬都一樣 下週一才開始接永久會員元大」:元大真實成交改從 11/09 起,11/06 以前永久版元大也顯示重算的虛擬 */   /* 2026-11-04 19:16 使用者「明天永久會員 接入元大真實資料 其他會員看虛擬版」(11/04 以前永久版也用重算的虛擬):元大真實成交從 11/05 起 */   /* 2026-11-03 14:30 使用者「元大這邊今天暫時先用虛擬交易資料 明天才開始正式用元大資料」:元大真實成交從 11/04 起 */ ySrc[dd] = true; return yRowsOf(yf, dd); }
+        const dayRows0 = (dd, src) => { if (dd !== today) yfillsFix(dd); const yf = dd === today ? (TF || (inSession() ? null : yFillsOf(dd))) : yFillsOf(dd);   /* 2026-11-02 14:49 收盤後問不到電腦 → 今天用手機存的最後一份元大成交(盤中照舊只認剛問到的) */   /* 2026-10-30 12:20 使用者「當無法連上主機 明細就顯示程式做的股票明細」:今天連不上電腦(沒有新的元大成交)→ 列程式的模擬交易(標「系統」) */ if (yf && vTrade() && dd >= '2026-11-13' && !doneVirt){   /* 2026-11-09 10:50 使用者電腦截圖「聯合再生根本沒交易」:電腦是主人鑰匙的看盤版,原本 !VIEWER 擋掉 → 拿虛擬交易冒充元大;改成主人鑰匙(vTrade)也用元大真實成交 */   /* 2026-11-06 22:21 使用者「以現在最新的判別式 重寫21天 永久會員元大 虛擬都一樣 下週一才開始接永久會員元大」:元大真實成交改從 11/09 起,11/06 以前永久版元大也顯示重算的虛擬 */   /* 2026-11-04 19:16 使用者「明天永久會員 接入元大真實資料 其他會員看虛擬版」(11/04 以前永久版也用重算的虛擬):元大真實成交從 11/05 起 */   /* 2026-11-03 14:30 使用者「元大這邊今天暫時先用虛擬交易資料 明天才開始正式用元大資料」:元大真實成交從 11/04 起 */ ySrc[dd] = true; return yRowsOf(yf, dd); }
           // 2026-11-05 00:31 使用者「這個虛擬 是可以切換 元大的 因為我是永久會員」:收盤後切在「元大」、這天手機還沒拿到元大成交 → 不拿虛擬交易冒充,寫「元大成交還沒拿到」(電腦連上會自動補)
-          if (!yf && virtOk && !doneVirt && !vwOnly() && dd >= '2026-11-10') return [`<div class="r" data-day="${dd}"><span class="nm" style="color:#8C96AB;grid-column:1/-1">這天的元大成交還沒拿到(電腦連上會自動補)</span></div>`, 0, 1];
+          if (!yf && virtOk && !doneVirt && !vwOnly() && dd >= '2026-11-13') return [`<div class="r" data-day="${dd}"><span class="nm" style="color:#8C96AB;grid-column:1/-1">這天的元大成交還沒拿到(電腦連上會自動補)</span></div>`, 0, 1];
           return rowsOf(src, dd); };   /* 2026-11-02 23:25 使用者「永久會員 今天之前 全部都用虛擬的資料 填滿明細 今天之後包含今天 都用真實的元大資料 其他會員 一律用虛擬資料」:自己的 App 11/02 起用元大真實成交、11/01 以前一律用程式的虛擬交易;看盤版一律虛擬 */
       const doneSrc = dd => { if (BTF && BTF[dd] && BTF[dd].length){ const s = prep(btfCap(dd)); for (const o of s){ const q = +((((o.x || {}).body || '').match(/· (\d+)張/) || [])[1]) || 0; if (q) o.lots = q; } return finish(s); }
         if (dd === today){ if (doneVirt){ try{ return finish(prep(itemsFor(today).filter(x => !/強平|元平|元大|預掛|強制 ·/.test((x.title || '') + ' ' + (x.body || '').replace(/已強平/g, ''))))); }catch(e){} } if (d === today) return cards; }
@@ -8029,11 +8030,11 @@ window.bgTick = bgTick; window.BG = BG;
           let pt = 0; try{ let C = {fee: 0, tax: 0}; try{ C = cost(); }catch(e){} const {open} = posOpen(); for (const o of open){ const lt = lotsOf(o), dr = o.side === 'long' ? 1 : -1, ent = +o.entP, cu = +(((LIVE.get(o.code) || {}).z) || 0) || ent;
             pt += (cu - ent) * dr * lt * 1000 - (dr > 0 ? costAmt(ent * lt * 1000, cu * lt * 1000, C) : costAmt(cu * lt * 1000, ent * lt * 1000, C)); } }catch(e){}
           let dt = netOf(cards.filter(o => o.type === 'exit' && !o._hide && !o.over && !(o.rs === '元三' || o.rs === '強三')))[0];
-          try{ if (!vwOnly() && today >= '2026-11-10'){ const F = window.__tfills, yf = F && F.ok && F.d === today && Array.isArray(F.rows) && Date.now() - (F.at || 0) < 10 * 60000 ? F : yFillsOf(today);
+          try{ if (!vwOnly() && today >= '2026-11-13'){ const F = window.__tfills, yf = F && F.ok && F.d === today && Array.isArray(F.rows) && Date.now() - (F.at || 0) < 10 * 60000 ? F : yFillsOf(today);
             if (yf && Array.isArray(yf.rows) && (yf === F || yf.rows.some(r => r.lots > 0))) dt = yf.rows.reduce((a, r) => a + (r.lots > 0 ? +r.net || 0 : 0), 0); } }catch(e){}
           let nE = en.length, nX = en.filter(o => o._alert === 'exit' || o.__phM).length;
           // 2026-11-05 01:56 使用者「我是永久會員 明天訊號燈接通元大」:永久版問得到元大成交明細 → 進場 = 今天元大有成交的檔數、平倉 = 已經沖銷完(沒有未平倉張數)的檔數
-          try{ const F0 = window.__tfills, F = F0 && F0.ok && F0.d === today && Array.isArray(F0.rows) && Date.now() - (F0.at || 0) < 10 * 60000 ? F0 : (!inSession() && today >= '2026-11-05' ? yFillsOf(today) : null); if (!vwOnly() && today >= '2026-11-10' && F && Array.isArray(F.rows)){ const R = F.rows.filter(r => (+r.lots || 0) > 0 || (+r.open || 0) !== 0); if (R.length || !en.length){ nE = R.length; nX = R.filter(r => (+r.lots || 0) > 0 && !(+r.open || 0)).length; } } }catch(e){}
+          try{ const F0 = window.__tfills, F = F0 && F0.ok && F0.d === today && Array.isArray(F0.rows) && Date.now() - (F0.at || 0) < 10 * 60000 ? F0 : (!inSession() && today >= '2026-11-05' ? yFillsOf(today) : null); if (!vwOnly() && today >= '2026-11-13' && F && Array.isArray(F.rows)){ const R = F.rows.filter(r => (+r.lots || 0) > 0 || (+r.open || 0) !== 0); if (R.length || !en.length){ nE = R.length; nX = R.filter(r => (+r.lots || 0) > 0 && !(+r.open || 0)).length; } } }catch(e){}
           lampBtn('refreshBtn', '進場', 'cnt', lampOpen(lampDay), doneCnt(lampDay));   /* 2026-11-05 13:03 使用者「進場如果已經平倉 進場這邊就要退一個燈號」:黃 = 還在場上的檔數(進場 − 已平倉),藍 = 已平倉 */ lampBtn('btnState', usLabel(), 'amt', pt); lampBtn('btnRules', '明細', 'amt', doneTot(lampDay));
         } }catch(e){}
       if (!inSession()){ lampBtn('refreshBtn', '進場'); lampBtn('btnState', usLabel());
