@@ -1171,11 +1171,41 @@ class Bridge:
                              "place_oco": lambda _s, *a: self.place_oco(*a), "delete_oco": lambda _s, no: self.delete_oco(no)})()
         t = Trader(cfg, gw, log, now_tw); t.alert = self.phone_alert; t.post = self.trade_post
         t.ref_of = lambda c: (self.quotes.meta.get(c) or {}).get("y")
-        t.name_of = lambda c: (self.quotes.meta.get(c) or {}).get("n") or c
+        t.name_of = self.stock_name   # 2026-11-12 09:16 使用者「股票名稱怎麼變成1709」:名單外股票(留倉接回 / 手動)沒有名稱 → 查本機舊名單、證交所
         t.want_sub = self.want_sub
         for c, m in self.codes:
             t.mkt_of[c] = str(m)
         return t
+
+    def stock_name(self, c):
+        """2026-11-12 代號 → 名稱:今天名單 → 本機前幾天的名單 pool_*.json → 證交所 MIS(上市 / 上櫃各試一次);查到就記住,查不到也記住不重查"""
+        c = str(c); n = (self.quotes.meta.get(c) or {}).get("n")
+        if n and n != c: return n
+        cache = self.__dict__.setdefault("_names", {})
+        if c in cache: return cache[c] or c
+        nm = ""
+        try:
+            for f in sorted(HERE.glob("pool_*.json"), reverse=True)[:30]:
+                try:
+                    j = json.loads(f.read_text(encoding="utf-8")); pool = j.get("pool", j) if isinstance(j, dict) else j
+                    nm = next((str(s.get("name") or "") for s in pool if str(s.get("code")) == c and s.get("name")), "")
+                except Exception: nm = ""
+                if nm: break
+        except Exception: pass
+        if not nm:
+            for ex in ("tse", "otc"):
+                try:
+                    u = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={ex}_{c}.tw&json=1&delay=0"
+                    r = json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=4).read().decode("utf-8"))
+                    nm = str(((r.get("msgArray") or [{}])[0]).get("n") or "")
+                except Exception: nm = ""
+                if nm: break
+        cache[c] = nm
+        if nm:
+            m = self.quotes.meta.get(c)
+            if m is not None and not m.get("n"): m["n"] = nm
+            log(f"名稱 {c} → {nm}")
+        return nm or c
 
     # ── 推到 Worker ──
     def push(self, day, minute, bars):
