@@ -75,7 +75,7 @@ class MonitorService : Service() {
                 val w = web
                 if (w != null && pageReady && inSession() && ZonedDateTime.now(TZ).second < 25) w.evaluateJavascript("(function(){ try{ return window.fastNotify ? fastNotify() : ''; }catch(e){ return ''; } })()", null)
             } catch (e: Exception) {}
-            handler.postDelayed(this, 2000L)
+            handler.postDelayed(this, 1000L)   // 2026-11-12 20:36 使用者「先把 永久會員 加快 這最重要」:2 → 1 秒(實際讀不讀由 cloudNotifyNew 決定:永久版前 25 秒 1 秒、看盤版 15 秒)
         }
     }
 
