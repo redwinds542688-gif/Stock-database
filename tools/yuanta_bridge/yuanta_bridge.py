@@ -718,7 +718,7 @@ class Bridge:
             if _cf.exists():
                 _td = now_tw().strftime("%Y-%m-%d")
                 _carry = [{"code": str(it["code"]), "bs": "S" if int(it["dir"]) < 0 else "B", "lots": int(it["lots"]), "price": float(it["entry"]), "time": "00:00:00", "order_no": "CARRY"}
-                          for it in (json.loads(_cf.read_text(encoding="utf-8")) or []) if it.get("date", _td) == _td]   # 只放「今天」接回的那筆
+                          for it in (json.loads(_cf.read_text(encoding="utf-8")) or []) if it.get("date", _td) == _td and not it.get("nofill")]   # 只放「今天」接回的那筆;nofill = 今天自己的成交(明細裡本來就有)
                 if _carry: r = dict(r, trades=_carry + list(r["trades"]))
         except Exception as _e: log("留倉放進明細失敗", _e)
         out = fills_pnl(r["trades"], names, disc=float(CFG.get("FEE_DISC", "0.25")), minfee=int(CFG.get("FEE_MIN", "20")))
