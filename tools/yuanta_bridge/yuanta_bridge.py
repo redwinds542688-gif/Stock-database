@@ -1127,6 +1127,32 @@ class Bridge:
         except Exception as e:
             log("複查失敗", e)
 
+    def pc_backup(self, day):
+        """2026-11-12 20:22 使用者「改」(升級 Workers Paid 後物盡其用 1):每分鐘一次 POST ?pcbk=put —— 今天的大盤寬度、引擎實際監控的股票、
+           中繼部位(含總停損 / 移動停損利的起點)、狀態檔;回測 / 檢討 / 電腦重灌都用同一份。失敗只記紀錄,不影響交易"""
+        try:
+            ed = Path(os.environ.get("ENGINE_DIR", HERE / "engine_data")); items = {}
+            try: items["breadth"] = (json.loads((ed / "breadth.json").read_text(encoding="utf-8")) or {}).get(day) or {}
+            except Exception: pass
+            try: items["codes"] = json.loads((ed / f"codes_{day}.json").read_text(encoding="utf-8"))
+            except Exception: pass
+            try: items["engine"] = json.loads((ed / f"engine_state_{day}.json").read_text(encoding="utf-8"))
+            except Exception: pass
+            try: items["state"] = json.loads(Path(CFG.get("TRADE_STATE_FILE", str(HERE / "trade_state.json"))).read_text(encoding="utf-8"))
+            except Exception: pass
+            t = self.trader
+            if t is not None:
+                try:
+                    with t.lock: items["pos"] = [{k: p.get(k) for k in ("code", "dir", "qty", "entry", "judge", "tp", "sl", "state", "t0", "typ")} for p in t.positions.values()]
+                    items["pnl"] = {"pnl": round(getattr(t, "pnl", 0) or 0), "n": getattr(t, "n_trades", 0), "amount": round(getattr(t, "amount_today", 0) or 0)}
+                except Exception: pass
+            req = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?pcbk=put", data=json.dumps({"d": day, "items": items}, ensure_ascii=False, default=str).encode(), method="POST",
+                                         headers={"Content-Type": "application/json", "X-Push-Key": CFG.get("PUSH_KEY", "")})
+            urllib.request.urlopen(req, timeout=15).read()
+        except Exception as e:
+            n = getattr(self, "_bk_fail", 0) + 1; self._bk_fail = n
+            if n == 1 or n % 30 == 0: log(f"雲端備份失敗(第 {n} 次)", e)
+
     def phone_alert(self, title, body="", kind="pc"):
         """發一則提醒到手機的「今日監控紀錄」(Worker ?log=add)
            2026-10-31 kind 原本是 warn:手機只把 warn 當股票的「注意 / 反彈」狀態、不跳通知 → 電腦的提醒手機都沒跳出來。改成 pc(一般提醒,會跳通知);
@@ -1330,6 +1356,8 @@ class Bridge:
                 #   盤中(09:01~13:24,開盤前試撮和 13:25 收盤集合競價本來就沒有逐筆)連續 TICK_WATCH 秒(預設 60)一筆逐筆都沒有 → 當作斷線,重新登入、重新訂閱;
                 #   重連後還是沒有,每次間隔拉長(60 → 120 → 240 秒,最多 5 分鐘),避免一直登入被元大鎖;第一次和每第 3 次發手機提醒
                 hm_w = now_tw().strftime("%H:%M")
+                if "09:00" <= hm_w <= "13:36" and time.time() - getattr(self, '_bk_at', 0) >= 60:   # 2026-11-12 20:22 使用者「改」:每分鐘把電腦關鍵資料備份到雲端(背景,不卡主迴圈)
+                    self._bk_at = time.time(); threading.Thread(target=self.pc_backup, args=(day,), daemon=True).start()
                 if self.api is not None and not self.disconnected.is_set() and "09:01" <= hm_w < "13:25":
                     quiet = time.time() - self.last_tick; gap = min(300, int(CFG.get("TICK_WATCH", "60")) * (2 ** min(self.n_kick, 3)))
                     if quiet > int(CFG.get("TICK_WATCH", "60")) and time.time() - self.last_kick > gap:
@@ -1350,7 +1378,7 @@ class Bridge:
                     subs, self.pending_sub = self.pending_sub, []
                     try: self.subscribe(subs)
                     except Exception as e: log("補訂閱失敗", e)
-                sig = fetch_signals(CFG["WORKER_URL"], day, CFG.get("PUSH_KEY", "")) if (self.trader.enabled and k % 3 == 0) else None   # 手機通知每 3 秒看一次
+                sig = fetch_signals(CFG["WORKER_URL"], day, CFG.get("PUSH_KEY", "")) if (self.trader.enabled and k % max(1, int(CFG.get("SIG_POLL_SEC", "1") or 1)) == 0) else None   # 手機通知每 SIG_POLL_SEC 秒看一次(2026-11-12 20:22 使用者「改」:升級 Workers Paid 後 3 → 1 秒,手機強制進場 / 強平 1 秒內收到;約 +12,000 次 / 天)
                 # 2026-10-30 01:32 使用者「先做A」:電腦引擎寫在本機的通知每秒讀一次,不用等 Worker / 3 秒輪詢(訊號算出來 1 秒內送單);還沒 prime 好不讀(避免舊訊號)
                 if self.trader.enabled and getattr(self.trader, "primed", False):
                     loc = self.local_signals(day)

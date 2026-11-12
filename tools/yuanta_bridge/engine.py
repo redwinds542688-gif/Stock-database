@@ -702,6 +702,8 @@ class Engine:
     def set_universe(self, uni):
         self.uni = uni; self.codes = uni["codes"]; self.names = uni["names"]; self.prev = uni["prev"]; self.mkts = uni["mkts"]
         self.canshort = uni["canshort"]; self.no_new = uni["no_new"]
+        try: write_atomic(DATA / f"codes_{self.day}.json", json.dumps({"codes": list(self.codes), "names": {c: self.names.get(c, "") for c in self.codes}, "stamp": uni.get("stamp", ""), "R": uni.get("R")}, ensure_ascii=False, default=str))   # 2026-11-12 20:22 引擎實際監控的股票(中繼備份到雲端;11/12 回測名單對不上)
+        except Exception as e: log("監控名單寫檔失敗", repr(e))
         try: self.apply_refs(force=True)
         except Exception as e: log("昨收對照失敗", repr(e))
 

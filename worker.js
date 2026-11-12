@@ -591,6 +591,23 @@ async function pcWatch(env, snap) {
   const hhmm = `${String(t.getUTCHours()).padStart(2, "0")}:${String(t.getUTCMinutes()).padStart(2, "0")}`;
   const add = async (title, body) => { const key = `log:${d}:${hhmm}:yt|${title}`.replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 140);
     await hub.logAdd(d, key, { t: hhmm, title, body: body + " · 元大中繼", kind: "pc" }, ""); };
+  // 2026-11-12 20:22 使用者「改」(物盡其用 3):電腦還活著、但大盤寬度(總停損要用)或引擎 3 分鐘沒更新 → 另外提醒(10 分鐘最多一次)
+  try {
+    if (!down) {
+      const bk = await hub.kvGet("pcbkLast"); let bw = null; try { bw = await hub.kvGet(`pcbk:${d}:breadth`); } catch (e) {}
+      let bLast = ""; try { const kk = bw && bw.v ? Object.keys(bw.v).sort() : []; bLast = kk.length ? kk[kk.length - 1] : ""; } catch (e) {}
+      const bMin = /^\d\d:\d\d$/.test(bLast) ? +bLast.slice(0, 2) * 60 + +bLast.slice(3, 5) : -1;
+      const why = [];
+      if (hm >= 9 * 60 + 5 && bk && bk.d === d && bMin >= 0 && hm - bMin > 3) why.push(`大盤寬度停在 ${bLast}(總停損暫時沒作用)`);
+      if (hm >= 9 * 60 + 5 && egAt && now - egAt > 3 * 60e3) why.push("電腦引擎 3 分鐘沒心跳(判別式不會發新訊號)");
+      if (hm >= 9 * 60 + 5 && bk && bk.d === d && now - (+bk.at || 0) > 5 * 60e3) why.push("電腦備份 5 分鐘沒更新(中繼可能卡住)");
+      let ws = null; try { ws = await hub.kvGet("pcwarn"); } catch (e) {}
+      if (why.length && (!ws || ws.d !== d || now - (+ws.at || 0) >= 10 * 60e3)) {
+        await add("⚠ 電腦資料停住", why.join(";") + "。部位停利停損仍由中繼 / 元大條件單盯著,請看一下電腦");
+        await hub.kvPut("pcwarn", { d, at: now });
+      }
+    }
+  } catch (e) { console.log("電腦資料檢查失敗 " + e); }
   if (down){
     if (!st.down || now - (st.sent || 0) >= 10 * 60e3){
       const pos = tp && tp.d === d && Array.isArray(tp.pos) ? tp.pos.filter(p => +p.qty > 0) : [];
@@ -1096,6 +1113,34 @@ export default {
       }
       const v = await hubOf(env).kvGet("engine");
       return new Response(JSON.stringify(v || {}), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=20" } });
+    }
+
+    // ── 2026-11-12 20:22 使用者「改」(升級 Workers Paid 後物盡其用 1):電腦關鍵資料備份到雲端 ——
+    //   POST ?pcbk=put {d, items:{breadth, codes, state, ...}}(中繼金鑰,每分鐘一次,一次全部)→ Hub 存 pcbk:<d>:<name>;GET ?pcbk=get&d=&name=(中繼金鑰或 owner 鑰匙)
+    //   回測 / 檢討 / 電腦重灌都用同一份(11/12 兩個對話寬度 / 監控名單不同,結果差很多)
+    const pcb = url.searchParams.get("pcbk");
+    if (pcb) {
+      if (!env || !env.HUB) return J({ error: "Worker 還沒綁定 Durable Object(HUB)" }, 503);
+      const pushK = !!(env.YT_PUSH_KEY && request.headers.get("X-Push-Key") === env.YT_PUSH_KEY);
+      if (pcb === "put") {
+        if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
+        if (!pushK) return J({ error: "金鑰不對" }, 403);
+        let b; try { b = await request.json(); } catch (e) { return J({ error: "JSON 格式錯誤" }, 400); }
+        if (!b || !/^\d{4}-\d{2}-\d{2}$/.test(b.d || "") || !b.items || typeof b.items !== "object") return J({ error: "要有 d 和 items" }, 400);
+        const hub = hubOf(env), at = Date.now(), names = [];
+        for (const [k, v] of Object.entries(b.items).slice(0, 12)) {
+          if (!/^[a-z0-9_]{1,24}$/.test(k)) continue;
+          const js = JSON.stringify(v); if (js.length > 800000) continue;
+          await hub.kvPut(`pcbk:${b.d}:${k}`, { at, v }); names.push(k);
+        }
+        await hub.kvPut("pcbkLast", { d: b.d, at, names });
+        return J({ ok: true, names });
+      }
+      if (!(pushK || (KI && KI.role === "owner"))) return J({ error: "要中繼金鑰或 owner 鑰匙" }, 403);
+      const d = (url.searchParams.get("d") || ymdOf(twNow())).slice(0, 10), nm = String(url.searchParams.get("name") || "");
+      if (!nm) return J(await hubOf(env).kvGet("pcbkLast") || {});
+      if (!/^[a-z0-9_]{1,24}$/.test(nm)) return J({ error: "name 不對" }, 400);
+      return J(await hubOf(env).kvGet(`pcbk:${d}:${nm}`) || {});
     }
 
     // ── 元大中繼(tools/yuanta_bridge):POST ?ybars=push 收 1 分 K;GET ?ybars=today|YYYY-MM-DD[&codes=][&since=] 讀(格式同 ?bars)──
