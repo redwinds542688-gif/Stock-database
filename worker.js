@@ -881,6 +881,12 @@ export default {
     if (key === "8:30" || key === "8:45" || key === "13:40" || key === "14:40" || key === "14:50") { try { const v = await usGet(env, false); console.log(`cron 台灣 ${key} 美股:${v ? v.us + " " + v.idx.map(x => x.name + " " + x.pct + "%").join(" ") : "抓不到"}`); } catch (e) { console.log("美股失敗 " + e); } }
     let snap = ""; try { const r = await snapshotBars(env, true, event.scheduledTime); snap = String(r || ""); if (r !== "off-hours") console.log(`cron 台灣 ${key} 分K:${r}`); } catch (e) { console.log("分K 快照失敗 " + e); }
     try { await pcWatch(env, snap); } catch (e) { console.log("電腦斷線偵測失敗 " + e); }
+    // 2026-11-13 23:58 鐵律 ⑧ 備援 3(使用者選「1」三層備援):每分鐘記加權指數(證交所 t00)上一分鐘收盤 → Hub ixbars:<日期>;元大 / 期交所台指期都沒有時,電腦引擎 / 手機用它看方向(09:00 起)
+    try { const wd = t.getUTCDay(), hm = t.getUTCHours() * 60 + t.getUTCMinutes();
+      if (wd >= 1 && wd <= 5 && hm >= 9 * 60 + 1 && hm <= 13 * 60 + 31 && snap !== "holiday" && env.HUB) {
+        const j = await misFresh("tse_t00.tw", 2), m = ((j && j.msgArray) || []).find(x => x && x.c === "t00"), z = m ? parseFloat(m.z) : NaN;
+        if (z > 0) { const pm = hm - 1, lab = `${String(Math.floor(pm / 60)).padStart(2, "0")}:${String(pm % 60).padStart(2, "0")}`, k = "ixbars:" + ymdOf(t), hub = hubOf(env);
+          const o = (await hub.kvGet(k)) || {}; o[lab] = z; await hub.kvPut(k, o); } } } catch (e) { console.log("加權指數記錄失敗 " + e); }
     // 2026-11-12 21:00 使用者「都改」:交易日 14:05~14:59 做每日備份(R2 / D1 / AI 檢討),做完一次就不再做
     try { const wd = t.getUTCDay(), hm = t.getUTCHours() * 60 + t.getUTCMinutes();
       if (wd >= 1 && wd <= 5 && hm >= 14 * 60 + 5 && hm < 15 * 60 && snap !== "holiday" && env.HUB) { const r = await dailyArchive(env, ymdOf(t), false); if (!r.skip) console.log("每日備份 " + JSON.stringify(r)); } } catch (e) { console.log("每日備份失敗 " + e); }
@@ -974,6 +980,11 @@ export default {
       const d = (url.searchParams.get("d") || ymdOf(twNow())).slice(0, 10);
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return J({ error: "d 要是 YYYY-MM-DD" }, 400);
       return J(await dailyArchive(env, d, true));
+    }
+    if (url.searchParams.get("ixbars")) {   // 2026-11-13 23:58 鐵律 ⑧ 備援 3:今天每分鐘加權指數收盤 {HH:MM: 值}(公開資料)
+      const d = String(url.searchParams.get("ixbars")).slice(0, 10);
+      if (!/^\d{4}-\d\d-\d\d$/.test(d)) return J({ error: "日期格式 YYYY-MM-DD" }, 400);
+      return J({ d, m: (env.HUB ? await hubOf(env).kvGet("ixbars:" + d) : null) || {} });
     }
     if (url.searchParams.get("taifex")) {   // 2026-11-13 20:00 使用者「台指期 略有參考價值 如何取得」:期交所「前 30 個交易日期貨每筆成交」zip 原封轉送(GitHub 機器直接連可能被擋時用)
       const d = String(url.searchParams.get("taifex")).replace(/-/g, "_").slice(0, 10);

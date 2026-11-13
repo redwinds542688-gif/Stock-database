@@ -1210,6 +1210,15 @@ class Engine:
         except Exception: pass
         self._txf_c = (time.time(), self.day, m); return m
 
+    def ix_map(self):
+        """⑧ 備援 3:Worker ?ixbars=今天(每分鐘加權指數收盤,09:00 起);20 秒快取"""
+        c = self.__dict__.get("_ix_c")
+        if c and time.time() - c[0] < 20 and c[1] == self.day: return c[2]
+        m = {}
+        try: m = {k: float(v) for k, v in ((http(worker_url(f"ixbars={self.day}"), timeout=6) or {}).get("m") or {}).items()}
+        except Exception: m = (c[2] if c and c[1] == self.day else {})
+        self._ix_c = (time.time(), self.day, m); return m
+
     def stock_closes(self, code):
         """⑧ 這檔今天 09:00~13:30 的 1 分 K 收盤(模擬器同一份 kline_yuanta/<代號>/<週>.csv)"""
         try:
@@ -1230,7 +1239,9 @@ class Engine:
         c = self.envs.get(rs, {}).get("TXSYNC"); fn = getattr(self, "txsync_fn", None)
         if not c or not fn: return True
         try:
-            txf = self.txf_map()
+            txf = self.txf_map(); frm = None
+            if not txf:   # 2026-11-13 23:58 ⑧ 備援 3:元大 / 期交所台指期都沒有 → 用 Worker 記的加權指數(09:00 起)
+                txf = self.ix_map(); frm = "09:00" if txf else None
             if not txf:
                 if not self.__dict__.get("_txf_warn") and now_tw().strftime("%H:%M") >= "09:05":
                     self._txf_warn = True; log("!! ⑧ 今天沒有台指期 1 分 K(中繼沒收到)→ 台指期同步進場先不看")
@@ -1238,7 +1249,8 @@ class Engine:
                     except Exception: pass
                 return True
             _p = c.split(":"); n_ = int(float(_p[0])); r_ = float(_p[1]) if len(_p) > 1 and _p[1] else None   # 「60」= 只看台指期方向(2026-11-13 23:32 使用者「只看台指期方向 解鎖改」)
-            ok, why = fn(side, tm, self.stock_closes(code), txf, n_, r_)
+            ok, why = fn(side, tm, self.stock_closes(code), txf, n_, r_, frm) if frm else fn(side, tm, self.stock_closes(code), txf, n_, r_)
+            if frm: why = why.replace("台指期", "加權指數(台指期沒資料)")
             if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
             return ok
         except Exception as e:
