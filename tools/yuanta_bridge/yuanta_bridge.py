@@ -483,10 +483,34 @@ class Bridge:
             if n == 1: log(f"[台指期] {code} 收到第一筆逐筆:{t.bytHour:02d}:{t.bytMin:02d}:{t.bytSec:02d} 價 {px} 量 {vol}(這個代號寫法可用)")
             hm = f"{t.bytHour:02d}:{t.bytMin:02d}"
             if not ("08:45" <= hm <= "13:45"): return
+            if hm != getattr(self, "_fut_hm", None):   # 2026-11-13 22:35 ⑧ 台指期同步進場(使用者「解鎖 改 全部套用」):每換一分鐘就把到目前的 1 分 K 寫本機(電腦引擎讀)+ 推 Worker(手機讀)
+                self._fut_hm = hm
+                try: self.fut_flush()
+                except Exception: pass
             b = self.fut_bars.setdefault(code, {}).get(hm)
             if b is None: self.fut_bars[code][hm] = [px, px, px, px, vol]
             else: b[1] = max(b[1], px); b[2] = min(b[2], px); b[3] = px; b[4] += vol
         except Exception: pass
+
+    def fut_flush(self):
+        """⑧ 盤中每分鐘:逐筆最多的那個代號(= 收得到的近月)→ HERE/kline_futures/TXF/<日期>.csv(電腦引擎 tx_ok 讀)+ 背景推 Worker ?fbars=push(手機讀)"""
+        if not getattr(self, "fut_n", None): return
+        day = now_tw().strftime("%Y-%m-%d"); code = max(self.fut_n, key=lambda c: self.fut_n[c]); bars = dict(self.fut_bars.get(code) or {})
+        rows = [[hm] + list(v) for hm, v in sorted(bars.items())]
+        if not rows: return
+        f = HERE / "kline_futures" / "TXF"; f.mkdir(parents=True, exist_ok=True); tmp = f / f"{day}.csv.tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write("date,time,open,high,low,close,volume\n")
+            for r in rows: fh.write(f"{day},{r[0]},{r[1]},{r[2]},{r[3]},{r[4]},{r[5]}\n")
+        os.replace(tmp, f / f"{day}.csv")
+        if CFG.get("PUSH_KEY") and CFG.get("WORKER_URL"):
+            def _p():
+                try:
+                    rq = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?fbars=push", data=json.dumps({"d": day, "code": code, "bars": rows}).encode(), method="POST",
+                                                headers={"Content-Type": "application/json", "X-Push-Key": CFG["PUSH_KEY"], "User-Agent": "yuanta-bridge"})
+                    urllib.request.urlopen(rq, timeout=15).read()
+                except Exception: pass
+            threading.Thread(target=_p, daemon=True).start()
 
     def fut_save(self, day):
         """收工:等到 13:46(台指期 13:45 收盤)→ 存本機 + 推 Worker 一次"""
