@@ -68,6 +68,7 @@ jobs:
           except Exception: J = {}
           for d in sorted(W):
               if d >= today: continue   # 今天還沒過完不記
+              if d <= (dt.datetime.strptime(since, "%Y-%m-%dT%H:00:00Z") + dt.timedelta(hours=8)).strftime("%Y-%m-%d"): continue   # 2026-11-14 00:45 查詢範圍的第一天不完整(80 小時前開始),不蓋掉舊紀錄(11/10 被蓋成半天)
               busy = sorted(((h, n) for (dd, h), n in HR.items() if dd == d), key=lambda z: -z[1])[:3]
               J[d] = {"worker": W[d], "errors": E.get(d, 0), "do": D.get(d), "top_hours": [f"{h:02d}時 {n:,}" for h, n in busy]}
           p.write_text(json.dumps(dict(sorted(J.items())), ensure_ascii=False, indent=1), encoding="utf-8")
