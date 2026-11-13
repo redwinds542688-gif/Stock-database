@@ -1,0 +1,31 @@
+name: 加權指數 1 分 K(每天收盤後存)
+
+# 2026-11-13 19:45 使用者「好」:每天存加權指數 1 分 K(證交所每 5 秒指數合成),之後用加權指數算 r(順大盤)重測
+on:
+  workflow_dispatch:
+    inputs:
+      from: { description: 補資料起日 YYYY-MM-DD(不填 = 今天), required: false, default: '' }
+      to:   { description: 補資料迄日, required: false, default: '' }
+  schedule:
+    - cron: '43 6 * * 1-5'   # UTC 06:43 = 台北 14:43(週一 ~ 五)
+
+permissions:
+  contents: write
+
+concurrency: { group: taiex-1m, cancel-in-progress: false }
+
+jobs:
+  taiex:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: 抓證交所每 5 秒指數 → 1 分 K
+        run: python3 tools/taiex_1m.py "${{ inputs.from }}" "${{ inputs.to }}"
+      - name: 存檔
+        run: |
+          git config user.name "github-actions[bot]"; git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add kline_index
+          git diff --cached --quiet && exit 0
+          git commit -m "加權指數 1 分 K"
+          for i in 1 2 3; do git pull --rebase -q && git push -q && exit 0; sleep 5; done
