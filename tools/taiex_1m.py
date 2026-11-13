@@ -6,20 +6,11 @@ import csv, datetime as dt, json, sys, time, urllib.request
 from pathlib import Path
 TW = dt.timezone(dt.timedelta(hours=8)); OUT = Path("kline_index/TAIEX")
 def fetch(d):
-    u = f"https://www.twse.com.tw/rwd/zh/afterTrading/MI_5MINS_INDEX?date={d:%Y%m%d}&response=json"
-    j = json.load(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=30))
-    if j.get("stat") != "OK" or not j.get("data"): return None
-    f = j.get("fields") or []; i = next((k for k, x in enumerate(f) if "加權" in x and "未含" not in x), 1)
-    bars = {}
-    for r in j["data"]:
-        t = str(r[0])[:5]
-        try: p = float(str(r[i]).replace(",", ""))
-        except Exception: continue
-        if not ("09:00" <= t <= "13:30") or p <= 0: continue
-        b = bars.get(t)
-        if b is None: bars[t] = [p, p, p, p]
-        else: b[1] = max(b[1], p); b[2] = min(b[2], p); b[3] = p
-    return bars
+    # 2026-11-13 19:55 GitHub 機器直接連證交所會被擋(回的不是資料)→ 改走自己的 Worker ?twidx=(Cloudflare 抓、合成好 1 分 K)
+    u = f"https://twse-proxy.redwinds542688.workers.dev/?twidx={d:%Y%m%d}"
+    j = json.load(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=60))
+    if j.get("error"): raise RuntimeError(j)
+    return {r[0]: r[1:5] for r in j.get("bars") or []} or None
 def save(d, bars):
     y, w, _ = d.isocalendar(); f = OUT / f"{y}-W{w:02d}.csv"; OUT.mkdir(parents=True, exist_ok=True)
     rows = []

@@ -25,6 +25,7 @@ jobs:
       - name: 存檔
         run: |
           git config user.name "github-actions[bot]"; git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          [ -d kline_index ] || exit 0
           git add kline_index
           git diff --cached --quiet && exit 0
           git commit -m "加權指數 1 分 K"

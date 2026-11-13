@@ -975,6 +975,24 @@ export default {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return J({ error: "d 要是 YYYY-MM-DD" }, 400);
       return J(await dailyArchive(env, d, true));
     }
+    if (url.searchParams.get("twidx")) {   // 2026-11-13 19:50 使用者「好」(每天存加權指數 1 分 K):證交所每 5 秒指數 → 1 分 K(GitHub 機器連證交所會被擋,改由這裡抓);公開資料,收盤後的日子存 Hub 不重抓
+      const d = String(url.searchParams.get("twidx")).replace(/-/g, "").slice(0, 8);
+      if (!/^\d{8}$/.test(d)) return J({ error: "twidx 要 YYYYMMDD" }, 400);
+      const hub = env.HUB ? hubOf(env) : null, ck = "twidx:" + d;
+      if (hub){ const old = await hub.kvGet(ck); if (old) return J(old); }
+      let j = null;
+      try { const r = await fetch(`https://www.twse.com.tw/rwd/zh/afterTrading/MI_5MINS_INDEX?date=${d}&response=json`, { headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" } });
+        const tx = await r.text(); try { j = JSON.parse(tx); } catch (e) { return J({ error: "證交所回的不是資料", status: r.status, head: tx.slice(0, 160) }, 502); } }
+      catch (e) { return J({ error: "連不到證交所 " + String(e).slice(0, 120) }, 502); }
+      if (!j || j.stat !== "OK" || !Array.isArray(j.data) || !j.data.length) return J({ d, bars: [], stat: j && j.stat });
+      const f = j.fields || [], i = Math.max(1, f.findIndex(x => /加權/.test(x) && !/未含/.test(x))), B = {};
+      for (const r of j.data){ const t = String(r[0]).slice(0, 5), p = parseFloat(String(r[i]).replace(/,/g, "")); if (!(t >= "09:00" && t <= "13:30") || !(p > 0)) continue;
+        const b = B[t]; if (!b) B[t] = [p, p, p, p]; else { b[1] = Math.max(b[1], p); b[2] = Math.min(b[2], p); b[3] = p; } }
+      const out = { d, bars: Object.keys(B).sort().map(t => [t, ...B[t]]) };
+      const nowD = ymdOf(twNow()).replace(/-/g, ""), hm = twNow().toISOString().slice(11, 16);
+      if (hub && out.bars.length && (d < nowD || hm >= "14:00")) try { await hub.kvPut(ck, out); } catch (e) {}
+      return J(out);
+    }
     if (url.searchParams.get("lat") === "day") {   // 2026-11-13 14:30 延遲紀錄:今天(盤中現算)或某天(收盤備份過的)每個進場訊號各段幾秒
       if (!(pushOk || ownerKI)) return J({ error: "要中繼金鑰或 owner 鑰匙" }, 403);
       const d = (url.searchParams.get("d") || ymdOf(twNow())).slice(0, 10), hub = hubOf(env);
