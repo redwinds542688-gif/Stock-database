@@ -619,6 +619,9 @@ class Trader:
                     self.set_forced_tpsl(p, p["entry"]); self.sub(p); p["y3_posted"] = True; self.oco_refresh(p, "對帳接回元三")
                     self.log(f"[交易] 對帳:{c} 元大有手動 {abs(n)} 張{'多' if d > 0 else '空'}單、程式沒收到回報 → 接成元三(均價 {p['entry']:.2f})")
                     self.alert(f"⚠ {c} 對帳接回元三 {abs(n)} 張", "斷線時漏了回報,程式已接手(停利 / 停損照判三)")
+                    try: self.post(f"{self.name_of(c)} {c} {'做多' if d > 0 else '做空'}進場 {p['entry']:.2f}",   # 2026-11-13 10:49 使用者「改1」:對帳接回元三也發進場卡
+                                   f"{p['t0']} 元大 · 對帳接回 · 停利 {p['tp']:.2f} 停損 {p['sl']:.2f} · {abs(n)}張 · {MANUAL}", "long" if d > 0 else "short")
+                    except Exception as e: self.log(f"[交易] 對帳接回發卡失敗 {e!r}")
                     p["_iron_pending"] = {"px": p["entry"], "lots": abs(n), "what": "手動單(對帳接回)", "fills": [(t.get("time", ""), t["price"]) for t in cs]}
 
     def prepare_close_all(self):
@@ -1226,6 +1229,12 @@ class Trader:
             self.post(f"{'✅ ' if pl >= 0 else '⚠ '}{self.name_of(c)} {c} 出場 {'+' if pl >= 0 else '−'}{abs(pl):.1f}%:" + (f"元大條件單{ow}" if ow else "元大預掛成交"),
                       f"{self.hm()} {'做多' if d > 0 else '做空'} {p.get('t0') or self.hm()} 進 {p['entry']:.2f} → 現價 {ex:.2f} · {p['closed_lots']}張 · " + (f"條件單{ow}" if ow else "元平") + f" · {p.get('judge') or ''}",   # 2026-11-07 10:36 使用者「元大手動平倉是不是應該叫做元平」→「改」   # 標原判別式才會和那張進場卡配成同一筆、算進輸贏;「· 強平 ·」讓手機藏掉之後引擎的虛擬出場
                       "profit" if pl >= 0 else "loss")
+
+        elif p.get("judge") == "補回" and p["closed_lots"]:
+            # 2026-11-13 10:49 使用者「改3」:多平自動補回平掉後也發一張平倉卡
+            ex = p["closed_cost"] / p["closed_lots"]; d = p["dir"]
+            self.post(f"⚠ {self.name_of(c)} {c} 出場:多平補回",
+                      f"{self.hm()} {'做多' if d > 0 else '做空'} {p.get('t0') or self.hm()} 進 {p['entry']:.2f} → 現價 {ex:.2f} · {p['closed_lots']}張 · 多平補回", "exit")
 
     def oco_ok(self, c):
         """2026-11-08 00:55 使用者:13:20 以後一律處在平倉狀態(接回 / 加碼都不再掛條件單);手動預掛跟條件單不會同時存在(有預掛就不掛)
