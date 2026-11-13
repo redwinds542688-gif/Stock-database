@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-13 10:14(實際時間)下排進場 / 當沖 / 明細燈號放大:填滿字左右剩下的空間(最寬 22px)、上下貼近按鍵邊,字大小不變(使用者「燈號 能在按鍵裡最大化 但不能影響按鍵裡字的大小」→畫→「改」)
   · 2026-11-13 10:03(實際時間)監控區:做空中 / 做多中 / 監控中等狀態後面加今天漲跌幅(比昨收,紅漲綠跌,跟報價更新)(使用者「做空中 做多中 監控中 後面顯示該股 目前的漲跌幅 紅漲綠跌」)
   · 2026-11-13 09:52(實際時間)進場通知重複修正:手機晚收到的雲端通知(本機紀錄存成收到的時間)和雲端那則合併成一則(同檔、同通知、同判別式 10 分鐘內只留最早的)(使用者「台玻 進場通知 有四筆」)
   · 2026-11-13 02:50(實際時間)🔓→🔒 鐵律 ⑥ 移動停損利改版(使用者「解鎖 改」):改用股價 —— 進場後最高價(空:最低價,起點 = 進場價)回頭 3% 就平倉(原 Ka 回頭 3.5%);電腦中繼即時價盯、引擎 / 手機判別式同一套;起點是進場價,所以每筆最多虧約 3%
@@ -451,7 +452,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611131003">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611131014">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -532,6 +533,8 @@
   .toolbar .tool.lmb{display:inline-flex;align-items:center;justify-content:space-between;padding:5px 3px;gap:2px}
   .toolbar .tool.lmb b{font-size:1em;line-height:1;white-space:nowrap;flex:1;text-align:center;font-weight:inherit}
   .lmp{display:inline-flex;flex-direction:column-reverse;gap:1px;align-self:stretch;width:5px;flex:none}
+  /* 2026-11-13 10:13 使用者「進場 當沖 明細 的燈號 能在按鍵裡最大化 但不能影響按鍵裡字的大小」:字只佔自己的寬度(大小不變),燈填滿左右剩下的空間、上下貼滿按鍵 */
+  .toolbar .tool.lmb{padding:2px 3px;gap:3px} .toolbar .tool.lmb b{flex:none} .toolbar .tool.lmb .lmp{flex:1 1 0;width:auto;min-width:5px;max-width:22px;gap:2px} .toolbar .tool.lmb .lmp i{border-radius:2px}
   .lmp i{flex:1;border-radius:1px;background:#2A3142}
   .lmp.r i.on{background:#FF4D5E;box-shadow:0 0 3px #FF4D5E}.lmp.g i.on{background:#1DD75B;box-shadow:0 0 3px #1DD75B}
   .lmp.y i.on{background:#FFD54F;box-shadow:0 0 3px #FFD54F}.lmp.b i.on{background:#3DA5FF;box-shadow:0 0 3px #3DA5FF}
