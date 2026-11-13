@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-13 09:52(實際時間)進場通知重複修正:手機晚收到的雲端通知(本機紀錄存成收到的時間)和雲端那則合併成一則(同檔、同通知、同判別式 10 分鐘內只留最早的)(使用者「台玻 進場通知 有四筆」)
   · 2026-11-13 02:50(實際時間)🔓→🔒 鐵律 ⑥ 移動停損利改版(使用者「解鎖 改」):改用股價 —— 進場後最高價(空:最低價,起點 = 進場價)回頭 3% 就平倉(原 Ka 回頭 3.5%);電腦中繼即時價盯、引擎 / 手機判別式同一套;起點是進場價,所以每筆最多虧約 3%
   · 2026-11-13 00:03(實際時間)電腦引擎開機對帳也認判六:判六做多 / 做空的進場、平倉都從雲端接回(重開又沒本機狀態檔時不重發),判六做空一天最多 5 檔的計數也接得回來(使用者「改 A B」)
   · 2026-11-12 23:48(實際時間)判六加做空(使用者「併入判六」,保險「只限一天最多5筆」,11/13 開盤上線):判六3(午盤 Ka 跌破 VWAP 做空,進場時大盤寬度 0.4~0.6 不做)併入判六,通知照樣寫「判六」、做空方向;一天最多 5 檔;同一檔判六多空同時只留一筆
@@ -449,7 +450,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611130240">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611130952">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7621,7 +7622,14 @@ window.bgTick = bgTick; window.BG = BG;
     const c = CLOUD_LOG.items[d] || []; if (!c.length) return local;
     const seen = new Set(local.map(cloudLogKey)); const out = local.slice();
     for (const x of c){ const k = cloudLogKey(x); if (seen.has(k)) continue; seen.add(k); out.push(x); }
-    return out.sort((a, b) => (b.t || '').localeCompare(a.t || ''));   // 新的在前(同一分鐘的維持原本順序)
+    /* 2026-11-13 09:52 使用者「台玻 進場通知 有四筆」:手機背景晚收到雲端通知(09:40 進場、09:44 平倉 → 09:45 才收到),手機本機紀錄用「收到的時間」存 → 時間不同,合併時當成不同兩則
+       → 同一檔、同一種通知、同一判別式,10 分鐘內只留一則(留時間最早的 = 雲端原本的時間) */
+    const mm_ = t => /^\d\d:\d\d/.test(t || '') ? (+t.slice(0, 2)) * 60 + (+t.slice(3, 5)) : -1;
+    const asc = out.slice().sort((a, b) => (a.t || '').localeCompare(b.t || '')), last = new Map(), drop = new Set();
+    for (const x of asc){ const k = cloudLogKey(Object.assign({}, x, {t: ''})), m = mm_(x.t), p = last.get(k);
+      if (p != null && m >= 0 && m - p <= 10){ drop.add(x); continue; } last.set(k, m); }
+    const res = drop.size ? out.filter(x => !drop.has(x)) : out;
+    return res.sort((a, b) => (b.t || '').localeCompare(a.t || ''));   // 新的在前(同一分鐘的維持原本順序)
   }
   /* 2026-11-07 00:48 使用者「燈號不對 今天金額才20112」:重算紀錄(app/log_backfill.json)被重寫回「含超額、全部訊號」版(11/06 有 10 筆,明細的額度版只有 9 筆)
      → 進場、燈號跟明細對不起來。改成手機自己對:有額度版明細(bt_fill)的日子,進場只留明細那幾筆的進場 + 出場,張數照額度(以後不管紀錄怎麼重寫都一致) */
