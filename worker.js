@@ -691,12 +691,33 @@ async function aiReview(env, d, legs, net, blocked, logs) {
   }
   return null;
 }
+// 2026-11-13 14:30 使用者「開始」(Cloudflare 第二輪 1 延遲紀錄):把一個進場訊號拆成幾段(秒)
+//   K 棒收完(訊號那根 +1 分)→ 引擎推出(ts)→ 雲端收到(wt)/ 中繼讀到(seen)→ 送單(sent)→ 第一筆成交(ff)。電腦和雲端的時鐘差也會算進「引擎 → 雲端」
+function latOf(d, logs, sigs, lat) {
+  const W = {}, S = {}, rows = [];
+  for (const x of logs || []) if (x && x._k && x.wt) W[x._k] = x.wt;
+  for (const x of sigs || []) if (x && x._k && x.ts && (x.kind === "long" || x.kind === "short")) S[x._k] = x;
+  const P = {}; for (const r of lat || []) if (r && r.k) P[r.k] = r;
+  const [Y, M, D] = d.split("-").map(Number), sec = v => v == null || !isFinite(v) ? null : Math.round(v * 10) / 10;
+  for (const [k, x] of Object.entries(S)) {
+    const m = String(x.body || "").match(/^(\d\d):(\d\d)/), bar = m ? Date.UTC(Y, M - 1, D, +m[1] - 8, +m[2] + 1) : null, p = P[k] || {};
+    rows.push({ t: x.t, code: ((String(x.title || "").match(/(\d{4,6}[A-Z]*)/) || [])[1]) || "", rs: ((String(x.body || "").match(/(判[一二三四五六七])/) || [])[1]) || "", ok: !!p.ok,
+      bar_eng: bar ? sec((x.ts - bar) / 1000) : null, eng_cloud: W[k] ? sec((W[k] - x.ts) / 1000) : null, eng_pc: p.seen ? sec(p.seen - x.ts / 1000) : null,
+      pc_sent: p.sent && p.seen ? sec(p.sent - p.seen) : null, sent_fill: p.ff && p.sent ? sec(p.ff - p.sent) : null, bar_fill: p.ff && bar ? sec(p.ff - bar / 1000) : null });
+  }
+  rows.sort((a, b) => a.t < b.t ? -1 : 1);
+  const med = f => { const a = rows.map(r => r[f]).filter(v => v != null).sort((a, b) => a - b); return a.length ? { med: a[a.length >> 1], max: a[a.length - 1], n: a.length } : null; };
+  const sum = {}; for (const f of ["bar_eng", "eng_cloud", "eng_pc", "pc_sent", "sent_fill", "bar_fill"]) sum[f] = med(f);
+  const lab = { bar_eng: "K 棒收 → 引擎算出", eng_cloud: "引擎 → 雲端", eng_pc: "引擎 → 中繼讀到", pc_sent: "讀到 → 送單", sent_fill: "送單 → 成交", bar_fill: "K 棒收 → 成交(合計)" };
+  const text = Object.entries(sum).filter(([, v]) => v).map(([f, v]) => `${lab[f]} ${v.med} 秒(最慢 ${v.max})`).join(" · ");
+  return { d, rows, sum, text: rows.length ? `進場訊號 ${rows.length} 個(有進場 ${rows.filter(r => r.ok).length}):` + text : "" };
+}
 async function dailyArchive(env, d, force) {
   const hub = hubOf(env), out = { d, at: new Date(Date.now() + 8 * 3600e3).toISOString().slice(11, 19) };
   if (!force) { let st = null; try { st = await hub.kvGet("arch:" + d); } catch (e) {} if (st && st.done) return { skip: true, ...st }; }
   let logs = []; try { logs = await hub.logGet(d); } catch (e) {}
   const pcb = {};
-  for (const nm of ["breadth", "codes", "engine", "state", "pos", "pnl", "blocked", "signals", "fills"]) { try { const x = await hub.kvGet(`pcbk:${d}:${nm}`); if (x && x.v != null) pcb[nm] = x.v; } catch (e) {} }
+  for (const nm of ["breadth", "codes", "engine", "state", "pos", "pnl", "blocked", "signals", "fills", "lat"]) { try { const x = await hub.kvGet(`pcbk:${d}:${nm}`); if (x && x.v != null) pcb[nm] = x.v; } catch (e) {} }
   const fills = pcb.fills && pcb.fills.d === d ? pcb.fills : null, legs = fills && Array.isArray(fills.legs) ? fills.legs : [], blocked = Array.isArray(pcb.blocked) ? pcb.blocked : [];
   // 5 AI 檢討(先做,R2 / D1 一起存)
   let rv = null;
@@ -732,6 +753,15 @@ async function dailyArchive(env, d, force) {
       for (let i = 0; i < st.length; i += 90) await DB.batch(st.slice(i, i + 90));
       out.db = { trades: legs.length, notes: logs.length, blocked: blocked.length }; } catch (e) { out.db = "失敗 " + String(e).slice(0, 160); } }
   else out.db = "沒有綁定 D1";
+  // 2026-11-13 14:30 延遲紀錄:今天每個進場訊號各階段幾秒 → 存 Hub(?lat=day 讀)、D1 lat 表、手機「今日監控紀錄」一則
+  try { const L = latOf(d, logs, pcb.signals, pcb.lat); if (L.rows.length) { await hub.kvPut("lat:" + d, L); out.lat = L.rows.length;
+      if (env.DB) { const DB = env.DB, P = (q, ...a) => DB.prepare(q).bind(...a);
+        await DB.prepare("CREATE TABLE IF NOT EXISTS lat (d TEXT, t TEXT, code TEXT, rs TEXT, ok INTEGER, bar_eng REAL, eng_cloud REAL, eng_pc REAL, pc_sent REAL, sent_fill REAL, bar_fill REAL)").run();
+        const st = [P("DELETE FROM lat WHERE d = ?", d)];
+        for (const r of L.rows) st.push(P("INSERT INTO lat VALUES (?,?,?,?,?,?,?,?,?,?,?)", d, r.t, r.code, r.rs, r.ok ? 1 : 0, r.bar_eng, r.eng_cloud, r.eng_pc, r.pc_sent, r.sent_fill, r.bar_fill));
+        for (let i = 0; i < st.length; i += 90) await DB.batch(st.slice(i, i + 90)); }
+      if (L.text) try { await hub.logAdd(d, `log:${d}:14:05:yt|latency`, { t: "14:05", title: "⏱ 今日延遲", body: L.text + " · 元大中繼", kind: "pc" }, ""); } catch (e) {} } }
+  catch (e) { out.lat = "失敗 " + String(e).slice(0, 120); }
   out.done = true; await hub.kvPut("arch:" + d, out);
   return out;
 }
@@ -944,6 +974,14 @@ export default {
       const d = (url.searchParams.get("d") || ymdOf(twNow())).slice(0, 10);
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return J({ error: "d 要是 YYYY-MM-DD" }, 400);
       return J(await dailyArchive(env, d, true));
+    }
+    if (url.searchParams.get("lat") === "day") {   // 2026-11-13 14:30 延遲紀錄:今天(盤中現算)或某天(收盤備份過的)每個進場訊號各段幾秒
+      if (!(pushOk || ownerKI)) return J({ error: "要中繼金鑰或 owner 鑰匙" }, 403);
+      const d = (url.searchParams.get("d") || ymdOf(twNow())).slice(0, 10), hub = hubOf(env);
+      if (!url.searchParams.get("live")) { const old = await hub.kvGet("lat:" + d); if (old) return J(old); }
+      const g = async nm => { try { const x = await hub.kvGet(`pcbk:${d}:${nm}`); return x && x.v; } catch (e) { return null; } };
+      let logs = []; try { logs = await hub.logGet(d); } catch (e) {}
+      return J(latOf(d, logs, await g("signals"), await g("lat")));
     }
     if (url.searchParams.get("ai") === "review") {
       if (!(pushOk || ownerKI)) return J({ error: "要中繼金鑰或 owner 鑰匙" }, 403);
@@ -1512,11 +1550,16 @@ export default {
         if (!it || !okDate(it.d) || !/^\d{2}:\d{2}$/.test(it.t || "") || !it.title) return J({ error: "缺 d / t / title" }, 400);
         const item = { t: it.t, title: String(it.title).slice(0, 200), body: String(it.body || "").slice(0, 500), kind: String(it.kind || "").slice(0, 10) };
         if (it.prev != null && isFinite(+it.prev)) item.prev = +it.prev;
+        // 2026-11-13 14:30 使用者「開始」(Cloudflare 第二輪 1 延遲紀錄):電腦引擎帶 ts(推出時間,毫秒)→ 記雲端收到的時間 wt;
+        //   進場 / 平倉訊號另寫一筆到 Analytics Engine(LAT,沒綁定就略過):引擎 → 雲端 幾毫秒
+        if (it.ts != null && isFinite(+it.ts)) { item.ts = Math.round(+it.ts); item.wt = Date.now();
+          try { if (env.LAT && ["long", "short", "exit", "loss"].includes(item.kind)) env.LAT.writeDataPoint({ indexes: [it.d], blobs: [it.d, item.kind, ((item.title.match(/(\d{4,6}[A-Z]*)/) || [])[1]) || "", ((item.body.match(/(判[一二三四五六七])/) || [])[1]) || "", "cloud"], doubles: [item.wt - item.ts] }); } catch (e) {} }
         const key = `log:${it.d}:${it.t}:${String(it.key || item.title).replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 120)}`;
         if (it.d >= DO_SINCE && env.HUB) {                        // 2026-10-24 起存 Hub(不用 KV 寫入 / list 額度)
           const res = await hubOf(env).logAdd(it.d, key, item, it.pos ? String(it.pos).replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 80) : "");
           // 2026-11-01 iPhone 網頁版 App:今天的新通知(不是重複的平倉)→ 推播給訂閱的手機(背景做,不拖慢回應)
-          if (res && !res.dup && it.d === ymdOf(twNow()) && ctx && ctx.waitUntil && !/未進場:額度不夠/.test(item.body))   // 2026-11-13 額度用完的進場訊號不推播 ctx.waitUntil(pushFanout(env, { ...item, key: String(it.key || "") }).catch(() => {}));
+          if (res && !res.dup && it.d === ymdOf(twNow()) && ctx && ctx.waitUntil && !/未進場:額度不夠/.test(item.body))   // 2026-11-13 額度用完的進場訊號不推播(2026-11-13 14:40 修:原本這行把推播寫進註解,11:56 起 iPhone 網頁版沒推播)
+            ctx.waitUntil(pushFanout(env, { ...item, key: String(it.key || "") }).catch(() => {}));
           return J(res);
         }
         // 2026-10-20 部位鍵去重(使用者:同一筆平倉發三次 → 「改」):手機帶 pos = 判別式|代碼|進場時間,同一個部位的平倉雲端只留第一則(兩支手機、服務重啟都不重複)

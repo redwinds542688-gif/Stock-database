@@ -1241,6 +1241,7 @@ class Bridge:
                 try:
                     with t.lock: items["pos"] = [{k: p.get(k) for k in ("code", "dir", "qty", "entry", "judge", "tp", "sl", "state", "t0", "typ")} for p in t.positions.values()]
                     items["pnl"] = {"pnl": round(getattr(t, "pnl", 0) or 0), "n": getattr(t, "n_trades", 0), "amount": round(getattr(t, "amount_today", 0) or 0)}
+                    items["lat"] = t.lat_rows()   # 2026-11-13 14:30 使用者「開始」(Cloudflare 第二輪 1):每個進場訊號 引擎→中繼→送單→成交 的時間
                 except Exception: pass
             req = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?pcbk=put", data=json.dumps({"d": day, "items": items}, ensure_ascii=False, default=str).encode(), method="POST",
                                          headers={"Content-Type": "application/json", "X-Push-Key": CFG.get("PUSH_KEY", "")})

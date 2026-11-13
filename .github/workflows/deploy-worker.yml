@@ -73,6 +73,8 @@ jobs:
           if [ -n "$DID" ]; then printf '\n[[d1_databases]]\nbinding = "DB"\ndatabase_name = "stock-trades"\ndatabase_id = "%s"\n' "$DID" >> wrangler.toml; echo "D1 綁定好 $DID"
           else echo "::warning::D1 建不起來(Token 要 D1:Edit)"; fi
           printf '\n[ai]\nbinding = "AI"\n' >> wrangler.toml
+          # 2026-11-13 14:30 使用者「開始」(Cloudflare 第二輪 1 延遲紀錄):Analytics Engine(資料集第一次寫入會自己建)
+          printf '\n[[analytics_engine_datasets]]\nbinding = "LAT"\ndataset = "stock_latency"\n' >> wrangler.toml
           tail -15 wrangler.toml
 
       # 2026-11-07 20:41 使用者同意「雲端程式更新失敗推通知」:先用 Node 以模組模式檢查語法(11/07 註解吃掉程式碼那次 node --check 沒抓到)
@@ -93,10 +95,10 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          echo "::warning::帶 R2 / D1 / AI 綁定部署失敗,改用基本設定部署"
+          echo "::warning::帶 R2 / D1 / AI / Analytics Engine 綁定部署失敗,改用基本設定部署"
           python3 - <<'PY'
           s = open("wrangler.toml", encoding="utf-8").read()
-          for tag in ("\n[[r2_buckets]]", "\n[[d1_databases]]", "\n[ai]"):
+          for tag in ("\n[[r2_buckets]]", "\n[[d1_databases]]", "\n[ai]", "\n[[analytics_engine_datasets]]"):
               i = s.find(tag)
               if i >= 0:
                   j = s.find("\n[", i + len(tag))

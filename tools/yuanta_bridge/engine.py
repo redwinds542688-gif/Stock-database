@@ -836,6 +836,7 @@ class Engine:
 
     def push(self, it):
         """回傳 True = 推上去了(dry 也算);失敗的進場不記,下一輪(10 分鐘內)再試;失敗的平倉部位留著,下一輪再推"""
+        it.setdefault("ts", int(time.time() * 1000))   # 2026-11-13 14:30 使用者「開始」(Cloudflare 第二輪 1 延遲紀錄):引擎推出的時間(毫秒),中繼 / 雲端各自記收到的時間
         self.sent.append(it)
         log(f"[通知] {it['kind']:6} {it['t']} {it['title']} | {it['body']}")
         if self.dry: return True

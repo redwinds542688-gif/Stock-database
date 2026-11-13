@@ -897,6 +897,7 @@ class Trader:
             self.pending_cancel(p)
             if rpt_type == 51 and qty_shares > 0:
                 o["filled"] += qty_shares; o["cost"] += qty_shares * price
+                o.setdefault("ff", time.time())   # 2026-11-13 14:30 使用者「開始」(Cloudflare 第二輪 1 延遲紀錄):第一筆成交的時間
                 self.log(f"[交易] 成交 {p['code']} {o['purpose']} {o['side']} {qty_shares // 1000} 張 @ {price}(累計 {o['filled'] // 1000}/{o['want'] // 1000})")
             elif rpt_type == 50 and status in (1, 2, 24, 25):
                 o["dead"] = True; o["end_status"] = status
@@ -1774,7 +1775,7 @@ class Trader:
         code = code_of(title) if kind in ("long", "short") else None
         before = self.positions.get(code) if code else None
         seen0 = (it.get("_k") or (it.get("t", "") + title)) in self.seen
-        cap = []; lg = self.log
+        cap = []; lg = self.log; t_seen = time.time()
         if code and self.primed and not seen0: self.log = lambda m, *a, _lg=lg: (cap.append(str(m)), _lg(m, *a))[1]   # 2026-11-13 記下不進場原因(給通知標「未進場」)
         try: self._on_signal(it)
         finally: self.log = lg
@@ -1790,6 +1791,19 @@ class Trader:
             if it.get("_k"):
                 ok = after is not None and after is not before
                 self.__dict__.setdefault("verdicts", []).append({"_k": it["_k"], "ok": ok, "why": "" if ok else why_short(title, cap)})
+                # 2026-11-13 14:30 延遲紀錄:引擎推出(ts)→ 中繼讀到(seen)→ 送單(sent)→ 第一筆成交(ff,回報晚到也會補上:記的是委託本身)
+                try:
+                    if len(self.__dict__.setdefault("lat_rec", {})) < 400:
+                        self.lat_rec[it["_k"]] = {"code": code, "ts": it.get("ts"), "seen": round(t_seen, 3), "ok": ok, "o": (after.get("order") if ok else None)}
+                except Exception: pass
+
+    def lat_rows(self):
+        """2026-11-13 14:30 延遲紀錄(給中繼每分鐘備份到雲端):每個進場訊號各階段的時間(epoch 秒)"""
+        out = []
+        for k, r in list(getattr(self, "lat_rec", {}).items()):
+            o = r.get("o") or {}
+            out.append({"k": k, "code": r["code"], "ts": r.get("ts"), "seen": r["seen"], "ok": r["ok"], "sent": round(o["at"], 3) if o.get("at") else None, "ff": round(o["ff"], 3) if o.get("ff") else None})
+        return out
 
     def sig_key(self, code, judge, body):
         mb = RE_BAR.search(body or "")
