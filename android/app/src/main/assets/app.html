@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-13 13:36(實際時間)明細切到「虛擬」時,監控區的已交易 / 未交易(和排序)跟虛擬明細走;切回「元大」照元大真實成交(使用者「在虛擬 撼訊 已交易 監控裡面怎麼寫 未交易」→「改」)
   · 2026-11-13 12:45(實際時間)捲動順暢(使用者「檢查所有捲動 似乎不太順暢」):通知欄卡片的即時價每 5 秒不同 → 原本每次整欄重建 + 重量字級(模擬手機一次 0.2~0.5 秒卡住);改成只有即時價不同就不重建(價由小計時器更新);背景輪詢 / 燈號的重畫在手指捲動中先等,停下再補(監控清單捲動中也等)
   · 2026-11-13 12:26(實際時間)元大 / 虛擬切換時不跳提示(使用者「監控區那邊的提示 虛擬進場...這些不需要」)
   · 2026-11-13 12:17(實際時間)大盤寬度雲端缺分鐘(或整個抓不到)時,電腦用自己的元大 1 分 K + 昨收補算,總停損不中斷(使用者「改」)。11/16 生效
@@ -464,7 +465,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611131234">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611131335">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2323,6 +2324,8 @@ window.fmShow = fmShow;
 /* 2026-11-12 14:54 使用者「股票監控區 像那個 金居 根本沒交易 不能寫 已交易 要寫 未交易 排序要在 已交易的後面」:
    收盤後:永久會員看元大真的有成交的才寫「已交易」,其他有訊號的寫「未交易」(超額 / 資金不夠 / 沒成交);看盤版照舊 */
 function yTraded(code){ try{
+  // 2026-11-13 13:34(實際時間)使用者「在虛擬 撼訊 已交易 監控裡面怎麼寫 未交易」→「改」:明細切到「虛擬」時,監控區的已交易 / 未交易(和排序)跟虛擬明細走
+  if (window.DONE_VIRT && window.__VTR){ const ks = Object.keys(__VTR).sort(), tw = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10), d = ks.filter(x => x <= tw).pop(); if (d) return __VTR[d].has(String(code)); }
   if (window.VIEWER || (typeof vwOnly === 'function' && vwOnly())) return true;
   const C = yTraded.c || (yTraded.c = {t: 0, s: null});
   if (!C.s || Date.now() - C.t > 30000){
@@ -7997,15 +8000,16 @@ window.bgTick = bgTick; window.BG = BG;
             R.push({x, xt: m[1], t: m[3], e: +m[4], xp: +m[5], rs: m[7], code: c}); }
           const out = R.map(r => r.x);   /* 2026-11-04 18:54 使用者「在500萬內 有交易者 才計入筆數」:app/bt_fill.json 改存 500 萬額度內電腦會下單的(10 檔、超額、已成交 + 漲停預留,張數照額度),這裡照單全收 */   /* 2026-11-03 16:12 使用者「那虛擬改這個 永久版的也改這個」:不套額度(每個訊號都照 25 萬一筆做),只扣盤中沒發進場訊息的 */
           return out.sort((a, b) => a.t < b.t ? 1 : a.t > b.t ? -1 : 0); };
-        const rowsOf = (arr, dd) => { let h = '', t = 0, c = 0, cm = 0, LS = null;
+        const rowsOf = (arr, dd) => { let h = '', t = 0, c = 0, cm = 0, LS = null; const VS = new Set();
           // 2026-10-27 13:20 使用者:「股價照股價的顏色顯示」:進、出價和清單一樣比昨收,高紅、低綠、平白(昨收:紀錄自帶 prev;今天用即時報價的昨收,沒有用清單昨收)
           const pc = o => o.prev || (dd === today ? (((LIVE.get(o.code) || {}).y) || (() => { const sn = SNAPSHOT.find(q => q.code === o.code); return sn && sn.date < today ? +sn.close : 0; })()) : 0);
           const ud = (v, p) => !p || !v ? '' : v > p ? 'up' : v < p ? 'dn' : '';
           for (const o of arr.filter(o => o.type === 'exit' && !o.over && !o._hide && o.entP > 0 && o.price > 0 && o.side && !(window.DONE_VIRT && (o.rs === '元三' || o.rs === '強三')))){   /* 2026-11-10 觀察版判六另外列(不算進輸贏) */   /* 2026-11-09 觀察版判七另外列(不算進輸贏) */   /* 2026-11-03 15:12 虛擬不列元大手動單 / 強制進場(那是真的單) */   /* 2026-11-02 超額(沒交易)不列明細 */
             const [v] = netOf([o]); let nl = false;
             if (o.x && o.x.bt){ if (!LS) LS = liveSet(dd); nl = LS.size > 0 && !(o.rs === '判五' && dd <= '2026-11-05') && !LS.has(o.code + '|' + o.side); }   /* 2026-11-06 01:35 判五 11/05 以前不標「無訊息」、照算(使用者截圖 11/05 只算 +697) */   // 那天沒有任何盤中訊息(雲端沒存到)就不對照
-            c++; if (!nl){ t += v; cm++; }
+            c++; if (!nl){ t += v; cm++; } VS.add(String(o.code));
             h += `<div class="r${nl ? ' nolive' : ''}" data-day="${dd}" data-code="${esc(o.code)}" data-name="${esc(o.name)}"><span class="nm"><span class="sd ${o.side === 'long' ? 'long' : 'short'}">${o.side === 'long' ? '多' : '空'}</span>${esc(o.name)}${nl ? '<span class="nlv">無訊息</span>' : ''}</span><span class="num io"><span class="${ud(+o.entP, pc(o))}">${(+o.entP).toFixed(2)}</span><span>→</span><span class="${ud(+o.price, pc(o))}">${(+o.price).toFixed(2)}</span></span><span class="num">${lotsOf(o)}</span>${amt(v)}</div>`; }
+          if (window.DONE_VIRT) try{ (window.__VTR || (window.__VTR = {}))[dd] = VS; }catch(e){}   /* 2026-11-13 虛擬明細有做的股票(監控區已交易用) */
           return [h, t, c, cm]; };
         // 2026-10-28 00:30 使用者:「下一個開盤日 早上8.45之前 都是圖一這個畫面(明細 10/27)… 8.45之後 才顯示圖二 … 明細後面的10/27也會變成10/28」:
         //   明細的「這一天」= 交易日 08:45 以後是今天;08:45 以前(或週末)還是上一個有紀錄的日子,最上面就是那天的平倉、標題寫那天
