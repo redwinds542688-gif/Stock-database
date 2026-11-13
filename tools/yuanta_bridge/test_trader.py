@@ -838,8 +838,8 @@ tc.resume([{"code": "6269", "bs": "S", "lots": 1, "price": 86.1, "time": "10:00"
 ok(any(x[0] == "oco" for x in gc.sent), gc.sent)
 # 2026-11-11 14:49 張數分級 + 判別式只在 09:30~12:32 進場
 at(10, 0); tq, gq = mk(TRADE_CAP="250000", TRADE_LOT_TIER="1", TRADE_JUDGE_FROM="09:30", TRADE_JUDGE_TO="12:32")
-ok(tq.lots_for(20.6) == 3 and tq.lots_for(53) == 3 and tq.lots_for(53.4) == 2 and tq.lots_for(80) == 2 and tq.lots_for(80.5) == 2 and tq.lots_for(125) == 2 and tq.lots_for(125.5) == 1 and tq.lots_for(249) == 1 and tq.lots_for(5) == 3, [tq.lots_for(x) for x in (20.6, 53, 53.4, 80, 80.5, 125, 125.5, 249, 5)])   # 2026-11-11 16:43 ≤80 元 3 張 ≤16 萬;80~250 元 2 張 ≤25 萬
-tq.on_tick("2330", 50.0); tq.step([ENTX("2330", 50.0, judge="判四")]); ok("2330" in tq.positions and gq.sent[-1][:3] == ("2330", "B", 3), gq.sent)   # 50 元 → 3 張(原 25 萬 ÷ 5 萬 = 5 張)
+ok([tq.lots_for(x) for x in (20.6, 53, 53.4, 80, 80.5, 125, 125.5, 249, 5, 300)] == [12, 4, 4, 3, 3, 2, 1, 1, 50, 1], [tq.lots_for(x) for x in (20.6, 53, 53.4, 80, 80.5, 125, 125.5, 249, 5, 300)])   # 2026-11-14 00:55 鐵律 ⑤ 改不分級:25 萬 ÷ 一張   # 2026-11-11 16:43 ≤80 元 3 張 ≤16 萬;80~250 元 2 張 ≤25 萬
+tq.on_tick("2330", 50.0); tq.step([ENTX("2330", 50.0, judge="判四")]); ok("2330" in tq.positions and gq.sent[-1][:3] == ("2330", "B", 4), gq.sent)   # 2026-11-14 不分級:委託價 50.2 → 25 萬 ÷ 5.02 萬 = 4 張(原分級 3 張)
 at(9, 20); tr_, gr_ = mk(TRADE_CAP="250000", TRADE_LOT_TIER="1", TRADE_JUDGE_FROM="09:30", TRADE_JUDGE_TO="12:32"); tr_.on_tick("2330", 50.0); tr_.step([ENTX("2330", 50.0, judge="判四")]); ok("2330" not in tr_.positions, "09:20 判別式不進")
 at(12, 33); tr2, gr2 = mk(TRADE_CAP="250000", TRADE_LOT_TIER="1", TRADE_JUDGE_FROM="09:30", TRADE_JUDGE_TO="12:32"); tr2.on_tick("2330", 50.0); tr2.step([ENTX("2330", 50.0, judge="判四")]); ok("2330" not in tr2.positions, "12:33 判別式不進")
 # 2026-11-11 14:57 停損價不超過昨收 ±6.5%(元大條件單同一價)
@@ -878,7 +878,7 @@ tj_, gj_ = mk(); tj_.cap = 400000; tj_.ref_of = lambda c: 300.0; tj_.on_tick("23
 tj_, gj_ = mk(); tj_.cap = 250000; tj_.ref_of = lambda c: 300.0; tj_.on_tick("2346", 300.0); ok(not tj_.force_enter("2346", 1, 1)[0])   # 主導機 25 萬:一張 30 萬不給進
 at(10, 0); tv, gv = mk(TRADE_QTY="5"); tv.on_tick("6269", 86.2); tv.step([ENT]); ok(gv.sent[-1][2] == 2, gv.sent)   # 86.2 元最多 2 張
 tw5, _ = mk(TRADE_CAP="900000", TRADE_LOT_TIER="0", TRADE_MAX_AMOUNT="9000000"); ok(tw5.cap == 250000 and tw5.cap_lim() == 250000 and tw5.lot_tier and tw5.max_amount == 5000000, (tw5.cap, tw5.lot_tier, tw5.max_amount))
-ok(tw5.lots_for(20.0) == 3 and tw5.lots_for(60.0) == 2 and tw5.lots_for(100.0) == 2 and tw5.lots_for(200.0) == 1)
+ok([tw5.lots_for(x) for x in (20.0, 60.0, 100.0, 200.0)] == [12, 4, 2, 1])   # 2026-11-14 不分級
 # 2026-11-13 02:37 鐵律 ⑥ 移動停損利改版(強三):用股價,進場後最低價(空)回升 ≥ 3% → 平倉;起點 = 進場價;設定關不掉、放不寬
 at(10, 0); tm6, _ = mk(); tm6.ref_of = lambda c: 100.0; tm6.on_tick("2330", 100.0); ok(tm6.force_enter("2330", -1, 1)[0]); tm6.on_report(51, "A0001", 0, 1000, 100.0); p6 = tm6.positions["2330"]; tm6._mt_test = True
 for mm_, px_ in [(1, 99.0), (2, 97.0), (3, 96.0), (4, 97.5), (5, 98.8)]:
@@ -892,7 +892,7 @@ at(10, 2); tm9.on_tick("2331", 104.0); at(10, 3); tm9.on_tick("2331", 101.0); ok
 at(10, 4); tm9.on_tick("2331", 100.8); ok(p9["state"] == EXITING and p9["exit_why"] == "移平", (p9["state"], p9.get("exit_why")))
 tm7, _ = mk(TRADE_MTSL_PCT="0"); ok(tm7.mtsl == 3.0); tm7b, _ = mk(TRADE_MTSL_PCT="3.5"); ok(tm7b.mtsl == 3.0); tm8, _ = mk(TRADE_MTSL_PCT="2"); ok(tm8.mtsl == 2.0); at(10, 0)
 # 2026-11-11 19:59 鐵律 ⑤ 強制進場也照張數分級 / 超額 / 500 萬額度
-at(10, 0); tf5, gf5 = mk(TRADE_CAP="250000"); tf5.ref_of = lambda c: 50.0; tf5.on_tick("2330", 50.0); r5 = tf5.force_enter("2330", 1, 10); ok(r5[0] and gf5.sent[-1][2] == 3 and "3 張" in r5[1], (r5, gf5.sent))   # 手機送 10 張 → 50 元最多 3 張
+at(10, 0); tf5, gf5 = mk(TRADE_CAP="250000"); tf5.ref_of = lambda c: 50.0; tf5.on_tick("2330", 50.0); r5 = tf5.force_enter("2330", 1, 10); ok(r5[0] and gf5.sent[-1][2] == 4 and "4 張" in r5[1], (r5, gf5.sent))   # 手機送 10 張 → 委託價 50.2:25 萬 ÷ 5.02 萬 = 4 張(2026-11-14 不分級;原分級 3 張)
 tf6, gf6 = mk(TRADE_CAP="250000"); tf6.ref_of = lambda c: 300.0; tf6.on_tick("3008", 300.0); r6 = tf6.force_enter("3008", 1, 1); ok(not r6[0] and "超額" in r6[1], r6)
 tf7, gf7 = mk(TRADE_CAP="250000", TRADE_MAX_AMOUNT="300000"); tf7.ref_of = lambda c: 50.0; tf7.on_tick("2330", 50.0); r7 = tf7.force_enter("2330", 1, 3); ok(r7[0] and gf7.sent[-1][2] == 2, (r7, gf7.sent))   # 額度 30 萬:每張預留 50 + 漲停 55 → 2 張
 tf8, gf8 = mk(TRADE_CAP="250000", TRADE_MAX_AMOUNT="100000"); tf8.ref_of = lambda c: 50.0; tf8.on_tick("2330", 50.0); r8 = tf8.force_enter("2330", 1, 3); ok(not r8[0] and "額度" in r8[1] and not gf8.sent, r8)
@@ -918,7 +918,7 @@ def man_(h, m, px, n, ref=50.0):
     at(h, m); t_, g_ = mk(TRADE_CAP="250000", TRADE_Y3_POST_DELAY="0"); t_.ref_of = lambda c: ref; t_.on_tick("2330", px)
     t_.on_report(51, "M9", 0, n * 1000, px, basket="", code="2330", bs="B"); return t_, g_
 tA, gA = man_(10, 0, 50.0, 3); ok(tA.positions["2330"]["state"] == HOLDING)                          # 50 元 3 張:合規,照管
-tB, gB = man_(10, 0, 50.0, 4); ok(tB.positions["2330"]["state"] == EXITING and tB.positions["2330"]["exit_why"] == "鐵律", tB.positions["2330"].get("exit_why"))   # 4 張超過分級
+tB, gB = man_(10, 0, 50.0, 6); ok(tB.positions["2330"]["state"] == EXITING and tB.positions["2330"]["exit_why"] == "鐵律", tB.positions["2330"].get("exit_why"))   # 6 張超過 25 萬(2026-11-14 不分級;原 4 張超過分級)
 tC, gC = man_(9, 20, 50.0, 1); ok(tC.positions["2330"]["state"] == EXITING)                         # 09:20 不在時段
 tD, gD = man_(10, 0, 53.0, 1); ok(tD.positions["2330"]["state"] == EXITING)                         # +6%
 at(10, 0)
@@ -931,12 +931,12 @@ at(13, 21); tc9.on_tick("1709", 50.0); tc9.step([]); ok(pc9["state"] == EXITING 
 # 5) 程式進場中手動同方向成交 5 張 + 程式 3 張 = 8 張 > 分級 3 張 → 下一秒整個部位平掉
 at(10, 0); t5_, g5_ = mk(TRADE_CAP="250000"); t5_.ref_of = lambda c: 50.0; t5_.on_tick("2330", 50.0); t5_.step([ENTX("2330", 50.0)]); p5_ = t5_.positions["2330"]
 t5_.on_report(51, "M5", 0, 5000, 50.0, basket="", code="2330", bs="B"); t5_.on_report(51, "A0001", 0, p5_["order"]["want"], 50.0, basket=p5_["order"]["tag"])
-ok(p5_["state"] == HOLDING and p5_["qty"] == 8, p5_); t5_.step([]); ok(p5_["state"] == HOLDING, p5_.get("exit_why"))   # 2026-11-12 11:55「解鎖 改:只有手動加碼」:加碼不看分級 → 不平
+ok(p5_["state"] == HOLDING and p5_["qty"] == 9, p5_); t5_.step([]); ok(p5_["state"] == HOLDING, p5_.get("exit_why"))   # 2026-11-12 11:55「解鎖 改:只有手動加碼」:加碼不看分級 → 不平
 # 5b) 程式進場沒成交、只有手動 4 張(> 3)→ 接成部位後平掉
 t5b, g5b = mk(TRADE_CAP="250000", TRADE_ENTRY_FALLBACK="0"); t5b.ref_of = lambda c: 50.0; t5b.on_tick("2330", 50.0); t5b.step([ENTX("2330", 50.0)])
-t5b.on_report(51, "M6", 0, 4000, 50.0, basket="", code="2330", bs="B"); t5b.on_report(50, "A0001", 25, 0, 0); t5b.step([]); ok(t5b.positions["2330"]["state"] == EXITING, t5b.positions["2330"])
+t5b.on_report(51, "M6", 0, 6000, 50.0, basket="", code="2330", bs="B"); t5b.on_report(50, "A0001", 25, 0, 0); t5b.step([]); ok(t5b.positions["2330"]["state"] == EXITING, t5b.positions["2330"])
 # 6) 重開接回元三:12:50 手動成交 → 平掉;10:00 成交 2 張 → 照管;成交時間看不懂 → 不看時間(不誤平)
-for _tm, _n, _bad in (("2026/11/11 下午 12:50:03", 2, True), ("2026/11/11 上午 10:00:03", 2, False), ("", 2, False), ("10:00", 4, True)):
+for _tm, _n, _bad in (("2026/11/11 下午 12:50:03", 2, True), ("2026/11/11 上午 10:00:03", 2, False), ("", 2, False), ("10:00", 6, True)):
     at(13, 0); t6_, g6_ = mk(TRADE_CAP="250000"); t6_.ref_of = lambda c: 50.0; t6_.on_tick("2330", 50.0)
     t6_.resume([{"code": "2330", "bs": "B", "lots": _n, "price": 50.0, "time": _tm, "order_no": "M7"}], {}, [], [])
     p6_ = t6_.positions["2330"]; ok(p6_["judge"] == "元三" and p6_["state"] == HOLDING, p6_); t6_.step([])
@@ -990,7 +990,7 @@ ok(_eng.exit_text("總停損") == "總平" and _eng.exit_text("移動停損利")
 # 9) 委託價(現價讓 2 檔)超過昨收 ±5% → 不進:昨收 50、現價 52.4(+4.8%)→ 委託 52.6(+5.2%)
 t9_, g9_ = mk(TRADE_CAP="250000"); t9_.ref_of = lambda c: 50.0; t9_.on_tick("2330", 52.4); t9_.step([ENTX("2330", 52.4)]); ok("2330" not in t9_.positions and not g9_.sent, g9_.sent)
 # 10) 張數照訊號價和委託價較高的算:訊號 53.3(3 張 15.99 萬)、委託 53.5 → 3 張 16.05 萬超過 → 2 張
-t10_, g10_ = mk(TRADE_CAP="250000"); t10_.ref_of = lambda c: 53.0; t10_.on_tick("2330", 53.3); t10_.step([ENTX("2330", 53.3)]); ok(g10_.sent[-1][2] == 2, g10_.sent)
+t10_, g10_ = mk(TRADE_CAP="250000"); t10_.ref_of = lambda c: 53.0; t10_.on_tick("2330", 53.3); t10_.step([ENTX("2330", 53.3)]); ok(g10_.sent[-1][2] == 4, g10_.sent)   # 2026-11-14 不分級:委託 53.5 → 25 萬 ÷ 5.35 萬 = 4 張(原分級 2 張)
 # 6) 對帳發現張數變多(漏了手動加碼回報):判二 2 張 → 元大 6 張(手動 4 張,超過分級)→ 整個部位平
 at(10, 0); t6r, g6r = mk(TRADE_CAP="250000"); t6r.ref_of = lambda c: 86.2; t6r.on_tick("6269", 86.2); t6r.step([ENT]); t6r.on_report(51, "A0001", 0, 2000, 86.1)
 tg6 = {"A0001": t6r.positions["6269"].get("entry_tag") or "T1"}; tr6 = [{"code": "6269", "bs": "S", "lots": 2, "price": 86.1, "time": "10:00", "order_no": "A0001"}, {"code": "6269", "bs": "S", "lots": 4, "price": 86.0, "time": "10:01", "order_no": "M66"}]
