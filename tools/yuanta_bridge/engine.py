@@ -822,8 +822,11 @@ class Engine:
         else: rs_env = importlib.import_module("rs_env")
         self.rs_pri = getattr(rs_env, "RS_PRIORITY", None)   # 2026-11-10 同一分鐘同一檔的判別式優先順序(勝率);私人庫沒設就用 engine 的 RS_PRIORITY
         self.envs = {}
+        self.txsync_fn = getattr(rs_env, "txsync", None)   # 2026-11-13 22:30 ⑧ 台指期同步進場(使用者「解鎖 改 全部套用」):判斷寫在私人庫 rs_env.txsync(模擬器同一份)
         self.j5max = int(getattr(rs_env, "J5MAX", J5MAX))   # 2026-11-05 判五一天上限(私人庫 rs_env.J5MAX;apply 裡沒有 rs_env 這個名字)
-        for rs in RS_ALL: self.envs[rs] = rs_env.env_of(rs, str(DATA / "breadth.json") if rs in ("一", "二", "五", "六", "六3") else None)   # 2026-11-10 23:05 判六(午盤 Ka 穿 VWAP)要寬度 10 分鐘變化   # 判五:名單平均檔 DATA/mktavg.json(write_breadth 寫)
+        for rs in RS_ALL: self.envs[rs] = rs_env.env_of(rs, str(DATA / "breadth.json") if rs in ("一", "二", "五", "六", "六3") else None)
+        for _e in self.envs.values():
+            if _e.get("TXSYNC"): _e["TXFDIR"] = str(HERE / "kline_futures" / "TXF")   # ⑧ 模擬器讀中繼存的台指期 1 分 K   # 2026-11-10 23:05 判六(午盤 Ka 穿 VWAP)要寬度 10 分鐘變化   # 判五:名單平均檔 DATA/mktavg.json(write_breadth 寫)
         if self.envs.get("六", {}).get("MODE") not in ("j6k", "j6r"):   # 2026-11-10 23:05 判六 = 午盤 Ka 穿 VWAP(j6k;舊超賣急彈 j6r 封存但還認得);私人庫沒有 → 判六先不跑
             self.envs.pop("六", None); log("!! 私人庫 rs_env.py 還沒有觀察版判六(J6 MODE=j6k),判六今天先不跑")
         if self.envs.get("六3", {}).get("MODE") != "j63" or "六" not in self.envs:   # 2026-11-12 23:40 判六做空(判六3):私人庫沒有 J63 / 判六沒開 → 不跑
@@ -1187,11 +1190,58 @@ class Engine:
             self.emitted.add(ek); log(f"判六(做空){code} {open_tm} 今天判六做空已 {len(self.j63)} 檔(到上限)→ 不發"); return n
         elif rs in ("六", "六3") and (("六3" if rs == "六" else "六"), code) in self.pos:   # 2026-11-12 23:40 判六做多 / 做空同一檔同時只留一筆
             self.emitted.add(ek); log(f"判六 {code} {open_tm} 這檔判六另一個方向的部位還開著 → 不發"); return n
+        elif not self.tx_ok(rs, code, open_tm, d["side"]):   # 2026-11-13 22:30 ⑧ 台指期同步進場:同步率 < 0.5 或台指期往不利方向 → 這筆不做(記 emitted,不再發)
+            self.emitted.add(ek); return n
         else: why = None
         if why:
             log(f"{JUDGE[rs]} {code} {open_tm} 進場先不發:{why}"); return n   # 不記 emitted:10 分鐘內恢復就照發
         if self.push_entry(rs, code, open_tm, d, upto): self.emitted.add(ek)
         return n
+
+    def txf_map(self):
+        """⑧ 中繼(yuanta_bridge.py)每分鐘寫的台指期近月 1 分 K:HERE/kline_futures/TXF/<日期>.csv → {HH:MM: 收盤};20 秒快取"""
+        c = self.__dict__.get("_txf_c")
+        if c and time.time() - c[0] < 20 and c[1] == self.day: return c[2]
+        m = {}
+        try:
+            with open(HERE / "kline_futures" / "TXF" / f"{self.day}.csv", encoding="utf-8") as fh:
+                for r in csv.DictReader(fh):
+                    if r.get("date") == self.day and "08:45" <= r["time"] <= "13:45": m[r["time"]] = float(r["close"])
+        except Exception: pass
+        self._txf_c = (time.time(), self.day, m); return m
+
+    def stock_closes(self, code):
+        """⑧ 這檔今天 09:00~13:30 的 1 分 K 收盤(模擬器同一份 kline_yuanta/<代號>/<週>.csv)"""
+        try:
+            d = dt.date.fromisoformat(self.day); y, w, _ = d.isocalendar(); rows = {}
+            for sub in ("kline_yuanta", "kline"):
+                f = DATA / sub / code / f"{y}-W{w:02d}.csv"
+                if not f.exists(): continue
+                with open(f, encoding="utf-8") as fh:
+                    for r in csv.DictReader(fh):
+                        if r.get("date") == self.day and "09:00" <= r["time"] <= "13:30": rows.setdefault(r["time"], float(r["close"]))
+                if rows: break
+            return sorted(rows.items())
+        except Exception: return []
+
+    def tx_ok(self, rs, code, tm, side):
+        """⑧ 台指期同步進場(2026-11-13 22:17 使用者「解鎖 改 全部套用」):rs_env 有 TXSYNC 才看;判斷用私人庫 rs_env.txsync(和模擬器同一份)。
+           這天完全沒有台指期 → 先不看(照舊進場)+ 推一次警告;其他算不出來 / 不合 → 不做"""
+        c = self.envs.get(rs, {}).get("TXSYNC"); fn = getattr(self, "txsync_fn", None)
+        if not c or not fn: return True
+        try:
+            txf = self.txf_map()
+            if not txf:
+                if not self.__dict__.get("_txf_warn") and now_tw().strftime("%H:%M") >= "09:05":
+                    self._txf_warn = True; log("!! ⑧ 今天沒有台指期 1 分 K(中繼沒收到)→ 台指期同步進場先不看")
+                    try: http(worker_url("log=add"), {"d": self.day, "t": now_tw().strftime("%H:%M"), "title": "⚠ 沒有台指期資料,鐵律 ⑧ 暫停", "body": "中繼沒收到台指期逐筆,台指期同步進場今天先不看(照舊進場) · 元大中繼", "kind": "pc", "key": "txf|missing"}, key=True)
+                    except Exception: pass
+                return True
+            n_, r_ = c.split(":"); ok, why = fn(side, tm, self.stock_closes(code), txf, int(float(n_)), float(r_))
+            if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
+            return ok
+        except Exception as e:
+            log(f"⑧ 檢查失敗(照舊進場)", e); return True
 
     RE_BLK = re.compile(r"^\s*(\d\d:\d\d) .*(不在 Ka~Kb|沒回 Ka~Kb|Ka~Kb 沒回|大盤寬度|不做多|延遲進場取消|等回 Ka~Kb|回到 Ka~Kb)")
     def note_blocked(self, rs, code, out, upto):
