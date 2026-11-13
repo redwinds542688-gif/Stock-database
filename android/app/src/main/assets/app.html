@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-13 13:58(實際時間)當沖也拿掉「股票 現價 攤平 張 輸贏」欄名列,列高照樣排滿不切半列(使用者「改 不要切到卡片」)
   · 2026-11-13 13:48(實際時間)明細拿掉「股票 進→ 出 張 輸贏」欄名列(使用者「這列不需要」)
   · 2026-11-13 13:45(實際時間)台指期收資料(使用者「下午開工 改」):電腦中繼另外訂台指期近月逐筆(代號幾種寫法一起試,紀錄哪個收得到),拼 08:45~13:45 1 分 K,收工等到 13:46 存本機 + 推雲端一次,14:30 排程存進 kline_futures/TXF/<週>.csv;只收資料,不下單、判別式不看、不影響股票報價與交易。11/16 生效
   · 2026-11-13 13:42(實際時間)明細 / 當沖每列加網底(做多方格網、做空斜紋網,和進場卡同一套)(使用者「改」)
@@ -468,7 +469,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611131347">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611131357">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -8136,7 +8137,7 @@ window.bgTick = bgTick; window.BG = BG;
         tposPoll();
         const {over, TP, TPL, open} = posOpen();
         const late = (() => { const n = new Date(Date.now() + 8 * 3600000); const hm = n.getUTCHours() * 60 + n.getUTCMinutes(); return hm >= 13 * 60 + 20 && hm <= 14 * 60; })();   // 台灣時間 13:20~14:00
-        const __ub = usBlock(); body = __ub + (__ub && !open.length ? '' : `<div class="r h"><span>股票</span><span></span><span class="num">現價</span><span></span><span class="num">攤平</span><span></span><span class="num">張</span><span></span><span class="num">輸贏</span></div>`);   // 2026-10-27 02:45 欄位 10|1|8|1|8|1|3|1|7 = 40
+        const __ub = usBlock(); body = __ub;   /* 2026-11-13 13:56(實際時間)使用者「改 不要切到卡片」:當沖也拿掉「股票 現價 攤平 張 輸贏」欄名列(列高照樣排滿,不切半列) */   // 2026-10-27 02:45 欄位 10|1|8|1|8|1|3|1|7 = 40
         window.__posWinTmp = [];
         for (const o of open){
           const lt = lotsOf(o), dr = o.side === 'long' ? 1 : -1, ent = +o.entP;
