@@ -1119,7 +1119,7 @@
     <div class="rsm" data-rs="三">判三<i class="lamp"></i></div>
     <div class="rsm" data-rs="四">判四<i class="lamp"></i></div>
     <div class="rsm" data-rs="五">判五<i class="lamp"></i></div>   <!-- 2026-11-05 判五(使用者「先加 在公式 增加判五」) -->   <!-- (判別式相關說明已移到私人庫) -->
-    <div class="rsm" data-rs="六">判六<i class="lamp"></i></div>   <!-- 2026-11-11 00:20 判六上線:中繼照通知自動下單(電腦引擎算,手機不算) -->   <!-- 2026-11-10 23:10 判六改成午盤 Ka 穿 VWAP 追多(觀察版,原超賣急彈封存) -->   <!-- 2026-11-10 02:30 觀察版判六(超賣急彈做多,使用者「改 +3%」):電腦引擎發通知、中繼不下單;點 = 通知欄只列判六 -->   <!-- 2026-11-06 02:39 使用者「先加 盤中關閉 之後研究好再開」:判六(判三鏡像做多)研究中,只有按鍵、燈不亮、不監控不下單 -->
+    <div class="rsm" data-rs="六">判六<i class="lamp"></i></div>   <!-- 2026-11-13 18:10 判六手機也算(電腦停了照樣發) -->   <!-- 2026-11-11 00:20 判六上線:中繼照通知自動下單(電腦引擎算,手機不算) -->   <!-- 2026-11-10 23:10 判六改成午盤 Ka 穿 VWAP 追多(觀察版,原超賣急彈封存) -->   <!-- 2026-11-10 02:30 觀察版判六(超賣急彈做多,使用者「改 +3%」):電腦引擎發通知、中繼不下單;點 = 通知欄只列判六 -->   <!-- 2026-11-06 02:39 使用者「先加 盤中關閉 之後研究好再開」:判六(判三鏡像做多)研究中,只有按鍵、燈不亮、不監控不下單 -->
     <div class="rsm" data-rs="七">判七<i class="lamp"></i></div>   <!-- 2026-11-09 判七開放;15:28 使用者「判七 解凍上線」照通知自動下單 -->   <!-- 2026-11-06 判七(量縮轉折 ①②③ + 4 特徵;原研究編號判八)研究中,同上 -->
     <div class="rsm key" data-rs="key">鑰匙<i class="lamp"></i></div>   <!-- 2026-10-29 14:45(實際時間)鑰匙:綠燈 = 這支手機已有鑰匙;點 = 輸入 / 清除 -->
     <div class="rsm help" data-rs="help">說明<i class="lamp" style="visibility:hidden"></i></div>   <!-- 2026-10-30 03:25(實際時間)使用者:「增加一鍵 “說明” 然後把本程式選擇當沖股票的邏輯說明 最下面顯示版本號」 -->
@@ -5020,6 +5020,7 @@ var RULESETS = {
   '三': { key: '三', btn: '判三', name: '判別式三', sig: Object.assign({}, SIG1) },
   '四': { key: '四', btn: '判四', name: '判別式四', sig: Object.assign({}, SIG1) },
   '五': { key: '五', btn: '判五', name: '判別式五', sig: Object.assign({}, SIG1) },   // 2026-11-05 判五(衝高失敗、回頭跌破做空)空殼,真的在私人庫 judge.js   // 2026-10-31 判四加進 BG_RS,空殼也要有(沒有的話 judge.js 載入前 RULESETS['四'] 是 undefined,畫面整個停掉)
+  '六': { key: '六', btn: '判六', name: '判別式六', sig: Object.assign({}, SIG1) },   // 2026-11-13 18:10 判六移植到手機(使用者「你這邊做」)空殼,真的在私人庫 judge.js
   '七': { key: '七', btn: '判七', name: '判別式七', sig: Object.assign({}, SIG1) },   // 2026-11-09 判七空殼(15:28 解凍上線),真的在私人庫 judge.js
 };
 /*@@END:RULES@@*/
@@ -5046,7 +5047,7 @@ let SIG = RULESET.sig;   // 2026-10-19 改成 let:背景監控一輪裡輪流切
 window.rsOn = k => { try{ const v = (window.Android && Android.getPref) ? Android.getPref('rsOff') : localStorage.getItem('mysh.rsOff'); return !String(v || '').split(',').includes(k); }catch(e){ return true; } };
 window.rsSet = (k, on) => { try{ const cur = String(((window.Android && Android.getPref) ? Android.getPref('rsOff') : localStorage.getItem('mysh.rsOff')) || '').split(',').filter(x => x && x !== k); if (!on) cur.push(k); const v = cur.join(',');
   if (window.Android && Android.setPref) Android.setPref('rsOff', v); localStorage.setItem('mysh.rsOff', v); }catch(e){} };
-const BG_RS = ['一', '二', '三', '四', '五', '七'];   // 2026-11-09 加判七(15:28 解凍上線)   // 2026-11-05 加判五   // (判別式相關說明已移到私人庫)
+const BG_RS = ['一', '二', '三', '四', '五', '六', '七'];   // 2026-11-13 18:10 加判六(手機也算,電腦停了照樣發判六多 / 空)   // 2026-11-09 加判七(15:28 解凍上線)   // 2026-11-05 加判五   // (判別式相關說明已移到私人庫)
 // (判別式相關說明已移到私人庫)
 window.BG_RS = BG_RS;
 /*@@STRIP:SIGLIGHT@@*/
