@@ -580,6 +580,12 @@ def pool_rules(j, cap):
             "lots": _f(CLOUD_SET.get("lots"), 6000), "bars": _f(CLOUD_SET.get("bars"), 250), "days": int(_f(re.sub(r"\D", "", str(CLOUD_SET.get("days", "1"))) or 1, 1))}   # 2026-11-07 20:23 使用者「改回1」:讀不到用 1
 
 
+def vnet(sd, e, x, q):
+    """2026-11-13 虛擬一筆的淨輸贏(檢討 / 雲端虛擬明細同一個算法)"""
+    buy, sell = (e, x) if sd > 0 else (x, e); b = buy * q * 1000; s_ = sell * q * 1000; fr, tx = cost_rates(); fee = lambda a: max(20, int(a * fr + 1e-6))
+    return round(s_ - b - fee(b) - fee(s_) - int(s_ * tx + 1e-6))
+
+
 def cost_rates():
     """2026-11-07 19:16 手續費跟主導機的設定(手機 cost() 同一套):單邊 = 證商費 × 手續折扣 + 證手費;證交稅只算賣出那邊"""
     p = lambda k, d: _f(re.sub(r"[^\d.]", "", str(CLOUD_SET.get(k, ""))) or d, d) / 100
@@ -931,6 +937,7 @@ class Engine:
         if ok:   # 2026-11-10 15:01(實際時間)使用者「金額對不上」(明細虛擬 +4,934、檢討 +2,961):「訊號重算消失」的平倉(群創 +1,260、富喬 +713)明細有算、檢討沒算 → 一起算進檢討
             try: self.closed.append({"rs": j, "code": code, "name": nm, "side": p["side"], "t": p["t"], "e": p["px"], "xt": tm, "x": ex, "lots": p.get("lots") or 1, "over": bool(p.get("over")), "why": "訊號消失" if phantom else exit_text(why)})
             except Exception: pass
+            threading.Thread(target=self.push_vdone, daemon=True).start()   # 2026-11-13 雲端虛擬明細(唯一來源)
         return ok
 
     @staticmethod
@@ -953,11 +960,19 @@ class Engine:
             if (ex - oth) / oth * 100 < 2 - 1e-9 or (ex - c[i]) / ex * 100 > 1.5 + 1e-9 or ie >= i: return False
         return max(v[max(a, ie - 5):ie + 1]) >= va * 1.3 - 1e-9
 
+    def push_vdone(self, fin=False):
+        """2026-11-13 15:15 使用者「這樣已經好幾次不同 能統一在雲端 再讓手機讀取嗎」→「改」:每平倉一筆就把今天全部虛擬成交(含淨輸贏)推 Worker(?vdone=push),
+           手機 / 電腦版的虛擬明細、燈號、監控區已交易都讀這一份,不再自己算(fin = 收盤後最後一份)"""
+        if self.dry: return
+        try:
+            L = [{**c, "net": vnet(c["side"], float(c["e"]), float(c["x"]), int(c["lots"]))} for c in list(self.closed) if not c.get("over")]
+            r = http(worker_url("vdone=push"), {"d": self.day, "list": L, "fin": bool(fin)}, key=True)
+            if not r.get("ok"): log("[虛擬明細] 推雲端被拒", r)
+        except Exception as e: log("[虛擬明細] 推雲端失敗", repr(e))
+
     def push_review(self):
         """2026-11-07 14:32 使用者「檢討」A+B 的 A:收盤後電腦自己算今天的數字推 Worker(?review=push),App 資訊頁「檢討」顯示;重大發現(B)由每天的 Claude 排程寫"""
-        def net(sd, e, x, q):
-            buy, sell = (e, x) if sd > 0 else (x, e); b = buy * q * 1000; s_ = sell * q * 1000; fr, tx = cost_rates(); fee = lambda a: max(20, int(a * fr + 1e-6))
-            return round(s_ - b - fee(b) - fee(s_) - int(s_ * tx + 1e-6))
+        net = vnet
         L = []; L7 = []; L6 = []   # 2026-11-09 觀察版判七另外算 → 15:28 判七解凍上線,和其他判別式一起算(L7 留空);2026-11-10 觀察版判六另外算(L6)
         for c in self.closed:
             if c.get("over"): continue
@@ -974,6 +989,7 @@ class Engine:
                 "obs": {k_: {"n": len(v_), "w": sum(c["net"] > 0 for c in v_), "net": sum(c["net"] for c in v_), "list": sorted(v_, key=lambda c: c["t"])} for k_, v_ in (("判七", L7), ("判六", L6)) if v_}}
         if not L and not L7 and not L6 and not self.lat and not self.drag: log("[檢討] 今天沒有資料(收盤後才開?),不推"); return auto
         if self.dry: log("[檢討] " + json.dumps(auto, ensure_ascii=False)[:300]); return auto
+        self.push_vdone(fin=True)
         try:
             r = http(worker_url("review=push"), {"d": self.day, "auto": auto}, key=True)
             log(f"[檢討] 推上去:{len(L)} 筆 {auto['net']:+,}" if r.get("ok") else f"[檢討] 被拒 {r}")

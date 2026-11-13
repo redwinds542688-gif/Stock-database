@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-13 15:30(實際時間)虛擬明細統一在雲端(使用者「能統一在雲端 再讓手機讀取嗎」→「改」):電腦引擎每平倉一筆就推今天全部虛擬成交 + 淨輸贏(?vdone),手機 / 電腦版的虛擬明細、燈號、監控區已交易都讀這一份(和檢討同一份);11/07 起的舊日子用檢討那份;雲端讀不到才自己算、標「暫算」。電腦端 11/16 生效
   · 2026-11-13 15:00(實際時間)虛擬明細張數改照電腦通知寫的張數(鐵律 ⑤ 分級),原本用多空上限 ÷ 股價(廣豐 13 張、中鼎 4 張)→ 虛擬明細和檢討同一個數字(11/13 都是 +10,431)(使用者「金額不同」)
   · 2026-11-13 14:11(實際時間)資訊頁拿掉檢討的元大 / 虛擬切換鍵,檢討改跟著明細的元大 / 虛擬開關走(使用者「明細裡是元大 檢討就是元大的檢討 明細裡是虛擬 檢討就是虛擬」)
   · 2026-11-13 13:58(實際時間)當沖也拿掉「股票 現價 攤平 張 輸贏」欄名列,列高照樣排滿不切半列(使用者「改 不要切到卡片」)
@@ -471,7 +472,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611131456">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611131517">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1753,6 +1754,18 @@ const rvPoll = async () => { try{ if (!BASE.liveUrl || (!window.VIEWER && !liveO
       const X = window.__RVB && window.__RVB[j.d]; if (X) j.auto = Object.assign({}, j.auto || {}, X, {obs: {}}); } }catch(e){}
   if (j && 'd' in j){ const ch = JSON.stringify(j) !== JSON.stringify(window.__RV || null); window.__RV = j; if (ch && window.NL_VIEW === 'pos' && window.nlRender) nlRender(); } }catch(e){} };
 setTimeout(rvPoll, 4000); setInterval(rvPoll, 5 * 60000); window.rvPoll = rvPoll;
+/* 2026-11-13 15:15(實際時間)使用者「這樣已經好幾次不同 能統一在雲端 再讓手機讀取嗎」→「改」:虛擬明細(和燈號、監控區已交易)改讀雲端 ?vdone=日期(電腦引擎算的,和檢討同一份),
+   不再自己算;今天盤中每分鐘最多問一次、收盤那份到了就不再問;舊日子問一次就記住(最多 30 天)。雲端讀不到才用手機自己算的,標「暫算」 */
+window.VDONE = {}; try{ const o = JSON.parse(localStorage.getItem('mysh.vdone') || '{}'); if (o && typeof o === 'object') window.VDONE = o; }catch(e){}
+const VDAT = {};
+window.vdoneHas = dd => { const V = window.VDONE && VDONE[dd]; return !!(V && Array.isArray(V.list) && V.list.length); };
+window.vdoneGet = async dd => { try{
+  if (!dd || !BASE.liveUrl || (window.VIEWER && !(window.appKey && appKey.get()))) return; const tw = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+  if (VDONE[dd] && VDONE[dd].fin) return; if (Date.now() - (VDAT[dd] || 0) < (dd === tw ? 60000 : 600000)) return; VDAT[dd] = Date.now();
+  const r = await fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?vdone=${dd}&_=${Date.now()}`, {cache: 'no-store'}); if (!r.ok) return; const j = await r.json(); if (!j || !Array.isArray(j.list)) return;
+  if (!j.has){ if (j.fin) VDONE[dd] = {list: [], fin: true, none: 1}; return; }
+  const ch = JSON.stringify(j.list) !== JSON.stringify((VDONE[dd] || {}).list); VDONE[dd] = {list: j.list, fin: !!j.fin};
+  if (ch){ try{ const keep = {}; Object.keys(VDONE).sort().slice(-30).forEach(k => { if (VDONE[k].list.length) keep[k] = VDONE[k]; }); localStorage.setItem('mysh.vdone', JSON.stringify(keep)); }catch(e){} if (window.nlRenderBg) nlRenderBg(); } }catch(e){} };
 const lampBtn = (id, txt, kind, a, b) => { try{ const e = document.getElementById(id); if (!e) return; let H = '';
     if (kind){ if (kind === 'cnt') H = lampSeg(Math.min(10, a | 0), 0, 'y') + `<b>${txt}</b>` + lampSeg(Math.min(10, b | 0), 0, 'b');
       else { const [k, k2] = lampAmt(a), w = Math.round(a || 0) > 0, l = Math.round(a || 0) < 0; H = lampSeg(w ? k : 0, w ? k2 : 0, 'r') + `<b>${txt}</b>` + lampSeg(l ? k : 0, l ? k2 : 0, 'g'); } }
@@ -7911,6 +7924,7 @@ window.bgTick = bgTick; window.BG = BG;
     // (判別式相關說明已移到私人庫)
     // 平倉卡的淨輸贏(扣手續費、證交稅)
     const netOf = arr => { let v = 0, k = 0; try{ const C = cost(); for (const o of arr){ if (o.type !== 'exit' || o.over || o.realOpen || !(o.entP > 0) || !(o.price > 0) || !o.side) continue;
+      if (o.vnet != null && isFinite(o.vnet)){ v += o.vnet; k++; continue; }   /* 2026-11-13 雲端虛擬明細:淨輸贏照電腦算的 */
       const dr = o.side === 'long' ? 1 : -1, lt = lotsOf(o), g = (o.price - o.entP) * dr * lt * 1000;
       v += g - (dr > 0 ? costAmt(o.entP * lt * 1000, o.price * lt * 1000, C) : costAmt(o.price * lt * 1000, o.entP * lt * 1000, C)); k++; } }catch(e){} return [Math.round(v), k]; };
     const [dayNet, nExit] = netOf(shown);
@@ -8058,7 +8072,8 @@ window.bgTick = bgTick; window.BG = BG;
           // 2026-11-05 00:31 使用者「這個虛擬 是可以切換 元大的 因為我是永久會員」:收盤後切在「元大」、這天手機還沒拿到元大成交 → 不拿虛擬交易冒充,寫「元大成交還沒拿到」(電腦連上會自動補)
           if (!yf && virtOk && !doneVirt && !vwOnly() && dd >= '2026-11-13') return [`<div class="r" data-day="${dd}"><span class="nm" style="color:#8C96AB;grid-column:1/-1">這天的元大成交還沒拿到(電腦連上會自動補)</span></div>`, 0, 1];
           return rowsOf(src, dd); };   /* 2026-11-02 23:25 使用者「永久會員 今天之前 全部都用虛擬的資料 填滿明細 今天之後包含今天 都用真實的元大資料 其他會員 一律用虛擬資料」:自己的 App 11/02 起用元大真實成交、11/01 以前一律用程式的虛擬交易;看盤版一律虛擬 */
-      const doneSrc = dd => { if (BTF && BTF[dd] && BTF[dd].length){ const s = prep(btfCap(dd)); for (const o of s){ const q = +((((o.x || {}).body || '').match(/· (\d+)張/) || [])[1]) || 0; if (q) o.lots = q; } return finish(s); }
+      const doneSrc = dd => { if (doneVirt){ try{ vdoneGet(dd); }catch(e){} if (vdoneHas(dd)) return VDONE[dd].list.filter(c => !c.over).map(c => ({type: 'exit', code: String(c.code), name: c.name || String(c.code), side: +c.side > 0 ? 'long' : 'short', entP: +c.e, price: +c.x, lots: +c.lots || 1, rs: c.rs || '', t: c.xt || '', entT: c.t || '', vnet: +c.net, prev: 0, x: {body: ''}})).sort((a, b) => a.t < b.t ? 1 : a.t > b.t ? -1 : 0); }   /* 2026-11-13 雲端虛擬明細優先 */
+        if (BTF && BTF[dd] && BTF[dd].length){ const s = prep(btfCap(dd)); for (const o of s){ const q = +((((o.x || {}).body || '').match(/· (\d+)張/) || [])[1]) || 0; if (q) o.lots = q; } return finish(s); }
         if (dd === today){ if (doneVirt){ try{ return finish(prep(itemsFor(today).filter(x => !/強平|元平|元大|預掛|強制 ·/.test((x.title || '') + ' ' + (x.body || '').replace(/已強平/g, ''))))); }catch(e){} } if (d === today) return cards; }
         ensureCloud(dd); return finish(prep(itemsFor(dd))); };
       const doneResC = {}; const doneRes = dd => (dd in doneResC) ? doneResC[dd] : (doneResC[dd] = (() => { try{ return dayRows(dd, doneSrc(dd)); }catch(e){ return ['', 0, 0, 0]; } })());
@@ -8209,7 +8224,7 @@ window.bgTick = bgTick; window.BG = BG;
           body += `<div class="dsep" data-day="${dd}">${dd.slice(5).replace('-', '/')}</div>` + h; dayTot[dd] = t;   /* 2026-11-06 05:40 使用者「怎麼還有這14筆總輸贏 這個不用 上面已經有顯示了」:前幾天的「N 筆 總輸贏」列也拿掉(標題列右邊跟著捲到的那天顯示) */
         }
         // 2026-10-27 11:20 使用者:「最上面只顯示 明細 今日的總輸贏(靠右顯示)」:標題列左邊「明細」、最右邊今天已平倉的總輸贏(和當沖的合計同一個位置 .cash)
-        const hdDone = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(t0))}</span>`).replace('<span>明細</span>', `<span class="dlb">明細</span><span class="dwh">${Object.keys(dayTot).sort().reverse().map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span><span class="dsrc">${virtOk || ySrc[d0] ? '' : (window.VIEWER ? '' : ' 系統')}</span>${virtOk ? `<button class="vbtn on${doneVirt ? ' virt' : ''}" type="button">${doneVirt ? '虛擬' : '元大'}</button>` : window.VIEWER ? '<span class="vbtn on virt vtag">虛擬</span>' : `<span class="vbtn on vtag ytag"${ySrc[d0] ? '' : ' style="display:none"'}>元大</span>`}`);   /* 2026-11-04 使用者「要 改」:開盤中明細的「元大」也是有框的黃色鍵(和當沖一樣;開盤中不能切換) */   /* 2026-11-04 使用者「好」(看盤版明細也加紫色「虛擬」,和當沖一樣) */   // 2026-10-29 12:25(實際時間)元大真實成交的日子標題寫「明細 元大」
+        const hdDone = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(t0))}</span>`).replace('<span>明細</span>', `<span class="dlb">明細</span><span class="dwh">${Object.keys(dayTot).sort().reverse().map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span><span class="dsrc">${virtOk || ySrc[d0] ? '' : (window.VIEWER ? '' : ' 系統')}</span>${doneVirt && !vdoneHas(d0) ? '<span class="dsrc">暫算</span>' : ''}${virtOk ? `<button class="vbtn on${doneVirt ? ' virt' : ''}" type="button">${doneVirt ? '虛擬' : '元大'}</button>` : window.VIEWER ? '<span class="vbtn on virt vtag">虛擬</span>' : `<span class="vbtn on vtag ytag"${ySrc[d0] ? '' : ' style="display:none"'}>元大</span>`}`);   /* 2026-11-04 使用者「要 改」:開盤中明細的「元大」也是有框的黃色鍵(和當沖一樣;開盤中不能切換) */   /* 2026-11-04 使用者「好」(看盤版明細也加紫色「虛擬」,和當沖一樣) */   // 2026-10-29 12:25(實際時間)元大真實成交的日子標題寫「明細 元大」
         { const __H = hdDone + `<div class="tb done">` + body + `</div>`; if (nlSame(__H)){ if (__snapPrev[0]) box.classList.add('snapdt'); box.style.scrollPaddingTop = __snapPrev[1]; return; }
           if (Date.now() - (box.__dwT || 0) < 900){ clearTimeout(box.__dwLater); box.__dwLater = setTimeout(() => render(true), 500); return; }   /* 2026-11-03 15:25 滾輪轉動中先不重畫,停下來再補 */
           nlPut(__H); dwWire(box); }

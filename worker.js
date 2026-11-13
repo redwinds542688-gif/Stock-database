@@ -1262,6 +1262,26 @@ export default {
     // 2026-11-07 14:32 使用者「資訊 … 增加一個按鍵 … 名為 檢討 … 檢討一下今天的輸贏 或者是有什麼重大發現」→ A+B:
     //   A = 電腦 13:3x 收盤後自己算的數字:POST ?review=push {d, auto:{…}}(中繼金鑰);B = 每天 Claude 排程寫的重大發現(私人庫 Stock-logic review/<日期>.json)
     //   GET ?review=get[&d=](owner 鑰匙 / 中繼金鑰)→ {d, auto, notes};不給 d = 最近一天
+    // ── 2026-11-13 15:15 使用者「能統一在雲端 再讓手機讀取嗎」→「改」:虛擬明細唯一來源(電腦引擎每平倉一筆推一次今天全部虛擬成交 + 淨輸贏)
+    //   POST ?vdone=push {d, list, fin}(中繼金鑰);GET ?vdone=日期(有鑰匙就給,虛擬數字看盤版也看得到);沒有 vdone 的舊日子用檢討的 auto.list(同一份)
+    const vdq = url.searchParams.get("vdone");
+    if (vdq) {
+      if (!env || !env.HUB) return J({ error: "Worker 還沒綁定 Durable Object(HUB)" }, 503);
+      if (vdq === "push") {
+        if (!pushOk) return J({ error: "要金鑰" }, 403);
+        let b = {}; try { b = await request.json(); } catch (e) {}
+        const d = String(b.d || "").slice(0, 10); if (!/^\d{4}-\d\d-\d\d$/.test(d) || !Array.isArray(b.list)) return J({ error: "格式不對" }, 400);
+        const K = ["rs", "code", "name", "side", "t", "e", "xt", "x", "lots", "net", "why"];
+        const list = b.list.slice(0, 300).map(c => { const o = {}; for (const k of K) if (c && c[k] != null) o[k] = c[k]; return o; });
+        await hubOf(env).kvPut("vdone:" + d, { list, fin: !!b.fin, at: Date.now() }); return J({ ok: true, n: list.length });
+      }
+      if (!/^\d{4}-\d\d-\d\d$/.test(vdq)) return J({ error: "日期格式 YYYY-MM-DD" }, 400);
+      if (!pushOk && !KI) return J({ error: "要鑰匙", badKey: true }, 403);
+      let v = await hubOf(env).kvGet("vdone:" + vdq);
+      if (!v) { const r = await hubOf(env).kvGet("review:" + vdq); const L = r && r.auto && r.auto.list; if (Array.isArray(L)) v = { list: L.filter(c => !c.over), fin: true }; }
+      const tw = ymdOf(twNow());
+      return J({ d: vdq, has: !!(v && Array.isArray(v.list) && v.list.length), list: (v && v.list) || [], fin: !!(v && v.fin) || vdq < tw });
+    }
     const rvq = url.searchParams.get("review");
     if (rvq) {
       if (!env || !env.HUB) return J({ error: "Worker 還沒綁定 Durable Object(HUB)" }, 503);
