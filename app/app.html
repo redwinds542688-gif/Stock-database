@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-13 11:38(實際時間)監控區指針:圖一錶針只給做多中 / 做空中(看進場後輸贏),其他(監控中 / 一般 / 大盤)一律恢復舊指針(看當天漲跌幅)(使用者「剛剛的新指針 只給做多中做空中使用…其他一律使用舊指針」)
   · 2026-11-13 11:25(實際時間)使用者選 A(和益在不管名單沒進場,手機卻跳「進場」):電腦推進場通知前先等交易程式回覆(最多 3 秒),沒進場的通知寫「未進場 價格」,內容加「未進場:原因」(留倉不管 / 超額 / 太晚 / 額度不夠…)。11/16 生效
   · 2026-11-13 11:04(實際時間)監控區指針改成錶針樣式(使用者「指針樣式改 圖一」→「改」):小軸心 + 細桿 + 前端空心圓環 + 尖頭;顏色、角度不變
   · 2026-11-13 10:52(實際時間)使用者「改1,3」:對帳接回元三也發進場卡(標「對帳接回」);多平自動補回平掉後也發平倉卡(標「多平補回」)。11/16 生效
@@ -458,7 +459,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611131124">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611131138">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -912,6 +913,7 @@
   .row .posline .pos.attn{background:#4A2A12;color:#F5A623;font-weight:700}  .row .posline .pos.ph{background:#123A5A;color:#5AB8FF;font-weight:700}   /* 2026-11-10 預掛:藍底 */      /* (判別式相關說明已移到私人庫) */
   .row.holding{background:rgba(201,162,39,.06)}
   /* 未平倉:名次依部位方向上色 */
+  svg.needle g.w{display:none} svg.needle.pinv g.o{display:none} svg.needle.pinv g.w{display:inline}   /* 2026-11-13 11:36 錶針只給有進場的 */
   .row .rank svg.pinv{background:transparent;border:2px solid #FF3B3B;border-radius:5px;padding:1px 1px;box-sizing:content-box;width:calc(var(--uf) * 2.25);height:calc(var(--uf) * 2.25 * 24 / 28);color:#FF3B3B}.row .rank svg.pinv.plose{border-color:#1DD75B;color:#1DD75B}.row .rank svg.pinv circle:nth-of-type(2){fill:#14181F}.row .rank svg.pinv circle:nth-of-type(3){fill:currentColor}   /* 2026-11-11 11:33 使用者選「2 加指針變大」:輸贏指針改成只留外框(贏紅框紅針、輸綠框綠針)、指針放大 1.12 倍;原 2026-11-09 13:07 紅底 / 綠底白針 */
   .row.holding .rank{font-weight:700}
   .row.hold-long  .rank{color:var(--up)}     /* 做多:紅 */
@@ -4204,8 +4206,9 @@ async function idxPoll(force){
   idxArrow();
 }
 /* 2026-10-27 10:50(實際時間)使用者:「監控股票 編號位置 改顯示 指針」:指針共用——大盤一支、清單每檔一支(漲跌 % × 9°,漲紅跌綠平白,沒資料灰) */
-// 2026-11-13 11:04(實際時間)使用者「指針樣式改 圖一」→「改」:指針改成錶針樣式(小軸心 + 細桿 + 前端空心圓環 + 尖頭)
-const NEEDLE_SVG = (id, cls) => `<svg${id ? ' id="' + id + '"' : ''} class="needle${cls ? ' ' + cls : ''}" viewBox="0 0 28 24" overflow="visible"><g class="ndl"><rect x="7.4" y="11.5" width="12.4" height="1" rx=".4" fill="currentColor"/><circle cx="4.6" cy="12" r="3.7" fill="currentColor"/><circle cx="4.6" cy="12" r="1.7" fill="#E9EDF3"/><circle cx="4.6" cy="12" r=".8" fill="#8A93A3"/><circle cx="21.6" cy="12" r="1.9" fill="none" stroke="currentColor" stroke-width="1.1"/><polygon points="23.3,11.25 28,12 23.3,12.75" fill="currentColor"/></g></svg>`;
+// 2026-11-13 11:04(實際時間)使用者「指針樣式改 圖一」→「改」:錶針樣式(小軸心 + 細桿 + 前端空心圓環 + 尖頭)
+// 2026-11-13 11:36 使用者「監控中 股票 指針 恢復跟一般股票一樣」「指針的樣式不一樣」:錶針只給有進場的輸贏指針(svg.pinv),其他(一般 / 監控中 / 大盤)恢復原本樣式
+const NEEDLE_SVG = (id, cls) => `<svg${id ? ' id="' + id + '"' : ''} class="needle${cls ? ' ' + cls : ''}" viewBox="0 0 28 24" overflow="visible"><g class="ndl"><g class="o"><polygon points="7.8,10.4 10.6,10.9 27.5,12 10.6,13.1 7.8,13.6" fill="currentColor"/><circle cx="4.6" cy="12" r="4.6" fill="currentColor"/><circle cx="4.6" cy="12" r="3.1" fill="#E9EDF3"/><circle cx="4.6" cy="12" r="1.3" fill="#8A93A3"/></g><g class="w"><rect x="7.4" y="11.5" width="12.4" height="1" rx=".4" fill="currentColor"/><circle cx="4.6" cy="12" r="3.7" fill="currentColor"/><circle cx="4.6" cy="12" r="1.7" fill="#E9EDF3"/><circle cx="4.6" cy="12" r=".8" fill="#8A93A3"/><circle cx="21.6" cy="12" r="1.9" fill="none" stroke="currentColor" stroke-width="1.1"/><polygon points="23.3,11.25 28,12 23.3,12.75" fill="currentColor"/></g></g></svg>`;
 // 2026-11-09 13:07(實際時間)使用者「股票監控區 做多或做空 股票前面指針 改成 輸贏指針 反白」(看過圖說「改」):
 //   有進場未平倉 → 指針照部位輸贏 %(做多 = 現價比進場漲幾 %,做空反過來;1% = 9°),贏紅底、輸綠底、白針;沒部位照舊當日漲跌
 function rowNeedle(row, r){
