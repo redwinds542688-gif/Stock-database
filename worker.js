@@ -1170,6 +1170,19 @@ export default {
 
     // ── 2026-11-12 22:06 使用者「那就改用元大參考價來算」:元大清盤參考價(除權息已扣)每天存一份,回測昨收用它
     //   POST ?yref=push {d, ref:{代號: 參考價}}(中繼,要金鑰,變了才推、5 分鐘最多一次);GET ?yref=日期(14:30 save_cloud_bars.py 存進 kline_yuanta/_ref/)
+    // ── 2026-11-13 台指期 1 分 K(只收資料):POST ?fbars=push {d, code, bars:[[hm,o,h,l,c,v],…]}(中繼收工推一次,要金鑰);GET ?fbars=日期(14:30 save_cloud_bars.py 存 kline_futures/TXF/)
+    const fb = url.searchParams.get("fbars");
+    if (fb) {
+      if (fb === "push") {
+        if (!pushOk) return J({ error: "要金鑰" }, 403);
+        let b = {}; try { b = await request.json(); } catch (e) {}
+        const d = String(b.d || "").slice(0, 10), rows = Array.isArray(b.bars) ? b.bars.filter(r => Array.isArray(r) && /^\d\d:\d\d$/.test(r[0])).slice(0, 400) : null;
+        if (!/^\d{4}-\d\d-\d\d$/.test(d) || !rows) return J({ error: "格式不對" }, 400);
+        await hubOf(env).kvPut("fbars:" + d, { code: String(b.code || "").slice(0, 20), bars: rows }); return J({ ok: true, n: rows.length });
+      }
+      if (!/^\d{4}-\d\d-\d\d$/.test(fb)) return J({ error: "日期格式 YYYY-MM-DD" }, 400);
+      return J({ d: fb, ...((await hubOf(env).kvGet("fbars:" + fb)) || { bars: [] }) });
+    }
     const yr = url.searchParams.get("yref");
     if (yr) {
       if (yr === "push") {

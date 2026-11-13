@@ -81,6 +81,25 @@ def save_yref(d):
     with open(os.path.join(out, f"{d}.json"), "w", encoding="utf-8") as f: json.dump(dict(sorted(ref.items())), f, ensure_ascii=False)
     print(f"{d} 元大參考價 {len(ref)} 檔"); return len(ref)
 
+def save_fbars(d):
+    """2026-11-13 台指期近月 1 分 K(中繼收工推到 Worker ?fbars)存成 kline_futures/TXF/<週>.csv(只收資料,判別式不看)"""
+    try:
+        req = urllib.request.Request(f"{WORKER}/?fbars={d}&_={int(datetime.datetime.now().timestamp())}", headers={"User-Agent": "mysh-save-cloud"})
+        j = json.loads(urllib.request.urlopen(req, timeout=60).read().decode("utf-8")) or {}
+    except Exception as e:
+        print("台指期 K 抓不到", e); return 0
+    rows = j.get("bars") or []
+    if not rows: print(f"{d} 沒有台指期 1 分K"); return 0
+    folder = os.path.join(ROOT, "kline_futures", "TXF"); os.makedirs(folder, exist_ok=True)
+    f = os.path.join(folder, f"{week_key(d)}.csv"); keep = []
+    if os.path.exists(f):
+        with open(f, encoding="utf-8") as fh: keep = [r for r in csv.DictReader(fh) if r["date"] != d]
+    with open(f, "w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh); w.writerow(["date", "time", "open", "high", "low", "close", "volume"])
+        for r in keep: w.writerow([r["date"], r["time"], r["open"], r["high"], r["low"], r["close"], r["volume"]])
+        for r in rows: w.writerow([d] + list(r[:6]))
+    print(f"{d} 台指期 {j.get('code', '')} 1 分K {len(rows)} 根"); return len(rows)
+
 def back_days(d):
     """2026-10-25 使用者「新進榜的股票 要回溯五天抓k」:桌機補抓的前幾天也推到 Worker 了,這裡把今天以前 8 天內 Worker 有的日子一起存(多 1 次請求 + 每天 1 次)"""
     try:
@@ -98,6 +117,7 @@ def main():
         save_yuanta(b)
     save_yuanta(d)
     save_yref(d)   # 2026-11-12 元大參考價(回測昨收)
+    save_fbars(d)   # 2026-11-13 台指期 1 分 K(只收資料)
     url = f"{WORKER}/?bars={d}&_={int(datetime.datetime.now().timestamp())}"
     req = urllib.request.Request(url, headers={"User-Agent": "mysh-save-cloud"})
     with urllib.request.urlopen(req, timeout=60) as r:

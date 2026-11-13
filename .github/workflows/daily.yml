@@ -55,7 +55,7 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add pool.js pool.json pool_full.json app/prob_model.json kline/ kline_cloud/ kline_yuanta/ amp_history.json lots_history.json bars_history.json
+          git add pool.js pool.json pool_full.json app/prob_model.json kline/ kline_cloud/ kline_yuanta/ kline_futures/ amp_history.json lots_history.json bars_history.json
           if git diff --cached --quiet; then
             echo "沒有新資料,不 commit"
           else

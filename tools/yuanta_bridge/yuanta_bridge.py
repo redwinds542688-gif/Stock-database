@@ -346,6 +346,8 @@ class Bridge:
                         return
                     t = r.Time
                     sn = int(r.SerialNo)
+                    if getattr(self, "fut_codes", None) and str(r.StkCode).strip() in self.fut_codes:   # 2026-11-13 台指期:只收資料,不進股票 K / 即時價 / 交易
+                        self.fut_tick(str(r.StkCode).strip(), t, sn, float(r.DealPrice), int(r.DealVol)); return
                     if sn < 0:                   # -1 = 清盤(漲跌停 / 參考價),不是成交;成交價欄位 = 開盤參考價(昨收)
                         self.quotes.on_ref(str(r.StkCode).strip(), float(r.DealPrice))
                         return
@@ -440,6 +442,69 @@ class Bridge:
                 fh.writelines(buf)
         except Exception as e:
             log("逐筆記錄寫不進去", e)
+
+    # ── 2026-11-13 使用者「台指期 元大可以拿到」「下午開工 改」:台指期近月逐筆 → 1 分 K(08:45~13:45),只收資料:
+    #   不下單、判別式不看、不進股票的 K / 即時價 / 交易;收工時存本機 kline_futures/TXF/<日期>.csv + 推 Worker 一次(?fbars=push),
+    #   14:30 排程存進 GitHub kline_futures/TXF/<週>.csv。代號格式不確定 → 幾種寫法一起訂,紀錄哪個收得到逐筆
+    @staticmethod
+    def fut_near(d=None):
+        d = d or now_tw().date()
+        def third_wed(y, m):
+            x = dt.date(y, m, 1); x += dt.timedelta(days=(2 - x.weekday()) % 7); return x + dt.timedelta(days=14)
+        y, m = d.year, d.month
+        if d > third_wed(y, m): y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+        return y, m
+
+    def fut_sub(self):
+        if CFG.get("FUT_ENABLE", "1") != "1": return
+        try:
+            y, m = self.fut_near(); L = "ABCDEFGHIJKL"[m - 1]
+            cands = [f"TXF{L}{y % 10}", f"TXF{y}{m:02d}", "TXF1", f"TXF{m:02d}", "TXF"]
+            extra = [x.strip() for x in CFG.get("FUT_CODES", "").split(",") if x.strip()]
+            self.fut_codes = set(cands + extra)
+            if not hasattr(self, "fut_bars"): self.fut_bars, self.fut_sn, self.fut_n = {}, {}, {}
+            if not getattr(self, "_fut_api_noted", False):
+                self._fut_api_noted = True
+                try: log("[台指期] 元大元件裡和訂閱 / 期貨有關的功能:" + ", ".join(n for n in dir(self.api) if re.search(r"Subscribe|Futur|Option", n)))
+                except Exception: pass
+            Y = self.Y; lst = self.List[Y.StockTick]()
+            for c in sorted(self.fut_codes):
+                s = Y.StockTick(); s.MarketType = Y.enumMarketType.TAIFEX; s.StockCode = c; lst.Add(s)
+            ok = self.api.SubscribeStockTick(CFG["YT_ACCOUNT"], lst)
+            log(f"[台指期] 訂閱近月 {y}/{m:02d}(試 {', '.join(sorted(self.fut_codes))}):{'送出' if ok else '回傳失敗'}")
+        except Exception as e: log("[台指期] 訂閱失敗(不影響股票)", e)
+
+    def fut_tick(self, code, t, sn, px, vol):
+        try:
+            if sn < 0 or px <= 0: return
+            S = self.fut_sn.setdefault(code, set())
+            if sn in S: return
+            S.add(sn); n = self.fut_n[code] = self.fut_n.get(code, 0) + 1
+            if n == 1: log(f"[台指期] {code} 收到第一筆逐筆:{t.bytHour:02d}:{t.bytMin:02d}:{t.bytSec:02d} 價 {px} 量 {vol}(這個代號寫法可用)")
+            hm = f"{t.bytHour:02d}:{t.bytMin:02d}"
+            if not ("08:45" <= hm <= "13:45"): return
+            b = self.fut_bars.setdefault(code, {}).get(hm)
+            if b is None: self.fut_bars[code][hm] = [px, px, px, px, vol]
+            else: b[1] = max(b[1], px); b[2] = min(b[2], px); b[3] = px; b[4] += vol
+        except Exception: pass
+
+    def fut_save(self, day):
+        """收工:等到 13:46(台指期 13:45 收盤)→ 存本機 + 推 Worker 一次"""
+        try:
+            if not getattr(self, "fut_n", None): log("[台指期] 今天沒收到任何台指期逐筆(代號寫法都不對 / 元件不給),明天看上面那行元件功能清單再調"); return
+            while now_tw().strftime("%H:%M") < "13:46" and self.api: time.sleep(5)
+            code = max(self.fut_n, key=lambda c: self.fut_n[c]); bars = self.fut_bars.get(code) or {}
+            rows = [[hm] + v for hm, v in sorted(bars.items())]
+            f = HERE / "kline_futures" / "TXF"; f.mkdir(parents=True, exist_ok=True)
+            with open(f / f"{day}.csv", "w", encoding="utf-8") as fh:
+                fh.write("date,time,open,high,low,close,volume\n")
+                for r in rows: fh.write(f"{day},{r[0]},{r[1]},{r[2]},{r[3]},{r[4]},{r[5]}\n")
+            log(f"[台指期] {code} 1 分 K {len(rows)} 根存好(逐筆 {self.fut_n[code]} 筆;各代號筆數 {self.fut_n})")
+            if rows and CFG.get("PUSH_KEY") and CFG.get("WORKER_URL"):
+                rq = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?fbars=push", data=json.dumps({"d": day, "code": code, "bars": rows}).encode(), method="POST",
+                                            headers={"Content-Type": "application/json", "X-Push-Key": CFG["PUSH_KEY"], "User-Agent": "yuanta-bridge"})
+                log(f"[台指期] 推 Worker:{json.loads(urllib.request.urlopen(rq, timeout=20).read().decode())}")
+        except Exception as e: log("[台指期] 存檔 / 推送失敗", e)
 
     def subscribe(self, codes):
         Y = self.Y
@@ -1400,7 +1465,7 @@ class Bridge:
                     elif quiet <= 5 and self.n_kick:
                         log(f"逐筆恢復(重連 {self.n_kick} 次)"); self.n_kick = 0
                 if self.api is None or self.disconnected.is_set():
-                    self.close(); self.connect(); self.subscribe(self.codes); fails = 0; self.last_tick = time.time()   # 重連後重新計時
+                    self.close(); self.connect(); self.subscribe(self.codes); self.fut_sub(); fails = 0; self.last_tick = time.time()   # 重連後重新計時
                     self.last_recon = time.time() - 50                       # 重連後 10 秒就對帳一次
                     if not resumed:
                         self.resume_positions(day); resumed = True          # 今天第一次連上:接回程式開的未平部位(斷線重連不用,部位一直在記憶體裡)
@@ -1505,6 +1570,7 @@ class Bridge:
                 try: self.engine.terminate()
                 except Exception: pass
             log("[公式] engine.py 已結束")
+        self.fut_save(day)   # 2026-11-13 台指期:等到 13:46 存 1 分 K、推 Worker 一次
         self.close()
 
 
