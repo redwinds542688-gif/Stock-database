@@ -975,6 +975,16 @@ export default {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return J({ error: "d 要是 YYYY-MM-DD" }, 400);
       return J(await dailyArchive(env, d, true));
     }
+    if (url.searchParams.get("txq") === "raw") {   // 2026-11-13 22:20 台指期即時報價接口測試(使用者「解鎖 改 全部套用」:台指期同步進場要盤中即時台指期)
+      const out = [];
+      const tries = [
+        ["https://mis.taifex.com.tw/futures/api/getQuoteList", { MarketType: "0", SymbolType: "F", KindID: "1", CID: "TXF", ExpireMonth: "", RowSize: "全部", PageNo: "", SortColumn: "", AscDesc: "A" }],
+        ["https://mis.taifex.com.tw/futures/api/getQuoteList", { MarketType: "1", SymbolType: "F", KindID: "1", CID: "TXF", ExpireMonth: "", RowSize: "全部", PageNo: "", SortColumn: "", AscDesc: "A" }],
+      ];
+      for (const [u, b] of tries) { try { const r = await fetch(u, { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0", "Referer": "https://mis.taifex.com.tw/futures/RegularSession/EquityIndices/FuturesDomestic/" }, body: JSON.stringify(b) });
+          out.push({ u, m: b.MarketType, st: r.status, body: (await r.text()).slice(0, 1500) }); } catch (e) { out.push({ u, err: String(e) }); } }
+      return J(out);
+    }
     if (url.searchParams.get("taifex")) {   // 2026-11-13 20:00 使用者「台指期 略有參考價值 如何取得」:期交所「前 30 個交易日期貨每筆成交」zip 原封轉送(GitHub 機器直接連可能被擋時用)
       const d = String(url.searchParams.get("taifex")).replace(/-/g, "_").slice(0, 10);
       if (!/^\d{4}_\d{2}_\d{2}$/.test(d)) return J({ error: "taifex 要 YYYY_MM_DD" }, 400);
