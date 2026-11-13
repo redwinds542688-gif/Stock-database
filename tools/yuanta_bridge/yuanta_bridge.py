@@ -492,25 +492,73 @@ class Bridge:
             else: b[1] = max(b[1], px); b[2] = min(b[2], px); b[3] = px; b[4] += vol
         except Exception: pass
 
+    def fut_poll(self):
+        """⑧ 備援 2(2026-11-13 23:55 使用者選「1」三層備援):電腦直接問期交所即時行情(mis.taifex,雲端主機會被擋,台灣家用網路可以),
+           08:44~13:46 每 10 秒一次,台指期近月(成交量最大的 TXF??-F)最新價 → 1 分 K(self.fut_tf);元大逐筆沒來時 fut_flush 改用這份"""
+        if CFG.get("FUT_TAIFEX", "1") != "1": return
+        n = now_tw()
+        if n.weekday() >= 5 or not ("08:44" <= n.strftime("%H:%M") <= "13:46") or time.time() - getattr(self, "_tf_at", 0) < 10: return
+        self._tf_at = time.time()
+        def run():
+            try:
+                body = {"MarketType": "0", "SymbolType": "F", "KindID": "1", "CID": "TXF", "ExpireMonth": "", "RowSize": "全部", "PageNo": "", "SortColumn": "", "AscDesc": "A"}
+                rq = urllib.request.Request("https://mis.taifex.com.tw/futures/api/getQuoteList", data=json.dumps(body).encode(), method="POST",
+                                            headers={"Content-Type": "application/json;charset=UTF-8", "User-Agent": "Mozilla/5.0", "Referer": "https://mis.taifex.com.tw/futures/RegularSession/EquityIndices/FuturesDomestic/"})
+                js = json.loads(urllib.request.urlopen(rq, timeout=8).read().decode("utf-8"))
+                L = ((js.get("RtData") or {}).get("QuoteList") or [])
+                best = None
+                for q in L:
+                    sid = str(q.get("SymbolID", ""))
+                    if not re.match(r"^TXF[A-L]\d-F$", sid): continue
+                    try: px = float(str(q.get("CLastPrice") or "0").replace(",", "")); vol = float(str(q.get("CTotalVolume") or "0").replace(",", ""))
+                    except Exception: continue
+                    if px > 0 and (best is None or vol > best[2]): best = (sid, px, vol, str(q.get("CTime") or ""))
+                if not best:
+                    self._tf_bad = getattr(self, "_tf_bad", 0) + 1
+                    if self._tf_bad in (1, 30): log(f"[台指期·期交所] 回應裡找不到台指期近月:{str(js)[:200]}")
+                    return
+                ct = best[3].zfill(6); hm = f"{ct[:2]}:{ct[2:4]}" if ct.isdigit() and ct != "000000" else now_tw().strftime("%H:%M")
+                if not ("08:45" <= hm <= "13:45"): return
+                bars = self.__dict__.setdefault("fut_tf", {}); b = bars.get(hm); px = best[1]
+                if b is None: bars[hm] = [px, px, px, px, 0]
+                else: b[1] = max(b[1], px); b[2] = min(b[2], px); b[3] = px
+                if not getattr(self, "_tf_ok", False): self._tf_ok = True; log(f"[台指期·期交所] 收得到:{best[0]} {hm} {px}")
+                self.fut_flush()
+            except Exception as e:
+                self._tf_err = getattr(self, "_tf_err", 0) + 1
+                if self._tf_err in (1, 30) or self._tf_err % 300 == 0: log(f"[台指期·期交所] 抓不到(第 {self._tf_err} 次)", repr(e)[:160])
+        threading.Thread(target=run, daemon=True).start()
+
     def fut_flush(self):
-        """⑧ 盤中每分鐘:逐筆最多的那個代號(= 收得到的近月)→ HERE/kline_futures/TXF/<日期>.csv(電腦引擎 tx_ok 讀)+ 背景推 Worker ?fbars=push(手機讀)"""
-        if not getattr(self, "fut_n", None): return
-        day = now_tw().strftime("%Y-%m-%d"); code = max(self.fut_n, key=lambda c: self.fut_n[c]); bars = dict(self.fut_bars.get(code) or {})
-        rows = [[hm] + list(v) for hm, v in sorted(bars.items())]
-        if not rows: return
-        f = HERE / "kline_futures" / "TXF"; f.mkdir(parents=True, exist_ok=True); tmp = f / f"{day}.csv.tmp"
-        with open(tmp, "w", encoding="utf-8") as fh:
-            fh.write("date,time,open,high,low,close,volume\n")
-            for r in rows: fh.write(f"{day},{r[0]},{r[1]},{r[2]},{r[3]},{r[4]},{r[5]}\n")
-        os.replace(tmp, f / f"{day}.csv")
-        if CFG.get("PUSH_KEY") and CFG.get("WORKER_URL"):
-            def _p():
-                try:
-                    rq = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?fbars=push", data=json.dumps({"d": day, "code": code, "bars": rows}).encode(), method="POST",
-                                                headers={"Content-Type": "application/json", "X-Push-Key": CFG["PUSH_KEY"], "User-Agent": "yuanta-bridge"})
-                    urllib.request.urlopen(rq, timeout=15).read()
-                except Exception: pass
-            threading.Thread(target=_p, daemon=True).start()
+        """⑧ 盤中每分鐘:台指期 1 分 K → HERE/kline_futures/TXF/<日期>.csv(電腦引擎 tx_ok 讀)+ 背景推 Worker ?fbars=push(手機讀)。
+           來源:元大逐筆(逐筆最多的那個代號)優先;元大沒資料 / 落後超過 2 分鐘 → 用電腦直接問期交所的那份(fut_poll)"""
+        lk = self.__dict__.setdefault("_fut_lk", threading.Lock())
+        with lk:
+            day = now_tw().strftime("%Y-%m-%d"); ya = {}; code = ""
+            if getattr(self, "fut_n", None):
+                code = max(self.fut_n, key=lambda c: self.fut_n[c]); ya = dict(self.fut_bars.get(code) or {})
+            tf = dict(getattr(self, "fut_tf", {}) or {})
+            last = lambda m: max(m) if m else "00:00"; mi = lambda h: int(h[:2]) * 60 + int(h[3:5])
+            use, src = (ya, "元大 " + code) if ya and (not tf or mi(last(ya)) >= mi(last(tf)) - 2) else (tf, "期交所")
+            if not use: return
+            if src != getattr(self, "_fut_src", None): self._fut_src = src; log(f"[台指期] 1 分 K 來源:{src}")
+            cur = now_tw().strftime("%H:%M")
+            rows = [[hm] + list(v) for hm, v in sorted(use.items()) if hm < cur]   # 只寫已經收完的分鐘
+            if not rows: return
+            f = HERE / "kline_futures" / "TXF"; f.mkdir(parents=True, exist_ok=True); tmp = f / f"{day}.csv.tmp"
+            with open(tmp, "w", encoding="utf-8") as fh:
+                fh.write("date,time,open,high,low,close,volume\n")
+                for r in rows: fh.write(f"{day},{r[0]},{r[1]},{r[2]},{r[3]},{r[4]},{r[5]}\n")
+            os.replace(tmp, f / f"{day}.csv")
+            if CFG.get("PUSH_KEY") and CFG.get("WORKER_URL") and rows[-1][0] != getattr(self, "_fut_pushed", None):
+                self._fut_pushed = rows[-1][0]
+                def _p():
+                    try:
+                        rq = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?fbars=push", data=json.dumps({"d": day, "code": code or "TXF(期交所)", "bars": rows}).encode(), method="POST",
+                                                    headers={"Content-Type": "application/json", "X-Push-Key": CFG["PUSH_KEY"], "User-Agent": "yuanta-bridge"})
+                        urllib.request.urlopen(rq, timeout=15).read()
+                    except Exception: pass
+                threading.Thread(target=_p, daemon=True).start()
 
     def fut_save(self, day):
         """收工:等到 13:46(台指期 13:45 收盤)→ 存本機 + 推 Worker 一次"""
@@ -1495,6 +1543,8 @@ class Bridge:
                     if not resumed:
                         self.resume_positions(day); resumed = True          # 今天第一次連上:接回程式開的未平部位(斷線重連不用,部位一直在記憶體裡)
                 time.sleep(1); k += 1
+                try: self.fut_poll()   # ⑧ 備援 2:電腦直接問期交所台指期(每 10 秒,08:44~13:46)
+                except Exception: pass
                 if self.pending_sub:                                     # 手機強制進場的股票補訂閱(在主執行緒呼叫元大元件)
                     subs, self.pending_sub = self.pending_sub, []
                     try: self.subscribe(subs)
