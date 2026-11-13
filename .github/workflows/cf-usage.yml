@@ -6,6 +6,8 @@ name: 查 Cloudflare Worker 用量(只讀)
 #   用 GraphQL Analytics 查(不打 Worker、不吃額度)。CLOUDFLARE_ACCOUNT_ID 沒設 → 用 token 問 /accounts 拿。
 on:
   workflow_dispatch:
+    inputs:
+      today: { description: 也印今天到目前(每小時), required: false, default: 'no' }
   schedule:
     - cron: '7 16 * * *'   # UTC 16:07 = 台北 00:07
 
@@ -24,6 +26,7 @@ jobs:
         env:
           TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           AID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TODAY: ${{ inputs.today }}
         run: |
           python3 - <<'PY'
           import os, json, urllib.request, datetime as dt
@@ -56,6 +59,10 @@ jobs:
                   d = tw(x["dimensions"]["datetimeHour"]).strftime("%Y-%m-%d"); D[d] = D.get(d, 0) + x["sum"]["requests"]
           except Exception as e: print("DO 查詢失敗", e)
           today = (now + dt.timedelta(hours=8)).strftime("%Y-%m-%d")
+          if os.environ.get("TODAY") == "yes":   # 2026-11-13 12:02 使用者「檢查 cloudflare 使用量」:印今天到目前(不存檔)
+              tw_ = sorted((h, n) for (dd, h), n in HR.items() if dd == today)
+              print(f"今天 {today} 到目前:Worker {W.get(today, 0):,} 次、錯誤 {E.get(today, 0):,}、DO {D.get(today, 0) or 0:,} 次")
+              print("每小時:" + "、".join(f"{h:02d}時 {n:,}" for h, n in tw_))
           p = Path("app/cf_usage.json")
           try: J = json.loads(p.read_text(encoding="utf-8"))
           except Exception: J = {}
