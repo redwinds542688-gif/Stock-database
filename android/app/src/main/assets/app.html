@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-13 15:00(實際時間)虛擬明細張數改照電腦通知寫的張數(鐵律 ⑤ 分級),原本用多空上限 ÷ 股價(廣豐 13 張、中鼎 4 張)→ 虛擬明細和檢討同一個數字(11/13 都是 +10,431)(使用者「金額不同」)
   · 2026-11-13 14:11(實際時間)資訊頁拿掉檢討的元大 / 虛擬切換鍵,檢討改跟著明細的元大 / 虛擬開關走(使用者「明細裡是元大 檢討就是元大的檢討 明細裡是虛擬 檢討就是虛擬」)
   · 2026-11-13 13:58(實際時間)當沖也拿掉「股票 現價 攤平 張 輸贏」欄名列,列高照樣排滿不切半列(使用者「改 不要切到卡片」)
   · 2026-11-13 13:48(實際時間)明細拿掉「股票 進→ 出 張 輸贏」欄名列(使用者「這列不需要」)
@@ -470,7 +471,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611131445">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611131456">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7859,7 +7860,7 @@ window.bgTick = bgTick; window.BG = BG;
       const sig2 = Object.entries(stmap).map(([c, v]) => c + v).sort().join(',');
       if (sig2 !== (window.NL_STSIG || '')){ window.NL_STSIG = sig2; window.NL_STATUS = stmap; if (typeof resortList === 'function'){ clearTimeout(window.NL_ST_T); window.NL_ST_T = setTimeout(resortList, 50); } }
       else window.NL_STATUS = stmap; }
-    const lotsOf = o => { if (o.over) return 0; if (o.lots) return o.lots; const p = POSITIONS.get(o.code); if (p && p.qty) return p.qty; const ent = o.entP || o.price || 0; return ent ? Math.max(1, Math.floor(capFund() / (ent * 1000))) : 0; };   // (判別式相關說明已移到私人庫)
+    const lotsOf = o => { if (o.over) return 0; if (o.lots) return o.lots; { const q = +((((o.x || {}).body || '').match(/· (\d+)張/) || [])[1]) || 0; if (q > 0) return q; }   /* 2026-11-13 14:55(實際時間)使用者「金額不同」(虛擬明細 +12,482 vs 檢討 +10,431):虛擬張數改照電腦通知上寫的張數(鐵律 ⑤ 分級),原本用多空上限 ÷ 股價(廣豐 13 張、中鼎 4 張) */ const p = POSITIONS.get(o.code); if (p && p.qty) return p.qty; const ent = o.entP || o.price || 0; return ent ? Math.max(1, Math.floor(capFund() / (ent * 1000))) : 0; };   // (判別式相關說明已移到私人庫)
     const marks = pl => Math.min(4, Math.max(1, Math.ceil(Math.abs(pl || 0) - 1e-9)));   // 2026-10-24 14:12 使用者:「改最多顯示4顆」:每 1% 一顆,≤1% 一顆、≤2% 兩顆、≤3% 三顆、超過 3% 四顆   // 損益佔投入金額的 %:≤1 一個、更多兩個(2026-10-17 由三個改兩個)
     const line = (o, dd = d) => {   // 2026-10-27 dd = 這張卡是哪一天的(前幾天的卡昨收不拿今天的)
       // 2026-10-18 使用者定案:一張卡兩列,欄位上下對齊 ──
