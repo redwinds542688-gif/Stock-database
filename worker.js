@@ -1503,7 +1503,7 @@ export default {
         if (it.d >= DO_SINCE && env.HUB) {                        // 2026-10-24 起存 Hub(不用 KV 寫入 / list 額度)
           const res = await hubOf(env).logAdd(it.d, key, item, it.pos ? String(it.pos).replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 80) : "");
           // 2026-11-01 iPhone 網頁版 App:今天的新通知(不是重複的平倉)→ 推播給訂閱的手機(背景做,不拖慢回應)
-          if (res && !res.dup && it.d === ymdOf(twNow()) && ctx && ctx.waitUntil) ctx.waitUntil(pushFanout(env, { ...item, key: String(it.key || "") }).catch(() => {}));
+          if (res && !res.dup && it.d === ymdOf(twNow()) && ctx && ctx.waitUntil && !/未進場:額度不夠/.test(item.body))   // 2026-11-13 額度用完的進場訊號不推播 ctx.waitUntil(pushFanout(env, { ...item, key: String(it.key || "") }).catch(() => {}));
           return J(res);
         }
         // 2026-10-20 部位鍵去重(使用者:同一筆平倉發三次 → 「改」):手機帶 pos = 判別式|代碼|進場時間,同一個部位的平倉雲端只留第一則(兩支手機、服務重啟都不重複)
