@@ -26,7 +26,7 @@ def mk(gw=GW, prime=True, **kw):
     NMK[0] += 1   # 2026-10-29 每個測試自己的狀態檔(今天進場過的訊號會存檔,不要互相影響)
     cfg = {"TRADE_LOT_TIER": "0", "TRADE_BROKER_STOP": "0", "TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0", "TRADE_Y3_TP_PCT": "2.5"}; cfg.update(kw)
     g = gw(); t = Trader(cfg, g, logs.append, lambda: NOW[0]); g.t = t; t.posts = []; t.alerts = []
-    t.post = lambda a, b, k, t_=None, **kw: t.posts.append((a, b, k)); t.akinds = []; t.alert = lambda a, b="", k="pc": (t.alerts.append(a), t.akinds.append(k))
+    t.post = lambda a, b, k, t_=None, **kw: (t.posts.append((a, b, k)), t.__dict__.setdefault("pkeys", []).append(kw.get("pos"))); t.akinds = []; t.alert = lambda a, b="", k="pc": (t.alerts.append(a), t.akinds.append(k))
     t.ref_of = lambda c, t=t: t.last_px.get(c)   # 2026-11-11 16:28 鐵律:沒有昨收不進場 → 測試預設昨收 = 現價(要測 ±5% / 6.5% 的自己設)
     if prime: t.prime([])   # 2026-10-29 稽核 #1:跟 bridge 一樣,啟動時讀到通知(這裡是空的)才算準備好
     return t, g
@@ -46,7 +46,7 @@ t.on_report(51, "A0001", 0, 1000, 86.1); ok(p["state"] == HOLDING and p["entry"]
 t.on_tick("6269", 85.0); ok(p["state"] == HOLDING)
 t.on_tick("6269", 84.0); ok(p["state"] == EXITING and g.sent[-1] == ("6269", "B", 1, 0, "9", "0", "H"), g.sent[-1])
 t.on_report(51, "A0002", 0, 1000, 84.1); ok("6269" not in t.positions and t.journal[-1]["why"] == "停利" and t.pnl > 1500, t.pnl)
-ok(not t.posts, t.posts)                                                              # 判二自己的平倉訊息由手機發,程式不重複寫
+ok(len(t.posts) == 1 and "停利" in t.posts[0][0] and t.pkeys[-1] == "判二|6269|10:00", t.posts)   # 2026-11-13 程式平掉也發卡,部位鍵和引擎同一把(雲端只留一則)
 # 2) 進場 IOC 沒成交(價穩失效)→ 2026-10-31 改 C:改掛跌停賣 ROD 補進場;補單也結束沒成交 → 拿掉;TRADE_ENTRY_FALLBACK=0 照舊直接拿掉
 t2, g2 = mk(); t2.on_tick("6269", 86.2); t2.step([ENT]); t2.on_report(50, "A0001", 25, 0, 0)
 ok("6269" in t2.positions and g2.sent[-1] == ("6269", "S", 1, 85.4, "9", "0", " "), g2.sent)   # 2026-11-08 16:09 補單改掛訊號價 −1%

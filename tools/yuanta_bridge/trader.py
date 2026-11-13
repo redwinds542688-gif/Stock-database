@@ -601,11 +601,13 @@ class Trader:
                 if opener.get(c, "")[:1] in ("T", "F", "R"):
                     self.log(f"[交易] !! 對帳:{c} 元大有 {abs(n)} 張{'多' if d > 0 else '空'}單、程式不知道(程式的單晚到 / 多平)→ 馬上平掉")
                     self.alert(f"⚠ {c} 對帳發現 {abs(n)} 張沒管到", f"程式的單晚到成交 / 多平,已{'跌停賣出' if d > 0 else '漲停買回'}")
+                    self.recon_card(c, d, abs(n), trades, px)
                     self.rebuy(c, d, abs(n), px or 0, None, otyp.get(c) or None)
                 elif any(t.get("order_no") in self.ph_cancel for t in trades if t["code"] == c and t["bs"] == ("B" if d > 0 else "S")):
                     # 2026-11-07 23:38 使用者「再補」:漏了回報、對帳才看到的部位,其實是強平時程式取消掉的預掛(取消前成交)→ 不接成元三,馬上再強平
                     self.log(f"[交易] !! 對帳:{c} 元大有 {abs(n)} 張{'多' if d > 0 else '空'}單,是強平時取消掉的手動預掛成交的 → 馬上再強平")
                     self.alert(f"⚠ {self.name_of(c)} {c} 預掛取消前成交了", f"對帳才發現多出 {abs(n)} 張{'多' if d > 0 else '空'}單,程式已再強平({'跌停賣出' if d > 0 else '漲停買回'})")
+                    self.recon_card(c, d, abs(n), trades, px)
                     self.rebuy(c, d, abs(n), px or 0, None, otyp.get(c) or None)
                 elif self.y3 and self.enabled:
                     p = self.new_pos(c, d, MANUAL, "元大手動(對帳接回)", forced=True)
@@ -1080,6 +1082,10 @@ class Trader:
             take = min(lots, max(p["qty"], 0)); extra = lots - take
             self.log(f"[交易] {code} 不是程式送的平倉單成交 {lots} 張 @ {price}(元大條件單 / 手動)")
             p["exit_why"] = p.get("exit_why") or "元大條件單 / 手動"
+            # 2026-11-13 10:37 使用者「改」(還沒補上的 1):元大停損停利條件單自己成交 → 卡片寫「條件單停利 / 條件單停損」,不再寫成元平
+            if p["exit_why"] == "元大條件單 / 手動" and p.get("oco_live") and p.get("tp") and p.get("sl") and not p.get("oco_why"):
+                if (price >= p["tp"]) if p["dir"] > 0 else (price <= p["tp"]): p["oco_why"] = "停利"
+                elif (price <= p["sl"]) if p["dir"] > 0 else (price >= p["sl"]): p["oco_why"] = "停損"
             # 2026-11-08 使用者「元三強三 變成 元平強平 條件單呢會自己消失嗎」→「改」:不是條件單自己觸發的平倉(元平:手動平倉 / 預掛成交)→
             #   元大的條件單不會自己消失 → 程式刪掉;只平一部分 → 照剩下張數重掛。價格到了停利 / 停損 = 條件單自己在平,不動它
             oco_hit = p.get("oco_live") and p.get("tp") and p.get("sl") and ((price >= p["tp"] or price <= p["sl"]) if p["dir"] > 0 else (price <= p["tp"] or price >= p["sl"]))
@@ -1140,6 +1146,15 @@ class Trader:
                 self.rebuy(code, d, lots, price, None, typ); self.save_state()
         go()
 
+    def recon_card(self, c, d, lots, trades, px):
+        """2026-11-13 10:37 使用者「改」(還沒補上的 4):對帳發現元大有、程式沒管到的部位被自動平掉 → 進場欄也發一張平倉卡"""
+        try:
+            cs = [t for t in trades if t["code"] == c and t["bs"] == ("B" if d > 0 else "S")]
+            ent = sum(t["price"] * t["lots"] for t in cs) / sum(t["lots"] for t in cs) if cs else (px or 0)
+            self.post(f"⚠ {self.name_of(c)} {c} 出場:對帳平倉",
+                      f"{self.hm()} {'做多' if d > 0 else '做空'} {self.hm()} 進 {ent:.2f} → 現價 {float(px or ent):.2f} · {lots}張 · 對帳({'跌停賣出' if d > 0 else '漲停買回'})", "exit")
+        except Exception as e: self.log(f"[交易] 對帳平倉發卡失敗 {e!r}")
+
     def rebuy(self, code, d, lots, price, mkt=None, typ=None):
         """多平了 → 反向的張數馬上用漲停 / 跌停平掉(補回)"""
         p = self.new_pos(code, d, "補回", "多平補回", forced=True)
@@ -1183,7 +1198,7 @@ class Trader:
                 self.gw.cancel(no, c, m.get("bs") or ("B" if p["dir"] < 0 else "S"), m.get("typ") or p["typ"]); self.ph_cancel[no] = time.time()
                 self.log(f"[交易] {c} 部位結束 → 取消還掛著的手動預掛 {no}")   # 2026-11-06 部位沒了,盤中記的預掛跟著清(13:20 後的由 prehang_pick / expire 管)
         # 2026-10-28 強三的出場、任何部位的強平 → 寫一則平倉訊息到手機訊息欄(判一 / 二 / 三自己的平倉訊息照舊由手機發)
-        if (p.get("forced") or p.get("forced_close")) and p.get("judge") in JUDGES_ALL + (FORCED, MANUAL) and p["closed_lots"]:   # 2026-11-13 10:27 使用者「頎邦已經強平 進場還沒顯示強平」:判六 / 判七強平原本不寫卡(清單只到判五)→ 改用全部判別式   # 2026-11-02 判四強平也要寫訊息(使用者「強制平倉 訊息欄要顯示」;欣銓 3264 判四強平沒出現)
+        if (p.get("forced") or p.get("forced_close") or p.get("over3")) and p.get("judge") in JUDGES_ALL + (FORCED, MANUAL) and p["closed_lots"]:   # 2026-11-13 10:37 超額補進場(強三)程式平倉也發卡   # 2026-11-13 10:27 使用者「頎邦已經強平 進場還沒顯示強平」:判六 / 判七強平原本不寫卡(清單只到判五)→ 改用全部判別式   # 2026-11-02 判四強平也要寫訊息(使用者「強制平倉 訊息欄要顯示」;欣銓 3264 判四強平沒出現)
             ex = p["closed_cost"] / p["closed_lots"]; d = p["dir"]
             pl = (ex - p["entry"]) / p["entry"] * 100 * d if p["entry"] else 0
             why = "強平" if p.get("forced_close") else (p.get("exit_why") or "出")
@@ -1192,21 +1207,24 @@ class Trader:
             ttl = f"{self.name_of(c)} {c} 強平 {'+' if pl >= 0 else '−'}{abs(pl):.1f}%" if p.get("forced_close") else f"{self.name_of(c)} {c} 出場 {'+' if pl >= 0 else '−'}{abs(pl):.1f}%:{why}"
             self.post(ttl, body, "exit")
 
-        elif p.get("judge") in JUDGES_ALL and p["closed_lots"] and not p.get("forced_close") and (p.get("exit_why") in ("總平", "移平") or re.match(r"^超[\d.]+%$", str(p.get("exit_why") or ""))):
+        elif p.get("judge") in JUDGES_ALL and p["closed_lots"] and not p.get("forced_close") and p.get("exit_why") and p.get("exit_why") != "元大條件單 / 手動" and not re.match(r"^(手機平倉通知|接回)", str(p.get("exit_why"))):
+            # 2026-11-13 10:37 使用者「改」(還沒補上的 2):程式自己平掉的判別式部位(停利 / 停損 / 13:20 平倉 / 鐵律 / 總平 / 移平 / 超 x%)都發平倉卡;
+            #   部位鍵用訊號時間(和電腦引擎同一把)→ 引擎也發的話雲端只留一則
             # 2026-11-13 10:30 使用者「所有判別式 元平,強平,總平,移平 也是要補上去」:中繼自己因鐵律(總平 / 移平 / 超 x%)平掉判別式部位,也寫一張平倉卡
             #   (格式和電腦引擎一樣、帶部位鍵 pos;引擎也發的話雲端同一部位只留一則,不會兩張)
             ex = p["closed_cost"] / p["closed_lots"]; d = p["dir"]; why = p.get("exit_why")
             pl = (ex - p["entry"]) / p["entry"] * 100 * d if p["entry"] else 0
             ttl = f"⚠⚠ {self.name_of(c)} {c} {why} {pl:+.1f}% 立即平倉" if pl < 0 else f"{self.name_of(c)} {c} 出場 {pl:+.1f}%:{why}"
             body = f"{self.hm()} {'做多' if d > 0 else '做空'} {p.get('t0') or self.hm()} 進 {p['entry']:.2f} → 現價 {ex:.2f} · {p['closed_lots']}張 · {p['judge']}"
-            try: self.post(ttl, body, "loss" if pl < 0 else "exit", pos=f"{p['judge']}|{c}|{p.get('t0') or ''}")
+            try: self.post(ttl, body, "loss" if pl < 0 else "exit", pos=f"{p['judge']}|{c}|{p.get('t_sig') or p.get('t0') or ''}")
             except TypeError: self.post(ttl, body, "loss" if pl < 0 else "exit")
 
         elif p.get("exit_why") == "元大條件單 / 手動" and p["closed_lots"] and not p.get("forced_close"):
             ex = p["closed_cost"] / p["closed_lots"]; d = p["dir"]
             pl = (ex - p["entry"]) / p["entry"] * 100 * d if p["entry"] else 0
-            self.post(f"{'✅ ' if pl >= 0 else '⚠ '}{self.name_of(c)} {c} 出場 {'+' if pl >= 0 else '−'}{abs(pl):.1f}%:元大預掛成交",
-                      f"{self.hm()} {'做多' if d > 0 else '做空'} {p.get('t0') or self.hm()} 進 {p['entry']:.2f} → 現價 {ex:.2f} · {p['closed_lots']}張 · 元平 · {p.get('judge') or ''}",   # 2026-11-07 10:36 使用者「元大手動平倉是不是應該叫做元平」→「改」   # 標原判別式才會和那張進場卡配成同一筆、算進輸贏;「· 強平 ·」讓手機藏掉之後引擎的虛擬出場
+            ow = p.get("oco_why")   # 2026-11-13 條件單自己成交 → 標「條件單停利 / 停損」
+            self.post(f"{'✅ ' if pl >= 0 else '⚠ '}{self.name_of(c)} {c} 出場 {'+' if pl >= 0 else '−'}{abs(pl):.1f}%:" + (f"元大條件單{ow}" if ow else "元大預掛成交"),
+                      f"{self.hm()} {'做多' if d > 0 else '做空'} {p.get('t0') or self.hm()} 進 {p['entry']:.2f} → 現價 {ex:.2f} · {p['closed_lots']}張 · " + (f"條件單{ow}" if ow else "元平") + f" · {p.get('judge') or ''}",   # 2026-11-07 10:36 使用者「元大手動平倉是不是應該叫做元平」→「改」   # 標原判別式才會和那張進場卡配成同一筆、算進輸贏;「· 強平 ·」讓手機藏掉之後引擎的虛擬出場
                       "profit" if pl >= 0 else "loss")
 
     def oco_ok(self, c):
@@ -1869,6 +1887,8 @@ class Trader:
         p = self.new_pos(code, d, judge, title, tp=tp_sig, sl=sl_sig)
         if it.get("_over"):   # 2026-11-11 16:49 使用者「超額補進場 手動進場或加碼 強制進場 都受判三管轄」:超額補進場改由判三管(停利 / 停損照判三 %,成交後從實際均價算;記「強三」)
             p.update({"judge0": judge, "judge": FORCED, "tp_pct": self.y3_tp, "sl_pct": self.y3_sl, "over3": True})
+        p["t_sig"] = (RE_BAR.match(body or "") and RE_BAR.match(body or "").group(1).zfill(5)) or it.get("t") or ""   # 2026-11-13 訊號時間(平倉卡部位鍵,和引擎同一把)
+        if it.get("_late"): p["late"] = True                      # 2026-11-13 太晚補進場:成交後發一張補進場卡
         p["px_sig"] = px_sig                                       # 2026-10-31 改 C:補單前檢查現價離訊號價多遠
         p["no_max_move"] = False   # 2026-11-11 14:17 使用者「全改」:假突破空單也套 ±6.5%(進場已限 ±5%)   # 原 "✓破" in body   # 2026-10-28 使用者選「元大那邊對假突破空單不套 6.5%」:判三「假突破跌破 Ka 空」(通知帶「空✓破」)常在離昨收 +6.5% 以上才進場,不套 ±6.5% 強制平倉(停利 / 停損 / 13:20 / 手機平倉通知照舊)
         if ekey:
@@ -2326,6 +2346,12 @@ class Trader:
                 self.post(f"{self.name_of(c)} {c} {'做多' if p['dir'] > 0 else '做空'}進場 {avg:.2f}",
                           f"{p['t0']} 強制 · 停利 {p['tp']:.2f} 停損 {p['sl']:.2f} · {lots}張 · {FORCED}", "long" if p["dir"] > 0 else "short")
             if p.get("over3"): self.set_forced_tpsl(p, avg)   # 2026-11-11 16:49 超額補進場:判三 % 從實際均價算
+            if (p.get("over3") or p.get("late")) and not p.get("forced"):
+                # 2026-11-13 10:37 使用者「改」(還沒補上的 3):超額補進場 / 太晚補進場成交 → 進場欄發一張「補進場」卡(實際成交價、張數)
+                c = p["code"]
+                try: self.post(f"{self.name_of(c)} {c} {'做多' if p['dir'] > 0 else '做空'}補進場 {avg:.2f}",
+                               f"{p['t0']} 元大 · {'超額補進' if p.get('over3') else '太晚補進'} · 停利 {p['tp']:.2f} 停損 {p['sl']:.2f} · {lots}張 · {p['judge']}", "long" if p["dir"] > 0 else "short")
+                except Exception as e: self.log(f"[交易] 補進場發卡失敗 {e!r}")
             self.log(f"[交易] 持倉 {p['code']} {p['judge']} {'多' if p['dir'] > 0 else '空'} {lots} 張 均價 {avg:.2f} 停利 {p['tp']} 停損 {p['sl']}")
             if self.oco_ok(p["code"]) and p["tp"] and p["sl"]:
                 p["oco_no"] = None; self.oco_q.append(p["code"])
