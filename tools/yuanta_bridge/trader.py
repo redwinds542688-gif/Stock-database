@@ -109,6 +109,18 @@ IRON_CAP, IRON_AMOUNT, IRON_MTSL = 250000, 5000000.0, 3.0   # ⑥ 2026-11-13 02:
 MANUAL = "元三"      # 2026-10-28 使用者:在元大(投資先生)自己下的單,成交後交給判三管
 
 
+def why_short(title, cap):
+    """2026-11-13 不進場原因 → 通知上的短字"""
+    m = next((x for x in cap if f"不進場 {title}:" in x), None)
+    if not m:
+        return "太晚" if any("太晚了先記著" in x for x in cap) else ""
+    r = m.split(f"不進場 {title}:", 1)[1]
+    for k, v in (("不管的名單", "留倉不管"), ("超額", "超額"), ("太晚", "太晚"), ("已經過", "太晚"), ("不能空", "不能空"), ("昨收", "超過±5%" if "超過 ±" in r else "沒昨收"),
+                 ("不夠 1 張", "額度不夠"), ("額度", "額度不夠"), ("已經進場過", "已進過"), ("順序不合理", "訊號價不合理"), ("不在停利", "價格已過停利停損"), ("即時價", "沒報價"), ("緊急停止", "緊急停止"), ("時段", "過了時段")):
+        if k in r: return v
+    return re.split(r"[(,:(]", r)[0].strip()[:10]
+
+
 class Trader:
     IRON_LOTS = True   # 鐵律 ⑤(測試舊案例用固定張數時才由 test_trader.py 關掉;bridge.env 沒有開關)
     def __init__(self, cfg, gateway, log, now):
@@ -1762,7 +1774,10 @@ class Trader:
         code = code_of(title) if kind in ("long", "short") else None
         before = self.positions.get(code) if code else None
         seen0 = (it.get("_k") or (it.get("t", "") + title)) in self.seen
-        self._on_signal(it)
+        cap = []; lg = self.log
+        if code and self.primed and not seen0: self.log = lambda m, *a, _lg=lg: (cap.append(str(m)), _lg(m, *a))[1]   # 2026-11-13 記下不進場原因(給通知標「未進場」)
+        try: self._on_signal(it)
+        finally: self.log = lg
         if code and self.primed and not seen0:
             after = self.positions.get(code)
             sk = self.sig_key(code, judge_of(body), body)
@@ -1770,6 +1785,11 @@ class Trader:
                 after["sigkey"] = sk; self.traded_keys.add(sk); self.skipped.discard(sk)
             elif sk not in self.traded_keys:   # 同一個訊號(本機 + 雲端各來一次)已經進場過的不算未交易
                 self.skipped.add(sk)
+            # 2026-11-13 11:20 使用者選 A(和益在不管名單沒進場,手機卻跳「進場」):每個新的進場訊號記下有沒有進場 + 原因,
+            #   中繼寫到 engine_data/verdict_<日期>.jsonl,電腦引擎推雲端前等它(最多幾秒),沒進場的通知改寫「未進場:原因」
+            if it.get("_k"):
+                ok = after is not None and after is not before
+                self.__dict__.setdefault("verdicts", []).append({"_k": it["_k"], "ok": ok, "why": "" if ok else why_short(title, cap)})
 
     def sig_key(self, code, judge, body):
         mb = RE_BAR.search(body or "")

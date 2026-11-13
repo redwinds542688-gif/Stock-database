@@ -796,11 +796,13 @@ class Engine:
         if self.dry: return True
         # 2026-10-30 01:32 使用者「如何確保進場股票價格一出來的瞬間 交易可以成立」→ A「先做A」:同一台電腦的中繼不用等 Worker、不用每 3 秒輪詢 →
         #   推 Worker 之前先寫一行到本機 engine_data/live_<日期>.jsonl,中繼每秒讀(_k 和 Worker 存的鍵同一套,之後 Worker 那份讀到會被當成同一則,不會重複下單)
+        kk = None
         try:
             kk = it["t"] + ":" + re.sub(r"[^A-Za-z0-9_\u4e00-\u9fff|:.\-]", "", str(it.get("key") or it["title"]))[:120]
             with open(DATA / f"live_{it.get('d') or self.day}.jsonl", "a", encoding="utf-8") as f:
                 f.write(json.dumps({**it, "_k": kk}, ensure_ascii=False) + "\n"); f.flush(); os.fsync(f.fileno())
-        except Exception as e: log("!! 本機通知檔寫不進去(中繼改等 Worker)", e)
+        except Exception as e: log("!! 本機通知檔寫不進去(中繼改等 Worker)", e); kk = None
+        if kk and it.get("kind") in ("long", "short"): it = self.verdict(it, kk)
         for k in range(3):
             try:
                 r = http(worker_url("log=add"), it, key=True)
@@ -809,6 +811,30 @@ class Engine:
             except Exception as e:
                 log(f"推通知失敗 第 {k + 1} 次", e); time.sleep(2)
         return False
+
+    def verdict(self, it, kk):
+        """2026-11-13 11:20 使用者選 A(和益在不管名單沒進場,手機卻跳「進場」):進場通知推雲端前,等中繼回報有沒有進場(engine_data/verdict_<日期>.jsonl,
+           最多 ENGINE_VERDICT_WAIT 秒,預設 3);沒進場 → 標題「進場」改「未進場」、內容判別式前面加「未進場:原因」;等不到就照原樣推"""
+        try: w = float(CFG.get("ENGINE_VERDICT_WAIT", "3") or 0)
+        except Exception: w = 3.0
+        if w <= 0: return it
+        f = DATA / f"verdict_{it.get('d') or self.day}.jsonl"; end = time.time() + min(w, 8)
+        while True:
+            try:
+                if f.exists():
+                    for ln in f.read_text(encoding="utf-8").splitlines():
+                        if kk not in ln: continue
+                        v = json.loads(ln)
+                        if v.get("_k") != kk: continue
+                        if v.get("ok"): return it
+                        why = str(v.get("why") or "").strip()
+                        t2 = it["title"].replace("進場", "未進場", 1)
+                        b2 = re.sub(r"(\s*·\s*判[一二三四五六七])\s*$", f" · 未進場{':' + why if why else ''}\\1", it["body"])
+                        log(f"[通知] 中繼沒進場({why or '?'})→ 推「{t2}」")
+                        return {**it, "title": t2, "body": b2}
+            except Exception as e: log("讀進場結果檔失敗", e); return it
+            if time.time() >= end: log(f"[通知] 等不到中繼的進場結果({w:g} 秒),照原樣推:{it['title']}"); return it
+            time.sleep(0.2)
 
     def key_of(self, code, title, rs):
         return code + "|" + re.sub(r"[0-9.,+−%↑↓\s⚠✅-]", "", title) + "|" + JUDGE[rs]
