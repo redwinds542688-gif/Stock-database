@@ -1190,7 +1190,7 @@ class Engine:
             self.emitted.add(ek); log(f"判六(做空){code} {open_tm} 今天判六做空已 {len(self.j63)} 檔(到上限)→ 不發"); return n
         elif rs in ("六", "六3") and (("六3" if rs == "六" else "六"), code) in self.pos:   # 2026-11-12 23:40 判六做多 / 做空同一檔同時只留一筆
             self.emitted.add(ek); log(f"判六 {code} {open_tm} 這檔判六另一個方向的部位還開著 → 不發"); return n
-        elif not self.tx_ok(rs, code, open_tm, d["side"]):   # 2026-11-13 22:30 ⑧ 台指期同步進場:同步率 < 0.5 或台指期往不利方向 → 這筆不做(記 emitted,不再發)
+        elif not self.tx_ok(rs, code, open_tm, d["side"]):   # 2026-11-13 22:30 ⑧ 台指期同步進場(23:32 改只看方向):台指期 60 分鐘往不利方向 → 這筆不做(記 emitted,不再發)
             self.emitted.add(ek); return n
         else: why = None
         if why:
@@ -1225,7 +1225,7 @@ class Engine:
         except Exception: return []
 
     def tx_ok(self, rs, code, tm, side):
-        """⑧ 台指期同步進場(2026-11-13 22:17 使用者「解鎖 改 全部套用」):rs_env 有 TXSYNC 才看;判斷用私人庫 rs_env.txsync(和模擬器同一份)。
+        """⑧ 台指期同步進場(2026-11-13 22:17 使用者「解鎖 改 全部套用」;23:32「只看台指期方向 解鎖改」):rs_env 有 TXSYNC 才看;判斷用私人庫 rs_env.txsync(和模擬器同一份)。
            這天完全沒有台指期 → 先不看(照舊進場)+ 推一次警告;其他算不出來 / 不合 → 不做"""
         c = self.envs.get(rs, {}).get("TXSYNC"); fn = getattr(self, "txsync_fn", None)
         if not c or not fn: return True
@@ -1237,7 +1237,8 @@ class Engine:
                     try: http(worker_url("log=add"), {"d": self.day, "t": now_tw().strftime("%H:%M"), "title": "⚠ 沒有台指期資料,鐵律 ⑧ 暫停", "body": "中繼沒收到台指期逐筆,台指期同步進場今天先不看(照舊進場) · 元大中繼", "kind": "pc", "key": "txf|missing"}, key=True)
                     except Exception: pass
                 return True
-            n_, r_ = c.split(":"); ok, why = fn(side, tm, self.stock_closes(code), txf, int(float(n_)), float(r_))
+            _p = c.split(":"); n_ = int(float(_p[0])); r_ = float(_p[1]) if len(_p) > 1 and _p[1] else None   # 「60」= 只看台指期方向(2026-11-13 23:32 使用者「只看台指期方向 解鎖改」)
+            ok, why = fn(side, tm, self.stock_closes(code), txf, n_, r_)
             if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
             return ok
         except Exception as e:
