@@ -975,6 +975,12 @@ export default {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return J({ error: "d 要是 YYYY-MM-DD" }, 400);
       return J(await dailyArchive(env, d, true));
     }
+    if (url.searchParams.get("taifex")) {   // 2026-11-13 20:00 使用者「台指期 略有參考價值 如何取得」:期交所「前 30 個交易日期貨每筆成交」zip 原封轉送(GitHub 機器直接連可能被擋時用)
+      const d = String(url.searchParams.get("taifex")).replace(/-/g, "_").slice(0, 10);
+      if (!/^\d{4}_\d{2}_\d{2}$/.test(d)) return J({ error: "taifex 要 YYYY_MM_DD" }, 400);
+      const r = await fetch(`https://www.taifex.com.tw/file/taifex/Dailydownload/DailydownloadCSV/Daily_${d}.zip`, { headers: { "User-Agent": "Mozilla/5.0" } });
+      return new Response(r.body, { status: r.status, headers: { ...CORS, "Content-Type": r.headers.get("Content-Type") || "application/zip", "Cache-Control": "no-store" } });
+    }
     if (url.searchParams.get("twidx")) {   // 2026-11-13 19:50 使用者「好」(每天存加權指數 1 分 K):證交所每 5 秒指數 → 1 分 K(GitHub 機器連證交所會被擋,改由這裡抓);公開資料,收盤後的日子存 Hub 不重抓
       const d = String(url.searchParams.get("twidx")).replace(/-/g, "").slice(0, 8);
       if (!/^\d{8}$/.test(d)) return J({ error: "twidx 要 YYYYMMDD" }, 400);
