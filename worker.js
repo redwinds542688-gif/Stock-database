@@ -981,9 +981,12 @@ export default {
       const hub = env.HUB ? hubOf(env) : null, ck = "twidx:" + d;
       if (hub){ const old = await hub.kvGet(ck); if (old) return J(old); }
       let j = null;
-      try { const r = await fetch(`https://www.twse.com.tw/rwd/zh/afterTrading/MI_5MINS_INDEX?date=${d}&response=json`, { headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" } });
-        const tx = await r.text(); try { j = JSON.parse(tx); } catch (e) { return J({ error: "證交所回的不是資料", status: r.status, head: tx.slice(0, 160) }, 502); } }
-      catch (e) { return J({ error: "連不到證交所 " + String(e).slice(0, 120) }, 502); }
+      let bad = null;
+      for (const pth of ["rwd/zh/TAIEX/MI_5MINS_INDEX", "exchangeReport/MI_5MINS_INDEX", "rwd/zh/afterTrading/MI_5MINS_INDEX"]) {   // 證交所改版過網址,依序試
+        try { const r = await fetch(`https://www.twse.com.tw/${pth}?date=${d}&response=json`, { headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" } });
+          const tx = await r.text(); try { j = JSON.parse(tx); break; } catch (e) { bad = { error: "證交所回的不是資料", path: pth, status: r.status, head: tx.slice(0, 160) }; } }
+        catch (e) { bad = { error: "連不到證交所 " + String(e).slice(0, 120) }; } }
+      if (!j) return J(bad || { error: "抓不到" }, 502);
       if (!j || j.stat !== "OK" || !Array.isArray(j.data) || !j.data.length) return J({ d, bars: [], stat: j && j.stat });
       const f = j.fields || [], i = Math.max(1, f.findIndex(x => /加權/.test(x) && !/未含/.test(x))), B = {};
       for (const r of j.data){ const t = String(r[0]).slice(0, 5), p = parseFloat(String(r[i]).replace(/,/g, "")); if (!(t >= "09:00" && t <= "13:30") || !(p > 0)) continue;
