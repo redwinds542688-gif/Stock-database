@@ -976,13 +976,16 @@ export default {
       return J(await dailyArchive(env, d, true));
     }
     if (url.searchParams.get("txq") === "raw") {   // 2026-11-13 22:20 台指期即時報價接口測試(使用者「解鎖 改 全部套用」:台指期同步進場要盤中即時台指期)
-      const out = [];
+      const out = [], H = { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36", "Accept": "application/json, text/plain, */*", "Accept-Language": "zh-TW,zh;q=0.9", "Origin": "https://mis.taifex.com.tw", "Referer": "https://mis.taifex.com.tw/futures/RegularSession/EquityIndices/FuturesDomestic/" };
+      let ck = "";
+      try { const r0 = await fetch("https://mis.taifex.com.tw/futures/RegularSession/EquityIndices/FuturesDomestic/", { headers: H }); ck = (r0.headers.get("set-cookie") || "").split(";")[0]; out.push({ get: r0.status, ck: !!ck, body: (await r0.text()).slice(0, 200) }); } catch (e) { out.push({ getErr: String(e) }); }
       const tries = [
         ["https://mis.taifex.com.tw/futures/api/getQuoteList", { MarketType: "0", SymbolType: "F", KindID: "1", CID: "TXF", ExpireMonth: "", RowSize: "全部", PageNo: "", SortColumn: "", AscDesc: "A" }],
-        ["https://mis.taifex.com.tw/futures/api/getQuoteList", { MarketType: "1", SymbolType: "F", KindID: "1", CID: "TXF", ExpireMonth: "", RowSize: "全部", PageNo: "", SortColumn: "", AscDesc: "A" }],
+        ["https://mis.taifex.com.tw/futures/api/getQuoteDetail", { SymbolID: ["TXF-S"] }],
+        ["https://mis.taifex.com.tw/futures/api/getChartData1M", { SymbolID: "TXF-S" }],
       ];
-      for (const [u, b] of tries) { try { const r = await fetch(u, { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0", "Referer": "https://mis.taifex.com.tw/futures/RegularSession/EquityIndices/FuturesDomestic/" }, body: JSON.stringify(b) });
-          out.push({ u, m: b.MarketType, st: r.status, body: (await r.text()).slice(0, 1500) }); } catch (e) { out.push({ u, err: String(e) }); } }
+      for (const [u, b] of tries) { try { const r = await fetch(u, { method: "POST", headers: { ...H, "Content-Type": "application/json;charset=UTF-8", ...(ck ? { Cookie: ck } : {}) }, body: JSON.stringify(b) });
+          out.push({ u, st: r.status, body: (await r.text()).slice(0, 1200) }); } catch (e) { out.push({ u, err: String(e) }); } }
       return J(out);
     }
     if (url.searchParams.get("taifex")) {   // 2026-11-13 20:00 使用者「台指期 略有參考價值 如何取得」:期交所「前 30 個交易日期貨每筆成交」zip 原封轉送(GitHub 機器直接連可能被擋時用)
