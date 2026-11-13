@@ -1183,7 +1183,7 @@ class Trader:
                 self.gw.cancel(no, c, m.get("bs") or ("B" if p["dir"] < 0 else "S"), m.get("typ") or p["typ"]); self.ph_cancel[no] = time.time()
                 self.log(f"[交易] {c} 部位結束 → 取消還掛著的手動預掛 {no}")   # 2026-11-06 部位沒了,盤中記的預掛跟著清(13:20 後的由 prehang_pick / expire 管)
         # 2026-10-28 強三的出場、任何部位的強平 → 寫一則平倉訊息到手機訊息欄(判一 / 二 / 三自己的平倉訊息照舊由手機發)
-        if (p.get("forced") or p.get("forced_close")) and p.get("judge") in ("判一", "判二", "判三", "判四", "判五", FORCED, MANUAL) and p["closed_lots"]:   # 2026-11-02 判四強平也要寫訊息(使用者「強制平倉 訊息欄要顯示」;欣銓 3264 判四強平沒出現)
+        if (p.get("forced") or p.get("forced_close")) and p.get("judge") in JUDGES_ALL + (FORCED, MANUAL) and p["closed_lots"]:   # 2026-11-13 10:27 使用者「頎邦已經強平 進場還沒顯示強平」:判六 / 判七強平原本不寫卡(清單只到判五)→ 改用全部判別式   # 2026-11-02 判四強平也要寫訊息(使用者「強制平倉 訊息欄要顯示」;欣銓 3264 判四強平沒出現)
             ex = p["closed_cost"] / p["closed_lots"]; d = p["dir"]
             pl = (ex - p["entry"]) / p["entry"] * 100 * d if p["entry"] else 0
             why = "強平" if p.get("forced_close") else (p.get("exit_why") or "出")
