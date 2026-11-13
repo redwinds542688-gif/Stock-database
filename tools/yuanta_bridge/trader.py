@@ -1192,6 +1192,16 @@ class Trader:
             ttl = f"{self.name_of(c)} {c} 強平 {'+' if pl >= 0 else '−'}{abs(pl):.1f}%" if p.get("forced_close") else f"{self.name_of(c)} {c} 出場 {'+' if pl >= 0 else '−'}{abs(pl):.1f}%:{why}"
             self.post(ttl, body, "exit")
 
+        elif p.get("judge") in JUDGES_ALL and p["closed_lots"] and not p.get("forced_close") and (p.get("exit_why") in ("總平", "移平") or re.match(r"^超[\d.]+%$", str(p.get("exit_why") or ""))):
+            # 2026-11-13 10:30 使用者「所有判別式 元平,強平,總平,移平 也是要補上去」:中繼自己因鐵律(總平 / 移平 / 超 x%)平掉判別式部位,也寫一張平倉卡
+            #   (格式和電腦引擎一樣、帶部位鍵 pos;引擎也發的話雲端同一部位只留一則,不會兩張)
+            ex = p["closed_cost"] / p["closed_lots"]; d = p["dir"]; why = p.get("exit_why")
+            pl = (ex - p["entry"]) / p["entry"] * 100 * d if p["entry"] else 0
+            ttl = f"⚠⚠ {self.name_of(c)} {c} {why} {pl:+.1f}% 立即平倉" if pl < 0 else f"{self.name_of(c)} {c} 出場 {pl:+.1f}%:{why}"
+            body = f"{self.hm()} {'做多' if d > 0 else '做空'} {p.get('t0') or self.hm()} 進 {p['entry']:.2f} → 現價 {ex:.2f} · {p['closed_lots']}張 · {p['judge']}"
+            try: self.post(ttl, body, "loss" if pl < 0 else "exit", pos=f"{p['judge']}|{c}|{p.get('t0') or ''}")
+            except TypeError: self.post(ttl, body, "loss" if pl < 0 else "exit")
+
         elif p.get("exit_why") == "元大條件單 / 手動" and p["closed_lots"] and not p.get("forced_close"):
             ex = p["closed_cost"] / p["closed_lots"]; d = p["dir"]
             pl = (ex - p["entry"]) / p["entry"] * 100 * d if p["entry"] else 0
