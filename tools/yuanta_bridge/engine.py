@@ -360,6 +360,7 @@ def write_breadth(day):
         av = j.get("av") or {}
         if av: write_atomic(DATA / "mktavg.json", json.dumps({day: av}))   # 2026-11-05 判五:名單平均(Worker ?breadth 的 av)
         elif not (DATA / "mktavg.json").exists(): write_atomic(DATA / "mktavg.json", "{}")
+        br = br_fill(day, br)
         if br:
             write_atomic(f, json.dumps({day: br})); return True, len(br), max(br)
         if not f.exists(): write_atomic(f, "{}")
@@ -367,9 +368,52 @@ def write_breadth(day):
     except Exception as e:
         log("寬度抓不到", e)
         try:
+            br = br_fill(day, {})
+            if br: write_atomic(f, json.dumps({day: br})); return True, len(br), max(br)
             if not f.exists(): write_atomic(f, "{}")
         except Exception: pass
         return False, 0, ""
+
+
+_BR_PREV = {}
+def br_local(day):
+    """2026-11-13 12:15 使用者「改」(雲端寬度 12:05 少一分鐘 → 「電腦資料停住」、總停損那幾分鐘判斷不到):
+       用電腦手上的元大 1 分 K(_TB,Worker ?ybars 每分鐘併進來的)+ 昨收(元大參考價)自己算每分鐘的寬度(收盤價 > 昨收 的比例,和 Worker 同一套)"""
+    if _TB.get("d") != day or not _TB.get("rows") or not _BR_PREV: return {}
+    ser = {}
+    for c, dc in _TB["rows"].items():
+        y = float(_BR_PREV.get(c) or 0)
+        if y > 0 and dc: ser[c] = (y, sorted(dc.items()))
+    if not ser: return {}
+    last = _TB.get("last") or ""
+    out = {}; idx = {c: 0 for c in ser}; cur = {}
+    t = "09:00"
+    while t <= last and t <= "13:30":
+        u = dn = 0
+        for c, (y, rows) in ser.items():
+            i = idx[c]
+            while i < len(rows) and rows[i][0] <= t: cur[c] = float(rows[i][1][4]); i += 1
+            idx[c] = i
+            z = cur.get(c)
+            if z is None: continue
+            if z > y: u += 1
+            elif z < y: dn += 1
+        if u + dn: out[t] = round(u / (u + dn), 3)
+        t = hm_add(t, 1)
+    return out
+
+
+def br_fill(day, br):
+    """雲端寬度缺的分鐘(或整個抓不到)→ 用電腦自己算的補上;雲端有的照雲端"""
+    try:
+        loc = br_local(day)
+        if not loc: return br
+        add = {k: v for k, v in loc.items() if k not in br}
+        if add:
+            log(f"寬度:雲端缺 {len(add)} 分鐘({min(add)}~{max(add)}),用電腦元大 K 補上")
+            br = dict(br); br.update(add); br = dict(sorted(br.items()))
+    except Exception as e: log("寬度自己算失敗", repr(e))
+    return br
 
 
 # ── 模擬器:每個工作行程只載入一次 pandas,之後用 runpy 一檔一檔跑 ──
@@ -708,6 +752,7 @@ class Engine:
 
     def set_universe(self, uni):
         self.uni = uni; self.codes = uni["codes"]; self.names = uni["names"]; self.prev = uni["prev"]; self.mkts = uni["mkts"]
+        global _BR_PREV; _BR_PREV = self.prev   # 2026-11-13 寬度自己算用(同一份,元大參考價更新也跟著)
         self.canshort = uni["canshort"]; self.no_new = uni["no_new"]
         try: write_atomic(DATA / f"codes_{self.day}.json", json.dumps({"codes": list(self.codes), "names": {c: self.names.get(c, "") for c in self.codes}, "stamp": uni.get("stamp", ""), "R": uni.get("R")}, ensure_ascii=False, default=str))   # 2026-11-12 20:22 引擎實際監控的股票(中繼備份到雲端;11/12 回測名單對不上)
         except Exception as e: log("監控名單寫檔失敗", repr(e))
