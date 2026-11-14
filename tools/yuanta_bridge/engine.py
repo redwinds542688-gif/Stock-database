@@ -826,6 +826,7 @@ class Engine:
         else: rs_env = importlib.import_module("rs_env")
         self.rs_pri = getattr(rs_env, "RS_PRIORITY", None)   # 2026-11-10 同一分鐘同一檔的判別式優先順序(勝率);私人庫沒設就用 engine 的 RS_PRIORITY
         self.envs = {}
+        self.tx_req = tuple(getattr(rs_env, "IRON_TX_REQUIRE", ("八", "九")))   # 2026-11-14 18:35 使用者「改」:判八 / 判九拿不到台指期 / 加權指數 → 不進場
         self.txsync_fn = getattr(rs_env, "txsync", None)   # 2026-11-13 22:30 ⑧ 台指期同步進場(使用者「解鎖 改 全部套用」):判斷寫在私人庫 rs_env.txsync(模擬器同一份)
         self.j9max = int(getattr(rs_env, "J9MAX", J9MAX))   # 2026-11-14 判九
         self.j8max = int(getattr(rs_env, "J8MAX", J8MAX))   # 2026-11-14 判八
@@ -1259,16 +1260,21 @@ class Engine:
             if not txf:
                 if not self.__dict__.get("_txf_warn") and now_tw().strftime("%H:%M") >= "09:05":
                     self._txf_warn = True; log("!! ⑧ 今天沒有台指期 1 分 K(中繼沒收到)→ 台指期同步進場先不看")
-                    try: http(worker_url("log=add"), {"d": self.day, "t": now_tw().strftime("%H:%M"), "title": "⚠ 沒有台指期資料,鐵律 ⑧ 暫停", "body": "中繼沒收到台指期逐筆,台指期同步進場今天先不看(照舊進場) · 元大中繼", "kind": "pc", "key": "txf|missing"}, key=True)
+                    try: http(worker_url("log=add"), {"d": self.day, "t": now_tw().strftime("%H:%M"), "title": "⚠ 沒有台指期資料,鐵律 ⑧ 暫停", "body": "中繼沒收到台指期逐筆,台指期同步進場今天先不看(照舊進場);判八 / 判九不進場 · 元大中繼", "kind": "pc", "key": "txf|missing"}, key=True)
                     except Exception: pass
+                if rs in getattr(self, "tx_req", ("八", "九")): log(f"{JUDGE[rs]} {code} {tm} 沒有台指期 / 加權指數資料 → {JUDGE[rs]}不進場"); return False   # 2026-11-14 18:35 使用者「改」
                 return True
             _p = c.split(":"); n_ = int(float(_p[0])); r_ = float(_p[1]) if len(_p) > 1 and _p[1] else None   # 「60」= 只看台指期方向(2026-11-13 23:32 使用者「只看台指期方向 解鎖改」)
             mvs = float(self.envs.get(rs, {}).get("TXMVS") or 0) or None   # 2026-11-14 12:56 判二(使用者「解鎖 改 0.25%」):做空時台指期 60 分要跌 ≥ TXMVS%(rs_env J2 TXMVS=0.25)
-            ok, why = fn(side, tm, self.stock_closes(code), txf, n_, r_, frm, mvs=mvs) if frm else fn(side, tm, self.stock_closes(code), txf, n_, r_, mvs=mvs)
+            m15 = float(self.envs.get(rs, {}).get("TX15") or 0) or None   # 2026-11-14 18:35 判九(使用者「改」):做空時台指期最近 15 分要跌 ≥ TX15%(加權指數備援時也照樣檢查)
+            kw = {"mvs": mvs}
+            if m15: kw["mv15"] = m15
+            ok, why = fn(side, tm, self.stock_closes(code), txf, n_, r_, frm, **kw) if frm else fn(side, tm, self.stock_closes(code), txf, n_, r_, **kw)
             if frm: why = why.replace("台指期", "加權指數(台指期沒資料)")
             if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
             return ok
         except Exception as e:
+            if rs in getattr(self, "tx_req", ("八", "九")): log(f"⑧ 檢查失敗 → {JUDGE[rs]}不進場", e); return False   # 2026-11-14 18:35 使用者「改」
             log(f"⑧ 檢查失敗(照舊進場)", e); return True
 
     RE_BLK = re.compile(r"^\s*(\d\d:\d\d) .*(不在 Ka~Kb|沒回 Ka~Kb|Ka~Kb 沒回|大盤寬度|不做多|延遲進場取消|等回 Ka~Kb|回到 Ka~Kb)")
