@@ -887,7 +887,7 @@ class Engine:
                         if v.get("ok"): return it
                         why = str(v.get("why") or "").strip()
                         t2 = it["title"].replace("進場", "未進場", 1)
-                        b2 = re.sub(r"(\s*·\s*判[一二三四五六七])\s*$", f" · 未進場{':' + why if why else ''}\\1", it["body"])
+                        b2 = re.sub(r"(\s*·\s*判[一二三四五六七八])\s*$", f" · 未進場{':' + why if why else ''}\\1", it["body"])
                         log(f"[通知] 中繼沒進場({why or '?'})→ 推「{t2}」")
                         return {**it, "title": t2, "body": b2}
             except Exception as e: log("讀進場結果檔失敗", e); return it
