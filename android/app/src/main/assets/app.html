@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-15 01:35(實際時間)公式選單判九重複兩顆:拿掉空位判九(判九已上線),上線判九字改「判  九」對齊;12 鍵排 3 × 4(使用者「怎麼二個判九」);版本 202611150131
   · 2026-11-14 22:40(實際時間)K 線圖打開時,左上角抓 bug 灰點的可按範圍縮回灰點本身,不再蓋住 ◀ 上一檔(原本蓋約 83%)(使用者「改」)
   · 2026-11-14 17:50(實際時間)電腦引擎「未進場」註記也認判八(使用者「改1235」:跨股票規則檢查時發現原本只認判一~七)
   · 2026-11-14 16:00(實際時間)公式選單每個鍵兩個字中間空兩格(判 一 … 鑰 匙、說 明),燈號移到右上角不壓字(使用者「判 (中間空二格) 一」「全部都空二格」)
@@ -482,7 +483,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611150108">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611150131">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1135,8 +1136,7 @@ body:has(#sheet.open) #bugDot::before,body:has(#sheet.open) #bugDot::after{displ
     <div class="rsm" data-rs="六"><span class="rsl">判<span class="rsg"></span>六</span><i class="lamp"></i></div>   <!-- 2026-11-13 18:10 判六手機也算(電腦停了照樣發) -->   <!-- 2026-11-11 00:20 判六上線:中繼照通知自動下單(電腦引擎算,手機不算) -->   <!-- 2026-11-10 23:10 判六改成午盤 Ka 穿 VWAP 追多(觀察版,原超賣急彈封存) -->   <!-- 2026-11-10 02:30 觀察版判六(超賣急彈做多,使用者「改 +3%」):電腦引擎發通知、中繼不下單;點 = 通知欄只列判六 -->   <!-- 2026-11-06 02:39 使用者「先加 盤中關閉 之後研究好再開」:判六(判三鏡像做多)研究中,只有按鍵、燈不亮、不監控不下單 -->
     <div class="rsm" data-rs="七"><span class="rsl">判<span class="rsg"></span>七</span><i class="lamp"></i></div>   <!-- 2026-11-09 判七開放;15:28 使用者「判七 解凍上線」照通知自動下單 -->   <!-- 2026-11-06 判七(量縮轉折 ①②③ + 4 特徵;原研究編號判八)研究中,同上 -->
     <div class="rsm" data-rs="八"><span class="rsl">判<span class="rsg"></span>八</span><i class="lamp"></i></div>   <!-- 2026-11-14 15:14 判八上線(使用者「判八 100% 先加入修改好」:新低帶量做空,照通知自動下單) -->
-    <div class="rsm" data-rs="九">判九<i class="lamp"></i></div>   <!-- 2026-11-14 17:58 判九上線(開盤 30 分跌破做空,照通知自動下單) -->
-    <div class="rsm stub" data-rs="九"><span class="rsl">判<span class="rsg"></span>九</span><i class="lamp"></i></div>   <!-- 2026-11-14 15:48(實際時間)使用者「把判九 判十 加上填滿 判九判十暫時沒作用」:先放空位(灰燈,點了只顯示尚未開放,不監控、不下單) -->
+    <div class="rsm" data-rs="九"><span class="rsl">判<span class="rsg"></span>九</span><i class="lamp"></i></div>   <!-- 2026-11-14 17:58 判九上線(開盤 30 分跌破做空,照通知自動下單) -->
     <div class="rsm stub" data-rs="十"><span class="rsl">判<span class="rsg"></span>十</span><i class="lamp"></i></div>
     <div class="rsm key" data-rs="key"><span class="rsl">鑰<span class="rsg"></span>匙</span><i class="lamp"></i></div>   <!-- 2026-10-29 14:45(實際時間)鑰匙:綠燈 = 這支手機已有鑰匙;點 = 輸入 / 清除 -->
     <div class="rsm help" data-rs="help"><span class="rsl">說<span class="rsg"></span>明</span><i class="lamp" style="visibility:hidden"></i></div>   <!-- 2026-10-30 03:25(實際時間)使用者:「增加一鍵 “說明” 然後把本程式選擇當沖股票的邏輯說明 最下面顯示版本號」 -->
