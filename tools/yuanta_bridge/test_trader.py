@@ -966,8 +966,9 @@ at(12, 29); tz2, gz2 = mk(); tz2.on_tick("6269", 87.0); tz2.step([LTX("lz2")]); 
 # 2026-11-11 改13:設定檔開關不能關掉鐵律保護
 at(10, 0); tk_, gk_ = mk(TRADE_Y3="0", TRADE_FORCE_EXIT="13:28", TRADE_JUDGES="", TRADE_CAP="250000"); ok(tk_.y3 and tk_.force_exit == "13:20" and "判七" in tk_.judges, (tk_.y3, tk_.force_exit, tk_.judges))
 tk_.ref_of = lambda c: 50.0; tk_.on_tick("2330", 50.0); tk_.on_report(51, "M1", 0, 1000, 50.0, basket="", code="2330", bs="B"); ok(tk_.positions["2330"]["judge"] == "元三")   # TRADE_Y3=0 也接手
-tk2, gk2 = mk(TRADE_CAP="250000"); tk2.ref_of = lambda c: 50.0; tk2.on_tick("2331", 50.0); tk2.step([sig("kk2", "long", "股 2331 做多進場 50.00", "10:00 多 · 停利 51.50 停損 49.00 · 判九")]); ok("2331" not in tk2.positions)   # 找不到判一~八不進(2026-11-14 判八上線,改用判九當不存在的例子)
+tk2, gk2 = mk(TRADE_CAP="250000"); tk2.ref_of = lambda c: 50.0; tk2.on_tick("2331", 50.0); tk2.step([sig("kk2", "long", "股 2331 做多進場 50.00", "10:00 多 · 停利 51.50 停損 49.00 · 判十")]); ok("2331" not in tk2.positions)   # 找不到判一~九不進(2026-11-14 判八 / 判九上線,改用判十當不存在的例子)
 tk8, gk8 = mk(TRADE_CAP="250000"); tk8.ref_of = lambda c: 50.0; tk8.on_tick("2332", 50.0); tk8.step([sig("kk8", "short", "股 2332 做空進場 50.00", "10:00 空 · 停利 48.50 停損 50.75 · 判八")]); ok("2332" in tk8.positions)   # 2026-11-14 判八上線:照通知下單
+tk9, gk9 = mk(TRADE_CAP="250000"); tk9.ref_of = lambda c: 80.0; tk9.on_tick("2333", 80.0); tk9.step([sig("kk9", "short", "股 2333 做空進場 80.00", "10:00 空 · 停利 77.60 停損 81.20 · 判九")]); ok("2333" in tk9.positions)   # 2026-11-14 判九上線:照通知下單
 igk = tmp / "ign2.txt"; igk.write_text("1709\n", encoding="utf-8"); at(8, 31); tk3, gk3 = mk(TRADE_IGNORE_FILE=str(igk)); tk3.step([]); ok(any("不受程式管" in a and "1709" in a for a in tk3.alerts), tk3.alerts); at(10, 0)
 # 2026-11-11 改 1 2 3 4 5
 # 1) 留倉接回(和益 1709):13:20 複查今天成交淨 0 → 不刪部位,13:21 照程式部位平
