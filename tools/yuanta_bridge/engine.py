@@ -1248,7 +1248,8 @@ class Engine:
                     except Exception: pass
                 return True
             _p = c.split(":"); n_ = int(float(_p[0])); r_ = float(_p[1]) if len(_p) > 1 and _p[1] else None   # 「60」= 只看台指期方向(2026-11-13 23:32 使用者「只看台指期方向 解鎖改」)
-            ok, why = fn(side, tm, self.stock_closes(code), txf, n_, r_, frm) if frm else fn(side, tm, self.stock_closes(code), txf, n_, r_)
+            mvs = float(self.envs.get(rs, {}).get("TXMVS") or 0) or None   # 2026-11-14 12:56 判二(使用者「解鎖 改 0.25%」):做空時台指期 60 分要跌 ≥ TXMVS%(rs_env J2 TXMVS=0.25)
+            ok, why = fn(side, tm, self.stock_closes(code), txf, n_, r_, frm, mvs=mvs) if frm else fn(side, tm, self.stock_closes(code), txf, n_, r_, mvs=mvs)
             if frm: why = why.replace("台指期", "加權指數(台指期沒資料)")
             if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
             return ok
