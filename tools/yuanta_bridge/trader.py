@@ -104,6 +104,7 @@ IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG, IRON_BRX_L, IRON_BRX_E = 5
 IRON_CAP_MAX = 250000   # 2026-11-11 22:46 使用者「最多上限改25萬」:多空上限(設定檔 / 主導機)最多 25 萬   # 原 500000 # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:設定檔的多空上限最多 50 萬(和主導機能設的範圍一樣)
 IRON_EXIT, JUDGES_ALL = "13:20", ("判一", "判二", "判三", "判四", "判五", "判六", "判七", "判八", "判九")   # 2026-11-14 15:14 加判八;17:58 加判九   # 2026-11-11 22:25 使用者「改13」:設定檔的開關不能關掉鐵律保護
 RE_IRON_EXIT = re.compile(r"超過?\s*[\d.]+\s*%|總停損|移動停損利|總平|移平|鐵律|強制平倉")   # 2026-11-11 22:47 使用者「總停損 =總平 移動停損利=移平」:加短名 總平 / 移平   # 2026-11-11 21:34 鐵律平倉(含引擎平倉通知標題):有權取消手動預掛、立即平
+IRON_MTSL_EX = {"判五": 4.0}   # 2026-11-15 01:07 🔓→🔒 鐵律 ⑥ 例外(使用者「解鎖 改」):判五移平 4%(私人庫 rs_env IRON_MTSL_EX 同一套)
 IRON_CAP, IRON_AMOUNT, IRON_MTSL = 250000, 5000000.0, 3.0   # ⑥ 2026-11-13 02:37 🔓 使用者「解鎖 改」:改用股價、3%(2026-11-12 08:34 3 → 3.5)   # ⑤ IRON_CAP = 固定張數模式(cap=0)時的一張上限;2026-11-11 22:24 使用者「針對 2項 改鐵律」:一張上限改以主導機多空上限為準,不再固定最多 25 萬   # 原:一張上限 25 萬(超過 = 超額)、一天總額度 500 萬   # 鐵律(2026-11-11 15:42),見 __init__
 MANUAL = "元三"      # 2026-10-28 使用者:在元大(投資先生)自己下的單,成交後交給判三管
 
@@ -2034,10 +2035,11 @@ class Trader:
            現價跌破 mt_px × (1 − 3%)(空:漲破 mt_px × (1 + 3%))→ 平倉;先用之前的最有利價判斷,再把這個價算進去。重開接回用存檔的 mt_px"""
         try:
             if not (self.mtsl > 0) or not entry or not price: return False
+            th = max(self.mtsl, IRON_MTSL_EX.get(p.get("judge"), 0)) if p.get("judge") in IRON_MTSL_EX else self.mtsl   # 2026-11-15 判五 4%
             a = p.get("mt_px")
             if a is None: a = self.prot_get(p, "mt_px")
             if a is None: a = float(entry)
-            hit = (price <= a * (1 - self.mtsl / 100) + 1e-12) if d > 0 else (price >= a * (1 + self.mtsl / 100) - 1e-12)
+            hit = (price <= a * (1 - th / 100) + 1e-12) if d > 0 else (price >= a * (1 + th / 100) - 1e-12)
             na = max(a, float(price)) if d > 0 else min(a, float(price))
             if p.get("mt_px") != na: p["mt_px"] = na; self.prot_save(p)
             return hit
