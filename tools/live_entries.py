@@ -15,7 +15,7 @@ def get(d):
 
 try: DB = json.load(open(OUT, encoding="utf-8"))
 except Exception: DB = {}
-DB = {d: [k for k in v if re.search(r"\|判[一二三四五六七]$", str(k))] for d, v in DB.items()}   # 2026-11-04 舊紀錄裡的強三 / 元三拿掉   # 2026-11-07 00:30 判五也要留(原本只留判一~四,每次排程把重算放進來的判五全部刪掉 → 明細少算判五)
+DB = {d: [k for k in v if re.search(r"\|判[一二三四五六七八]$", str(k))] for d, v in DB.items()}   # 2026-11-04 舊紀錄裡的強三 / 元三拿掉   # 2026-11-07 00:30 判五也要留(原本只留判一~四,每次排程把重算放進來的判五全部刪掉 → 明細少算判五)
 now = datetime.datetime.utcnow() + datetime.timedelta(hours=8); today = now.strftime("%Y-%m-%d")
 days = [(now - datetime.timedelta(days=k)).strftime("%Y-%m-%d") for k in range(45)]
 # 2026-11-05 00:28 存過的日子(含今天)不再覆蓋:收盤後第一次存的就定案,之後改用現行判別式重算的(手動放進來的)不會被下一次排程用盤中舊通知蓋掉
@@ -32,7 +32,7 @@ for d in sorted(days):
         m = re.search(r"\b(\d{4,6}[A-Z]?)\b", str(x.get("title", "")))
         if not m: continue
         # 2026-11-04 使用者「開盤版只能看到虛擬進場跟虛擬平倉 不可以看強三跟元三的資訊」:這個檔在公開庫,只存判一~四的訊號,強三 / 元三(元大真實交易)不存
-        rs = (re.search(r"· (判[一二三四五六七])\s*$", str(x.get("body", ""))) or [None, ""])[1]
+        rs = (re.search(r"· (判[一二三四五六七八])\s*$", str(x.get("body", ""))) or [None, ""])[1]
         if not rs: continue
         s.add(f"{m.group(1)}|{x['kind']}|{rs}")
     if not s and not items: print(d, "沒有通知(休市或沒存),不寫"); continue

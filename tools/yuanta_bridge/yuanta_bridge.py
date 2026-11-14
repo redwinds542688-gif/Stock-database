@@ -1027,7 +1027,7 @@ class Bridge:
         """2026-10-28 強三進出場、強平 → 寫一則交易訊息到手機的訊息欄(Worker ?log=add,和手機自己發的同一套)"""
         try:
             n = now_tw(); m = re.match(r"^\S+ (\d{4,6})", title); code = m.group(1) if m else ""
-            rs = (re.search(r"· (判[一二三四五六七])\s*$", body) or [None, ""])[1]   # 2026-11-13 10:30 判五~七也帶判別式(鍵和手機一樣)
+            rs = (re.search(r"· (判[一二三四五六七八])\s*$", body) or [None, ""])[1]   # 2026-11-13 10:30 判五~七也帶判別式(鍵和手機一樣)
             it = {"d": n.strftime("%Y-%m-%d"), "t": t or n.strftime("%H:%M"), "title": title,   # 2026-11-10 t:元三進場卡改寫時用原本那分鐘(同鍵覆蓋)
                   "body": body, "kind": kind,
                   "key": code + "|" + re.sub(r"[0-9.,+−%↑↓\s⚠✅-]", "", title) + "|" + rs}   # 鍵和手機一樣:代碼|標題去掉數字|判別式

@@ -701,7 +701,7 @@ function latOf(d, logs, sigs, lat) {
   const [Y, M, D] = d.split("-").map(Number), sec = v => v == null || !isFinite(v) ? null : Math.round(v * 10) / 10;
   for (const [k, x] of Object.entries(S)) {
     const m = String(x.body || "").match(/^(\d\d):(\d\d)/), bar = m ? Date.UTC(Y, M - 1, D, +m[1] - 8, +m[2] + 1) : null, p = P[k] || {};
-    rows.push({ t: x.t, code: ((String(x.title || "").match(/(\d{4,6}[A-Z]*)/) || [])[1]) || "", rs: ((String(x.body || "").match(/(判[一二三四五六七])/) || [])[1]) || "", ok: !!p.ok,
+    rows.push({ t: x.t, code: ((String(x.title || "").match(/(\d{4,6}[A-Z]*)/) || [])[1]) || "", rs: ((String(x.body || "").match(/(判[一二三四五六七八])/) || [])[1]) || "", ok: !!p.ok,
       bar_eng: bar ? sec((x.ts - bar) / 1000) : null, eng_cloud: W[k] ? sec((W[k] - x.ts) / 1000) : null, eng_pc: p.seen ? sec(p.seen - x.ts / 1000) : null,
       pc_sent: p.sent && p.seen ? sec(p.sent - p.seen) : null, sent_fill: p.ff && p.sent ? sec(p.ff - p.sent) : null, bar_fill: p.ff && bar ? sec(p.ff - bar / 1000) : null });
   }
@@ -747,7 +747,7 @@ async function dailyArchive(env, d, force) {
         DB.prepare("CREATE INDEX IF NOT EXISTS trades_d ON trades (d)"), DB.prepare("CREATE INDEX IF NOT EXISTS notes_d ON notes (d)"), DB.prepare("CREATE INDEX IF NOT EXISTS blocked_d ON blocked (d)")]);
       const st = [P("DELETE FROM trades WHERE d = ?", d), P("DELETE FROM notes WHERE d = ?", d), P("DELETE FROM blocked WHERE d = ?", d)];
       for (const g of legs) st.push(P("INSERT INTO trades VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", d, String(g.code || ""), String(g.name || ""), String(g.dir || ""), String(g.t0 || ""), String(g.t || ""), +g.ent || 0, +g.ex || 0, +g.lots || 0, +g.gross || 0, +g.fee || 0, +g.tax || 0, +g.net || 0));
-      for (const x of logs) st.push(P("INSERT INTO notes VALUES (?,?,?,?,?,?,?)", d, String(x.t || ""), String(x.kind || ""), ((String(x.title || "").match(/(\d{4,6}[A-Z]*)/) || [])[1]) || "", ((String(x.body || "").match(/(判[一二三四五六七])/) || [])[1]) || "", String(x.title || ""), String(x.body || "")));
+      for (const x of logs) st.push(P("INSERT INTO notes VALUES (?,?,?,?,?,?,?)", d, String(x.t || ""), String(x.kind || ""), ((String(x.title || "").match(/(\d{4,6}[A-Z]*)/) || [])[1]) || "", ((String(x.body || "").match(/(判[一二三四五六七八])/) || [])[1]) || "", String(x.title || ""), String(x.body || "")));
       for (const b of blocked) st.push(P("INSERT INTO blocked VALUES (?,?,?,?,?,?)", d, String(b.t || ""), String(b.rs || ""), String(b.code || ""), String(b.name || ""), String(b.line || "")));
       if (rv) st.push(P("INSERT OR REPLACE INTO reviews VALUES (?,?,?)", d, rv.model || "", rv.text));
       for (let i = 0; i < st.length; i += 90) await DB.batch(st.slice(i, i + 90));
@@ -1611,7 +1611,7 @@ export default {
         // 2026-11-13 14:30 使用者「開始」(Cloudflare 第二輪 1 延遲紀錄):電腦引擎帶 ts(推出時間,毫秒)→ 記雲端收到的時間 wt;
         //   進場 / 平倉訊號另寫一筆到 Analytics Engine(LAT,沒綁定就略過):引擎 → 雲端 幾毫秒
         if (it.ts != null && isFinite(+it.ts)) { item.ts = Math.round(+it.ts); item.wt = Date.now();
-          try { if (env.LAT && ["long", "short", "exit", "loss"].includes(item.kind)) env.LAT.writeDataPoint({ indexes: [it.d], blobs: [it.d, item.kind, ((item.title.match(/(\d{4,6}[A-Z]*)/) || [])[1]) || "", ((item.body.match(/(判[一二三四五六七])/) || [])[1]) || "", "cloud"], doubles: [item.wt - item.ts] }); } catch (e) {} }
+          try { if (env.LAT && ["long", "short", "exit", "loss"].includes(item.kind)) env.LAT.writeDataPoint({ indexes: [it.d], blobs: [it.d, item.kind, ((item.title.match(/(\d{4,6}[A-Z]*)/) || [])[1]) || "", ((item.body.match(/(判[一二三四五六七八])/) || [])[1]) || "", "cloud"], doubles: [item.wt - item.ts] }); } catch (e) {} }
         const key = `log:${it.d}:${it.t}:${String(it.key || item.title).replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 120)}`;
         if (it.d >= DO_SINCE && env.HUB) {                        // 2026-10-24 起存 Hub(不用 KV 寫入 / list 額度)
           const res = await hubOf(env).logAdd(it.d, key, item, it.pos ? String(it.pos).replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 80) : "");
