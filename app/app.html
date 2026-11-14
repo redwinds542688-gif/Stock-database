@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-14 15:55(實際時間)公式選單的字縮小 10%、置中(燈號固定在右邊)(使用者「公式裡面 判別式字體 縮小10% 置中」)
   · 2026-11-14 15:52(實際時間)公式選單加判九、判十空位(灰燈,點了只顯示尚未開放,不監控、不下單),12 鍵排 3 × 4 填滿(使用者「把判九 判十 加上填滿 判九判十暫時沒作用」)
   · 2026-11-14 15:48(實際時間)做多中 / 做空中的輸贏指針(有外框)改每 1% 轉 6°、最多 30°,±5% 剛好在框內,超過停在框邊;超出外框的部分切掉(使用者「全修」)
   · 2026-11-13 15:30(實際時間)虛擬明細統一在雲端(使用者「能統一在雲端 再讓手機讀取嗎」→「改」):電腦引擎每平倉一筆就推今天全部虛擬成交 + 淨輸贏(?vdone),手機 / 電腦版的虛擬明細、燈號、監控區已交易都讀這一份(和檢討同一份);11/07 起的舊日子用檢討那份;雲端讀不到才自己算、標「暫算」。電腦端 11/16 生效
@@ -476,7 +477,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611141549">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611141550">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -726,7 +727,8 @@
   .rsmenu.grid{align-items:stretch;justify-items:stretch}
   .rsmenu.grid .rsm{margin:0;justify-content:center;gap:12px;padding:4px;height:100%;box-sizing:border-box}
   .rsmenu.grid .rsm.help .lamp{display:none}
-  .rsmenu.grid .rsm .lamp{width:14px;height:14px;flex:0 0 14px}
+  .rsmenu.grid .rsm .lamp{width:14px;height:14px;flex:0 0 14px;position:absolute;right:9%;top:50%;transform:translateY(-50%)}
+  .rsmenu.grid .rsm{position:relative;text-align:center}   /* 2026-11-14 15:49 字置中(燈號固定在右邊,不推字) */
   .rsmenu .rsm{display:flex;align-items:center;justify-content:space-between;gap:4px;padding:8px 4px 8px 6px;margin:3px 0;border:1px solid #FFD54F;font-size:17px;font-weight:700;color:#D8DEE9;border-radius:8px;   /* 2026-10-27 08:50 使用者:「判一判二判三 也加黃色按鍵框」:每一項一個黃框按鍵,框之間隔 3px(padding 各減 1px 補框線) */touch-action:manipulation;user-select:none;white-space:nowrap;overflow:hidden}   /* 2026-10-27 01:12 視窗和公式鍵同寬,字縮到 17px 才不會折行 */
   .rsmenu .rsm:active{background:#2B3549}
   .rsmenu .rsm,.rsmenu .rsm.sel,.rsmenu .rsm.off{color:#FFFFFF}   /* 2026-10-27 11:05(實際時間)使用者:「判一二三 顏色不一樣 改一律白色」:選中 / 關掉都白字,狀態只看右邊燈號(原本選中綠字、關掉灰字) */
@@ -2559,7 +2561,7 @@ window.fitBands = fitBands;
     const cv = document.getElementById('cover'), cr = cv ? cv.getBoundingClientRect() : r;
     menu.classList.remove('hidden'); menu.classList.add('grid');
     menu.style.left = Math.round(cr.left) + 'px'; menu.style.top = Math.round(cr.top) + 'px'; menu.style.width = Math.round(cr.width) + 'px'; menu.style.height = Math.round(cr.height) + 'px';
-    { const cw = (cr.width - 8 * 2 - 8 * 2) / 3, ch = (cr.height - 8 * 2 - 8 * 3) / 4, fs = Math.max(16, Math.min(40, Math.floor(Math.min(ch * 0.38, (cw - 30) / 2.2))));
+    { const cw = (cr.width - 8 * 2 - 8 * 2) / 3, ch = (cr.height - 8 * 2 - 8 * 3) / 4, fs = Math.max(14, Math.floor(0.9 * Math.min(40, Math.min(ch * 0.38, (cw - 30) / 2.2))));   /* 2026-11-14 15:49(實際時間)使用者「公式裡面 判別式字體 縮小10% 置中」 */
       menu.querySelectorAll('.rsm').forEach(x => { x.style.fontSize = fs + 'px'; }); }
     rsLampUpd(); try{ refreshToolbar(); }catch(e){} };   // 2026-10-27 09:05 使用者:「公式亮燈 其他熄燈」:視窗打開時公式亮、訊息 / 當沖 / 明細 熄
   window.closeRsMenu = closeMenu;
