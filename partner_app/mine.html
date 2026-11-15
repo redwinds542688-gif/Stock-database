@@ -175,13 +175,11 @@ function head(tab, date, amt, amtCls){
     <div class="amt ${amtCls}">${amt}</div>`;
 }
 function vEntry(){
-  const open = ENTRY.filter(o=>o.st==="o").length;
   return [head("進場","11/16", `${ENTRY.length} 檔`, "gold"),
     ENTRY.map(o=>`<div class="erow"><div class="nm"><b>${esc(o.nm)}</b><div class="cd"><i>${esc(o.code)}</i><em class="${o.pct.startsWith("+")?"up":"dn"}">${esc(o.pct)}%</em></div></div>
       <div class="pc"><b${o.ent.length > 6 ? ' class="sm"' : ""}>${esc(o.ent)}</b><small${o.now.length > 6 ? ' class="sm"' : ""}><i>現</i>${esc(o.now)}</small></div>
       <div class="sq">${sd(o.s)}<span>${o.q}張 ${esc(o.t)}</span></div>
-      <div class="rt"><span class="wl ${o.st==="o"?"o":o.p>0?"w":"l"}">${o.st==="o"?"持倉中":o.p>0?"贏":"輸"}</span><b class="${cls(o.p)}${fmt(o.p).length > 7 ? " sm" : ""}">${fmt(o.p)}</b></div></div>`).join("")
-    + `<div class="note">還在場上 ${open} 檔。這裡只能看,沒有平倉鍵;程式照設定自動停損停利、13:20 前全部平倉。</div>`];
+      <div class="rt"><span class="wl ${o.st==="o"?"o":o.p>0?"w":"l"}">${o.st==="o"?"持倉中":o.p>0?"贏":"輸"}</span><b class="${cls(o.p)}${fmt(o.p).length > 7 ? " sm" : ""}">${fmt(o.p)}</b></div></div>`).join("")];
 }
 function vPos(){
   const hold = ENTRY.filter(o=>o.st==="o"), tot = hold.reduce((a,o)=>a+o.p,0);
@@ -197,8 +195,7 @@ function vDone(){
     `<div class="days" role="tablist">${Object.keys(DAYS).map(d=>`<button type="button" class="day${d===S.day?" on":""}" data-day="${d}" role="tab" aria-selected="${d===S.day}">${d}</button>`).join("")}</div>`
     + L.map(o=>`<div class="row"><div class="nm"><b>${esc(o.nm)}</b><small>${esc(o.code)}</small></div>
       <div class="px"><b>${esc(o.a)} → ${esc(o.b)}</b><small>${sd(o.s)} ${o.q}張</small></div>
-      <div class="rt"><b class="${cls(o.p)}">${fmt(o.p)}</b><small>元大成交</small></div></div>`).join("")
-    + `<div class="note">元大帳號 …1234 的真實成交,已扣手續費、證交稅。</div>`];
+      <div class="rt"><b class="${cls(o.p)}">${fmt(o.p)}</b><small>元大成交</small></div></div>`).join("")];
 }
 function render(){
   const [h, l] = S.tab==="進場" ? vEntry() : S.tab==="當沖" ? vPos() : vDone();
