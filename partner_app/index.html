@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<!-- 自動當沖夥伴版 預覽(partner 分支;範例資料,不連雲端、不連主機、不下單)。不要和 app/app.html 混在一起 -->
+<!-- 自動當沖夥伴版:獨立的夥伴管理程式(partner 分支;和 名揚四海 app/app.html 完全分開)。目前範例資料,不連雲端、不連主機、不下單 -->
 <title>自動當沖夥伴版</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -28,10 +28,10 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .pv button{height:32px;padding:0 10px;border-radius:16px;border:1px solid var(--line2);background:transparent;color:var(--soft);font-size:13px;cursor:pointer}
 .pv button.on{border-color:var(--gold);background:var(--goldbg);color:var(--gold);font-weight:700}
 .hd{padding:12px 16px 10px;border-bottom:1px solid var(--gold);display:flex;align-items:center;justify-content:space-between;gap:8px}
-.hd h1{margin:0;font-size:24px;font-weight:900;letter-spacing:1px;color:var(--gold)}
+.hd h1{margin:0;font-size:clamp(19px,6vw,24px);white-space:nowrap;font-weight:900;letter-spacing:1px;color:var(--gold)}
 .tag{font-size:12px;color:var(--gold);border:1px solid #5A4A10;border-radius:6px;padding:2px 6px;white-space:nowrap}
 main{flex:1;overflow:auto;padding:0 12px 16px;display:flex;flex-direction:column;gap:10px}
-.row{display:flex;gap:8px;align-items:center;padding-top:12px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:12px}
 .b{height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--line2);background:transparent;color:var(--soft);font:700 17px var(--f);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
 .b.green{border:2px solid var(--ok);background:#0E1A12;color:var(--ok)}
 .b.gold{border:2px solid var(--gold);background:var(--gold);color:var(--bg);font-weight:900}
@@ -39,7 +39,7 @@ main{flex:1;overflow:auto;padding:0 12px 16px;display:flex;flex-direction:column
 .b.red{border:1px solid var(--up);background:var(--badbg);color:#FF8A8E}
 .b.full{flex:1}
 .pill{height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);display:flex;align-items:center;font-size:17px;color:var(--soft)}
-.big{flex:1;text-align:right;font-size:26px;font-weight:900;font-variant-numeric:tabular-nums}
+.big{flex:1 1 auto;min-width:0;text-align:right;font-size:clamp(20px,6.4vw,26px);font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
 .up{color:var(--up)} .dn{color:var(--down)} .mut{color:var(--sub)}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{height:36px;padding:0 12px;border-radius:18px;border:1px solid var(--line2);background:transparent;color:var(--soft);font:500 15px var(--f);cursor:pointer}
@@ -54,16 +54,17 @@ main{flex:1;overflow:auto;padding:0 12px 16px;display:flex;flex-direction:column
 .prow.sel{border-color:var(--gold)} .prow.dead{border-color:#5A2424}
 .dot{width:10px;height:10px;border-radius:5px;background:var(--ok);flex:none} .dot.r{background:var(--bad)}
 .prow .nm{font-size:20px;font-weight:700} .prow .ds{font-size:13px;color:var(--sub)}
-.prow .pn{font-size:22px;font-weight:900;font-variant-numeric:tabular-nums}
+.prow .pn{font-size:clamp(17px,5.4vw,22px);font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
 .grow{flex:1;min-width:0}
 .trade{background:var(--card);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px}
 .trade.hold{background:var(--card2);border:1px dashed var(--line2)}
 .side{font-size:13px;font-weight:700;border:1px solid;border-radius:4px;padding:1px 4px;flex:none}
 .side.s{color:var(--down)} .side.l{color:var(--up)}
-.trade .nm{flex:1;min-width:0;font-size:18px;font-weight:700}
+.trade .nm{flex:1;min-width:0;font-size:18px;font-weight:700;display:flex;flex-direction:column;gap:2px}
 .trade .nm span{font-size:13px;color:var(--sub);font-weight:400}
-.trade .px{font-size:15px;color:var(--soft);font-variant-numeric:tabular-nums;white-space:nowrap}
-.trade .pn{width:72px;text-align:right;font-size:18px;font-weight:900;font-variant-numeric:tabular-nums}
+.trade .nm .px{font-size:14px;color:var(--soft);font-weight:400}
+.trade .px{font-variant-numeric:tabular-nums}
+.trade .pn{flex:none;text-align:right;white-space:nowrap;font-size:18px;font-weight:900;font-variant-numeric:tabular-nums}
 .cfg{background:var(--card);border-radius:10px;padding:10px 12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px;font-size:14px;color:#B8C1D3}
 .link{background:none;border:0;color:var(--gold);font:700 14px var(--f);cursor:pointer;padding:0;justify-self:end}
 .note{padding:10px 12px;border-radius:10px;background:#161B26;border:1px solid var(--line);font-size:14px;color:#B8C1D3;line-height:1.6}
@@ -101,8 +102,9 @@ main{flex:1;overflow:auto;padding:0 12px 16px;display:flex;flex-direction:column
 .ro{display:flex;justify-content:space-between;background:var(--card);border-radius:10px;padding:12px;font-size:17px}
 .steps{display:flex;flex-direction:column;gap:6px;font-size:15px}
 .steps div{display:flex;gap:8px;align-items:center}
-nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:10px 8px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:var(--bg);position:sticky;bottom:0}
-nav button{height:48px;border-radius:10px;border:1px solid var(--gold);background:var(--card);color:var(--soft);font:700 17px var(--f);cursor:pointer}
+nav{display:grid;grid-template-columns:repeat(var(--n,4),minmax(0,1fr));gap:6px;padding:10px 8px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:var(--bg);position:sticky;bottom:0}
+nav button{height:52px;border-radius:10px;border:1px solid var(--gold);background:var(--card);color:var(--soft);font:700 17px var(--f);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0}
+nav button svg{flex:none}
 nav button.on{border:2px solid var(--ok);color:var(--ok)}
 .mask{position:fixed;inset:0;background:rgba(5,7,12,.72);display:flex;align-items:center;justify-content:center;padding:20px;z-index:20}
 .dlg{width:100%;max-width:380px;background:var(--card);border:2px solid var(--gold);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:12px}
@@ -132,6 +134,8 @@ nav button.on{border:2px solid var(--ok);color:var(--ok)}
 
 <script>
 // 自動當沖夥伴版 預覽(2026-11-15 使用者「夥伴版在修改期間 暫時用html 呈現實際效果」)
+// 2026-11-15 13:33 使用者「既然 夥伴版 介面已經跟 名揚四海自動當沖介面不同 乾脆完全獨立出來自成一個專門新增夥伴的程式」
+//   → 獨立程式:主導$ 四頁 夥果 / 夥伴 / 夥設 / 警報;夥伴三頁 我的元大 / 我的設定 / 提醒。沒有 名揚四海 的 進場、公式、主導$ 自己的設定
 // 只是畫面:資料都是範例,不連雲端、不連主機、不會下單。App 不寫看時間決定行為的邏輯。
 const J9 = ["判一","判二","判三","判四","判五","判六","判七","判八","判九"];
 const allOn = (off=[]) => Object.fromEntries(J9.map(j => [j, !off.includes(j)]));
@@ -163,7 +167,7 @@ const wan = v => (+v).toLocaleString("en-US",{maximumFractionDigits:1}) + " 萬"
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const on = c => J9.filter(j => c.judges[j]).length;
 
-const S = { me:"owner", tab:"明細", view:"fam", sel:"全部", person:"夥伴A", ctl:"夥伴A", draft:null, edit:null };
+const S = { me:"owner", tab:"夥果", view:"", sel:"全部", person:"夥伴A", ctl:"夥伴A", draft:null, edit:null };
 const $ = id => document.getElementById(id);
 const main = $("main"), nav = $("nav"), layer = $("layer");
 const byName = n => P.find(p => p.name === n);
@@ -181,14 +185,14 @@ function ask(title, items, note, okText, onOk, danger){
 }
 
 const trade = (x, hold) => `<div class="trade${hold?" hold":""}"><span class="side ${x.s}">${x.s==="s"?"空":"多"}</span>
-  <div class="nm">${esc(x.nm)}${hold&&x.j?` <span>${esc(x.j)} · ${esc(x.t)}</span>`:""}</div>
-  <div class="px">${esc(x.a)} → ${esc(x.b)}</div><div class="pn ${cls(x.p)}">${fmt(x.p)}</div></div>`;
+  <div class="nm"><b>${esc(x.nm)}</b><span class="px">${esc(x.a)} → ${esc(x.b)}${hold&&x.j?` · ${esc(x.j)} ${esc(x.t)}`:""}</span></div>
+  <div class="pn ${cls(x.p)}">${fmt(x.p)}</div></div>`;
 
 // ① 夥果:全家
 function vFam(){
   const shown = S.sel === "全部" ? P : P.filter(p => p.name === S.sel);
   const tot = shown.reduce((a,p)=>a+pnl(p),0), n = shown.reduce((a,p)=>a+p.n,0), w = shown.reduce((a,p)=>a+p.win,0), h = shown.reduce((a,p)=>a+p.hold.length,0);
-  return `<div class="row"><button type="button" class="b green">明細</button><div class="pill">11/16</div><button type="button" class="b gold">全家</button><div class="big ${cls(tot)}">${fmt(tot)}</div></div>
+  return `<div class="row"><div class="pill">11/16</div><div class="pill" style="border:2px solid var(--gold);color:var(--gold);font-weight:900">全家</div><div class="big ${cls(tot)}">${fmt(tot)}</div></div>
   <div class="chips">${["全部",...P.map(p=>p.name)].map(c=>`<button type="button" class="chip${S.sel===c?" on":""}" data-sel="${esc(c)}">${esc(c)}${c==="全部"?" "+P.length:""}</button>`).join("")}</div>
   <div class="stats"><div class="stat"><small>今日筆數</small><strong>${n}</strong></div><div class="stat"><small>勝率</small><strong>${n?(w/n*100).toFixed(1)+"%":"—"}</strong></div><div class="stat"><small>持倉中</small><strong>${h} 檔</strong></div></div>
   <div class="lab"><span>每個人</span><span>點一列看明細</span></div>
@@ -196,13 +200,13 @@ function vFam(){
     <span class="dot${p.alive?"":" r"}"></span><span class="grow"><span class="nm" style="display:block">${esc(p.name)}</span>
     <span class="ds" style="display:block${p.alive?"":";color:var(--badt)"}">${p.alive?`${p.n} 筆 · 勝 ${p.win} · 持倉 ${p.hold.length} · 額度 ${wan(p.cfg.max_amount)}`:`程式 3 分鐘沒回報 · 持倉 ${p.hold.length}`}</span></span>
     <span class="pn ${cls(pnl(p))}">${fmt(pnl(p))}</span></button>`).join("")}</div>
-  <div class="note">紅燈 = 那位的電腦程式 3 分鐘沒回報。這頁只有主導$ 看得到。</div>`;
+  <div class="note">紅燈 = 那位的電腦程式 3 分鐘沒回報。這頁只有主導$ 看得到。判別式訊號、K 線、報價請看「名揚四海」App。</div>`;
 }
 
 // ② 夥果:點進某人
 function vPerson(){
   const p = byName(S.person), c = p.cfg, t = pnl(p);
-  return `<div class="row"><button type="button" class="b" data-go="fam">‹ 全家</button><div class="pill" style="background:var(--gold);color:var(--bg);font-weight:900;border:0">${esc(p.name)}</div><div class="big ${cls(t)}">${fmt(t)}</div></div>
+  return `<div class="row"><button type="button" class="b" data-tab="夥果">‹ 全家</button><div class="pill" style="background:var(--gold);color:var(--bg);font-weight:900;border:0">${esc(p.name)}</div><div class="big ${cls(t)}">${fmt(t)}</div></div>
   <div class="chips">${P.map(q=>`<button type="button" class="chip${q.name===p.name?" on":""}" data-person="${esc(q.name)}">${esc(q.name)}</button>`).join("")}</div>
   <div class="cfg"><div>帳號 ${p.last4?"…"+esc(p.last4):"還沒設定"}</div>${p.owner?"<div></div>":`<button type="button" class="link" data-ctl="${esc(p.name)}">改設定 ›</button>`}
     <div>當日總額度 ${wan(c.max_amount)}</div><div>判一~九:${on(c)} 個開</div>
@@ -219,11 +223,11 @@ function vPerson(){
 // ③ 夥伴A 的手機:我的元大
 function vMine(){
   const p = mine(), t = pnl(p), n = p.n;
-  return `<div class="row"><button type="button" class="b green">明細</button><div class="pill">11/16</div><div class="pill" style="border:2px solid var(--gold);color:var(--gold);font-weight:900">我的元大</div><div class="big ${cls(t)}">${fmt(t)}</div></div>
+  return `<div class="row"><div class="pill">11/16</div><div class="pill" style="border:2px solid var(--gold);color:var(--gold);font-weight:900">我的元大</div><div class="big ${cls(t)}">${fmt(t)}</div></div>
   <div class="stats"><div class="stat"><small>今日筆數</small><strong>${n}</strong></div><div class="stat"><small>勝率</small><strong>${n?(p.win/n*100).toFixed(1)+"%":"—"}</strong></div><div class="stat"><small>持倉中</small><strong>${p.hold.length} 檔</strong></div></div>
   <div class="lab"><span>持倉中</span></div><div class="list">${p.hold.map(x=>trade(x,1)).join("") || `<div class="note">沒有持倉</div>`}</div>
   <div class="lab"><span>今天成交</span></div><div class="list">${p.fills.map(x=>trade(x)).join("")}</div>
-  <div class="note">夥伴鑰匙只看得到自己的元大成交與輸贏,沒有「全家」按鈕,也看不到別人。判別式的進出場訊號照樣收得到。</div>`;
+  <div class="note">夥伴鑰匙只看得到自己的元大成交與輸贏,沒有「全家」按鈕,也看不到別人。判別式訊號由主導$ 的電腦統一算,你的帳號照你的設定自動下單。</div>`;
 }
 
 // ④ 資訊:斷線警報 + 提醒
@@ -240,20 +244,6 @@ function vAlert(){
   <div class="note">${fam?"你只收得到自己的提醒。":"這些提醒只推到主導$ 的裝置;夥伴的手機只收自己的。"}</div>`;
 }
 
-// ⑦ 主導$ 的設定
-function vSettings(){
-  const ic = {
-    夥伴:`<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6"/><path d="M16 11h6"/></svg>`,
-    夥設:`<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10"/><path d="M18 6h2"/><circle cx="16" cy="6" r="2"/><path d="M4 12h2"/><path d="M10 12h10"/><circle cx="8" cy="12" r="2"/><path d="M4 18h8"/><path d="M16 18h4"/><circle cx="14" cy="18" r="2"/></svg>`,
-    夥果:`<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>`};
-  return `<div class="lab" style="padding-top:14px"><span>夥伴管理(只有主導$ 看得到)</span></div>
-  <div class="big3"><button type="button" data-go="partners">${ic.夥伴}夥伴</button><button type="button" data-ctl="${esc(S.ctl)}">${ic.夥設}夥設</button><button type="button" data-tab="明細">${ic.夥果}夥果</button></div>
-  <div class="cap3"><div>增減夥伴、金鑰、自動交易開關</div><div>改夥伴的公式與資金(可切換夥伴)</div><div>看每位夥伴今天的輸贏</div></div>
-  <div class="lab" style="margin-top:10px"><span>主導$ 自己的設定(原本就有的)</span></div>
-  <div class="list"><div class="set"><span>多空上限</span><b style="color:var(--gold)">25 萬</b></div><div class="set"><span>通知聲音</span><b>開</b></div>
-  <div class="set"><span>鑰匙</span><b>主導$(已輸入)</b></div><div class="set"><span>版本</span><b class="mut">預覽版</b></div></div>`;
-}
-
 // ⑧ 夥伴管理
 function stLine(p){
   if (!p.st) return `<div class="st mut">元大 API ? · 憑證 ? · 還沒登入過</div>`;
@@ -263,7 +253,7 @@ function stLine(p){
 }
 function vPartners(){
   const fs = P.filter(p => !p.owner);
-  return `<div class="row"><button type="button" class="b" data-go="settings">‹ 設定</button><div style="font-size:22px;font-weight:900;color:var(--gold)">夥伴</div><div class="big mut" style="font-size:15px;font-weight:400">${fs.length} 位</div></div>
+  return `<div class="row"><div style="font-size:22px;font-weight:900;color:var(--gold)">夥伴</div><div class="big mut" style="font-size:15px;font-weight:400">${fs.length} 位 · 增減夥伴、金鑰、自動交易開關</div></div>
   <div class="prt" style="background:none;padding:0 12px;font-size:13px;color:var(--sub)"><div>夥伴 · 金鑰</div><div style="text-align:center">自動交易</div><div style="text-align:center">移除</div></div>
   <div class="list">${fs.map(p=>`<div class="prt${p.key?"":" new"}"><div style="min-width:0">
       <button type="button" class="nm" data-edit="${esc(p.name)}">${esc(p.name)}</button>
@@ -282,7 +272,7 @@ function vControl(){
   const fld = (k, lab, hint) => ro ? `<div class="ro"><span>${lab}</span><b>${wan(c[k])}</b></div>`
     : `<div class="fld"><label for="f-${k}">${lab}</label><div class="in"><input id="f-${k}" inputmode="decimal" value="${c[k]}" data-k="${k}"><span class="u">萬</span></div>${hint?`<div class="hint">${hint}</div>`:""}<div class="err" id="e-${k}"></div></div>`;
   return (ro ? `<div class="note warn" style="margin-top:12px;display:flex;gap:10px;align-items:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>設定由主導$ 管理,這裡只能看</div>`
-    : `<div class="row"><button type="button" class="b" data-go="settings">‹ 設定</button><div style="font-size:22px;font-weight:900;color:var(--gold)">夥設</div><div class="big mut" style="font-size:14px;font-weight:400">只有主導$ 能改</div></div>
+    : `<div class="row"><div style="font-size:22px;font-weight:900;color:var(--gold)">夥設</div><div class="big mut" style="font-size:14px;font-weight:400">改夥伴的公式與資金 · 只有主導$ 能改</div></div>
        <div class="chips">${P.filter(q=>!q.owner).map(q=>`<button type="button" class="chip${q.name===p.name?" on":""}" data-ctl="${esc(q.name)}">${esc(q.name)}</button>`).join("")}</div>`)
   + `<div class="lab"><span>公式${ro?"(只能看)":"(點一下 開 / 關)"}</span><span>${on(c)} 個開</span></div>
   <div class="jg">${J9.map(j=>`<button type="button" class="jb${c.judges[j]?" on":""}" ${ro?"disabled":""} data-j="${j}" aria-pressed="${!!c.judges[j]}">${j} ${c.judges[j]?"●":"○"}</button>`).join("")}</div>
@@ -313,7 +303,7 @@ function applyCtl(){
 // ⑩ 新增 / 編輯夥伴
 function vEdit(){
   const p = S.edit ? byName(S.edit) : null;
-  return `<div class="row"><button type="button" class="b" data-go="partners">‹ 夥伴</button><div style="font-size:22px;font-weight:900;color:var(--gold)">${p?"編輯【"+esc(p.name)+"】":"新增夥伴"}</div></div>
+  return `<div class="row"><button type="button" class="b" data-tab="夥伴">‹ 夥伴</button><div style="font-size:22px;font-weight:900;color:var(--gold)">${p?"編輯【"+esc(p.name)+"】":"新增夥伴"}</div></div>
   <form id="pf" class="list" autocomplete="off" novalidate>
     <div class="fld"><label for="pf-name">夥伴名字</label><div class="in"><input id="pf-name" maxlength="12" value="${p?esc(p.name):"夥伴"+String.fromCharCode(65+P.length-1)}" ${p?"readonly":""}></div><div class="hint">最多 12 個字,不能有空白或符號</div><div class="err" id="pe-name"></div></div>
     <div class="fld"><label for="pf-acct">元大證券帳號(分公司 4 碼 + 帳號 7 碼)</label><div class="in"><input id="pf-acct" inputmode="numeric" maxlength="11" placeholder="${p&&p.last4?"已存:…"+esc(p.last4):"例如 98761234567"}"></div><div class="err" id="pe-acct"></div></div>
@@ -336,24 +326,36 @@ function submitEdit(e){
   let i = 0; const tick = () => { if (i < steps.length){ steps[i].textContent = "✓ " + labs[i]; steps[i].style.color = "var(--okt)"; i++; setTimeout(tick, 450); }
     else { const p = ex || {name:nm, alive:true, n:0, win:0, amount:0, hold:[], fills:[], cfg:{judges:allOn(), max_amount:100, cap:5, max_loss:1, kill_loss:2, enabled:false}};
       Object.assign(p, {last4: ac ? ac.slice(-4) : p.last4, key: p.key || Math.random().toString(16).slice(2,6), bound: p.bound || false, st:{api:1,cert:1,login:1,at:"08:30"}});
-      if (!ex) P.push(p); toast(`預覽:【${nm}】設定完成(沒有真的送出)`); go("partners"); } };
+      if (!ex) P.push(p); toast(`預覽:【${nm}】設定完成(沒有真的送出)`); go("", {tab:"夥伴"}); } };
   tick();
 }
 
-function vPlaceholder(t){ return `<div class="ph" style="margin-top:14px"><b style="color:var(--soft);font-size:17px">${t}</b><br>判別式訊號、K 線、報價照現行 App,這個預覽不重做。</div>`; }
+
+const IC = {
+  夥果:'<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
+  夥伴:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6"/><path d="M16 11h6"/>',
+  夥設:'<path d="M4 6h10"/><path d="M18 6h2"/><circle cx="16" cy="6" r="2"/><path d="M4 12h2"/><path d="M10 12h10"/><circle cx="8" cy="12" r="2"/><path d="M4 18h8"/><path d="M16 18h4"/><circle cx="14" cy="18" r="2"/>',
+  警報:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>',
+  我的元大:'<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
+  我的設定:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  提醒:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>'};
+const TABS = () => S.me === "fam" ? ["我的元大","我的設定","提醒"] : ["夥果","夥伴","夥設","警報"];
 
 function render(){
   const fam = S.me === "fam";
+  if (!TABS().includes(S.tab)) S.tab = TABS()[0];
   $("who").textContent = fam ? "夥伴A(只能看)" : "主導$";
   $("pv-owner").classList.toggle("on", !fam); $("pv-fam").classList.toggle("on", fam);
   let h = "";
-  if (S.tab === "明細") h = fam ? vMine() : S.view === "person" ? vPerson() : vFam();
-  else if (S.tab === "資訊") h = vAlert();
-  else if (S.tab === "進場") h = vPlaceholder("進場");
-  else if (S.tab === "公式") h = fam ? vControl() : vPlaceholder("公式(主導$ 自己的)");
-  else if (S.tab === "設定") h = fam ? vControl() : S.view === "partners" ? vPartners() : S.view === "control" ? vControl() : S.view === "edit" ? vEdit() : vSettings();
+  if (S.tab === "我的元大") h = vMine();
+  else if (S.tab === "我的設定") h = vControl();
+  else if (S.tab === "提醒" || S.tab === "警報") h = vAlert();
+  else if (S.tab === "夥果") h = S.view === "person" ? vPerson() : vFam();
+  else if (S.tab === "夥伴") h = S.view === "edit" ? vEdit() : vPartners();
+  else if (S.tab === "夥設") h = vControl();
   main.innerHTML = h;
-  nav.innerHTML = ["進場","資訊","明細","公式","設定"].map(t=>`<button type="button" class="${S.tab===t?"on":""}" data-tab="${t}">${t}</button>`).join("");
+  nav.style.setProperty("--n", TABS().length);
+  nav.innerHTML = TABS().map(t=>`<button type="button" class="${S.tab===t?"on":""}" data-tab="${t}" aria-current="${S.tab===t?"page":"false"}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[t]}</svg>${t}</button>`).join("");
   const pf = $("pf"); if (pf) pf.onsubmit = submitEdit;
   const ap = $("apply"); if (ap) ap.onclick = applyCtl;
 }
@@ -361,13 +363,13 @@ function render(){
 document.addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t || t.disabled) return;
   const d = t.dataset;
-  if (t.id === "pv-owner" || t.id === "pv-fam"){ S.me = t.id === "pv-fam" ? "fam" : "owner"; S.view = "fam"; S.draft = null; return render(); }
-  if (d.tab){ S.tab = d.tab; S.view = d.tab === "設定" ? "settings" : "fam"; S.draft = null; return render(); }
+  if (t.id === "pv-owner" || t.id === "pv-fam"){ S.me = t.id === "pv-fam" ? "fam" : "owner"; S.tab = TABS()[0]; S.view = ""; S.draft = null; return render(); }
+  if (d.tab){ S.tab = d.tab; S.view = ""; S.draft = null; main.scrollTop = 0; return render(); }
   if (d.sel){ S.sel = d.sel; return render(); }
-  if (d.person){ return go("person", {tab:"明細", person:d.person}); }
+  if (d.person){ return go("person", {tab:"夥果", person:d.person}); }
   if (d.go){ return go(d.go); }
-  if (d.ctl){ S.draft = null; return go("control", {tab:"設定", ctl:d.ctl}); }
-  if (d.edit !== undefined){ return go("edit", {edit:d.edit || null}); }
+  if (d.ctl){ S.draft = null; return go("", {tab:"夥設", ctl:d.ctl}); }
+  if (d.edit !== undefined){ return go("edit", {tab:"夥伴", edit:d.edit || null}); }
   if (d.j && S.draft){ S.draft.judges[d.j] = !S.draft.judges[d.j];
     document.querySelectorAll("[data-k]").forEach(i => { const v = parseFloat(i.value); if (isFinite(v)) S.draft[i.dataset.k] = v; });
     return render(); }
