@@ -58,13 +58,14 @@ object Updater {
             dir.listFiles()?.forEach { try { it.delete() } catch (e: Exception) {} }
             val out = File(dir, "PartnerViewer-${info.code}.apk")
             try {
-                val c = URL(BASE + "PartnerViewer.apk&v=${info.code}&_=" + System.currentTimeMillis()).openConnection() as HttpURLConnection
+                // 2026-11-16 00:57 使用者截圖「下載失敗 雲端傳回的還是舊版」:?gh=raw 的 .apk 雲端暫存 30 分鐘(版本號只 1 分鐘)→ 改從夥伴專用的下載點(暫存 1 分鐘);不動名揚四海共用的 gh=raw
+                val c = URL("https://twse-proxy.redwinds542688.workers.dev/partner/app.apk?v=${info.code}&_=" + System.currentTimeMillis()).openConnection() as HttpURLConnection
                 c.connectTimeout = 20000; c.readTimeout = 120000; c.useCaches = false; c.instanceFollowRedirects = true
                 if (c.responseCode != 200) throw Exception("HTTP ${c.responseCode}")
                 c.inputStream.use { i -> out.outputStream().use { o -> i.copyTo(o) } }
                 val pi = act.packageManager.getPackageArchiveInfo(out.absolutePath, 0)
                 if (pi == null || pi.packageName != act.packageName) throw Exception("下載的檔案不對")
-                @Suppress("DEPRECATION") if (pi.versionCode < info.code) throw Exception("雲端傳回的還是舊版,請過 5 分鐘再打開 App")
+                @Suppress("DEPRECATION") if (pi.versionCode < info.code) throw Exception("雲端還沒換成新版,請過 3 分鐘再打開 App")
             } catch (e: Exception) { err = e.message ?: e.toString() }
             act.runOnUiThread {
                 try { dlg.dismiss() } catch (e: Exception) {}
