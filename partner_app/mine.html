@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<!-- 夥伴看盤(簡單版,partner 分支):夥伴用自己的 fa11 鑰匙只看自己的;和名揚四海 app/ 完全分開。目前範例資料,不連雲端、不下單 -->
+<!-- 夥伴看盤(簡單版,partner 分支):進場 / 當沖 / 明細 + 喇叭靜音鍵;聲音震動照主導版(抄一份,不共用);和名揚四海 app/ 完全分開。目前範例資料 -->
 <title>夥伴看盤</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
-/* 版面:手機一欄;上標題、中間捲動、底部三鍵;單一深色(和夥伴管理同一套顏色,台股紅漲綠跌) */
+/* 版面:照主導版(名揚四海)的樣子簡化 —— 上標題、標題列(分頁名 / 日期 / 喇叭 / 金額)、中間清單、底部 進場 / 當沖 / 明細 三鍵;單一深色,台股紅漲綠跌 */
 :root{
-  --ground:#0B0E14; --bg:#12161F; --card:#1B2232; --card2:#172033; --line:#2A3244; --line2:#3A4357;
-  --fg:#E6EAF2; --sub:#9AA4B8; --soft:#C9D1DF; --gold:#FFD54F; --blue:#29B6F6;
-  --up:#FF5A5F; --down:#3DDC84; --ok:#22C55E; --bad:#FF3B3B;
+  --ground:#05070B; --bg:#0B0E14; --card:#151B28; --card2:#111827; --line:#2A3244; --line2:#3A4357;
+  --fg:#E6EAF2; --sub:#8C96AB; --soft:#C9D1DF; --gold:#FFD54F; --green:#22E06B; --blue:#29B6F6;
+  --up:#FF4D5E; --down:#2EE59D; --bad:#FF3B3B;
   --f:'Noto Sans TC',system-ui,-apple-system,'PingFang TC','Microsoft JhengHei',sans-serif;
   color-scheme:dark;
 }
@@ -22,124 +22,181 @@ body{background:var(--ground);color:var(--fg);font-family:var(--f);margin:0}
 *{box-sizing:border-box}
 button{font-family:inherit}
 button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
-.wrap{max-width:440px;margin:0 auto;min-height:100%;background:var(--bg);display:flex;flex-direction:column}
-.pv{padding-block:6px;padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));background:#0E121A;border-bottom:1px dashed var(--line2);font-size:13px;color:var(--sub);display:flex;gap:8px;flex-wrap:wrap}
+.wrap{max-width:460px;margin:0 auto;min-height:100%;background:var(--bg);display:flex;flex-direction:column}
+.pv{padding-block:6px;padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px));background:#0E121A;border-bottom:1px dashed var(--line2);font-size:12px;color:var(--sub);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .pv b{color:var(--gold)}
-.hd{padding:12px 16px 10px;border-bottom:1px solid var(--blue);display:flex;align-items:center;justify-content:space-between;gap:8px}
-.hd h1{margin:0;font-size:clamp(20px,6.4vw,26px);font-weight:900;letter-spacing:1px;color:var(--blue);white-space:nowrap}
-.me{font-size:14px;color:var(--soft);border:1px solid var(--line2);border-radius:8px;padding:3px 8px;white-space:nowrap}
-main{flex:1;overflow:auto;padding:0 12px 16px;display:flex;flex-direction:column;gap:10px}
-.top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:12px}
-.pill{height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);display:flex;align-items:center;font-size:17px;color:var(--soft);white-space:nowrap}
-.pill.b{border:2px solid var(--blue);color:var(--blue);font-weight:900}
-.big{flex:1 1 auto;min-width:0;text-align:right;font-size:clamp(22px,7vw,28px);font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
-.up{color:var(--up)} .dn{color:var(--down)} .mut{color:var(--sub)}
-.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.stat{background:var(--card);border-radius:10px;padding:10px;text-align:center}
-.stat small{display:block;font-size:13px;color:var(--sub)}
-.stat strong{font-size:22px;font-variant-numeric:tabular-nums}
-.lab{display:flex;justify-content:space-between;gap:8px;font-size:14px;color:var(--sub);margin-top:4px}
-.list{display:flex;flex-direction:column;gap:8px}
-.trade{background:var(--card);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px}
-.trade.hold{background:var(--card2);border:1px dashed var(--line2)}
-.side{font-size:13px;font-weight:700;border:1px solid;border-radius:4px;padding:1px 4px;flex:none}
-.side.s{color:var(--down)} .side.l{color:var(--up)}
-.trade .nm{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.trade .nm b{font-size:18px}
-.trade .nm span{font-size:14px;color:var(--soft);font-variant-numeric:tabular-nums}
-.trade .nm em{font-style:normal;font-size:13px;color:var(--sub)}
-.trade .pn{flex:none;text-align:right;font-size:18px;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
-.days{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
-.day{flex:none;height:36px;padding:0 12px;border-radius:18px;border:1px solid var(--line2);background:transparent;color:var(--soft);font:500 15px var(--f);cursor:pointer}
-.day.on{border-color:var(--blue);background:#0E2230;color:var(--blue);font-weight:700}
-.state{display:flex;align-items:center;gap:8px;background:var(--card);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--soft)}
-.dot{width:10px;height:10px;border-radius:5px;background:var(--ok);flex:none} .dot.r{background:var(--bad)}
-.msg{background:var(--card);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
-.msg b{font-size:16px} .msg span{font-size:13px;color:var(--sub)}
-.msg.warn{background:#3A0E12;border:1px solid var(--bad)} .msg.warn b{color:#FFD0D0}
-.note{padding:10px 12px;border-radius:10px;background:#161B26;border:1px solid var(--line);font-size:14px;color:#B8C1D3;line-height:1.6}
-.empty{background:var(--card);border-radius:10px;padding:18px;text-align:center;color:var(--sub);font-size:15px}
-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:10px 8px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:var(--bg);position:sticky;bottom:0}
-nav button{height:54px;border-radius:10px;border:1px solid var(--blue);background:var(--card);color:var(--soft);font:700 17px var(--f);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
-nav button.on{border:2px solid var(--blue);color:var(--blue);background:#0E2230}
+.pv button{height:30px;padding:0 8px;border-radius:15px;border:1px solid var(--line2);background:transparent;color:var(--soft);font-size:12px;cursor:pointer}
+.ttl{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.ttl h1{margin:0;font-size:clamp(22px,7vw,30px);font-weight:900;letter-spacing:1px;background:linear-gradient(90deg,#FF5A5F,#FFB13B 30%,#3DDC84 60%,#29B6F6 80%,#B15CFF);-webkit-background-clip:text;background-clip:text;color:transparent;white-space:nowrap}
+.ttl span{font-size:14px;color:var(--soft);border:1px solid var(--line2);border-radius:6px;padding:1px 6px}
+.panel{flex:1;display:flex;flex-direction:column;border:1px solid #5A4A10;border-width:1px 0;min-height:0}
+.hd{display:flex;gap:6px;align-items:center;padding:8px 6px;flex-wrap:wrap}
+.tab{height:46px;padding:0 12px;border-radius:9px;border:2px solid var(--green);background:#000;color:var(--green);font:900 22px var(--f);display:flex;align-items:center;box-shadow:0 0 0 2px #000,0 0 0 3.5px #8C96AB}
+.date{height:46px;padding:0 10px;border-radius:9px;border:1px solid var(--line);display:flex;align-items:center;font-size:22px;color:var(--soft);font-variant-numeric:tabular-nums}
+.spk{height:46px;width:58px;border-radius:9px;border:2px solid #6b6f7a;background:#000;color:var(--sub);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 0 0 2px #000,0 0 0 3.5px #4A5570;padding:0}
+.spk.on{background:var(--gold);color:#000;border-color:#fff;box-shadow:0 0 0 2px #000,0 0 0 3.5px var(--gold)}
+.amt{flex:1 1 auto;min-width:0;text-align:right;font-size:clamp(22px,7.4vw,32px);font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
+.up{color:var(--up)} .dn{color:var(--down)} .mut{color:var(--sub)} .gold{color:var(--gold)}
+.list{flex:1;overflow:auto;display:flex;flex-direction:column}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center;padding:9px 8px;border-bottom:1px solid #1E2636;background:repeating-linear-gradient(45deg,#121826 0 6px,#141B2A 6px 12px)}
+.nm{min-width:0} .nm b{display:block;font-size:clamp(16px,5vw,19px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .nm small{display:block;font-size:14px;color:var(--green);font-variant-numeric:tabular-nums}
+.px{text-align:right;font-variant-numeric:tabular-nums} .px b{font-size:clamp(15px,4.8vw,19px);white-space:nowrap} .px small{display:block;font-size:13px;color:var(--sub)}
+.sd{display:inline-block;font-size:14px;font-weight:700;border:1px solid;border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:2px}
+.sd.s{color:var(--down);border-color:var(--down)} .sd.l{color:var(--up);border-color:var(--up)}
+.js{display:inline-block;font-size:12px;color:var(--gold);border:1px solid #8A7320;border-radius:4px;padding:0 4px;margin-left:4px}
+.rt{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-variant-numeric:tabular-nums}
+.rt b{font-size:18px;font-weight:900} .rt small{font-size:13px;color:var(--sub)}
+.wl{font-size:12px;font-weight:700;border:1px solid;border-radius:4px;padding:0 4px}
+.wl.w{color:var(--up);border-color:var(--up)} .wl.l{color:var(--down);border-color:var(--down)} .wl.o{color:var(--sub);border-color:var(--line2)}
+.days{display:flex;gap:6px;overflow-x:auto;padding:0 6px 8px}
+.day{flex:none;height:34px;padding:0 12px;border-radius:17px;border:1px solid var(--line2);background:transparent;color:var(--soft);font:500 15px var(--f);cursor:pointer}
+.day.on{border-color:var(--gold);background:#2A2410;color:var(--gold);font-weight:700}
+.stt{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:13px;color:var(--soft)}
+.dot{width:9px;height:9px;border-radius:5px;background:var(--green);flex:none} .dot.r{background:var(--bad)}
+.empty{padding:28px 16px;text-align:center;color:var(--sub);font-size:15px}
+.note{margin:10px 8px;padding:10px 12px;border-radius:10px;background:#111725;border:1px solid var(--line);font-size:13px;color:#B8C1D3;line-height:1.6}
+nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:10px 8px calc(12px + env(safe-area-inset-bottom,0px));background:var(--bg);position:sticky;bottom:0;border-top:1px solid var(--line)}
+nav button{height:56px;border-radius:10px;border:1px solid var(--gold);background:linear-gradient(#1E2638,#151B28);color:var(--soft);font:900 24px var(--f);cursor:pointer;letter-spacing:2px}
+nav button.on{color:var(--green);border:2px solid var(--green)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));width:min(92vw,420px);border-radius:12px;padding:10px 14px;z-index:30;box-shadow:0 6px 24px rgba(0,0,0,.6);display:flex;flex-direction:column;gap:2px;animation:drop .25s ease-out}
+.toast b{font-size:17px} .toast span{font-size:13px;opacity:.85}
+.toast.long,.toast.short,.toast.pc{background:#14233A;border:1px solid var(--blue);color:#CDE9FF}
+.toast.profit,.toast.win{background:#2A1416;border:1px solid var(--up);color:#FFD0D3}
+.toast.loss,.toast.lv{background:#0E2A1C;border:2px solid var(--down);color:#C9FFE5}
+@keyframes drop{from{transform:translate(-50%,-20px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+@media (prefers-reduced-motion:reduce){.toast{animation:none}}
 </style>
 </head>
 <body>
 
 <div class="wrap">
-  <div class="pv"><span>夥伴看盤 · 只看自己,不能改、不能下單</span><span style="flex:1"></span><b>範例資料</b></div>
-  <header class="hd"><h1>自動當沖 · 夥伴看盤</h1><span class="me">夥伴A</span></header>
-  <main id="main"></main>
+  <div class="pv"><b>範例資料</b><span>試聽(照主導版的聲音 / 震動):</span>
+    <button type="button" data-demo="entry">進場</button><button type="button" data-demo="profit">賺錢平倉</button><button type="button" data-demo="loss">賠錢平倉</button><button type="button" data-demo="win2">浮贏 2 萬</button><button type="button" data-demo="lv3">浮輸 3 萬</button><button type="button" data-demo="pc">電腦提醒</button>
+  </div>
+  <div class="ttl"><h1>自動當沖 · 夥伴看盤</h1><span>夥伴A</span></div>
+  <section class="panel"><div class="hd" id="hd"></div><div class="list" id="list"></div></section>
   <nav id="nav"></nav>
 </div>
+<div id="layer"></div>
 
 <script>
-// 夥伴看盤(2026-11-15 使用者「程式全分開 主導看盤 就是最原始的程式」→「A 簡單版 先畫」)
-// 和名揚四海完全分開的程式;夥伴用自己的 fa11 鑰匙,只看得到自己的。這版是畫面:範例資料,不連雲端、不下單。App 不寫看時間決定行為的邏輯。
-const ME = { name: "夥伴A", acct: "1234", alive: true, at: "10:51" };
-const DAYS = {
-  "11/16": { fills: [
-      {s:"s",nm:"碩禾",a:"145.00",b:"137.75",q:1,p:6933,t:"09:12 → 09:47"},
-      {s:"s",nm:"欣銓",a:"217.0",b:"214.0",q:1,p:2522,t:"09:20 → 10:05"},
-      {s:"l",nm:"台塑化",a:"98.90",b:"101.37",q:2,p:4494,t:"09:31 → 10:22"},
-      {s:"s",nm:"鈺創",a:"102.5",b:"104.0",q:2,p:-3534,t:"09:40 → 10:18"}],
-    hold: [
-      {s:"s",nm:"聯電",a:"108.5",now:"107.0",q:2,p:2780,t:"10:42 進場"},
-      {s:"s",nm:"台塑",a:"72.1",now:"72.4",q:3,p:-860,t:"11:05 進場"}] },
-  "11/13": { fills: [
-      {s:"s",nm:"中鼎",a:"50.90",b:"50.30",q:4,p:1960,t:"09:25 → 10:40"},
-      {s:"s",nm:"碩禾",a:"140.50",b:"137.00",q:1,p:3310,t:"09:33 → 11:02"},
-      {s:"l",nm:"廣達",a:"288.0",b:"285.5",q:1,p:-2860,t:"10:02 → 10:30"}], hold: [] },
-  "11/12": { fills: [
-      {s:"s",nm:"華邦電",a:"48.20",b:"47.05",q:3,p:3410,t:"09:15 → 09:58"},
-      {s:"s",nm:"群創",a:"17.35",b:"17.05",q:3,p:2690,t:"09:41 → 10:47"}], hold: [] },
-};
-const MSGS = [
-  {w:false,t:"✅ 當天賺 1 萬",at:"10:58"},
-  {w:false,t:"進場 台塑 空 3 張(判三)",at:"11:05"},
-  {w:false,t:"進場 聯電 空 2 張(判六)",at:"10:42"},
-  {w:true ,t:"⚠ 當天虧損 2 萬:停止新進場",at:"範例:虧到上限時會這樣提醒"},
-  {w:true ,t:"⚠⚠ 電腦斷線 還有 2 檔沒平",at:"範例:13:20 程式無法平倉時,請用投資先生手動平倉"},
+// 夥伴看盤(2026-11-15 使用者「簡單的看盤版 就是 進場 當沖 明細 三個就好 所有提醒震動聲音 都依照主導程式 只是簡易看盤也要有聲音跟靜音鍵」)
+// 和名揚四海完全分開的程式(名揚四海一行不改);聲音 / 震動 / 靜音照主導版(app.html webSnd、sndMuted;Android Alert.kt 的震動節奏)抄一份過來,不共用程式。
+// 只看自己:沒有平倉、下單、改設定。這版是畫面:範例資料,不連雲端。App 不寫看時間決定行為的邏輯。
+
+/* ── 聲音 / 震動(照主導版) ─────────────────────────────── */
+// 靜音鍵:只管這台、只停聲音不停震動(主導版 2026-11-08「只改聲音不改震動」);網頁沒按過 = 有聲音,App 沒按過 = 靜音(和主導版一樣)
+const MUTE_KEY = 'partner.mute';
+const sndMuted = () => { try{ const v = localStorage.getItem(MUTE_KEY); return window.Android ? v !== '0' : v === '1'; }catch(e){ return !!window.Android; } };
+const sndSet = m => { try{ localStorage.setItem(MUTE_KEY, m ? '1' : '0'); }catch(e){} };
+let MUTED_MEM = null;   // 按過就以這次為準(存不了 localStorage 也照樣切換)
+const muted = () => MUTED_MEM != null ? MUTED_MEM : sndMuted();
+const SPK_ON = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M3 9h4l5-4v14l-5-4H3z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>';
+const SPK_OFF = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M3 9h4l5-4v14l-5-4H3z" fill="currentColor"/><path d="M16 9l6 6M22 9l-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+const WSND = { ctx: null };
+const wsCtx = () => { try{ if (!WSND.ctx){ const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; WSND.ctx = new C(); } if (WSND.ctx.state === 'suspended') WSND.ctx.resume(); return WSND.ctx; }catch(e){ return null; } };
+['pointerdown','keydown'].forEach(t => document.addEventListener(t, () => wsCtx(), {capture:true, passive:true}));
+// 主導版 webSnd:進場短嗶兩聲;賺錢上升音(分級越高越多音);賠錢下降音(分級越高越多次);其他一聲
+function webSnd(kind, title){ try{
+  if (muted() || !kind || kind === 'warn' || kind === 'sys') return; const c = wsCtx(); if (!c || c.state !== 'running') return;
+  const tone = (f, t0, d, v = 0.22, type = 'sine') => { const o = c.createOscillator(), g = c.createGain(); o.type = type; o.frequency.value = f; o.connect(g); g.connect(c.destination);
+    const t = c.currentTime + t0; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.start(t); o.stop(t + d + 0.02); };
+  const lv = +((/^lv(\d)$/.exec(kind) || [])[1] || 0), win = +((/^win(\d)$/.exec(kind) || [])[1] || 0);
+  const xp = kind === 'exit' ? (/^✅/.test(title || '') ? 1 : /^⚠/.test(title || '') ? -1 : 0) : 0;
+  if (win > 0 || kind === 'profit' || xp > 0){ const n = win > 0 ? win + 1 : 2, base = [659, 784, 988, 1175, 1319, 1568]; for (let i = 0; i < n; i++) tone(base[i % base.length], i * 0.12, 0.22, 0.2, 'triangle'); return; }
+  if (lv > 0 || kind === 'loss' || xp < 0){ const n = lv > 0 ? lv : 1; for (let k = 0; k < n; k++){ tone(523, k * 0.7, 0.28, 0.24, 'square'); tone(392, k * 0.7 + 0.3, 0.36, 0.24, 'square'); } return; }
+  if (kind === 'long' || kind === 'short'){ tone(880, 0, 0.12, 0.2); tone(1175, 0.15, 0.16, 0.2); return; }
+  tone(660, 0, 0.25, 0.18);
+}catch(e){} }
+// 主導版 Alert.kt 的震動節奏(靜音也照震)
+function vibOf(kind){
+  const lv = +((/^lv(\d)$/.exec(kind) || [])[1] || 0), win = +((/^win(\d)$/.exec(kind) || [])[1] || 0);
+  if (lv){ const n = [0,2,3,5,8,12][Math.min(lv,5)], on = lv <= 1 ? 400 : 900, p = [0]; for (let i = 0; i < n; i++) p.push(on, 250); return p; }
+  if (win){ const n = 2 + win * 2, p = [0]; for (let i = 0; i < n; i++) p.push(70, 90); p.push(120, 350); return p; }
+  if (kind === 'loss') return [0, 800, 300, 800, 300, 800, 300, 1500];
+  return [0, 400, 200, 400, 200, 600];
+}
+function notify(title, body, kind){
+  try{ navigator.vibrate && navigator.vibrate(vibOf(kind)); }catch(e){}
+  webSnd(kind, title);
+  const cls = /^lv/.test(kind) ? 'lv' : /^win/.test(kind) ? 'win' : kind;
+  const L = document.getElementById('layer'); L.innerHTML = `<div class="toast ${cls}" role="status"><b>${esc(title)}</b><span>${esc(body)}</span></div>`;
+  clearTimeout(notify.t); notify.t = setTimeout(() => L.innerHTML = '', 4200);
+}
+
+/* ── 範例資料(夥伴A 自己的) ─────────────────────────────── */
+const ENTRY = [   // 進場:今天程式幫夥伴進場的(和主導版進場頁一樣一檔一列;沒有平倉鍵)
+  {nm:"台塑",code:"1301",s:"s",ent:"72.10",now:"72.40",q:3,js:"判三",t:"11:05",st:"o",p:-860},
+  {nm:"聯電",code:"2303",s:"s",ent:"108.50",now:"107.00",q:2,js:"判六",t:"10:42",st:"o",p:2780},
+  {nm:"台塑化",code:"6505",s:"l",ent:"98.90",now:"101.37",q:2,js:"判四",t:"09:31",st:"w",p:4494},
+  {nm:"欣銓",code:"3264",s:"s",ent:"217.00",now:"214.00",q:1,js:"判二",t:"09:20",st:"w",p:2522},
+  {nm:"碩禾",code:"3691",s:"s",ent:"145.00",now:"137.75",q:1,js:"判四",t:"09:12",st:"w",p:6933},
+  {nm:"鈺創",code:"5351",s:"s",ent:"102.50",now:"104.00",q:2,js:"判一",t:"09:40",st:"l",p:-3534},
 ];
-const S = { tab: "明細", day: "11/16" };
+const DAYS = {
+  "11/16": [
+    {nm:"碩禾",code:"3691",s:"s",a:"145.00",b:"137.75",q:1,p:6933},{nm:"欣銓",code:"3264",s:"s",a:"217.00",b:"214.00",q:1,p:2522},
+    {nm:"台塑化",code:"6505",s:"l",a:"98.90",b:"101.37",q:2,p:4494},{nm:"鈺創",code:"5351",s:"s",a:"102.50",b:"104.00",q:2,p:-3534}],
+  "11/13": [{nm:"中鼎",code:"9933",s:"s",a:"50.90",b:"50.30",q:4,p:1960},{nm:"碩禾",code:"3691",s:"s",a:"140.50",b:"137.00",q:1,p:3310},{nm:"廣達",code:"2382",s:"l",a:"288.00",b:"285.50",q:1,p:-2860}],
+  "11/12": [{nm:"華邦電",code:"2344",s:"s",a:"48.20",b:"47.05",q:3,p:3410},{nm:"群創",code:"3481",s:"s",a:"17.35",b:"17.05",q:3,p:2690}],
+};
+const ME = {alive:true, at:"10:51"};
+const S = { tab:"進場", day:"11/16" };
 const fmt = v => (v>0?"+":v<0?"−":"") + Math.abs(Math.round(v)).toLocaleString("en-US");
 const cls = v => v>0?"up":v<0?"dn":"mut";
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const sum = a => a.reduce((x,o)=>x+o.p,0);
-const side = o => `<span class="side ${o.s}">${o.s==="s"?"空":"多"}</span>`;
+const sd = s => `<span class="sd ${s}">${s==="s"?"做空":"做多"}</span>`;
 
+function head(tab, date, amt, amtCls){
+  return `<div class="tab">${tab}</div><div class="date">${date}</div>
+    <button type="button" class="spk${muted()?"":" on"}" id="spk" aria-label="${muted()?"靜音,按一下開聲音":"有聲音,按一下靜音"}">${muted()?SPK_OFF:SPK_ON}</button>
+    <div class="amt ${amtCls}">${amt}</div>`;
+}
+function vEntry(){
+  const open = ENTRY.filter(o=>o.st==="o").length;
+  return [head("進場","11/16", `${ENTRY.length} 檔`, "gold"),
+    ENTRY.map(o=>`<div class="row"><div class="nm"><b>${esc(o.nm)}</b><small>${esc(o.code)}</small></div>
+      <div class="px"><b>${esc(o.ent)}</b>${sd(o.s)}<small>現 ${esc(o.now)} <span class="js">${esc(o.js)}</span> ${o.q}張 ${esc(o.t)}</small></div>
+      <div class="rt"><span class="wl ${o.st==="o"?"o":o.p>0?"w":"l"}">${o.st==="o"?"持倉中":o.p>0?"贏":"輸"}</span><b class="${cls(o.p)}">${fmt(o.p)}</b></div></div>`).join("")
+    + `<div class="note">還在場上 ${open} 檔。這裡只能看,沒有平倉鍵;程式照設定自動停損停利、13:20 前全部平倉。</div>`];
+}
+function vPos(){
+  const hold = ENTRY.filter(o=>o.st==="o"), tot = hold.reduce((a,o)=>a+o.p,0);
+  return [head("當沖","11/16", fmt(tot), cls(tot)),
+    `<div class="stt"><span class="dot${ME.alive?"":" r"}"></span>${ME.alive?`主機正常回報 · ${ME.at}`:"主機超過 3 分鐘沒回報"}</div>`
+    + (hold.map(o=>`<div class="row"><div class="nm"><b>${esc(o.nm)}</b><small>${esc(o.code)}</small></div>
+      <div class="px"><b>${esc(o.ent)} → ${esc(o.now)}</b><small>${sd(o.s)} ${o.q}張 · ${esc(o.js)}</small></div>
+      <div class="rt"><b class="${cls(o.p)}">${fmt(o.p)}</b><small>帳面</small></div></div>`).join("") || `<div class="empty">目前沒有持倉</div>`)];
+}
 function vDone(){
-  const D = DAYS[S.day], tot = sum(D.fills), win = D.fills.filter(o=>o.p>0).length;
-  return `<div class="top"><div class="pill b">我的明細</div><div class="big ${cls(tot)}">${fmt(tot)}</div></div>
-  <div class="days" role="tablist">${Object.keys(DAYS).map(d=>`<button type="button" class="day${d===S.day?" on":""}" data-day="${d}" role="tab" aria-selected="${d===S.day}">${d}</button>`).join("")}</div>
-  <div class="stats"><div class="stat"><small>已平倉</small><strong>${D.fills.length} 筆</strong></div><div class="stat"><small>勝率</small><strong>${D.fills.length?Math.round(win/D.fills.length*100)+"%":"—"}</strong></div><div class="stat"><small>持倉中</small><strong>${D.hold.length} 檔</strong></div></div>
-  <div class="lab"><span>元大成交(帳號 …${ME.acct})</span><span>已扣手續費、證交稅</span></div>
-  <div class="list">${D.fills.map(o=>`<div class="trade">${side(o)}<div class="nm"><b>${esc(o.nm)}</b><span>${esc(o.a)} → ${esc(o.b)} · ${o.q} 張</span><em>${esc(o.t)}</em></div><div class="pn ${cls(o.p)}">${fmt(o.p)}</div></div>`).join("") || `<div class="empty">這天沒有成交</div>`}</div>`;
+  const L = DAYS[S.day], tot = L.reduce((a,o)=>a+o.p,0);
+  return [head("明細", S.day, fmt(tot), cls(tot)),
+    `<div class="days" role="tablist">${Object.keys(DAYS).map(d=>`<button type="button" class="day${d===S.day?" on":""}" data-day="${d}" role="tab" aria-selected="${d===S.day}">${d}</button>`).join("")}</div>`
+    + L.map(o=>`<div class="row"><div class="nm"><b>${esc(o.nm)}</b><small>${esc(o.code)}</small></div>
+      <div class="px"><b>${esc(o.a)} → ${esc(o.b)}</b><small>${sd(o.s)} ${o.q}張</small></div>
+      <div class="rt"><b class="${cls(o.p)}">${fmt(o.p)}</b><small>元大成交</small></div></div>`).join("")
+    + `<div class="note">元大帳號 …1234 的真實成交,已扣手續費、證交稅。</div>`];
 }
-function vHold(){
-  const D = DAYS["11/16"], tot = sum(D.hold);
-  return `<div class="top"><div class="pill b">我的持倉</div><div class="big ${cls(tot)}">${fmt(tot)}</div></div>
-  <div class="state"><span class="dot${ME.alive?"":" r"}"></span>${ME.alive?`主機正常回報 · 最後更新 ${ME.at}`:"主機超過 3 分鐘沒回報,持倉可能不是最新"}</div>
-  <div class="lab"><span>還沒平倉 ${D.hold.length} 檔</span><span>帳面輸贏(照現價)</span></div>
-  <div class="list">${D.hold.map(o=>`<div class="trade hold">${side(o)}<div class="nm"><b>${esc(o.nm)}</b><span>${esc(o.a)} → 現 ${esc(o.now)} · ${o.q} 張</span><em>${esc(o.t)}</em></div><div class="pn ${cls(o.p)}">${fmt(o.p)}</div></div>`).join("") || `<div class="empty">目前沒有持倉</div>`}</div>
-  <div class="note">程式會照設定自動停損停利,13:20 前全部平倉。這裡只能看,不能平倉或下單;有問題請聯絡主導$。</div>`;
-}
-function vMsg(){
-  return `<div class="top"><div class="pill b">提醒</div><div class="big mut" style="font-size:15px;font-weight:400">只收到自己的</div></div>
-  <div class="list">${MSGS.map(m=>`<div class="msg${m.w?" warn":""}"><b>${esc(m.t)}</b><span>${esc(m.at)}</span></div>`).join("")}</div>
-  <div class="note">判別式、資金設定都由主導$ 管理,這個程式看不到也改不了。</div>`;
-}
-const IC = {
-  明細:'<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
-  持倉:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
-  提醒:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>'};
 function render(){
-  document.getElementById("main").innerHTML = S.tab==="明細" ? vDone() : S.tab==="持倉" ? vHold() : vMsg();
-  document.getElementById("nav").innerHTML = ["明細","持倉","提醒"].map(t=>`<button type="button" class="${S.tab===t?"on":""}" data-tab="${t}" aria-current="${S.tab===t?"page":"false"}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[t]}</svg>${t==="明細"?"我的明細":t==="持倉"?"我的持倉":"提醒"}</button>`).join("");
+  const [h, l] = S.tab==="進場" ? vEntry() : S.tab==="當沖" ? vPos() : vDone();
+  document.getElementById("hd").innerHTML = h; document.getElementById("list").innerHTML = l;
+  document.getElementById("nav").innerHTML = ["進場","當沖","明細"].map(t=>`<button type="button" class="${S.tab===t?"on":""}" data-tab="${t}" aria-current="${S.tab===t?"page":"false"}">${t}</button>`).join("");
 }
+const DEMO = {
+  entry:  ["進場 聯電 2303 做空 2張", "10:42 108.50 · 判六", "short"],
+  profit: ["✅ 停利 碩禾 +6,933", "09:47 145.00→137.75 · 判四", "profit"],
+  loss:   ["⚠⚠ 停損 鈺創 −3,534", "10:18 102.50→104.00 · 判一", "loss"],
+  win2:   ["🎉 當沖浮贏 2 萬", "持倉 2 檔帳面 +20,150", "win2"],
+  lv3:    ["⚠⚠⚠ 當沖浮輸 3 萬", "持倉 2 檔帳面 −30,420", "lv3"],
+  pc:     ["【夥伴A】電腦提醒", "已平倉虧到 2 萬,停止新進場", "pc"],
+};
 document.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return;
-  if (b.dataset.tab){ S.tab = b.dataset.tab; render(); document.getElementById("main").scrollTop = 0; }
-  if (b.dataset.day){ S.day = b.dataset.day; render(); } });
+  if (b.id === "spk"){ const m = !muted(); sndSet(m); MUTED_MEM = m; render(); notifyQuiet(m ? "這台靜音(不響,震動照舊)" : "這台通知有聲音"); if (!m) webSnd("long", ""); return; }
+  if (b.dataset.tab){ S.tab = b.dataset.tab; render(); document.getElementById("list").scrollTop = 0; return; }
+  if (b.dataset.day){ S.day = b.dataset.day; render(); return; }
+  if (b.dataset.demo){ const d = DEMO[b.dataset.demo]; notify(d[0], d[1], d[2]); }
+});
+function notifyQuiet(t){ const L = document.getElementById('layer'); L.innerHTML = `<div class="toast pc" role="status"><b>${esc(t)}</b></div>`; clearTimeout(notify.t); notify.t = setTimeout(() => L.innerHTML = '', 1800); }
 render();
 </script>
 </body>
