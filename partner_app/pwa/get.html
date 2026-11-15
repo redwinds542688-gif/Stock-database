@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- 夥伴看盤 下載頁(2026-11-15 使用者「安卓 蘋果 網址下載點」):安卓 / 蘋果開同一個網址,自己判斷手機種類 -->
+<title>夥伴看盤 下載</title>
+<link rel="icon" type="image/png" href="/partner/icon-192.png">
+<link rel="apple-touch-icon" href="/partner/icon-180.png">
+<meta name="theme-color" content="#0B0E14">
+<style>
+:root{--bg:#0B0E14;--card:#151B28;--fg:#E6EAF2;--sub:#9AA4B8;--gold:#FFD54F;--green:#22E06B;--blue:#29B6F6;color-scheme:dark}
+*{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--fg);font-family:'Noto Sans TC',system-ui,-apple-system,'PingFang TC','Microsoft JhengHei',sans-serif}
+.w{max-width:460px;margin:0 auto;padding:max(24px,env(safe-area-inset-top,0px)) max(18px,env(safe-area-inset-right,0px)) 32px max(18px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:16px}
+.hd{display:flex;align-items:center;gap:14px} .hd img{width:72px;height:72px;border-radius:16px}
+h1{margin:0;font-size:28px;font-weight:900} .hd p{margin:4px 0 0;color:var(--sub);font-size:15px}
+.card{background:var(--card);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.card h2{margin:0;font-size:20px;color:var(--gold)}
+.btn{display:flex;align-items:center;justify-content:center;height:58px;border-radius:12px;font-size:21px;font-weight:900;text-decoration:none}
+.btn.g{background:var(--green);color:#000} .btn.b{background:var(--blue);color:#000} .btn.o{border:1px solid #3A4357;color:var(--fg);font-size:17px;height:48px}
+ol{margin:0;padding-left:22px;font-size:17px;line-height:1.9} ol b{color:var(--gold)}
+.note{font-size:14px;color:var(--sub);line-height:1.7}
+.sw{display:flex;gap:8px} .sw button{flex:1;height:40px;border-radius:20px;border:1px solid #3A4357;background:transparent;color:var(--sub);font-size:15px}
+.sw button.on{border-color:var(--gold);color:var(--gold)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="w">
+  <div class="hd"><img src="/partner/icon-192.png" alt=""><div><h1>夥伴看盤</h1><p>自動當沖 · 只看自己的元大持倉與成交</p></div></div>
+  <div class="sw" role="tablist"><button type="button" id="tA">安卓 Android</button><button type="button" id="tI">蘋果 iPhone / iPad</button></div>
+
+  <section class="card" id="pA">
+    <h2>安卓手機 / 平板</h2>
+    <a class="btn g" href="/partner/app.apk" download="PartnerViewer.apk">⬇ 下載 App</a>
+    <ol>
+      <li>按上面<b>下載 App</b>,下載完點開檔案</li>
+      <li>手機問「安裝未知應用程式」→ <b>允許</b></li>
+      <li>出現「安裝增強防護」→ 右上 <b>⋮ → 開始深度掃描</b> → 安裝</li>
+      <li>打開「夥伴看盤」→ 輸入或<b>掃描金鑰</b></li>
+    </ol>
+    <div class="note">以後有新版,打開 App 會自己問要不要更新。</div>
+  </section>
+
+  <section class="card" id="pI" hidden>
+    <h2>蘋果 iPhone / iPad</h2>
+    <a class="btn b" href="/partner/">打開夥伴看盤</a>
+    <ol>
+      <li>用 <b>Safari</b> 打開這一頁(LINE 裡的話先點右下角「用瀏覽器開啟」)</li>
+      <li>按上面<b>打開夥伴看盤</b></li>
+      <li>按下方中間的<b>分享</b>鍵(方框加箭頭)</li>
+      <li>往下滑,選<b>加入主畫面</b> → 右上<b>新增</b></li>
+      <li>從主畫面的「夥伴看盤」圖示打開 → 輸入或<b>掃描金鑰</b></li>
+    </ol>
+    <div class="note">蘋果不能裝安卓的 App,用「加入主畫面」就跟 App 一樣全螢幕,每次打開都是最新版。iPhone 網頁版沒有震動,畫面關掉時不會響。</div>
+  </section>
+</div>
+<script>
+const ua = navigator.userAgent || "", ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+function show(i){ document.getElementById("pA").hidden = i; document.getElementById("pI").hidden = !i; document.getElementById("tA").classList.toggle("on", !i); document.getElementById("tI").classList.toggle("on", i); }
+document.getElementById("tA").onclick = () => show(false); document.getElementById("tI").onclick = () => show(true);
+show(ios);
+</script>
+</body>
+</html>
