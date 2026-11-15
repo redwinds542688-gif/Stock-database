@@ -319,7 +319,13 @@ function start(){
   if (!keyGet()) return;
   const vis = f => () => { if (document.visibilityState !== "hidden") f(); };
   loadPos().then(loadQuotes); loadToday().then(loadMore);
-  TIMERS.push(setInterval(vis(loadPos), 15000), setInterval(vis(() => { if ((ST.pos || []).length) loadQuotes(); }), 5000), setInterval(vis(loadToday), 60000));
+  // 20:00 使用者「其他的手機不需要開啟主程式 開看盤就好 這樣也可以節省額度的使用量」→ 讀的頻率配合資料本來更新的速度,不多問:
+  //   夥伴:主機每 1 分鐘推一次持倉、每 2 分鐘查一次成交 → 持倉 60 秒、成交 120 秒(每次都要讀雲端資料庫,最花 Durable Object 額度)
+  //   主導$:直接問電腦 → 持倉 30 秒、成交 60 秒(不用雲端資料庫);現價 5 秒、只有手上有持倉才問(不用雲端資料庫)
+  //   手機畫面關掉 / 切到別的 App 時完全不問
+  const fam = isFam(keyGet()), tPos = fam ? 60000 : 30000, tFill = fam ? 120000 : 60000;
+  TIMERS.push(setInterval(vis(loadPos), tPos), setInterval(vis(() => { if ((ST.pos || []).length) loadQuotes(); }), 5000), setInterval(vis(loadToday), tFill));
+  if (!start.v) start.v = 1, document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && keyGet()){ loadPos().then(loadQuotes); loadToday(); } });   // 切回來馬上補一次
 }
 const S = { tab:"當沖", day:null };
 const fmt = v => (v>0?"+":v<0?"−":"") + Math.abs(Math.round(v)).toLocaleString("en-US");
