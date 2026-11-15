@@ -173,9 +173,10 @@ function vPos(){
   const hold = ENTRY.filter(o=>o.st==="o"), tot = hold.reduce((a,o)=>a+o.p,0);
   return [head("當沖","11/16", fmt(tot), cls(tot)),
     `<div class="stt"><span class="dot${ME.alive?"":" r"}"></span>${ME.alive?`主機正常回報 · ${ME.at}`:"主機超過 3 分鐘沒回報"}</div>`
-    + (hold.map(o=>`<div class="row"><div class="nm"><b>${esc(o.nm)}</b><small>${esc(o.code)}</small></div>
-      <div class="px"><b>${esc(o.ent)} → ${esc(o.now)}</b><small>${sd(o.s)} ${o.q}張</small></div>
-      <div class="rt"><b class="${cls(o.p)}">${fmt(o.p)}</b><small>帳面</small></div></div>`).join("") || `<div class="empty">目前沒有持倉</div>`)];
+    + (hold.map(o=>`<div class="erow"><div class="nm"><b>${esc(o.nm)}</b><div class="cd"><i>${esc(o.code)}</i><em class="${o.pct.startsWith("+")?"up":"dn"}">${esc(o.pct)}%</em></div></div>
+      <div class="pc"><b>${esc(o.ent)}</b><small><i>現</i>${esc(o.now)}</small></div>
+      <div class="sq">${sd(o.s)}<span>${o.q}張 ${esc(o.t)}</span></div>
+      <div class="rt"><small>帳面</small><b class="${cls(o.p)}">${fmt(o.p)}</b></div></div>`).join("") || `<div class="empty">目前沒有持倉</div>`)];
 }
 function vDone(){
   const L = DAYS[S.day], tot = L.reduce((a,o)=>a+o.p,0);
