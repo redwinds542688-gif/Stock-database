@@ -1829,8 +1829,23 @@ window.vwOnly = vwOnly;
 const fmApi = () => liveOn() ? BASE.liveUrl.replace(/\/$/, '') + '/?trade=' : '';
 
 /* 2026-10-28 12:21 當沖只列元大真的成交的部位:當沖開著、App 在前景時每 15 秒問電腦一次(?trade=pos,一次一個 Worker 請求;不開當沖不問) */
+/* 自動當沖夥伴版(2026-11-15 使用者「改成他自己的持倉」):夥伴鑰匙的當沖 / 進場黃燈 / 當沖燈 = 雲端 ?acct=get&name=pos(夥伴中繼每分鐘推的自己的部位,只拿得到自己的);
+   at 用雲端存的時間 → 主機 2 分鐘沒推新的就和主導$ 一樣當作連不上、改列虛擬。格式照電腦 ?trade=pos(enabled、pos[]) */
+function famPosPoll(force){
+  try{
+    if (!liveOn() || document.visibilityState === 'hidden') return;
+    const now = Date.now(); if (!force && window.__tposAt && now - window.__tposAt < 15000) return;
+    window.__tposAt = now;
+    fetch(BASE.liveUrl.replace(/\/$/, '') + '/?acct=get&name=pos&_=' + now, {cache: 'no-store', signal: AbortSignal.timeout(9000)}).then(r => r.json()).then(x => {
+      if (!(x && Array.isArray(x.v))) return; const at = +x.at || 0;
+      window.__tpos = {ok: true, enabled: true, pos: x.v, at: at > 0 && at <= Date.now() + 60000 ? at : Date.now(), fam: true};
+      try{ localStorage.setItem('mysh.tpos.last', JSON.stringify({d: new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10), at: Date.now(), pos: x.v})); }catch(e){}
+      try{ if ((window.NL_VIEW === 'pos' || window.NL_VIEW === 'done') && window.nlRender) nlRender(); }catch(e){} }).catch(() => {});
+  }catch(e){}
+}
 function tposPoll(force){
   try{
+    if (window.FAMK) return famPosPoll(force);   // 夥伴鑰匙:自己的部位(上面)
     if (!vTrade()) return;   // 2026-10-29 看盤版沒有電腦、不問部位(當沖照通知列)
     if (!liveOn() || document.visibilityState === 'hidden') return;
     const now = Date.now(); if (!force && window.__tposAt && now - window.__tposAt < 15000) return;
