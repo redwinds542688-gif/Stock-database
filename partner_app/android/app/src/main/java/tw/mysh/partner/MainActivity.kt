@@ -63,7 +63,9 @@ class MainActivity : Activity() {
         setContentView(web)
         if (savedInstanceState != null) web.restoreState(savedInstanceState)
         else web.loadUrl("https://appassets.androidplatform.net/assets/mine.html")
-        Updater.check(this)   // 每次打開靜靜看有沒有新版,有才問
+        Updater.check(this)   // 打開 App 時檢查一次版本,有新版才問
+        UpdateAlarm.schedule(this)   // 每個平日 08:30(開盤前 30 分鐘)再檢查一次
+        if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTI)   // 08:30 有新版時要能跳通知
     }
 
     override fun onRequestPermissionsResult(code: Int, perms: Array<out String>, res: IntArray) {
@@ -86,5 +88,5 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() { if (web.canGoBack()) web.goBack() else super.onBackPressed() }
 
-    companion object { const val REQ_CAM = 11; const val REQ_FILE = 12 }
+    companion object { const val REQ_CAM = 11; const val REQ_FILE = 12; const val REQ_NOTI = 13 }
 }

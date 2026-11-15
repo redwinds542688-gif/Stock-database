@@ -15,7 +15,7 @@ import kotlin.concurrent.thread
 
 /**
  * 夥伴看盤 App 自動更新(2026-11-15 使用者「看盤版 基本上不會改版 但也需要具備自動更新的能力」)
- * 照名揚四海 Updater.kt 的做法另寫一份(不共用):每次打開 App 靜靜看雲端的 partner_app/apk/version.json,
+ * 照名揚四海 Updater.kt 的做法另寫一份(不共用):打開 App 時 + 每個平日 08:30(UpdateAlarm)看雲端的 partner_app/apk/version.json,
  * 比手上的新才跳「有新版」;按「下載安裝」→ 下載 APK、確認版本對 → 打開系統安裝畫面,再按一次「安裝」就好,金鑰和設定都保留。
  * 檔案經 Worker ?gh=raw 讀 GitHub(和名揚四海同一條);沒新版、讀不到都不打擾。
  */
@@ -23,7 +23,7 @@ object Updater {
     private const val BASE = "https://twse-proxy.redwinds542688.workers.dev/?gh=raw&path=partner_app/apk/"
     data class Info(val code: Int, val name: String)
 
-    private fun fetchInfo(): Info? = try {
+    fun fetchInfo(): Info? = try {
         val c = URL(BASE + "version.json&_=" + System.currentTimeMillis()).openConnection() as HttpURLConnection
         c.connectTimeout = 15000; c.readTimeout = 20000; c.useCaches = false
         if (c.responseCode != 200) null else JSONObject(c.inputStream.bufferedReader(Charsets.UTF_8).readText()).let { Info(it.optInt("versionCode", 0), it.optString("versionName", "?")) }
