@@ -162,7 +162,7 @@ def refresh(cfg=None, log=print, pool=None):
         dd = HERE / "engine_data"; dd.mkdir(parents=True, exist_ok=True)
         (dd / f"elig_{d}.json").write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
     except Exception as e: log("[複檢] 存檔失敗", e)
-    if cfg.get("WORKER_URL") and cfg.get("PUSH_KEY"):
+    if cfg.get("WORKER_URL") and cfg.get("PUSH_KEY") and not str(cfg.get("ACCT_NAME", "")).strip():   # 2026-11-15 家人帳號只存本機,雲端那份由主帳號推
         try:
             body = json.dumps(out, ensure_ascii=False).encode("utf-8")
             req = urllib.request.Request(cfg["WORKER_URL"].rstrip("/") + "/?elig=push", data=body, method="POST",
