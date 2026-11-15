@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<!-- 夥伴看盤(簡單版,partner 分支):進場 / 當沖 / 明細 + 喇叭靜音鍵;聲音震動照主導版(抄一份,不共用);和名揚四海 app/ 完全分開。目前範例資料 -->
+<!-- 夥伴看盤(簡單版,partner 分支):當沖 / 明細 + 喇叭靜音鍵;聲音震動照主導版(抄一份,不共用);和名揚四海 app/ 完全分開。目前範例資料 -->
 <title>夥伴看盤</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -39,8 +39,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .up{color:var(--up)} .dn{color:var(--down)} .mut{color:var(--sub)} .gold{color:var(--gold)}
 .list{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;scroll-snap-type:y mandatory;overscroll-behavior:contain}
 /* 一頁固定 8 檔、不切半列(17:50 使用者「照這樣 一頁 八檔 不要切到」):列高 = 清單高度 ÷ 8(太矮的螢幕少放幾檔),滑動一格一格對齊 */
-.list > .erow,.list > .prow2,.list > .row{height:var(--rh,auto);flex:none;scroll-snap-align:start;padding-top:0;padding-bottom:0}
-.row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center;padding:9px 8px;border-bottom:1px solid #1E2636;background:repeating-linear-gradient(45deg,#121826 0 6px,#141B2A 6px 12px)}
+.list > .row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center;padding:9px 8px;border-bottom:1px solid #1E2636;background:repeating-linear-gradient(45deg,#121826 0 6px,#141B2A 6px 12px)}
 .nm{min-width:0} .nm b{display:block;font-size:clamp(16px,5vw,19px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .nm small{display:block;font-size:14px;color:var(--green);font-variant-numeric:tabular-nums}
 .px{text-align:right;font-variant-numeric:tabular-nums} .px b{font-size:clamp(15px,4.8vw,19px);white-space:nowrap} .px small{display:block;font-size:13px;color:var(--sub)}
 .sd{display:inline-block;font-size:14px;font-weight:700;border:1px solid;border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:2px}
@@ -50,15 +49,6 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .rt b{font-size:18px;font-weight:900} .rt small{font-size:13px;color:var(--sub)}
 .wl{font-size:12px;font-weight:700;border:1px solid;border-radius:4px;padding:0 4px}
 .wl.w{color:var(--up);border-color:var(--up)} .wl.l{color:var(--down);border-color:var(--down)} .wl.o{color:var(--sub);border-color:var(--line2)}
-.erow{display:grid;grid-template-columns:minmax(0,1fr) clamp(68px,22vw,92px) clamp(64px,19vw,80px) clamp(66px,21vw,88px);column-gap:6px;row-gap:2px;align-items:center;padding:9px 8px;border-bottom:1px solid #1E2636;background:repeating-linear-gradient(45deg,#121826 0 6px,#141B2A 6px 12px)}
-.erow .nm b{font-size:clamp(16px,5vw,19px)}
-.erow .nm{min-width:0} .erow .cd{display:flex;gap:4px;flex-wrap:nowrap;align-items:baseline;font-size:clamp(12px,3.9vw,14px);font-variant-numeric:tabular-nums;white-space:nowrap}
-.erow .cd i{font-style:normal;color:var(--green)} .erow .cd em{font-style:normal;font-weight:700}
-.erow .pc{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;display:flex;flex-direction:column;align-items:flex-end;gap:2px}
-.erow .pc b{font-size:clamp(16px,5vw,19px)} .erow .pc small{font-size:14px;color:var(--soft)} .erow .pc small i{font-style:normal;color:var(--sub);margin-right:3px}
-.erow .sq{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;color:var(--sub);white-space:nowrap;font-variant-numeric:tabular-nums}
-.erow .sq .sd{margin-left:0}
-.erow .rt{padding-left:4px} .erow .pc b.sm{font-size:clamp(13px,4.1vw,17px)} .erow .pc small.sm{font-size:clamp(11px,3.4vw,13px)} .erow .rt b.sm{font-size:clamp(13px,4vw,17px)}   /* 千元股價、六位數輸贏字小一點(滿版測試 330 寬會擠) */
 /* 當沖列(2026-11-15 使用者附圖「照這樣」;17:05「做空 3張 要移到 進場價格下面 箭頭後面接連 現在價格」):一行「進場價 → 現價 輸贏」,下一行 做空 N張(進場價下面)/ 現價 / 帳面;進場價、箭頭、現價、輸贏各一欄固定寬度 → 上下列對齊 */
 .prow2{display:grid;grid-template-columns:minmax(0,1fr) clamp(62px,19vw,80px) 16px clamp(62px,19vw,80px) clamp(64px,20vw,84px);column-gap:2px;row-gap:3px;align-items:center;padding:9px 8px;border-bottom:1px solid #1E2636;background:repeating-linear-gradient(45deg,#121826 0 6px,#141B2A 6px 12px)}
 .prow2 .nm{grid-row:1 / span 2;min-width:0} .prow2 .nm b{display:block;font-size:clamp(16px,5vw,19px)}
@@ -79,7 +69,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .dot{width:9px;height:9px;border-radius:5px;background:var(--green);flex:none} .dot.r{background:var(--bad)}
 .empty{padding:28px 16px;text-align:center;color:var(--sub);font-size:15px}
 .note{margin:10px 8px;padding:10px 12px;border-radius:10px;background:#111725;border:1px solid var(--line);font-size:13px;color:#B8C1D3;line-height:1.6}
-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:10px 8px calc(12px + env(safe-area-inset-bottom,0px));background:var(--bg);position:sticky;bottom:0;border-top:1px solid var(--line)}
+nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:10px 8px calc(12px + env(safe-area-inset-bottom,0px));background:var(--bg);position:sticky;bottom:0;border-top:1px solid var(--line)}
 nav button{height:56px;border-radius:10px;border:1px solid var(--gold);background:linear-gradient(#1E2638,#151B28);color:var(--soft);font:900 24px var(--f);cursor:pointer;letter-spacing:2px}
 nav button.on{color:var(--green);border:2px solid var(--green)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));width:min(92vw,420px);border-radius:12px;padding:10px 14px;z-index:30;box-shadow:0 6px 24px rgba(0,0,0,.6);display:flex;flex-direction:column;gap:2px;animation:drop .25s ease-out}
@@ -104,6 +94,7 @@ nav button.on{color:var(--green);border:2px solid var(--green)}
 <div id="layer"></div>
 
 <script>
+// 2026-11-15 18:00 使用者「我發現 根本不需要進場」→ 只剩 當沖 / 明細 兩頁(預設當沖)
 // 夥伴看盤(2026-11-15 使用者「簡單的看盤版 就是 進場 當沖 明細 三個就好 所有提醒震動聲音 都依照主導程式 只是簡易看盤也要有聲音跟靜音鍵」)
 // 和名揚四海完全分開的程式(名揚四海一行不改);聲音 / 震動 / 靜音照主導版(app.html webSnd、sndMuted;Android Alert.kt 的震動節奏)抄一份過來,不共用程式。
 // 只看自己:沒有平倉、下單、改設定。這版是畫面:範例資料,不連雲端。App 不寫看時間決定行為的邏輯。
@@ -165,7 +156,7 @@ const DAYS = {
   "11/12": [{nm:"華邦電",code:"2344",s:"s",a:"48.20",b:"47.05",q:3,p:3410},{nm:"群創",code:"3481",s:"s",a:"17.35",b:"17.05",q:3,p:2690}],
 };
 const ME = {alive:true, at:"10:51"};
-const S = { tab:"進場", day:"11/16" };
+const S = { tab:"當沖", day:"11/16" };
 const fmt = v => (v>0?"+":v<0?"−":"") + Math.abs(Math.round(v)).toLocaleString("en-US");
 const cls = v => v>0?"up":v<0?"dn":"mut";
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -175,13 +166,6 @@ function head(tab, date, amt, amtCls){
   return `<div class="tab">${tab}</div><div class="date">${date}</div>
     <button type="button" class="spk${muted()?"":" on"}" id="spk" aria-label="${muted()?"靜音,按一下開聲音":"有聲音,按一下靜音"}">${muted()?SPK_OFF:SPK_ON}</button>
     <div class="amt ${amtCls}">${amt}</div>`;
-}
-function vEntry(){
-  return [head("進場","11/16", `${ENTRY.length} 檔`, "gold"),
-    ENTRY.map(o=>`<div class="erow"><div class="nm"><b>${esc(o.nm)}</b><div class="cd"><i>${esc(o.code)}</i><em class="${o.pct.startsWith("+")?"up":"dn"}">${esc(o.pct)}%</em></div></div>
-      <div class="pc"><b${o.ent.length > 6 ? ' class="sm"' : ""}>${esc(o.ent)}</b><small${o.now.length > 6 ? ' class="sm"' : ""}><i>現</i>${esc(o.now)}</small></div>
-      <div class="sq">${sd(o.s)}<span>${o.q}張 ${esc(o.t)}</span></div>
-      <div class="rt"><span class="wl ${o.st==="o"?"o":o.p>0?"w":"l"}">${o.st==="o"?"持倉中":o.p>0?"贏":"輸"}</span><b class="${cls(o.p)}${fmt(o.p).length > 7 ? " sm" : ""}">${fmt(o.p)}</b></div></div>`).join("")];
 }
 function vPos(){
   const hold = ENTRY.filter(o=>o.st==="o"), tot = hold.reduce((a,o)=>a+o.p,0);
@@ -205,9 +189,9 @@ function fit(){ try{ const L = document.getElementById("list"), H = L.clientHeig
   L.style.setProperty("--rh", (H / n) + "px"); }catch(e){} }
 window.addEventListener("resize", fit);
 function render(){
-  const v = S.tab==="進場" ? vEntry() : S.tab==="當沖" ? vPos() : vDone(), h = v[0], pre = v.length > 2 ? v[1] : "", l = v[v.length - 1];
+  const v = S.tab==="當沖" ? vPos() : vDone(), h = v[0], pre = v.length > 2 ? v[1] : "", l = v[v.length - 1];
   document.getElementById("hd").innerHTML = h; document.getElementById("pre").innerHTML = pre; document.getElementById("list").innerHTML = l; fit();
-  document.getElementById("nav").innerHTML = ["進場","當沖","明細"].map(t=>`<button type="button" class="${S.tab===t?"on":""}" data-tab="${t}" aria-current="${S.tab===t?"page":"false"}">${t}</button>`).join("");
+  document.getElementById("nav").innerHTML = ["當沖","明細"].map(t=>`<button type="button" class="${S.tab===t?"on":""}" data-tab="${t}" aria-current="${S.tab===t?"page":"false"}">${t}</button>`).join("");
 }
 const DEMO = {
   entry:  ["進場 聯電 2303 做空 2張", "10:42 108.50 · 判六", "short"],
