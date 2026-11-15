@@ -63,6 +63,7 @@ class MainActivity : Activity() {
         setContentView(web)
         if (savedInstanceState != null) web.restoreState(savedInstanceState)
         else web.loadUrl("https://appassets.androidplatform.net/assets/mine.html")
+        Updater.check(this)   // 每次打開靜靜看有沒有新版,有才問
     }
 
     override fun onRequestPermissionsResult(code: Int, perms: Array<out String>, res: IntArray) {
