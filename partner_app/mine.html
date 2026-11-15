@@ -63,7 +63,8 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .prow2 .cd i{font-style:normal;color:var(--green)} .prow2 .cd em{font-style:normal;font-weight:700}
 .prow2 .n{text-align:right;font-size:clamp(15px,4.8vw,19px);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 .prow2 .ar{text-align:center;color:var(--soft);font-size:16px}
-.prow2 .n.l{text-align:left}   /* 現價靠左、緊貼箭頭;進場價靠右(17:10 使用者「現價 要緊貼箭頭後面顯示 進場價格是右對齊 現價是左對齊」) */
+.prow2 .n.l{text-align:left}
+.prow2 .n.sm{font-size:clamp(12px,3.7vw,16px)} .prow2 .pl{padding-left:4px} .prow2 .pl.sm{font-size:clamp(13px,4vw,17px)}   /* 千元以上的價格、六位數輸贏字小一點,窄手機也不擠 */   /* 現價靠左、緊貼箭頭;進場價靠右(17:10 使用者「現價 要緊貼箭頭後面顯示 進場價格是右對齊 現價是左對齊」) */
 .prow2 .pl{text-align:right;font-size:clamp(15px,4.8vw,19px);font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
 .prow2 .sub{grid-column:2;display:flex;justify-content:flex-end;align-items:center;gap:3px;font-size:13px;color:var(--sub);white-space:nowrap}
 .prow2 .now{grid-column:4;text-align:left;font-size:13px;color:var(--sub)}
@@ -186,7 +187,7 @@ function vPos(){
   return [head("當沖","11/16", fmt(tot), cls(tot)),
     `<div class="stt"><span class="dot${ME.alive?"":" r"}"></span>${ME.alive?`主機正常回報 · ${ME.at}`:"主機超過 3 分鐘沒回報"}</div>`
     + (hold.map(o=>`<div class="prow2"><div class="nm"><b>${esc(o.nm)}</b><div class="cd"><i>${esc(o.code)}</i><em class="${o.pct.startsWith("+")?"up":"dn"}">${esc(o.pct)}%</em></div></div>
-      <div class="n">${esc(o.ent)}</div><div class="ar" aria-hidden="true">→</div><div class="n l">${esc(o.now)}</div><div class="pl ${cls(o.p)}">${fmt(o.p)}</div>
+      <div class="n${o.ent.length > 6 ? " sm" : ""}">${esc(o.ent)}</div><div class="ar" aria-hidden="true">→</div><div class="n l${o.now.length > 6 ? " sm" : ""}">${esc(o.now)}</div><div class="pl ${cls(o.p)}${fmt(o.p).length > 7 ? " sm" : ""}">${fmt(o.p)}</div>
       <div class="sub">${sd(o.s)}<span>${o.q}張</span></div><div class="now">現價</div><div class="tg">帳面</div></div>`).join("") || `<div class="empty">目前沒有持倉</div>`)];
 }
 function vDone(){
