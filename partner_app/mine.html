@@ -92,7 +92,7 @@ nav button.on{color:var(--green);border:2px solid var(--green)}
 <div class="wrap">
   <div class="pv" aria-label="虛擬重播控制"><b>虛擬重播</b><span id="rpInfo">主導版 11/13 的虛擬交易</span>
     <button type="button" id="rpPlay">▶ 播放</button><button type="button" id="rpReset">⟲ 從 09:00 重來</button>
-    <button type="button" data-spd="1" class="on">1 分/秒</button><button type="button" data-spd="5">5 分/秒</button><button type="button" data-spd="20">20 分/秒</button>
+    <button type="button" data-spd="1" class="on">1 分/秒</button><button type="button" data-spd="5">5 分/秒</button><button type="button" data-spd="20">20 分/秒</button><button type="button" id="fake">當沖假資料 20 檔</button>
   </div>
   <div class="ttl"><h1>自動當沖 · 夥伴看盤</h1><span>夥伴A</span></div>
   <section class="panel"><div class="hd" id="hd"></div><div id="pre"></div><div class="list" id="list"></div></section>
@@ -186,7 +186,17 @@ function step(){   // 往前走一分鐘:進場 / 出場 / 浮贏浮輸分級,�
   if (ev) notify(ev[0], ev[1], ev[2]);
   repaint();
 }
-function play(){ if (RP.playing) return; if (RP.clock >= RP.end) reset(); RP.playing = true; RP.timer = setInterval(() => { for (let k = 0; k < RP.spd && RP.playing; k++) step(); }, 1000); ctl(); }
+/* 18:59 使用者「當沖那邊也弄個假資料 我滑看看」:當沖塞 20 檔假持倉(股票取自以前的虛擬交易,價格 / 輸贏是編的),好滑看看一頁 8 檔;按 ⟲ 回到重播 */
+function fakeHold(){
+  pause(); const seen = new Set(), pool = [];
+  for (const d of Object.values(VD.older)) for (const o of d) if (!seen.has(o.code)){ seen.add(o.code); pool.push(o); }
+  let k = 7; const rnd = () => (k = (k * 9301 + 49297) % 233280) / 233280;
+  ENTRY = pool.slice(0, 20).map(o => { const ent = +String(o.a).replace(/,/g, ""), tk = v => v < 10 ? 0.01 : v < 50 ? 0.05 : v < 100 ? 0.1 : v < 500 ? 0.5 : v < 1000 ? 1 : 5, raw = ent * (1 + (rnd() - 0.5) * 0.06), now = Math.round(Math.round(raw / tk(raw)) * tk(raw) * 100) / 100, q = 1 + Math.floor(rnd() * 3), s0 = rnd() < 0.8 ? "s" : "l";
+    return {nm: o.nm, code: o.code, pct: (rnd() < 0.5 ? "+" : "−") + (rnd() * 6).toFixed(2), s: s0, ent: fp(ent), now: fp(now), q, p: netOf(s0, ent, now, q), st: "o"}; });
+  ME.at = "假資料"; S.tab = "當沖"; render(); document.getElementById("list").scrollTop = 0;
+  const i = document.getElementById("rpInfo"); if (i) i.textContent = "當沖假資料 20 檔(按 ⟲ 回到重播)";
+}
+function play(){ if (RP.playing) return; if (ME.at === "假資料") rebuild(); if (RP.clock >= RP.end) reset(); RP.playing = true; RP.timer = setInterval(() => { for (let k = 0; k < RP.spd && RP.playing; k++) step(); }, 1000); ctl(); }
 function pause(){ RP.playing = false; clearInterval(RP.timer); ctl(); }
 function reset(){ pause(); RP.clock = mm("09:00"); RP.hi = 0; RP.lo = 0; rebuild(); render(); }
 function ctl(){ const b = document.getElementById("rpPlay"); if (b) b.textContent = RP.playing ? "⏸ 暫停" : RP.clock >= RP.end ? "▶ 再播一次" : "▶ 播放";
@@ -207,7 +217,7 @@ function head(tab, date, amt, amtCls){
 function vPos(){
   const hold = ENTRY.filter(o=>o.st==="o"), tot = hold.reduce((a,o)=>a+o.p,0);
   return [head("當沖", VD.day, fmt(tot), cls(tot)),
-    `<div class="stt"><span class="dot${ME.alive?"":" r"}"></span>${ME.alive?`主機正常回報 · ${ME.at}`:"主機超過 3 分鐘沒回報"}${RP.clock <= mm("09:00") ? " · 按上面 ▶ 播放 開始" : RP.clock >= RP.end ? " · 已收盤" : ""}</div>`,
+    `<div class="stt"><span class="dot${ME.alive?"":" r"}"></span>${ME.alive?`主機正常回報 · ${ME.at}`:"主機超過 3 分鐘沒回報"}${ME.at === "假資料" ? "" : RP.clock <= mm("09:00") ? " · 按上面 ▶ 播放 開始" : RP.clock >= RP.end ? " · 已收盤" : ""}</div>`,
     (hold.map(o=>`<div class="prow2"><div class="nm"><b>${esc(o.nm)}</b><div class="cd"><i>${esc(o.code)}</i><em class="${o.pct.startsWith("+")?"up":"dn"}">${esc(o.pct)}%</em></div></div>
       <div class="n${o.now.length > 6 ? " sm" : ""}">${esc(o.now)}</div><div class="n${o.ent.length > 6 ? " sm" : ""}">${esc(o.ent)}</div><div class="pl ${cls(o.p)}${fmt(o.p).length > 7 ? " sm" : ""}">${fmt(o.p)}</div>
       <div class="now">現價</div><div class="sub">${sd(o.s)}<span>${o.q}張</span></div><div class="tg">帳面</div></div>`).join("") || `<div class="empty">目前沒有持倉</div>`)];
@@ -246,6 +256,7 @@ document.addEventListener("click", e => { const b = e.target.closest("button"); 
   if (b.dataset.tab){ S.tab = b.dataset.tab; S.day = null; render(); document.getElementById("list").scrollTop = 0; return; }
   if (b.id === "rpPlay"){ RP.playing ? pause() : play(); return; }
   if (b.id === "rpReset"){ reset(); return; }
+  if (b.id === "fake"){ fakeHold(); return; }
   if (b.dataset.spd){ RP.spd = +b.dataset.spd; document.querySelectorAll("[data-spd]").forEach(x => x.classList.toggle("on", x === b)); return; }
 });
 function notifyQuiet(t){ const L = document.getElementById('layer'); L.innerHTML = `<div class="toast pc" role="status"><b>${esc(t)}</b></div>`; clearTimeout(notify.t); notify.t = setTimeout(() => L.innerHTML = '', 1800); }
