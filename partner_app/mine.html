@@ -38,10 +38,12 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .spk.on{background:var(--gold);color:#000;border-color:#fff;box-shadow:0 0 0 2px #000,0 0 0 3.5px var(--gold)}
 .amt{flex:1 1 auto;min-width:0;text-align:right;font-size:clamp(22px,7.4vw,32px);font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
 .up{color:var(--up)} .dn{color:var(--down)} .mut{color:var(--sub)} .gold{color:var(--gold)}
-.list{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;scroll-snap-type:y mandatory;overscroll-behavior:none}
+.list{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;transform:translateZ(0);will-change:scroll-position;display:flex;flex-direction:column;scroll-snap-type:y mandatory;overscroll-behavior:none}
 /* 一頁固定 8 檔、不切半列(17:50 使用者「照這樣 一頁 八檔 不要切到」):列高 = 清單高度 ÷ 8(太矮的螢幕少放幾檔),滑動一格一格對齊 */
-.list > .prow2,.list > .row,.list > .dsep,.list > .dend{height:var(--rh,auto);align-content:center;flex:none;scroll-snap-align:start;padding-top:0;padding-bottom:0}
-.row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center;padding:9px 8px;border-bottom:1px solid #1E2636;background:repeating-linear-gradient(45deg,#121826 0 6px,#141B2A 6px 12px)}
+/* 19:15 使用者「要順暢」:列底改單色(斜紋每列都要重畫,手機滑起來會卡)、清單用 GPU 圖層、每列各自排版不互相影響 */
+.list > .prow2:nth-child(even),.list > .row:nth-child(even){background:#151D2C}
+.list > .prow2,.list > .row,.list > .dsep,.list > .dend{contain:layout paint;height:var(--rh,auto);align-content:center;flex:none;scroll-snap-align:start;padding-top:0;padding-bottom:0}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center;padding:9px 8px;border-bottom:1px solid #1E2636;background:#131A28}
 .nm{min-width:0} .nm b{display:block;font-size:clamp(16px,5vw,19px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .nm small{display:block;font-size:14px;color:var(--green);font-variant-numeric:tabular-nums}
 .px{text-align:right;font-variant-numeric:tabular-nums} .px b{font-size:clamp(15px,4.8vw,19px);white-space:nowrap} .px small{display:block;font-size:13px;color:var(--sub)}
 .sd{display:inline-block;font-size:14px;font-weight:700;border:1px solid;border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:2px}
@@ -53,7 +55,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .wl.w{color:var(--up);border-color:var(--up)} .wl.l{color:var(--down);border-color:var(--down)} .wl.o{color:var(--sub);border-color:var(--line2)}
 /* 18:20 使用者「現價 與 做空價 對調 … 箭頭取消」:現價 | 做空(進場)價 | 帳面,兩個價格都靠右上下對齊;下一行 現價 / 做空 N張 / 帳面 */
 /* 當沖列(2026-11-15 使用者附圖「照這樣」;17:05「做空 3張 要移到 進場價格下面 箭頭後面接連 現在價格」):一行「進場價 → 現價 輸贏」,下一行 做空 N張(進場價下面)/ 現價 / 帳面;進場價、箭頭、現價、輸贏各一欄固定寬度 → 上下列對齊 */
-.prow2{display:grid;grid-template-columns:minmax(0,1fr) clamp(62px,19vw,80px) clamp(68px,21vw,88px) clamp(64px,20vw,84px);column-gap:clamp(4px,1.6vw,8px);row-gap:3px;align-items:center;padding:9px 8px;border-bottom:1px solid #1E2636;background:repeating-linear-gradient(45deg,#121826 0 6px,#141B2A 6px 12px)}
+.prow2{display:grid;grid-template-columns:minmax(0,1fr) clamp(62px,19vw,80px) clamp(68px,21vw,88px) clamp(64px,20vw,84px);column-gap:clamp(4px,1.6vw,8px);row-gap:3px;align-items:center;padding:9px 8px;border-bottom:1px solid #1E2636;background:#131A28}
 .prow2 .nm{grid-row:1 / span 2;min-width:0} .prow2 .nm b{display:block;font-size:clamp(16px,5vw,19px)}
 .prow2 .cd{display:flex;gap:4px;align-items:baseline;flex-wrap:nowrap;white-space:nowrap;font-size:clamp(12px,3.9vw,14px);font-variant-numeric:tabular-nums}
 .prow2 .cd i{font-style:normal;color:var(--green)} .prow2 .cd em{font-style:normal;font-weight:700}
@@ -201,7 +203,7 @@ function pause(){ RP.playing = false; clearInterval(RP.timer); ctl(); }
 function reset(){ pause(); RP.clock = mm("09:00"); RP.hi = 0; RP.lo = 0; rebuild(); render(); }
 function ctl(){ const b = document.getElementById("rpPlay"); if (b) b.textContent = RP.playing ? "⏸ 暫停" : RP.clock >= RP.end ? "▶ 再播一次" : "▶ 播放";
   const i = document.getElementById("rpInfo"); if (i) i.textContent = `主導版 ${VD.day} 的虛擬交易 · 現在 ${hm(RP.clock)}`; }
-function repaint(){ const L = document.getElementById("list"), st = L.scrollTop; render(); L.scrollTop = st; doneSync(true); ctl(); }
+function repaint(){ const L = document.getElementById("list"), st = L.scrollTop; render(); if (L.scrollTop !== st) L.scrollTop = st; doneSync(true); ctl(); }
 const ME = {alive:true, at:"09:00"};
 const S = { tab:"當沖", day:null };
 const fmt = v => (v>0?"+":v<0?"−":"") + Math.abs(Math.round(v)).toLocaleString("en-US");
@@ -249,7 +251,8 @@ window.addEventListener("resize", fit);
 
 function render(){
   const v = S.tab==="當沖" ? vPos() : vDone(), h = v[0], pre = v.length > 2 ? v[1] : "", l = v[v.length - 1];
-  document.getElementById("hd").innerHTML = h; document.getElementById("pre").innerHTML = pre; document.getElementById("list").innerHTML = l; fit();
+  const set = (id, v) => { const e = document.getElementById(id); if (e.__v !== v){ e.__v = v; e.innerHTML = v; } };   // 沒變就不重畫(滑動中不會被打斷)
+  set("hd", h); set("pre", pre); set("list", l); fit();
   document.getElementById("nav").innerHTML = ["當沖","明細"].map(t=>`<button type="button" class="${S.tab===t?"on":""}" data-tab="${t}" aria-current="${S.tab===t?"page":"false"}">${t}</button>`).join("");
 }
 document.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return;
