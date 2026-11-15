@@ -355,8 +355,9 @@ async function loadFills(d){
   }
   if (d !== ST.day){
     const c = fcGet(d); if (c) return c;
-    let rows = legsOf(await cloudFills(d));
-    if (!rows.length && !ST.pcDown){ try{ const j = await api(`trade=fills&d=${d}`); if (j && j.ok !== false) rows = legsOf(j); else if (!/沒有 .* 的成交紀錄/.test((j && j.msg) || "")) ST.pcDown = true; }catch(e){ ST.pcDown = true; } }
+    const cv = await cloudFills(d); let rows = legsOf(cv);
+    /* 雲端有那天的備份(就算 0 筆)就以雲端為準;沒有備份(11/12 以前)才問電腦 */
+    if (!cv && !ST.pcDown){ try{ const j = await api(`trade=fills&d=${d}`); if (j && j.ok !== false) rows = legsOf(j); else if (!/沒有 .* 的成交紀錄/.test((j && j.msg) || "")) ST.pcDown = true; }catch(e){ ST.pcDown = true; } }
     rows = sortT(rows); if (rows.length) fcPut(d, rows); return rows;
   }
   let v = null, err = "";
@@ -367,6 +368,9 @@ async function loadFills(d){
 }
 async function loadToday(){
   if (!keyGet()) return;
+  // 00:55 使用者「明細讀取速度很慢」:第一次先把雲端備份那份秀出來(不等電腦;電腦沒開要等到逾時 9 秒),電腦的回來再換成最新的(不響通知)
+  if (!ST.todayTried && !isFam(keyGet())) cloudFills(ST.day).then(v => { const rows = sortT(legsOf(v)); if (!v || ST.seenLegs != null || !rows.length) return;
+    ST.fills[ST.day] = {rows}; if (!ST.order.includes(ST.day)) ST.order.unshift(ST.day); ST.todayTried = true; rebuild(); });
   try{ const rows = await loadFills(ST.day);
     if (ST.seenLegs != null) for (const r of rows.slice(0, Math.max(0, rows.length - ST.seenLegs)).reverse()) notify(`${r.p > 0 ? "✅" : "⚠⚠"} ${r.nm} ${r.code} 平倉 ${fmt(r.p)}`, `${r.t ? r.t.slice(0, 5) + " " : ""}${fp(r.ent)} → ${fp(r.ex)} · ${r.q}張`, r.p > 0 ? "profit" : "loss");
     ST.seenLegs = rows.length; ST.fills[ST.day] = {rows}; if (!ST.order.includes(ST.day)) ST.order.unshift(ST.day); ST.posErr = ST.posErr === "" ? "" : ST.posErr;
@@ -377,10 +381,15 @@ async function loadMore(){   // 明細往上滑到底:再往前讀(週末不問;
   // 2026-11-15 20:50 使用者「不設限」:不限天數,一直往前讀到「連續 30 個平日都沒有紀錄」(= 已經到最早有存檔的那天)才停;
   //   一次至少找到 1 天有成交才停手(中間整段沒交易也會自己接著往前找),一次最多問 20 個平日
   if (!keyGet() || ST.loading || !ST.more) return; ST.loading = true; rebuild();
+  // 00:55「明細讀取速度很慢」:一次同時問 8 個平日(原本一天一天排隊問),照日期由新到舊接上
   let got = 0, asked = 0;
-  while (ST.more && asked < 20 && got < 3){ ST.back++; const d = twDate(ST.back), w = new Date(d + "T00:00:00Z").getUTCDay(); if (w === 0 || w === 6) continue; asked++;
-    let rows = []; try{ rows = await loadFills(d); }catch(e){}
-    if (rows.length){ ST.fills[d] = {rows}; ST.order.push(d); got++; ST.empty = 0; } else if (++ST.empty >= 30) ST.more = false; }
+  while (ST.more && asked < 24 && got < 3){
+    const ds = []; while (ds.length < 8){ ST.back++; const d = twDate(ST.back), w = new Date(d + "T00:00:00Z").getUTCDay(); if (w !== 0 && w !== 6) ds.push(d); }
+    asked += ds.length;
+    const ps = ds.map(d => loadFills(d).catch(() => []));   // 同時發出去
+    for (let i = 0; i < ds.length; i++){ const rows = await ps[i]; if (!ST.more) continue;   // 照日期順序接,讀到一天就先秀一天(不等整批)
+      if (rows.length){ ST.fills[ds[i]] = {rows}; ST.order.push(ds[i]); got++; ST.empty = 0; rebuild(); } else if (++ST.empty >= 30) ST.more = false; }
+  }
   ST.loading = false; rebuild();
 }
 function rebuild(){
@@ -414,7 +423,7 @@ function start(){
   TIMERS.splice(0).forEach(clearInterval); stReset(); keyPaint(); rebuild();
   if (!keyGet()){ try{ if (WS.ws){ WS.ws.onclose = null; WS.ws.close(); WS.ws = null; } }catch(e){} keyOpen(true); return; }
   const vis = f => () => { if (document.visibilityState !== "hidden") f(); };
-  loadPos().then(loadQuotes); loadToday().then(loadMore); setTimeout(watchAsk, 1500);
+  loadPos().then(loadQuotes); loadToday(); loadMore();   /* 今天和以前的一起讀(原本等今天讀完才讀以前) */ setTimeout(watchAsk, 1500);
   TIMERS.push(setInterval(() => { const b = document.getElementById("spk"); if (b && b.classList.contains("on") === muted()) render(); }, 3000));   // 名揚四海開 / 關時喇叭鍵跟著變
   // 20:00 使用者「其他的手機不需要開啟主程式 開看盤就好 這樣也可以節省額度的使用量」→ 讀的頻率配合資料本來更新的速度,不多問:
   //   夥伴:主機每 1 分鐘推一次持倉、每 2 分鐘查一次成交 → 持倉 60 秒、成交 120 秒(每次都要讀雲端資料庫,最花 Durable Object 額度)
