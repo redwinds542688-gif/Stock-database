@@ -50,18 +50,19 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .rt b{font-size:18px;font-weight:900} .rt small{font-size:13px;color:var(--sub)}
 .wl{font-size:12px;font-weight:700;border:1px solid;border-radius:4px;padding:0 4px}
 .wl.w{color:var(--up);border-color:var(--up)} .wl.l{color:var(--down);border-color:var(--down)} .wl.o{color:var(--sub);border-color:var(--line2)}
+/* 18:20 使用者「現價 與 做空價 對調 … 箭頭取消」:現價 | 做空(進場)價 | 帳面,兩個價格都靠右上下對齊;下一行 現價 / 做空 N張 / 帳面 */
 /* 當沖列(2026-11-15 使用者附圖「照這樣」;17:05「做空 3張 要移到 進場價格下面 箭頭後面接連 現在價格」):一行「進場價 → 現價 輸贏」,下一行 做空 N張(進場價下面)/ 現價 / 帳面;進場價、箭頭、現價、輸贏各一欄固定寬度 → 上下列對齊 */
-.prow2{display:grid;grid-template-columns:minmax(0,1fr) clamp(62px,19vw,80px) 16px clamp(62px,19vw,80px) clamp(64px,20vw,84px);column-gap:2px;row-gap:3px;align-items:center;padding:9px 8px;border-bottom:1px solid #1E2636;background:repeating-linear-gradient(45deg,#121826 0 6px,#141B2A 6px 12px)}
+.prow2{display:grid;grid-template-columns:minmax(0,1fr) clamp(62px,19vw,80px) clamp(68px,21vw,88px) clamp(64px,20vw,84px);column-gap:clamp(4px,1.6vw,8px);row-gap:3px;align-items:center;padding:9px 8px;border-bottom:1px solid #1E2636;background:repeating-linear-gradient(45deg,#121826 0 6px,#141B2A 6px 12px)}
 .prow2 .nm{grid-row:1 / span 2;min-width:0} .prow2 .nm b{display:block;font-size:clamp(16px,5vw,19px)}
-.prow2 .cd{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;font-size:14px;font-variant-numeric:tabular-nums}
+.prow2 .cd{display:flex;gap:4px;align-items:baseline;flex-wrap:nowrap;white-space:nowrap;font-size:clamp(12px,3.9vw,14px);font-variant-numeric:tabular-nums}
 .prow2 .cd i{font-style:normal;color:var(--green)} .prow2 .cd em{font-style:normal;font-weight:700}
 .prow2 .n{text-align:right;font-size:clamp(15px,4.8vw,19px);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 .prow2 .ar{text-align:center;color:var(--soft);font-size:16px}
 .prow2 .n.l{text-align:left}
 .prow2 .n.sm{font-size:clamp(12px,3.7vw,16px)} .prow2 .pl{padding-left:4px} .prow2 .pl.sm{font-size:clamp(13px,4vw,17px)}   /* 千元以上的價格、六位數輸贏字小一點,窄手機也不擠 */   /* 現價靠左、緊貼箭頭;進場價靠右(17:10 使用者「現價 要緊貼箭頭後面顯示 進場價格是右對齊 現價是左對齊」) */
 .prow2 .pl{text-align:right;font-size:clamp(15px,4.8vw,19px);font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
-.prow2 .sub{grid-column:2;display:flex;justify-content:flex-end;align-items:center;gap:3px;font-size:13px;color:var(--sub);white-space:nowrap}
-.prow2 .now{grid-column:4;text-align:left;font-size:13px;color:var(--sub)}
+.prow2 .sub{grid-column:3;display:flex;justify-content:flex-end;align-items:center;gap:3px;font-size:13px;color:var(--sub);white-space:nowrap}
+.prow2 .now{grid-column:2;text-align:right;font-size:13px;color:var(--sub)}
 .prow2 .sub .sd{margin-left:0} .prow2 .tg{text-align:right;font-size:13px;color:var(--sub)}
 .days{display:flex;gap:6px;overflow-x:auto;padding:0 6px 8px}
 .day{flex:none;height:34px;padding:0 12px;border-radius:17px;border:1px solid var(--line2);background:transparent;color:var(--soft);font:500 15px var(--f);cursor:pointer}
@@ -173,8 +174,8 @@ function vPos(){
   return [head("當沖","11/16", fmt(tot), cls(tot)),
     `<div class="stt"><span class="dot${ME.alive?"":" r"}"></span>${ME.alive?`主機正常回報 · ${ME.at}`:"主機超過 3 分鐘沒回報"}</div>`,
     (hold.map(o=>`<div class="prow2"><div class="nm"><b>${esc(o.nm)}</b><div class="cd"><i>${esc(o.code)}</i><em class="${o.pct.startsWith("+")?"up":"dn"}">${esc(o.pct)}%</em></div></div>
-      <div class="n${o.ent.length > 6 ? " sm" : ""}">${esc(o.ent)}</div><div class="ar" aria-hidden="true">→</div><div class="n l${o.now.length > 6 ? " sm" : ""}">${esc(o.now)}</div><div class="pl ${cls(o.p)}${fmt(o.p).length > 7 ? " sm" : ""}">${fmt(o.p)}</div>
-      <div class="sub">${sd(o.s)}<span>${o.q}張</span></div><div class="now">現價</div><div class="tg">帳面</div></div>`).join("") || `<div class="empty">目前沒有持倉</div>`)];
+      <div class="n${o.now.length > 6 ? " sm" : ""}">${esc(o.now)}</div><div class="n${o.ent.length > 6 ? " sm" : ""}">${esc(o.ent)}</div><div class="pl ${cls(o.p)}${fmt(o.p).length > 7 ? " sm" : ""}">${fmt(o.p)}</div>
+      <div class="now">現價</div><div class="sub">${sd(o.s)}<span>${o.q}張</span></div><div class="tg">帳面</div></div>`).join("") || `<div class="empty">目前沒有持倉</div>`)];
 }
 function vDone(){
   const L = DAYS[S.day], tot = L.reduce((a,o)=>a+o.p,0);
