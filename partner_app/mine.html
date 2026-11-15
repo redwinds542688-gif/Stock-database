@@ -152,10 +152,10 @@ const ENTRY = [   // 進場:今天程式幫夥伴進場的(和主導版進場頁
 ];
 const DAYS = {
   "11/16": [
-    {nm:"碩禾",code:"3691",s:"s",a:"145.00",b:"137.75",q:1,p:6933},{nm:"欣銓",code:"3264",s:"s",a:"217.00",b:"214.00",q:1,p:2522},
-    {nm:"台塑化",code:"6505",s:"l",a:"98.90",b:"101.37",q:2,p:4494},{nm:"鈺創",code:"5351",s:"s",a:"102.50",b:"104.00",q:2,p:-3534}],
-  "11/13": [{nm:"中鼎",code:"9933",s:"s",a:"50.90",b:"50.30",q:4,p:1960},{nm:"碩禾",code:"3691",s:"s",a:"140.50",b:"137.00",q:1,p:3310},{nm:"廣達",code:"2382",s:"l",a:"288.00",b:"285.50",q:1,p:-2860}],
-  "11/12": [{nm:"華邦電",code:"2344",s:"s",a:"48.20",b:"47.05",q:3,p:3410},{nm:"群創",code:"3481",s:"s",a:"17.35",b:"17.05",q:3,p:2690}],
+    {nm:"碩禾",pct:"−4.97",code:"3691",s:"s",a:"145.00",b:"137.75",q:1,p:6933},{nm:"欣銓",pct:"−1.84",code:"3264",s:"s",a:"217.00",b:"214.00",q:1,p:2522},
+    {nm:"台塑化",pct:"+2.50",code:"6505",s:"l",a:"98.90",b:"101.37",q:2,p:4494},{nm:"鈺創",pct:"+1.46",code:"5351",s:"s",a:"102.50",b:"104.00",q:2,p:-3534}],
+  "11/13": [{nm:"中鼎",pct:"−1.18",code:"9933",s:"s",a:"50.90",b:"50.30",q:4,p:1960},{nm:"碩禾",pct:"−4.97",code:"3691",s:"s",a:"140.50",b:"137.00",q:1,p:3310},{nm:"廣達",pct:"−0.87",code:"2382",s:"l",a:"288.00",b:"285.50",q:1,p:-2860}],
+  "11/12": [{nm:"華邦電",pct:"−2.39",code:"2344",s:"s",a:"48.20",b:"47.05",q:3,p:3410},{nm:"群創",pct:"−1.73",code:"3481",s:"s",a:"17.35",b:"17.05",q:3,p:2690}],
 };
 const ME = {alive:true, at:"10:51"};
 const S = { tab:"當沖", day:"11/16" };
@@ -181,9 +181,9 @@ function vDone(){
   const L = DAYS[S.day], tot = L.reduce((a,o)=>a+o.p,0);
   return [head("明細", S.day, fmt(tot), cls(tot)),
     `<div class="days" role="tablist">${Object.keys(DAYS).map(d=>`<button type="button" class="day${d===S.day?" on":""}" data-day="${d}" role="tab" aria-selected="${d===S.day}">${d}</button>`).join("")}</div>`,
-    L.map(o=>`<div class="row"><div class="nm"><b>${esc(o.nm)}</b><small>${esc(o.code)}</small></div>
-      <div class="px"><b>${esc(o.a)} → ${esc(o.b)}</b><small>${sd(o.s)} ${o.q}張</small></div>
-      <div class="rt"><b class="${cls(o.p)}">${fmt(o.p)}</b><small>元大成交</small></div></div>`).join("")];
+    L.map(o=>`<div class="prow2"><div class="nm"><b>${esc(o.nm)}</b><div class="cd"><i>${esc(o.code)}</i>${o.pct ? `<em class="${o.pct.startsWith("+")?"up":"dn"}">${esc(o.pct)}%</em>` : ""}</div></div>
+      <div class="n${o.b.length > 6 ? " sm" : ""}">${esc(o.b)}</div><div class="n${o.a.length > 6 ? " sm" : ""}">${esc(o.a)}</div><div class="pl ${cls(o.p)}${fmt(o.p).length > 7 ? " sm" : ""}">${fmt(o.p)}</div>
+      <div class="now">出場價</div><div class="sub">${sd(o.s)}<span>${o.q}張</span></div><div class="tg">元大成交</div></div>`).join("")];   /* 18:30 使用者「換明細」:和當沖同一種排法 —— 出場價 | 做空(進場)價 | 輸贏,價格靠右上下對齊,沒有箭頭 */
 }
 const PER_PAGE = 8, MIN_ROW = 52;
 function fit(){ try{ const L = document.getElementById("list"), H = L.clientHeight; if (!H) return;
