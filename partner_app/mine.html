@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- 夥伴看盤(簡單版,partner 分支):夥伴用自己的 fa11 鑰匙只看自己的;和名揚四海 app/ 完全分開。目前範例資料,不連雲端、不下單 -->
+<title>夥伴看盤</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+/* 版面:手機一欄;上標題、中間捲動、底部三鍵;單一深色(和夥伴管理同一套顏色,台股紅漲綠跌) */
+:root{
+  --ground:#0B0E14; --bg:#12161F; --card:#1B2232; --card2:#172033; --line:#2A3244; --line2:#3A4357;
+  --fg:#E6EAF2; --sub:#9AA4B8; --soft:#C9D1DF; --gold:#FFD54F; --blue:#29B6F6;
+  --up:#FF5A5F; --down:#3DDC84; --ok:#22C55E; --bad:#FF3B3B;
+  --f:'Noto Sans TC',system-ui,-apple-system,'PingFang TC','Microsoft JhengHei',sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--ground);color:var(--fg);font-family:var(--f);margin:0}
+*{box-sizing:border-box}
+button{font-family:inherit}
+button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.wrap{max-width:440px;margin:0 auto;min-height:100%;background:var(--bg);display:flex;flex-direction:column}
+.pv{padding-block:6px;padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));background:#0E121A;border-bottom:1px dashed var(--line2);font-size:13px;color:var(--sub);display:flex;gap:8px;flex-wrap:wrap}
+.pv b{color:var(--gold)}
+.hd{padding:12px 16px 10px;border-bottom:1px solid var(--blue);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hd h1{margin:0;font-size:clamp(20px,6.4vw,26px);font-weight:900;letter-spacing:1px;color:var(--blue);white-space:nowrap}
+.me{font-size:14px;color:var(--soft);border:1px solid var(--line2);border-radius:8px;padding:3px 8px;white-space:nowrap}
+main{flex:1;overflow:auto;padding:0 12px 16px;display:flex;flex-direction:column;gap:10px}
+.top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:12px}
+.pill{height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);display:flex;align-items:center;font-size:17px;color:var(--soft);white-space:nowrap}
+.pill.b{border:2px solid var(--blue);color:var(--blue);font-weight:900}
+.big{flex:1 1 auto;min-width:0;text-align:right;font-size:clamp(22px,7vw,28px);font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
+.up{color:var(--up)} .dn{color:var(--down)} .mut{color:var(--sub)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat{background:var(--card);border-radius:10px;padding:10px;text-align:center}
+.stat small{display:block;font-size:13px;color:var(--sub)}
+.stat strong{font-size:22px;font-variant-numeric:tabular-nums}
+.lab{display:flex;justify-content:space-between;gap:8px;font-size:14px;color:var(--sub);margin-top:4px}
+.list{display:flex;flex-direction:column;gap:8px}
+.trade{background:var(--card);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px}
+.trade.hold{background:var(--card2);border:1px dashed var(--line2)}
+.side{font-size:13px;font-weight:700;border:1px solid;border-radius:4px;padding:1px 4px;flex:none}
+.side.s{color:var(--down)} .side.l{color:var(--up)}
+.trade .nm{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.trade .nm b{font-size:18px}
+.trade .nm span{font-size:14px;color:var(--soft);font-variant-numeric:tabular-nums}
+.trade .nm em{font-style:normal;font-size:13px;color:var(--sub)}
+.trade .pn{flex:none;text-align:right;font-size:18px;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
+.days{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.day{flex:none;height:36px;padding:0 12px;border-radius:18px;border:1px solid var(--line2);background:transparent;color:var(--soft);font:500 15px var(--f);cursor:pointer}
+.day.on{border-color:var(--blue);background:#0E2230;color:var(--blue);font-weight:700}
+.state{display:flex;align-items:center;gap:8px;background:var(--card);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--soft)}
+.dot{width:10px;height:10px;border-radius:5px;background:var(--ok);flex:none} .dot.r{background:var(--bad)}
+.msg{background:var(--card);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.msg b{font-size:16px} .msg span{font-size:13px;color:var(--sub)}
+.msg.warn{background:#3A0E12;border:1px solid var(--bad)} .msg.warn b{color:#FFD0D0}
+.note{padding:10px 12px;border-radius:10px;background:#161B26;border:1px solid var(--line);font-size:14px;color:#B8C1D3;line-height:1.6}
+.empty{background:var(--card);border-radius:10px;padding:18px;text-align:center;color:var(--sub);font-size:15px}
+nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:10px 8px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:var(--bg);position:sticky;bottom:0}
+nav button{height:54px;border-radius:10px;border:1px solid var(--blue);background:var(--card);color:var(--soft);font:700 17px var(--f);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+nav button.on{border:2px solid var(--blue);color:var(--blue);background:#0E2230}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="pv"><span>夥伴看盤 · 只看自己,不能改、不能下單</span><span style="flex:1"></span><b>範例資料</b></div>
+  <header class="hd"><h1>自動當沖 · 夥伴看盤</h1><span class="me">夥伴A</span></header>
+  <main id="main"></main>
+  <nav id="nav"></nav>
+</div>
+
+<script>
+// 夥伴看盤(2026-11-15 使用者「程式全分開 主導看盤 就是最原始的程式」→「A 簡單版 先畫」)
+// 和名揚四海完全分開的程式;夥伴用自己的 fa11 鑰匙,只看得到自己的。這版是畫面:範例資料,不連雲端、不下單。App 不寫看時間決定行為的邏輯。
+const ME = { name: "夥伴A", acct: "1234", alive: true, at: "10:51" };
+const DAYS = {
+  "11/16": { fills: [
+      {s:"s",nm:"碩禾",a:"145.00",b:"137.75",q:1,p:6933,t:"09:12 → 09:47"},
+      {s:"s",nm:"欣銓",a:"217.0",b:"214.0",q:1,p:2522,t:"09:20 → 10:05"},
+      {s:"l",nm:"台塑化",a:"98.90",b:"101.37",q:2,p:4494,t:"09:31 → 10:22"},
+      {s:"s",nm:"鈺創",a:"102.5",b:"104.0",q:2,p:-3534,t:"09:40 → 10:18"}],
+    hold: [
+      {s:"s",nm:"聯電",a:"108.5",now:"107.0",q:2,p:2780,t:"10:42 進場"},
+      {s:"s",nm:"台塑",a:"72.1",now:"72.4",q:3,p:-860,t:"11:05 進場"}] },
+  "11/13": { fills: [
+      {s:"s",nm:"中鼎",a:"50.90",b:"50.30",q:4,p:1960,t:"09:25 → 10:40"},
+      {s:"s",nm:"碩禾",a:"140.50",b:"137.00",q:1,p:3310,t:"09:33 → 11:02"},
+      {s:"l",nm:"廣達",a:"288.0",b:"285.5",q:1,p:-2860,t:"10:02 → 10:30"}], hold: [] },
+  "11/12": { fills: [
+      {s:"s",nm:"華邦電",a:"48.20",b:"47.05",q:3,p:3410,t:"09:15 → 09:58"},
+      {s:"s",nm:"群創",a:"17.35",b:"17.05",q:3,p:2690,t:"09:41 → 10:47"}], hold: [] },
+};
+const MSGS = [
+  {w:false,t:"✅ 當天賺 1 萬",at:"10:58"},
+  {w:false,t:"進場 台塑 空 3 張(判三)",at:"11:05"},
+  {w:false,t:"進場 聯電 空 2 張(判六)",at:"10:42"},
+  {w:true ,t:"⚠ 當天虧損 2 萬:停止新進場",at:"範例:虧到上限時會這樣提醒"},
+  {w:true ,t:"⚠⚠ 電腦斷線 還有 2 檔沒平",at:"範例:13:20 程式無法平倉時,請用投資先生手動平倉"},
+];
+const S = { tab: "明細", day: "11/16" };
+const fmt = v => (v>0?"+":v<0?"−":"") + Math.abs(Math.round(v)).toLocaleString("en-US");
+const cls = v => v>0?"up":v<0?"dn":"mut";
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const sum = a => a.reduce((x,o)=>x+o.p,0);
+const side = o => `<span class="side ${o.s}">${o.s==="s"?"空":"多"}</span>`;
+
+function vDone(){
+  const D = DAYS[S.day], tot = sum(D.fills), win = D.fills.filter(o=>o.p>0).length;
+  return `<div class="top"><div class="pill b">我的明細</div><div class="big ${cls(tot)}">${fmt(tot)}</div></div>
+  <div class="days" role="tablist">${Object.keys(DAYS).map(d=>`<button type="button" class="day${d===S.day?" on":""}" data-day="${d}" role="tab" aria-selected="${d===S.day}">${d}</button>`).join("")}</div>
+  <div class="stats"><div class="stat"><small>已平倉</small><strong>${D.fills.length} 筆</strong></div><div class="stat"><small>勝率</small><strong>${D.fills.length?Math.round(win/D.fills.length*100)+"%":"—"}</strong></div><div class="stat"><small>持倉中</small><strong>${D.hold.length} 檔</strong></div></div>
+  <div class="lab"><span>元大成交(帳號 …${ME.acct})</span><span>已扣手續費、證交稅</span></div>
+  <div class="list">${D.fills.map(o=>`<div class="trade">${side(o)}<div class="nm"><b>${esc(o.nm)}</b><span>${esc(o.a)} → ${esc(o.b)} · ${o.q} 張</span><em>${esc(o.t)}</em></div><div class="pn ${cls(o.p)}">${fmt(o.p)}</div></div>`).join("") || `<div class="empty">這天沒有成交</div>`}</div>`;
+}
+function vHold(){
+  const D = DAYS["11/16"], tot = sum(D.hold);
+  return `<div class="top"><div class="pill b">我的持倉</div><div class="big ${cls(tot)}">${fmt(tot)}</div></div>
+  <div class="state"><span class="dot${ME.alive?"":" r"}"></span>${ME.alive?`主機正常回報 · 最後更新 ${ME.at}`:"主機超過 3 分鐘沒回報,持倉可能不是最新"}</div>
+  <div class="lab"><span>還沒平倉 ${D.hold.length} 檔</span><span>帳面輸贏(照現價)</span></div>
+  <div class="list">${D.hold.map(o=>`<div class="trade hold">${side(o)}<div class="nm"><b>${esc(o.nm)}</b><span>${esc(o.a)} → 現 ${esc(o.now)} · ${o.q} 張</span><em>${esc(o.t)}</em></div><div class="pn ${cls(o.p)}">${fmt(o.p)}</div></div>`).join("") || `<div class="empty">目前沒有持倉</div>`}</div>
+  <div class="note">程式會照設定自動停損停利,13:20 前全部平倉。這裡只能看,不能平倉或下單;有問題請聯絡主導$。</div>`;
+}
+function vMsg(){
+  return `<div class="top"><div class="pill b">提醒</div><div class="big mut" style="font-size:15px;font-weight:400">只收到自己的</div></div>
+  <div class="list">${MSGS.map(m=>`<div class="msg${m.w?" warn":""}"><b>${esc(m.t)}</b><span>${esc(m.at)}</span></div>`).join("")}</div>
+  <div class="note">判別式、資金設定都由主導$ 管理,這個程式看不到也改不了。</div>`;
+}
+const IC = {
+  明細:'<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
+  持倉:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  提醒:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>'};
+function render(){
+  document.getElementById("main").innerHTML = S.tab==="明細" ? vDone() : S.tab==="持倉" ? vHold() : vMsg();
+  document.getElementById("nav").innerHTML = ["明細","持倉","提醒"].map(t=>`<button type="button" class="${S.tab===t?"on":""}" data-tab="${t}" aria-current="${S.tab===t?"page":"false"}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[t]}</svg>${t==="明細"?"我的明細":t==="持倉"?"我的持倉":"提醒"}</button>`).join("");
+}
+document.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.tab){ S.tab = b.dataset.tab; render(); document.getElementById("main").scrollTop = 0; }
+  if (b.dataset.day){ S.day = b.dataset.day; render(); } });
+render();
+</script>
+</body>
+</html>
