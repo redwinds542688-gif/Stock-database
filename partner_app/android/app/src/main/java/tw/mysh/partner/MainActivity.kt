@@ -38,6 +38,7 @@ class MainActivity : Activity() {
             javaScriptEnabled = true
             domStorageEnabled = true                    // 金鑰、靜音設定存這裡
             mediaPlaybackRequiresUserGesture = false    // 通知聲音
+            textZoom = 100                              // 2026-11-15 使用者截圖金額被擠到下一行:不跟手機系統字體大小放大(畫面的字本來就很大),長數字由網頁自己縮字
             allowFileAccess = false
             allowContentAccess = true
         }
