@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -60,6 +61,7 @@ class MainActivity : Activity() {
                 catch (e: Exception) { fileCb = null; false }
             }
         }
+        web.addJavascriptInterface(Host(), "PartnerHost")   // 網頁問:這支手機有沒有裝名揚四海
         setContentView(web)
         if (savedInstanceState != null) web.restoreState(savedInstanceState)
         else web.loadUrl("https://appassets.androidplatform.net/assets/mine.html")
@@ -87,6 +89,13 @@ class MainActivity : Activity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() { if (web.canGoBack()) web.goBack() else super.onBackPressed() }
+
+    /** 2026-11-15 使用者「檢測 二程式同時存在 看盤版則靜音也不震動」:這支手機裝了名揚四海(主程式或名揚四海看盤)→ 網頁那邊自動不響不震 */
+    inner class Host {
+        @JavascriptInterface fun mainInstalled(): Boolean = listOf("tw.mysh.monitor", "tw.mysh.monitor.viewer").any {
+            try { packageManager.getPackageInfo(it, 0); true } catch (e: Exception) { false } }
+        @JavascriptInterface fun version(): String = BuildConfig.VERSION_NAME
+    }
 
     companion object { const val REQ_CAM = 11; const val REQ_FILE = 12; const val REQ_NOTI = 13 }
 }

@@ -7,6 +7,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Android 11 起要先聲明才看得到別的 App 有沒有裝:只問名揚四海這兩個 -->
+    <queries>
+        <package android:name="tw.mysh.monitor" />
+        <package android:name="tw.mysh.monitor.viewer" />
+    </queries>
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"

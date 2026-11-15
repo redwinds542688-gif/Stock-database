@@ -1,4 +1,4 @@
-// note: 1.0.5 金鑰錯誤時入口畫面不會被通知蓋掉
+// note: 1.0.6 這支手機有名揚四海時自動不響不震
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -10,8 +10,8 @@ android {
         applicationId = "tw.mysh.partner"   // 和名揚四海(tw.mysh.monitor)、名揚四海看盤(tw.mysh.monitor.viewer)不同 → 三個可以同時裝
         minSdk = 26
         targetSdk = 34
-        versionCode = 6
-        versionName = "1.0.5"
+        versionCode = 7
+        versionName = "1.0.6"
     }
     signingConfigs {
         create("release") {

@@ -137,7 +137,10 @@ const MUTE_KEY = 'partner.mute';
 const sndMuted = () => { try{ const v = localStorage.getItem(MUTE_KEY); return window.Android ? v !== '0' : v === '1'; }catch(e){ return !!window.Android; } };
 const sndSet = m => { try{ localStorage.setItem(MUTE_KEY, m ? '1' : '0'); }catch(e){} };
 let MUTED_MEM = null;   // 按過就以這次為準(存不了 localStorage 也照樣切換)
-const muted = () => MUTED_MEM != null ? MUTED_MEM : sndMuted();
+/* 2026-11-15 21:25 使用者「檢測 二程式同時存在 看盤版則靜音也不震動」:這台也有名揚四海 → 由名揚四海響,夥伴看盤不響也不震(避免同一筆交易響兩次)
+   Android App:問 App 殼這支手機有沒有裝名揚四海(tw.mysh.monitor 或 .viewer);網址版:同一個瀏覽器用過名揚四海網頁版(存過 mysh.key)。畫面照常更新、通知卡照常顯示 */
+const coexist = () => { try{ if (window.PartnerHost && PartnerHost.mainInstalled()) return true; }catch(e){} try{ return !!localStorage.getItem("mysh.key"); }catch(e){ return false; } };
+const muted = () => coexist() || (MUTED_MEM != null ? MUTED_MEM : sndMuted());
 const SPK_ON = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M3 9h4l5-4v14l-5-4H3z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>';
 const SPK_OFF = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M3 9h4l5-4v14l-5-4H3z" fill="currentColor"/><path d="M16 9l6 6M22 9l-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 const WSND = { ctx: null };
@@ -164,7 +167,7 @@ function vibOf(kind){
   return [0, 400, 200, 400, 200, 600];
 }
 function notify(title, body, kind){
-  try{ navigator.vibrate && navigator.vibrate(vibOf(kind)); }catch(e){}
+  try{ if (!coexist()) navigator.vibrate && navigator.vibrate(vibOf(kind)); }catch(e){}   // 和名揚四海同一台:不震
   webSnd(kind, title);
   const cls = /^lv/.test(kind) ? 'lv' : /^win/.test(kind) ? 'win' : kind;
   const L = document.getElementById('toastL'); L.innerHTML = `<div class="toast ${cls}" role="status"><b>${esc(title)}</b><span>${esc(body)}</span></div>`;
@@ -421,6 +424,7 @@ function render(){
   document.getElementById("nav").innerHTML = ["當沖","明細"].map(t=>`<button type="button" class="${S.tab===t?"on":""}" data-tab="${t}" aria-current="${S.tab===t?"page":"false"}">${t}</button>`).join("");
 }
 document.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return;
+  if (b.id === "spk" && coexist()){ notifyQuiet("這台也有名揚四海:由名揚四海響,夥伴看盤不響也不震"); return; }
   if (b.id === "spk"){ const m = !muted(); sndSet(m); MUTED_MEM = m; render(); notifyQuiet(m ? "這台靜音(不響,震動照舊)" : "這台通知有聲音"); if (!m) webSnd("long", ""); return; }
   if (b.dataset.tab){ S.tab = b.dataset.tab; S.day = null; render(); document.getElementById("list").scrollTop = 0; return; }
   if (b.id === "keyBtn"){ keyOpen(); return; }
