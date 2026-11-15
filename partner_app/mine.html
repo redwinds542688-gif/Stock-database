@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<!-- 夥伴看盤(簡單版,partner 分支):當沖 / 明細 + 喇叭靜音鍵 + 金鑰鍵;聲音震動照主導版(抄一份,不共用);和名揚四海 app/ 完全分開。虛擬版本:主導版 bt_fill.json + 1 分 K 重播 -->
+<!-- 夥伴看盤(簡單版,partner 分支):當沖 / 明細 + 喇叭靜音鍵 + 金鑰鍵(可掃 QR);聲音震動、掃碼照主導版(抄一份,不共用);和名揚四海 app/ 完全分開。虛擬版本:主導版 bt_fill.json + 1 分 K 重播 -->
 <title>夥伴看盤</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -37,6 +37,8 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .dlg h3{margin:0;font-size:20px;font-weight:900;color:var(--gold)}
 .dlg p{margin:0;font-size:14px;color:#B8C1D3;line-height:1.6}
 .dlg input{height:50px;border-radius:10px;border:1px solid var(--line2);background:#0B0E14;color:var(--fg);font:500 18px ui-monospace,monospace;padding:0 12px;letter-spacing:1px}
+.qrb{flex:none;height:50px;padding:0 14px;border-radius:10px;border:1px solid #4FC3F7;background:#0B1A26;color:#4FC3F7;font:700 17px var(--f);cursor:pointer}
+.qrpic{font-size:14px;color:#4FC3F7;text-decoration:underline;cursor:pointer;align-self:flex-start}
 .dlg .err{min-height:18px;font-size:14px;color:#FF8A8A}
 .dlg .bt{display:flex;gap:8px} .dlg .bt button{flex:1;height:48px;border-radius:10px;font:700 17px var(--f);cursor:pointer;border:1px solid var(--line2);background:transparent;color:var(--soft)}
 .dlg .bt .ok{background:var(--gold);border-color:var(--gold);color:#000}
@@ -224,17 +226,58 @@ function keyOpen(){
     <h3 id="keyT">${k ? "更換金鑰" : "輸入金鑰"}</h3>
     <p>請輸入主導$ 發給你的<b>夥伴金鑰</b>(fa11 開頭)。${k ? `目前:fa11••••${esc(k.slice(-4))}` : ""}</p>
     <label for="keyIn" class="mut" style="font-size:13px">金鑰</label>
-    <input id="keyIn" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text" placeholder="fa11…" maxlength="40">
+    <div style="display:flex;gap:8px"><input id="keyIn" style="flex:1;min-width:0" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text" placeholder="fa11…" maxlength="40">
+    <button type="button" id="keyScan" class="qrb" aria-label="掃描金鑰 QR Code">掃描</button></div>
+    <label class="qrpic">或從相簿選 QR Code 圖片<input type="file" id="keyPic" accept="image/*" hidden></label>
     <div class="err" id="keyErr" role="alert"></div>
     <div class="bt"><button type="button" id="keyNo">取消</button>${k ? '<button type="button" id="keyDel">清除</button>' : ""}<button type="submit" class="ok">儲存</button></div>
   </form></div>`;
   const inp = document.getElementById("keyIn"); inp.focus(); inp.oninput = () => document.getElementById("keyErr").textContent = "";
   document.getElementById("keyNo").onclick = () => L.innerHTML = "";
+  const got = text => { inp.value = String(text || "").trim(); document.getElementById("keyForm").requestSubmit(); };   // 掃到就直接存(和主導版一樣)
+  document.getElementById("keyScan").onclick = () => qrScan(got, m => document.getElementById("keyErr") && (document.getElementById("keyErr").textContent = m));
+  document.getElementById("keyPic").onchange = e => { const f = e.target.files && e.target.files[0]; if (f) qrFromImage(f).then(got, m => document.getElementById("keyErr").textContent = m); };
   const del = document.getElementById("keyDel"); if (del) del.onclick = () => { keySet(""); L.innerHTML = ""; keyPaint(); notifyQuiet("已清除這支手機的金鑰"); };
   document.getElementById("keyForm").onsubmit = e => { e.preventDefault(); const v = inp.value.trim().toLowerCase(), er = document.getElementById("keyErr");
     if (!/^[a-f0-9]{16,40}$/.test(v)) return er.textContent = "金鑰格式不對:16~40 個 0-9、a-f";
     if (!v.startsWith("fa11")) return er.textContent = "這不是夥伴金鑰(要 fa11 開頭)。主導$ 的鑰匙請用名揚四海 App";
     keySet(v); L.innerHTML = ""; keyPaint(); notifyQuiet("金鑰已存在這支手機(預覽版不連雲端)"); };
+}
+/* 19:25 使用者「一樣要有掃碼功能」:照主導版 qrScan 抄一份 —— 開後鏡頭,瀏覽器有 BarcodeDetector 就用,沒有臨時載入 jsQR(iPhone),掃到就關鏡頭、填進去直接存。
+   相機打不開(沒給權限、用檔案開啟的網頁)→ 可以改「從相簿選 QR Code 圖片」 */
+const loadJsQR = () => window.jsQR ? Promise.resolve() : new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
+async function qrDetector(){ try{ if ("BarcodeDetector" in window && (await BarcodeDetector.getSupportedFormats()).includes("qr_code")) return new BarcodeDetector({formats: ["qr_code"]}); }catch(e){} return null; }
+function qrScan(onText, onErr){
+  const w = document.createElement("div"); w.className = "mask"; w.style.cssText = "flex-direction:column;gap:14px;background:#000;z-index:60";
+  w.innerHTML = '<video playsinline autoplay muted style="width:86vw;max-width:420px;aspect-ratio:1;object-fit:cover;border:3px solid #4FC3F7;border-radius:12px;background:#111"></video><div class="qmsg" style="color:#E6EAF2;font-size:16px;text-align:center;max-width:86vw">把金鑰的 QR Code 放進框內</div><button type="button" style="padding:10px 28px;font-size:18px;border-radius:10px;border:1px solid #8C96AB;background:#000;color:#E6EAF2">取消</button>';
+  document.body.appendChild(w);
+  const v = w.querySelector("video"), msg = w.querySelector(".qmsg"); let stream = null, done = false;
+  const stop = () => { done = true; try{ stream && stream.getTracks().forEach(t => t.stop()); }catch(e){} w.remove(); };
+  w.querySelector("button").onclick = stop;
+  (async () => {
+    try{ if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw {name: "這個開啟方式不支援相機"}; stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: "environment"}, audio: false}); }
+    catch(e){ msg.textContent = "打不開相機(" + (e && e.name || e) + "):請允許使用相機,或按取消改用「從相簿選 QR Code 圖片」"; return; }
+    v.srcObject = stream; try{ await v.play(); }catch(e){}
+    const det = await qrDetector(); if (!det){ try{ await loadJsQR(); }catch(e){ msg.textContent = "載入掃描元件失敗(請確認網路)"; return; } }
+    const cv = document.createElement("canvas"), g = cv.getContext("2d", {willReadFrequently: true});
+    const tick = async () => { if (done) return;
+      try{ let text = null;
+        if (det){ const r = await det.detect(v); if (r && r.length) text = r[0].rawValue; }
+        else if (v.videoWidth){ cv.width = v.videoWidth; cv.height = v.videoHeight; g.drawImage(v, 0, 0); const im = g.getImageData(0, 0, cv.width, cv.height); const r = window.jsQR(im.data, im.width, im.height, {inversionAttempts: "dontInvert"}); if (r) text = r.data; }
+        if (text){ stop(); try{ navigator.vibrate && navigator.vibrate(60); }catch(e){} onText(text); return; } }catch(e){}
+      setTimeout(tick, 200); };
+    tick();
+  })();
+}
+async function qrFromImage(file){
+  const img = await new Promise((res, rej) => { const u = URL.createObjectURL(file), im = new Image(); im.onload = () => res(im); im.onerror = () => rej("讀不到這張圖片"); im.src = u; });
+  const det = await qrDetector();
+  if (det){ try{ const r = await det.detect(img); if (r && r.length) return r[0].rawValue; }catch(e){} }
+  try{ await loadJsQR(); }catch(e){ throw "載入掃描元件失敗(請確認網路)"; }
+  const cv = document.createElement("canvas"), sc = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)); cv.width = img.naturalWidth * sc; cv.height = img.naturalHeight * sc;
+  const g = cv.getContext("2d", {willReadFrequently: true}); g.drawImage(img, 0, 0, cv.width, cv.height); const d = g.getImageData(0, 0, cv.width, cv.height);
+  const r = window.jsQR(d.data, d.width, d.height, {inversionAttempts: "attemptBoth"}); if (r) return r.data;
+  throw "這張圖片裡找不到 QR Code";
 }
 function play(){ if (RP.playing) return; if (ME.at === "假資料") rebuild(); if (RP.clock >= RP.end) reset(); RP.playing = true; RP.timer = setInterval(() => { for (let k = 0; k < RP.spd && RP.playing; k++) step(); }, 1000); ctl(); }
 function pause(){ RP.playing = false; clearInterval(RP.timer); ctl(); }
