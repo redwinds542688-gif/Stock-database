@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<!-- 夥伴看盤(partner 分支):只讀金鑰對應帳號的元大真實資料(夥伴 fa11 → ?acct=get;主導$ → ?trade=pos / fills);當沖 / 明細 + 喇叭靜音 + 金鑰(可掃 QR);和名揚四海 app/ 完全分開 -->
+<!-- 夥伴看盤(partner 分支):只讀金鑰對應帳號的元大真實資料(夥伴 fa11 → ?acct=get;主導$ → ?trade=pos / fills),帶 pv=1 不綁設備;當沖 / 明細 + 喇叭靜音 + 金鑰(可掃 QR);和名揚四海 app/ 完全分開 -->
 <title>夥伴看盤</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -234,13 +234,11 @@ async function qrFromImage(file){
    現價 / 名稱 / 昨收:?codes=…&mkt=any(和主導版同一個即時行情)。沒有金鑰什麼都不讀。
    App 不寫看時間決定行為的邏輯:不分盤中盤後,App 開著就定時讀(持倉 15 秒、現價 5 秒、今天成交 60 秒)。 */
 const WORKER = "https://twse-proxy.redwinds542688.workers.dev";
-const DEV = (() => { let v = ""; try{ v = localStorage.getItem("partner.dev") || ""; }catch(e){}
-  if (!/^[a-f0-9]{16}$/.test(v)){ const a = new Uint8Array(8); try{ crypto.getRandomValues(a); }catch(e){ for (let i = 0; i < 8; i++) a[i] = Math.floor(Math.random() * 256); } v = [...a].map(b => b.toString(16).padStart(2, "0")).join(""); try{ localStorage.setItem("partner.dev", v); }catch(e){} }
-  return v; })();
-const api = q => fetch(`${WORKER}/?${q}&k=${encodeURIComponent(keyGet())}&dv=${DEV}&_=${Date.now()}`, {cache: "no-store", signal: AbortSignal.timeout(9000)})
+// 19:45 使用者「看盤版 掃描這個金鑰 就可以看盤監控 10台設備也沒有關係」:帶 pv=1、不帶 dv(手機識別碼)→ 雲端不綁設備,幾台都能看;只能讀不能下單(worker.js pvOwner)
+const api = q => fetch(`${WORKER}/?${q}&k=${encodeURIComponent(keyGet())}&pv=1&_=${Date.now()}`, {cache: "no-store", signal: AbortSignal.timeout(9000)})
   .then(async r => { let j = null; try{ j = await r.json(); }catch(e){} if (!r.ok) throw (j && (j.error || j.msg)) || ("雲端回應 " + r.status); return j || {}; }, e => { throw "連不上雲端(" + (e && e.name === "TimeoutError" ? "逾時" : "網路") + ")"; });
 const errText = e => { e = String(e || ""); if (/缺少 codes|夥伴資料的雲端/.test(e)) return "夥伴資料的雲端功能還沒上線(主導$ 把夥伴版雲端上線後就會有)";
-  if (/綁在另一支手機/.test(e)) return "這把鑰匙已綁在另一支手機:請主導$ 另發一把鑰匙給這個看盤用";
+  if (/綁在另一支手機|要 owner 鑰匙/.test(e)) return "雲端還是舊版(看盤版不綁設備的功能還沒上線)";
   if (/無效|停用|badKey/.test(e)) return "鑰匙無效或已停用,請找主導$ 確認"; return e; };
 const fp = x => (+x).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
 const FEE = 0.001425 * 0.25, TAX = 0.0015;   // 帳面輸贏扣的成本照主導版預設(手續費 0.1425%×25% 最低 20 元、證交稅 0.15%)

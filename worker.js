@@ -969,6 +969,10 @@ export default {
       MC.set("emo:" + kq, { v: true, at: Date.now() }); KI = { ...KI, role: "owner", emoP: true };
     }
     const ownerKI = !!(KI && KI.role === "owner" && (!KI.dev || dv));
+    // 自動當沖夥伴版(2026-11-15 19:45 使用者「金鑰 只有下載 主程式時 名揚四海自動當沖 才需要一台設備對應一個金鑰 看盤版 掃描這個金鑰 就可以看盤監控 10台設備也沒有關係」):
+    //   夥伴看盤(partner_app/mine.html)帶 pv=1、不帶 dv → 不綁設備、不受「一人一機」限制(上面 dv 是空的就不比對也不寫綁定),幾台都可以;
+    //   但只准「看」:owner 鑰匙這樣來只開 ?trade=pos / ?trade=fills(讀),?trade=cmd 下單、寫通知、管鑰匙照舊要綁定的手機(ownerKI)。緊急模式認出來的(emoP)不算
+    const pvOwner = !!(KI && KI.role === "owner" && !KI.emoP && url.searchParams.get("pv") === "1" && !dv);
     // 2026-11-12 21:00 使用者「都改」(Cloudflare 1 通知改推送):
     //   ?ws=log  → WebSocket 連到 Hub,通知有變動就收到 {v};App 收到馬上 ?log=get(內容、身分過濾照舊)。要鑰匙 / 中繼金鑰 / 手機識別碼
     //   ?log=wait&v= → 長輪詢(中繼用,中繼金鑰或 owner):版本跟 v 不同就馬上回,不然最多等 25 秒;回 {v}
@@ -1614,7 +1618,7 @@ export default {
     const tq = url.searchParams.get("trade");
     if (tq === "pos" || tq === "cmd" || tq === "fills") {   // 2026-10-29 fills:今天元大帳號的成交 + 每檔輸贏(含手動單;使用者「現在真實贏多少」)
       if (!env || !env.LOGS || !env.YT_PUSH_KEY) return J({ ok: false, msg: "Worker 沒有設定通道金鑰" }, 503);
-      if (!(await ownerOk())) return J({ ok: false, msg: "下單 / 查部位要 owner 鑰匙(設定裡輸入)", badKey: true }, 403);
+      if (!(await ownerOk()) && !(pvOwner && tq !== "cmd")) return J({ ok: false, msg: "下單 / 查部位要 owner 鑰匙(設定裡輸入)", badKey: true }, 403);   // 夥伴看盤:owner 鑰匙 + pv=1 只能讀 pos / fills
       if (tq === "cmd" && !(await ownerW())) return J({ ok: false, msg: "雲端資料庫暫時故障,這把鑰匙暫時不能下單(請用主導機或投資先生)" }, 403);   // 2026-11-11 22:42 使用者「全改」   // 2026-10-29 鑰匙:看盤版不能下單
       const qu = (await kvGetC(env, "yquote:url", 60000)) || (kvDown() ? EMER_QURL : null);
       if (!qu) return J({ ok: false, msg: "電腦沒有連上(沒有登記通道,請確認電腦開機、元大中繼在跑)" }, 503);
