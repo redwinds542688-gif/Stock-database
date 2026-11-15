@@ -1,0 +1,40 @@
+# 2026-11-15 自動當沖 · 夥伴看盤 App:partner_app/mine.html 或 partner_app/android/ 有改(推上 partner 分支)就用 GitHub 編 APK,
+# 編好放到 partner_app/apk/PartnerViewer.apk + version.json 推回 partner 分支。和名揚四海的 build-apk.yml(只看 main)完全分開。
+name: build-partner-apk
+on:
+  workflow_dispatch:
+  push:
+    branches: [partner]
+    paths:
+      - 'partner_app/mine.html'
+      - 'partner_app/android/**'
+      - '.github/workflows/build-partner-apk.yml'
+permissions:
+  contents: write
+concurrency: { group: build-partner-apk, cancel-in-progress: true }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.9' }
+      - name: 網頁放進 App
+        run: cp partner_app/mine.html partner_app/android/app/src/main/assets/mine.html
+      - name: 編譯
+        working-directory: partner_app/android
+        run: gradle --no-daemon assembleRelease
+      - name: 放到 partner_app/apk 並推送
+        run: |
+          code=$(grep -oP 'versionCode = \K\d+' partner_app/android/app/build.gradle.kts)
+          name=$(grep -oP 'versionName = "\K[^"]+' partner_app/android/app/build.gradle.kts)
+          mkdir -p partner_app/apk
+          cp partner_app/android/app/build/outputs/apk/release/app-release.apk partner_app/apk/PartnerViewer.apk
+          python3 -c "import json,sys; json.dump({'versionCode':int(sys.argv[1]),'versionName':sys.argv[2],'sha':sys.argv[3]}, open('partner_app/apk/version.json','w'), ensure_ascii=False)" "$code" "$name" "${GITHUB_SHA::7}"
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add partner_app/apk/PartnerViewer.apk partner_app/apk/version.json
+          git commit -m "夥伴看盤 APK $name ($code) 自動編譯" || exit 0
+          for i in 1 2 3; do git pull --rebase -q origin partner && git push origin HEAD:partner && break; sleep 5; done

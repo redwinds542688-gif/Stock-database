@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<!-- 夥伴看盤(partner 分支):只讀金鑰對應帳號的元大真實資料(夥伴 fa11 → ?acct=get;主導$ → ?trade=pos / fills),帶 pv=1 不綁設備;WebSocket ?ws=log 一有交易馬上重讀;當沖 / 明細 + 喇叭靜音 + 金鑰(可掃 QR);和名揚四海 app/ 完全分開 -->
+<!-- 夥伴看盤(partner 分支):一進來要金鑰(入口擋住);只讀金鑰對應帳號的元大真實資料(夥伴 fa11 → ?acct=get;主導$ → ?trade=pos / fills),帶 pv=1 不綁設備;WebSocket ?ws=log 一有交易馬上重讀;當沖 / 明細 + 喇叭靜音 + 金鑰(可掃 QR);和名揚四海 app/ 完全分開。App 版:partner_app/android 把這個檔包進去 -->
 <title>夥伴看盤</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -39,6 +39,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .dlg input{height:50px;border-radius:10px;border:1px solid var(--line2);background:#0B0E14;color:var(--fg);font:500 18px ui-monospace,monospace;padding:0 12px;letter-spacing:1px}
 .qrb{flex:none;height:50px;padding:0 14px;border-radius:10px;border:1px solid #4FC3F7;background:#0B1A26;color:#4FC3F7;font:700 17px var(--f);cursor:pointer}
 .qrpic{font-size:14px;color:#4FC3F7;text-decoration:underline;cursor:pointer;align-self:flex-start}
+.mask.gate{background:var(--bg);z-index:50} .gtitle{font-size:clamp(20px,6vw,24px);font-weight:900;color:var(--gold);text-align:center;margin-bottom:4px}
 .dlg .err{min-height:18px;font-size:14px;color:#FF8A8A}
 .dlg .bt{display:flex;gap:8px} .dlg .bt button{flex:1;height:48px;border-radius:10px;font:700 17px var(--f);cursor:pointer;border:1px solid var(--line2);background:transparent;color:var(--soft)}
 .dlg .bt .ok{background:var(--gold);border-color:var(--gold);color:#000}
@@ -169,20 +170,25 @@ const keySet = v => { KEY_MEM = v; try{ v ? localStorage.setItem(KEY_K, v) : loc
 function keyPaint(){ const b = document.getElementById("keyBtn"), k = keyGet();
   b.className = "key" + (k ? "" : " none"); b.innerHTML = k ? `${keyWho(k)} · ••••${esc(k.slice(-4))}` : "🔑 輸入金鑰";
   b.setAttribute("aria-label", k ? "已輸入金鑰,按一下更換" : "輸入金鑰"); }
-function keyOpen(){
-  const k = keyGet(), L = document.getElementById("layer");
-  L.innerHTML = `<div class="mask"><form class="dlg" id="keyForm" role="dialog" aria-modal="true" aria-labelledby="keyT" novalidate>
-    <h3 id="keyT">${k ? "更換金鑰" : "輸入金鑰"}</h3>
+/* 20:20 使用者「看盤版 改成App … 一進入就必須輸入金鑰 否則無法進入」:沒有金鑰 → 整個畫面蓋住的入口(不能取消、看不到任何資料),輸入 / 掃描 / 相簿選 QR 存好才進得去;
+   雲端說鑰匙無效或停用 → 清掉、回到入口 */
+function keyOpen(gate, why){
+  const k = gate ? "" : keyGet(), L = document.getElementById("layer");
+  L.innerHTML = `<div class="mask${gate ? " gate" : ""}"><form class="dlg" id="keyForm" role="dialog" aria-modal="true" aria-labelledby="keyT" novalidate>
+    ${gate ? `<div class="gtitle">自動當沖 · 夥伴看盤</div>` : ""}
+    <h3 id="keyT">${gate ? "請輸入金鑰" : k ? "更換金鑰" : "輸入金鑰"}</h3>
+    ${gate ? `<p>沒有金鑰無法進入。</p>` : ""}
     <p>夥伴:輸入主導$ 發給你的<b>夥伴金鑰</b>(fa11 開頭)。主導$:輸入自己的鑰匙也可以用。${k ? `<br>目前:${keyWho(k)} ••••${esc(k.slice(-4))}` : ""}</p>
     <label for="keyIn" class="mut" style="font-size:13px">金鑰</label>
     <div style="display:flex;gap:8px"><input id="keyIn" style="flex:1;min-width:0" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text" placeholder="fa11…" maxlength="40">
     <button type="button" id="keyScan" class="qrb" aria-label="掃描金鑰 QR Code">掃描</button></div>
     <label class="qrpic">或從相簿選 QR Code 圖片<input type="file" id="keyPic" accept="image/*" hidden></label>
     <div class="err" id="keyErr" role="alert"></div>
-    <div class="bt"><button type="button" id="keyNo">取消</button>${k ? '<button type="button" id="keyDel">清除</button>' : ""}<button type="submit" class="ok">儲存</button></div>
+    <div class="bt">${gate ? "" : '<button type="button" id="keyNo">取消</button>'}${k ? '<button type="button" id="keyDel">清除</button>' : ""}<button type="submit" class="ok">${gate ? "進入" : "儲存"}</button></div>
   </form></div>`;
   const inp = document.getElementById("keyIn"); inp.focus(); inp.oninput = () => document.getElementById("keyErr").textContent = "";
-  document.getElementById("keyNo").onclick = () => L.innerHTML = "";
+  const no = document.getElementById("keyNo"); if (no) no.onclick = () => L.innerHTML = "";
+  if (why) document.getElementById("keyErr").textContent = why;
   const got = text => { inp.value = String(text || "").trim(); document.getElementById("keyForm").requestSubmit(); };   // 掃到就直接存(和主導版一樣)
   document.getElementById("keyScan").onclick = () => qrScan(got, m => document.getElementById("keyErr") && (document.getElementById("keyErr").textContent = m));
   document.getElementById("keyPic").onchange = e => { const f = e.target.files && e.target.files[0]; if (f) qrFromImage(f).then(got, m => document.getElementById("keyErr").textContent = m); };
@@ -268,7 +274,7 @@ async function loadPos(){
     const fresh = ST.seenPos ? list.filter(p => !ST.seenPos.has(String(p.code))) : [];
     ST.seenPos = codes; ST.pos = list; ST.posAt = at; ST.posErr = ""; keyPaint();
     if (fresh.length){ await loadQuotes(); for (const p of fresh) notify(`進場 ${nameOf(p.code)} ${p.code} ${+p.dir > 0 ? "做多" : "做空"} ${p.qty}張`, `${p.t0 || ""} ${fp(p.entry)}`, +p.dir > 0 ? "long" : "short"); }   // 先拿到股名再通知
-  }catch(e){ ST.posErr = errText(e); if (/還沒上線|綁在另一支|無效/.test(ST.posErr)) ST.more = false; }
+  }catch(e){ ST.posErr = errText(e); if (/還沒上線|綁在另一支|無效/.test(ST.posErr)) ST.more = false; if (/無效或已停用|已到期/.test(String(e))){ const m = /到期/.test(String(e)) ? "這把金鑰已到期,請找主導$" : "這把金鑰無效或已停用,請找主導$"; keySet(""); start(); keyOpen(true, m); } }
   rebuild();
 }
 async function loadQuotes(){
@@ -329,7 +335,7 @@ let kickT = 0;
 function wsKick(){ clearTimeout(kickT); kickT = setTimeout(() => { loadPos().then(loadQuotes); loadToday(); setTimeout(loadToday, 3000); }, 300); }   // 通知比成交回報早一點到 → 3 秒後再讀一次成交
 function start(){
   TIMERS.splice(0).forEach(clearInterval); stReset(); keyPaint(); rebuild();
-  if (!keyGet()) return;
+  if (!keyGet()){ try{ if (WS.ws){ WS.ws.onclose = null; WS.ws.close(); WS.ws = null; } }catch(e){} keyOpen(true); return; }
   const vis = f => () => { if (document.visibilityState !== "hidden") f(); };
   loadPos().then(loadQuotes); loadToday().then(loadMore);
   // 20:00 使用者「其他的手機不需要開啟主程式 開看盤就好 這樣也可以節省額度的使用量」→ 讀的頻率配合資料本來更新的速度,不多問:
