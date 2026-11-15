@@ -26,7 +26,7 @@ MONEY = [("TRADE_MAX_AMOUNT", "當日總額度(買 + 賣成交金額上限,元;�
          ("TRADE_KILL_LOSS", "帳面虧到多少全部平倉(元)", "50000")]
 # 從主帳號沿用的設定(判別式、規則一樣);帳號、資金、本機路徑、主帳號專用的不沿用
 NOT_COPY = re.compile(r"^(YT_ACCOUNT|YT_PASS|YT_PFX|YT_PFX_PASS|ACCT_NAME|ENGINE|ENGINE_DIR|QUOTE_ENABLE|QUOTE_PORT|HIST_AFTER|LOG_DIR|BARS_DIR|"
-                      r"TRADE_STATE_FILE|TRADE_BR_FILE|CF_METRICS|TRADE_MAX_AMOUNT|TRADE_CAP|TRADE_MAX_LOSS|TRADE_KILL_LOSS|QUOTA_TOTAL)$")
+                      r"TRADE_STATE_FILE|TRADE_BR_FILE|CF_METRICS|TRADE_MAX_AMOUNT|TRADE_CAP|TRADE_MAX_LOSS|TRADE_KILL_LOSS|QUOTA_TOTAL|AUTO_UPDATE|UPDATE_REF)$")
 
 
 def read_env(f):
@@ -63,6 +63,7 @@ def write_env(d, name, acct_lines, money):
     lines = [f"# 家人帳號【{name}】中繼設定(win_family.py 產生;只放這台電腦,不要上傳、不要傳給別人)",
              f"ACCT_NAME={name}", *acct_lines,
              "ENGINE=0", "QUOTE_ENABLE=0", "HIST_AFTER=0", "TRADE_ENABLE=1", "TRADE_ALLOW_PROD=1",
+             "AUTO_UPDATE=0",   # 夥伴版:不跟 main 自動更新(要更新就寫 UPDATE_REF=<partner 的 commit> 並改 AUTO_UPDATE=1)
              f"ENGINE_DIR={MAIN / 'engine_data'}",                       # 讀主帳號的本機通知(訊號 1 秒內到)
              f"TRADE_BR_FILE={MAIN / 'engine_data' / 'breadth.json'}",   # 大盤寬度(總停損 / 判二檔數)用主帳號那份
              f"LOG_DIR={d / 'log'}", f"BARS_DIR={d / 'bars_yuanta'}",
@@ -76,9 +77,13 @@ def write_env(d, name, acct_lines, money):
 
 
 def copy_code(d):
+    # 自動當沖夥伴版 2026-11-15:程式從「win_family.py 自己所在的資料夾」(partner 分支的程式)複製,不從 C:\Yuanta\bridge(那裡是 main 的程式,沒有夥伴邏輯)
+    src = Path(__file__).resolve().parent
+    if "FAMILY = bool(ACCT)" not in (src / "yuanta_bridge.py").read_text(encoding="utf-8", errors="ignore"):
+        sys.exit(f"{src} 的 yuanta_bridge.py 不是夥伴版(沒有 ACCT_NAME 只下單模式),不能拿來建夥伴資料夾")
     d.mkdir(parents=True, exist_ok=True)
     for f in PY:
-        if (MAIN / f).exists(): shutil.copyfile(MAIN / f, d / f)
+        if (src / f).exists() and src != d: shutil.copyfile(src / f, d / f)
     if (MAIN / "sdk").exists() and not (d / "sdk").exists(): shutil.copytree(MAIN / "sdk", d / "sdk")
 
 

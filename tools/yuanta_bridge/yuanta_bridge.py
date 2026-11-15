@@ -1718,6 +1718,15 @@ def bridge_lock():
     sys.exit(0)
 
 
+def upd_ref():
+    """自動當沖夥伴版 2026-11-15:夥伴中繼(FAMILY)不可跟 main 更新 —— main 的程式沒有 ACCT_NAME 邏輯,換上去就會變回主帳號模式(開引擎、推雲端蓋掉主導$ 的資料)。
+       夥伴中繼只在 bridge.env 有 UPDATE_REF=<commit 編號>(partner 分支上的某一版)時才更新到那一版;沒寫 → 回 "" 不更新。
+       (線上 Worker ?gh=raw 的 ref 只收 commit 編號,不收分支名)主帳號照舊回 "main"。"""
+    if not FAMILY: return "main"
+    r = CFG.get("UPDATE_REF", "").strip().lower()
+    return r if re.fullmatch(r"[0-9a-f]{7,40}", r) else ""
+
+
 def self_update():
     """2026-10-30 02:58 使用者「你有辦法推上電腦嗎」:Claude 不能直接碰 Windows 桌機,改成中繼自己更新 ——
        啟動時(排程 08:40 / 開機 / 崩潰重拉,不在盤中)讀 GitHub 的 tools/yuanta_bridge/VERSION(一個版本號,改了就代表要更新),
@@ -1725,10 +1734,12 @@ def self_update():
        改中繼程式的人:推完 main 後把 VERSION 改成新的版本號(2026-11-01 起用「年月日時分」,和手機網頁的版本戳同一種寫法,例如 202611011100;只比對是否相同,不比大小)一起推。
        bridge.env AUTO_UPDATE=0 可關。"""
     if CFG.get("AUTO_UPDATE", "1") != "1" or os.environ.get("MYSH_UPDATED"): return
+    ref = upd_ref()
+    if not ref: return
     hm = now_tw().strftime("%H:%M")
     if "09:00" <= hm < "13:40" and now_tw().weekday() < 5: return          # 盤中不換程式(2026-11-11 00:27 使用者「把不更新從 8 點 45 改為 9 點」:原 08:45;電腦 08:45 自動開機也能先更新)
     try:
-        want = gh_get("tools/yuanta_bridge/VERSION", timeout=20).decode("utf-8").strip().split()[0]
+        want = gh_get("tools/yuanta_bridge/VERSION", ref=ref, timeout=20).decode("utf-8").strip().split()[0]
     except Exception as e:
         log("自動更新:讀不到 VERSION", e); return
     cur = ""
@@ -1738,14 +1749,14 @@ def self_update():
     log(f"自動更新:VERSION {cur or '無'} → {want},下載中")
     files = ["yuanta_bridge.py", "bars.py", "trader.py", "quotes.py", "win_pnl.py", "engine.py", "win_keys.py", "win_update.py", "hist_kline.py", "win_install.py", "elig.py"]
     try:   # 2026-10-30 11:10(實際時間)檔案清單改讀 repo 的 tools/yuanta_bridge/FILES(新增檔案時舊版程式也抓得到;抓不到就用上面寫死的)
-        lst = [x.strip() for x in gh_get("tools/yuanta_bridge/FILES", timeout=30).decode("utf-8").splitlines() if x.strip().endswith(".py")]
+        lst = [x.strip() for x in gh_get("tools/yuanta_bridge/FILES", ref=ref, timeout=30).decode("utf-8").splitlines() if x.strip().endswith(".py")]
         if lst: files = lst
     except Exception: pass
     import py_compile, shutil
     ok = 0
     for f in files:
         try:
-            b = gh_get(f"tools/yuanta_bridge/{f}", timeout=60)   # main 最新
+            b = gh_get(f"tools/yuanta_bridge/{f}", ref=ref, timeout=60)   # main 最新(夥伴版:UPDATE_REF 指定的 commit)
             tmp = HERE / (f + ".new"); tmp.write_bytes(b); py_compile.compile(str(tmp), doraise=True)
             if (HERE / f).exists(): shutil.copyfile(HERE / f, HERE / (f + ".bak"))
             os.replace(tmp, HERE / f); ok += 1
@@ -1836,10 +1847,10 @@ def main():
                         log("抓今天 1 分 K 失敗", e)
         # 2026-11-02 20:33 使用者「你測電腦是否更新」:中繼一直開著(電腦沒關機)就永遠不會更新(只在啟動時檢查)→ 不在盤中時每 30 分鐘看 GitHub 的 VERSION,
         #   不一樣就結束自己,工作排程(每 5 分鐘檢查一次)重新拉起來時就會更新。盤中(08:40~13:40)和收盤後補查 / 抓 K 進行中不做
-        if not ("09:00" <= hm < "13:40") and CFG.get("AUTO_UPDATE", "1") == "1" and time.time() - getattr(b, "_ver_chk", 0) > 1800:   # 2026-11-11 00:27 原 08:40 → 09:00(使用者「改為 9 點」)
+        if not ("09:00" <= hm < "13:40") and CFG.get("AUTO_UPDATE", "1") == "1" and upd_ref() and time.time() - getattr(b, "_ver_chk", 0) > 1800:   # 2026-11-11 00:27 原 08:40 → 09:00(使用者「改為 9 點」)
             b._ver_chk = time.time()
             try:
-                want = gh_get("tools/yuanta_bridge/VERSION", timeout=20).decode("utf-8").strip().split()[0]
+                want = gh_get("tools/yuanta_bridge/VERSION", ref=upd_ref(), timeout=20).decode("utf-8").strip().split()[0]
                 cur = (HERE / "VERSION").read_text(encoding="utf-8").strip().split()[0] if (HERE / "VERSION").exists() else ""
                 if want and want != cur:
                     log(f"有新版 {cur} → {want}:結束自己,讓工作排程重開時更新"); os._exit(0)
