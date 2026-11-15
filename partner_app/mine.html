@@ -306,9 +306,9 @@ const netOf = (s, ent, ex, q) => { const d = s === "s" ? -1 : 1, a = ent * q * 1
 const pctOf = (v, prev) => { if (!(v > 0) || !(prev > 0)) return ""; const p = (v - prev) / prev * 100; return (p >= 0 ? "+" : "−") + Math.abs(p).toFixed(2); };
 const twDate = (back = 0) => { const t = new Date(Date.now() + 8 * 3600000); t.setUTCDate(t.getUTCDate() - back); return t.toISOString().slice(0, 10); };
 const md = d => d.slice(5).replace("-", "/");
-const ST = { pos: null, posAt: 0, posErr: "", fills: {}, order: [], back: 0, more: true, loading: false, q: new Map(), acct: "", seenLegs: null, seenPos: null, hi: 0, lo: 0, day: "" };
+const ST = { pcDown: false, pos: null, posAt: 0, posErr: "", fills: {}, order: [], back: 0, more: true, loading: false, q: new Map(), acct: "", seenLegs: null, seenPos: null, hi: 0, lo: 0, day: "" };
 let ENTRY = [], DAYS = {};
-function stReset(){ Object.assign(ST, { pos: null, posAt: 0, posErr: "", fills: {}, order: [], back: 0, more: true, loading: false, acct: "", seenLegs: null, seenPos: null, hi: 0, lo: 0, empty: 0, day: twDate() }); ST.q.clear(); }
+function stReset(){ Object.assign(ST, { todayTried: false, pcDown: false, pos: null, posAt: 0, posErr: "", fills: {}, order: [], back: 0, more: true, loading: false, acct: "", seenLegs: null, seenPos: null, hi: 0, lo: 0, empty: 0, day: twDate() }); ST.q.clear(); }
 const nameOf = c => (ST.q.get(c) || {}).n || ((Object.values(ST.fills).flatMap(f => f.rows).find(r => r.code === c)) || {}).nm || c;
 function legsOf(v){   // 和主導版明細一樣:有一趟一趟的(legs)就用它,沒有才用每檔合計(rows)
   if (!v || typeof v !== "object") return [];
@@ -338,11 +338,32 @@ async function loadQuotes(){
       ST.q.set(m.c, {z: isFinite(z) ? z : o.z, y: parseFloat(m.y) || o.y, n: m.n || o.n}); } }catch(e){}
   rebuild();
 }
+/* 2026-11-16 00:40 使用者截圖「似乎無法讀取資料」(明細一直「讀取中…」):半夜電腦沒開,主導$ 的明細原本只問電腦(?trade=fills)→ 問 20 天、每天等到逾時。
+   改:主導$ 鑰匙也讀雲端備份(電腦每分鐘推的 ?pcbk=get&name=fills,11/12 起有;owner 鑰匙就能讀,不綁設備)——
+   以前的日子:先看手機裡存過的 → 雲端備份 → 都沒有才問電腦;今天:先問電腦(最即時),電腦沒回應改用雲端備份。
+   電腦沒回應一次就記住(pcDown),之後往前翻不再一天一天等電腦;以前的日子讀到就存手機,下次不用再讀 */
+const FK = d => "pv.fills." + keyGet().slice(-6) + "." + d;
+const fcGet = d => { try{ const x = localStorage.getItem(FK(d)); return x ? JSON.parse(x) : null; }catch(e){ return null; } };
+const fcPut = (d, rows) => { try{ localStorage.setItem(FK(d), JSON.stringify(rows)); }catch(e){} };
+async function cloudFills(d){ try{ const j = await api(`pcbk=get&d=${d}&name=fills`), v = j && j.v; return v && (!v.d || v.d === d) ? v : null; }catch(e){ return null; } }   // 半夜推的可能是前一天的那份:日期對才用
+const sortT = rows => rows.sort((a, b) => b.t.localeCompare(a.t));
 async function loadFills(d){
-  const j = isFam(keyGet()) ? await api(`acct=get&name=fills&d=${d}`) : await api("trade=fills" + (d === ST.day ? "" : `&d=${d}`));
-  if (isFam(keyGet()) && !("acct" in j)) throw "夥伴資料的雲端功能還沒上線";
-  const v = isFam(keyGet()) ? j.v : j; if (!isFam(keyGet()) && v && v.ok === false && d === ST.day) throw v.msg || "電腦沒有回應";
-  return legsOf(v).sort((a, b) => b.t.localeCompare(a.t));
+  if (isFam(keyGet())){
+    const j = await api(`acct=get&name=fills&d=${d}`);
+    if (!("acct" in j)) throw "夥伴資料的雲端功能還沒上線";
+    return sortT(legsOf(j.v));
+  }
+  if (d !== ST.day){
+    const c = fcGet(d); if (c) return c;
+    let rows = legsOf(await cloudFills(d));
+    if (!rows.length && !ST.pcDown){ try{ const j = await api(`trade=fills&d=${d}`); if (j && j.ok !== false) rows = legsOf(j); else if (!/沒有 .* 的成交紀錄/.test((j && j.msg) || "")) ST.pcDown = true; }catch(e){ ST.pcDown = true; } }
+    rows = sortT(rows); if (rows.length) fcPut(d, rows); return rows;
+  }
+  let v = null, err = "";
+  try{ const j = await api("trade=fills"); if (j && j.ok !== false){ v = j; ST.pcDown = false; } else { err = (j && j.msg) || "電腦沒有回應"; ST.pcDown = true; } }catch(e){ err = String(e); ST.pcDown = true; }
+  if (!v) v = await cloudFills(d);
+  if (!v && err) throw err;
+  return sortT(legsOf(v));
 }
 async function loadToday(){
   if (!keyGet()) return;
@@ -350,7 +371,7 @@ async function loadToday(){
     if (ST.seenLegs != null) for (const r of rows.slice(0, Math.max(0, rows.length - ST.seenLegs)).reverse()) notify(`${r.p > 0 ? "✅" : "⚠⚠"} ${r.nm} ${r.code} 平倉 ${fmt(r.p)}`, `${r.t ? r.t.slice(0, 5) + " " : ""}${fp(r.ent)} → ${fp(r.ex)} · ${r.q}張`, r.p > 0 ? "profit" : "loss");
     ST.seenLegs = rows.length; ST.fills[ST.day] = {rows}; if (!ST.order.includes(ST.day)) ST.order.unshift(ST.day); ST.posErr = ST.posErr === "" ? "" : ST.posErr;
   }catch(e){ ST.posErr = ST.posErr || errText(e); if (/還沒上線|綁在另一支|無效/.test(ST.posErr)) ST.more = false; }
-  rebuild();
+  ST.todayTried = true; rebuild();
 }
 async function loadMore(){   // 明細往上滑到底:再往前讀(週末不問;休市 / 沒成交那天不列)
   // 2026-11-15 20:50 使用者「不設限」:不限天數,一直往前讀到「連續 30 個平日都沒有紀錄」(= 已經到最早有存檔的那天)才停;
@@ -437,7 +458,7 @@ const fillRow = o => `<div class="prow2"><div class="nm"><b>${esc(o.nm)}</b><div
       <div class="now">出場價</div><div class="sub">${sd(o.s)}<span>${o.q}張</span></div><div class="tg">元大成交</div></div>`;
 function vDone(){
   const ks = Object.keys(DAYS), d0 = S.day && DAYS[S.day] ? S.day : ks[0], tot = d0 ? dayTot(d0) : 0;
-  if (!ks.length) return [head("明細", md(ST.day || twDate()), fmt(0), "mut"), `<div class="empty">${!keyGet() ? "輸入金鑰後,這裡會列出你元大帳號的成交明細" : ST.loading || ST.seenLegs == null ? "讀取中…" : esc(ST.posErr || "還沒有成交紀錄")}</div>`];
+  if (!ks.length) return [head("明細", md(ST.day || twDate()), fmt(0), "mut"), `<div class="empty">${!keyGet() ? "輸入金鑰後,這裡會列出你元大帳號的成交明細" : ST.loading || !ST.todayTried ? "讀取中…" : esc(ST.pcDown ? "電腦沒開或沒連線,雲端備份也還沒有成交紀錄(11/12 以後的才有雲端備份)" : (ST.posErr || "還沒有成交紀錄"))}</div>`];
   return [head("明細", d0, fmt(tot), cls(tot)),
     ks.map(d => `<div class="dsep" data-sep="${d}"><b>${dayLabel(d)}</b><span>${DAYS[d].length} 筆</span><em class="${cls(dayTot(d))}">${fmt(dayTot(d))}</em></div>` + DAYS[d].map(fillRow).join("")).join("")
     + (ST.loading ? `<div class="dsep"><span>讀取更早的紀錄…</span></div>` : "")];
