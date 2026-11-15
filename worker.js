@@ -1417,6 +1417,47 @@ export default {
       return new Response(JSON.stringify(v || {}), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=20" } });
     }
 
+    // ── 自動當沖夥伴版 §6.1(2026-11-15 使用者「夥伴版 只修改 增加夥伴所有的接口 設定 畫面 不能修改程式的核心邏輯」):夥伴設定雲端下發
+    //   GET  ?acfg=get&a=<名字>  → {acct, judges:{判一:true…}, max_amount, cap, max_loss, kill_loss, enabled, at, by}
+    //        權限:中繼金鑰 / owner 鑰匙 → 任何人;夥伴 fa11 鑰匙 → 只能讀自己(唯讀);其他 403
+    //   POST ?acfg=set&a=<名字> {judges?, max_amount?, cap?, max_loss?, kill_loss?, enabled?}(只改有帶的欄位)
+    //        權限:只有 owner 鑰匙(要帶 dv、不是緊急模式);中繼金鑰、fa11 鑰匙、其他一律 403
+    //   存 Hub acfg:<名字>;中繼只套到「之後的新進場」(見 yuanta_bridge.py acfg_sync),鐵律上限在這裡和中繼兩邊都夾
+    const acfgQ = url.searchParams.get("acfg");
+    if (acfgQ === "get" || acfgQ === "set") {
+      if (!env || !env.HUB) return J({ error: "Worker 還沒綁定 Durable Object(HUB)" }, 503);
+      const pushK = !!(env.YT_PUSH_KEY && request.headers.get("X-Push-Key") === env.YT_PUSH_KEY);
+      const fam = !!(KI && isFamKey(kq)), mine = fam && KI.acct && ACCT_RE.test(KI.acct) ? KI.acct : "";
+      const a = String(url.searchParams.get("a") || mine);
+      if (!ACCT_RE.test(a)) return J({ error: "a(夥伴名字)不對" }, 400);
+      const hub = hubOf(env);
+      if (acfgQ === "get") {
+        if (!pushK && !ownerKI && !(mine && a === mine)) return J({ error: fam ? "只能看自己的設定" : "要中繼金鑰、owner 鑰匙或夥伴鑰匙" }, 403);
+        let v = null; try { v = await hub.kvGet("acfg:" + a); } catch (e) {}
+        return J({ ok: true, acct: a, ...(v && typeof v === "object" ? v : {}) });
+      }
+      if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
+      if (fam || !ownerKI || !dv || KI.emer) return J({ error: "只有主導$(owner 鑰匙)能改夥伴設定" }, 403);
+      let b; try { b = await request.json(); } catch (e) { return J({ error: "JSON 格式錯誤" }, 400); }
+      if (!b || typeof b !== "object") return J({ error: "內容不對" }, 400);
+      let cur = null; try { cur = await hub.kvGet("acfg:" + a); } catch (e) {}
+      const o = cur && typeof cur === "object" ? { ...cur } : {};
+      const JN = ["判一", "判二", "判三", "判四", "判五", "判六", "判七", "判八", "判九"];
+      if (b.judges != null) {
+        if (typeof b.judges !== "object") return J({ error: "judges 要是 {判一:true,…}" }, 400);
+        const jj = { ...(o.judges || {}) };
+        for (const [k, v] of Object.entries(b.judges)) { if (!JN.includes(k) || typeof v !== "boolean") return J({ error: "judges 只能是判一~判九 true/false" }, 400); jj[k] = v; }
+        o.judges = jj;
+      }
+      const num = (k, lo, hi, lab) => { if (b[k] == null) return ""; const n = Math.round(+b[k]); if (!isFinite(n) || n < lo || n > hi) return `${lab} 要在 ${lo.toLocaleString()}~${hi.toLocaleString()}`; o[k] = n; return ""; };
+      const err = num("max_amount", 10000, 5000000, "當日總額度") || num("cap", 0, 250000, "多空上限") || num("max_loss", 1000, 5000000, "停止新進場虧損") || num("kill_loss", 1000, 5000000, "全部平倉虧損");
+      if (err) return J({ error: err }, 400);
+      if (b.enabled != null) { if (typeof b.enabled !== "boolean") return J({ error: "enabled 要是 true/false" }, 400); o.enabled = b.enabled; }
+      o.at = Date.now(); o.by = String(KI.name || "主導$").slice(0, 20);
+      await hub.kvPut("acfg:" + a, o);
+      return J({ ok: true, acct: a, ...o });
+    }
+
     // ── 2026-11-15 家人帳號(第二階段):?acct=list[&d=] → 每個人今天的 {at, pnl, n, amount, pos 檔數, fills 摘要};
     //   ?acct=get&a=<名字>[&d=][&name=pos|pnl|fills|state|lat|info] → 那個人那天的資料。
     //   權限:中繼金鑰 / owner 鑰匙(電腦版、兩支手機、平板)看全部人;家人鑰匙(fa11…,記錄有 acct)只看得到自己;其他鑰匙不行

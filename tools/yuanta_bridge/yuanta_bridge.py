@@ -18,6 +18,7 @@ import json, os, re, sys, time, threading, urllib.request, urllib.error, datetim
 from pathlib import Path
 from bars import BarBook
 from trader import Trader, fetch_signals, fetch_cap
+from trader import JUDGES_ALL, IRON_AMOUNT, IRON_CAP_MAX   # 自動當沖夥伴版 §6.1 acfg_sync 夾鐵律上限用(只讀常數,不改 trader)
 from quotes import QuoteBook
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
@@ -1266,6 +1267,46 @@ class Bridge:
         if v and v != self.trader.cap:
             log(f"多空上限 {self.trader.cap:,} → {v:,}(5861 主導機)"); self.trader.cap = v   # 以主導機為準(鐵律 ⑤ 一張上限 = 主導機多空上限,2026-11-11 22:24 使用者「針對 2項 改鐵律」:一張上限改以主導機多空上限為準,不再固定最多 25 萬)
 
+    def acfg_sync(self):
+        """自動當沖夥伴版 §6.1(2026-11-15 使用者「夥伴版 只修改 增加夥伴所有的接口 設定 畫面 不能修改程式的核心邏輯」):
+           夥伴中繼(FAMILY)每分鐘讀雲端 ?acfg=get&a=<自己> —— 主導$ 在 App「夥設」改的設定 —— 套到 trader 現有的設定值(不改 trader 程式):
+             judges → trader.judges(全關 = {"-"},沒有判別式符合 → 不進場);enabled → trader.auto(關 = 不自動進場;不動 trader.enabled,已在場上的部位照常停損停利、13:20 平倉、手動平倉照常)
+             max_amount(≤ 鐵律 500 萬)、cap(≤ 25 萬;固定張數模式 cap=0 不動;鐵律 ⑤ 沒解鎖前不影響張數)、max_loss、kill_loss
+           只影響之後的新進場;雲端沒寫的欄位 = 用 bridge.env 的原值;讀不到雲端 = 維持現狀。主帳號不做。"""
+        if not FAMILY or not self.trader: return
+        try:
+            r = urllib.request.urlopen(urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?acfg=get&a=" + urllib.parse.quote(ACCT) + f"&_={int(time.time())}",
+                                       headers={"X-Push-Key": CFG.get("PUSH_KEY", ""), "User-Agent": "yuanta-bridge/1"}), timeout=8)
+            c = json.loads(r.read().decode("utf-8"))
+            if not c.get("ok"): return
+        except Exception:
+            return
+        t = self.trader
+        if not hasattr(self, "_acfg_base"):   # 第一次:記下 bridge.env 的原值(雲端拿掉某欄時回到原值)
+            self._acfg_base = {"judges": set(t.judges), "auto": t.auto, "max_amount": t.max_amount, "cap": t.cap, "max_loss": t.max_loss, "kill_loss": t.kill_loss}
+        b = self._acfg_base; want = dict(b)
+        j = c.get("judges")
+        if isinstance(j, dict) and j:
+            on = {k for k in JUDGES_ALL if j.get(k, k in b["judges"]) is True}
+            want["judges"] = on or {"-"}
+        if isinstance(c.get("enabled"), bool): want["auto"] = b["auto"] and c["enabled"]
+        def num(k, lo, hi):
+            try:
+                v = float(c[k]); return v if lo <= v <= hi else None
+            except Exception: return None
+        v = num("max_amount", 10000, IRON_AMOUNT)
+        if v: want["max_amount"] = v
+        v = num("cap", 1, IRON_CAP_MAX)
+        if v and b["cap"] > 0: want["cap"] = int(v)
+        for k in ("max_loss", "kill_loss"):
+            v = num(k, 1000, 5000000)
+            if v: want[k] = v
+        chg = []
+        with t.lock:
+            for k, v in want.items():
+                if getattr(t, k) != v: chg.append(f"{k} {getattr(t, k)} → {v}"); setattr(t, k, v)
+        if chg: log(f"【{ACCT}】套用主導$ 雲端設定(之後的新進場才生效):" + ";".join(str(x) for x in chg))
+
     def resume_positions(self, day):
         """2026-10-22 使用者:「加 啟動時接回部位」:查元大今天的委託成交回報 + 有效的二擇一條件單,交給 trader 接回程式開的未平部位"""
         if not self.trader or not self.trader.enabled:
@@ -1609,6 +1650,7 @@ class Bridge:
                 except Exception as e: log("寫進場結果檔失敗", e)
                 _tw = time.gmtime(time.time() + 8 * 3600)   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:盤中重開 / 開盤前沒讀到 → 盤中也每分鐘讀,讀到為止(主導機盤中禁改,讀到一次就好)
                 if k % 60 == 1 and (time.strftime("%H:%M", _tw) < "09:00" or getattr(self, "cap_ok_day", "") != time.strftime("%Y-%m-%d", _tw)): threading.Thread(target=self.cap_sync, daemon=True).start()   # 2026-11-07 19:32「開盤中不用追蹤主導機設定」09:03 → 09:00 前;2026-11-02 跟 5861 主導機的多空上限:開盤前每分鐘讀,盤中設定禁改 → 09:03 後不讀
+                if FAMILY and k % 60 == 31: threading.Thread(target=self.acfg_sync, daemon=True).start()   # 自動當沖夥伴版 §6.1:每分鐘讀主導$ 的夥伴設定
                 # 2026-10-29 額度(使用者「我現在要做的是2」):沒開自動交易時沒有人查今天的委託成交 → 每 QUOTA_SEC(60)秒查一次,查到就由 quota_from_report 推上雲端
                 if CFG.get("QUOTA_PUSH", "1") == "1" and CFG.get("PUSH_KEY") and k % int(CFG.get("QUOTA_SEC", "60")) == 0 and self.logged_in.is_set():
                     try: self.query_today(with_oco=False)
