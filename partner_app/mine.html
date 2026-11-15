@@ -101,7 +101,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:10px 8px calc(12px + env(safe-area-inset-bottom,0px));background:var(--bg);position:sticky;bottom:0;border-top:1px solid var(--line)}
 nav button{height:56px;border-radius:10px;border:1px solid var(--gold);background:linear-gradient(#1E2638,#151B28);color:var(--soft);font:900 24px var(--f);cursor:pointer;letter-spacing:2px}
 nav button.on{color:var(--green);border:2px solid var(--green)}
-.toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));width:min(92vw,420px);border-radius:12px;padding:10px 14px;z-index:30;box-shadow:0 6px 24px rgba(0,0,0,.6);display:flex;flex-direction:column;gap:2px;animation:drop .25s ease-out}
+.toast{z-index:70;position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));width:min(92vw,420px);border-radius:12px;padding:10px 14px;z-index:30;box-shadow:0 6px 24px rgba(0,0,0,.6);display:flex;flex-direction:column;gap:2px;animation:drop .25s ease-out}
 .toast b{font-size:17px} .toast span{font-size:13px;opacity:.85}
 .toast.long,.toast.short,.toast.pc{background:#14233A;border:1px solid var(--blue);color:#CDE9FF}
 .toast.profit,.toast.win{background:#2A1416;border:1px solid var(--up);color:#FFD0D3}
@@ -123,6 +123,7 @@ nav button.on{color:var(--green);border:2px solid var(--green)}
   <nav id="nav"></nav>
 </div>
 <div id="layer"></div>
+<div id="toastL"></div>   <!-- 通知另外一層:不會把金鑰入口蓋掉 / 清掉(2026-11-15 線上測到的問題) -->
 
 <script>
 // 2026-11-15 18:00 使用者「我發現 根本不需要進場」→ 只剩 當沖 / 明細 兩頁(預設當沖)
@@ -166,7 +167,7 @@ function notify(title, body, kind){
   try{ navigator.vibrate && navigator.vibrate(vibOf(kind)); }catch(e){}
   webSnd(kind, title);
   const cls = /^lv/.test(kind) ? 'lv' : /^win/.test(kind) ? 'win' : kind;
-  const L = document.getElementById('layer'); L.innerHTML = `<div class="toast ${cls}" role="status"><b>${esc(title)}</b><span>${esc(body)}</span></div>`;
+  const L = document.getElementById('toastL'); L.innerHTML = `<div class="toast ${cls}" role="status"><b>${esc(title)}</b><span>${esc(body)}</span></div>`;
   clearTimeout(notify.t); notify.t = setTimeout(() => L.innerHTML = '', 4200);
 }
 
@@ -424,7 +425,7 @@ document.addEventListener("click", e => { const b = e.target.closest("button"); 
   if (b.dataset.tab){ S.tab = b.dataset.tab; S.day = null; render(); document.getElementById("list").scrollTop = 0; return; }
   if (b.id === "keyBtn"){ keyOpen(); return; }
 });
-function notifyQuiet(t){ const L = document.getElementById('layer'); L.innerHTML = `<div class="toast pc" role="status"><b>${esc(t)}</b></div>`; clearTimeout(notify.t); notify.t = setTimeout(() => L.innerHTML = '', 1800); }
+function notifyQuiet(t){ const L = document.getElementById('toastL'); L.innerHTML = `<div class="toast pc" role="status"><b>${esc(t)}</b></div>`; clearTimeout(notify.t); notify.t = setTimeout(() => L.innerHTML = '', 1800); }
 start();
 // 網址版(/partner/,iPhone / iPad / 電腦加到主畫面)才註冊;App(APK)裡不用
 try{ if (/^\/partner/.test(location.pathname) && "serviceWorker" in navigator) navigator.serviceWorker.register("/partner/sw.js", {scope: "/partner/"}).catch(() => {}); }catch(e){}
