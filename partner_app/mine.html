@@ -39,7 +39,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .up{color:var(--up)} .dn{color:var(--down)} .mut{color:var(--sub)} .gold{color:var(--gold)}
 .list{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;scroll-snap-type:y mandatory;overscroll-behavior:contain}
 /* 一頁固定 8 檔、不切半列(17:50 使用者「照這樣 一頁 八檔 不要切到」):列高 = 清單高度 ÷ 8(太矮的螢幕少放幾檔),滑動一格一格對齊 */
-.list > .prow2,.list > .row{height:var(--rh,auto);align-content:center;flex:none;scroll-snap-align:start;padding-top:0;padding-bottom:0}
+.list > .prow2,.list > .row,.list > .dsep,.list > .dend{height:var(--rh,auto);align-content:center;flex:none;scroll-snap-align:start;padding-top:0;padding-bottom:0}
 .row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center;padding:9px 8px;border-bottom:1px solid #1E2636;background:repeating-linear-gradient(45deg,#121826 0 6px,#141B2A 6px 12px)}
 .nm{min-width:0} .nm b{display:block;font-size:clamp(16px,5vw,19px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .nm small{display:block;font-size:14px;color:var(--green);font-variant-numeric:tabular-nums}
 .px{text-align:right;font-variant-numeric:tabular-nums} .px b{font-size:clamp(15px,4.8vw,19px);white-space:nowrap} .px small{display:block;font-size:13px;color:var(--sub)}
@@ -64,6 +64,9 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .prow2 .sub{grid-column:3;display:flex;justify-content:flex-end;align-items:center;gap:3px;font-size:13px;color:var(--sub);white-space:nowrap}
 .prow2 .now{grid-column:2;text-align:right;font-size:13px;color:var(--sub)}
 .prow2 .sub .sd{margin-left:0} .prow2 .tg{text-align:right;font-size:13px;color:var(--sub)}
+.dsep{display:flex;align-items:center;gap:10px;padding:0 10px;background:#1A2234;border-bottom:1px solid #2A3244;font-variant-numeric:tabular-nums}
+.dsep b{font-size:clamp(16px,5vw,19px);color:var(--gold)} .dsep span{font-size:14px;color:var(--sub)} .dsep em{margin-left:auto;font-style:normal;font-weight:900;font-size:clamp(16px,5vw,19px)}
+.dend{flex:none;padding:0 14px;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--sub);font-size:13px}
 .days{display:flex;gap:6px;overflow-x:auto;padding:0 6px 8px}
 .day{flex:none;height:34px;padding:0 12px;border-radius:17px;border:1px solid var(--line2);background:transparent;color:var(--soft);font:500 15px var(--f);cursor:pointer}
 .day.on{border-color:var(--gold);background:#2A2410;color:var(--gold);font-weight:700}
@@ -156,6 +159,8 @@ const DAYS = {
     {nm:"台塑化",pct:"+2.50",code:"6505",s:"l",a:"98.90",b:"101.37",q:2,p:4494},{nm:"鈺創",pct:"+1.46",code:"5351",s:"s",a:"102.50",b:"104.00",q:2,p:-3534}],
   "11/13": [{nm:"中鼎",pct:"−1.18",code:"9933",s:"s",a:"50.90",b:"50.30",q:4,p:1960},{nm:"碩禾",pct:"−4.97",code:"3691",s:"s",a:"140.50",b:"137.00",q:1,p:3310},{nm:"廣達",pct:"−0.87",code:"2382",s:"l",a:"288.00",b:"285.50",q:1,p:-2860}],
   "11/12": [{nm:"華邦電",pct:"−2.39",code:"2344",s:"s",a:"48.20",b:"47.05",q:3,p:3410},{nm:"群創",pct:"−1.73",code:"3481",s:"s",a:"17.35",b:"17.05",q:3,p:2690}],
+  "11/11": [{nm:"長榮",pct:"−2.10",code:"2603",s:"s",a:"198.50",b:"195.00",q:1,p:3070},{nm:"友達",pct:"−3.05",code:"2409",s:"s",a:"16.40",b:"15.95",q:3,p:1180},{nm:"技嘉",pct:"+1.62",code:"2376",s:"l",a:"276.00",b:"272.50",q:1,p:-3920}],
+  "11/10": [{nm:"緯穎",pct:"−1.05",code:"6669",s:"s",a:"2,385.00",b:"2,355.00",q:1,p:26510},{nm:"南亞科",pct:"−2.48",code:"2408",s:"s",a:"56.80",b:"55.90",q:3,p:2370},{nm:"英業達",pct:"+0.94",code:"2356",s:"l",a:"45.30",b:"45.10",q:3,p:-830},{nm:"可成",pct:"−1.33",code:"2474",s:"s",a:"226.00",b:"223.50",q:1,p:2110}],
 };
 const ME = {alive:true, at:"10:51"};
 const S = { tab:"當沖", day:"11/16" };
@@ -177,19 +182,30 @@ function vPos(){
       <div class="n${o.now.length > 6 ? " sm" : ""}">${esc(o.now)}</div><div class="n${o.ent.length > 6 ? " sm" : ""}">${esc(o.ent)}</div><div class="pl ${cls(o.p)}${fmt(o.p).length > 7 ? " sm" : ""}">${fmt(o.p)}</div>
       <div class="now">現價</div><div class="sub">${sd(o.s)}<span>${o.q}張</span></div><div class="tg">帳面</div></div>`).join("") || `<div class="empty">目前沒有持倉</div>`)];
 }
-function vDone(){
-  const L = DAYS[S.day], tot = L.reduce((a,o)=>a+o.p,0);
-  return [head("明細", S.day, fmt(tot), cls(tot)),
-    `<div class="days" role="tablist">${Object.keys(DAYS).map(d=>`<button type="button" class="day${d===S.day?" on":""}" data-day="${d}" role="tab" aria-selected="${d===S.day}">${d}</button>`).join("")}</div>`,
-    L.map(o=>`<div class="prow2"><div class="nm"><b>${esc(o.nm)}</b><div class="cd"><i>${esc(o.code)}</i>${o.pct ? `<em class="${o.pct.startsWith("+")?"up":"dn"}">${esc(o.pct)}%</em>` : ""}</div></div>
+/* 18:40 使用者「明細 上滑 捲動 可以看以往記錄」:不用日期鍵,所有日子由新到舊接成一條清單,往上滑就看到更早的;
+   每天開頭一列日期分隔(佔一格,一頁仍是 8 格不切半列);標題列的日期和金額跟著目前最上面那天變 */
+const WD = "日一二三四五六";
+const dayTot = d => DAYS[d].reduce((a,o)=>a+o.p,0);
+const dayLabel = d => { const [m, dd] = d.split("/").map(Number); return `${d}(${WD[new Date(2026, m - 1, dd).getDay()]})`; };
+const fillRow = o => `<div class="prow2"><div class="nm"><b>${esc(o.nm)}</b><div class="cd"><i>${esc(o.code)}</i>${o.pct ? `<em class="${o.pct.startsWith("+")?"up":"dn"}">${esc(o.pct)}%</em>` : ""}</div></div>
       <div class="n${o.b.length > 6 ? " sm" : ""}">${esc(o.b)}</div><div class="n${o.a.length > 6 ? " sm" : ""}">${esc(o.a)}</div><div class="pl ${cls(o.p)}${fmt(o.p).length > 7 ? " sm" : ""}">${fmt(o.p)}</div>
-      <div class="now">出場價</div><div class="sub">${sd(o.s)}<span>${o.q}張</span></div><div class="tg">元大成交</div></div>`).join("")];   /* 18:30 使用者「換明細」:和當沖同一種排法 —— 出場價 | 做空(進場)價 | 輸贏,價格靠右上下對齊,沒有箭頭 */
+      <div class="now">出場價</div><div class="sub">${sd(o.s)}<span>${o.q}張</span></div><div class="tg">元大成交</div></div>`;
+function vDone(){
+  const ks = Object.keys(DAYS), d0 = S.day && DAYS[S.day] ? S.day : ks[0], tot = dayTot(d0);
+  return [head("明細", d0, fmt(tot), cls(tot)),
+    ks.map(d => `<div class="dsep" data-sep="${d}"><b>${dayLabel(d)}</b><span>${DAYS[d].length} 筆</span><em class="${cls(dayTot(d))}">${fmt(dayTot(d))}</em></div>` + DAYS[d].map(fillRow).join("")).join("")];
 }
+// 捲動時:標題列換成目前最上面那天
+function doneSync(){ try{ if (S.tab !== "明細") return; const L = document.getElementById("list"), top = L.getBoundingClientRect().top + 2;
+  let cur = null; for (const e of L.querySelectorAll(".dsep")){ if (e.getBoundingClientRect().top <= top) cur = e.dataset.sep; else break; }
+  cur = cur || Object.keys(DAYS)[0]; if (cur === S.day) return; S.day = cur;
+  const t = dayTot(cur), hd = document.getElementById("hd"); hd.querySelector(".date").textContent = cur; const a = hd.querySelector(".amt"); a.textContent = fmt(t); a.className = "amt " + cls(t); }catch(e){} }
 const PER_PAGE = 8, MIN_ROW = 52;
 function fit(){ try{ const L = document.getElementById("list"), H = L.clientHeight; if (!H) return;
   let n = PER_PAGE; if (H / n < MIN_ROW) n = Math.max(1, Math.floor(H / MIN_ROW));
   L.style.setProperty("--rh", (H / n) + "px"); }catch(e){} }
 window.addEventListener("resize", fit);
+
 function render(){
   const v = S.tab==="當沖" ? vPos() : vDone(), h = v[0], pre = v.length > 2 ? v[1] : "", l = v[v.length - 1];
   document.getElementById("hd").innerHTML = h; document.getElementById("pre").innerHTML = pre; document.getElementById("list").innerHTML = l; fit();
@@ -205,12 +221,12 @@ const DEMO = {
 };
 document.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return;
   if (b.id === "spk"){ const m = !muted(); sndSet(m); MUTED_MEM = m; render(); notifyQuiet(m ? "這台靜音(不響,震動照舊)" : "這台通知有聲音"); if (!m) webSnd("long", ""); return; }
-  if (b.dataset.tab){ S.tab = b.dataset.tab; render(); document.getElementById("list").scrollTop = 0; return; }
-  if (b.dataset.day){ S.day = b.dataset.day; render(); return; }
+  if (b.dataset.tab){ S.tab = b.dataset.tab; S.day = null; render(); document.getElementById("list").scrollTop = 0; return; }
   if (b.dataset.demo){ const d = DEMO[b.dataset.demo]; notify(d[0], d[1], d[2]); }
 });
 function notifyQuiet(t){ const L = document.getElementById('layer'); L.innerHTML = `<div class="toast pc" role="status"><b>${esc(t)}</b></div>`; clearTimeout(notify.t); notify.t = setTimeout(() => L.innerHTML = '', 1800); }
 render();
+document.getElementById("list").addEventListener("scroll", doneSync, {passive: true});
 </script>
 </body>
 </html>
