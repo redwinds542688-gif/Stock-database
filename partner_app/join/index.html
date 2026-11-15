@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>夥伴加入</title>
 <meta name="theme-color" content="#0B0E14">
+<link rel="manifest" href="/partner/join/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/partner/join/icon-192.png">
+<link rel="apple-touch-icon" href="/partner/join/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="夥伴加入">
 <!-- 2026-11-15 使用者「換 新增夥伴那個 … 現在要做的是 自動當沖夥伴加入 這又是另外一個程式 是連結主程式給看盤版的橋樑」
      使用者確認流程:主導$ 新增夥伴 → 夥伴用自己手機填元大帳號 / 電子密碼 / 憑證(加密送到主導$ 電腦,不經雲端存放)
      → 主導$ 設額度與公式 → 電腦多開一份主程式用夥伴帳號自動當沖 → 產生 fa11 金鑰 QR → 夥伴用「夥伴看盤」掃描。
@@ -65,13 +70,14 @@ input[type=text],input[type=password],input[type=number]{height:calc(var(--uf) *
 .back{align-self:flex-start;background:none;border:0;color:var(--blue);font-size:calc(var(--uf) * 1.05);cursor:pointer;padding:0}
 .sum{display:grid;grid-template-columns:auto minmax(0,1fr);gap:calc(var(--uf) * .35) calc(var(--u) * .5);font-size:calc(var(--uf) * 1.05)} .sum span{color:var(--sub)} .sum b{text-align:right}
 .ok-big{align-self:center;font-size:calc(var(--uf) * 3)}
+.verl{white-space:nowrap;font-size:calc(var(--uf) * .75);color:var(--sub)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--uf) * 2);background:#0E1A12;border:1px solid var(--green);color:#C9FFE5;padding:calc(var(--uf) * .6) calc(var(--uf) * 1);border-radius:10px;font-size:calc(var(--uf) * 1);z-index:9;max-width:90vw}
 @media (prefers-reduced-motion:reduce){.tg::after{transition:none}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="pv"><span>預覽</span><div class="who"><button type="button" id="wA" class="on">主導$</button><button type="button" id="wB">夥伴手機</button></div><b>範例</b></div>
+  <div class="pv"><span>預覽</span><div class="who"><button type="button" id="wA" class="on">主導$</button><button type="button" id="wB">夥伴手機</button></div><b>範例</b><span class="verl" id="ver"></span></div>
   <header class="ttl"><h1>自動當沖 · 夥伴加入</h1><span class="tag" id="tag">主導$</span></header>
   <main id="main"></main>
 </div>
@@ -186,6 +192,8 @@ main.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ")
 $("wA").onclick = () => { S.who = "A"; S.page = "list"; render(); };
 $("wB").onclick = () => { S.who = "B"; S.page = "form"; S.step = 1; render(); };
 render();
+/* 版本:App 顯示「App 1.0.0 · 雲端畫面」(畫面每次打開都讀雲端最新的);沒網路時「內建畫面(離線)」;網址版顯示「網頁版」 */
+try{ const H = window.JoinHost; $("ver").textContent = H ? `App ${H.version()}${H.offline() ? " 離線" : ""}` : "網頁版"; }catch(e){}
 </script>
 </body>
 </html>

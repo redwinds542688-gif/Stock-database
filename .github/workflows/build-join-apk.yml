@@ -1,0 +1,41 @@
+# 2026-11-15 自動當沖 · 夥伴加入 App(使用者「做成一個app 我在這修改 雲端改版 手機自動改版」):
+# App 只是殼,畫面每次打開讀雲端(Worker /partner/join/ = main 的 partner_app/join/index.html),改畫面不用重編。
+# 只有殼(partner_app/join_android/)改了才編 APK → partner_app/join_apk/PartnerJoin.apk + version.json(App 打開時比版本)。
+# 和名揚四海的 build-apk.yml、夥伴看盤的 build-partner-apk.yml 完全分開。
+name: build-join-apk
+on:
+  workflow_dispatch:
+  push:
+    branches: [partner, main]
+    paths:
+      - 'partner_app/join_android/**'
+      - '.github/workflows/build-join-apk.yml'
+permissions:
+  contents: write
+concurrency: { group: build-join-apk, cancel-in-progress: true }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.9' }
+      - name: 沒網路時用的內建畫面
+        run: cp partner_app/join/index.html partner_app/join_android/app/src/main/assets/join.html
+      - name: 編譯
+        working-directory: partner_app/join_android
+        run: gradle --no-daemon assembleRelease
+      - name: 放到 partner_app/join_apk 並推送
+        run: |
+          code=$(grep -oP 'versionCode = \K\d+' partner_app/join_android/app/build.gradle.kts)
+          name=$(grep -oP 'versionName = "\K[^"]+' partner_app/join_android/app/build.gradle.kts)
+          mkdir -p partner_app/join_apk
+          cp partner_app/join_android/app/build/outputs/apk/release/app-release.apk partner_app/join_apk/PartnerJoin.apk
+          python3 -c "import json,sys; json.dump({'versionCode':int(sys.argv[1]),'versionName':sys.argv[2],'sha':sys.argv[3]}, open('partner_app/join_apk/version.json','w'), ensure_ascii=False)" "$code" "$name" "${GITHUB_SHA::7}"
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add partner_app/join_apk/PartnerJoin.apk partner_app/join_apk/version.json
+          git commit -m "夥伴加入 APK $name ($code) 自動編譯" || exit 0
+          for i in 1 2 3; do git pull --rebase -q origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME" && break; sleep 5; done

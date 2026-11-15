@@ -1,0 +1,6 @@
+<!-- 夥伴加入圖示:金色的人 + 綠色加號(新增夥伴),和夥伴看盤(K 棒 + 眼睛)分得出來 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFD54F" android:pathData="M36,44 a11,11 0 1,0 22,0 a11,11 0 1,0 -22,0 Z"/>
+    <path android:fillColor="#FFD54F" android:pathData="M26,78 Q26,58 47,58 Q68,58 68,78 Z"/>
+    <path android:fillColor="#22E06B" android:pathData="M72,46 L78,46 L78,54 L86,54 L86,60 L78,60 L78,68 L72,68 L72,60 L64,60 L64,54 L72,54 Z"/>
+</vector>
