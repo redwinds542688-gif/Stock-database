@@ -48,6 +48,14 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .rt b{font-size:18px;font-weight:900} .rt small{font-size:13px;color:var(--sub)}
 .wl{font-size:12px;font-weight:700;border:1px solid;border-radius:4px;padding:0 4px}
 .wl.w{color:var(--up);border-color:var(--up)} .wl.l{color:var(--down);border-color:var(--down)} .wl.o{color:var(--sub);border-color:var(--line2)}
+.erow{display:grid;grid-template-columns:minmax(0,1fr) clamp(68px,22vw,92px) clamp(64px,19vw,80px) clamp(66px,21vw,88px);column-gap:6px;row-gap:2px;align-items:center;padding:9px 8px;border-bottom:1px solid #1E2636;background:repeating-linear-gradient(45deg,#121826 0 6px,#141B2A 6px 12px)}
+.erow .nm b{font-size:clamp(16px,5vw,19px)}
+.erow .nm{min-width:0} .erow .cd{display:flex;gap:6px;flex-wrap:wrap;align-items:baseline;font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.erow .cd i{font-style:normal;color:var(--green)} .erow .cd em{font-style:normal;font-weight:700}
+.erow .pc{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.erow .pc b{font-size:clamp(16px,5vw,19px)} .erow .pc small{font-size:14px;color:var(--soft)} .erow .pc small i{font-style:normal;color:var(--sub);margin-right:3px}
+.erow .sq{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;color:var(--sub);white-space:nowrap;font-variant-numeric:tabular-nums}
+.erow .sq .sd{margin-left:0}
 .days{display:flex;gap:6px;overflow-x:auto;padding:0 6px 8px}
 .day{flex:none;height:34px;padding:0 12px;border-radius:17px;border:1px solid var(--line2);background:transparent;color:var(--soft);font:500 15px var(--f);cursor:pointer}
 .day.on{border-color:var(--gold);background:#2A2410;color:var(--gold);font-weight:700}
@@ -126,12 +134,12 @@ function notify(title, body, kind){
 
 /* ── 範例資料(夥伴A 自己的) ─────────────────────────────── */
 const ENTRY = [   // 進場:今天程式幫夥伴進場的(和主導版進場頁一樣一檔一列;沒有平倉鍵)
-  {nm:"台塑",code:"1301",s:"s",ent:"72.10",now:"72.40",q:3,js:"判三",t:"11:05",st:"o",p:-860},
-  {nm:"聯電",code:"2303",s:"s",ent:"108.50",now:"107.00",q:2,js:"判六",t:"10:42",st:"o",p:2780},
-  {nm:"台塑化",code:"6505",s:"l",ent:"98.90",now:"101.37",q:2,js:"判四",t:"09:31",st:"w",p:4494},
-  {nm:"欣銓",code:"3264",s:"s",ent:"217.00",now:"214.00",q:1,js:"判二",t:"09:20",st:"w",p:2522},
-  {nm:"碩禾",code:"3691",s:"s",ent:"145.00",now:"137.75",q:1,js:"判四",t:"09:12",st:"w",p:6933},
-  {nm:"鈺創",code:"5351",s:"s",ent:"102.50",now:"104.00",q:2,js:"判一",t:"09:40",st:"l",p:-3534},
+  {nm:"台塑",pct:"+0.83",code:"1301",s:"s",ent:"72.10",now:"72.40",q:3,js:"判三",t:"11:05",st:"o",p:-860},
+  {nm:"聯電",pct:"−1.38",code:"2303",s:"s",ent:"108.50",now:"107.00",q:2,js:"判六",t:"10:42",st:"o",p:2780},
+  {nm:"台塑化",pct:"+2.50",code:"6505",s:"l",ent:"98.90",now:"101.37",q:2,js:"判四",t:"09:31",st:"w",p:4494},
+  {nm:"欣銓",pct:"−1.84",code:"3264",s:"s",ent:"217.00",now:"214.00",q:1,js:"判二",t:"09:20",st:"w",p:2522},
+  {nm:"碩禾",pct:"−4.97",code:"3691",s:"s",ent:"145.00",now:"137.75",q:1,js:"判四",t:"09:12",st:"w",p:6933},
+  {nm:"鈺創",pct:"+1.46",code:"5351",s:"s",ent:"102.50",now:"104.00",q:2,js:"判一",t:"09:40",st:"l",p:-3534},
 ];
 const DAYS = {
   "11/16": [
@@ -155,8 +163,9 @@ function head(tab, date, amt, amtCls){
 function vEntry(){
   const open = ENTRY.filter(o=>o.st==="o").length;
   return [head("進場","11/16", `${ENTRY.length} 檔`, "gold"),
-    ENTRY.map(o=>`<div class="row"><div class="nm"><b>${esc(o.nm)}</b><small>${esc(o.code)}</small></div>
-      <div class="px"><b>${esc(o.ent)}</b>${sd(o.s)}<small>現 ${esc(o.now)} <span class="js">${esc(o.js)}</span> ${o.q}張 ${esc(o.t)}</small></div>
+    ENTRY.map(o=>`<div class="erow"><div class="nm"><b>${esc(o.nm)}</b><div class="cd"><i>${esc(o.code)}</i><em class="${o.pct.startsWith("+")?"up":"dn"}">${esc(o.pct)}%</em></div></div>
+      <div class="pc"><b>${esc(o.ent)}</b><small><i>現</i>${esc(o.now)}</small></div>
+      <div class="sq">${sd(o.s)}<span>${o.q}張 ${esc(o.t)}</span></div>
       <div class="rt"><span class="wl ${o.st==="o"?"o":o.p>0?"w":"l"}">${o.st==="o"?"持倉中":o.p>0?"贏":"輸"}</span><b class="${cls(o.p)}">${fmt(o.p)}</b></div></div>`).join("")
     + `<div class="note">還在場上 ${open} 檔。這裡只能看,沒有平倉鍵;程式照設定自動停損停利、13:20 前全部平倉。</div>`];
 }
@@ -165,7 +174,7 @@ function vPos(){
   return [head("當沖","11/16", fmt(tot), cls(tot)),
     `<div class="stt"><span class="dot${ME.alive?"":" r"}"></span>${ME.alive?`主機正常回報 · ${ME.at}`:"主機超過 3 分鐘沒回報"}</div>`
     + (hold.map(o=>`<div class="row"><div class="nm"><b>${esc(o.nm)}</b><small>${esc(o.code)}</small></div>
-      <div class="px"><b>${esc(o.ent)} → ${esc(o.now)}</b><small>${sd(o.s)} ${o.q}張 · ${esc(o.js)}</small></div>
+      <div class="px"><b>${esc(o.ent)} → ${esc(o.now)}</b><small>${sd(o.s)} ${o.q}張</small></div>
       <div class="rt"><b class="${cls(o.p)}">${fmt(o.p)}</b><small>帳面</small></div></div>`).join("") || `<div class="empty">目前沒有持倉</div>`)];
 }
 function vDone(){
