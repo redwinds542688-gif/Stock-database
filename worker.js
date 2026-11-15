@@ -860,19 +860,13 @@ async function keyInfo(env, k) {
   let emo = MC.get("emo:" + k);
   if (!emo || Date.now() - emo.at > (emo.v ? 600e3 : 15e3)) {   // 2026-11-02 14:50 還不是 owner 的結果只記 15 秒(別的執行個體剛認出來時,這邊不會 10 分鐘都當看盤 → 一直跳鑰匙視窗)
   let v = false; try { v = env.HUB ? !!(await hubOf(env).kvGet("emo:" + k)) : false; } catch (e) {} emo = { v, at: Date.now() }; MC.set("emo:" + k, emo); }
-  const own = !isFamKey(k) && (k.includes("5861") || EMER_OWN.some(s => k.endsWith(s)) || emo.v);   // 2026-11-15 家人鑰匙永遠不會變 owner
+  const own = k.includes("5861") || EMER_OWN.some(s => k.endsWith(s)) || emo.v;
   return { role: own ? "owner" : "viewer", on: true, name: "緊急(KV 額度用完)", emer: true, emoP: !!(emo.v && !(k.includes("5861") || EMER_OWN.some(s => k.endsWith(s)))) };   // 2026-11-11 22:42 使用者「全改」:緊急模式「認出來」的 owner(emoP)只能看、不能下單 / 寫通知
 }
-function newKey(pre) {   // 2026-11-03 新鑰匙不會剛好含 5861(含 5861 = 主導機)或結尾是緊急模式的 owner 尾碼
-  for (;;) { const a = new Uint8Array(12); crypto.getRandomValues(a); const k = (pre || "") + [...a].map(b => b.toString(16).padStart(2, "0")).join("").slice((pre || "").length);
-    if (!k.includes("5861") && !EMER_OWN.some(x => k.endsWith(x)) && (pre ? true : !k.startsWith(FAM_PRE))) return k; }
+function newKey() {   // 2026-11-03 新鑰匙不會剛好含 5861(含 5861 = 主導機)或結尾是緊急模式的 owner 尾碼
+  for (;;) { const a = new Uint8Array(12); crypto.getRandomValues(a); const k = [...a].map(b => b.toString(16).padStart(2, "0")).join("");
+    if (!k.includes("5861") && !EMER_OWN.some(x => k.endsWith(x))) return k; }
 }
-/* 2026-11-15 12:05 使用者「目前有一台電腦版兩台手機跟一個平板 這些都可以看到所有人的 再來發布的金鑰 就是自己只能看到自己的」:
-   家人鑰匙 = 開頭 fa11(一看就知道,雲端資料庫故障的緊急模式也不會被認成 owner),記錄裡有 acct(家人名字,和中繼 bridge.env 的 ACCT_NAME 一樣);
-   只看得到自己帳號的部位 / 成交 / 輸贏(?acct=);現有的 owner 鑰匙(電腦版、兩支手機、平板)看得到全部人 */
-const FAM_PRE = "fa11";
-const isFamKey = k => String(k || "").startsWith(FAM_PRE);
-const ACCT_RE = /^[^\s|:\/\\?#&<>"']{1,12}$/;
 
 export default {
   // ── Cloudflare Cron Trigger 到點 → 叫 GitHub 跑對應的 workflow ──
@@ -964,7 +958,7 @@ export default {
         if (!KI.dev || Date.now() - sw > 86400e3) { SEENW.set(kq, Date.now()); try { if (!KI.dev) KI.dev = dv; KI.seen = Date.now(); await ksPut(env, kq, { dev: KI.dev, seen: KI.seen }); } catch (e) {} } } }   // 2026-11-03 20:10 改寫 Hub(不寫 KV)
     // 2026-10-29 安全修補:owner 鑰匙做「寫入 / 下單 / 管鑰匙」時,鑰匙已綁手機就一定要帶 dv(手機 App 的 fetch 包裝每次都帶;不帶 dv 不能繞過一人一機去下單)。
     //   讀的端點(gh=raw 更新等)照舊不要求 dv,避免 Page.kt 偏好裡沒有 dev 時更新失敗
-    if (KI && KI.emer && KI.role !== "owner" && !isFamKey(kq) && (url.searchParams.get("cap") === "get" || ["pos", "fills"].includes(url.searchParams.get("trade") || "") || url.searchParams.get("repo") === "logic" || (url.searchParams.get("gh") === "raw" && /^app\/app\.html/.test(url.searchParams.get("path") || ""))) && dv && env.HUB) {   // 主程式的手機 → 記成 owner(緊急模式才有)
+    if (KI && KI.emer && KI.role !== "owner" && (url.searchParams.get("cap") === "get" || ["pos", "fills"].includes(url.searchParams.get("trade") || "") || url.searchParams.get("repo") === "logic" || (url.searchParams.get("gh") === "raw" && /^app\/app\.html/.test(url.searchParams.get("path") || ""))) && dv && env.HUB) {   // 主程式的手機 → 記成 owner(緊急模式才有)
       try { await hubOf(env).kvPut("emo:" + kq, { dv, at: Date.now() }); } catch (e) {}
       MC.set("emo:" + kq, { v: true, at: Date.now() }); KI = { ...KI, role: "owner", emoP: true };
     }
@@ -1135,12 +1129,8 @@ export default {
         // 2026-11-01 試用方案已拿掉:舊的發鑰匙工具還會送 plan / role = trial,原本會變成「不到期的看盤鑰匙」→ 直接拒絕
         if (b.plan === "trial" || b.role === "trial") return J({ error: "試用方案已取消(免鑰匙就有 30 天);付費請用 m1 / m3 / y1" }, 400);
         if (b.plan && !pl) return J({ error: "沒有這個方案:" + String(b.plan).slice(0, 10) + "(m1 / m3 / y1)" }, 400);
-        const acct = String(b.acct || "").trim();   // 2026-11-15 家人鑰匙:{name, acct}(acct = 中繼 ACCT_NAME)→ 只看自己帳號
-        if (acct && !ACCT_RE.test(acct)) return J({ error: "acct(家人名字)最多 12 個字,不能有空白或符號" }, 400);
-        if (acct && (pl || b.role === "owner")) return J({ error: "家人鑰匙不能同時是 owner 或付費方案" }, 400);
-        const role = pl ? pl.role : b.role === "owner" ? "owner" : "viewer", name = String(b.name || acct || "").slice(0, 40), k = acct ? newKey(FAM_PRE) : newKey();
+        const role = pl ? pl.role : b.role === "owner" ? "owner" : "viewer", name = String(b.name || "").slice(0, 40), k = newKey();
         const rec = { name, role, on: true, made: ymdOf(twNow()) };
-        if (acct) rec.acct = acct;
         if (pl) { rec.plan = b.plan; rec.price = pl.price; }
         const days = +b.days > 0 ? Math.floor(+b.days) : pl ? pl.days : role === "trial" ? 30 : 0;   // 試用(trial):30 天,期間沒有今天的判一二三訊號(過去的成績單看得到)
         if (days > 0) rec.exp = ymdOf(new Date(twNow().getTime() + days * 86400e3));   // 到期日(天數,不填 = 不到期;日期是 Worker 的時間,手機改時間沒用)
@@ -1417,42 +1407,6 @@ export default {
       return new Response(JSON.stringify(v || {}), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=20" } });
     }
 
-    // ── 2026-11-15 家人帳號(第二階段):?acct=list[&d=] → 每個人今天的 {at, pnl, n, amount, pos 檔數, fills 摘要};
-    //   ?acct=get&a=<名字>[&d=][&name=pos|pnl|fills|state|lat|info] → 那個人那天的資料。
-    //   權限:中繼金鑰 / owner 鑰匙(電腦版、兩支手機、平板)看全部人;家人鑰匙(fa11…,記錄有 acct)只看得到自己;其他鑰匙不行
-    const acq = url.searchParams.get("acct");
-    if (acq === "list" || acq === "get") {
-      if (!env || !env.HUB) return J({ error: "Worker 還沒綁定 Durable Object(HUB)" }, 503);
-      const pushK = !!(env.YT_PUSH_KEY && request.headers.get("X-Push-Key") === env.YT_PUSH_KEY), all = pushK || ownerKI;
-      const mine = KI && isFamKey(kq) && KI.acct && ACCT_RE.test(KI.acct) ? KI.acct : "";
-      if (!all && !mine) return J({ error: "要 owner 鑰匙或家人鑰匙" }, 403);
-      const hub = hubOf(env), d = (url.searchParams.get("d") || ymdOf(twNow())).slice(0, 10);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return J({ error: "d 不對" }, 400);
-      const g = async (a, nm) => { try { const x = await hub.kvGet(`pcbka:${a}:${d}:${nm}`); return x || null; } catch (e) { return null; } };
-      if (acq === "get") {
-        const a = String(url.searchParams.get("a") || mine);
-        if (!ACCT_RE.test(a)) return J({ error: "a(家人名字)不對" }, 400);
-        if (!all && a !== mine) return J({ error: "只能看自己的帳號" }, 403);
-        const nm = String(url.searchParams.get("name") || "");
-        if (nm) { if (!/^(pos|pnl|fills|state|lat|info)$/.test(nm)) return J({ error: "name 不對" }, 400); return J({ acct: a, d, ...((await g(a, nm)) || {}) }); }
-        const out = { acct: a, d };
-        for (const nm2 of ["pos", "pnl", "fills", "info"]) { const x = await g(a, nm2); if (x) out[nm2] = x.v, out.at = Math.max(out.at || 0, +x.at || 0); }
-        return J(out);
-      }
-      let L = null; try { L = await hub.kvGet("accts"); } catch (e) {}
-      const names = Object.keys(L && typeof L === "object" ? L : {}).filter(a => all || a === mine).sort();
-      const rows = [];
-      for (const a of names) {
-        const p = await g(a, "pnl"), ps = await g(a, "pos"), f = await g(a, "fills");
-        const fv = f && f.v || {};
-        rows.push({ acct: a, last: (L[a] || {}).at || 0, at: Math.max(+(p && p.at) || 0, +(ps && ps.at) || 0),
-                    pnl: p && p.v ? p.v.pnl : null, n: p && p.v ? p.v.n : null, amount: p && p.v ? p.v.amount : null,
-                    pos: Array.isArray(ps && ps.v) ? ps.v.filter(x => +x.qty > 0).length : null,
-                    net: fv.net != null ? fv.net : fv.total != null ? fv.total : null });
-      }
-      return J({ d, all: !!all, rows });
-    }
-
     // ── 2026-11-12 20:22 使用者「改」(升級 Workers Paid 後物盡其用 1):電腦關鍵資料備份到雲端 ——
     //   POST ?pcbk=put {d, items:{breadth, codes, state, ...}}(中繼金鑰,每分鐘一次,一次全部)→ Hub 存 pcbk:<d>:<name>;GET ?pcbk=get&d=&name=(中繼金鑰或 owner 鑰匙)
     //   回測 / 檢討 / 電腦重灌都用同一份(11/12 兩個對話寬度 / 監控名單不同,結果差很多)
@@ -1465,18 +1419,6 @@ export default {
         if (!pushK) return J({ error: "金鑰不對" }, 403);
         let b; try { b = await request.json(); } catch (e) { return J({ error: "JSON 格式錯誤" }, 400); }
         if (!b || !/^\d{4}-\d{2}-\d{2}$/.test(b.d || "") || !b.items || typeof b.items !== "object") return J({ error: "要有 d 和 items" }, 400);
-        if (b.acct != null && b.acct !== "") {   // 2026-11-15 家人帳號的中繼:分人存 pcbka:<名字>:<日期>:<項目>,名冊 accts = {名字: 最後時間}
-          const a = String(b.acct); if (!ACCT_RE.test(a)) return J({ error: "acct 不對" }, 400);
-          const hub = hubOf(env), at = Date.now(), names = [];
-          for (const [k, v] of Object.entries(b.items).slice(0, 8)) {
-            if (!/^(pos|pnl|fills|state|lat|info)$/.test(k)) continue;
-            const js = JSON.stringify(v); if (js.length > 800000) continue;
-            await hub.kvPut(`pcbka:${a}:${b.d}:${k}`, { at, v }); names.push(k);
-          }
-          let L = null; try { L = await hub.kvGet("accts"); } catch (e) {}
-          L = L && typeof L === "object" ? L : {}; L[a] = { at, d: b.d }; await hub.kvPut("accts", L);
-          return J({ ok: true, acct: a, names });
-        }
         const hub = hubOf(env), at = Date.now(), names = [];
         for (const [k, v] of Object.entries(b.items).slice(0, 12)) {
           if (!/^[a-z0-9_]{1,24}$/.test(k)) continue;

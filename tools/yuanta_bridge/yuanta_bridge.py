@@ -144,13 +144,6 @@ def load_env():
 
 CFG = load_env()
 LOG_LOCK = threading.Lock()
-# 2026-11-15 12:10 使用者「大概10個人 每個人的額度不一樣 … 九個判別式都一起啟動 … 我可以看到所有人的輸贏 但他們只能看到自己的輸贏」:
-#   家人帳號 = 同一台主機另一個資料夾(C:\Yuanta\fam\<名字>)跑一份中繼,bridge.env 寫 ACCT_NAME=<名字> → 「只下單」模式:
-#   讀同一份雲端 / 本機訊號照自己的設定下單;不跑公式引擎、不推 1 分 K / 台指期 / 參考價 / 雲端備份 / 額度、不寫進場結果檔、不跟 5861 主導機的多空上限;
-#   推到手機的提醒標題前面加【名字】、交易卡改成提醒(不算進主帳號的元大明細)。ACCT_NAME 空白 = 主帳號(和原本完全一樣)
-ACCT = re.sub(r"[\s|]", "", CFG.get("ACCT_NAME", ""))[:12]
-FAMILY = bool(ACCT)
-if FAMILY and CFG.get("ENGINE_DIR") and not os.environ.get("ENGINE_DIR"): os.environ["ENGINE_DIR"] = CFG["ENGINE_DIR"]   # 家人帳號:讀主帳號資料夾的本機通知(訊號 1 秒內到)
 
 
 def log(*a):
@@ -463,7 +456,7 @@ class Bridge:
         return y, m
 
     def fut_sub(self):
-        if FAMILY or CFG.get("FUT_ENABLE", "1") != "1": return   # 2026-11-15 家人帳號:台指期由主帳號收(公式引擎在主帳號)
+        if CFG.get("FUT_ENABLE", "1") != "1": return
         try:
             y, m = self.fut_near(); L = "ABCDEFGHIJKL"[m - 1]
             cands = [f"TXF{L}{y % 10}", f"TXF{y}{m:02d}", "TXF1", f"TXF{m:02d}", "TXF"]
@@ -502,7 +495,7 @@ class Bridge:
     def fut_poll(self):
         """⑧ 備援 2(2026-11-13 23:55 使用者選「1」三層備援):電腦直接問期交所即時行情(mis.taifex,雲端主機會被擋,台灣家用網路可以),
            08:44~13:46 每 10 秒一次,台指期近月(成交量最大的 TXF??-F)最新價 → 1 分 K(self.fut_tf);元大逐筆沒來時 fut_flush 改用這份"""
-        if FAMILY or CFG.get("FUT_TAIFEX", "1") != "1": return
+        if CFG.get("FUT_TAIFEX", "1") != "1": return
         n = now_tw()
         if n.weekday() >= 5 or not ("08:44" <= n.strftime("%H:%M") <= "13:46") or time.time() - getattr(self, "_tf_at", 0) < 10: return
         self._tf_at = time.time()
@@ -569,7 +562,6 @@ class Bridge:
 
     def fut_save(self, day):
         """收工:等到 13:46(台指期 13:45 收盤)→ 存本機 + 推 Worker 一次"""
-        if FAMILY: return
         try:
             if not getattr(self, "fut_n", None): log("[台指期] 今天沒收到任何台指期逐筆(代號寫法都不對 / 元件不給),明天看上面那行元件功能清單再調"); return
             while now_tw().strftime("%H:%M") < "13:46" and self.api: time.sleep(5)
@@ -1033,8 +1025,6 @@ class Bridge:
 
     def trade_post(self, title, body, kind, t=None, pos=None):
         """2026-10-28 強三進出場、強平 → 寫一則交易訊息到手機的訊息欄(Worker ?log=add,和手機自己發的同一套)"""
-        if FAMILY:   # 2026-11-15 家人帳號:不寫交易卡(會混進主帳號的元大明細 / 進場清單),改成標名字的提醒
-            return self.phone_alert(title, re.sub(r"\s*·\s*元大中繼\s*$", "", body or ""), "pc")
         try:
             n = now_tw(); m = re.match(r"^\S+ (\d{4,6})", title); code = m.group(1) if m else ""
             rs = (re.search(r"· (判[一二三四五六七八九])\s*$", body) or [None, ""])[1]   # 2026-11-13 10:30 判五~七也帶判別式(鍵和手機一樣)
@@ -1072,7 +1062,7 @@ class Bridge:
            總額度(QUOTA_TOTAL,預設 = TRADE_MAX_AMOUNT 490 萬)− 今天成交(買 + 賣,含手動)− 還掛著沒成交的委託金額(含手動;取消會退回)。
            每次查到今天委託成交回報(30 秒複查、接回、手機查輸贏)就算一次,最多每 25 秒推一次 Worker(?quota=push),
            手機訊息右上角「資金」就顯示這個數字。QUOTA_PUSH=0 關掉。"""
-        if FAMILY or not CFG.get("PUSH_KEY") or CFG.get("QUOTA_PUSH", "1") != "1": return   # 2026-11-15 家人帳號:額度不推(手機資金顯示的是主帳號)
+        if not CFG.get("PUSH_KEY") or CFG.get("QUOTA_PUSH", "1") != "1": return
         fill = work = 0.0
         # 2026-11-02 13:51 使用者「強平時程式掛漲停價買回,元大是用漲停價先扣額度 — 元大就是這樣做」:成交照「委託價」算額度(漲停買回 / 跌停賣出用委託價,
         #   比成交價高的話用委託價;市價單 / 拿不到委託價照成交價),和元大的剩餘額度對齊(今天程式以為剩 44 萬、元大只剩 24 萬,台化 / 大甲被退單)
@@ -1229,36 +1219,9 @@ class Bridge:
             self.phone_alert(f"⚠ {at} 手動預掛取消不掉", "程式照樣平倉,請在投資先生確認有沒有多平")
         return nos
 
-    def fam_backup(self, day):
-        """2026-11-15 家人帳號第二階段(使用者「再來發布的金鑰 就是自己只能看到自己的」):每分鐘 POST ?pcbk=put {d, acct, items:{pos, pnl, fills, info}}
-           → 雲端存 pcbka:<名字>:<日期>:*;owner 鑰匙看全部人、家人鑰匙(fa11…)只看自己(?acct=list / ?acct=get)。
-           成交每 2 分鐘向元大查一次(30 秒內重複問會用上一次的結果);失敗只記紀錄,不影響交易"""
-        try:
-            items = {}
-            if self.api and self.logged_in.is_set() and time.time() - getattr(self, "_ff_at", 0) > 120:
-                self._ff_at = time.time()
-                try: self.trade_fills()
-                except Exception as e: log("[家人] 查成交失敗", e)
-            fc = (getattr(self, "_fills_cache", None) or (0, None))[1] or self.fills_saved()
-            if fc: items["fills"] = fc
-            t = self.trader
-            if t is not None:
-                with t.lock: items["pos"] = [{k: p.get(k) for k in ("code", "dir", "qty", "entry", "judge", "tp", "sl", "state", "t0", "typ")} for p in t.positions.values()]
-                items["pnl"] = {"pnl": round(getattr(t, "pnl", 0) or 0), "n": getattr(t, "n_trades", 0), "amount": round(getattr(t, "amount_today", 0) or 0)}
-                items["info"] = {"acct": "…" + str(CFG.get("YT_ACCOUNT", ""))[-4:], "max_amount": getattr(t, "max_amount", None), "cap": getattr(t, "cap", None),
-                                 "max_loss": getattr(t, "max_loss", None), "kill_loss": getattr(t, "kill_loss", None), "enabled": bool(getattr(t, "enabled", False)),
-                                 "names": {c: (self.quotes.meta.get(c) or {}).get("n", "") for c in list(t.positions)}}
-            req = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?pcbk=put", data=json.dumps({"d": day, "acct": ACCT, "items": items}, ensure_ascii=False, default=str).encode(), method="POST",
-                                         headers={"Content-Type": "application/json", "X-Push-Key": CFG.get("PUSH_KEY", "")})
-            urllib.request.urlopen(req, timeout=15).read()
-        except Exception as e:
-            n = getattr(self, "_bk_fail", 0) + 1; self._bk_fail = n
-            if n == 1 or n % 30 == 0: log(f"[家人 {ACCT}] 雲端備份失敗(第 {n} 次)", e)
-
     def cap_sync(self):
         """2026-11-02 多空上限主控(使用者:「其他二隻跟電腦偵測到 都自動改成與5861這隻一樣的金額」):讀雲端主導機的值改 trader.cap(之後新進場的張數照它算);
            TRADE_CAP=0(固定張數)不動;讀不到維持原值(bridge.env 的 TRADE_CAP / ENGINE_CAP)"""
-        if FAMILY: return   # 2026-11-15 家人帳號:多空上限照自己的 bridge.env,不跟 5861 主導機
         v = fetch_cap(CFG["WORKER_URL"], CFG.get("PUSH_KEY", ""))
         if v: v = min(v, 250000)   # 2026-11-11 22:46 使用者「最多上限改25萬」
         if v: self.trader.master_cap = v; self.cap_ok_day = time.strftime("%Y-%m-%d", time.gmtime(time.time() + 8 * 3600))   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:讀到了(今天)
@@ -1329,7 +1292,6 @@ class Bridge:
     def pc_backup(self, day):
         """2026-11-12 20:22 使用者「改」(升級 Workers Paid 後物盡其用 1):每分鐘一次 POST ?pcbk=put —— 今天的大盤寬度、引擎實際監控的股票、
            中繼部位(含總停損 / 移動停損利的起點)、狀態檔;回測 / 檢討 / 電腦重灌都用同一份。失敗只記紀錄,不影響交易"""
-        if FAMILY: return self.fam_backup(day)   # 2026-11-15 家人帳號:分人存(部位 / 成交 / 輸贏),不碰主帳號那份
         try:
             ed = Path(os.environ.get("ENGINE_DIR", HERE / "engine_data")); items = {}
             try: items["breadth"] = (json.loads((ed / "breadth.json").read_text(encoding="utf-8")) or {}).get(day) or {}
@@ -1365,7 +1327,6 @@ class Bridge:
            2026-10-31 kind 原本是 warn:手機只把 warn 當股票的「注意 / 反彈」狀態、不跳通知 → 電腦的提醒手機都沒跳出來。改成 pc(一般提醒,會跳通知);
            虧損分級 lv1~lv5(手機一級比一級強的顏色、聲音、震動)"""
         try:
-            if FAMILY: title = f"【{ACCT}】{title}"   # 2026-11-15 家人帳號:提醒標題標名字
             n = now_tw(); it = {"d": n.strftime("%Y-%m-%d"), "t": n.strftime("%H:%M"), "title": title, "body": body + " · 元大中繼", "kind": kind or "pc", "key": "yt|" + title}
             req = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?log=add", data=json.dumps(it).encode(), method="POST", headers={"Content-Type": "application/json", "X-Push-Key": CFG.get("PUSH_KEY", "")})   # 2026-10-29 鑰匙
             urllib.request.urlopen(req, timeout=10)
@@ -1446,7 +1407,7 @@ class Bridge:
         if not bars:
             return True
         self.save_local(day, minute, bars)          # 2026-10-25 有 PUSH_KEY 也照樣存本機一份(比對 / 備份用)
-        if FAMILY or not CFG.get("PUSH_KEY"):      # 2026-11-15 家人帳號:1 分 K 由主帳號推
+        if not CFG.get("PUSH_KEY"):
             return True
         body = json.dumps({"d": day, "m": minute, "bars": bars}).encode()
         req = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?ybars=push", data=body, method="POST",
@@ -1534,8 +1495,7 @@ class Bridge:
         self.trader.prime(fetch_signals(CFG["WORKER_URL"], day, CFG.get("PUSH_KEY", "")))
         self._loc = None; self.local_signals(day)   # 2026-10-30 本機通知檔從現在的檔尾開始讀(之前的是舊的)
         self.engine = None   # 2026-10-29 公式在電腦(使用者「先做1.2.3」第 2 項):ENGINE=1 → 另開一個 engine.py 行程,每分鐘用模擬器算判一二三推雲端;收工時關掉
-        if CFG.get("ENGINE", "0") == "1" and FAMILY: log(f"[家人 {ACCT}] 只下單模式:不開公式引擎(訊號讀主帳號的雲端 / 本機通知)")
-        if CFG.get("ENGINE", "0") == "1" and not FAMILY:
+        if CFG.get("ENGINE", "0") == "1":
             try:
                 import subprocess
                 self.engine = subprocess.Popen([sys.executable, str(HERE / "engine.py")], cwd=str(HERE)); log(f"[公式] engine.py 已啟動(pid {self.engine.pid}),判一二三由電腦算、手機只收雲端通知")
@@ -1550,7 +1510,7 @@ class Bridge:
             try:
                 import win_keys; win_keys.sync_qr(log=log)
             except Exception as e: log("[鑰匙] 存 QR Code 失敗", e)
-        if not FAMILY: threading.Thread(target=_qr, daemon=True, name="keyqr").start()
+        threading.Thread(target=_qr, daemon=True, name="keyqr").start()
         while now_tw().strftime("%H:%M") < "13:36":
             try:
                 if self.login_fail:
@@ -1603,7 +1563,7 @@ class Bridge:
                     if time.time() - getattr(self, "_step_err", 0) > 300: self._step_err = time.time(); self.phone_alert("⚠ 電腦交易程式出錯", f"{e!r}"[:150] + ";程式照樣繼續跑,請看電腦紀錄")
                 try:
                     vs = self.trader.__dict__.pop("verdicts", None)   # 2026-11-13 進場訊號的結果(有沒有進場)寫給電腦引擎,推雲端前標「未進場」
-                    if vs and not FAMILY:   # 2026-11-15 家人帳號沒進場不代表主帳號沒進場,不寫
+                    if vs:
                         with open(Path(os.environ.get("ENGINE_DIR", HERE / "engine_data")) / f"verdict_{day}.jsonl", "a", encoding="utf-8") as f:
                             for v in vs: f.write(json.dumps(v, ensure_ascii=False) + "\n")
                 except Exception as e: log("寫進場結果檔失敗", e)
@@ -1638,7 +1598,7 @@ class Bridge:
                     self.flush(day)
                     if k % 10 == 0: self.flush_ticks(day)
                 # 2026-11-10 17:26(實際時間)使用者「官方昨收 應該要有備用補齊通道」→「改」:元大清盤給的參考價(除權息已扣)每 30 秒寫 engine_data/ref_<日期>.json,電腦引擎昨收第一優先用它
-                if k % 30 == 0 and not FAMILY:   # 2026-11-15 家人帳號:參考價由主帳號寫 / 推
+                if k % 30 == 0:
                     try:
                         _rf = {c: m["yref"] for c, m in list(self.quotes.meta.items()) if m.get("yref")}
                         if _rf and _rf != getattr(self, "_ref_last", None):
@@ -1802,7 +1762,6 @@ def main():
         b.connect(); b.send_order(code, "TWSE", side, 1, price, "0", "0", "TEST1")
         time.sleep(20); b.close(); return
     # run:常駐
-    if FAMILY: log(f"[家人 {ACCT}] 只下單模式啟動(帳號 …{str(CFG.get('YT_ACCOUNT', ''))[-4:]};設定照本資料夾 bridge.env;訊號讀 {os.environ.get('ENGINE_DIR') or CFG.get('ENGINE_DIR') or '雲端'})")
     if not CFG.get("WORKER_URL"):
         sys.exit("缺少設定 WORKER_URL")
     if not CFG.get("PUSH_KEY"):
@@ -1824,7 +1783,7 @@ def main():
                 except Exception: pass
         # 2026-10-25 使用者「符合條件一律收進來…預先抓好抓滿」:收工後把今天「前一天收盤符合選股條件的全部股票」的元大 1 分 K 抓回本機 kline_yuanta\
         #   14:05 一次、17:05 再補一次(已抓過的跳過);同一支程式依序登入,不會兩支同時登入。bridge.env 設 HIST_AFTER=0 可關掉
-        if n.weekday() < 5 and CFG.get("HIST_AFTER", "0" if FAMILY else "1") == "1" and "14:05" <= hm < "20:00":   # 2026-11-15 家人帳號預設不抓(主帳號抓一份就好)
+        if n.weekday() < 5 and CFG.get("HIST_AFTER", "1") == "1" and "14:05" <= hm < "20:00":
             for at, until in (("14:05", "17:05"), ("17:05", "20:00")):
                 key = n.strftime("%Y-%m-%d") + at
                 if at <= hm < until and key not in hist_done:
