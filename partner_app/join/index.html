@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>夥伴加入</title>
+<meta name="theme-color" content="#0B0E14">
+<!-- 2026-11-15 使用者「換 新增夥伴那個 … 現在要做的是 自動當沖夥伴加入 這又是另外一個程式 是連結主程式給看盤版的橋樑」
+     使用者確認流程:主導$ 新增夥伴 → 夥伴用自己手機填元大帳號 / 電子密碼 / 憑證(加密送到主導$ 電腦,不經雲端存放)
+     → 主導$ 設額度與公式 → 電腦多開一份主程式用夥伴帳號自動當沖 → 產生 fa11 金鑰 QR → 夥伴用「夥伴看盤」掃描。
+     這一版只是畫面(範例資料):不連雲端、不連電腦、不會下單、不會送出任何資料。 -->
+<style>
+:root{
+  --u:calc(100vw / 30);--uf:min(calc(100vw / 30), calc(62vh / 30));
+  --ground:#05070B;--bg:#0B0E14;--card:#151B28;--card2:#111827;--line:#2A3244;--line2:#3A4357;
+  --fg:#E6EAF2;--sub:#8C96AB;--soft:#C9D1DF;--gold:#FFD54F;--green:#22E06B;--blue:#29B6F6;--up:#FF4D5E;--down:#2EE59D;--bad:#FF3B3B;
+  --f:'Noto Sans TC',system-ui,-apple-system,'PingFang TC','Microsoft JhengHei',sans-serif;color-scheme:dark}
+*{box-sizing:border-box} html,body{height:100%;margin:0;overscroll-behavior:none}
+body{background:var(--ground);color:var(--fg);font-family:var(--f)}
+button,input{font-family:inherit}
+button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.wrap{height:100%;display:flex;flex-direction:column;background:var(--bg)}
+.pv{display:flex;gap:calc(var(--u) * .4);align-items:center;padding:calc(var(--uf) * .45) calc(var(--u) * .6);background:#0E121A;border-bottom:1px dashed var(--line2);font-size:calc(var(--uf) * .85);color:var(--sub)}
+.pv b{color:var(--gold);margin-left:auto}
+.who{display:flex;gap:calc(var(--u) * .3)} .who button{height:calc(var(--uf) * 2.2);padding:0 calc(var(--uf) * .7);border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--soft);font-size:calc(var(--uf) * .9);cursor:pointer}
+.who button.on{border-color:var(--gold);color:var(--gold);font-weight:700}
+.ttl{padding:calc(var(--uf) * .7) calc(var(--u) * .6);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:calc(var(--uf) * .6)}
+.ttl h1{margin:0;font-size:calc(var(--uf) * 2.1);font-weight:900;white-space:nowrap;background:linear-gradient(90deg,#FF5A5F,#FFB13B 30%,#3DDC84 60%,#29B6F6 80%,#B15CFF);-webkit-background-clip:text;background-clip:text;color:transparent}
+.tag{margin-left:auto;font-size:calc(var(--uf) * .9);color:var(--gold);border:1px solid #8A7320;border-radius:6px;padding:0 calc(var(--uf) * .45);white-space:nowrap}
+main{flex:1;min-height:0;overflow-y:auto;padding:calc(var(--uf) * .8) calc(var(--u) * .6);display:flex;flex-direction:column;gap:calc(var(--uf) * .8);scrollbar-width:none}
+main::-webkit-scrollbar{display:none}
+h2{margin:0;font-size:calc(var(--uf) * 1.5);font-weight:900;color:var(--gold)}
+.hint{margin:0;font-size:calc(var(--uf) * .95);color:var(--sub);line-height:1.6}
+.card{background:var(--card);border-radius:12px;padding:calc(var(--uf) * .9) calc(var(--u) * .6);display:flex;flex-direction:column;gap:calc(var(--uf) * .6)}
+.prow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:calc(var(--uf) * .3) calc(var(--u) * .4);align-items:center;background:var(--card);border-radius:12px;padding:calc(var(--uf) * .8) calc(var(--u) * .6);cursor:pointer;border:1px solid transparent}
+.prow:hover{border-color:var(--line2)}
+.prow b{font-size:calc(var(--uf) * 1.4)} .prow small{grid-column:1 / -1;font-size:calc(var(--uf) * .9);color:var(--sub)}
+.st{font-size:calc(var(--uf) * .95);font-weight:700;border:1px solid;border-radius:999px;padding:calc(var(--uf) * .1) calc(var(--uf) * .6);white-space:nowrap}
+.st.wait{color:var(--gold);border-color:#8A7320} .st.run{color:var(--green);border-color:var(--green)} .st.pc{color:var(--blue);border-color:var(--blue)} .st.off{color:var(--sub);border-color:var(--line2)} .st.err{color:var(--bad);border-color:var(--bad)}
+.btn{height:calc(var(--uf) * 3.6);border-radius:12px;border:1px solid var(--line2);background:transparent;color:var(--soft);font-size:calc(var(--uf) * 1.4);font-weight:900;cursor:pointer;width:100%}
+.btn.gold{background:var(--gold);border-color:var(--gold);color:#000} .btn.green{background:var(--green);border-color:var(--green);color:#000} .btn.blue{border-color:var(--blue);color:var(--blue)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:calc(var(--u) * .4)}
+label{display:flex;flex-direction:column;gap:calc(var(--uf) * .3);font-size:calc(var(--uf) * 1);color:var(--soft)}
+label small{color:var(--sub);font-size:calc(var(--uf) * .85)}
+input[type=text],input[type=password],input[type=number]{height:calc(var(--uf) * 3.2);border-radius:10px;border:1px solid var(--line2);background:#0B0E14;color:var(--fg);font-size:calc(var(--uf) * 1.3);padding:0 calc(var(--uf) * .8);width:100%}
+.unit{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:calc(var(--u) * .3)} .unit span{font-size:calc(var(--uf) * 1.1);color:var(--sub)}
+.file{display:flex;align-items:center;gap:calc(var(--u) * .4);height:calc(var(--uf) * 3.2);border-radius:10px;border:1px dashed var(--blue);padding:0 calc(var(--uf) * .8);color:var(--blue);font-size:calc(var(--uf) * 1.1);cursor:pointer}
+.file.ok{border-style:solid;border-color:var(--green);color:var(--green)}
+.lock{display:flex;gap:calc(var(--uf) * .5);align-items:flex-start;font-size:calc(var(--uf) * .9);color:#B8E8C8;background:#0E1A12;border:1px solid #1F5A33;border-radius:10px;padding:calc(var(--uf) * .6) calc(var(--uf) * .8);line-height:1.6}
+.qr{align-self:center;width:calc(var(--uf) * 13);height:calc(var(--uf) * 13);background:#fff;border-radius:12px;padding:calc(var(--uf) * .7)}
+.qr svg{width:100%;height:100%;display:block}
+.code{align-self:center;font:700 calc(var(--uf) * 1.2) ui-monospace,monospace;letter-spacing:1px;color:var(--soft)}
+.steps{display:flex;flex-direction:column;gap:calc(var(--uf) * .5)}
+.step{display:flex;align-items:center;gap:calc(var(--uf) * .7);font-size:calc(var(--uf) * 1.15)}
+.step i{flex:none;width:calc(var(--uf) * 1.8);height:calc(var(--uf) * 1.8);border-radius:50%;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:calc(var(--uf) * 1);font-weight:900;border:2px solid var(--line2);color:var(--sub)}
+.step.done i{background:var(--green);border-color:var(--green);color:#000} .step.now i{border-color:var(--gold);color:var(--gold)} .step.now{color:var(--gold);font-weight:700} .step.todo{color:var(--sub)}
+.jg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:calc(var(--u) * .3)}
+.jg button{height:calc(var(--uf) * 3);border-radius:10px;border:2px solid var(--line2);background:#000;color:var(--sub);font-size:calc(var(--uf) * 1.25);font-weight:900;cursor:pointer}
+.jg button.on{border-color:var(--green);color:var(--green);background:#0E1A12}
+.sw{display:flex;align-items:center;justify-content:space-between;font-size:calc(var(--uf) * 1.2);font-weight:700}
+.tg{width:calc(var(--uf) * 4);height:calc(var(--uf) * 2.2);border-radius:999px;border:0;background:#3A4357;position:relative;cursor:pointer;flex:none}
+.tg::after{content:"";position:absolute;top:calc(var(--uf) * .25);left:calc(var(--uf) * .25);width:calc(var(--uf) * 1.7);height:calc(var(--uf) * 1.7);border-radius:50%;background:#fff;transition:left .15s}
+.tg.on{background:var(--green)} .tg.on::after{left:calc(var(--uf) * 2.05)}
+.back{align-self:flex-start;background:none;border:0;color:var(--blue);font-size:calc(var(--uf) * 1.05);cursor:pointer;padding:0}
+.sum{display:grid;grid-template-columns:auto minmax(0,1fr);gap:calc(var(--uf) * .35) calc(var(--u) * .5);font-size:calc(var(--uf) * 1.05)} .sum span{color:var(--sub)} .sum b{text-align:right}
+.ok-big{align-self:center;font-size:calc(var(--uf) * 3)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--uf) * 2);background:#0E1A12;border:1px solid var(--green);color:#C9FFE5;padding:calc(var(--uf) * .6) calc(var(--uf) * 1);border-radius:10px;font-size:calc(var(--uf) * 1);z-index:9;max-width:90vw}
+@media (prefers-reduced-motion:reduce){.tg::after{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="pv"><span>預覽:</span><div class="who"><button type="button" id="wA" class="on">主導$ 的畫面</button><button type="button" id="wB">夥伴手機的畫面</button></div><b>範例資料</b></div>
+  <header class="ttl"><h1>自動當沖 · 夥伴加入</h1><span class="tag" id="tag">主導$</span></header>
+  <main id="main"></main>
+</div>
+<div id="toastL"></div>
+<script>
+// 只是畫面:範例資料,不連雲端、不連電腦、不會送出任何資料
+const $ = id => document.getElementById(id), main = $("main");
+const JN = ["判一","判二","判三","判四","判五","判六","判七","判八","判九"];
+const P = [
+  {n:"夥伴A", st:"run", t:"自動當沖中", d:"元大已登入 08:31 · 額度 300 萬 · 金鑰 fa11…a3c9", m:[3000000,150000,20000,50000], j:[1,1,1,1,1,1,1,0,1], on:true},
+  {n:"夥伴B", st:"pc",  t:"電腦設定中", d:"資料已加密送到電腦 · 正在登入元大", m:[2000000,150000,20000,50000], j:[1,1,1,1,1,1,1,1,1], on:false},
+  {n:"夥伴C", st:"wait",t:"等夥伴填資料", d:"邀請碼 482 913 · 24 小時內有效", m:[1500000,100000,20000,50000], j:[1,1,1,1,1,1,1,1,1], on:false},
+  {n:"夥伴D", st:"err", t:"元大登入失敗", d:"找不到憑證,請夥伴重新送一次", m:[1000000,100000,20000,50000], j:[1,1,1,1,1,1,1,1,1], on:false},
+];
+const S = {who:"A", page:"list", cur:0, step:1};
+const fmtW = v => (v / 10000).toLocaleString();
+function toast(t){ $("toastL").innerHTML = `<div class="toast">${t}</div>`; clearTimeout(toast.t); toast.t = setTimeout(() => $("toastL").innerHTML = "", 2200); }
+const QR = () => { let r = "", s = 7; for (let y = 0; y < 25; y++) for (let x = 0; x < 25; x++){ const f = (x < 7 && y < 7) || (x > 17 && y < 7) || (x < 7 && y > 17); const on = f ? ((x % 6 === 0 || y % 6 === 0 || (x % 6 > 1 && x % 6 < 5 && y % 6 > 1 && y % 6 < 5)) && !((x === 6 || y === 6) && false)) : ((s = (s * 1103515245 + 12345) & 0x7fffffff) % 3 === 0); if (on) r += `<rect x="${x}" y="${y}" width="1" height="1"/>`; } return `<svg viewBox="0 0 25 25" shape-rendering="crispEdges" aria-label="QR Code(範例)">${r}</svg>`; };
+
+/* ───────── 主導$ 的畫面 ───────── */
+function aList(){
+  return `<h2>夥伴(${P.length} 位)</h2>
+  <p class="hint">點夥伴看狀態、改額度和公式。夥伴的元大帳號密碼只存在你的電腦,這裡看不到。</p>
+  ${P.map((p, i) => `<div class="prow" data-i="${i}" role="button" tabindex="0"><b>${p.n}</b><span class="st ${p.st}">${p.t}</span><small>${p.d}</small></div>`).join("")}
+  <button type="button" class="btn gold" id="add">＋ 新增夥伴</button>`;
+}
+function aNew(){
+  return `<button type="button" class="back" id="bk">‹ 夥伴列表</button><h2>新增夥伴</h2>
+  <label>夥伴名字<small>最多 12 個字,例如 小明、阿姨</small><input type="text" id="nm" value="夥伴E" maxlength="12"></label>
+  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">額度(之後隨時可改)</b>${money([1000000,100000,20000,50000])}</div>
+  <button type="button" class="btn gold" id="mk">產生邀請 QR Code</button>`;
+}
+function aInvite(){
+  return `<button type="button" class="back" id="bk">‹ 夥伴列表</button><h2>邀請 夥伴E</h2>
+  <p class="hint">請夥伴用<b style="color:var(--fg)">自己的手機</b>掃這個 QR Code(或傳連結給他),在他手機上自己輸入元大帳號、電子密碼、憑證。</p>
+  <div class="qr">${QR()}</div><div class="code">邀請碼 517 206 · 24 小時內有效</div>
+  <div class="row2"><button type="button" class="btn blue" id="cp">複製連結</button><button type="button" class="btn" id="bk2">完成</button></div>
+  <div class="lock">🔒 夥伴輸入的資料在他手機上就先加密,只有你的電腦解得開;雲端只負責轉送,看不到內容、也不留存。</div>`;
+}
+function money(m){
+  const L = [["當日總額度","最多 500 萬(鐵律)"],["多空上限(每筆)","最多 25 萬(鐵律)"],["已平倉虧多少停止進場",""],["帳面虧多少全部平倉",""]];
+  return L.map(([a, b], i) => `<label>${a}${b ? `<small>${b}</small>` : ""}<div class="unit"><input type="number" value="${fmtW(m[i])}" inputmode="decimal"><span>萬</span></div></label>`).join("");
+}
+function aOne(){
+  const p = P[S.cur];
+  const st = p.st === "run" ? `<div class="steps">${stp(4, 4)}</div>` : p.st === "pc" ? `<div class="steps">${stp(3, 4)}</div>` : p.st === "wait" ? `<div class="steps">${stp(1, 4)}</div><div class="qr">${QR()}</div><div class="code">邀請碼 482 913</div>` : `<div class="lock" style="color:#FFC9C9;background:#2A1416;border-color:#7A2A2E">⚠ 元大登入失敗:找不到憑證。請夥伴重新掃邀請、再送一次。</div><button type="button" class="btn blue" id="re">重新產生邀請</button>`;
+  return `<button type="button" class="back" id="bk">‹ 夥伴列表</button><h2>${p.n}</h2>${st}
+  <div class="card"><div class="sw"><span>自動交易</span><button type="button" class="tg${p.on ? " on" : ""}" id="tgl" aria-label="自動交易開關" ${p.st === "run" ? "" : "disabled style=\"opacity:.4\""}></button></div>
+    <p class="hint">${p.st === "run" ? "關掉 = 這位夥伴不再新進場(已有的部位照規則平倉)。" : "元大登入成功後才能打開。"}</p></div>
+  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">公式(點一下開 / 關)</b><div class="jg">${JN.map((j, i) => `<button type="button" data-j="${i}" class="${p.j[i] ? "on" : ""}">${j}</button>`).join("")}</div></div>
+  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">額度</b>${money(p.m)}</div>
+  <button type="button" class="btn gold" id="sv">儲存</button>
+  ${p.st === "run" ? `<div class="card"><b style="font-size:calc(var(--uf) * 1.2)">夥伴看盤金鑰</b><div class="qr">${QR()}</div><div class="code">fa11 · · · · a3c9</div><p class="hint">夥伴弄丟金鑰時,讓他用「夥伴看盤」再掃一次這個 QR Code。</p></div>` : ""}
+  <button type="button" class="btn" id="rm" style="color:var(--bad);border-color:#7A2A2E">移除 ${p.n}</button>`;
+}
+function stp(n, of){
+  const T = S.who === "A" ? ["夥伴填好元大資料","資料加密送到你的電腦","電腦登入元大","開始自動當沖、產生看盤金鑰"] : ["你填好元大資料","資料加密送到主導$ 的電腦","電腦用你的帳號登入元大","開始自動當沖、產生你的看盤金鑰"];
+  return T.slice(0, of).map((t, i) => `<div class="step ${i < n - 1 || n === of ? "done" : i === n - 1 ? "now" : "todo"}"><i>${i < n - 1 || n === of ? "✓" : i + 1}</i>${t}</div>`).join("");
+}
+
+/* ───────── 夥伴手機的畫面 ───────── */
+function bForm(){
+  return `<h2>加入 自動當沖</h2>
+  <p class="hint">主導$ 邀請你加入(邀請碼 517 206)。請輸入<b style="color:var(--fg)">你自己的</b>元大證券資料,電腦會用你的帳號幫你自動當沖。</p>
+  <label>你的名字<input type="text" value="夥伴E" readonly></label>
+  <label>元大證券帳號<small>身分證字號 / 帳號</small><input type="text" placeholder="A123456789" autocomplete="off"></label>
+  <label>電子交易密碼<input type="password" placeholder="••••••••" autocomplete="new-password"></label>
+  <label>憑證檔(.pfx)<small>元大「憑證e管家」匯出的檔案</small><div class="file" id="pfx" role="button" tabindex="0">📄 選擇憑證檔</div></label>
+  <label>憑證密碼<input type="password" placeholder="••••••••" autocomplete="new-password"></label>
+  <div class="lock">🔒 按「加密送出」後,資料在你手機上就先加密,只有主導$ 的電腦解得開;雲端只轉送、看不到也不留存。主導$ 本人也看不到你的密碼。</div>
+  <button type="button" class="btn gold" id="send">加密送出</button>`;
+}
+function bWait(){
+  return `<h2>設定中…</h2><p class="hint">不用一直開著這個畫面,好了會通知你。</p>
+  <div class="card steps">${stp(S.step, 4)}</div>
+  <button type="button" class="btn" id="nx">(預覽用)下一步 ›</button>`;
+}
+function bDone(){
+  return `<div class="ok-big">✅</div><h2 style="text-align:center">加入完成</h2>
+  <p class="hint" style="text-align:center">電腦已經用你的元大帳號開始自動當沖。<br>用「夥伴看盤」掃下面的金鑰,就能看你自己的交易。</p>
+  <div class="qr">${QR()}</div><div class="code">fa11 · · · · 7e21</div>
+  <button type="button" class="btn green" id="open">打開 夥伴看盤</button>
+  <button type="button" class="btn blue" id="dl">還沒裝?下載 夥伴看盤</button>
+  <p class="hint">你只看得到自己的交易,不能下單、也不能改設定。要改額度請找主導$。</p>`;
+}
+
+function render(){
+  $("tag").textContent = S.who === "A" ? "主導$" : "夥伴的手機";
+  $("wA").classList.toggle("on", S.who === "A"); $("wB").classList.toggle("on", S.who === "B");
+  main.innerHTML = S.who === "A" ? ({list: aList, new: aNew, invite: aInvite, one: aOne})[S.page]() : ({form: bForm, wait: bWait, done: bDone})[S.page]();
+  main.scrollTop = 0;
+}
+main.addEventListener("click", e => {
+  const t = e.target.closest("button,.prow,.file"); if (!t) return;
+  const id = t.id;
+  if (t.classList.contains("prow")){ S.cur = +t.dataset.i; S.page = "one"; return render(); }
+  if (t.dataset.j != null){ const p = P[S.cur]; p.j[+t.dataset.j] ^= 1; t.classList.toggle("on"); return; }
+  if (id === "add"){ S.page = "new"; return render(); }
+  if (id === "bk" || id === "bk2"){ S.page = "list"; return render(); }
+  if (id === "mk"){ S.page = "invite"; return render(); }
+  if (id === "cp" ) return toast("(預覽)連結已複製,可以貼到 LINE 傳給夥伴");
+  if (id === "re") return toast("(預覽)新的邀請 QR Code 已產生");
+  if (id === "tgl"){ if (t.disabled) return; P[S.cur].on = !P[S.cur].on; t.classList.toggle("on"); return toast(P[S.cur].on ? "已打開自動交易" : "已關掉:不再新進場"); }
+  if (id === "sv") return toast("(預覽)已儲存,下一筆新進場開始套用");
+  if (id === "rm") return toast("(預覽)會先問「確定移除?」,移除後電腦停止這位夥伴的自動交易");
+  if (id === "pfx"){ t.classList.add("ok"); t.textContent = "✓ A123456789.pfx"; return; }
+  if (id === "send"){ S.page = "wait"; S.step = 2; return render(); }
+  if (id === "nx"){ S.step++; if (S.step > 4){ S.page = "done"; } return render(); }
+  if (id === "open" || id === "dl") return toast("(預覽)會打開 / 下載 夥伴看盤");
+});
+main.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.matches(".prow,.file")){ e.preventDefault(); e.target.click(); } });
+$("wA").onclick = () => { S.who = "A"; S.page = "list"; render(); };
+$("wB").onclick = () => { S.who = "B"; S.page = "form"; S.step = 1; render(); };
+render();
+</script>
+</body>
+</html>
