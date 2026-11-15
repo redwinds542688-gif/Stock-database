@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<!-- 夥伴看盤(partner 分支):一進來要金鑰(入口擋住);只讀金鑰對應帳號的元大真實資料(夥伴 fa11 → ?acct=get;主導$ → ?trade=pos / fills),帶 pv=1 不綁設備;WebSocket ?ws=log 一有交易馬上重讀;當沖 / 明細 + 喇叭靜音 + 金鑰(可掃 QR);和名揚四海 app/ 完全分開。App 版:partner_app/android 把這個檔包進去 -->
+<!-- 夥伴看盤(partner 分支):一進來要金鑰(入口擋住);只讀金鑰對應帳號的元大真實資料(夥伴 fa11 → ?acct=get;主導$ → ?trade=pos / fills),帶 pv=1 不綁設備;WebSocket ?ws=log 一有交易馬上重讀;明細往前不限天數;當沖 / 明細 + 喇叭靜音 + 金鑰(可掃 QR);和名揚四海 app/ 完全分開。App 版:partner_app/android 把這個檔包進去 -->
 <title>夥伴看盤</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -255,7 +255,7 @@ const twDate = (back = 0) => { const t = new Date(Date.now() + 8 * 3600000); t.s
 const md = d => d.slice(5).replace("-", "/");
 const ST = { pos: null, posAt: 0, posErr: "", fills: {}, order: [], back: 0, more: true, loading: false, q: new Map(), acct: "", seenLegs: null, seenPos: null, hi: 0, lo: 0, day: "" };
 let ENTRY = [], DAYS = {};
-function stReset(){ Object.assign(ST, { pos: null, posAt: 0, posErr: "", fills: {}, order: [], back: 0, more: true, loading: false, acct: "", seenLegs: null, seenPos: null, hi: 0, lo: 0, day: twDate() }); ST.q.clear(); }
+function stReset(){ Object.assign(ST, { pos: null, posAt: 0, posErr: "", fills: {}, order: [], back: 0, more: true, loading: false, acct: "", seenLegs: null, seenPos: null, hi: 0, lo: 0, empty: 0, day: twDate() }); ST.q.clear(); }
 const nameOf = c => (ST.q.get(c) || {}).n || ((Object.values(ST.fills).flatMap(f => f.rows).find(r => r.code === c)) || {}).nm || c;
 function legsOf(v){   // 和主導版明細一樣:有一趟一趟的(legs)就用它,沒有才用每檔合計(rows)
   if (!v || typeof v !== "object") return [];
@@ -299,12 +299,15 @@ async function loadToday(){
   }catch(e){ ST.posErr = ST.posErr || errText(e); if (/還沒上線|綁在另一支|無效/.test(ST.posErr)) ST.more = false; }
   rebuild();
 }
-async function loadMore(){   // 明細往上滑到底:再往前讀 5 個平日(週末不問;休市那天沒成交就不列)
+async function loadMore(){   // 明細往上滑到底:再往前讀(週末不問;休市 / 沒成交那天不列)
+  // 2026-11-15 20:50 使用者「不設限」:不限天數,一直往前讀到「連續 30 個平日都沒有紀錄」(= 已經到最早有存檔的那天)才停;
+  //   一次至少找到 1 天有成交才停手(中間整段沒交易也會自己接著往前找),一次最多問 20 個平日
   if (!keyGet() || ST.loading || !ST.more) return; ST.loading = true; rebuild();
-  let got = 0;
-  for (let n = 0; n < 5 && ST.back < 60; ){ ST.back++; const d = twDate(ST.back), w = new Date(d + "T00:00:00Z").getUTCDay(); if (w === 0 || w === 6) continue; n++;
-    try{ const rows = await loadFills(d); if (rows.length){ ST.fills[d] = {rows}; ST.order.push(d); got++; } }catch(e){} }
-  if (ST.back >= 60) ST.more = false; ST.loading = false; rebuild();
+  let got = 0, asked = 0;
+  while (ST.more && asked < 20 && got < 3){ ST.back++; const d = twDate(ST.back), w = new Date(d + "T00:00:00Z").getUTCDay(); if (w === 0 || w === 6) continue; asked++;
+    let rows = []; try{ rows = await loadFills(d); }catch(e){}
+    if (rows.length){ ST.fills[d] = {rows}; ST.order.push(d); got++; ST.empty = 0; } else if (++ST.empty >= 30) ST.more = false; }
+  ST.loading = false; rebuild();
 }
 function rebuild(){
   if (ST.day !== twDate()){ const k = keyGet(); stReset(); if (k){ setTimeout(start, 0); } }   // 換日:從今天重來(不是看幾點,是日期變了)

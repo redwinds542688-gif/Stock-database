@@ -1,4 +1,4 @@
-// note: 1.0.2 檢查新版:打開 App 時 + 每個平日 08:30(開盤前 30 分鐘)
+// note: 1.0.3 明細往前看不限天數
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -10,8 +10,8 @@ android {
         applicationId = "tw.mysh.partner"   // 和名揚四海(tw.mysh.monitor)、名揚四海看盤(tw.mysh.monitor.viewer)不同 → 三個可以同時裝
         minSdk = 26
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.0.2"
+        versionCode = 4
+        versionName = "1.0.3"
     }
     signingConfigs {
         create("release") {
