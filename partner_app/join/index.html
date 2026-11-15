@@ -15,18 +15,19 @@
   --ground:#05070B;--bg:#0B0E14;--card:#151B28;--card2:#111827;--line:#2A3244;--line2:#3A4357;
   --fg:#E6EAF2;--sub:#8C96AB;--soft:#C9D1DF;--gold:#FFD54F;--green:#22E06B;--blue:#29B6F6;--up:#FF4D5E;--down:#2EE59D;--bad:#FF3B3B;
   --f:'Noto Sans TC',system-ui,-apple-system,'PingFang TC','Microsoft JhengHei',sans-serif;color-scheme:dark}
-*{box-sizing:border-box} html,body{height:100%;margin:0;overscroll-behavior:none}
+*{box-sizing:border-box} html,body{height:100%;margin:0;overscroll-behavior:none;max-width:100%;overflow-x:hidden}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}   /* 手機「字型大小」調大時,瀏覽器 / 預覽不要自己把字放大(會撐破版面、可以左右滑) */   /* 21:26 使用者手機截圖「左滑」:標題太寬撐出畫面 → 可以左右滑;整頁不准橫向捲 */
 body{background:var(--ground);color:var(--fg);font-family:var(--f)}
 button,input{font-family:inherit}
 button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .wrap{height:100%;display:flex;flex-direction:column;background:var(--bg)}
 .pv{display:flex;gap:calc(var(--u) * .4);align-items:center;padding:calc(var(--uf) * .45) calc(var(--u) * .6);background:#0E121A;border-bottom:1px dashed var(--line2);font-size:calc(var(--uf) * .85);color:var(--sub)}
-.pv b{color:var(--gold);margin-left:auto}
-.who{display:flex;gap:calc(var(--u) * .3)} .who button{height:calc(var(--uf) * 2.2);padding:0 calc(var(--uf) * .7);border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--soft);font-size:calc(var(--uf) * .9);cursor:pointer}
+.pv b{color:var(--gold);margin-left:auto;white-space:nowrap} .pv > span{white-space:nowrap}
+.who{display:flex;gap:calc(var(--u) * .3);min-width:0} .who button{white-space:nowrap;height:calc(var(--uf) * 2.2);padding:0 calc(var(--uf) * .7);border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--soft);font-size:calc(var(--uf) * .9);cursor:pointer}
 .who button.on{border-color:var(--gold);color:var(--gold);font-weight:700}
 .ttl{padding:calc(var(--uf) * .7) calc(var(--u) * .6);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:calc(var(--uf) * .6)}
-.ttl h1{margin:0;font-size:calc(var(--uf) * 2.1);font-weight:900;white-space:nowrap;background:linear-gradient(90deg,#FF5A5F,#FFB13B 30%,#3DDC84 60%,#29B6F6 80%,#B15CFF);-webkit-background-clip:text;background-clip:text;color:transparent}
-.tag{margin-left:auto;font-size:calc(var(--uf) * .9);color:var(--gold);border:1px solid #8A7320;border-radius:6px;padding:0 calc(var(--uf) * .45);white-space:nowrap}
+.ttl h1{margin:0;min-width:0;overflow:hidden;font-size:calc(var(--uf) * 1.75);font-weight:900;white-space:nowrap;background:linear-gradient(90deg,#FF5A5F,#FFB13B 30%,#3DDC84 60%,#29B6F6 80%,#B15CFF);-webkit-background-clip:text;background-clip:text;color:transparent}
+.tag{flex:none;margin-left:auto;font-size:calc(var(--uf) * .9);color:var(--gold);border:1px solid #8A7320;border-radius:6px;padding:0 calc(var(--uf) * .45);white-space:nowrap}
 main{flex:1;min-height:0;overflow-y:auto;padding:calc(var(--uf) * .8) calc(var(--u) * .6);display:flex;flex-direction:column;gap:calc(var(--uf) * .8);scrollbar-width:none}
 main::-webkit-scrollbar{display:none}
 h2{margin:0;font-size:calc(var(--uf) * 1.5);font-weight:900;color:var(--gold)}
@@ -70,7 +71,7 @@ input[type=text],input[type=password],input[type=number]{height:calc(var(--uf) *
 </head>
 <body>
 <div class="wrap">
-  <div class="pv"><span>預覽:</span><div class="who"><button type="button" id="wA" class="on">主導$ 的畫面</button><button type="button" id="wB">夥伴手機的畫面</button></div><b>範例資料</b></div>
+  <div class="pv"><span>預覽</span><div class="who"><button type="button" id="wA" class="on">主導$</button><button type="button" id="wB">夥伴手機</button></div><b>範例</b></div>
   <header class="ttl"><h1>自動當沖 · 夥伴加入</h1><span class="tag" id="tag">主導$</span></header>
   <main id="main"></main>
 </div>
