@@ -91,10 +91,13 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() { if (web.canGoBack()) web.goBack() else super.onBackPressed() }
 
-    /** 2026-11-15 使用者「檢測 二程式同時存在 看盤版則靜音也不震動」:這支手機裝了名揚四海(主程式或名揚四海看盤)→ 網頁那邊自動不響不震 */
+    /** 2026-11-15 使用者「主程式跟看盤版 同時開啟 看盤才不通知」:名揚四海「正在開著」(它的常駐通知在)→ 網頁那邊不響不震;只是有裝、沒開 → 照常響(MainWatch) */
     inner class Host {
+        @JavascriptInterface fun mainRunning(): Boolean = MainWatch.granted(this@MainActivity) && MainWatch.mainRunning
         @JavascriptInterface fun mainInstalled(): Boolean = listOf("tw.mysh.monitor", "tw.mysh.monitor.viewer").any {
             try { packageManager.getPackageInfo(it, 0); true } catch (e: Exception) { false } }
+        @JavascriptInterface fun watchGranted(): Boolean = MainWatch.granted(this@MainActivity)
+        @JavascriptInterface fun openWatchSettings() { runOnUiThread { try { startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) } catch (e: Exception) {} } }
         @JavascriptInterface fun version(): String = BuildConfig.VERSION_NAME
     }
 

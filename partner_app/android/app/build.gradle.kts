@@ -1,4 +1,4 @@
-// note: 1.0.7 金額太長自動縮字、不換行
+// note: 1.0.8 名揚四海開著時才不響(看它的常駐通知),只有裝沒開照常響
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -10,8 +10,8 @@ android {
         applicationId = "tw.mysh.partner"   // 和名揚四海(tw.mysh.monitor)、名揚四海看盤(tw.mysh.monitor.viewer)不同 → 三個可以同時裝
         minSdk = 26
         targetSdk = 34
-        versionCode = 8
-        versionName = "1.0.7"
+        versionCode = 9
+        versionName = "1.0.8"
     }
     signingConfigs {
         create("release") {

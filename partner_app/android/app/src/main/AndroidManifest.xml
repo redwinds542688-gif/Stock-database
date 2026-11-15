@@ -24,6 +24,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- 看名揚四海的常駐通知在不在(名揚四海開著沒),不讀內容 -->
+        <service android:name=".MainWatch" android:exported="true" android:label="夥伴看盤:名揚四海開著時不響" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
+        </service>
         <receiver android:name=".UpdateReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
