@@ -39,6 +39,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .ttl h1{margin:0;font-size:clamp(22px,7vw,30px);font-weight:900;letter-spacing:1px;background:linear-gradient(90deg,#FF5A5F,#FFB13B 30%,#3DDC84 60%,#29B6F6 80%,#B15CFF);-webkit-background-clip:text;background-clip:text;color:transparent;white-space:nowrap}
 .ttl{align-items:center}
 .key{display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 10px;border-radius:8px;border:1px solid var(--line2);background:#0E121A;color:var(--soft);font:500 14px var(--f);cursor:pointer;white-space:nowrap}
+.ver{font-size:12px;color:var(--sub);margin-left:auto}   /* 版本號:App 版顯示 App 版本,網址版顯示「網頁版」(2026-11-15 使用者截圖還是舊版才跳列,看不出版本) */
 .key.none{border-color:var(--gold);color:var(--gold);font-weight:700}
 .mask{position:fixed;inset:0;background:rgba(3,5,9,.75);display:flex;align-items:center;justify-content:center;padding:20px;z-index:40}
 .dlg{width:100%;max-width:380px;background:#151B28;border:2px solid var(--gold);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:12px}
@@ -118,7 +119,7 @@ nav button.on{color:var(--green);border:2px solid var(--green)}
 <body>
 
 <div class="wrap">
-  <div class="ttl"><h1>自動當沖 · 夥伴看盤</h1><button type="button" class="key" id="keyBtn"></button></div>
+  <div class="ttl"><h1>自動當沖 · 夥伴看盤</h1><button type="button" class="key" id="keyBtn"></button><span class="ver" id="ver"></span></div>
   <section class="panel"><div class="hd" id="hd"></div><div id="pre"></div><div class="list" id="list"></div></section>
   <nav id="nav"></nav>
 </div>
@@ -450,6 +451,9 @@ document.addEventListener("click", e => { const b = e.target.closest("button"); 
 });
 function notifyQuiet(t){ const L = document.getElementById('toastL'); L.innerHTML = `<div class="toast pc" role="status"><b>${esc(t)}</b></div>`; clearTimeout(notify.t); notify.t = setTimeout(() => L.innerHTML = '', 1800); }
 start();
+try{ document.getElementById("ver").textContent = window.PartnerHost && PartnerHost.version ? "v" + PartnerHost.version() : "網頁版"; }catch(e){}
+// 字型(Noto Sans TC)下載完數字會變寬 → 再縮一次字;畫面大小變了也再算
+try{ document.fonts && document.fonts.ready.then(() => { fit(); fitText(); }); document.fonts && document.fonts.addEventListener && document.fonts.addEventListener("loadingdone", () => fitText()); }catch(e){}
 // 網址版(/partner/,iPhone / iPad / 電腦加到主畫面)才註冊;App(APK)裡不用
 try{ if (/^\/partner/.test(location.pathname) && "serviceWorker" in navigator) navigator.serviceWorker.register("/partner/sw.js", {scope: "/partner/"}).catch(() => {}); }catch(e){}
 document.getElementById("list").addEventListener("scroll", () => { doneSync(); const L = document.getElementById("list"); if (S.tab === "明細" && L.scrollTop + L.clientHeight > L.scrollHeight - 3 * L.clientHeight / 8) loadMore(); }, {passive: true});
