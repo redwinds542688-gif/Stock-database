@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- 自動當沖夥伴版 預覽(partner 分支;範例資料,不連雲端、不連主機、不下單)。不要和 app/app.html 混在一起 -->
+<title>自動當沖夥伴版</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+/* 版面:手機一欄,上標題、中間內容捲動、底部五鍵;單一深色(照設計畫布) */
+:root{
+  --ground:#0B0E14; --bg:#12161F; --card:#1B2232; --card2:#172033; --line:#2A3244; --line2:#3A4357;
+  --fg:#E6EAF2; --sub:#9AA4B8; --soft:#C9D1DF; --gold:#FFD54F; --goldbg:#2A2410;
+  --up:#FF5A5F; --down:#3DDC84; --ok:#22C55E; --okt:#6EE7A0; --bad:#FF3B3B; --badt:#FF8A8A; --badbg:#2A1416;
+  --f:'Noto Sans TC',system-ui,-apple-system,'PingFang TC','Microsoft JhengHei',sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--ground);color:var(--fg);font-family:var(--f);margin:0}
+*{box-sizing:border-box}
+button,input{font-family:inherit}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.wrap{max-width:440px;margin:0 auto;min-height:100%;background:var(--bg);display:flex;flex-direction:column}
+.pv{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding-block:8px;padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));background:#0E121A;border-bottom:1px dashed var(--line2);font-size:13px;color:var(--sub)}
+.pv b{color:var(--gold);font-weight:700}
+.pv button{height:32px;padding:0 10px;border-radius:16px;border:1px solid var(--line2);background:transparent;color:var(--soft);font-size:13px;cursor:pointer}
+.pv button.on{border-color:var(--gold);background:var(--goldbg);color:var(--gold);font-weight:700}
+.hd{padding:12px 16px 10px;border-bottom:1px solid var(--gold);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hd h1{margin:0;font-size:24px;font-weight:900;letter-spacing:1px;color:var(--gold)}
+.tag{font-size:12px;color:var(--gold);border:1px solid #5A4A10;border-radius:6px;padding:2px 6px;white-space:nowrap}
+main{flex:1;overflow:auto;padding:0 12px 16px;display:flex;flex-direction:column;gap:10px}
+.row{display:flex;gap:8px;align-items:center;padding-top:12px}
+.b{height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--line2);background:transparent;color:var(--soft);font:700 17px var(--f);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.b.green{border:2px solid var(--ok);background:#0E1A12;color:var(--ok)}
+.b.gold{border:2px solid var(--gold);background:var(--gold);color:var(--bg);font-weight:900}
+.b.goldo{border:1px solid var(--gold);background:var(--card);color:var(--gold)}
+.b.red{border:1px solid var(--up);background:var(--badbg);color:#FF8A8E}
+.b.full{flex:1}
+.pill{height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);display:flex;align-items:center;font-size:17px;color:var(--soft)}
+.big{flex:1;text-align:right;font-size:26px;font-weight:900;font-variant-numeric:tabular-nums}
+.up{color:var(--up)} .dn{color:var(--down)} .mut{color:var(--sub)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{height:36px;padding:0 12px;border-radius:18px;border:1px solid var(--line2);background:transparent;color:var(--soft);font:500 15px var(--f);cursor:pointer}
+.chip.on{border-color:var(--gold);background:var(--goldbg);color:var(--gold);font-weight:700}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat{background:var(--card);border-radius:10px;padding:10px;text-align:center}
+.stat small{display:block;font-size:13px;color:var(--sub)}
+.stat strong{font-size:22px;font-variant-numeric:tabular-nums}
+.lab{display:flex;justify-content:space-between;font-size:14px;color:var(--sub);margin-top:4px}
+.list{display:flex;flex-direction:column;gap:8px}
+.prow{width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px;color:inherit;cursor:pointer;font:inherit}
+.prow.sel{border-color:var(--gold)} .prow.dead{border-color:#5A2424}
+.dot{width:10px;height:10px;border-radius:5px;background:var(--ok);flex:none} .dot.r{background:var(--bad)}
+.prow .nm{font-size:20px;font-weight:700} .prow .ds{font-size:13px;color:var(--sub)}
+.prow .pn{font-size:22px;font-weight:900;font-variant-numeric:tabular-nums}
+.grow{flex:1;min-width:0}
+.trade{background:var(--card);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px}
+.trade.hold{background:var(--card2);border:1px dashed var(--line2)}
+.side{font-size:13px;font-weight:700;border:1px solid;border-radius:4px;padding:1px 4px;flex:none}
+.side.s{color:var(--down)} .side.l{color:var(--up)}
+.trade .nm{flex:1;min-width:0;font-size:18px;font-weight:700}
+.trade .nm span{font-size:13px;color:var(--sub);font-weight:400}
+.trade .px{font-size:15px;color:var(--soft);font-variant-numeric:tabular-nums;white-space:nowrap}
+.trade .pn{width:72px;text-align:right;font-size:18px;font-weight:900;font-variant-numeric:tabular-nums}
+.cfg{background:var(--card);border-radius:10px;padding:10px 12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px;font-size:14px;color:#B8C1D3}
+.link{background:none;border:0;color:var(--gold);font:700 14px var(--f);cursor:pointer;padding:0;justify-self:end}
+.note{padding:10px 12px;border-radius:10px;background:#161B26;border:1px solid var(--line);font-size:14px;color:#B8C1D3;line-height:1.6}
+.note.warn{border-color:#5A4A10;color:#E9D9A0}
+.alert{background:#3A0E12;border:2px solid var(--bad);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.alert h2{margin:0;font-size:21px;font-weight:900;color:#FFD0D0;display:flex;gap:8px;align-items:center}
+.alert p{margin:0;font-size:15px;color:#FFC2C2;line-height:1.6}
+.arow{background:#2A0A0D;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;gap:10px;font-size:16px}
+.msg{background:var(--card);border-radius:10px;padding:10px 12px} .msg b{font-size:16px} .msg div{font-size:13px;color:var(--sub)}
+.big3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.big3 button{height:96px;border-radius:12px;border:2px solid var(--gold);background:var(--goldbg);color:var(--gold);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font:900 22px var(--f);cursor:pointer}
+.cap3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;font-size:13px;color:var(--sub);text-align:center;line-height:1.4}
+.set{background:var(--card);border-radius:10px;padding:0 12px;min-height:52px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:17px}
+.set b{font-weight:700}
+.prt{background:var(--card);border-radius:12px;padding:10px 12px;display:grid;grid-template-columns:minmax(0,1fr) 72px 52px;gap:6px;align-items:center}
+.prt.new{border:1px solid #5A4A10}
+.prt .nm{font-size:19px;font-weight:700;background:none;border:0;color:inherit;padding:0;cursor:pointer;text-align:left;font-family:inherit}
+.prt .k{font-size:13px;color:var(--sub)} .st{font-size:12px} .st.g{color:var(--okt)} .st.r{color:var(--badt)} .st.y{color:var(--gold)}
+.sw{justify-self:center;width:60px;height:32px;border-radius:16px;background:var(--line2);border:0;position:relative;cursor:pointer;padding:0}
+.sw::after{content:"";position:absolute;left:3px;top:3px;width:26px;height:26px;border-radius:13px;background:var(--soft);transition:left .15s}
+.sw.on{background:var(--ok)} .sw.on::after{left:31px;background:#fff}
+.sw:disabled{cursor:default;opacity:.8}
+.rm{justify-self:center;width:44px;height:44px;border-radius:10px;border:1px solid #5A2424;background:var(--badbg);color:#FF8A8E;font:700 20px var(--f);cursor:pointer}
+.jg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.jb{height:48px;border-radius:10px;border:1px solid var(--line2);background:var(--card);color:var(--sub);font:700 17px var(--f);display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
+.jb.on{border-color:var(--ok);color:var(--ok);background:#0E1A12}
+.jb:disabled{cursor:default}
+.fld{display:flex;flex-direction:column;gap:6px}
+.fld label{font-size:14px;color:var(--sub)}
+.fld .in{display:flex;align-items:center;gap:8px}
+.fld input{flex:1;min-width:0;height:48px;border-radius:10px;border:1px solid var(--line2);background:var(--card);color:var(--fg);font-size:18px;padding:0 12px}
+.fld .u{font-size:16px;color:var(--sub)}
+.fld .hint{font-size:12px;color:var(--sub)}
+.fld .err{font-size:13px;color:var(--badt)}
+.ro{display:flex;justify-content:space-between;background:var(--card);border-radius:10px;padding:12px;font-size:17px}
+.steps{display:flex;flex-direction:column;gap:6px;font-size:15px}
+.steps div{display:flex;gap:8px;align-items:center}
+nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:10px 8px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:var(--bg);position:sticky;bottom:0}
+nav button{height:48px;border-radius:10px;border:1px solid var(--gold);background:var(--card);color:var(--soft);font:700 17px var(--f);cursor:pointer}
+nav button.on{border:2px solid var(--ok);color:var(--ok)}
+.mask{position:fixed;inset:0;background:rgba(5,7,12,.72);display:flex;align-items:center;justify-content:center;padding:20px;z-index:20}
+.dlg{width:100%;max-width:380px;background:var(--card);border:2px solid var(--gold);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.dlg h3{margin:0;font-size:19px;font-weight:900;color:var(--gold)}
+.dlg ul{margin:0;padding-left:20px;font-size:16px;line-height:1.7}
+.dlg p{margin:0;font-size:14px;color:#B8C1D3;line-height:1.6}
+.dlg .bt{display:flex;gap:8px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:#0E1A12;border:1px solid var(--ok);color:var(--okt);padding:10px 14px;border-radius:10px;font-size:15px;z-index:30;max-width:90%}
+.ph{background:var(--card);border-radius:12px;padding:24px 16px;text-align:center;color:var(--sub);font-size:15px;line-height:1.7}
+@media (prefers-reduced-motion:reduce){.sw::after{transition:none}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="pv" aria-label="預覽設定">
+    <span>預覽身分</span>
+    <button type="button" id="pv-owner" class="on">主導$ 的手機</button>
+    <button type="button" id="pv-fam">夥伴A 的手機</button>
+    <span style="flex:1"></span><b>範例資料</b>
+  </div>
+  <header class="hd"><h1>自動當沖夥伴版</h1><span class="tag" id="who">主導$</span></header>
+  <main id="main"></main>
+  <nav id="nav"></nav>
+</div>
+<div id="layer"></div>
+
+<script>
+// 自動當沖夥伴版 預覽(2026-11-15 使用者「夥伴版在修改期間 暫時用html 呈現實際效果」)
+// 只是畫面:資料都是範例,不連雲端、不連主機、不會下單。App 不寫看時間決定行為的邏輯。
+const J9 = ["判一","判二","判三","判四","判五","判六","判七","判八","判九"];
+const allOn = (off=[]) => Object.fromEntries(J9.map(j => [j, !off.includes(j)]));
+const P = [
+  {name:"主導$", owner:true, alive:true, n:9, win:8, amount:500, cfg:{judges:allOn(), max_amount:500, cap:25, max_loss:2, kill_loss:5, enabled:true}, last4:"5861",
+   hold:[{s:"s",nm:"聯強",j:"判二",t:"10:15",a:"62.4",b:"61.9",p:1480}],
+   fills:[{s:"s",nm:"華邦電",a:"48.20",b:"47.05",p:3410},{s:"l",nm:"廣達",a:"288.0",b:"291.5",p:3120},{s:"s",nm:"群創",a:"17.35",b:"17.05",p:2690}]},
+  {name:"夥伴A", alive:true, n:8, win:7, amount:300, last4:"1234", key:"a3c9", bound:true, st:{api:1,cert:1,login:1,at:"08:31"},
+   cfg:{judges:allOn(["判八"]), max_amount:300, cap:15, max_loss:2, kill_loss:5, enabled:true},
+   hold:[{s:"s",nm:"聯電",j:"判六",t:"10:42",a:"108.5",b:"107.0",p:2780},{s:"s",nm:"台塑",j:"判三",t:"11:05",a:"72.1",b:"72.4",p:-860}],
+   fills:[{s:"s",nm:"碩禾",a:"145.00",b:"137.75",p:6933},{s:"s",nm:"欣銓",a:"217.0",b:"214.0",p:2522},{s:"l",nm:"台塑化",a:"98.90",b:"101.37",p:4494},{s:"s",nm:"鈺創",a:"102.5",b:"104.0",p:-3534}]},
+  {name:"夥伴B", alive:true, n:7, win:6, amount:200, last4:"8810", key:"07be", bound:true, st:{api:1,cert:1,login:1,at:"08:31"},
+   cfg:{judges:allOn(), max_amount:200, cap:10, max_loss:1.5, kill_loss:4, enabled:true},
+   hold:[{s:"s",nm:"力積電",j:"判一",t:"09:48",a:"21.30",b:"21.05",p:740}],
+   fills:[{s:"s",nm:"南亞科",a:"56.8",b:"55.9",p:2610},{s:"l",nm:"緯創",a:"112.0",b:"113.5",p:2890}]},
+  {name:"夥伴C", alive:true, n:7, win:6, amount:500, last4:"3307", key:"5d21", bound:true, st:{api:1,cert:1,login:1,at:"08:32"},
+   cfg:{judges:allOn(), max_amount:500, cap:25, max_loss:2, kill_loss:5, enabled:false}, hold:[],
+   fills:[{s:"s",nm:"長榮航",a:"38.65",b:"37.90",p:4380},{s:"s",nm:"陽明",a:"71.2",b:"70.1",p:6410}]},
+  {name:"夥伴D", alive:true, n:6, win:5, amount:150, last4:"9021", key:"e410", bound:false, st:{api:1,cert:0,login:0,msg:"找不到憑證"},
+   cfg:{judges:allOn(["判七","判八"]), max_amount:150, cap:8, max_loss:1, kill_loss:3, enabled:true},
+   hold:[{s:"s",nm:"欣銓",j:"判五",t:"11:20",a:"216.5",b:"215.0",p:1360}], fills:[{s:"s",nm:"嘉澤",a:"1,215",b:"1,190",p:7090}]},
+  {name:"夥伴E", alive:false, n:0, win:0, amount:0, last4:"", key:"", bound:false, st:null,
+   cfg:{judges:allOn(), max_amount:100, cap:5, max_loss:1, kill_loss:2, enabled:false}, hold:[], fills:[{s:"s",nm:"彩晶",a:"9.85",b:"9.93",p:-780}]},
+];
+const pnl = p => p.hold.reduce((a,x)=>a+x.p,0) + p.fills.reduce((a,x)=>a+x.p,0);
+const fmt = v => (v>0?"+":v<0?"−":"") + Math.abs(Math.round(v)).toLocaleString("en-US");
+const cls = v => v>0?"up":v<0?"dn":"mut";
+const wan = v => (+v).toLocaleString("en-US",{maximumFractionDigits:1}) + " 萬";
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const on = c => J9.filter(j => c.judges[j]).length;
+
+const S = { me:"owner", tab:"明細", view:"fam", sel:"全部", person:"夥伴A", ctl:"夥伴A", draft:null, edit:null };
+const $ = id => document.getElementById(id);
+const main = $("main"), nav = $("nav"), layer = $("layer");
+const byName = n => P.find(p => p.name === n);
+const mine = () => byName("夥伴A");
+
+function go(view, extra){ Object.assign(S, {view}, extra||{}); render(); main.scrollTop = 0; }
+function toast(t){ layer.insertAdjacentHTML("beforeend", `<div class="toast" role="status">${esc(t)}</div>`); const el = layer.lastElementChild; setTimeout(()=>el.remove(), 2600); }
+function ask(title, items, note, okText, onOk, danger){
+  layer.innerHTML = `<div class="mask"><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlg-t"><h3 id="dlg-t">${esc(title)}</h3>
+    ${items.length?`<ul>${items.map(i=>`<li>${esc(i)}</li>`).join("")}</ul>`:""}${note?`<p>${esc(note)}</p>`:""}
+    <div class="bt"><button type="button" class="b full" id="dlg-no">取消</button><button type="button" class="b full ${danger?"red":"gold"}" id="dlg-ok">${esc(okText)}</button></div></div></div>`;
+  $("dlg-no").onclick = () => layer.innerHTML = "";
+  $("dlg-ok").onclick = () => { layer.innerHTML = ""; onOk(); };
+  $("dlg-ok").focus();
+}
+
+const trade = (x, hold) => `<div class="trade${hold?" hold":""}"><span class="side ${x.s}">${x.s==="s"?"空":"多"}</span>
+  <div class="nm">${esc(x.nm)}${hold&&x.j?` <span>${esc(x.j)} · ${esc(x.t)}</span>`:""}</div>
+  <div class="px">${esc(x.a)} → ${esc(x.b)}</div><div class="pn ${cls(x.p)}">${fmt(x.p)}</div></div>`;
+
+// ① 夥果:全家
+function vFam(){
+  const shown = S.sel === "全部" ? P : P.filter(p => p.name === S.sel);
+  const tot = shown.reduce((a,p)=>a+pnl(p),0), n = shown.reduce((a,p)=>a+p.n,0), w = shown.reduce((a,p)=>a+p.win,0), h = shown.reduce((a,p)=>a+p.hold.length,0);
+  return `<div class="row"><button type="button" class="b green">明細</button><div class="pill">11/16</div><button type="button" class="b gold">全家</button><div class="big ${cls(tot)}">${fmt(tot)}</div></div>
+  <div class="chips">${["全部",...P.map(p=>p.name)].map(c=>`<button type="button" class="chip${S.sel===c?" on":""}" data-sel="${esc(c)}">${esc(c)}${c==="全部"?" "+P.length:""}</button>`).join("")}</div>
+  <div class="stats"><div class="stat"><small>今日筆數</small><strong>${n}</strong></div><div class="stat"><small>勝率</small><strong>${n?(w/n*100).toFixed(1)+"%":"—"}</strong></div><div class="stat"><small>持倉中</small><strong>${h} 檔</strong></div></div>
+  <div class="lab"><span>每個人</span><span>點一列看明細</span></div>
+  <div class="list">${shown.map(p=>`<button type="button" class="prow${p.alive?"":" dead"}${S.sel===p.name?" sel":""}" data-person="${esc(p.name)}">
+    <span class="dot${p.alive?"":" r"}"></span><span class="grow"><span class="nm" style="display:block">${esc(p.name)}</span>
+    <span class="ds" style="display:block${p.alive?"":";color:var(--badt)"}">${p.alive?`${p.n} 筆 · 勝 ${p.win} · 持倉 ${p.hold.length} · 額度 ${wan(p.cfg.max_amount)}`:`程式 3 分鐘沒回報 · 持倉 ${p.hold.length}`}</span></span>
+    <span class="pn ${cls(pnl(p))}">${fmt(pnl(p))}</span></button>`).join("")}</div>
+  <div class="note">紅燈 = 那位的電腦程式 3 分鐘沒回報。這頁只有主導$ 看得到。</div>`;
+}
+
+// ② 夥果:點進某人
+function vPerson(){
+  const p = byName(S.person), c = p.cfg, t = pnl(p);
+  return `<div class="row"><button type="button" class="b" data-go="fam">‹ 全家</button><div class="pill" style="background:var(--gold);color:var(--bg);font-weight:900;border:0">${esc(p.name)}</div><div class="big ${cls(t)}">${fmt(t)}</div></div>
+  <div class="chips">${P.map(q=>`<button type="button" class="chip${q.name===p.name?" on":""}" data-person="${esc(q.name)}">${esc(q.name)}</button>`).join("")}</div>
+  <div class="cfg"><div>帳號 ${p.last4?"…"+esc(p.last4):"還沒設定"}</div>${p.owner?"<div></div>":`<button type="button" class="link" data-ctl="${esc(p.name)}">改設定 ›</button>`}
+    <div>當日總額度 ${wan(c.max_amount)}</div><div>判一~九:${on(c)} 個開</div>
+    <div>多空上限 ${wan(c.cap)}</div><div>自動交易 ${c.enabled?"開":"關"}</div>
+    <div>${wan(c.max_loss)}停止進場</div><div>${wan(c.kill_loss)}全部平倉</div></div>
+  <div class="lab"><span>持倉中 ${p.hold.length}</span></div>
+  <div class="list">${p.hold.map(x=>trade(x,1)).join("") || `<div class="note">沒有持倉</div>`}</div>
+  <div class="lab"><span>元大成交(已平倉 ${p.fills.length} 筆)</span></div>
+  <div class="list">${p.fills.map(x=>trade(x)).join("")}</div>
+  ${p.owner?"":`<div class="row"><button type="button" class="b gold full" data-ctl="${esc(p.name)}">改【${esc(p.name)}】設定</button>
+    <button type="button" class="b red full" id="close-all" ${p.hold.length?"":"disabled"}>平倉【${esc(p.name)}】全部 ${p.hold.length} 檔</button></div>`}`;
+}
+
+// ③ 夥伴A 的手機:我的元大
+function vMine(){
+  const p = mine(), t = pnl(p), n = p.n;
+  return `<div class="row"><button type="button" class="b green">明細</button><div class="pill">11/16</div><div class="pill" style="border:2px solid var(--gold);color:var(--gold);font-weight:900">我的元大</div><div class="big ${cls(t)}">${fmt(t)}</div></div>
+  <div class="stats"><div class="stat"><small>今日筆數</small><strong>${n}</strong></div><div class="stat"><small>勝率</small><strong>${n?(p.win/n*100).toFixed(1)+"%":"—"}</strong></div><div class="stat"><small>持倉中</small><strong>${p.hold.length} 檔</strong></div></div>
+  <div class="lab"><span>持倉中</span></div><div class="list">${p.hold.map(x=>trade(x,1)).join("") || `<div class="note">沒有持倉</div>`}</div>
+  <div class="lab"><span>今天成交</span></div><div class="list">${p.fills.map(x=>trade(x)).join("")}</div>
+  <div class="note">夥伴鑰匙只看得到自己的元大成交與輸贏,沒有「全家」按鈕,也看不到別人。判別式的進出場訊號照樣收得到。</div>`;
+}
+
+// ④ 資訊:斷線警報 + 提醒
+function vAlert(){
+  const fam = S.me === "fam";
+  const rows = (fam ? [mine()] : P).filter(p => p.hold.length).map(p => `<div class="arow"><b>${esc(p.name)}</b><span>${p.hold.map(x=>`${esc(x.nm)} ${x.s==="s"?"空":"多"} ${x.s==="s"?3:2} 張`).join("、")}</span></div>`);
+  const msgs = [["夥伴A","⚠ 當天虧損 2 萬:停止新進場","12:41"],["夥伴E","⚠⚠ 元大拒絕登入","08:46 · 今天程式不會管【夥伴E】的部位"],["夥伴B","✅ 當天賺 1 萬","10:58"]].filter(m => !fam || m[0]==="夥伴A");
+  const cnt = (fam ? [mine()] : P).reduce((a,p)=>a+p.hold.length,0);
+  return `<div class="lab" style="padding-top:12px"><span>範例:電腦斷線時的警報長這樣</span></div>
+  <div class="alert" role="alert"><h2><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FF6B6B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>電腦斷線 13:06 還有 ${cnt} 檔沒平</h2>
+    <p>13:20 程式無法自動平倉。請現在用投資先生${fam?"":"切換帳號,"}全部手動平倉。</p>${rows.join("")}<p style="font-size:13px;color:#FF9EA3">每 3 分鐘響一次,直到電腦恢復或 13:30</p></div>
+  <div class="lab"><span>其他提醒${fam?"":"(標名字)"}</span></div>
+  <div class="list">${msgs.map(m=>`<div class="msg"><b>【${esc(m[0])}】${esc(m[1])}</b><div>${esc(m[2])}</div></div>`).join("")}</div>
+  <div class="note">${fam?"你只收得到自己的提醒。":"這些提醒只推到主導$ 的裝置;夥伴的手機只收自己的。"}</div>`;
+}
+
+// ⑦ 主導$ 的設定
+function vSettings(){
+  const ic = {
+    夥伴:`<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6"/><path d="M16 11h6"/></svg>`,
+    夥設:`<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10"/><path d="M18 6h2"/><circle cx="16" cy="6" r="2"/><path d="M4 12h2"/><path d="M10 12h10"/><circle cx="8" cy="12" r="2"/><path d="M4 18h8"/><path d="M16 18h4"/><circle cx="14" cy="18" r="2"/></svg>`,
+    夥果:`<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>`};
+  return `<div class="lab" style="padding-top:14px"><span>夥伴管理(只有主導$ 看得到)</span></div>
+  <div class="big3"><button type="button" data-go="partners">${ic.夥伴}夥伴</button><button type="button" data-ctl="${esc(S.ctl)}">${ic.夥設}夥設</button><button type="button" data-tab="明細">${ic.夥果}夥果</button></div>
+  <div class="cap3"><div>增減夥伴、金鑰、自動交易開關</div><div>改夥伴的公式與資金(可切換夥伴)</div><div>看每位夥伴今天的輸贏</div></div>
+  <div class="lab" style="margin-top:10px"><span>主導$ 自己的設定(原本就有的)</span></div>
+  <div class="list"><div class="set"><span>多空上限</span><b style="color:var(--gold)">25 萬</b></div><div class="set"><span>通知聲音</span><b>開</b></div>
+  <div class="set"><span>鑰匙</span><b>主導$(已輸入)</b></div><div class="set"><span>版本</span><b class="mut">預覽版</b></div></div>`;
+}
+
+// ⑧ 夥伴管理
+function stLine(p){
+  if (!p.st) return `<div class="st mut">元大 API ? · 憑證 ? · 還沒登入過</div>`;
+  const s = p.st, m = (v,t) => `${t} ${v?"✓":"✗"}`;
+  if (s.login) return `<div class="st g">${m(s.api,"元大 API")} · ${m(s.cert,"憑證")} · 登入 ✓ ${esc(s.at||"")}</div>`;
+  return `<div class="st r">${m(s.api,"元大 API")} · ${m(s.cert,"憑證")} · 登入失敗:${esc(s.msg||"")}</div>`;
+}
+function vPartners(){
+  const fs = P.filter(p => !p.owner);
+  return `<div class="row"><button type="button" class="b" data-go="settings">‹ 設定</button><div style="font-size:22px;font-weight:900;color:var(--gold)">夥伴</div><div class="big mut" style="font-size:15px;font-weight:400">${fs.length} 位</div></div>
+  <div class="prt" style="background:none;padding:0 12px;font-size:13px;color:var(--sub)"><div>夥伴 · 金鑰</div><div style="text-align:center">自動交易</div><div style="text-align:center">移除</div></div>
+  <div class="list">${fs.map(p=>`<div class="prt${p.key?"":" new"}"><div style="min-width:0">
+      <button type="button" class="nm" data-edit="${esc(p.name)}">${esc(p.name)}</button>
+      <div class="k" ${p.key?"":'style="color:var(--gold)"'}>${p.key?`金鑰 fa11••••${esc(p.key)} · ${p.bound?"已綁手機":"還沒綁手機"}`:"主機還沒設定元大帳號"}</div>${stLine(p)}</div>
+    <button type="button" class="sw${p.cfg.enabled?" on":""}" role="switch" aria-checked="${p.cfg.enabled}" aria-label="${esc(p.name)} 自動交易" data-auto="${esc(p.name)}"></button>
+    <button type="button" class="rm" aria-label="移除${esc(p.name)}" data-rm="${esc(p.name)}">−</button></div>`).join("")}</div>
+  <div class="row"><button type="button" class="b gold full" data-edit="">+ 新增夥伴</button><button type="button" class="b goldo full" id="qr">發金鑰 / QR Code</button></div>
+  <div class="note">點夥伴名字:填元大帳號、電子密碼、電子憑證(加密送主機)。「元大 API / 憑證 / 登入」是主機每天登入後回報的狀態。<br>自動交易關掉:那位夥伴不再新進場,已在場上的部位照常停損停利、13:20 平倉。</div>`;
+}
+
+// ⑨ 夥設(主導$)/ ⑥ 唯讀(夥伴)
+function vControl(){
+  const ro = S.me === "fam", p = ro ? mine() : byName(S.ctl);
+  if (!ro && (!S.draft || S.draft._n !== p.name)) S.draft = {...JSON.parse(JSON.stringify(p.cfg)), _n:p.name};
+  const c = ro ? p.cfg : S.draft;
+  const fld = (k, lab, hint) => ro ? `<div class="ro"><span>${lab}</span><b>${wan(c[k])}</b></div>`
+    : `<div class="fld"><label for="f-${k}">${lab}</label><div class="in"><input id="f-${k}" inputmode="decimal" value="${c[k]}" data-k="${k}"><span class="u">萬</span></div>${hint?`<div class="hint">${hint}</div>`:""}<div class="err" id="e-${k}"></div></div>`;
+  return (ro ? `<div class="note warn" style="margin-top:12px;display:flex;gap:10px;align-items:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>設定由主導$ 管理,這裡只能看</div>`
+    : `<div class="row"><button type="button" class="b" data-go="settings">‹ 設定</button><div style="font-size:22px;font-weight:900;color:var(--gold)">夥設</div><div class="big mut" style="font-size:14px;font-weight:400">只有主導$ 能改</div></div>
+       <div class="chips">${P.filter(q=>!q.owner).map(q=>`<button type="button" class="chip${q.name===p.name?" on":""}" data-ctl="${esc(q.name)}">${esc(q.name)}</button>`).join("")}</div>`)
+  + `<div class="lab"><span>公式${ro?"(只能看)":"(點一下 開 / 關)"}</span><span>${on(c)} 個開</span></div>
+  <div class="jg">${J9.map(j=>`<button type="button" class="jb${c.judges[j]?" on":""}" ${ro?"disabled":""} data-j="${j}" aria-pressed="${!!c.judges[j]}">${j} ${c.judges[j]?"●":"○"}</button>`).join("")}</div>
+  <div class="lab"><span>${ro?"我的資金設定(只能看)":"資金"}</span></div>
+  ${fld("max_amount","當日總額度","最多 500 萬(鐵律)")}
+  ${fld("cap","多空上限(每筆)","最多 25 萬。鐵律 ⑤ 還沒解鎖:目前每筆一律用 25 萬算張數,這格只顯示、不影響張數")}
+  ${fld("max_loss","已平倉虧多少停止進場")}
+  ${fld("kill_loss","帳面虧多少全部平倉","看當下帳面:改小會馬上對已在場上的部位生效")}
+  ${ro ? `<div class="ro"><span>自動交易</span><b>${c.enabled?"開":"關"}</b></div><div class="note">沒有強制進場、平倉、預掛這些按鈕;公式的開關、資金都改不了。手機上看到的永遠是主導$ 設定的最新值。</div>`
+       : `<div class="note">按「確定」會先跳確認。改了以後新進場照新設定,已經在場上的部位不受影響(「帳面虧多少全部平倉」除外)。</div>
+          <button type="button" class="b gold" id="apply">確定(套用到${esc(p.name)})</button>`}`;
+}
+function applyCtl(){
+  const p = byName(S.ctl), d = S.draft, lim = {max_amount:[1,500], cap:[0,25], max_loss:[0.1,500], kill_loss:[0.1,500]}, labs = {max_amount:"當日總額度",cap:"多空上限",max_loss:"停止進場虧損",kill_loss:"全部平倉虧損"};
+  let bad = false;
+  for (const k in lim){ const el = $("f-"+k), v = parseFloat(el.value), [lo,hi] = lim[k];
+    $("e-"+k).textContent = (!isFinite(v) || v < lo || v > hi) ? `要在 ${lo}~${hi} 萬之間` : "";
+    if ($("e-"+k).textContent) bad = true; else d[k] = v; }
+  if (bad) return;
+  const ch = [];
+  J9.forEach(j => { if (!!d.judges[j] !== !!p.cfg.judges[j]) ch.push(`${j}:${p.cfg.judges[j]?"開":"關"} → ${d.judges[j]?"開":"關"}`); });
+  for (const k in lim) if (d[k] !== p.cfg[k]) ch.push(`${labs[k]} ${wan(p.cfg[k])} → ${wan(d[k])}`);
+  if (!ch.length) return toast(`【${p.name}】的設定沒有變`);
+  ask(`確定改【${p.name}】的設定?`, ch, `新進場才照新設定。${ch.some(x=>x.startsWith("全部平倉"))?"「帳面虧多少全部平倉」會馬上生效。":""}(預覽:只改畫面,還沒送到主機)`, "確定", () => {
+    p.cfg = JSON.parse(JSON.stringify({...d, _n:undefined})); delete p.cfg._n; S.draft = null; render(); toast(`已套用到【${p.name}】`); });
+}
+
+// ⑩ 新增 / 編輯夥伴
+function vEdit(){
+  const p = S.edit ? byName(S.edit) : null;
+  return `<div class="row"><button type="button" class="b" data-go="partners">‹ 夥伴</button><div style="font-size:22px;font-weight:900;color:var(--gold)">${p?"編輯【"+esc(p.name)+"】":"新增夥伴"}</div></div>
+  <form id="pf" class="list" autocomplete="off" novalidate>
+    <div class="fld"><label for="pf-name">夥伴名字</label><div class="in"><input id="pf-name" maxlength="12" value="${p?esc(p.name):"夥伴"+String.fromCharCode(65+P.length-1)}" ${p?"readonly":""}></div><div class="hint">最多 12 個字,不能有空白或符號</div><div class="err" id="pe-name"></div></div>
+    <div class="fld"><label for="pf-acct">元大證券帳號(分公司 4 碼 + 帳號 7 碼)</label><div class="in"><input id="pf-acct" inputmode="numeric" maxlength="11" placeholder="${p&&p.last4?"已存:…"+esc(p.last4):"例如 98761234567"}"></div><div class="err" id="pe-acct"></div></div>
+    <div class="fld"><label for="pf-pw">電子密碼</label><div class="in"><input id="pf-pw" type="password" placeholder="${p&&p.key?"••••(已存,不顯示)":""}"></div></div>
+    <div class="fld"><label for="pf-pfx">電子憑證(.pfx 檔)</label><div class="in"><input id="pf-pfx" type="file" accept=".pfx,.p12" style="padding-top:11px;font-size:15px"></div></div>
+    <div class="fld"><label for="pf-pfxpw">憑證密碼</label><div class="in"><input id="pf-pfxpw" type="password" placeholder="${p&&p.key?"••••(已存,不顯示)":""}"></div></div>
+    <div class="note">密碼和憑證在手機上先加密,只有主機打得開;雲端只轉送看不懂的密文。存好後手機只顯示 ••••,不會再顯示原文。</div>
+    <div class="note" id="pf-steps"><div style="margin-bottom:6px">送出後主機會:匯入憑證 → 登入元大測試 → 回報結果</div><div class="steps mut"><div>○ 憑證匯入</div><div>○ 元大 API</div><div>○ 登入</div><div>○ 產生金鑰 QR Code</div></div></div>
+    <button type="submit" class="b gold">送到主機設定</button>
+  </form>`;
+}
+function submitEdit(e){
+  e.preventDefault();
+  const nm = $("pf-name").value.trim(), ac = $("pf-acct").value.trim(), ex = S.edit ? byName(S.edit) : null;
+  $("pe-name").textContent = !/^[^\s|:\/\\?#&<>"']{1,12}$/.test(nm) ? "名字最多 12 個字,不能有空白或符號" : (!ex && byName(nm)) ? "已經有這個名字" : "";
+  $("pe-acct").textContent = (ac || !ex) && !/^\d{11}$/.test(ac) ? "帳號要 11 碼數字" : "";
+  if ($("pe-name").textContent || $("pe-acct").textContent) return;
+  ["pf-pw","pf-pfxpw"].forEach(id => $(id).value = "");   // 預覽:不保留、不送出任何密碼
+  const steps = $("pf-steps").querySelectorAll(".steps div"), labs = ["憑證匯入","元大 API","登入成功","產生金鑰 QR Code"];
+  let i = 0; const tick = () => { if (i < steps.length){ steps[i].textContent = "✓ " + labs[i]; steps[i].style.color = "var(--okt)"; i++; setTimeout(tick, 450); }
+    else { const p = ex || {name:nm, alive:true, n:0, win:0, amount:0, hold:[], fills:[], cfg:{judges:allOn(), max_amount:100, cap:5, max_loss:1, kill_loss:2, enabled:false}};
+      Object.assign(p, {last4: ac ? ac.slice(-4) : p.last4, key: p.key || Math.random().toString(16).slice(2,6), bound: p.bound || false, st:{api:1,cert:1,login:1,at:"08:30"}});
+      if (!ex) P.push(p); toast(`預覽:【${nm}】設定完成(沒有真的送出)`); go("partners"); } };
+  tick();
+}
+
+function vPlaceholder(t){ return `<div class="ph" style="margin-top:14px"><b style="color:var(--soft);font-size:17px">${t}</b><br>判別式訊號、K 線、報價照現行 App,這個預覽不重做。</div>`; }
+
+function render(){
+  const fam = S.me === "fam";
+  $("who").textContent = fam ? "夥伴A(只能看)" : "主導$";
+  $("pv-owner").classList.toggle("on", !fam); $("pv-fam").classList.toggle("on", fam);
+  let h = "";
+  if (S.tab === "明細") h = fam ? vMine() : S.view === "person" ? vPerson() : vFam();
+  else if (S.tab === "資訊") h = vAlert();
+  else if (S.tab === "進場") h = vPlaceholder("進場");
+  else if (S.tab === "公式") h = fam ? vControl() : vPlaceholder("公式(主導$ 自己的)");
+  else if (S.tab === "設定") h = fam ? vControl() : S.view === "partners" ? vPartners() : S.view === "control" ? vControl() : S.view === "edit" ? vEdit() : vSettings();
+  main.innerHTML = h;
+  nav.innerHTML = ["進場","資訊","明細","公式","設定"].map(t=>`<button type="button" class="${S.tab===t?"on":""}" data-tab="${t}">${t}</button>`).join("");
+  const pf = $("pf"); if (pf) pf.onsubmit = submitEdit;
+  const ap = $("apply"); if (ap) ap.onclick = applyCtl;
+}
+
+document.addEventListener("click", e => {
+  const t = e.target.closest("button"); if (!t || t.disabled) return;
+  const d = t.dataset;
+  if (t.id === "pv-owner" || t.id === "pv-fam"){ S.me = t.id === "pv-fam" ? "fam" : "owner"; S.view = "fam"; S.draft = null; return render(); }
+  if (d.tab){ S.tab = d.tab; S.view = d.tab === "設定" ? "settings" : "fam"; S.draft = null; return render(); }
+  if (d.sel){ S.sel = d.sel; return render(); }
+  if (d.person){ return go("person", {tab:"明細", person:d.person}); }
+  if (d.go){ return go(d.go); }
+  if (d.ctl){ S.draft = null; return go("control", {tab:"設定", ctl:d.ctl}); }
+  if (d.edit !== undefined){ return go("edit", {edit:d.edit || null}); }
+  if (d.j && S.draft){ S.draft.judges[d.j] = !S.draft.judges[d.j];
+    document.querySelectorAll("[data-k]").forEach(i => { const v = parseFloat(i.value); if (isFinite(v)) S.draft[i.dataset.k] = v; });
+    return render(); }
+  if (d.auto){ const p = byName(d.auto), v = !p.cfg.enabled;
+    return ask(`確定${v?"開啟":"關閉"}【${p.name}】自動交易?`, [], v ? "開啟後照【"+p.name+"】的設定自動新進場。" : "關掉後不再新進場;已在場上的部位照常停損停利、13:20 平倉。", v?"開啟":"關閉",
+      () => { p.cfg.enabled = v; render(); toast(`【${p.name}】自動交易${v?"開":"關"}(預覽)`); }, !v); }
+  if (d.rm){ const p = byName(d.rm);
+    return ask(`確定移除【${p.name}】?`, [], "金鑰會停用、不再自動交易。已在場上的部位照常停損停利、13:20 平倉。", "移除", () => { P.splice(P.indexOf(p),1); render(); toast(`已移除【${p.name}】(預覽)`); }, true); }
+  if (t.id === "close-all"){ const p = byName(S.person);
+    return ask(`確定平倉【${p.name}】全部 ${p.hold.length} 檔?`, p.hold.map(x=>`${x.nm} ${x.s==="s"?"空":"多"}`), "預覽:只改畫面,不會真的送平倉指令。", "平倉", () => { p.hold = []; render(); toast(`【${p.name}】全部平倉(預覽)`); }, true); }
+  if (t.id === "qr"){ return ask("發金鑰 / QR Code", [], "正式版:主機登入元大成功後自動產生夥伴金鑰(fa11 開頭)和 QR Code,夥伴用手機掃描就綁定。這個預覽不產生真的金鑰。", "知道了", () => {}); }
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape" && layer.querySelector(".mask")) layer.innerHTML = ""; });
+render();
+</script>
+</body>
+</html>
