@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-15 14:55(實際時間)卡片右邊贏 ▲ / 輸 ⚠ 改畫成同一個大小;下排進場 / 當沖 / 明細燈亮格拿掉光暈,和沒亮的格子一樣大(使用者「明細燈號 大小不一樣」→「一起改」);版本 202611151453
   · 2026-11-15 10:12(實際時間)監控清單已交易 / 監控中那幾列左邊黃線 3px → 1px,和其他格線一樣細(使用者「已交易最左格線很粗 其他則細」);版本 202611151012
   · 2026-11-15 10:08(實際時間)公式選單的愛心 / 鑰匙燈從右上角移到兩個字中間(判 ♥ 一、鑰 🔑 匙),顏色照舊(使用者「把 愛心 鑰匙 放在 二字中間」);版本 202611151008
   · 2026-11-15 01:38(實際時間)公式選單鑰匙鍵的燈改成鑰匙形狀,顏色照舊(綠 = 有鑰匙)(使用者「鑰匙 就改成 鑰匙形狀 燈號顏色一樣」);版本 202611150137
@@ -488,7 +489,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611151012">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611151453">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -572,6 +573,8 @@
   /* 2026-11-13 10:13 使用者「進場 當沖 明細 的燈號 能在按鍵裡最大化 但不能影響按鍵裡字的大小」:字只佔自己的寬度(大小不變),燈填滿左右剩下的空間、上下貼滿按鍵 */
   .toolbar .tool.lmb{padding:2px 3px;gap:3px} .toolbar .tool.lmb b{flex:none} .toolbar .tool.lmb .lmp{flex:1 1 0;width:auto;min-width:5px;max-width:22px;gap:2px} .toolbar .tool.lmb .lmp i{border-radius:2px}
   .lmp i{flex:1;border-radius:1px;background:#2A3142}
+  .lmp i.on{box-shadow:none!important}   /* 2026-11-15 14:53 使用者「明細燈號 大小不一樣」→「一起改」:亮格拿掉光暈,和沒亮的格子一樣大 */
+  .mk .mi{display:inline-block;width:.95em;height:.85em;margin-right:.08em;background:currentColor;vertical-align:-.05em} .mk .mi:last-child{margin-right:0} .mk .mi.w{-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18'%3E%3Cpath d='M10 0 20 18H0z'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18'%3E%3Cpath d='M10 0 20 18H0z'/%3E%3C/svg%3E") center/contain no-repeat} .mk .mi.l{-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18'%3E%3Cpath fill-rule='evenodd' d='M10 0 20 18H0zM9 6h2v6H9zm0 7.5h2v2H9z'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18'%3E%3Cpath fill-rule='evenodd' d='M10 0 20 18H0zM9 6h2v6H9zm0 7.5h2v2H9z'/%3E%3C/svg%3E") center/contain no-repeat}   /* 2026-11-15 14:53 卡片右邊 ▲(贏)/ ⚠(輸)改畫成同一個大小 */
   .lmp.r i.on{background:#FF4D5E;box-shadow:0 0 3px #FF4D5E}.lmp.g i.on{background:#1DD75B;box-shadow:0 0 3px #1DD75B}
   .lmp.y i.on{background:#FFD54F;box-shadow:0 0 3px #FFD54F}.lmp.b i.on{background:#3DA5FF;box-shadow:0 0 3px #3DA5FF}
   .lmp.r i.on.au{background:#FFB300;box-shadow:0 0 4px #FFB300}.lmp.g i.on.pu{background:#B46BFF;box-shadow:0 0 4px #B46BFF}
@@ -1692,7 +1695,7 @@ function signalRank(){
 // 2026-11-05 00:04 使用者「用漸層 一個最淺 十格最深」:第 1 格(最下面)最淺、第 10 格最深(底色和白色混,第 1 格混 65% 白 → 第 10 格純色)
 const LAMP_C = {r: [255, 77, 94], g: [29, 215, 91], y: [255, 213, 79], b: [61, 165, 255], au: [255, 179, 0], pu: [180, 107, 255]};
 const lampCol = (c, i) => { const w = 0.65 * (9 - i) / 9, q = LAMP_C[c]; return `rgb(${q.map(v => Math.round(v + (255 - v) * w)).join(',')})`; };
-const lampSeg = (k, k2, c) => `<span class="lmp ${c}">` + Array.from({length: 10}, (_, i) => { const t = i < k2 ? (c === 'r' ? 'au' : 'pu') : i < k ? c : ''; return t ? `<i class="on" style="background:${lampCol(t, i)};box-shadow:0 0 3px ${lampCol(t, 9)}"></i>` : '<i></i>'; }).join('') + '</span>';
+const lampSeg = (k, k2, c) => `<span class="lmp ${c}">` + Array.from({length: 10}, (_, i) => { const t = i < k2 ? (c === 'r' ? 'au' : 'pu') : i < k ? c : ''; return t ? `<i class="on" style="background:${lampCol(t, i)};box-shadow:none"></i>` : '<i></i>'; }).join('') + '</span>';
 const lampAmt = v => { const n = Math.ceil(Math.abs(Math.round(v || 0)) / 5000); return [Math.min(10, n), Math.max(0, Math.min(10, n - 10))]; };   // 5,000 一格,滿 10 格後第二圈
 // 2026-11-05 00:17 使用者「進場燈號在進場按鍵上 當沖燈號在當沖按鍵上 明細燈號在明細按鍵上」:改放下排三顆按鍵(三顆同時看得到),通知欄左上角綠框不放
 // 2026-11-06 15:44 使用者「美股只是參考 每天8.20 拿到資料之後 在當沖的通知欄裡 顯示 美股四大指數的結果 當沖按鍵 左上角 閃紅點 點擊當沖 看到資料之後 退出 就看不到紅點」:
@@ -7919,7 +7922,7 @@ window.bgTick = bgTick; window.BG = BG;
       if (o.type === 'exit' && o.__wn !== 1){ o.__wn = 1; try{ const q = netOf([o]); if (q && q[1]){ o.win = q[0] >= 0; if (o._win != null) o._win = o.win; } }catch(e){} }   /* 2026-11-07 23:17 使用者「進場裡 濱川 贏 明細裡 輸」→「改」:平倉卡的贏 / 輸、▲ / ⚠ 改照扣手續費、證交稅後的淨額(和明細一致) */
       const nv = (window.LOG_RS && o.type === 'exit') ? netOf([o]) : null;
       const ex = (o.type === 'entry' && (o.ph > 0 || o.phNew)) ? `<span class="mk ph">${o.ph > 0 ? o.ph.toFixed(2) : '市價'}</span>` : o.type === 'exit' ? (nv && nv[1] ? `<span class="mk amt ${nv[0] >= 0 ? 'win' : 'lose'}">${nv[0] >= 0 ? '+' : '−'}${Math.abs(nv[0])}</span>`
-        : `<span class="${o.win ? 'mk win' : 'mk lose'}">${(o.win ? '▲' : '⚠').repeat(marks(o.pl))}</span>`) : '';
+        : `<span class="${o.win ? 'mk win' : 'mk lose'}">${(o.win ? '<i class="mi w"></i>' : '<i class="mi l"></i>').repeat(marks(o.pl))}</span>`) : '';
       // 2026-10-18 使用者定案:最右邊是「警示欄位」,顯示 平倉 / 注意 / 反彈。進場卡片顯示這筆交易之後最新的狀態(平倉 > 反彈 / 注意),
       // 平倉 / 注意 / 反彈 那則自己也顯示;今天、而且出現不到 10 分鐘的會閃爍。每列都有同樣的欄位,成交價 / 做多做空 / 張數才會上下對齊
       const AL = {exit: '平倉', warn: '注意', rebound: '反彈'};
@@ -8409,9 +8412,9 @@ window.bgTick = bgTick; window.BG = BG;
     const alignM30 = () => { try{
       const m = box.querySelector('.hd .m30'), ex = box.querySelector('.card .ln .exm'); if (!m || !ex) return;
       if (m.dataset.noalign === '1'){ m.style.marginLeft = '8px'; return; }   // 2026-10-27 04:40 字要放大時不對齊 ▲ 欄(fitHd 決定)
-      const t = document.createElement('span'); t.className = 'mk win'; t.textContent = '▲▲▲▲'; t.style.visibility = 'hidden'; t.style.position = 'absolute';
+      const t = document.createElement('span'); t.className = 'mk win'; t.innerHTML = '<i class="mi w"></i>'.repeat(4); t.style.visibility = 'hidden'; t.style.position = 'absolute';
       ex.appendChild(t); const w4 = t.getBoundingClientRect().width;
-      let bear = 0; try{ const cx = document.createElement('canvas').getContext('2d'); cx.font = getComputedStyle(t).font; bear = -cx.measureText('▲').actualBoundingBoxLeft || 0; }catch(e){}   // 三角形的墨跡比字框靠右幾 px
+      let bear = 0; try{ const cx = document.createElement('canvas').getContext('2d'); cx.font = getComputedStyle(t).font; bear = 0; }catch(e){}   // 三角形的墨跡比字框靠右幾 px
       t.remove();
       const target = ex.getBoundingClientRect().right - w4 + bear;
       m.style.marginLeft = '0px'; const L0 = m.getBoundingClientRect().left;
@@ -8431,7 +8434,7 @@ window.bgTick = bgTick; window.BG = BG;
       let fs = 12;
       if (pn && m){
         const mb = m.getBoundingClientRect(), dayW = mb.left - pnb.left - 4, rightW = pnb.right - mb.left;   // 「當日 +x」在左半、「30日 +y」在右半(對齊 ▲ 欄)
-        let target = 0; try{ const ex = box.querySelector('.card .ln .exm'); if (ex){ const t = document.createElement('span'); t.className = 'mk win'; t.textContent = '▲▲▲▲'; t.style.visibility = 'hidden'; t.style.position = 'absolute'; ex.appendChild(t); const w4 = t.getBoundingClientRect().width; t.remove(); target = ex.getBoundingClientRect().right - w4 - hb.left; } }catch(e){}
+        let target = 0; try{ const ex = box.querySelector('.card .ln .exm'); if (ex){ const t = document.createElement('span'); t.className = 'mk win'; t.innerHTML = '<i class="mi w"></i>'.repeat(4); t.style.visibility = 'hidden'; t.style.position = 'absolute'; ex.appendChild(t); const w4 = t.getBoundingClientRect().width; t.remove(); target = ex.getBoundingClientRect().right - w4 - hb.left; } }catch(e){}
         const fsFree = 12 * (hw - 6) / (navW + 4 + pnb.width);   // 不對齊 ▲ 欄時能放多大
         const fsAl = (target > 40 && target < hw - 40) ? 12 * Math.min((target - 6) / (navW + dayW), (hw - target) / rightW) : 0;
         // 2026-10-27 04:40 鐵律 19 優先:「30日」對齊 ▲ 欄(10/24)會把字壓小的話就不對齊,改成放大到塞滿一列
