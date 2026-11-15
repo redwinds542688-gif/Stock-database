@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<!-- 自動當沖夥伴版:獨立的夥伴管理程式(partner 分支;和 名揚四海 app/app.html 完全分開)。目前範例資料,不連雲端、不連主機、不下單 -->
+<!-- 自動當沖夥伴版:夥伴管理網頁(partner 分支;只有主導$ owner 鑰匙能用;夥伴本人用名揚四海 App + fa11 鑰匙)。目前範例資料,不連雲端、不連主機、不下單 -->
 <title>自動當沖夥伴版</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -121,12 +121,10 @@ nav button.on{border:2px solid var(--ok);color:var(--ok)}
 
 <div class="wrap">
   <div class="pv" aria-label="預覽設定">
-    <span>預覽身分</span>
-    <button type="button" id="pv-owner" class="on">主導$ 的手機</button>
-    <button type="button" id="pv-fam">夥伴A 的手機</button>
+    <span>夥伴管理網頁 · 只有主導$(owner 鑰匙)能用</span>
     <span style="flex:1"></span><b>範例資料</b>
   </div>
-  <header class="hd"><h1>自動當沖夥伴版</h1><span class="tag" id="who">主導$</span></header>
+  <header class="hd"><h1>自動當沖夥伴版</h1><span class="tag">主導$</span></header>
   <main id="main"></main>
   <nav id="nav"></nav>
 </div>
@@ -135,7 +133,9 @@ nav button.on{border:2px solid var(--ok);color:var(--ok)}
 <script>
 // 自動當沖夥伴版 預覽(2026-11-15 使用者「夥伴版在修改期間 暫時用html 呈現實際效果」)
 // 2026-11-15 13:33 使用者「既然 夥伴版 介面已經跟 名揚四海自動當沖介面不同 乾脆完全獨立出來自成一個專門新增夥伴的程式」
-//   → 獨立程式:主導$ 四頁 夥果 / 夥伴 / 夥設 / 警報;夥伴三頁 我的元大 / 我的設定 / 提醒。沒有 名揚四海 的 進場、公式、主導$ 自己的設定
+//   → 獨立程式:夥果 / 夥伴 / 夥設 / 警報。沒有 名揚四海 的 進場、公式、主導$ 自己的設定
+// 2026-11-15 13:43 使用者「夥伴本人 下載名揚四海自動當沖 程式 看自己的交易 / 夥果 一樣可以看 全部夥伴的總覽 / 目前先做成網頁版 完成時再做成app 這app 只有 主導$可以使用」
+//   → 這個網頁只給主導$;夥伴不用這個網頁(用名揚四海 App + 自己的 fa11 鑰匙看自己的)
 // 只是畫面:資料都是範例,不連雲端、不連主機、不會下單。App 不寫看時間決定行為的邏輯。
 const J9 = ["判一","判二","判三","判四","判五","判六","判七","判八","判九"];
 const allOn = (off=[]) => Object.fromEntries(J9.map(j => [j, !off.includes(j)]));
@@ -167,11 +167,10 @@ const wan = v => (+v).toLocaleString("en-US",{maximumFractionDigits:1}) + " 萬"
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const on = c => J9.filter(j => c.judges[j]).length;
 
-const S = { me:"owner", tab:"夥果", view:"", sel:"全部", person:"夥伴A", ctl:"夥伴A", draft:null, edit:null };
+const S = { tab:"夥果", view:"", sel:"全部", person:"夥伴A", ctl:"夥伴A", draft:null, edit:null };
 const $ = id => document.getElementById(id);
 const main = $("main"), nav = $("nav"), layer = $("layer");
 const byName = n => P.find(p => p.name === n);
-const mine = () => byName("夥伴A");
 
 function go(view, extra){ Object.assign(S, {view}, extra||{}); render(); main.scrollTop = 0; }
 function toast(t){ layer.insertAdjacentHTML("beforeend", `<div class="toast" role="status">${esc(t)}</div>`); const el = layer.lastElementChild; setTimeout(()=>el.remove(), 2600); }
@@ -200,7 +199,7 @@ function vFam(){
     <span class="dot${p.alive?"":" r"}"></span><span class="grow"><span class="nm" style="display:block">${esc(p.name)}</span>
     <span class="ds" style="display:block${p.alive?"":";color:var(--badt)"}">${p.alive?`${p.n} 筆 · 勝 ${p.win} · 持倉 ${p.hold.length} · 額度 ${wan(p.cfg.max_amount)}`:`程式 3 分鐘沒回報 · 持倉 ${p.hold.length}`}</span></span>
     <span class="pn ${cls(pnl(p))}">${fmt(pnl(p))}</span></button>`).join("")}</div>
-  <div class="note">紅燈 = 那位的電腦程式 3 分鐘沒回報。這頁只有主導$ 看得到。判別式訊號、K 線、報價請看「名揚四海」App。</div>`;
+  <div class="note">紅燈 = 那位的電腦程式 3 分鐘沒回報。這頁只有主導$ 看得到。判別式訊號、K 線、報價請看「名揚四海」App。<br>夥伴本人不用這個網頁:下載名揚四海 App、輸入自己的金鑰,只看得到自己的交易。</div>`;
 }
 
 // ② 夥果:點進某人
@@ -220,28 +219,17 @@ function vPerson(){
     <button type="button" class="b red full" id="close-all" ${p.hold.length?"":"disabled"}>平倉【${esc(p.name)}】全部 ${p.hold.length} 檔</button></div>`}`;
 }
 
-// ③ 夥伴A 的手機:我的元大
-function vMine(){
-  const p = mine(), t = pnl(p), n = p.n;
-  return `<div class="row"><div class="pill">11/16</div><div class="pill" style="border:2px solid var(--gold);color:var(--gold);font-weight:900">我的元大</div><div class="big ${cls(t)}">${fmt(t)}</div></div>
-  <div class="stats"><div class="stat"><small>今日筆數</small><strong>${n}</strong></div><div class="stat"><small>勝率</small><strong>${n?(p.win/n*100).toFixed(1)+"%":"—"}</strong></div><div class="stat"><small>持倉中</small><strong>${p.hold.length} 檔</strong></div></div>
-  <div class="lab"><span>持倉中</span></div><div class="list">${p.hold.map(x=>trade(x,1)).join("") || `<div class="note">沒有持倉</div>`}</div>
-  <div class="lab"><span>今天成交</span></div><div class="list">${p.fills.map(x=>trade(x)).join("")}</div>
-  <div class="note">夥伴鑰匙只看得到自己的元大成交與輸贏,沒有「全家」按鈕,也看不到別人。判別式訊號由主導$ 的電腦統一算,你的帳號照你的設定自動下單。</div>`;
-}
-
 // ④ 資訊:斷線警報 + 提醒
 function vAlert(){
-  const fam = S.me === "fam";
-  const rows = (fam ? [mine()] : P).filter(p => p.hold.length).map(p => `<div class="arow"><b>${esc(p.name)}</b><span>${p.hold.map(x=>`${esc(x.nm)} ${x.s==="s"?"空":"多"} ${x.s==="s"?3:2} 張`).join("、")}</span></div>`);
-  const msgs = [["夥伴A","⚠ 當天虧損 2 萬:停止新進場","12:41"],["夥伴E","⚠⚠ 元大拒絕登入","08:46 · 今天程式不會管【夥伴E】的部位"],["夥伴B","✅ 當天賺 1 萬","10:58"]].filter(m => !fam || m[0]==="夥伴A");
-  const cnt = (fam ? [mine()] : P).reduce((a,p)=>a+p.hold.length,0);
+  const rows = P.filter(p => p.hold.length).map(p => `<div class="arow"><b>${esc(p.name)}</b><span>${p.hold.map(x=>`${esc(x.nm)} ${x.s==="s"?"空":"多"} ${x.s==="s"?3:2} 張`).join("、")}</span></div>`);
+  const msgs = [["夥伴A","⚠ 當天虧損 2 萬:停止新進場","12:41"],["夥伴E","⚠⚠ 元大拒絕登入","08:46 · 今天程式不會管【夥伴E】的部位"],["夥伴B","✅ 當天賺 1 萬","10:58"]];
+  const cnt = P.reduce((a,p)=>a+p.hold.length,0);
   return `<div class="lab" style="padding-top:12px"><span>範例:電腦斷線時的警報長這樣</span></div>
   <div class="alert" role="alert"><h2><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FF6B6B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>電腦斷線 13:06 還有 ${cnt} 檔沒平</h2>
-    <p>13:20 程式無法自動平倉。請現在用投資先生${fam?"":"切換帳號,"}全部手動平倉。</p>${rows.join("")}<p style="font-size:13px;color:#FF9EA3">每 3 分鐘響一次,直到電腦恢復或 13:30</p></div>
-  <div class="lab"><span>其他提醒${fam?"":"(標名字)"}</span></div>
+    <p>13:20 程式無法自動平倉。請現在用投資先生切換帳號,全部手動平倉。</p>${rows.join("")}<p style="font-size:13px;color:#FF9EA3">每 3 分鐘響一次,直到電腦恢復或 13:30</p></div>
+  <div class="lab"><span>其他提醒(標名字)</span></div>
   <div class="list">${msgs.map(m=>`<div class="msg"><b>【${esc(m[0])}】${esc(m[1])}</b><div>${esc(m[2])}</div></div>`).join("")}</div>
-  <div class="note">${fam?"你只收得到自己的提醒。":"這些提醒只推到主導$ 的裝置;夥伴的手機只收自己的。"}</div>`;
+  <div class="note">這些提醒只推到主導$ 的裝置;夥伴的手機只收自己的。</div>`;
 }
 
 // ⑧ 夥伴管理
@@ -266,7 +254,7 @@ function vPartners(){
 
 // ⑨ 夥設(主導$)/ ⑥ 唯讀(夥伴)
 function vControl(){
-  const ro = S.me === "fam", p = ro ? mine() : byName(S.ctl);
+  const ro = false, p = byName(S.ctl);
   if (!ro && (!S.draft || S.draft._n !== p.name)) S.draft = {...JSON.parse(JSON.stringify(p.cfg)), _n:p.name};
   const c = ro ? p.cfg : S.draft;
   const fld = (k, lab, hint) => ro ? `<div class="ro"><span>${lab}</span><b>${wan(c[k])}</b></div>`
@@ -335,21 +323,14 @@ const IC = {
   夥果:'<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
   夥伴:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6"/><path d="M16 11h6"/>',
   夥設:'<path d="M4 6h10"/><path d="M18 6h2"/><circle cx="16" cy="6" r="2"/><path d="M4 12h2"/><path d="M10 12h10"/><circle cx="8" cy="12" r="2"/><path d="M4 18h8"/><path d="M16 18h4"/><circle cx="14" cy="18" r="2"/>',
-  警報:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>',
-  我的元大:'<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
-  我的設定:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
-  提醒:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>'};
-const TABS = () => S.me === "fam" ? ["我的元大","我的設定","提醒"] : ["夥果","夥伴","夥設","警報"];
+  警報:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>'
+};
+const TABS = () => ["夥果","夥伴","夥設","警報"];
 
 function render(){
-  const fam = S.me === "fam";
   if (!TABS().includes(S.tab)) S.tab = TABS()[0];
-  $("who").textContent = fam ? "夥伴A(只能看)" : "主導$";
-  $("pv-owner").classList.toggle("on", !fam); $("pv-fam").classList.toggle("on", fam);
   let h = "";
-  if (S.tab === "我的元大") h = vMine();
-  else if (S.tab === "我的設定") h = vControl();
-  else if (S.tab === "提醒" || S.tab === "警報") h = vAlert();
+  if (S.tab === "警報") h = vAlert();
   else if (S.tab === "夥果") h = S.view === "person" ? vPerson() : vFam();
   else if (S.tab === "夥伴") h = S.view === "edit" ? vEdit() : vPartners();
   else if (S.tab === "夥設") h = vControl();
@@ -363,7 +344,6 @@ function render(){
 document.addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t || t.disabled) return;
   const d = t.dataset;
-  if (t.id === "pv-owner" || t.id === "pv-fam"){ S.me = t.id === "pv-fam" ? "fam" : "owner"; S.tab = TABS()[0]; S.view = ""; S.draft = null; return render(); }
   if (d.tab){ S.tab = d.tab; S.view = ""; S.draft = null; main.scrollTop = 0; return render(); }
   if (d.sel){ S.sel = d.sel; return render(); }
   if (d.person){ return go("person", {tab:"夥果", person:d.person}); }
