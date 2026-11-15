@@ -1229,6 +1229,32 @@ class Bridge:
             self.phone_alert(f"⚠ {at} 手動預掛取消不掉", "程式照樣平倉,請在投資先生確認有沒有多平")
         return nos
 
+    def fam_backup(self, day):
+        """2026-11-15 家人帳號第二階段(使用者「再來發布的金鑰 就是自己只能看到自己的」):每分鐘 POST ?pcbk=put {d, acct, items:{pos, pnl, fills, info}}
+           → 雲端存 pcbka:<名字>:<日期>:*;owner 鑰匙看全部人、家人鑰匙(fa11…)只看自己(?acct=list / ?acct=get)。
+           成交每 2 分鐘向元大查一次(30 秒內重複問會用上一次的結果);失敗只記紀錄,不影響交易"""
+        try:
+            items = {}
+            if self.api and self.logged_in.is_set() and time.time() - getattr(self, "_ff_at", 0) > 120:
+                self._ff_at = time.time()
+                try: self.trade_fills()
+                except Exception as e: log("[家人] 查成交失敗", e)
+            fc = (getattr(self, "_fills_cache", None) or (0, None))[1] or self.fills_saved()
+            if fc: items["fills"] = fc
+            t = self.trader
+            if t is not None:
+                with t.lock: items["pos"] = [{k: p.get(k) for k in ("code", "dir", "qty", "entry", "judge", "tp", "sl", "state", "t0", "typ")} for p in t.positions.values()]
+                items["pnl"] = {"pnl": round(getattr(t, "pnl", 0) or 0), "n": getattr(t, "n_trades", 0), "amount": round(getattr(t, "amount_today", 0) or 0)}
+                items["info"] = {"acct": "…" + str(CFG.get("YT_ACCOUNT", ""))[-4:], "max_amount": getattr(t, "max_amount", None), "cap": getattr(t, "cap", None),
+                                 "max_loss": getattr(t, "max_loss", None), "kill_loss": getattr(t, "kill_loss", None), "enabled": bool(getattr(t, "enabled", False)),
+                                 "names": {c: (self.quotes.meta.get(c) or {}).get("n", "") for c in list(t.positions)}}
+            req = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?pcbk=put", data=json.dumps({"d": day, "acct": ACCT, "items": items}, ensure_ascii=False, default=str).encode(), method="POST",
+                                         headers={"Content-Type": "application/json", "X-Push-Key": CFG.get("PUSH_KEY", "")})
+            urllib.request.urlopen(req, timeout=15).read()
+        except Exception as e:
+            n = getattr(self, "_bk_fail", 0) + 1; self._bk_fail = n
+            if n == 1 or n % 30 == 0: log(f"[家人 {ACCT}] 雲端備份失敗(第 {n} 次)", e)
+
     def cap_sync(self):
         """2026-11-02 多空上限主控(使用者:「其他二隻跟電腦偵測到 都自動改成與5861這隻一樣的金額」):讀雲端主導機的值改 trader.cap(之後新進場的張數照它算);
            TRADE_CAP=0(固定張數)不動;讀不到維持原值(bridge.env 的 TRADE_CAP / ENGINE_CAP)"""
@@ -1303,7 +1329,7 @@ class Bridge:
     def pc_backup(self, day):
         """2026-11-12 20:22 使用者「改」(升級 Workers Paid 後物盡其用 1):每分鐘一次 POST ?pcbk=put —— 今天的大盤寬度、引擎實際監控的股票、
            中繼部位(含總停損 / 移動停損利的起點)、狀態檔;回測 / 檢討 / 電腦重灌都用同一份。失敗只記紀錄,不影響交易"""
-        if FAMILY: return   # 2026-11-15 家人帳號:雲端備份是主帳號那份(第二階段再分人存)
+        if FAMILY: return self.fam_backup(day)   # 2026-11-15 家人帳號:分人存(部位 / 成交 / 輸贏),不碰主帳號那份
         try:
             ed = Path(os.environ.get("ENGINE_DIR", HERE / "engine_data")); items = {}
             try: items["breadth"] = (json.loads((ed / "breadth.json").read_text(encoding="utf-8")) or {}).get(day) or {}

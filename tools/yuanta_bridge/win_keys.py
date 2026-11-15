@@ -13,6 +13,7 @@
   python win_keys.py add 小王 m1           # 一個月  600 元(30 天)
   python win_keys.py add 小王 m3           # 三個月 1700 元(90 天)
   python win_keys.py add 小王 y1           # 一年   6000 元(365 天)
+  python win_keys.py fam 媽                # 2026-11-15 家人鑰匙(開頭 fa11):只看得到【媽】自己帳號的部位 / 成交 / 輸贏(名字要和 win_family.py add 的一樣)
   python win_keys.py unbind <鑰匙>         # 2026-10-29 一人一機:鑰匙綁在第一支用它的手機;換手機先解綁
   python win_keys.py qrall                 # 2026-11-03 把每一把(啟用中)鑰匙的 QR Code 都存進 keys 資料夾(中繼每次啟動也會自動做)
   python win_keys.py qr <鑰匙> [名字]       # 2026-11-01 產生 QR Code 圖(下面印鑰匙),手機 公式 → 鑰匙 → 掃描 就能存;add 建好鑰匙時也會自動產生
@@ -127,6 +128,13 @@ def main(a):
         if r.get("ok"):
             print(f"\n鑰匙({PLANS.get(kind, kind)}{',到期 ' + r['exp'] if r.get('exp') else ''}):{r['k']}\n給那支手機:公式 → 鑰匙 → 掃描 QR Code(或貼上這串)→ 存")
             try: make_qr(r["k"], name, PLANS.get(kind, kind) + (f" 到期 {r['exp']}" if r.get("exp") else ""))
+            except Exception as e: print("產生 QR Code 失敗:", e)
+        return
+    if a[0] == "fam" and len(a) > 1:   # 2026-11-15 使用者「再來發布的金鑰 就是自己只能看到自己的」
+        nm = a[1].strip(); r = call("add", {"name": nm, "acct": nm}); print(r)
+        if r.get("ok"):
+            print(f"\n【{nm}】的家人鑰匙(只看得到自己):{r['k']}\n給{nm}的手機:公式 → 鑰匙 → 掃描 QR Code(或貼上這串)→ 存")
+            try: make_qr(r["k"], nm, "家人(只看自己)")
             except Exception as e: print("產生 QR Code 失敗:", e)
         return
     if a[0] == "unbindend" and len(a) > 1:
