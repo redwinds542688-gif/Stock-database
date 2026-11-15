@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<!-- 夥伴看盤(簡單版,partner 分支):當沖 / 明細 + 喇叭靜音鍵 + 金鑰鍵(可掃 QR);聲音震動、掃碼照主導版(抄一份,不共用);和名揚四海 app/ 完全分開。虛擬版本:主導版 bt_fill.json + 1 分 K 重播 -->
+<!-- 夥伴看盤(簡單版,partner 分支):當沖 / 明細 + 喇叭靜音鍵 + 金鑰鍵(可掃 QR;夥伴金鑰和主導$ 鑰匙都收);聲音震動、掃碼照主導版(抄一份,不共用);和名揚四海 app/ 完全分開。虛擬版本:主導版 bt_fill.json + 1 分 K 重播 -->
 <title>夥伴看盤</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -211,20 +211,23 @@ function fakeHold(){
   const i = document.getElementById("rpInfo"); if (i) i.textContent = "當沖假資料 20 檔(按 ⟲ 回到重播)";
 }
 /* 19:20 使用者「輸入 金鑰的地方在哪裡」:標題右邊那顆鍵 —— 沒輸入顯示「🔑 輸入金鑰」(金色),輸入後顯示「夥伴A · fa11••••末4」;點它可以換鑰匙。
-   只收夥伴金鑰(fa11 開頭、16~40 個 0-9a-f);主導$ 的鑰匙不收(主導$ 用名揚四海 App)。存這支手機(partner.key),不顯示全碼。
+   19:30 使用者「主導 也可以用這個看盤版」→ 夥伴金鑰(fa11 開頭)和主導$ 的鑰匙都收:夥伴 = 看自己的帳號;主導$ = 看主導$ 自己的元大帳號(正式版用 ?trade=fills / ?trade=pos)。
+   16~40 個 0-9a-f。存這支手機(partner.key),不顯示全碼。
    預覽版只存起來、不連雲端;正式版存好後用這把鑰匙讀 ?acct=get(只拿得到自己的) */
 const KEY_K = "partner.key";
 let KEY_MEM = null;
+const isFam = k => /^fa11/.test(k || "");
+const keyWho = k => isFam(k) ? "夥伴A" : "主導$";   // 夥伴的名字正式版從雲端拿(?acct=get),預覽先寫夥伴A
 const keyGet = () => { if (KEY_MEM != null) return KEY_MEM; try{ return localStorage.getItem(KEY_K) || ""; }catch(e){ return ""; } };
 const keySet = v => { KEY_MEM = v; try{ v ? localStorage.setItem(KEY_K, v) : localStorage.removeItem(KEY_K); }catch(e){} };
 function keyPaint(){ const b = document.getElementById("keyBtn"), k = keyGet();
-  b.className = "key" + (k ? "" : " none"); b.innerHTML = k ? `夥伴A · fa11••••${esc(k.slice(-4))}` : "🔑 輸入金鑰";
+  b.className = "key" + (k ? "" : " none"); b.innerHTML = k ? `${keyWho(k)} · ••••${esc(k.slice(-4))}` : "🔑 輸入金鑰";
   b.setAttribute("aria-label", k ? "已輸入金鑰,按一下更換" : "輸入金鑰"); }
 function keyOpen(){
   const k = keyGet(), L = document.getElementById("layer");
   L.innerHTML = `<div class="mask"><form class="dlg" id="keyForm" role="dialog" aria-modal="true" aria-labelledby="keyT" novalidate>
     <h3 id="keyT">${k ? "更換金鑰" : "輸入金鑰"}</h3>
-    <p>請輸入主導$ 發給你的<b>夥伴金鑰</b>(fa11 開頭)。${k ? `目前:fa11••••${esc(k.slice(-4))}` : ""}</p>
+    <p>夥伴:輸入主導$ 發給你的<b>夥伴金鑰</b>(fa11 開頭)。主導$:輸入自己的鑰匙也可以用。${k ? `<br>目前:${keyWho(k)} ••••${esc(k.slice(-4))}` : ""}</p>
     <label for="keyIn" class="mut" style="font-size:13px">金鑰</label>
     <div style="display:flex;gap:8px"><input id="keyIn" style="flex:1;min-width:0" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text" placeholder="fa11…" maxlength="40">
     <button type="button" id="keyScan" class="qrb" aria-label="掃描金鑰 QR Code">掃描</button></div>
@@ -240,8 +243,7 @@ function keyOpen(){
   const del = document.getElementById("keyDel"); if (del) del.onclick = () => { keySet(""); L.innerHTML = ""; keyPaint(); notifyQuiet("已清除這支手機的金鑰"); };
   document.getElementById("keyForm").onsubmit = e => { e.preventDefault(); const v = inp.value.trim().toLowerCase(), er = document.getElementById("keyErr");
     if (!/^[a-f0-9]{16,40}$/.test(v)) return er.textContent = "金鑰格式不對:16~40 個 0-9、a-f";
-    if (!v.startsWith("fa11")) return er.textContent = "這不是夥伴金鑰(要 fa11 開頭)。主導$ 的鑰匙請用名揚四海 App";
-    keySet(v); L.innerHTML = ""; keyPaint(); notifyQuiet("金鑰已存在這支手機(預覽版不連雲端)"); };
+    keySet(v); L.innerHTML = ""; keyPaint(); notifyQuiet(`${keyWho(v)} 的金鑰已存在這支手機(預覽版不連雲端)`); };
 }
 /* 19:25 使用者「一樣要有掃碼功能」:照主導版 qrScan 抄一份 —— 開後鏡頭,瀏覽器有 BarcodeDetector 就用,沒有臨時載入 jsQR(iPhone),掃到就關鏡頭、填進去直接存。
    相機打不開(沒給權限、用檔案開啟的網頁)→ 可以改「從相簿選 QR Code 圖片」 */
