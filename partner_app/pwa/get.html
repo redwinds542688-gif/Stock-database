@@ -7,6 +7,7 @@
 <title>夥伴看盤 下載</title>
 <link rel="icon" type="image/png" href="/partner/icon-192.png">
 <link rel="apple-touch-icon" href="/partner/icon-180.png">
+<link rel="manifest" href="/partner/manifest.webmanifest">
 <meta name="theme-color" content="#0B0E14">
 <style>
 :root{--bg:#0B0E14;--card:#151B28;--fg:#E6EAF2;--sub:#9AA4B8;--gold:#FFD54F;--green:#22E06B;--blue:#29B6F6;color-scheme:dark}
@@ -28,7 +29,7 @@ ol{margin:0;padding-left:22px;font-size:17px;line-height:1.9} ol b{color:var(--g
 <body>
 <div class="w">
   <div class="hd"><img src="/partner/icon-192.png" alt=""><div><h1>夥伴看盤</h1><p>自動當沖 · 只看自己的元大持倉與成交</p></div></div>
-  <div class="sw" role="tablist"><button type="button" id="tA">安卓 Android</button><button type="button" id="tI">蘋果 iPhone / iPad</button></div>
+  <div class="sw" role="tablist"><button type="button" id="tA">安卓</button><button type="button" id="tI">蘋果</button><button type="button" id="tP">電腦</button></div>
 
   <section class="card" id="pA">
     <h2>安卓手機 / 平板</h2>
@@ -54,12 +55,30 @@ ol{margin:0;padding-left:22px;font-size:17px;line-height:1.9} ol b{color:var(--g
     </ol>
     <div class="note">蘋果不能裝安卓的 App,用「加入主畫面」就跟 App 一樣全螢幕,每次打開都是最新版。iPhone 網頁版沒有震動,畫面關掉時不會響。</div>
   </section>
+
+  <section class="card" id="pP" hidden>
+    <h2>電腦(Windows / Mac)</h2>
+    <button type="button" class="btn g" id="inst" hidden style="border:0;width:100%;cursor:pointer">⬇ 安裝到電腦</button>
+    <a class="btn b" href="/partner/">打開夥伴看盤</a>
+    <ol>
+      <li>用 <b>Chrome</b> 或 <b>Edge</b> 打開這一頁</li>
+      <li>有綠色<b>安裝到電腦</b>就按它;沒有的話按<b>打開夥伴看盤</b>,再按網址列右邊的<b>安裝</b>圖示(螢幕加箭頭)→ <b>安裝</b></li>
+      <li>桌面和開始功能表會出現「夥伴看盤」圖示,以後點它打開(獨立視窗)</li>
+      <li>輸入金鑰,或<b>從相簿選 QR Code 圖片</b>(電腦有鏡頭也可以按掃描)</li>
+    </ol>
+    <div class="note">電腦版不用下載 APK,每次打開都是最新版。視窗開著才會響(電腦沒有震動);第一次進去要按一下畫面,聲音才會開。</div>
+  </section>
 </div>
 <script>
 const ua = navigator.userAgent || "", ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-function show(i){ document.getElementById("pA").hidden = i; document.getElementById("pI").hidden = !i; document.getElementById("tA").classList.toggle("on", !i); document.getElementById("tI").classList.toggle("on", i); }
-document.getElementById("tA").onclick = () => show(false); document.getElementById("tI").onclick = () => show(true);
-show(ios);
+const pc = !ios && !/Android|Mobile/i.test(ua);
+function show(k){ for (const [t, c] of [["A","pA"],["I","pI"],["P","pP"]]){ document.getElementById(c).hidden = k !== t; document.getElementById("t" + t).classList.toggle("on", k === t); } }
+document.getElementById("tA").onclick = () => show("A"); document.getElementById("tI").onclick = () => show("I"); document.getElementById("tP").onclick = () => show("P");
+show(ios ? "I" : pc ? "P" : "A");
+let deferred = null; const ib = document.getElementById("inst");
+addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferred = e; ib.hidden = false; });
+ib.onclick = async () => { if (!deferred) return; deferred.prompt(); try{ await deferred.userChoice; }catch(_){} deferred = null; ib.hidden = true; };
+addEventListener("appinstalled", () => { ib.hidden = true; });
 </script>
 </body>
 </html>
