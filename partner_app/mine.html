@@ -261,6 +261,7 @@ document.addEventListener("click", e => { const b = e.target.closest("button"); 
 });
 function notifyQuiet(t){ const L = document.getElementById('layer'); L.innerHTML = `<div class="toast pc" role="status"><b>${esc(t)}</b></div>`; clearTimeout(notify.t); notify.t = setTimeout(() => L.innerHTML = '', 1800); }
 rebuild(); render(); ctl();
+fakeHold();   // 19:05 使用者開舊檔看到當沖空白、又說一次「當沖那邊也弄個假資料」→ 一打開就先放 20 檔假持倉;按 ▶ 播放 / ⟲ 才開始 11/13 重播
 document.getElementById("list").addEventListener("scroll", doneSync, {passive: true});
 </script>
 </body>
