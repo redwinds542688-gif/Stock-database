@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<!-- 夥伴看盤(partner 分支):只讀金鑰對應帳號的元大真實資料(夥伴 fa11 → ?acct=get;主導$ → ?trade=pos / fills),帶 pv=1 不綁設備;當沖 / 明細 + 喇叭靜音 + 金鑰(可掃 QR);和名揚四海 app/ 完全分開 -->
+<!-- 夥伴看盤(partner 分支):只讀金鑰對應帳號的元大真實資料(夥伴 fa11 → ?acct=get;主導$ → ?trade=pos / fills),帶 pv=1 不綁設備;WebSocket ?ws=log 一有交易馬上重讀;當沖 / 明細 + 喇叭靜音 + 金鑰(可掃 QR);和名揚四海 app/ 完全分開 -->
 <title>夥伴看盤</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -314,6 +314,19 @@ function rebuild(){
 }
 function repaint(){ const L = document.getElementById("list"); if (!L) return; const st = L.scrollTop; render(); if (L.scrollTop !== st) L.scrollTop = st; doneSync(true); }
 const TIMERS = [];
+/* 雲端有新通知(電腦下單 / 成交 / 平倉、夥伴的【名字】提醒)→ 立刻推過來;收到就馬上重讀。斷線自動重連(3 秒起、最多 1 分鐘),每 30 秒 ping 一次(和主程式一樣) */
+const WS = { ws: null, ok: false, fail: 0, v: "", pg: 0, tm: 0 };
+function wsOpen(){
+  try{ if (WS.ws){ WS.ws.onclose = null; WS.ws.close(); } }catch(e){} WS.ws = null; WS.ok = false; clearInterval(WS.pg); clearTimeout(WS.tm);
+  if (!keyGet() || typeof WebSocket === "undefined") return;
+  const ws = new WebSocket(WORKER.replace(/^http/, "ws") + "/?ws=log&k=" + encodeURIComponent(keyGet()) + "&pv=1"); WS.ws = ws;
+  ws.onopen = () => { WS.ok = true; WS.fail = 0; WS.pg = setInterval(() => { try{ ws.send("ping"); }catch(e){} }, 30000); };
+  ws.onmessage = ev => { try{ if (ev.data === "pong") return; const j = JSON.parse(ev.data); if (!j || !j.v) return; const first = !WS.v; if (j.v !== WS.v){ WS.v = j.v; if (!first) wsKick(); } }catch(e){} };
+  ws.onclose = ws.onerror = () => { clearInterval(WS.pg); if (WS.ws !== ws) return; WS.ws = null; if (!WS.ok) WS.fail++; WS.ok = false;
+    WS.tm = setTimeout(wsOpen, Math.min(60000, 3000 * Math.pow(2, WS.fail))); };
+}
+let kickT = 0;
+function wsKick(){ clearTimeout(kickT); kickT = setTimeout(() => { loadPos().then(loadQuotes); loadToday(); setTimeout(loadToday, 3000); }, 300); }   // 通知比成交回報早一點到 → 3 秒後再讀一次成交
 function start(){
   TIMERS.splice(0).forEach(clearInterval); stReset(); keyPaint(); rebuild();
   if (!keyGet()) return;
@@ -323,7 +336,10 @@ function start(){
   //   夥伴:主機每 1 分鐘推一次持倉、每 2 分鐘查一次成交 → 持倉 60 秒、成交 120 秒(每次都要讀雲端資料庫,最花 Durable Object 額度)
   //   主導$:直接問電腦 → 持倉 30 秒、成交 60 秒(不用雲端資料庫);現價 5 秒、只有手上有持倉才問(不用雲端資料庫)
   //   手機畫面關掉 / 切到別的 App 時完全不問
-  const fam = isFam(keyGet()), tPos = fam ? 60000 : 30000, tFill = fam ? 120000 : 60000;
+  // 20:10 使用者「調成最快 主程式有交易 看盤版必須馬上知道」→ 主導$:持倉 5 秒、現價 5 秒(證交所 5 秒才更新)、成交 30 秒(中繼 30 秒內回同一份);
+  //   再加一條 WebSocket(和主程式同一條 ?ws=log):電腦一下單 / 成交 / 平倉發通知,雲端立刻推過來 → 馬上重讀持倉和成交,不用等下一輪
+  const fam = isFam(keyGet()), tPos = fam ? 60000 : 5000, tFill = fam ? 120000 : 30000;
+  wsOpen();
   TIMERS.push(setInterval(vis(loadPos), tPos), setInterval(vis(() => { if ((ST.pos || []).length) loadQuotes(); }), 5000), setInterval(vis(loadToday), tFill));
   if (!start.v) start.v = 1, document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && keyGet()){ loadPos().then(loadQuotes); loadToday(); } });   // 切回來馬上補一次
 }
