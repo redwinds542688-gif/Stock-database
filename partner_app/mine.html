@@ -17,7 +17,7 @@
   --f:'Noto Sans TC',system-ui,-apple-system,'PingFang TC','Microsoft JhengHei',sans-serif;
   color-scheme:dark;
 }
-html,body{height:100%}
+html,body{height:100%;overscroll-behavior:none}
 body{background:var(--ground);color:var(--fg);font-family:var(--f);margin:0}
 *{box-sizing:border-box}
 button{font-family:inherit}
@@ -38,7 +38,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .spk.on{background:var(--gold);color:#000;border-color:#fff;box-shadow:0 0 0 2px #000,0 0 0 3.5px var(--gold)}
 .amt{flex:1 1 auto;min-width:0;text-align:right;font-size:clamp(22px,7.4vw,32px);font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
 .up{color:var(--up)} .dn{color:var(--down)} .mut{color:var(--sub)} .gold{color:var(--gold)}
-.list{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;scroll-snap-type:y mandatory;overscroll-behavior:contain}
+.list{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;scroll-snap-type:y mandatory;overscroll-behavior:none}
 /* 一頁固定 8 檔、不切半列(17:50 使用者「照這樣 一頁 八檔 不要切到」):列高 = 清單高度 ÷ 8(太矮的螢幕少放幾檔),滑動一格一格對齊 */
 .list > .prow2,.list > .row,.list > .dsep,.list > .dend{height:var(--rh,auto);align-content:center;flex:none;scroll-snap-align:start;padding-top:0;padding-bottom:0}
 .row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center;padding:9px 8px;border-bottom:1px solid #1E2636;background:repeating-linear-gradient(45deg,#121826 0 6px,#141B2A 6px 12px)}
@@ -241,9 +241,10 @@ function doneSync(force){ try{ if (S.tab !== "明細") return; if (force) S.day 
   cur = cur || Object.keys(DAYS)[0]; if (cur === S.day) return; S.day = cur;
   const t = dayTot(cur), hd = document.getElementById("hd"); hd.querySelector(".date").textContent = cur; const a = hd.querySelector(".amt"); a.textContent = fmt(t); a.className = "amt " + cls(t); }catch(e){} }
 const PER_PAGE = 8, MIN_ROW = 52;
-function fit(){ try{ const L = document.getElementById("list"), H = L.clientHeight; if (!H) return;
+/* 19:10 使用者「資料 滑到底 怎麼有彈性」:列高取整數、清單高度剛好 = 列高 × 檔數(滑到底不會因為零點幾 px 對不齊而彈回);拿掉滑到頭 / 底的拉伸效果 */
+function fit(){ try{ const L = document.getElementById("list"); L.style.flex = ""; L.style.height = ""; const H = L.clientHeight; if (!H) return;
   let n = PER_PAGE; if (H / n < MIN_ROW) n = Math.max(1, Math.floor(H / MIN_ROW));
-  L.style.setProperty("--rh", (H / n) + "px"); }catch(e){} }
+  const rh = Math.floor(H / n); L.style.setProperty("--rh", rh + "px"); L.style.flex = "none"; L.style.height = (rh * n) + "px"; }catch(e){} }
 window.addEventListener("resize", fit);
 
 function render(){
