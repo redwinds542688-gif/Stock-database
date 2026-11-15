@@ -22,14 +22,14 @@ body{background:var(--ground);color:var(--fg);font-family:var(--f);margin:0}
 *{box-sizing:border-box}
 button{font-family:inherit}
 button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
-.wrap{max-width:460px;margin:0 auto;min-height:100%;background:var(--bg);display:flex;flex-direction:column}
+.wrap{max-width:460px;margin:0 auto;height:100%;background:var(--bg);display:flex;flex-direction:column}
 .pv{padding-block:6px;padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px));background:#0E121A;border-bottom:1px dashed var(--line2);font-size:12px;color:var(--sub);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .pv b{color:var(--gold)}
 .pv button{height:30px;padding:0 8px;border-radius:15px;border:1px solid var(--line2);background:transparent;color:var(--soft);font-size:12px;cursor:pointer}
 .ttl{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .ttl h1{margin:0;font-size:clamp(22px,7vw,30px);font-weight:900;letter-spacing:1px;background:linear-gradient(90deg,#FF5A5F,#FFB13B 30%,#3DDC84 60%,#29B6F6 80%,#B15CFF);-webkit-background-clip:text;background-clip:text;color:transparent;white-space:nowrap}
 .ttl span{font-size:14px;color:var(--soft);border:1px solid var(--line2);border-radius:6px;padding:1px 6px}
-.panel{flex:1;display:flex;flex-direction:column;border:1px solid #5A4A10;border-width:1px 0;min-height:0}
+.panel{flex:1;min-height:0;display:flex;flex-direction:column;border:1px solid #5A4A10;border-width:1px 0;min-height:0}
 .hd{display:flex;gap:6px;align-items:center;padding:8px 6px;flex-wrap:wrap}
 .tab{height:46px;padding:0 12px;border-radius:9px;border:2px solid var(--green);background:#000;color:var(--green);font:900 22px var(--f);display:flex;align-items:center;box-shadow:0 0 0 2px #000,0 0 0 3.5px #8C96AB}
 .date{height:46px;padding:0 10px;border-radius:9px;border:1px solid var(--line);display:flex;align-items:center;font-size:22px;color:var(--soft);font-variant-numeric:tabular-nums}
@@ -37,7 +37,9 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .spk.on{background:var(--gold);color:#000;border-color:#fff;box-shadow:0 0 0 2px #000,0 0 0 3.5px var(--gold)}
 .amt{flex:1 1 auto;min-width:0;text-align:right;font-size:clamp(22px,7.4vw,32px);font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
 .up{color:var(--up)} .dn{color:var(--down)} .mut{color:var(--sub)} .gold{color:var(--gold)}
-.list{flex:1;overflow:auto;display:flex;flex-direction:column}
+.list{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;scroll-snap-type:y mandatory;overscroll-behavior:contain}
+/* 一頁固定 8 檔、不切半列(17:50 使用者「照這樣 一頁 八檔 不要切到」):列高 = 清單高度 ÷ 8(太矮的螢幕少放幾檔),滑動一格一格對齊 */
+.list > .erow,.list > .prow2,.list > .row{height:var(--rh,auto);flex:none;scroll-snap-align:start;padding-top:0;padding-bottom:0}
 .row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center;padding:9px 8px;border-bottom:1px solid #1E2636;background:repeating-linear-gradient(45deg,#121826 0 6px,#141B2A 6px 12px)}
 .nm{min-width:0} .nm b{display:block;font-size:clamp(16px,5vw,19px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .nm small{display:block;font-size:14px;color:var(--green);font-variant-numeric:tabular-nums}
 .px{text-align:right;font-variant-numeric:tabular-nums} .px b{font-size:clamp(15px,4.8vw,19px);white-space:nowrap} .px small{display:block;font-size:13px;color:var(--sub)}
@@ -96,7 +98,7 @@ nav button.on{color:var(--green);border:2px solid var(--green)}
     <button type="button" data-demo="entry">進場</button><button type="button" data-demo="profit">賺錢平倉</button><button type="button" data-demo="loss">賠錢平倉</button><button type="button" data-demo="win2">浮贏 2 萬</button><button type="button" data-demo="lv3">浮輸 3 萬</button><button type="button" data-demo="pc">電腦提醒</button>
   </div>
   <div class="ttl"><h1>自動當沖 · 夥伴看盤</h1><span>夥伴A</span></div>
-  <section class="panel"><div class="hd" id="hd"></div><div class="list" id="list"></div></section>
+  <section class="panel"><div class="hd" id="hd"></div><div id="pre"></div><div class="list" id="list"></div></section>
   <nav id="nav"></nav>
 </div>
 <div id="layer"></div>
@@ -184,22 +186,27 @@ function vEntry(){
 function vPos(){
   const hold = ENTRY.filter(o=>o.st==="o"), tot = hold.reduce((a,o)=>a+o.p,0);
   return [head("當沖","11/16", fmt(tot), cls(tot)),
-    `<div class="stt"><span class="dot${ME.alive?"":" r"}"></span>${ME.alive?`主機正常回報 · ${ME.at}`:"主機超過 3 分鐘沒回報"}</div>`
-    + (hold.map(o=>`<div class="prow2"><div class="nm"><b>${esc(o.nm)}</b><div class="cd"><i>${esc(o.code)}</i><em class="${o.pct.startsWith("+")?"up":"dn"}">${esc(o.pct)}%</em></div></div>
+    `<div class="stt"><span class="dot${ME.alive?"":" r"}"></span>${ME.alive?`主機正常回報 · ${ME.at}`:"主機超過 3 分鐘沒回報"}</div>`,
+    (hold.map(o=>`<div class="prow2"><div class="nm"><b>${esc(o.nm)}</b><div class="cd"><i>${esc(o.code)}</i><em class="${o.pct.startsWith("+")?"up":"dn"}">${esc(o.pct)}%</em></div></div>
       <div class="n${o.ent.length > 6 ? " sm" : ""}">${esc(o.ent)}</div><div class="ar" aria-hidden="true">→</div><div class="n l${o.now.length > 6 ? " sm" : ""}">${esc(o.now)}</div><div class="pl ${cls(o.p)}${fmt(o.p).length > 7 ? " sm" : ""}">${fmt(o.p)}</div>
       <div class="sub">${sd(o.s)}<span>${o.q}張</span></div><div class="now">現價</div><div class="tg">帳面</div></div>`).join("") || `<div class="empty">目前沒有持倉</div>`)];
 }
 function vDone(){
   const L = DAYS[S.day], tot = L.reduce((a,o)=>a+o.p,0);
   return [head("明細", S.day, fmt(tot), cls(tot)),
-    `<div class="days" role="tablist">${Object.keys(DAYS).map(d=>`<button type="button" class="day${d===S.day?" on":""}" data-day="${d}" role="tab" aria-selected="${d===S.day}">${d}</button>`).join("")}</div>`
-    + L.map(o=>`<div class="row"><div class="nm"><b>${esc(o.nm)}</b><small>${esc(o.code)}</small></div>
+    `<div class="days" role="tablist">${Object.keys(DAYS).map(d=>`<button type="button" class="day${d===S.day?" on":""}" data-day="${d}" role="tab" aria-selected="${d===S.day}">${d}</button>`).join("")}</div>`,
+    L.map(o=>`<div class="row"><div class="nm"><b>${esc(o.nm)}</b><small>${esc(o.code)}</small></div>
       <div class="px"><b>${esc(o.a)} → ${esc(o.b)}</b><small>${sd(o.s)} ${o.q}張</small></div>
       <div class="rt"><b class="${cls(o.p)}">${fmt(o.p)}</b><small>元大成交</small></div></div>`).join("")];
 }
+const PER_PAGE = 8, MIN_ROW = 52;
+function fit(){ try{ const L = document.getElementById("list"), H = L.clientHeight; if (!H) return;
+  let n = PER_PAGE; if (H / n < MIN_ROW) n = Math.max(1, Math.floor(H / MIN_ROW));
+  L.style.setProperty("--rh", (H / n) + "px"); }catch(e){} }
+window.addEventListener("resize", fit);
 function render(){
-  const [h, l] = S.tab==="進場" ? vEntry() : S.tab==="當沖" ? vPos() : vDone();
-  document.getElementById("hd").innerHTML = h; document.getElementById("list").innerHTML = l;
+  const v = S.tab==="進場" ? vEntry() : S.tab==="當沖" ? vPos() : vDone(), h = v[0], pre = v.length > 2 ? v[1] : "", l = v[v.length - 1];
+  document.getElementById("hd").innerHTML = h; document.getElementById("pre").innerHTML = pre; document.getElementById("list").innerHTML = l; fit();
   document.getElementById("nav").innerHTML = ["進場","當沖","明細"].map(t=>`<button type="button" class="${S.tab===t?"on":""}" data-tab="${t}" aria-current="${S.tab===t?"page":"false"}">${t}</button>`).join("");
 }
 const DEMO = {
