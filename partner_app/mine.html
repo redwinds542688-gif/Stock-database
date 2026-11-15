@@ -3,7 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<!-- 夥伴看盤(partner 分支):一進來要金鑰(入口擋住);只讀金鑰對應帳號的元大真實資料(夥伴 fa11 → ?acct=get;主導$ → ?trade=pos / fills),帶 pv=1 不綁設備;WebSocket ?ws=log 一有交易馬上重讀;明細往前不限天數;當沖 / 明細 + 喇叭靜音 + 金鑰(可掃 QR);和名揚四海 app/ 完全分開。App 版:partner_app/android 把這個檔包進去 -->
+<!-- 夥伴看盤:一進來要金鑰;只讀金鑰對應帳號的元大真實資料;當沖 / 明細 + 喇叭靜音 + 金鑰(可掃 QR)。Android App 版:partner_app/android 把這個檔包進去;網址版:雲端 /partner/(iPhone / iPad / 電腦加到主畫面)。和名揚四海 app/ 完全分開 -->
+<link rel="manifest" href="/partner/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/partner/icon-180.png">
+<link rel="icon" type="image/png" href="/partner/icon-192.png">
+<meta name="theme-color" content="#0B0E14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="夥伴看盤">
 <title>夥伴看盤</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,7 +30,7 @@ body{background:var(--ground);color:var(--fg);font-family:var(--f);margin:0}
 *{box-sizing:border-box}
 button{font-family:inherit}
 button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
-.wrap{max-width:460px;margin:0 auto;height:100%;background:var(--bg);display:flex;flex-direction:column}
+.wrap{max-width:460px;margin:0 auto;height:100%;padding-top:env(safe-area-inset-top,0px);background:var(--bg);display:flex;flex-direction:column}
 .pv{padding-block:6px;padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px));background:#0E121A;border-bottom:1px dashed var(--line2);font-size:12px;color:var(--sub);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .pv b{color:var(--gold)}
 .pv button.on{border-color:var(--gold);color:var(--gold)}
@@ -98,6 +106,11 @@ nav button.on{color:var(--green);border:2px solid var(--green)}
 .toast.long,.toast.short,.toast.pc{background:#14233A;border:1px solid var(--blue);color:#CDE9FF}
 .toast.profit,.toast.win{background:#2A1416;border:1px solid var(--up);color:#FFD0D3}
 .toast.loss,.toast.lv{background:#0E2A1C;border:2px solid var(--down);color:#C9FFE5}
+/* 2026-11-15 平板 / 電腦(使用者「照這樣做」):螢幕寬就整個畫面放大(版面、欄位對齊、一頁 8 檔都不變),不會只有中間一小條 */
+/*   直的平板 1.3 倍;橫的平板 / 電腦螢幕比較矮,放大少一點(不然一頁放不下 8 檔);很大的螢幕 1.5 倍 */
+@media (min-width:700px) and (min-height:1000px){ .wrap{zoom:1.3} }
+@media (min-width:700px) and (max-height:999px){ .wrap{zoom:1.1} }
+@media (min-width:1100px) and (min-height:1200px){ .wrap{zoom:1.5} }
 @keyframes drop{from{transform:translate(-50%,-20px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
 @media (prefers-reduced-motion:reduce){.toast{animation:none}}
 </style>
@@ -413,6 +426,8 @@ document.addEventListener("click", e => { const b = e.target.closest("button"); 
 });
 function notifyQuiet(t){ const L = document.getElementById('layer'); L.innerHTML = `<div class="toast pc" role="status"><b>${esc(t)}</b></div>`; clearTimeout(notify.t); notify.t = setTimeout(() => L.innerHTML = '', 1800); }
 start();
+// 網址版(/partner/,iPhone / iPad / 電腦加到主畫面)才註冊;App(APK)裡不用
+try{ if (/^\/partner/.test(location.pathname) && "serviceWorker" in navigator) navigator.serviceWorker.register("/partner/sw.js", {scope: "/partner/"}).catch(() => {}); }catch(e){}
 document.getElementById("list").addEventListener("scroll", () => { doneSync(); const L = document.getElementById("list"); if (S.tab === "明細" && L.scrollTop + L.clientHeight > L.scrollHeight - 3 * L.clientHeight / 8) loadMore(); }, {passive: true});
 </script>
 </body>

@@ -786,7 +786,10 @@ async function pushFanout(env, item) {
   }
 }
 const PWA_FILES = { "/app": "app/viewer.html", "/app/": "app/viewer.html", "/pool.js": "pool.js", "/sw.js": "app/pwa/sw.js", "/manifest.webmanifest": "app/pwa/manifest.webmanifest",
-  "/icon-180.png": "app/pwa/icon-180.png", "/icon-192.png": "app/pwa/icon-192.png", "/icon-512.png": "app/pwa/icon-512.png" };
+  "/icon-180.png": "app/pwa/icon-180.png", "/icon-192.png": "app/pwa/icon-192.png", "/icon-512.png": "app/pwa/icon-512.png",
+  // 2026-11-15 自動當沖夥伴版「照這樣做」:夥伴看盤網址版 /partner/(iPhone / iPad / 電腦用;Android 也可用,或裝 APK)。和名揚四海的 /app 分開,只新增不改
+  "/partner": "partner_app/mine.html", "/partner/": "partner_app/mine.html", "/partner/manifest.webmanifest": "partner_app/pwa/manifest.webmanifest", "/partner/sw.js": "partner_app/pwa/sw.js",
+  "/partner/icon-180.png": "partner_app/pwa/icon-180.png", "/partner/icon-192.png": "partner_app/pwa/icon-192.png", "/partner/icon-512.png": "partner_app/pwa/icon-512.png", "/partner/icon-maskable-512.png": "partner_app/pwa/icon-maskable-512.png" };
 
 // 2026-11-02 11:10 KV 每日讀取額度(10 萬次)用完 → 所有鑰匙被判無效、手機問不到電腦(使用者「怎麼一直出現這個輸入金鑰的畫面」「趕快接通元大」)。
 //   1) 常讀的值(鑰匙、通道網址、主導機設定)在這個執行個體記憶體裡留幾分鐘,不再每個請求都讀 KV(手機報價每幾秒一次,這是用完額度的主因)
@@ -918,7 +921,8 @@ export default {
     if (request.method === "GET" && PWA_FILES[url.pathname] && env && env.GH_TOKEN) {
       const r = await ghRaw(env, PWA_FILES[url.pathname], GH_REF, 60);
       const h = new Headers(r.headers); h.set("Cache-Control", "no-cache");
-      if (url.pathname === "/manifest.webmanifest") h.set("Content-Type", "application/manifest+json");
+      if (url.pathname === "/manifest.webmanifest" || url.pathname === "/partner/manifest.webmanifest") h.set("Content-Type", "application/manifest+json");
+      if (url.pathname === "/partner" || url.pathname === "/partner/") h.set("Content-Type", "text/html; charset=utf-8");   // 夥伴看盤網址版
       if (url.pathname === "/sw.js") h.set("Service-Worker-Allowed", "/");
       return new Response(r.body, { status: r.status, headers: h });
     }

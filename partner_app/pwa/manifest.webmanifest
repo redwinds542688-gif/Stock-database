@@ -1,0 +1,14 @@
+{
+  "name": "自動當沖 · 夥伴看盤",
+  "short_name": "夥伴看盤",
+  "start_url": "/partner/",
+  "scope": "/partner/",
+  "display": "standalone",
+  "background_color": "#0B0E14",
+  "theme_color": "#0B0E14",
+  "icons": [
+    {"src": "/partner/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/partner/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "/partner/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
