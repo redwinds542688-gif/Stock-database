@@ -620,8 +620,8 @@ async function pcWatch(env, snap) {
   const down = now - last > 3 * 60e3;
   if (!st || st.d !== d) st = { d, down: false, sent: 0, n: 0 };
   const hhmm = `${String(t.getUTCHours()).padStart(2, "0")}:${String(t.getUTCMinutes()).padStart(2, "0")}`;
-  const add = async (title, body) => { const key = `log:${d}:${hhmm}:yt|${title}`.replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 140);
-    await hub.logAdd(d, key, { t: hhmm, title, body: body + " · 元大中繼", kind: "pc" }, ""); };
+  const add = async (title, body, kind) => { const key = `log:${d}:${hhmm}:yt|${title}`.replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 140);
+    await hub.logAdd(d, key, { t: hhmm, title, body: body + " · 元大中繼", kind: kind || "pc" }, ""); };   // 2026-11-15 kind:有持倉斷線用 lv4 / lv5 鬧鐘級
   // 2026-11-12 20:22 使用者「改」(物盡其用 3):電腦還活著、但大盤寬度(總停損要用)或引擎 3 分鐘沒更新 → 另外提醒(10 分鐘最多一次)
   try {
     if (!down) {
@@ -641,11 +641,15 @@ async function pcWatch(env, snap) {
     }
   } catch (e) { console.log("電腦資料檢查失敗 " + e); }
   if (down){
-    if (!st.down || now - (st.sent || 0) >= 10 * 60e3){
-      const pos = tp && tp.d === d && Array.isArray(tp.pos) ? tp.pos.filter(p => +p.qty > 0) : [];
+    /* 2026-11-15 11:05 使用者「查查還有什麼漏洞」→「好 2」:元大條件單沒有「時間到就平倉」(只有成交價 / 量 / 漲跌幅觸發),電腦整台關機 / 斷電 / 斷網時
+       13:20 沒人平倉 → 雲端警報升級:有持倉斷線改鬧鐘級 lv4(每 10 分);13:00 起有持倉改最強 lv5、每 3 分一次直到恢復或 13:30 */
+    const pos = tp && tp.d === d && Array.isArray(tp.pos) ? tp.pos.filter(p => +p.qty > 0) : [];
+    const late = hm >= 13 * 60 && pos.length > 0;
+    if (!st.down || now - (st.sent || 0) >= (late ? 3 : 10) * 60e3){
       const lastTxt = last ? new Date(last + 8 * 3600e3).toISOString().slice(11, 16) : "今天還沒有";
       const posTxt = pos.length ? `最後知道的持倉 ${pos.length} 檔:` + pos.slice(0, 8).map(p => `${p.name || p.code}${p.code && p.name ? " " + p.code : ""} ${p.dir > 0 ? "多" : "空"}${p.qty}張`).join("、") : "最後知道的持倉:沒有(或還沒問到)";
-      await add(`⚠⚠ 電腦斷線${st.down ? "(還沒恢復)" : ""}`, `電腦最後回報 ${lastTxt};程式現在沒有在盯停利 / 停損、13:20 也不會自動平倉。${posTxt}。請用投資先生手動處理`);
+      if (late) await add(`🚨 電腦斷線 ${hhmm} 還有 ${pos.length} 檔沒平`, `13:20 程式無法自動平倉(元大條件單沒有時間平倉),當沖沒沖銷要交割。${posTxt}。請現在用投資先生全部手動平倉`, "lv5");
+      else await add(`⚠⚠ 電腦斷線${st.down ? "(還沒恢復)" : ""}`, `電腦最後回報 ${lastTxt};程式現在沒有在盯停利 / 停損、13:20 也不會自動平倉。${posTxt}。請用投資先生手動處理`, pos.length ? "lv4" : "pc");
       try { await mailAlert(env, `⚠⚠ 電腦斷線 ${hhmm}`, `電腦最後回報 ${lastTxt};程式沒有在盯停利 / 停損。${posTxt}。請用投資先生手動處理`); } catch (e) {}
       st.down = true; st.sent = now; st.n = (st.n || 0) + 1; await hub.kvPut("pcdown", st);
     }
