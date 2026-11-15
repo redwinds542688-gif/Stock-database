@@ -52,6 +52,7 @@ input[type=text],input[type=password],input[type=number]{height:calc(var(--uf) *
 .unit{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:calc(var(--u) * .3)} .unit span{font-size:calc(var(--uf) * 1.1);color:var(--sub)}
 .file{display:flex;align-items:center;gap:calc(var(--u) * .4);height:calc(var(--uf) * 3.2);border-radius:10px;border:1px dashed var(--blue);padding:0 calc(var(--uf) * .8);color:var(--blue);font-size:calc(var(--uf) * 1.1);cursor:pointer}
 .file.ok{border-style:solid;border-color:var(--green);color:var(--green)}
+.ck{flex-direction:row;align-items:center;gap:calc(var(--uf) * .6);font-size:calc(var(--uf) * 1.05);color:var(--fg)} .ck input{width:calc(var(--uf) * 1.4);height:calc(var(--uf) * 1.4);accent-color:var(--green);flex:none}
 .lock{display:flex;gap:calc(var(--uf) * .5);align-items:flex-start;font-size:calc(var(--uf) * .9);color:#B8E8C8;background:#0E1A12;border:1px solid #1F5A33;border-radius:10px;padding:calc(var(--uf) * .6) calc(var(--uf) * .8);line-height:1.6}
 .qr{align-self:center;width:calc(var(--uf) * 13);height:calc(var(--uf) * 13);background:#fff;border-radius:12px;padding:calc(var(--uf) * .7)}
 .qr svg{width:100%;height:100%;display:block}
@@ -140,14 +141,20 @@ function stp(n, of){
 
 /* ───────── 夥伴手機的畫面 ───────── */
 function bForm(){
+  /* 2026-11-15 21:50 使用者「你要看一下 加入元大 需要 帳號 密碼 憑證 這些要從哪裡輸入」:照電腦中繼實際登入元大要的東西(yuanta_bridge.py Login / win_family.py add)
+     ① 證券帳號 = 分公司 4 碼 + 帳號 7 碼(不是身分證字號)② 電子交易密碼 ③ 憑證:Windows 上元大 API 用「裝在電腦 Windows 裡的憑證」,
+     所以要夥伴的 .pfx 憑證檔 + 憑證密碼,電腦收到後裝進 Windows、裝好就刪檔;④ 先跟元大開通「API 下單」(不是輸入的東西,是事前要辦的) */
   return `<h2>加入 自動當沖</h2>
   <p class="hint">主導$ 邀請你加入(邀請碼 517 206)。請輸入<b style="color:var(--fg)">你自己的</b>元大證券資料,電腦會用你的帳號幫你自動當沖。</p>
+  <div class="card"><b style="font-size:calc(var(--uf) * 1.15)">先確認(還沒辦的請先找元大營業員)</b>
+    <label class="ck"><input type="checkbox"> 已開通元大「API 電子下單」</label>
+    <label class="ck"><input type="checkbox"> 手機上已經有元大電子憑證(能用元大 App 下單)</label></div>
   <label>你的名字<input type="text" value="夥伴E" readonly></label>
-  <label>元大證券帳號<small>身分證字號 / 帳號</small><input type="text" placeholder="A123456789" autocomplete="off"></label>
-  <label>電子交易密碼<input type="password" placeholder="••••••••" autocomplete="new-password"></label>
-  <label>憑證檔(.pfx)<small>元大「憑證e管家」匯出的檔案</small><div class="file" id="pfx" role="button" tabindex="0">📄 選擇憑證檔</div></label>
-  <label>憑證密碼<input type="password" placeholder="••••••••" autocomplete="new-password"></label>
-  <div class="lock">🔒 按「加密送出」後,資料在你手機上就先加密,只有主導$ 的電腦解得開;雲端只轉送、看不到也不留存。主導$ 本人也看不到你的密碼。</div>
+  <label>證券帳號<small>分公司 4 碼 + 帳號 7 碼,例如 981R0123456(在元大 App 的帳號資料看得到)</small><input type="text" placeholder="981R0123456" autocomplete="off" inputmode="text" maxlength="12"></label>
+  <label>電子交易密碼<small>登入元大 App / 網站下單用的那組密碼</small><input type="password" placeholder="••••••••" autocomplete="new-password"></label>
+  <label>電子憑證檔(.pfx)<small>用元大的「憑證匯出」存到手機的檔案(不會匯出請問元大營業員)</small><div class="file" id="pfx" role="button" tabindex="0">📄 選擇憑證檔</div></label>
+  <label>憑證密碼<small>匯出憑證時自己設的密碼</small><input type="password" placeholder="••••••••" autocomplete="new-password"></label>
+  <div class="lock">🔒 按「加密送出」後,資料在你手機上就先加密,只有主導$ 的電腦解得開;雲端只轉送、看不到也不留存,主導$ 本人也看不到你的密碼。電腦收到憑證後裝進電腦,裝好就把檔案刪掉。</div>
   <button type="button" class="btn gold" id="send">加密送出</button>`;
 }
 function bWait(){
