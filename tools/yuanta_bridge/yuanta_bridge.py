@@ -551,9 +551,22 @@ class Bridge:
             if not use: return
             if src != getattr(self, "_fut_src", None): self._fut_src = src; log(f"[台指期] 1 分 K 來源:{src}")
             cur = now_tw().strftime("%H:%M")
-            rows = [[hm] + list(v) for hm, v in sorted(use.items()) if hm < cur]   # 只寫已經收完的分鐘
-            if not rows: return
             f = HERE / "kline_futures" / "TXF"; f.mkdir(parents=True, exist_ok=True); tmp = f / f"{day}.csv.tmp"
+            # 2026-11-16 14:26 使用者「台指期 第一天使用 覺得如何」:盤中重開中繼(12:13 / 12:33)後記憶體只有重開後的分鐘,整份覆蓋掉本機 CSV 和雲端 →
+            #   早上的台指期 K 不見、⑧ 60 分方向算不出來(重開後 1 小時進場全被擋)。改成:先讀本機今天那份(重開前存的),再用期交所那份、元大那份蓋上去(新的優先)
+            if getattr(self, "_fut_old_d", None) != day:
+                self._fut_old_d = day; self._fut_old = {}
+                try:
+                    with open(f / f"{day}.csv", encoding="utf-8") as fh:
+                        for ln in fh:
+                            x = ln.strip().split(",")
+                            if len(x) >= 7 and x[0] == day: self._fut_old[x[1]] = tuple(float(v) for v in x[2:7])
+                    if self._fut_old: log(f"[台指期] 接回本機今天已存的 1 分 K {len(self._fut_old)} 根({min(self._fut_old)}~{max(self._fut_old)})")
+                except FileNotFoundError: pass
+                except Exception as e: log("[台指期] 讀本機舊 1 分 K 失敗", e)
+            mg = dict(self._fut_old); mg.update(tf if use is ya else {}); mg.update(use)
+            rows = [[hm] + list(v) for hm, v in sorted(mg.items()) if hm < cur]   # 只寫已經收完的分鐘
+            if not rows: return
             with open(tmp, "w", encoding="utf-8") as fh:
                 fh.write("date,time,open,high,low,close,volume\n")
                 for r in rows: fh.write(f"{day},{r[0]},{r[1]},{r[2]},{r[3]},{r[4]},{r[5]}\n")
@@ -575,7 +588,8 @@ class Bridge:
             if not getattr(self, "fut_n", None): log("[台指期] 今天沒收到任何台指期逐筆(代號寫法都不對 / 元件不給),明天看上面那行元件功能清單再調"); return
             while now_tw().strftime("%H:%M") < "13:46" and self.api: time.sleep(5)
             code = max(self.fut_n, key=lambda c: self.fut_n[c]); bars = self.fut_bars.get(code) or {}
-            rows = [[hm] + v for hm, v in sorted(bars.items())]
+            mg = dict(getattr(self, "_fut_old", {}) or {}) if getattr(self, "_fut_old_d", None) == day else {}   # 2026-11-16 14:26 盤中重開過:重開前存的早上那段也併進來(不被收工這份蓋掉)
+            mg.update(bars); rows = [[hm] + list(v) for hm, v in sorted(mg.items())]
             f = HERE / "kline_futures" / "TXF"; f.mkdir(parents=True, exist_ok=True)
             with open(f / f"{day}.csv", "w", encoding="utf-8") as fh:
                 fh.write("date,time,open,high,low,close,volume\n")
