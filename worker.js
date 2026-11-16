@@ -1465,7 +1465,7 @@ export default {
         o.judges = jj;
       }
       const num = (k, lo, hi, lab) => { if (b[k] == null) return ""; const n = Math.round(+b[k]); if (!isFinite(n) || n < lo || n > hi) return `${lab} 要在 ${lo.toLocaleString()}~${hi.toLocaleString()}`; o[k] = n; return ""; };
-      const err = num("max_amount", 10000, 5000000, "當日總額度") || num("cap", 0, 250000, "多空上限") || num("max_loss", 1000, 5000000, "停止新進場虧損") || num("kill_loss", 1000, 5000000, "全部平倉虧損");
+      const err = num("max_amount", 10000, 5000000, "當日總額度") || num("cap", 100000, 250000, "多空上限") || num("max_loss", 1000, 5000000, "停止新進場虧損") || num("kill_loss", 1000, 5000000, "全部平倉虧損");   // 2026-11-17 使用者「多空是10-25」:夥伴多空上限 10~25 萬(原 0~25 萬)
       if (err) return J({ error: err }, 400);
       if (b.enabled != null) { if (typeof b.enabled !== "boolean") return J({ error: "enabled 要是 true/false" }, 400); o.enabled = b.enabled; }
       if (b.lot_mode != null) { if (![1, 2, 3].includes(b.lot_mode)) return J({ error: "lot_mode 要是 1(能買幾張)/ 2(只買 1 張)/ 3(分級照比例縮)" }, 400); o.lot_mode = b.lot_mode; }   // 2026-11-17 夥伴進場張數方式

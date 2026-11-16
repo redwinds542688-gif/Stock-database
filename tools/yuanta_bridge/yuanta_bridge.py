@@ -1316,7 +1316,7 @@ class Bridge:
             except Exception: return None
         v = num("max_amount", 10000, IRON_AMOUNT)
         if v: want["max_amount"] = v
-        v = num("cap", 1, IRON_CAP_MAX)
+        v = num("cap", 100000, IRON_CAP_MAX)   # 2026-11-17 使用者「多空是10-25」:夥伴多空上限 10~25 萬
         if v and b["cap"] > 0: want["cap"] = int(v)
         for k in ("max_loss", "kill_loss"):
             v = num(k, 1000, 5000000)
