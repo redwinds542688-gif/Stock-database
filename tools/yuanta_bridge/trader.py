@@ -1978,13 +1978,8 @@ class Trader:
             p0 = self.positions.get(code)
             if p0 and p0["dir"] == d:   # 2026-11-12 11:55 「解鎖 改:只有手動加碼」:加碼預掛只看 500 萬額度
                 return ""   # 2026-11-16 10:59 🔓→🔒 使用者「手動加碼 不受管500萬 跟25分級管束」→「解鎖 改」:手動加碼預掛不看鐵律 ⑤(500 萬額度、25 萬分級都不看);加碼金額照算進今天成交
-            if not (self.j_from <= hm <= self.force_to): why.append(f"{hm} 不在 {self.j_from}~{self.force_to}")
+            # 2026-11-16 12:30 🔓→🔒 使用者「手動進場 鐵律3,5,不能管 解鎖改」:手動進場不檢查 ③ 時間、⑤(一張 25 萬上限 / 分級張數 / 500 萬額度),只剩 ① ±5%;進場後元三管理照舊、金額照算進 500 萬(預掛也一樣)
             if ref > 0 and px > 0 and abs(px / ref - 1) * 100 > self.ent_pct + 1e-9: why.append(f"價格離昨收 {(px / ref - 1) * 100:+.1f}%(超過 ±{self.ent_pct:g}%)")
-            if px > 0:
-                p = self.positions.get(code); have = p["qty"] if p and p["dir"] == d else 0
-                if px * 1000 > self.cap_lim(): why.append(f"一張 {px * 1000:,.0f} 超過多空上限 {self.cap_lim():,.0f}")
-                elif have + lots > lot_tier_qty(px): why.append(f"成交後共 {have + lots} 張,超過分級 {lot_tier_qty(px)} 張")
-                if self.max_amount > 0 and self.amount_today + px * lots * 1000 > self.max_amount + 1e-6: why.append("成交後超過今天 500 萬額度")
             return "、".join(why)
         except Exception as e:
             self.log(f"[交易] 預掛鐵律檢查失敗 {e!r}"); return ""
@@ -2004,13 +1999,9 @@ class Trader:
                 for t_, px_ in fills:
                     m_ = minutes_of(t_) if t_ else None
                     fl.append((f"{m_ // 60:02d}:{m_ % 60:02d}" if m_ is not None else None, float(px_ or 0)))
-            bad_t = sorted({t_ for t_, _ in fl if t_ and not (self.j_from <= t_ <= self.force_to)})
-            if bad_t: why.append(f"{'、'.join(bad_t)} 不在 {self.j_from}~{self.force_to}")
+            # 2026-11-16 12:30 🔓→🔒 使用者「手動進場 鐵律3,5,不能管 解鎖改」:手動進場不檢查 ③ 時間、⑤(一張 25 萬上限 / 分級張數 / 500 萬額度),只剩 ① ±5%;進場後元三管理照舊、金額照算進 500 萬
             bad_p = [px_ for _, px_ in fl if ref > 0 and px_ > 0 and abs(px_ / ref - 1) * 100 > self.ent_pct + 1e-9]
             if bad_p: why.append(f"成交價離昨收 {(bad_p[0] / ref - 1) * 100:+.1f}%(超過 ±{self.ent_pct:g}%)")
-            if p["entry"] * 1000 > self.cap_lim(): why.append(f"一張 {p['entry'] * 1000:,.0f} 超過多空上限 {self.cap_lim():,.0f}")
-            elif p["qty"] > lot_tier_qty(p["entry"]): why.append(f"共 {p['qty']} 張,超過分級 {lot_tier_qty(p['entry'])} 張")
-            if self.max_amount > 0 and self.amount_today > self.max_amount + 1e-6: why.append(f"今天成交 {self.amount_today:,.0f} 超過 500 萬")
             if not why: return False
             w = "、".join(why); code = p["code"]
             self.log(f"[交易] !! {code} 元大{what} {lots} 張 @ {price} 違反鐵律({w})→ 整個部位 {p['qty']} 張馬上平掉")
