@@ -119,6 +119,10 @@ nav button.on{color:var(--green);border:2px solid var(--green)}
 .ttl{padding:calc(var(--uf) * .7) calc(var(--u) * .6);gap:calc(var(--uf) * .6)}
 .ttl h1{font-size:calc(var(--uf) * 2.2)}
 .key{height:calc(var(--uf) * 2.5);padding:0 calc(var(--uf) * .7);font-size:calc(var(--uf) * 1.02);border-radius:calc(var(--uf) * .6);gap:calc(var(--uf) * .35)}
+/* 11/16 21:20 使用者「把 主導$ 顯示在第一列 夥伴看盤後面 第二列 不用顯示」+ 21:25「下面顯示版本」:標題一行到底,右邊 身分鈕 + 正下方版本號 */
+.ttl{flex-wrap:nowrap} .ttl h1{min-width:0;flex:0 1 auto;overflow:hidden}
+.kv{flex:none;margin-left:auto;display:flex;flex-direction:column;align-items:center;gap:calc(var(--uf) * .15)}
+.kv .ver{position:static;margin:0;font-size:calc(var(--uf) * .72);line-height:1;white-space:nowrap}
 .ttl{position:relative} .ver{font-size:calc(var(--uf) * .8);position:absolute;right:calc(var(--u) * .5);bottom:calc(var(--uf) * .25);margin:0}   /* 版本號貼右下角,不再自己佔一行(一頁 8 檔的空間) */
 .hd{gap:calc(var(--uf) * .45);padding:calc(var(--uf) * .6) calc(var(--u) * .45)}
 .tab,.date{height:calc(var(--uf) * 3.35);font-size:calc(var(--uf) * 1.6);border-radius:calc(var(--uf) * .65)}
@@ -142,7 +146,7 @@ nav button{height:calc(var(--uf) * 4.1);font-size:calc(var(--uf) * 1.75);border-
 <body>
 
 <div class="wrap">
-  <div class="ttl"><h1>自動當沖 · 夥伴看盤</h1><button type="button" class="key" id="keyBtn"></button><span class="ver" id="ver"></span></div>
+  <div class="ttl"><h1>自動當沖 · 夥伴看盤</h1><div class="kv"><button type="button" class="key" id="keyBtn"></button><span class="ver" id="ver"></span></div></div>
   <section class="panel"><div class="hd" id="hd"></div><div id="pre"></div><div class="list" id="list"></div></section>
   <nav id="nav"></nav>
 </div>
@@ -221,7 +225,7 @@ const keyWho = k => isFam(k) ? (ST.acct || "夥伴") : "主導$";   // 夥伴的
 const keyGet = () => { if (KEY_MEM != null) return KEY_MEM; try{ return localStorage.getItem(KEY_K) || ""; }catch(e){ return ""; } };
 const keySet = v => { KEY_MEM = v; try{ v ? localStorage.setItem(KEY_K, v) : localStorage.removeItem(KEY_K); }catch(e){} };
 function keyPaint(){ const b = document.getElementById("keyBtn"), k = keyGet();
-  b.className = "key" + (k ? "" : " none"); b.innerHTML = k ? `${keyWho(k)} · ••••${esc(k.slice(-4))}` : "🔑 輸入金鑰";
+  b.className = "key" + (k ? "" : " none"); b.innerHTML = k ? esc(keyWho(k)) : "🔑 金鑰";   /* 11/16 21:25 使用者「金鑰地方 改顯示 主導$ 下面顯示版本」:只顯示身分(主導$ / 夥伴名字),不顯示金鑰尾碼 */
   b.setAttribute("aria-label", k ? "已輸入金鑰,按一下更換" : "輸入金鑰"); }
 /* 20:20 使用者「看盤版 改成App … 一進入就必須輸入金鑰 否則無法進入」:沒有金鑰 → 整個畫面蓋住的入口(不能取消、看不到任何資料),輸入 / 掃描 / 相簿選 QR 存好才進得去;
    雲端說鑰匙無效或停用 → 清掉、回到入口 */
