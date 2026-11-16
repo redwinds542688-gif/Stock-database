@@ -7,6 +7,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.content.ContentValues
+import android.provider.MediaStore
+import android.util.Base64
+import androidx.core.content.FileProvider
+import java.io.File
 import android.os.SystemClock
 import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
@@ -80,6 +85,7 @@ class MainActivity : Activity() {
         setContentView(web)
         if (savedInstanceState != null) web.restoreState(savedInstanceState) else web.loadUrl(REMOTE)
         Updater.check(this)   // 打開 App 時檢查殼有沒有新版
+        if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 13)   // 自動更新好了要能跳通知
     }
 
     override fun onRequestPermissionsResult(code: Int, perms: Array<out String>, res: IntArray) {
@@ -109,6 +115,30 @@ class MainActivity : Activity() {
     inner class Host {
         @JavascriptInterface fun version(): String = BuildConfig.VERSION_NAME
         @JavascriptInterface fun offline(): Boolean = offline
+        /** 2026-11-16 使用者「存圖功能 要給夥伴看盤使用的 QR CODE」:網頁畫好的圖(PNG base64)存到相簿「Pictures/夥伴加入」;Android 10 以上不用另外要權限 */
+        @JavascriptInterface fun saveImage(b64: String, name: String): Boolean = try {
+            val bytes = Base64.decode(b64.substringAfter(","), Base64.DEFAULT)
+            if (android.os.Build.VERSION.SDK_INT < 29) false else {
+                val cv = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, name.replace(Regex("[\\/:*?\"<>|]"), "_"))
+                    put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                    put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/夥伴加入")
+                }
+                val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv)
+                if (uri == null) false else { contentResolver.openOutputStream(uri)?.use { it.write(bytes) }; true }
+            }
+        } catch (e: Exception) { false }
+        /** 「傳給夥伴」:把圖交給手機的分享(LINE 等) */
+        @JavascriptInterface fun shareImage(b64: String, name: String, text: String): Boolean = try {
+            val bytes = Base64.decode(b64.substringAfter(","), Base64.DEFAULT)
+            val dir = File(cacheDir, "share").apply { mkdirs() }
+            dir.listFiles()?.forEach { try { it.delete() } catch (e: Exception) {} }
+            val f = File(dir, "share.png"); f.writeBytes(bytes)
+            val uri = FileProvider.getUriForFile(this@MainActivity, "$packageName.files", f)
+            val send = Intent(Intent.ACTION_SEND).setType("image/png").putExtra(Intent.EXTRA_STREAM, uri).putExtra(Intent.EXTRA_TEXT, text).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            runOnUiThread { try { startActivity(Intent.createChooser(send, "傳給夥伴")) } catch (e: Exception) {} }
+            true
+        } catch (e: Exception) { false }
     }
 
     companion object {
