@@ -10,3 +10,4 @@ hist_kline.py
 win_install.py
 elig.py
 win_family.py
+fam_agent.py

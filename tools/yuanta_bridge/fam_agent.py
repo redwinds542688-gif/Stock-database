@@ -1,0 +1,289 @@
+"""自動當沖夥伴版 · 夥伴服務(2026-11-17 使用者「1 選 a,2 開始 先畫流程」→ 流程圖 →「改」)
+
+主導$ 用手機「夥伴加入」新增夥伴 → 帳號密碼在手機上用這台電腦的「鎖」(RSA 公開鑰)加密 → 雲端只轉送(解不開)
+→ 這支程式每 30 秒到雲端拿待辦 → 用這台電腦的私鑰解開 → 建 C:\\Yuanta\\fam\\<名字>(和 win_family.py 同一種資料夾)、開工作排程、啟動夥伴的交易程式
+→ 看夥伴的紀錄檔:登入元大成功 → 回報雲端「自動當沖中」(雲端自動發他的看盤金鑰);被元大拒絕 → 回報原因(手機上看得到)。
+移除夥伴:停掉並刪掉他的工作排程(資料夾留著)。
+
+不改主導$ 自己的交易程式(C:\\Yuanta\\bridge 的 yuanta_bridge.py 照常跑),只是另外一支小程式。
+夥伴的元大憑證:主導$ 先用元大憑證 e 管家裝進這台電腦(Windows 憑證存放區),這裡不碰憑證。
+
+用法(放在 C:\\Yuanta\\bridge,讀同資料夾 bridge.env 的 WORKER_URL / PUSH_KEY):
+  python fam_agent.py install    第一次:產生這台電腦的鎖、登記到雲端、建工作排程「YuantaFamAgent」(登入 Windows 就自動跑)、馬上啟動
+  python fam_agent.py mgrkey     發「夥伴加入」的管理鑰匙:存成 QR Code 圖(只有圖,不印鑰匙)並打開 → 手機「夥伴加入」按掃描
+  python fam_agent.py run        (工作排程跑這個)一直跑,每 30 秒看一次待辦
+  python fam_agent.py status     看這台電腦的夥伴服務狀態
+"""
+import base64, hashlib, json, os, re, secrets, subprocess, sys, tempfile, time, urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+KEYF = HERE / "fam_agent_key.json"      # 這台電腦的私鑰(只有這個 Windows 帳號讀得到)
+LOGF = HERE / "fam_agent.log"
+FAM = Path(r"C:\Yuanta\fam")
+TASK = "YuantaFamAgent"
+TW = timezone(timedelta(hours=8))
+
+
+def now_tw(): return datetime.now(TW)
+
+
+def log(*a):
+    line = now_tw().strftime("%m-%d %H:%M:%S ") + " ".join(str(x) for x in a)
+    try: print(line, flush=True)
+    except Exception: pass
+    try:
+        with open(LOGF, "a", encoding="utf-8") as f: f.write(line + "\n")
+    except Exception: pass
+
+
+def read_env(f):
+    out = {}
+    if f.exists():
+        for line in f.read_text(encoding="utf-8").splitlines():
+            s = line.strip()
+            if s and not s.startswith("#") and "=" in s:
+                k, v = s.split("=", 1); out[k.strip()] = re.split(r"\s+#", v, 1)[0].strip()
+    return out
+
+
+CFG = read_env(HERE / "bridge.env")
+
+
+def api(q, body=None, timeout=20):
+    url = CFG["WORKER_URL"].rstrip("/") + "/?" + q
+    req = urllib.request.Request(url, data=json.dumps(body, ensure_ascii=False).encode() if body is not None else None, method="POST" if body is not None else "GET",
+                                 headers={"Content-Type": "application/json", "X-Push-Key": CFG.get("PUSH_KEY", ""), "User-Agent": "fam-agent/1"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r: return json.loads(r.read().decode("utf-8") or "{}")
+    except urllib.error.HTTPError as e:
+        try: return json.loads(e.read().decode("utf-8") or "{}")
+        except Exception: return {"error": f"HTTP {e.code}"}
+
+
+def lock_down(f):
+    if os.name == "nt": subprocess.run(["icacls", str(f), "/inheritance:r", "/grant:r", f"{os.environ.get('USERNAME', '')}:F"], capture_output=True)
+
+
+# ── RSA(純 Python,不用另外裝套件):2048 位元金鑰 + RSA-OAEP(SHA-256)解密,和手機瀏覽器 WebCrypto「RSA-OAEP / SHA-256」對得上 ──
+def _is_prime(n, rounds=48):
+    if n < 2: return False
+    for p in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37):
+        if n % p == 0: return n == p
+    d, s = n - 1, 0
+    while d % 2 == 0: d //= 2; s += 1
+    for _ in range(rounds):
+        a = secrets.randbelow(n - 3) + 2; x = pow(a, d, n)
+        if x in (1, n - 1): continue
+        for _ in range(s - 1):
+            x = pow(x, 2, n)
+            if x == n - 1: break
+        else: return False
+    return True
+
+
+def _prime(bits):
+    while True:
+        p = secrets.randbits(bits) | (1 << (bits - 1)) | (1 << (bits - 2)) | 1
+        if _is_prime(p): return p
+
+
+def b64u(n): b = n.to_bytes((n.bit_length() + 7) // 8, "big"); return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+
+def new_key():
+    e = 65537
+    while True:
+        p, q = _prime(1024), _prime(1024)
+        if p == q: continue
+        phi = (p - 1) * (q - 1)
+        try: d = pow(e, -1, phi)
+        except ValueError: continue
+        n = p * q
+        if n.bit_length() == 2048: return {"n": n, "e": e, "d": d, "p": p, "q": q}
+
+
+def load_key():
+    if not KEYF.exists(): return None
+    k = json.loads(KEYF.read_text(encoding="utf-8"))
+    return {x: int(k[x]) for x in ("n", "e", "d", "p", "q")}
+
+
+def mgf1(seed, ln):
+    out, c = b"", 0
+    while len(out) < ln: out += hashlib.sha256(seed + c.to_bytes(4, "big")).digest(); c += 1
+    return out[:ln]
+
+
+def oaep_decrypt(key, b64):
+    n, d, p, q = key["n"], key["d"], key["p"], key["q"]
+    k = (n.bit_length() + 7) // 8
+    c = int.from_bytes(base64.b64decode(b64), "big")
+    if c >= n: raise ValueError("密文不對")
+    m1, m2 = pow(c, d % (p - 1), p), pow(c, d % (q - 1), q)   # CRT 加速
+    h = (pow(q, -1, p) * (m1 - m2)) % p
+    em = (m2 + h * q).to_bytes(k, "big")
+    hl = 32
+    if em[0] != 0: raise ValueError("解密失敗(不是用這台電腦的鎖加密的)")
+    ms, mdb = em[1:1 + hl], em[1 + hl:]
+    seed = bytes(a ^ b for a, b in zip(ms, mgf1(mdb, hl)))
+    db = bytes(a ^ b for a, b in zip(mdb, mgf1(seed, k - hl - 1)))
+    if db[:hl] != hashlib.sha256(b"").digest(): raise ValueError("解密失敗(資料被改過)")
+    i = db.index(b"\x01", hl)
+    return db[i + 1:]
+
+
+def ensure_key():
+    k = load_key()
+    if not k:
+        log("第一次:產生這台電腦的鎖(2048 位元,約 10~60 秒)…")
+        k = new_key()
+        KEYF.write_text(json.dumps({x: str(v) for x, v in k.items()}), encoding="utf-8"); lock_down(KEYF)
+        log("鎖已存好:", KEYF)
+    r = api("fam=pub", {"jwk": {"kty": "RSA", "n": b64u(k["n"]), "e": b64u(k["e"])}})
+    if not r.get("ok"): log("!! 登記公開鎖到雲端失敗:", r.get("error"))
+    return k
+
+
+# ── 建夥伴 / 移除夥伴(資料夾、bridge.env 和 win_family.py 同一套)──
+def task_create(name, d):
+    t = f"YuantaBridge-{name}"
+    ps = f"""
+$ErrorActionPreference = 'Stop'
+$act = New-ScheduledTaskAction -Execute '{sys.executable}' -Argument 'yuanta_bridge.py run' -WorkingDirectory '{d}'
+$trg1 = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At 08:41
+$trg2 = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\\$env:USERNAME"; $trg2.Delay = 'PT2M'
+$trg3 = New-ScheduledTaskTrigger -Once -At 08:01 -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration (New-TimeSpan -Days 3650)
+$set = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 5)
+$pr = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\\$env:USERNAME" -LogonType Interactive -RunLevel Limited
+Register-ScheduledTask -TaskName '{t}' -Action $act -Trigger @($trg1, $trg2, $trg3) -Settings $set -Principal $pr -Force | Out-Null
+"""
+    with tempfile.NamedTemporaryFile("w", suffix=".ps1", delete=False, encoding="utf-8-sig") as f: f.write(ps)
+    r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", f.name], capture_output=True, text=True); os.unlink(f.name)
+    if r.returncode != 0: raise RuntimeError("建工作排程失敗:" + (r.stderr or r.stdout)[-200:])
+    subprocess.run(["schtasks", "/Run", "/TN", t], capture_output=True)
+
+
+def add_partner(name, enc, key):
+    import win_family as wf
+    info = json.loads(oaep_decrypt(key, enc).decode("utf-8"))
+    acct = re.sub(r"[\s-]", "", str(info.get("acct", "")))
+    acct = "S" + (acct[1:] if acct[:1] in ("S", "s") and len(acct) == 12 else acct)
+    pwd = str(info.get("pass", ""))
+    if not re.fullmatch(r"S[0-9A-Za-z]{11}", acct) or not pwd: raise ValueError("證券帳號或密碼格式不對")
+    d = FAM / name
+    wf.copy_code(d)
+    money = {k: dft for k, _, dft in wf.MONEY}   # 額度的底值;實際用雲端「夥伴加入」設的(夥伴交易程式每分鐘讀 ?acfg=get)
+    wf.write_env(d, name, [f"YT_ACCOUNT={acct}", f"YT_PASS={pwd}"], money)
+    pwd = info = None
+    task_create(name, d)
+    log(f"【{name}】資料夾、工作排程建好,夥伴交易程式啟動中(帳號 …{acct[-4:]})")
+
+
+def del_partner(name):
+    t = f"YuantaBridge-{name}"
+    subprocess.run(["schtasks", "/End", "/TN", t], capture_output=True)
+    subprocess.run(["schtasks", "/Delete", "/TN", t, "/F"], capture_output=True)
+    log(f"【{name}】已停掉並刪除工作排程(資料夾 {FAM / name} 留著)")
+
+
+def login_state(name, since):
+    """看夥伴的紀錄檔:元大登入成功 / 被拒 / 還沒有結果"""
+    f = FAM / name / "log" / f"bridge_{now_tw().strftime('%Y-%m-%d')}.log"
+    if not f.exists(): return None, ""
+    try: txt = f.read_text(encoding="utf-8", errors="ignore")[-20000:]
+    except Exception: return None, ""
+    for line in reversed(txt.splitlines()):
+        m = re.search(r"登入 (\S+) (.*) 帳號數 (\d+)", line)
+        if m: return (True, "") if m.group(1) in ("0001", "00001") or int(m.group(3)) > 0 else (False, f"元大拒絕登入:{m.group(1)} {m.group(2)}")
+        if "元大拒絕登入" in line: return False, line.split("元大拒絕登入", 1)[1].strip(": ")[:120]
+        if "30 秒還沒連上元大交易主機" in line or "登入逾時" in line: return False, "連不上元大(網路 / 憑證 / API 權限 / 固定 IP?)"
+    return None, ""
+
+
+def run():
+    key = ensure_key()
+    log("夥伴服務開始(每 30 秒看一次待辦)")
+    watch = {}   # 名字 → 開始等登入的時間
+    while True:
+        try:
+            r = api("fam=jobs")
+            for j in r.get("jobs", []) if isinstance(r, dict) else []:
+                n = j.get("name", "")
+                try:
+                    if j.get("op") == "add":
+                        api("fam=status", {"name": n, "st": "pc", "msg": "電腦收到,建立中"})
+                        add_partner(n, j.get("enc", ""), key)
+                        api("fam=status", {"name": n, "st": "pc", "msg": "電腦登入元大中"}); watch[n] = time.time()
+                    elif j.get("op") == "del":
+                        del_partner(n); api("fam=status", {"name": n, "st": "gone"})
+                except Exception as e:
+                    log(f"!! 【{n}】處理失敗:", e); api("fam=status", {"name": n, "st": "fail", "msg": str(e)[:150]})
+                api("fam=done", {"name": n})
+            for n, t0 in list(watch.items()):
+                ok, msg = login_state(n, t0)
+                if ok is True: api("fam=status", {"name": n, "st": "run", "msg": "元大已登入"}); log(f"【{n}】元大登入成功"); watch.pop(n)
+                elif ok is False: api("fam=status", {"name": n, "st": "fail", "msg": msg}); log(f"!! 【{n}】", msg); watch.pop(n)
+                elif time.time() - t0 > 600:
+                    api("fam=status", {"name": n, "st": "fail", "msg": f"10 分鐘還沒登入元大(看 {FAM / n / 'log'})"}); watch.pop(n)
+        except Exception as e:
+            log("!! 夥伴服務這一輪出錯:", e)
+        time.sleep(30)
+
+
+def install():
+    if not CFG.get("WORKER_URL") or not CFG.get("PUSH_KEY"): sys.exit(f"找不到 {HERE / 'bridge.env'} 的 WORKER_URL / PUSH_KEY(這支要放在 C:\\Yuanta\\bridge)")
+    ensure_key()
+    py = Path(sys.executable); pyw = py.with_name("pythonw.exe") if py.with_name("pythonw.exe").exists() else py
+    ps = f"""
+$ErrorActionPreference = 'Stop'
+$act = New-ScheduledTaskAction -Execute '{pyw}' -Argument '"{HERE / "fam_agent.py"}" run' -WorkingDirectory '{HERE}'
+$trg1 = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\\$env:USERNAME"; $trg1.Delay = 'PT1M'
+$trg2 = New-ScheduledTaskTrigger -Once -At 00:00 -RepetitionInterval (New-TimeSpan -Minutes 10) -RepetitionDuration (New-TimeSpan -Days 3650)
+$set = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+$pr = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\\$env:USERNAME" -LogonType Interactive -RunLevel Limited
+Register-ScheduledTask -TaskName '{TASK}' -Action $act -Trigger @($trg1, $trg2) -Settings $set -Principal $pr -Force | Out-Null
+"""
+    with tempfile.NamedTemporaryFile("w", suffix=".ps1", delete=False, encoding="utf-8-sig") as f: f.write(ps)
+    r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", f.name], capture_output=True, text=True); os.unlink(f.name)
+    if r.returncode != 0: sys.exit("!! 建工作排程失敗:" + (r.stderr or r.stdout)[-300:])
+    subprocess.run(["schtasks", "/Run", "/TN", TASK], capture_output=True)
+    print(f"\n完成:夥伴服務已安裝並啟動(工作排程 {TASK},登入 Windows 自動跑)。紀錄在 {LOGF}")
+    print("下一步:python fam_agent.py mgrkey  → 用手機「夥伴加入」掃描管理鑰匙")
+
+
+def mgrkey():
+    r = api("keys=add", {"name": "夥伴加入管理", "role": "mgr"})
+    k = r.get("k") if isinstance(r, dict) else None
+    if not k or r.get("role") != "mgr": sys.exit("!! 發管理鑰匙失敗:" + str(r.get("error") if isinstance(r, dict) else r))
+    try:
+        import qrcode
+    except ImportError:
+        print("第一次產生 QR Code:安裝 qrcode / pillow 套件 …")
+        subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "qrcode", "pillow"], check=False)
+        import qrcode
+    q = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=14, border=4); q.add_data(k); q.make(fit=True)
+    folder = HERE / "keys"; folder.mkdir(exist_ok=True)
+    path = folder / f"夥伴加入管理鑰匙_{now_tw().strftime('%m%d%H%M')}.png"
+    q.make_image(fill_color="black", back_color="white").save(path); k = None
+    print(f"管理鑰匙 QR Code(只有圖):{path}\n用手機「夥伴加入」入口按「掃描」掃這張 → 綁在那支手機(別支手機不能用)。掃完可以刪掉這張圖。")
+    try: os.startfile(str(path))
+    except Exception: pass
+
+
+def status():
+    k = load_key(); print("這台電腦的鎖:", "有" if k else "還沒有(先 install)")
+    r = subprocess.run(["schtasks", "/Query", "/TN", TASK], capture_output=True, text=True)
+    print("工作排程:", "有" if r.returncode == 0 else "沒有(先 install)")
+    if LOGF.exists(): print("最後紀錄:\n" + "\n".join(LOGF.read_text(encoding="utf-8").splitlines()[-8:]))
+
+
+if __name__ == "__main__":
+    a = sys.argv[1:]
+    cmd = a[0] if a else ""
+    if cmd == "install": install()
+    elif cmd == "mgrkey": mgrkey()
+    elif cmd == "run": run()
+    elif cmd == "status": status()
+    else: sys.exit(__doc__)

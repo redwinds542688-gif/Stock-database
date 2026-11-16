@@ -980,6 +980,7 @@ export default {
       MC.set("emo:" + kq, { v: true, at: Date.now() }); KI = { ...KI, role: "owner", emoP: true };
     }
     const ownerKI = !!(KI && KI.role === "owner" && (!KI.dev || dv));
+    const mgrKI = !!(KI && KI.role === "mgr" && !KI.emer && /^[a-f0-9]{16,40}$/.test(dv) && KI.dev === dv);   // 2026-11-17 夥伴加入的管理鑰匙:一定要帶手機識別碼,而且是綁定的那一支
     // 自動當沖夥伴版(2026-11-15 19:45 使用者「金鑰 只有下載 主程式時 名揚四海自動當沖 才需要一台設備對應一個金鑰 看盤版 掃描這個金鑰 就可以看盤監控 10台設備也沒有關係」):
     //   夥伴看盤(partner_app/mine.html)帶 pv=1、不帶 dv → 不綁設備、不受「一人一機」限制(上面 dv 是空的就不比對也不寫綁定),幾台都可以;
     //   但只准「看」:owner 鑰匙這樣來只開 ?trade=pos / ?trade=fills(讀),?trade=cmd 下單、寫通知、管鑰匙照舊要綁定的手機(ownerKI)。緊急模式認出來的(emoP)不算
@@ -1153,7 +1154,7 @@ export default {
         const acct = String(b.acct || "").trim();   // 2026-11-15 家人鑰匙:{name, acct}(acct = 中繼 ACCT_NAME)→ 只看自己帳號
         if (acct && !ACCT_RE.test(acct)) return J({ error: "acct(家人名字)最多 12 個字,不能有空白或符號" }, 400);
         if (acct && (pl || b.role === "owner")) return J({ error: "家人鑰匙不能同時是 owner 或付費方案" }, 400);
-        const role = pl ? pl.role : b.role === "owner" ? "owner" : "viewer", name = String(b.name || acct || "").slice(0, 40), k = acct ? newKey(FAM_PRE) : newKey();
+        const role = pl ? pl.role : b.role === "owner" ? "owner" : b.role === "mgr" ? "mgr" : "viewer", name = String(b.name || acct || "").slice(0, 40), k = acct ? newKey(FAM_PRE) : newKey();
         const rec = { name, role, on: true, made: ymdOf(twNow()) };
         if (acct) rec.acct = acct;
         if (pl) { rec.plan = b.plan; rec.price = pl.price; }
@@ -1432,6 +1433,66 @@ export default {
       return new Response(JSON.stringify(v || {}), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=20" } });
     }
 
+    // ── 自動當沖夥伴版:「夥伴加入」真的接上電腦(2026-11-17 使用者「1 選 a,2 開始 先畫流程」→「改」)──
+    //   管理鑰匙(role mgr,電腦 fam_agent.py mgrkey 發):只給「夥伴加入」App 用,綁第一支手機(dv);只能用 ?fam= 和 ?acfg=,不能下單、不能讀主導$ 的交易
+    //   GET  ?fam=pub              (管理鑰匙)→ {jwk} 電腦的公開鎖(手機用它加密帳密,只有電腦的私鑰解得開)
+    //   POST ?fam=pub {jwk}         (中繼金鑰)→ 電腦登記公開鎖
+    //   POST ?fam=add {name, enc, cfg}(管理鑰匙)→ 待辦 famjob:<name>(enc 雲端解不開)、cfg 寫進 acfg:<name>、名冊 fams[name] = {st:"wait"}
+    //   GET  ?fam=jobs             (中繼金鑰)→ {jobs:[{op:"add"|"del", name, enc?}]}
+    //   POST ?fam=done {name}       (中繼金鑰)→ 刪掉那筆待辦(電腦拿走了)
+    //   POST ?fam=status {name, st, msg}(中繼金鑰)→ 名冊更新;st = "run" 且還沒有看盤金鑰 → 發一把 fa11(acct = name,只看得到自己)
+    //   GET  ?fam=list             (管理鑰匙)→ {fams:[{name, st, msg, at, key, cfg}]}(key = 看盤金鑰,手機只畫成 QR、不顯示)
+    //   POST ?fam=del {name}        (管理鑰匙)→ 待辦 del(電腦停掉他的交易程式)、看盤金鑰停用、名冊標「移除中」
+    const famQ = url.searchParams.get("fam");
+    if (famQ) {
+      if (!env || !env.HUB || !env.LOGS) return J({ error: "Worker 還沒綁定 Hub / KV" }, 503);
+      const hub = hubOf(env), pushF = pushOk;
+      const L0 = async () => { let L = null; try { L = await hub.kvGet("fams"); } catch (e) {} return L && typeof L === "object" ? L : {}; };
+      const body = async () => { try { const b = await request.json(); return b && typeof b === "object" ? b : null; } catch (e) { return null; } };
+      if (famQ === "pub") {
+        if (request.method === "POST") { if (!pushF) return J({ error: "要中繼金鑰" }, 403); const b = await body(); if (!b || !b.jwk || b.jwk.kty !== "RSA" || !b.jwk.n || !b.jwk.e) return J({ error: "jwk 不對" }, 400);
+          await hub.kvPut("fampub", { jwk: { kty: "RSA", n: String(b.jwk.n), e: String(b.jwk.e), alg: "RSA-OAEP-256", ext: true }, at: Date.now() }); return J({ ok: true }); }
+        if (!mgrKI && !pushF) return J({ error: "要夥伴加入的管理鑰匙", badKey: !KI }, 403);
+        const v = await hub.kvGet("fampub"); return v ? J({ ok: true, ...v }) : J({ error: "電腦的夥伴服務還沒裝(電腦執行 python fam_agent.py install)" }, 404);
+      }
+      if (famQ === "jobs" || famQ === "done" || famQ === "status") {
+        if (!pushF) return J({ error: "要中繼金鑰" }, 403);
+        if (famQ === "jobs") { const L = await L0(), jobs = []; for (const n of Object.keys(L)) { const j = await hub.kvGet("famjob:" + n); if (j) jobs.push({ name: n, ...j }); } await hub.kvPut("famseen", Date.now()); return J({ ok: true, jobs }); }
+        const b = await body(); const n = b && String(b.name || ""); if (!ACCT_RE.test(n || "")) return J({ error: "name 不對" }, 400);
+        if (famQ === "done") { await hub.kvPut("famjob:" + n, null); return J({ ok: true }); }
+        const L = await L0(); const o = L[n] || {}; o.st = String(b.st || o.st || "").slice(0, 12); o.msg = String(b.msg || "").slice(0, 160); o.at = Date.now();
+        if (o.st === "gone") { delete L[n]; await hub.kvPut("fams", L); return J({ ok: true }); }
+        if (o.st === "run" && !o.key) {   // 登入成功 → 發看盤金鑰(和 ?keys=add {acct} 同一種)
+          const k = newKey(FAM_PRE); await env.LOGS.put("key:" + k, JSON.stringify({ name: n, role: "viewer", on: true, made: ymdOf(twNow()), acct: n, by: "夥伴加入" })); o.key = k; }
+        L[n] = o; await hub.kvPut("fams", L); return J({ ok: true, st: o.st });
+      }
+      if (!mgrKI) return J({ error: KI && KI.role === "mgr" ? "這把管理鑰匙已綁在另一支手機" : "要夥伴加入的管理鑰匙", badKey: true }, 403);
+      if (famQ === "list") { const L = await L0(), fams = [];
+        for (const [n, o] of Object.entries(L)) { let cfg = null; try { cfg = await hub.kvGet("acfg:" + n); } catch (e) {} fams.push({ name: n, st: o.st || "wait", msg: o.msg || "", at: o.at || 0, key: o.key || "", cfg: cfg || {} }); }
+        let seen = 0; try { seen = await hub.kvGet("famseen") || 0; } catch (e) {}
+        return J({ ok: true, fams, agentAt: seen }); }
+      if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
+      const b = await body(); const n = b && String(b.name || "").trim(); if (!ACCT_RE.test(n || "")) return J({ error: "名字最多 12 個字,不能有空白或符號" }, 400);
+      if (famQ === "add") {
+        if (typeof b.enc !== "string" || b.enc.length < 100 || b.enc.length > 4000) return J({ error: "加密資料不對" }, 400);
+        const L = await L0(); if (L[n] && L[n].st !== "fail") return J({ error: `已經有【${n}】` }, 409);
+        const c = b.cfg && typeof b.cfg === "object" ? b.cfg : {}, o = {}, bad = [];
+        const num = (k, lo, hi) => { if (c[k] == null) return; const v = Math.round(+c[k]); if (!isFinite(v) || v < lo || v > hi) bad.push(k); else o[k] = v; };
+        num("max_amount", 1000000, 5000000); num("cap", 100000, 250000); num("max_loss", 5000, 30000); num("kill_loss", 10000, 50000);
+        if (c.lot_mode != null) { if ([1, 2, 3].includes(c.lot_mode)) o.lot_mode = c.lot_mode; else bad.push("lot_mode"); }
+        if (bad.length) return J({ error: "設定超出範圍:" + bad.join(",") }, 400);
+        o.enabled = true; o.at = Date.now(); o.by = "夥伴加入";
+        await hub.kvPut("acfg:" + n, o); await hub.kvPut("famjob:" + n, { op: "add", enc: b.enc, at: Date.now() });
+        L[n] = { st: "wait", msg: "等電腦來拿", at: Date.now() }; await hub.kvPut("fams", L); return J({ ok: true });
+      }
+      if (famQ === "del") {
+        const L = await L0(); const o = L[n]; if (!o) return J({ error: `沒有【${n}】` }, 404);
+        if (o.key) { try { const r = await keyInfo(env, o.key); if (r) { r.on = false; await env.LOGS.put("key:" + o.key, JSON.stringify(r)); MC.delete("key:" + o.key); } } catch (e) {} }
+        await hub.kvPut("famjob:" + n, { op: "del", at: Date.now() }); o.st = "del"; o.msg = "等電腦停掉"; o.at = Date.now(); o.key = ""; L[n] = o; await hub.kvPut("fams", L); return J({ ok: true });
+      }
+      return J({ error: "fam 不對" }, 400);
+    }
+
     // ── 自動當沖夥伴版 §6.1(2026-11-15 使用者「夥伴版 只修改 增加夥伴所有的接口 設定 畫面 不能修改程式的核心邏輯」):夥伴設定雲端下發
     //   GET  ?acfg=get&a=<名字>  → {acct, judges:{判一:true…}, max_amount, cap, max_loss, kill_loss, enabled, at, by}
     //        權限:中繼金鑰 / owner 鑰匙 → 任何人;夥伴 fa11 鑰匙 → 只能讀自己(唯讀);其他 403
@@ -1447,12 +1508,12 @@ export default {
       if (!ACCT_RE.test(a)) return J({ error: "a(夥伴名字)不對" }, 400);
       const hub = hubOf(env);
       if (acfgQ === "get") {
-        if (!pushK && !ownerKI && !(mine && a === mine)) return J({ error: fam ? "只能看自己的設定" : "要中繼金鑰、owner 鑰匙或夥伴鑰匙" }, 403);
+        if (!pushK && !ownerKI && !mgrKI && !(mine && a === mine)) return J({ error: fam ? "只能看自己的設定" : "要中繼金鑰、owner 鑰匙或夥伴鑰匙" }, 403);
         let v = null; try { v = await hub.kvGet("acfg:" + a); } catch (e) {}
         return J({ ok: true, acct: a, ...(v && typeof v === "object" ? v : {}) });
       }
       if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
-      if (fam || !ownerKI || !dv || KI.emer) return J({ error: "只有主導$(owner 鑰匙)能改夥伴設定" }, 403);
+      if (!mgrKI && (fam || !ownerKI || !dv || KI.emer)) return J({ error: "只有主導$(owner 鑰匙 / 夥伴加入的管理鑰匙)能改夥伴設定" }, 403);
       let b; try { b = await request.json(); } catch (e) { return J({ error: "JSON 格式錯誤" }, 400); }
       if (!b || typeof b !== "object") return J({ error: "內容不對" }, 400);
       let cur = null; try { cur = await hub.kvGet("acfg:" + a); } catch (e) {}

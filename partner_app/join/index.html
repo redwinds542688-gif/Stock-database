@@ -98,7 +98,7 @@ input[type=text],input[type=password],input[type=number]{height:calc(var(--uf) *
 </head>
 <body>
 <div class="wrap">
-  <div class="pv"><span>範例資料(還沒連電腦)</span><b></b><span class="verl" id="ver"></span></div>
+  <div class="pv"><span>只有主導$ · 管理鑰匙</span><b></b><span class="verl" id="ver"></span></div>
   <header class="ttl"><h1>自動當沖 · 夥伴加入</h1><span class="tag">主導$</span></header>
   <main id="main"></main>
 </div>
@@ -109,11 +109,9 @@ input[type=text],input[type=password],input[type=number]{height:calc(var(--uf) *
    ③ 完成後自動產生一張金鑰 QR Code(只給圖、不顯示金鑰)→ 傳給夥伴:名揚四海自動當沖 第一支手機綁定(第二支不給過);夥伴看盤 不限支數,只看該夥伴的元大真實交易 */
 const $ = id => document.getElementById(id), main = $("main");
 const JN = ["判一","判二","判三","判四","判五","判六","判七","判八","判九"];
-const P = [];
 const S = {page:"gate", cur:0, step:0};
 function toast(t){ $("toastL").innerHTML = `<div class="toast">${t}</div>`; clearTimeout(toast.t); toast.t = setTimeout(() => $("toastL").innerHTML = "", 2200); }
 function qrSvg(t){ const q = qrcode(0, "M"); q.addData(t); q.make(); return q.createSvgTag({cellSize: 4, margin: 2, scalable: true}); }
-const newKey = () => "fa11" + [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, "0")).join("");
 /* 2026-11-17 使用者「設定金額都改成滾輪式的調整 上滑減少下滑增加 多空限額變動 最下面張數的計算也要跟著變動」:
    滾輪:手指往上滑 = 減少、往下滑 = 增加(電腦滑鼠滾輪往下 = 增加);中間那格是目前的值,上面一格大一級、下面一格小一級 */
 const WH = [{t:"當日總額度", s:"100~500 萬", min:100, max:500, st:10}, {t:"多空上限(每筆)", s:"10~25 萬", min:10, max:25, st:1},
@@ -124,7 +122,7 @@ const money = m => WH.map((w, i) => `<div class="wl"><span class="wt">${w.t}${w.
   <div class="wheel" data-i="${i}" data-v="${m[i] / 10000}" role="spinbutton" aria-label="${w.t}" aria-valuenow="${m[i] / 10000}" tabindex="0"><div class="wv">${wheelRows(i, m[i] / 10000)}</div><span class="wu">萬</span></div></div>`).join("");
 function wheelSet(el, v){ const i = +el.dataset.i, w = WH[i]; v = Math.min(w.max, Math.max(w.min, Math.round(v / w.st) * w.st)); if (+el.dataset.v === v) return;
   el.dataset.v = v; el.setAttribute("aria-valuenow", v); el.querySelector(".wv").innerHTML = wheelRows(i, v); try{ navigator.vibrate && navigator.vibrate(8); }catch(e){}
-  if (S.page === "one"){ const p = P[S.cur]; p.m[i] = Math.round(v * 10000); if (i === 1) lotTable(); } }
+  if (S.page === "one" && P[S.cur]){ const p = P[S.cur]; p.m[i] = Math.round(v * 10000); if (i === 1) lotTable(); } }
 function lotTable(){ const p = P[S.cur], tb = $("lotTb"), h = $("lotH"); if (h) h.textContent = `進場張數(多空上限 ${fmtV(p.m[1] / 10000)} 萬)`;
   if (tb) tb.innerHTML = [15,25,40,60,90,120].map(px => `<tr><td>${px} 元</td>${[1,2,3].map(m => `<td>${lotsOf(m, p.m[1], px)}</td>`).join("")}</tr>`).join(""); }
 /* 手指拖:每滑 28px 一級;往下 = 增加、往上 = 減少 */
@@ -140,56 +138,79 @@ const steps = (n) => ["資料加密送到你的電腦","電腦用夥伴的帳號
   .map((t, i) => `<div class="step ${i < n ? "done" : i === n ? "now" : "todo"}"><i>${i < n ? "✓" : i + 1}</i>${t}</div>`).join("");
 const USE = name => `<div class="use"><div><i class="v">夥伴看盤</i><span>${name} 裝「夥伴看盤」掃這張(或從相簿選這張),幾支手機都可以;只看得到 ${name} 的元大真實交易,不能下單、不能改設定</span></div></div>`;
 
-function vGate(){ return `<div class="gate"><div class="card"><h2>請輸入主導$ 金鑰</h2><p class="hint">這個程式只有主導$ 能用。夥伴的金鑰打不開。</p>
-  <div class="unit"><input type="password" id="gk" placeholder="主導$ 金鑰" autocomplete="off"><button type="button" class="btn blue" id="gscan" style="width:auto;padding:0 1em">掃描</button></div>
+function vGate(){ return `<div class="gate"><div class="card"><h2>請掃描「管理鑰匙」</h2><p class="hint">這個程式只有主導$ 能用。在你的電腦執行 <b>python fam_agent.py mgrkey</b>,畫面會跳出管理鑰匙的 QR Code,按「掃描」掃它(只能綁這一支手機)。</p>
+  <div class="unit"><input type="password" id="gk" placeholder="管理鑰匙" autocomplete="off"><button type="button" class="btn blue" id="gscan" style="width:auto;padding:0 1em">掃描</button></div>
   <label class="back" style="cursor:pointer">或從相簿選 QR Code 圖片<input type="file" id="gpic" accept="image/*" hidden></label>
   <div class="hint" id="gerr" style="color:#FF8A8A;min-height:1.4em"></div>
   <button type="button" class="btn gold" id="in">進入</button></div></div>`; }
-/* 只有主導$:用雲端確認是 owner 鑰匙(?pcbk=get 只有中繼金鑰 / owner 鑰匙讀得到;夥伴 fa11、看盤鑰匙會被擋) */
+/* 2026-11-17「改」(1 選 a):只認「管理鑰匙」(電腦 fam_agent.py mgrkey 發,role mgr);第一次用就綁這支手機(dv = 這個 App 自己產生的識別碼),別支手機不能用 */
+const W0 = "https://twse-proxy.redwinds542688.workers.dev";
 const KK = "join.k", kGet = () => { try{ return localStorage.getItem(KK) || ""; }catch(e){ return ""; } }, kSet = v => { try{ v ? localStorage.setItem(KK, v) : localStorage.removeItem(KK); }catch(e){} };
-async function ownerOk(k){ if (!/^[a-z0-9]{16,64}$/i.test(k) || /^fa11/i.test(k)) return false;
-  try{ const r = await fetch("https://twse-proxy.redwinds542688.workers.dev/?pcbk=get&k=" + encodeURIComponent(k) + "&_=" + Date.now(), {cache: "no-store", signal: AbortSignal.timeout(9000)}); return r.ok; }catch(e){ return null; } }
+const DV = (() => { try{ let v = localStorage.getItem("join.dv"); if (!/^[a-f0-9]{16}$/.test(v || "")){ v = [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, "0")).join(""); localStorage.setItem("join.dv", v); } return v; }catch(e){ return "0000000000000000"; } })();
+async function api(q, body, key){ const r = await fetch(`${W0}/?${q}&k=${encodeURIComponent(key || kGet())}&dv=${DV}&_=${Date.now()}`, body ? {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body), cache: "no-store", signal: AbortSignal.timeout(15000)} : {cache: "no-store", signal: AbortSignal.timeout(15000)});
+  let j = {}; try{ j = await r.json(); }catch(e){} if (!r.ok) throw Object.assign(new Error(j.error || ("雲端回應 " + r.status)), {status: r.status, bad: !!j.badKey}); return j; }
 async function tryKey(k){ k = String(k || "").trim(); const e = $("gerr"); if (e) e.textContent = "確認中…";
-  const ok = await ownerOk(k); if (ok){ kSet(k); S.page = "list"; return render(); }
-  if (e) e.textContent = ok === null ? "連不上雲端,請確認網路再試" : "這不是主導$ 的金鑰(夥伴的金鑰打不開這個程式)"; }
+  if (/^fa11/i.test(k)){ if (e) e.textContent = "這是夥伴的看盤金鑰,打不開這個程式"; return; }
+  try{ const j = await api("fam=list", null, k); kSet(k); S.list = j; S.page = "list"; render(); poll(); }
+  catch(x){ if (e) e.textContent = x.status ? x.message : "連不上雲端,請確認網路再試"; } }
+/* 名冊:雲端 ?fam=list → P(每位夥伴:名字、狀態、訊息、看盤金鑰、設定) */
+const ST = {wait: ["wait", "等電腦處理"], pc: ["pc", "電腦設定中"], run: ["run", "自動當沖中"], fail: ["err", "失敗"], del: ["off", "移除中"]};
+const P = [];
+function fromList(j){ P.length = 0; for (const f of (j && j.fams) || []){ const c = f.cfg || {}, js = c.judges || {};
+  P.push({n: f.name, st0: f.st, st: (ST[f.st] || ["wait", f.st])[0], t: (ST[f.st] || ["", f.st])[1], d: f.msg || "", k: f.key || "",
+    m: [c.max_amount || 1000000, c.cap || 100000, c.max_loss || 10000, c.kill_loss || 20000], lot: c.lot_mode || 1, on: c.enabled !== false, j: JN.map(x => js[x] !== false)}); }
+  S.agentAt = (j && j.agentAt) || 0; }
+const agentOk = () => S.agentAt && Date.now() - S.agentAt < 3 * 60000;
+async function refresh(){ try{ const j = await api("fam=list"); fromList(j); return true; }catch(x){ if (x.bad){ kSet(""); S.page = "gate"; render(); } return false; } }
+function poll(){ clearTimeout(poll.t); poll.t = setTimeout(async () => { if (["list", "wait"].includes(S.page)){ const nm = S.page === "wait" ? S.nm : null; await refresh();
+    if (nm){ const q = P.find(x => x.n === nm); if (q && q.st0 === "run"){ S.cur = P.indexOf(q); S.page = "one"; } } if (["list", "wait"].includes(S.page) || S.page === "one") render(); } poll(); }, 5000); }
 function vList(){
-  if (!P.length) return `<h2>夥伴(0 位)</h2><div class="card zero" style="align-items:center;text-align:center"><div style="font-size:calc(var(--uf) * 3.2)">👥</div><b style="font-size:calc(var(--uf) * 1.5)">還沒有夥伴</b>
+  const warn = S.agentAt !== undefined && !agentOk() ? `<div class="lock" style="color:#FFC9C9;background:#2A1416;border-color:#7A2A2E">⚠ 電腦的夥伴服務沒在跑(電腦沒開,或還沒裝:電腦執行 python fam_agent.py install)。新增的夥伴會等電腦開了才處理。</div>` : "";
+  if (!P.length) return `<h2>夥伴(0 位)</h2>${warn}<div class="card zero" style="align-items:center;text-align:center"><div style="font-size:calc(var(--uf) * 3.2)">👥</div><b style="font-size:calc(var(--uf) * 1.5)">還沒有夥伴</b>
     <div class="steps" style="align-self:stretch;text-align:left">
       <div class="step now"><i>1</i>先用夥伴的身分,在你的電腦申請 / 匯入元大憑證</div>
       <div class="step todo"><i>2</i>按「新增夥伴」,輸入他的元大帳號、密碼、額度</div>
       <div class="step todo"><i>3</i>電腦登入成功,自動產生他的看盤金鑰 QR Code,傳給他</div></div></div>
     <button type="button" class="btn gold" id="add">＋ 新增第一位夥伴</button>`;
-  return `<h2>夥伴(${P.length} 位)</h2>${P.map((p, i) => `<div class="prow" data-i="${i}" role="button" tabindex="0"><b>${p.n}</b><span class="st ${p.st}">${p.t}</span><small>${p.d}</small></div>`).join("")}
+  return `<h2>夥伴(${P.length} 位)</h2>${warn}${P.map((p, i) => `<div class="prow" data-i="${i}" role="button" tabindex="0"><b>${esc(p.n)}</b><span class="st ${p.st}">${p.t}</span><small>${esc(p.d)}</small></div>`).join("")}
     <button type="button" class="btn gold" id="add">＋ 新增夥伴</button>`;
 }
+const esc = t => String(t || "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"})[c]);
 function vNew(){ return `<button type="button" class="back" id="bk">‹ 夥伴列表</button><h2>新增夥伴</h2>
-  <label>夥伴名字<input type="text" id="nm" value="小明" maxlength="12"></label>
+  <label>夥伴名字<small>最多 12 個字,例如 小明、阿姨</small><input type="text" id="nm" value="${esc(S.nm0 || "")}" maxlength="12" placeholder="例如 小明"></label>
   <div class="card"><b style="font-size:calc(var(--uf) * 1.15)">夥伴的元大資料(你輸入)</b>
-    <label>證券帳號<small>分公司 4 碼 + 帳號 7 碼,例如 981R0123456</small><input type="text" value="981R0123456"></label>
-    <label>電子交易密碼<input type="password" value="12345678"></label>
-    <label class="ck" style="flex-direction:row;align-items:center;gap:.6em"><input type="checkbox" checked> 他的元大憑證已經裝進我的電腦(元大憑證 e 管家)</label>
-    <label class="ck" style="flex-direction:row;align-items:center;gap:.6em"><input type="checkbox" checked> 他已開通元大「API 電子下單」</label></div>
+    <label>證券帳號<small>分公司 4 碼 + 帳號 7 碼,例如 981R0123456</small><input type="text" id="ac" placeholder="981R0123456" autocomplete="off" maxlength="13"></label>
+    <label>電子交易密碼<input type="password" id="pw" autocomplete="new-password"></label>
+    <label class="ck" style="flex-direction:row;align-items:center;gap:.6em"><input type="checkbox" id="c1"> 他的元大憑證已經裝進我的電腦(元大憑證 e 管家)</label>
+    <label class="ck" style="flex-direction:row;align-items:center;gap:.6em"><input type="checkbox" id="c2"> 他已開通元大「API 電子下單」</label></div>
   <div class="card"><b style="font-size:calc(var(--uf) * 1.15)">額度(之後隨時可改)</b>${money([1000000,100000,10000,20000])}</div>
-  <div class="lock">🔒 帳號密碼在這支手機先加密,只有你的電腦解得開;雲端只轉送、不留存。存好後這裡也不再顯示密碼。</div>
+  <div class="lock">🔒 帳號密碼在這支手機先用你電腦的鎖加密,只有你的電腦解得開;雲端只轉送、不留存。送出後這裡不再顯示密碼。</div>
+  <div class="hint" id="nerr" style="color:#FF8A8A;min-height:1.4em"></div>
   <button type="button" class="btn gold" id="send">加密送到電腦</button>`; }
-function vWait(){ return `<h2>${S.nm} 設定中…</h2><div class="card steps">${steps(S.step)}</div><button type="button" class="btn" id="nx">(範例)下一步 ›</button>`; }
-function vOne(){ const p = P[S.cur];
-  return `<button type="button" class="back" id="bk">‹ 夥伴列表</button><h2>${p.n}</h2>
-  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">${p.n} 的看盤金鑰 QR Code</b><div class="qbox">${qrSvg(p.k)}</div>
-    <p class="hint" style="text-align:center">只給圖,不顯示金鑰</p>${USE(p.n)}
+function vWait(){ const q = P.find(x => x.n === S.nm), st = q ? q.st0 : "wait";
+  const n = st === "pc" ? (q.d.includes("登入") ? 1 : 0) : st === "run" ? 4 : 0;
+  return `<h2>${esc(S.nm)} 設定中…</h2><div class="card steps">${steps(n)}</div>
+  ${st === "fail" ? `<div class="lock" style="color:#FFC9C9;background:#2A1416;border-color:#7A2A2E">⚠ ${esc(q.d)}</div><button type="button" class="btn blue" id="retry">重新輸入再送一次</button>` : `<p class="hint">不用一直開著這個畫面,電腦登入元大成功後,夥伴列表就會出現他的看盤金鑰。${agentOk() ? "" : "<br><b style='color:#FF8A8A'>電腦的夥伴服務現在沒在跑,開電腦後才會處理。</b>"}</p>`}
+  <button type="button" class="btn" id="bk">回夥伴列表</button>`; }
+function vOne(){ const p = P[S.cur]; if (!p) return vList();
+  const head = `<button type="button" class="back" id="bk">‹ 夥伴列表</button><h2>${esc(p.n)}</h2>`;
+  if (p.st0 !== "run") return head + `<div class="card"><b style="font-size:calc(var(--uf) * 1.2)">狀態:${p.t}</b><p class="hint">${esc(p.d)}</p></div>
+    ${p.st0 === "fail" ? `<button type="button" class="btn blue" id="retry">重新輸入再送一次</button>` : ""}
+    <button type="button" class="btn" id="rm" style="color:var(--bad);border-color:#7A2A2E">移除 ${esc(p.n)}</button>`;
+  return head + `
+  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">${esc(p.n)} 的看盤金鑰 QR Code</b><div class="qbox">${p.k ? qrSvg(p.k) : ""}</div>
+    <p class="hint" style="text-align:center">只給圖,不顯示金鑰</p>${USE(esc(p.n))}
     <div class="row2"><button type="button" class="btn gold" id="save">存到相簿</button><button type="button" class="btn blue" id="share">傳給夥伴</button></div></div>
-  <div class="card"><div class="sw"><span>自動交易</span><button type="button" class="tg on" aria-label="自動交易開關"></button></div></div>
-  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">公式(點一下開 / 關)</b><div class="jg">${JN.map(j => `<button type="button" class="on">${j}</button>`).join("")}</div></div>
+  <div class="card"><div class="sw"><span>自動交易</span><button type="button" class="tg${p.on ? " on" : ""}" id="tgl" aria-label="自動交易開關"></button></div><p class="hint">關掉 = 不再新進場(已有的部位照規則平倉)。</p></div>
+  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">公式(點一下開 / 關)</b><div class="jg">${JN.map((j, i) => `<button type="button" data-j="${i}" class="${p.j[i] ? "on" : ""}">${j}</button>`).join("")}</div></div>
   <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">額度</b>${money(p.m)}</div>
-  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)" id="lotH">進場張數(多空上限 ${p.m[1] / 10000} 萬)</b>
-    <label class="opt${(p.lot || 1) === 1 ? " on" : ""}" data-lot="1"><input type="radio" name="lot"${(p.lot || 1) === 1 ? " checked" : ""}><span><b>① 能買幾張就幾張</b><small>上限內能買幾張買幾張(跟主導$ 現在一樣)</small></span></label>
+  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)" id="lotH">進場張數(多空上限 ${fmtV(p.m[1] / 10000)} 萬)</b>
+    <label class="opt${p.lot === 1 ? " on" : ""}" data-lot="1"><input type="radio" name="lot"${p.lot === 1 ? " checked" : ""}><span><b>① 能買幾張就幾張</b><small>上限內能買幾張買幾張(跟主導$ 現在一樣)</small></span></label>
     <label class="opt${p.lot === 2 ? " on" : ""}" data-lot="2"><input type="radio" name="lot"${p.lot === 2 ? " checked" : ""}><span><b>② 只買 1 張</b><small>上限內不管股價,每筆都只買 1 張</small></span></label>
     <label class="opt${p.lot === 3 ? " on" : ""}" data-lot="3"><input type="radio" name="lot"${p.lot === 3 ? " checked" : ""}><span><b>③ 分級</b><small>25 萬以前那套分級,照上限等比例縮小</small></span></label>
-    <table class="lt"><thead><tr><th>股價</th><th>①</th><th>②</th><th>③</th></tr></thead><tbody id="lotTb">
-    ${[15,25,40,60,90,120].map(px => `<tr><td>${px} 元</td>${[1,2,3].map(m => `<td>${lotsOf(m, p.m[1], px)}</td>`).join("")}</tr>`).join("")}
-    </tbody></table><p class="hint">超額 = 1 張就超過多空上限,不進場。</p></div>
-
-</div>`; }
+    <table class="lt"><thead><tr><th>股價</th><th>①</th><th>②</th><th>③</th></tr></thead><tbody id="lotTb"></tbody></table><p class="hint">超額 = 1 張就超過多空上限,不進場。</p></div>
+  <button type="button" class="btn gold" id="sv">儲存(下一筆新進場生效)</button>
+  <button type="button" class="btn" id="rm" style="color:var(--bad);border-color:#7A2A2E">移除 ${esc(p.n)}</button>`; }
 function toastNoop(){}
 const loadJsQR = () => window.jsQR ? Promise.resolve() : new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
 async function qrDetector(){ try{ if ("BarcodeDetector" in window && (await BarcodeDetector.getSupportedFormats()).includes("qr_code")) return new BarcodeDetector({formats: ["qr_code"]}); }catch(e){} return null; }
@@ -258,21 +279,44 @@ async function sharePoster(name, key){   /* 傳給夥伴:App 打開手機分享(
 function lotsOf(m, cap, px){ if (px * 1000 > cap) return "超額"; let n;
   if (m === 2) n = 1; else if (m === 3) n = px <= 80 * cap / 250000 ? Math.max(1, Math.min(3, Math.floor(0.64 * cap / (px * 1000)))) : Math.max(1, Math.min(2, Math.floor(cap / (px * 1000))));
   else n = Math.max(1, Math.floor(cap / (px * 1000))); return n + " 張"; }
-function render(){ main.innerHTML = S.page === "gate" ? vGate() : ({list: vList, new: vNew, wait: vWait, one: vOne})[S.page](); main.scrollTop = 0; }
-main.addEventListener("click", e => { const o = e.target.closest(".opt[data-lot]"); if (o){ P[S.cur].lot = +o.dataset.lot; main.querySelectorAll(".opt[data-lot]").forEach(x => x.classList.toggle("on", x === o)); return; }
+function render(){ main.innerHTML = S.page === "gate" ? vGate() : ({list: vList, new: vNew, wait: vWait, one: vOne})[S.page](); if (S.page === "one") lotTable(); if (S.page !== "one") main.scrollTop = 0; }
+/* 加密送到電腦:手機用電腦登記在雲端的公開鎖(RSA-OAEP / SHA-256)加密 {acct, pass},雲端解不開;電腦 fam_agent.py 用私鑰解 */
+async function sendNew(){ const e = $("nerr"), nm = ($("nm").value || "").trim(), ac = ($("ac").value || "").replace(/[\s-]/g, "").toUpperCase(), pw = $("pw").value || "";
+  if (!nm || /[\s|:\/\\?#&<>"']/.test(nm)) return e.textContent = "名字不能空白、不能有符號";
+  if (!/^S?[0-9A-Z]{11}$/.test(ac)) return e.textContent = "證券帳號要 11 碼(分公司 4 碼 + 帳號 7 碼)";
+  if (!pw) return e.textContent = "請輸入電子交易密碼";
+  if (!$("c1").checked || !$("c2").checked) return e.textContent = "請先確認兩項:憑證已裝進你的電腦、已開通 API 電子下單";
+  const m = [...main.querySelectorAll(".wheel")].map(x => Math.round(+x.dataset.v * 10000));
+  e.textContent = "加密送出中…"; $("send").disabled = true;
+  try{ const pub = await api("fam=pub");
+    const key = await crypto.subtle.importKey("jwk", pub.jwk, {name: "RSA-OAEP", hash: "SHA-256"}, false, ["encrypt"]);
+    const ct = await crypto.subtle.encrypt({name: "RSA-OAEP"}, key, new TextEncoder().encode(JSON.stringify({acct: ac, pass: pw})));
+    const enc = btoa(String.fromCharCode(...new Uint8Array(ct)));
+    await api("fam=add", {name: nm, enc, cfg: {max_amount: m[0], cap: m[1], max_loss: m[2], kill_loss: m[3], lot_mode: 1}});
+    $("pw").value = ""; S.nm = nm; S.nm0 = ""; await refresh(); S.page = "wait"; render(); poll();
+  }catch(x){ e.textContent = x.message || String(x); $("send").disabled = false; } }
+async function saveOne(){ const p = P[S.cur], j = {}; JN.forEach((x, i) => j[x] = !!p.j[i]);
+  try{ await api(`acfg=set&a=${encodeURIComponent(p.n)}`, {judges: j, enabled: p.on, max_amount: p.m[0], cap: p.m[1], max_loss: p.m[2], kill_loss: p.m[3], lot_mode: p.lot}); toast("✓ 已儲存,夥伴的交易程式 1 分鐘內讀到,下一筆新進場生效"); }
+  catch(x){ toast("儲存失敗:" + (x.message || x)); } }
+main.addEventListener("click", async e => { const o = e.target.closest(".opt[data-lot]"); if (o){ P[S.cur].lot = +o.dataset.lot; main.querySelectorAll(".opt[data-lot]").forEach(x => x.classList.toggle("on", x === o)); return; }
   const t = e.target.closest("button,.prow"); if (!t) return; const id = t.id;
   if (id === "in") return tryKey($("gk").value);
   if (id === "gscan") return qrScan(t2 => { $("gk").value = t2; tryKey(t2); }, () => {});
-  if (t.classList.contains("prow")){ S.cur = +t.dataset.i; S.page = "one"; return render(); }
-  if (id === "add"){ S.page = "new"; return render(); }
-  if (id === "bk"){ S.page = "list"; return render(); }
-  if (id === "send"){ S.m = [...main.querySelectorAll(".wheel")].map(x => Math.round(+x.dataset.v * 10000)); S.nm = ($("nm").value || "夥伴").trim(); S.step = 1; S.page = "wait"; return render(); }
-  if (id === "nx"){ S.step++; if (S.step >= 4){ P.push({n: S.nm, st: "run", t: "自動當沖中", d: `元大已登入 · 額度 ${(S.m && S.m[0] || 1000000) / 10000} 萬`, k: newKey(), m: (S.m && S.m.length === 4 ? S.m : [1000000,100000,10000,20000]), lot: 1}); S.cur = P.length - 1; S.page = "one"; } return render(); }
+  if (t.classList.contains("prow")){ S.cur = +t.dataset.i; const p = P[S.cur]; if (p.st0 === "wait" || p.st0 === "pc"){ S.nm = p.n; S.page = "wait"; } else S.page = "one"; return render(); }
+  if (t.dataset.j != null){ const p = P[S.cur]; p.j[+t.dataset.j] = !p.j[+t.dataset.j]; t.classList.toggle("on"); return; }
+  if (id === "add"){ S.nm0 = ""; S.page = "new"; return render(); }
+  if (id === "retry"){ const q = P.find(x => x.n === S.nm) || P[S.cur]; S.nm0 = q ? q.n : ""; S.page = "new"; return render(); }
+  if (id === "bk"){ S.page = "list"; await refresh(); return render(); }
+  if (id === "send") return sendNew();
+  if (id === "tgl"){ const p = P[S.cur]; p.on = !p.on; t.classList.toggle("on"); return; }
+  if (id === "sv") return saveOne();
   if (id === "save") return showPoster(P[S.cur].n, P[S.cur].k);
   if (id === "share") return sharePoster(P[S.cur].n, P[S.cur].k);
+  if (id === "rm"){ const p = P[S.cur]; if (!confirm(`確定移除【${p.n}】?\n電腦會停掉他的交易程式(不再進場),他的看盤金鑰也會失效。`)) return;
+    try{ await api("fam=del", {name: p.n}); toast(`已送出:移除【${p.n}】`); await refresh(); S.page = "list"; render(); }catch(x){ toast("移除失敗:" + (x.message || x)); } }
 });
 main.addEventListener("change", e => { if (e.target.id === "gpic"){ const f = e.target.files && e.target.files[0]; if (f) qrFromImage(f).then(t2 => { $("gk").value = t2; tryKey(t2); }, m => $("gerr").textContent = m); } });
-if (kGet()){ S.page = "list"; ownerOk(kGet()).then(ok => { if (ok === false){ kSet(""); S.page = "gate"; render(); } }); }   /* 存過的鑰匙:先進去,背景再確認一次(被停用就回入口) */
+if (kGet()){ S.page = "list"; refresh().then(ok => { if (ok) render(); }); poll(); }   /* 存過的管理鑰匙:直接進去(雲端說無效 / 綁在別支手機就回入口) */
 render();
 try{ const H = window.JoinHost; $("ver").textContent = H ? `App ${H.version()}${H.offline() ? " 離線" : ""}` : "網頁版"; }catch(e){}
 </script>
