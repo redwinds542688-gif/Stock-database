@@ -1314,12 +1314,12 @@ class Bridge:
             try:
                 v = float(c[k]); return v if lo <= v <= hi else None
             except Exception: return None
-        v = num("max_amount", 10000, IRON_AMOUNT)
+        v = num("max_amount", 1000000, IRON_AMOUNT)   # 2026-11-17 使用者「要」:夥伴範圍 總額度 100~500 萬、停止 0.5~3 萬、全平 1~5 萬(和夥伴加入畫面、雲端同一套)
         if v: want["max_amount"] = v
         v = num("cap", 100000, IRON_CAP_MAX)   # 2026-11-17 使用者「多空是10-25」:夥伴多空上限 10~25 萬
         if v and b["cap"] > 0: want["cap"] = int(v)
-        for k in ("max_loss", "kill_loss"):
-            v = num(k, 1000, 5000000)
+        for k, lo, hi in (("max_loss", 5000, 30000), ("kill_loss", 10000, 50000)):
+            v = num(k, lo, hi)
             if v: want[k] = v
         if c.get("lot_mode") in (1, 2, 3): want["lot_mode"] = int(c["lot_mode"])   # 2026-11-17 進場張數方式(1 能買幾張 / 2 只買 1 張 / 3 分級照比例縮;trader.lots_for)
         chg = []
