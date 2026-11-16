@@ -1867,6 +1867,22 @@ def main():
         time.sleep(5)
         for k in b.kline_out: print(*k)
         b.close(); return
+    if cmd == "fut-kline":
+        # 2026-11-16 15:50 使用者「台指期 補K 盤中無法補 只能盤後嗎」→「好 要試」:試元大 GetKLine 能不能抓台指期當天 1 分 K(盤中斷線補回用);只查詢、不下單
+        #   用法:python yuanta_bridge.py fut-kline [日期 YYYY/MM/DD,預設今天];近月代號幾種寫法都試,每種印根數 / 第一根 / 最後一根,結果也寫 log
+        day = sys.argv[2] if len(sys.argv) > 2 else now_tw().strftime("%Y/%m/%d")
+        y, m = b.fut_near(); L = "ABCDEFGHIJKL"[m - 1]
+        cands = [f"TXF{L}{y % 10}", f"TXF{y}{m:02d}", "TXF1", f"TXF{m:02d}", "TXF", f"TX{L}{y % 10}", "TXFR1", "TX00"]
+        b.connect(); time.sleep(2)
+        for c in cands:
+            for kt in (0,):
+                b.kline_out = []
+                try: b.api.GetKLine(CFG["YT_ACCOUNT"], b.Y.KLineType(kt), b.Y.enumMarketType.TAIFEX, c, day, day)
+                except Exception as e: log(f"[台指期補K測試] {c} 呼叫失敗 {e!r}"); continue
+                time.sleep(4); k = b.kline_out or []
+                log(f"[台指期補K測試] {c} {day}:{len(k)} 根" + (f",第一根 {k[0]},最後一根 {k[-1]}" if k else ""))
+                print(f"{c}: {len(k)} 根", (k[0], k[-1]) if k else "")
+        b.close(); return
     if cmd == "order-test":
         # 只在測試環境:送 1 張限價單,印 20 秒的下單回應和回報(元大測試環境依委託書號尾碼模擬全成交 / 不成交 / 部分成交 / 價穩失效)
         if CFG.get("YT_ENV", "UAT").upper() != "UAT":
