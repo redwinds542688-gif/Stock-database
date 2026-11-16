@@ -1049,7 +1049,7 @@ at(11, 14); tq1, gq1 = mk(TRADE_CAP="250000"); tq1.ref_of = lambda c: 238.5; tq1
 tq1.on_report(51, "A0001", 0, 1000, 238.0, basket=tq1.positions["6278"]["order"]["tag"]); ok(tq1.positions["6278"]["state"] == HOLDING and tq1.positions["6278"]["qty"] == 1, tq1.positions["6278"])
 tq1.on_tick("6278", 243.0); tq1.on_report(50, "M77", 0, 1000, 243.0, "", "6278", "S", "9"); ok(not [x for x in gq1.sent if x[0] == "cancel"], gq1.sent)   # 11:55「解鎖 改:只有手動加碼」:加碼預掛不取消
 tq1.on_report(51, "M77", 0, 1000, 243.0, "", "6278", "S", "9"); pq1 = tq1.positions["6278"]; tq1.step([]); ok(pq1["state"] == HOLDING and pq1["qty"] == 2 and pq1["judge"] == "元三", pq1)   # 成交 → 2 張由判三管、不平
-tq1.amount_today = 4990000; tq1.on_report(50, "M76", 0, 1000, 243.0, "", "6278", "S", "9"); ok(("cancel", "M76", "6278", "S") in gq1.sent, gq1.sent)   # 加碼超過 500 萬額度 → 一樣取消
+tq1.amount_today = 4990000; tq1.on_report(50, "M76", 0, 1000, 243.0, "", "6278", "S", "9"); ok(("cancel", "M76", "6278", "S") not in gq1.sent, gq1.sent)   # 2026-11-16 10:59 使用者「手動加碼 不受管500萬 跟25分級管束」→「解鎖 改」:加碼超過 500 萬額度 → 不取消(原本取消)
 # 沒違反的預掛(80 元一張、空倉)照舊不取消;12:31 以後的新預掛取消;ignore_codes 的不管
 tq2, gq2 = mk(TRADE_CAP="250000"); tq2.ref_of = lambda c: 50.0; tq2.on_tick("2330", 50.0); tq2.on_report(50, "M78", 0, 1000, 50.0, "", "2330", "B", "0"); ok(not [x for x in gq2.sent if x[0] == "cancel"], gq2.sent)
 at(12, 31); tq2.on_report(50, "M79", 0, 1000, 50.0, "", "2331", "B", "0"); ok(("cancel", "M79", "2331", "B") in gq2.sent, gq2.sent)

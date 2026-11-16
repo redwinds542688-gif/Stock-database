@@ -1969,7 +1969,7 @@ class Trader:
             px = float(price or 0) or float(self.last_px.get(code) or 0)
             p0 = self.positions.get(code)
             if p0 and p0["dir"] == d:   # 2026-11-12 11:55 「解鎖 改:只有手動加碼」:加碼預掛只看 500 萬額度
-                return "成交後超過今天 500 萬額度" if (self.max_amount > 0 and px > 0 and self.amount_today + px * lots * 1000 > self.max_amount + 1e-6) else ""
+                return ""   # 2026-11-16 10:59 🔓→🔒 使用者「手動加碼 不受管500萬 跟25分級管束」→「解鎖 改」:手動加碼預掛不看鐵律 ⑤(500 萬額度、25 萬分級都不看);加碼金額照算進今天成交
             if not (self.j_from <= hm <= self.force_to): why.append(f"{hm} 不在 {self.j_from}~{self.force_to}")
             if ref > 0 and px > 0 and abs(px / ref - 1) * 100 > self.ent_pct + 1e-9: why.append(f"價格離昨收 {(px / ref - 1) * 100:+.1f}%(超過 ±{self.ent_pct:g}%)")
             if px > 0:
@@ -1988,8 +1988,7 @@ class Trader:
             if not Trader.IRON_LOTS: return False
             why = []; hm = self.hm(); ref = self.ref_of(p["code"]) or 0
             if str(what).startswith("手動加碼"):   # 2026-11-12 11:55 使用者「手動加碼 不受鐵律進場管制 但是進場之後 就要接受程式管轄」→「解鎖 改:只有手動加碼」:加碼不看 ③ 時間 / ① ±5% / ⑤ 分級、一張 25 萬,只看 500 萬額度
-                if not (self.max_amount > 0 and self.amount_today > self.max_amount + 1e-6): return False
-                why.append(f"今天成交 {self.amount_today:,.0f} 超過 500 萬")
+                return False   # 2026-11-16 10:59 🔓→🔒 使用者「手動加碼 不受管500萬 跟25分級管束」→「解鎖 改」:手動加碼不檢查鐵律 ⑤(500 萬額度、25 萬分級);加碼張數併進部位,停利 / 停損 / 移平 / 6.5% / 總停損 / 13:20 照舊一起平;加碼金額照算進今天成交(程式新單照 500 萬扣)
             # 2026-11-11 22:20 使用者「手動依舊受程式管束」:併入 / 對帳接回 / 重開接回也檢查;fills = [(成交時間, 成交價)],時間看不懂的不看時間(重開接回不能拿現在時間誤判)
             if fills is None: fl = [(hm, price)]
             else:
