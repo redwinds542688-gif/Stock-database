@@ -880,6 +880,7 @@ function newKey(pre) {   // 2026-11-03 新鑰匙不會剛好含 5861(含 5861 = 
    只看得到自己帳號的部位 / 成交 / 輸贏(?acct=);現有的 owner 鑰匙(電腦版、兩支手機、平板)看得到全部人 */
 const FAM_PRE = "fa11";
 const isFamKey = k => String(k || "").startsWith(FAM_PRE);
+const mktNow = () => { const t = twNow(), wd = t.getUTCDay(), m = t.getUTCHours() * 60 + t.getUTCMinutes(); return wd > 0 && wd < 6 && m >= 540 && m < 810; };   // 台股盤中 平日 09:00~13:29(夥伴設定 / 新增 / 移除 盤中不收)
 const ACCT_RE = /^[^\s|:\/\\?#&<>"']{1,12}$/;
 
 export default {
@@ -1473,6 +1474,7 @@ export default {
         return J({ ok: true, fams, agentAt: seen }); }
       if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
       const b = await body(); const n = b && String(b.name || "").trim(); if (!ACCT_RE.test(n || "")) return J({ error: "名字最多 12 個字,不能有空白或符號" }, 400);
+      if ((famQ === "add" || famQ === "del") && mktNow()) return J({ error: famQ === "add" ? "盤中(09:00~13:30)不能新增夥伴,13:30 收盤後再新增" : "盤中(09:00~13:30)不能移除夥伴(他可能還有部位),13:30 收盤後再移除" }, 409);   // 2026-11-17「改 新增夥伴盤中也擋」
       if (famQ === "add") {
         if (typeof b.enc !== "string" || b.enc.length < 100 || b.enc.length > 4000) return J({ error: "加密資料不對" }, 400);
         const L = await L0(); if (L[n] && L[n].st !== "fail") return J({ error: `已經有【${n}】` }, 409);
@@ -1514,6 +1516,7 @@ export default {
       }
       if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
       if (!mgrKI && (fam || !ownerKI || !dv || KI.emer)) return J({ error: "只有主導$(owner 鑰匙 / 夥伴加入的管理鑰匙)能改夥伴設定" }, 403);
+      if (mktNow()) return J({ error: "盤中(09:00~13:30)不能傳送設定,13:30 收盤後再傳" }, 409);   // 2026-11-17 使用者「盤中修改設定 電腦與雲端不可以接受」
       let b; try { b = await request.json(); } catch (e) { return J({ error: "JSON 格式錯誤" }, 400); }
       if (!b || typeof b !== "object") return J({ error: "內容不對" }, 400);
       let cur = null; try { cur = await hub.kvGet("acfg:" + a); } catch (e) {}

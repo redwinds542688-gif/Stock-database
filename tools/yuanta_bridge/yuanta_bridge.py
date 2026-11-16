@@ -1301,6 +1301,8 @@ class Bridge:
             if not c.get("ok"): return
         except Exception:
             return
+        _tw = time.gmtime(time.time() + 8 * 3600); self._acfg_seen = True   # 讀到雲端了:啟動那次算過;08:45 以後讀到的算今天那次
+        if time.strftime("%H:%M", _tw) >= "08:45": self._acfg_day = time.strftime("%Y-%m-%d", _tw)
         t = self.trader
         if not hasattr(self, "_acfg_base"):   # 第一次:記下 bridge.env 的原值(雲端拿掉某欄時回到原值)
             self._acfg_base = {"judges": set(t.judges), "auto": t.auto, "max_amount": t.max_amount, "cap": t.cap, "max_loss": t.max_loss, "kill_loss": t.kill_loss, "lot_mode": getattr(t, "lot_mode", 0)}
@@ -1671,7 +1673,10 @@ class Bridge:
                 except Exception as e: log("寫進場結果檔失敗", e)
                 _tw = time.gmtime(time.time() + 8 * 3600)   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:盤中重開 / 開盤前沒讀到 → 盤中也每分鐘讀,讀到為止(主導機盤中禁改,讀到一次就好)
                 if k % 60 == 1 and (time.strftime("%H:%M", _tw) < "09:00" or getattr(self, "cap_ok_day", "") != time.strftime("%Y-%m-%d", _tw)): threading.Thread(target=self.cap_sync, daemon=True).start()   # 2026-11-07 19:32「開盤中不用追蹤主導機設定」09:03 → 09:00 前;2026-11-02 跟 5861 主導機的多空上限:開盤前每分鐘讀,盤中設定禁改 → 09:03 後不讀
-                if FAMILY and k % 60 == 31: threading.Thread(target=self.acfg_sync, daemon=True).start()   # 自動當沖夥伴版 §6.1:每分鐘讀主導$ 的夥伴設定
+                # 自動當沖夥伴版 §6.1:主導$ 的夥伴設定 —— 2026-11-17 使用者「盤中修改設定 電腦與雲端不可以接受 … 只需要在盤前8.45檢查一次 即可」→「改」:
+                #   原本每分鐘讀 → 改成 啟動時讀一次(新夥伴第一次才有設定)+ 每天 08:45 讀一次;盤中設定不會變(雲端盤中也不收修改)
+                if FAMILY and k % 60 == 31 and (not getattr(self, "_acfg_seen", False) or (time.strftime("%H:%M", _tw) >= "08:45" and getattr(self, "_acfg_day", "") != time.strftime("%Y-%m-%d", _tw))):
+                    threading.Thread(target=self.acfg_sync, daemon=True).start()
                 # 2026-10-29 額度(使用者「我現在要做的是2」):沒開自動交易時沒有人查今天的委託成交 → 每 QUOTA_SEC(60)秒查一次,查到就由 quota_from_report 推上雲端
                 if CFG.get("QUOTA_PUSH", "1") == "1" and CFG.get("PUSH_KEY") and k % int(CFG.get("QUOTA_SEC", "60")) == 0 and self.logged_in.is_set():
                     try: self.query_today(with_oco=False)

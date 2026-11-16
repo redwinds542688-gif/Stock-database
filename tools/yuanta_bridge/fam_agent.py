@@ -208,8 +208,9 @@ def run():
     watch = {}   # 名字 → 開始等登入的時間
     while True:
         try:
+            t = now_tw(); mkt = t.weekday() < 5 and "09:00" <= t.strftime("%H:%M") < "13:30"   # 2026-11-17 盤中不新增 / 不移除夥伴(13:30 後才處理)
             r = api("fam=jobs")
-            for j in r.get("jobs", []) if isinstance(r, dict) else []:
+            for j in ([] if mkt else (r.get("jobs", []) if isinstance(r, dict) else [])):
                 n = j.get("name", "")
                 try:
                     if j.get("op") == "add":
