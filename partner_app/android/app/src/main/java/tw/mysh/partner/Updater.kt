@@ -2,11 +2,14 @@ package tw.mysh.partner
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import androidx.core.content.FileProvider
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
@@ -14,67 +17,90 @@ import java.net.URL
 import kotlin.concurrent.thread
 
 /**
- * 夥伴看盤 App 自動更新(2026-11-15 使用者「看盤版 基本上不會改版 但也需要具備自動更新的能力」)
- * 照名揚四海 Updater.kt 的做法另寫一份(不共用):打開 App 時 + 每個平日 08:30(UpdateAlarm)看雲端的 partner_app/apk/version.json,
- * 比手上的新才跳「有新版」;按「下載安裝」→ 下載 APK、確認版本對 → 打開系統安裝畫面,再按一次「安裝」就好,金鑰和設定都保留。
- * 檔案經 Worker ?gh=raw 讀 GitHub(和名揚四海同一條);沒新版、讀不到都不打擾。
+ * 夥伴看盤 App 自動更新。
+ * 2026-11-15 使用者「看盤版 基本上不會改版 但也需要具備自動更新的能力」「每次開盤前30分鐘 跟開啟程式時 檢查一次版本」
+ * 2026-11-16 21:45 使用者「而且要自己自動更新」:有新版就自己下載、自己裝好,不用按「下載安裝」「安裝」
+ *   - Android 12 以上:系統允許 App 更新自己不用再問(PackageInstaller + USER_ACTION_NOT_REQUIRED),金鑰和設定都保留;
+ *     裝的時候 App 會關掉一下,裝好跳通知「已更新」,點一下打開(Android 不准 App 自己在背景跳回來)
+ *   - Android 11 以下,或系統還是要問:會跳系統的「安裝」畫面,按一次就好
+ *   - 第一次要允許「安裝不明來源的應用程式」(只要設一次),沒允許時會帶你去設定
+ * 什麼時候檢查:打開 App 時 + 每個平日台北 08:30(UpdateAlarm)。畫面本身(1.0.16 起)每次打開都讀雲端最新的,不用更新 App;
+ * 只有手機功能改了才會有新版 App。版本號讀 partner_app/apk/version.json;安裝檔從 /partner/app.apk(雲端暫存 60 秒)。
  */
 object Updater {
-    private const val BASE = "https://twse-proxy.redwinds542688.workers.dev/?gh=raw&path=partner_app/apk/"
+    private const val VER = "https://twse-proxy.redwinds542688.workers.dev/?gh=raw&path=partner_app/apk/version.json"
+    private const val APK = "https://twse-proxy.redwinds542688.workers.dev/partner/app.apk"
+    const val ACTION_DONE = "tw.mysh.partner.INSTALL_DONE"
     data class Info(val code: Int, val name: String)
+    @Volatile private var busy = false
 
     fun fetchInfo(): Info? = try {
-        val c = URL(BASE + "version.json&_=" + System.currentTimeMillis()).openConnection() as HttpURLConnection
+        val c = URL("$VER&_=" + System.currentTimeMillis()).openConnection() as HttpURLConnection
         c.connectTimeout = 15000; c.readTimeout = 20000; c.useCaches = false
         if (c.responseCode != 200) null else JSONObject(c.inputStream.bufferedReader(Charsets.UTF_8).readText()).let { Info(it.optInt("versionCode", 0), it.optString("versionName", "?")) }
     } catch (e: Exception) { null }
 
+    fun canInstall(ctx: Context): Boolean = Build.VERSION.SDK_INT < 26 || ctx.packageManager.canRequestPackageInstalls()
+
+    /** 打開 App 時:有新版 → 自己下載、自己裝(沒允許安裝時才問一次要不要去設定) */
     fun check(act: Activity) {
         thread {
             val info = fetchInfo() ?: return@thread
             if (info.code <= BuildConfig.VERSION_CODE) return@thread
-            act.runOnUiThread {
-                if (act.isFinishing) return@runOnUiThread
-                AlertDialog.Builder(act).setTitle("夥伴看盤有新版 ${info.name}")
-                    .setMessage("目前 ${BuildConfig.VERSION_NAME} → ${info.name}\n\n按「下載安裝」會下載新版並打開安裝畫面,再按一次「安裝」就完成,金鑰和設定都會保留。")
-                    .setPositiveButton("下載安裝") { _, _ -> download(act, info) }
-                    .setNegativeButton("先不要", null).show()
+            if (!canInstall(act)) { act.runOnUiThread { askPermission(act, info) }; return@thread }
+            val err = update(act.applicationContext, info)
+            if (err != null) act.runOnUiThread {
+                if (!act.isFinishing) AlertDialog.Builder(act).setTitle("自動更新沒成功").setMessage("$err\n\n下次打開 App 會再自動試一次。").setPositiveButton("好", null).show()
             }
         }
     }
 
-    private fun download(act: Activity, info: Info) {
-        if (Build.VERSION.SDK_INT >= 26 && !act.packageManager.canRequestPackageInstalls()) {
-            AlertDialog.Builder(act).setTitle("先允許安裝")
-                .setMessage("第一次要允許「夥伴看盤」安裝更新(只要設一次),按「去設定」打開後回來,下次打開 App 會再問一次。")
-                .setPositiveButton("去設定") { _, _ -> act.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${act.packageName}"))) }
-                .setNegativeButton("取消", null).show()
-            return
-        }
-        val dlg = AlertDialog.Builder(act).setTitle("下載中…").setMessage("約 1 MB,請稍候").setCancelable(false).show()
-        thread {
-            var err: String? = null
-            val dir = File(act.cacheDir, "apk").apply { mkdirs() }
+    private fun askPermission(act: Activity, info: Info) {
+        if (act.isFinishing) return
+        AlertDialog.Builder(act).setTitle("夥伴看盤有新版 ${info.name}")
+            .setMessage("要讓 App 以後自己自動更新,第一次要允許「夥伴看盤」安裝應用程式(只要設一次)。\n\n按「去設定」打開開關,回來後 App 會自己更新。")
+            .setPositiveButton("去設定") { _, _ -> act.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${act.packageName}"))) }
+            .setNegativeButton("先不要", null).show()
+    }
+
+    /** 下載 → 確認是新版 → 交給系統安裝(不用按)。回傳錯誤訊息;成功(已交給系統)回 null */
+    fun update(ctx: Context, info: Info): String? {
+        if (busy) return null
+        busy = true
+        try {
+            val dir = File(ctx.cacheDir, "apk").apply { mkdirs() }
             dir.listFiles()?.forEach { try { it.delete() } catch (e: Exception) {} }
             val out = File(dir, "PartnerViewer-${info.code}.apk")
-            try {
-                // 2026-11-16 00:57 使用者截圖「下載失敗 雲端傳回的還是舊版」:?gh=raw 的 .apk 雲端暫存 30 分鐘(版本號只 1 分鐘)→ 改從夥伴專用的下載點(暫存 1 分鐘);不動名揚四海共用的 gh=raw
-                val c = URL("https://twse-proxy.redwinds542688.workers.dev/partner/app.apk?v=${info.code}&_=" + System.currentTimeMillis()).openConnection() as HttpURLConnection
-                c.connectTimeout = 20000; c.readTimeout = 120000; c.useCaches = false; c.instanceFollowRedirects = true
-                if (c.responseCode != 200) throw Exception("HTTP ${c.responseCode}")
-                c.inputStream.use { i -> out.outputStream().use { o -> i.copyTo(o) } }
-                val pi = act.packageManager.getPackageArchiveInfo(out.absolutePath, 0)
-                if (pi == null || pi.packageName != act.packageName) throw Exception("下載的檔案不對")
-                @Suppress("DEPRECATION") if (pi.versionCode < info.code) throw Exception("雲端還沒換成新版,請過 3 分鐘再打開 App")
-            } catch (e: Exception) { err = e.message ?: e.toString() }
-            act.runOnUiThread {
-                try { dlg.dismiss() } catch (e: Exception) {}
-                if (err != null) { AlertDialog.Builder(act).setTitle("下載失敗").setMessage(err).setPositiveButton("好", null).show(); return@runOnUiThread }
-                try {
-                    val uri = FileProvider.getUriForFile(act, act.packageName + ".files", out)
-                    act.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION))
-                } catch (e: Exception) { AlertDialog.Builder(act).setTitle("無法打開安裝程式").setMessage(e.message ?: e.toString()).setPositiveButton("好", null).show() }
+            val c = URL("$APK?v=${info.code}&_=" + System.currentTimeMillis()).openConnection() as HttpURLConnection
+            c.connectTimeout = 20000; c.readTimeout = 120000; c.useCaches = false; c.instanceFollowRedirects = true
+            if (c.responseCode != 200) return "下載失敗(HTTP ${c.responseCode})"
+            c.inputStream.use { i -> out.outputStream().use { o -> i.copyTo(o) } }
+            val pi = ctx.packageManager.getPackageArchiveInfo(out.absolutePath, 0) ?: return "下載的檔案不對"
+            if (pi.packageName != ctx.packageName) return "下載的檔案不對"
+            @Suppress("DEPRECATION") if (pi.versionCode < info.code) return "雲端還沒換成新版,過幾分鐘會再試"
+            val inst = ctx.packageManager.packageInstaller
+            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            if (Build.VERSION.SDK_INT >= 31) params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+            val id = inst.createSession(params)
+            inst.openSession(id).use { s ->
+                s.openWrite("app.apk", 0, out.length()).use { o -> out.inputStream().use { it.copyTo(o) }; s.fsync(o) }
+                val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
+                val done = PendingIntent.getBroadcast(ctx, id, Intent(ctx, InstallReceiver::class.java).setAction(ACTION_DONE), flags)
+                s.commit(done.intentSender)
             }
-        }
+            return null
+        } catch (e: Exception) {
+            return e.message ?: e.toString()
+        } finally { busy = false }
+    }
+}
+
+/** 系統裝完(或要使用者按一下)時回報這裡:要按 → 打開系統的安裝畫面;失敗 → 不打擾,下次再試 */
+class InstallReceiver : BroadcastReceiver() {
+    override fun onReceive(ctx: Context, intent: Intent) {
+        if (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE) != PackageInstaller.STATUS_PENDING_USER_ACTION) return
+        @Suppress("DEPRECATION") val confirm = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT) ?: return
+        try { ctx.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        catch (e: Exception) { try { UpdateAlarm.notifyNew(ctx, "") } catch (x: Exception) {} }   // 背景打不開安裝畫面(08:30 App 沒開)→ 改跳通知
     }
 }

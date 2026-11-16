@@ -37,15 +37,26 @@ object UpdateAlarm {
         val b = if (Build.VERSION.SDK_INT >= 26) android.app.Notification.Builder(ctx, CH) else android.app.Notification.Builder(ctx)
         nm.notify(830, b.setSmallIcon(R.drawable.ic_stat).setContentTitle("夥伴看盤有新版 $name").setContentText("點這裡打開 App 更新").setContentIntent(open).setAutoCancel(true).build())
     }
+    /** 2026-11-16 自己更新完:跳「已更新」,點了打開 App(Android 不准 App 自己在背景跳回前景) */
+    fun notifyDone(ctx: Context) {
+        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= 26) nm.createNotificationChannel(NotificationChannel(CH, "夥伴看盤更新", NotificationManager.IMPORTANCE_DEFAULT))
+        val open = PendingIntent.getActivity(ctx, 2, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        @Suppress("DEPRECATION")
+        val b = if (Build.VERSION.SDK_INT >= 26) android.app.Notification.Builder(ctx, CH) else android.app.Notification.Builder(ctx)
+        nm.notify(830, b.setSmallIcon(R.drawable.ic_stat).setContentTitle("夥伴看盤已自動更新到 ${BuildConfig.VERSION_NAME}").setContentText("點這裡打開").setContentIntent(open).setAutoCancel(true).build())
+    }
 }
 
 class UpdateReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         val app = ctx.applicationContext
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) { UpdateAlarm.schedule(app); return }
+        if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) { UpdateAlarm.schedule(app); try { UpdateAlarm.notifyDone(app) } catch (e: Exception) {}; return }
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED) { UpdateAlarm.schedule(app); return }
         val done = goAsync()
         thread {
-            try { val info = Updater.fetchInfo(); if (info != null && info.code > BuildConfig.VERSION_CODE) UpdateAlarm.notifyNew(app, info.name) }
+            try { val info = Updater.fetchInfo()   // 2026-11-16「而且要自己自動更新」:08:30 有新版就自己裝;還沒允許安裝 / 裝不了才跳通知
+                if (info != null && info.code > BuildConfig.VERSION_CODE) { if (!Updater.canInstall(app) || Updater.update(app, info) != null) UpdateAlarm.notifyNew(app, info.name) } }
             catch (e: Exception) {} finally { UpdateAlarm.schedule(app); done.finish() }   // 排下一個平日 08:30
         }
     }
