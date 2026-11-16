@@ -1268,7 +1268,10 @@ class Bridge:
                 items["pnl"] = {"pnl": round(getattr(t, "pnl", 0) or 0), "n": getattr(t, "n_trades", 0), "amount": round(getattr(t, "amount_today", 0) or 0)}
                 items["info"] = {"acct": "…" + str(CFG.get("YT_ACCOUNT", ""))[-4:], "max_amount": getattr(t, "max_amount", None), "cap": getattr(t, "cap", None),
                                  "max_loss": getattr(t, "max_loss", None), "kill_loss": getattr(t, "kill_loss", None), "enabled": bool(getattr(t, "enabled", False)),
-                                 "names": {c: (self.quotes.meta.get(c) or {}).get("n", "") for c in list(t.positions)}}
+                                 "names": {c: (self.quotes.meta.get(c) or {}).get("n", "") for c in list(t.positions)},
+                                 # 2026-11-17 使用者「資金 多空上限那些設定 也要打勾」:回報現在用的設定 + 套用的是雲端哪一次(at),夥伴加入拿來一項一項比對
+                                 "cfg_at": getattr(self, "_acfg_at", 0), "lot_mode": getattr(t, "lot_mode", 0), "auto": bool(getattr(t, "auto", False)),
+                                 "judges": sorted(x for x in (getattr(t, "judges", None) or ()) if x in JUDGES_ALL)}
             req = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?pcbk=put", data=json.dumps({"d": day, "acct": ACCT, "items": items}, ensure_ascii=False, default=str).encode(), method="POST",
                                          headers={"Content-Type": "application/json", "X-Push-Key": CFG.get("PUSH_KEY", "")})
             urllib.request.urlopen(req, timeout=15).read()
@@ -1329,6 +1332,7 @@ class Bridge:
             for k, v in want.items():
                 if getattr(t, k, None) != v: chg.append(f"{k} {getattr(t, k)} → {v}"); setattr(t, k, v)
         if chg: log(f"【{ACCT}】套用主導$ 雲端設定(之後的新進場才生效):" + ";".join(str(x) for x in chg))
+        self._acfg_at = c.get("at") or 0   # 2026-11-17 回報「套用的是雲端哪一次設定」(夥伴加入打勾用)
 
     def resume_positions(self, day):
         """2026-10-22 使用者:「加 啟動時接回部位」:查元大今天的委託成交回報 + 有效的二擇一條件單,交給 trader 接回程式開的未平部位"""

@@ -1468,8 +1468,11 @@ export default {
         L[n] = o; await hub.kvPut("fams", L); return J({ ok: true, st: o.st });
       }
       if (!mgrKI) return J({ error: KI && KI.role === "mgr" ? "這把管理鑰匙已綁在另一支手機" : "要夥伴加入的管理鑰匙", badKey: true }, 403);
-      if (famQ === "list") { const L = await L0(), fams = [];
-        for (const [n, o] of Object.entries(L)) { let cfg = null; try { cfg = await hub.kvGet("acfg:" + n); } catch (e) {} fams.push({ name: n, st: o.st || "wait", msg: o.msg || "", at: o.at || 0, key: o.key || "", cfg: cfg || {} }); }
+      if (famQ === "list") { const L = await L0(), fams = []; let AC = null; try { AC = await hub.kvGet("accts"); } catch (e) {}
+        for (const [n, o] of Object.entries(L)) { let cfg = null, rep = null; try { cfg = await hub.kvGet("acfg:" + n); } catch (e) {}
+          // 2026-11-17 打勾:夥伴交易程式最近一次回報(每分鐘 ?pcbk=put 的 info:現在用的設定、套用的是哪一次 cfg_at)
+          try { const d = AC && AC[n] && AC[n].d; if (d) { const x = await hub.kvGet(`pcbka:${n}:${d}:info`); if (x && x.v) rep = { at: x.at || 0, v: x.v }; } } catch (e) {}
+          fams.push({ name: n, st: o.st || "wait", msg: o.msg || "", at: o.at || 0, key: o.key || "", cfg: cfg || {}, rep }); }
         let seen = 0; try { seen = await hub.kvGet("famseen") || 0; } catch (e) {}
         return J({ ok: true, fams, agentAt: seen }); }
       if (request.method !== "POST") return J({ error: "要用 POST" }, 405);

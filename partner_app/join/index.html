@@ -91,6 +91,14 @@ input[type=text],input[type=password],input[type=number]{height:calc(var(--uf) *
 .wr{height:calc(var(--uf) * 1.85);display:flex;align-items:center;justify-content:center;font-size:calc(var(--uf) * 1.15);color:var(--sub);font-variant-numeric:tabular-nums}
 .wr.c{font-size:calc(var(--uf) * 1.7);font-weight:900;color:var(--gold);border-top:1px solid var(--line2);border-bottom:1px solid var(--line2);background:#151B28}
 .wheel:focus-visible .wv{border-color:var(--gold)} .wu{font-size:calc(var(--uf) * 1.3);color:var(--soft)}
+.chs{grid-column:1 / -1;display:flex;gap:calc(var(--uf) * .35);flex-wrap:wrap;margin-top:calc(var(--uf) * .2)}
+.ch{font-size:calc(var(--uf) * .88);font-weight:700;border-radius:999px;padding:calc(var(--uf) * .05) calc(var(--uf) * .55);border:1px solid}
+.ch.y{color:var(--green);border-color:#1F5A33;background:#0E1A12} .ch.w{color:var(--gold);border-color:#8A7320;background:#2A2410} .ch.n{color:#FF8A8A;border-color:#7A2A2E;background:#2A1416}
+.chl{display:flex;gap:calc(var(--uf) * .7);align-items:center} .chl span:last-child{display:flex;flex-direction:column} .chl b{font-size:calc(var(--uf) * 1.15)} .chl small{color:var(--sub);font-size:calc(var(--uf) * .9)}
+.ck2{flex:none;width:calc(var(--uf) * 2);height:calc(var(--uf) * 2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:calc(var(--uf) * 1.1)}
+.ck2.y{background:var(--green);color:#000} .ck2.w{background:#2A2410;color:var(--gold);border:2px solid var(--gold)} .ck2.n{background:#2A1416;color:#FF8A8A;border:2px solid #FF6B6B}
+.tg2{display:inline-block;vertical-align:middle;font-size:calc(var(--uf) * .78);font-weight:700;border-radius:999px;padding:0 calc(var(--uf) * .5);border:1px solid;white-space:nowrap}
+.tg2.y{color:var(--green);border-color:#1F5A33;background:#0E1A12} .tg2.w{color:var(--gold);border-color:#8A7320;background:#2A2410} .tg2.e{color:#7FD3FF;border-color:#1E5A7A;background:#0B1A26}
 .mask{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
 .verl{white-space:nowrap;font-size:calc(var(--uf) * .75);color:var(--sub)}
 .gate .card{width:100%;max-width:420px;border:2px solid var(--gold)}
@@ -118,11 +126,11 @@ const WH = [{t:"當日總額度", s:"100~500 萬", min:100, max:500, st:10}, {t:
   {t:"已平倉虧多少停止進場", s:"0.5~3 萬", min:0.5, max:3, st:0.5}, {t:"帳面虧多少全部平倉", s:"1~5 萬", min:1, max:5, st:0.5}];   /* 2026-11-17 使用者「多空限額暫定最低10萬最高25萬 不再進場最低5000 最高30000 全部平倉最低一萬最高50000」 */
 const fmtV = v => (Math.round(v * 10) / 10).toString();
 const wheelRows = (i, v) => { const w = WH[i]; return [2, 1, 0, -1, -2].map(d => { const x = v + d * w.st; return `<div class="wr${d === 0 ? " c" : ""}">${x >= w.min - 1e-9 && x <= w.max + 1e-9 ? fmtV(x) : ""}</div>`; }).join(""); };
-const money = m => WH.map((w, i) => `<div class="wl"><span class="wt">${w.t}${w.s ? `<small>${w.s}</small>` : ""}</span>
+const money = (m, tg) => WH.map((w, i) => `<div class="wl"><span class="wt"><span>${w.t} ${tg ? `<span id="tgm${i}">${stTag(tg[i])}</span>` : ""}</span>${w.s ? `<small>${w.s}</small>` : ""}</span>
   <div class="wheel" data-i="${i}" data-v="${m[i] / 10000}" role="spinbutton" aria-label="${w.t}" aria-valuenow="${m[i] / 10000}" tabindex="0"><div class="wv">${wheelRows(i, m[i] / 10000)}</div><span class="wu">萬</span></div></div>`).join("");
 function wheelSet(el, v){ const i = +el.dataset.i, w = WH[i]; v = Math.min(w.max, Math.max(w.min, Math.round(v / w.st) * w.st)); if (+el.dataset.v === v) return;
   el.dataset.v = v; el.setAttribute("aria-valuenow", v); el.querySelector(".wv").innerHTML = wheelRows(i, v); try{ navigator.vibrate && navigator.vibrate(8); }catch(e){}
-  if (S.page === "one" && P[S.cur]){ const p = P[S.cur]; p.m[i] = Math.round(v * 10000); if (i === 1) lotTable(); } }
+  if (S.page === "one" && P[S.cur]){ const p = P[S.cur]; p.m[i] = Math.round(v * 10000); if (i === 1) lotTable(); refreshTags(); } }
 function lotTable(){ const p = P[S.cur], tb = $("lotTb"), h = $("lotH"); if (h) h.textContent = `進場張數(多空上限 ${fmtV(p.m[1] / 10000)} 萬)`;
   if (tb) tb.innerHTML = [15,25,40,60,90,120].map(px => `<tr><td>${px} 元</td>${[1,2,3].map(m => `<td>${lotsOf(m, p.m[1], px)}</td>`).join("")}</tr>`).join(""); }
 /* 手指拖:每滑 28px 一級;往下 = 增加、往上 = 減少 */
@@ -158,11 +166,14 @@ const ST = {wait: ["wait", "等電腦處理"], pc: ["pc", "電腦設定中"], ru
 const P = [];
 function fromList(j){ P.length = 0; for (const f of (j && j.fams) || []){ const c = f.cfg || {}, js = c.judges || {};
   P.push({n: f.name, st0: f.st, st: (ST[f.st] || ["wait", f.st])[0], t: (ST[f.st] || ["", f.st])[1], d: f.msg || "", k: f.key || "",
-    m: [c.max_amount || 1000000, c.cap || 100000, c.max_loss || 10000, c.kill_loss || 20000], lot: c.lot_mode || 1, at: c.at || 0, on: c.enabled !== false, j: JN.map(x => js[x] !== false)}); }
-  S.agentAt = (j && j.agentAt) || 0; }
+    m: [c.max_amount || 1000000, c.cap || 100000, c.max_loss || 10000, c.kill_loss || 20000], lot: c.lot_mode || 1, at: c.at || 0, c, rep: f.rep || null, msg: f.msg || "", st1: f.st, on: c.enabled !== false, j: JN.map(x => js[x] !== false)}); }
+  for (const p of P) p.ok = okOf(p); S.agentAt = (j && j.agentAt) || 0; }
 const agentOk = () => S.agentAt && Date.now() - S.agentAt < 3 * 60000;
 async function refresh(){ try{ const j = await api("fam=list"); fromList(j); return true; }catch(x){ if (x.bad){ kSet(""); S.page = "gate"; render(); } return false; } }
-function poll(){ clearTimeout(poll.t); poll.t = setTimeout(async () => { if (["list", "wait"].includes(S.page)){ const nm = S.page === "wait" ? S.nm : null; await refresh();
+function poll(){ clearTimeout(poll.t); poll.t = setTimeout(async () => {
+    if (S.page === "one" && P[S.cur]){ try{ const j = await api("fam=list"), cur = P[S.cur], f = (j.fams || []).find(x => x.name === cur.n);   /* 詳細頁:只更新打勾(不動你正在改、還沒傳送的值) */
+      if (f){ cur.c = f.cfg || {}; cur.rep = f.rep || null; cur.st1 = f.st; cur.msg = f.msg || ""; cur.at = cur.c.at || 0; cur.ok = okOf(cur); const e = $("chc"); if (e) e.outerHTML = chCard(cur); refreshTags(); } }catch(x){} }
+    if (["list", "wait"].includes(S.page)){ const nm = S.page === "wait" ? S.nm : null; await refresh();
     if (nm){ const q = P.find(x => x.n === nm); if (q && q.st0 === "run"){ S.cur = P.indexOf(q); S.page = "one"; } } if (["list", "wait"].includes(S.page) || S.page === "one") render(); } poll(); }, 5000); }
 function vList(){
   const warn = S.agentAt !== undefined && !agentOk() ? `<div class="lock" style="color:#FFC9C9;background:#2A1416;border-color:#7A2A2E">⚠ 電腦的夥伴服務沒在跑(電腦沒開,或還沒裝:電腦執行 python fam_agent.py install)。新增的夥伴會等電腦開了才處理。</div>` : "";
@@ -172,7 +183,7 @@ function vList(){
       <div class="step todo"><i>2</i>按「新增夥伴」,輸入他的元大帳號、密碼、額度</div>
       <div class="step todo"><i>3</i>電腦登入成功,自動產生他的看盤金鑰 QR Code,傳給他</div></div></div>
     <button type="button" class="btn gold" id="add">＋ 新增第一位夥伴</button>`;
-  return `<h2>夥伴(${P.length} 位)</h2>${warn}${P.map((p, i) => `<div class="prow" data-i="${i}" role="button" tabindex="0"><b>${esc(p.n)}</b><span class="st ${p.st}">${p.t}</span><small>${esc(p.d)}</small></div>`).join("")}
+  return `<h2>夥伴(${P.length} 位)</h2>${warn}${P.map((p, i) => `<div class="prow" data-i="${i}" role="button" tabindex="0"><b>${esc(p.n)}</b><span class="st ${p.st}">${p.t}</span><small>${esc(p.d)}</small><div class="chs">${chips(p)}</div></div>`).join("")}
     <button type="button" class="btn gold" id="add">＋ 新增夥伴</button>`;
 }
 /* 2026-11-17 使用者「盤中修改設定 電腦與雲端不可以接受 只有盤後或盤前才能接受 … 盤前8.45檢查一次」→「改 新增夥伴盤中也擋」:
@@ -185,6 +196,30 @@ const effTxt = at => { const d = twd(at); let x = new Date(Date.UTC(d.getUTCFull
   const now = twd(), td = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 8, 45);
   if (now.getTime() >= x.getTime()) return "已生效";   /* 那個 08:45 已經過了 */
   return (x.getTime() === td ? "今天 08:45" : x.getTime() - td === 86400e3 ? "明天 08:45" : `${x.getUTCMonth() + 1}/${x.getUTCDate()} 08:45`) + " 生效"; };
+/* 2026-11-17 使用者「當夥伴資料與設定完成 上傳雲端跟電腦 沒有問題 在夥伴這邊都要出現 打勾 表示通道接通」+「資金 多空上限那些設定 也要打勾」→「改」:
+   通道 4 個勾:雲端(收到設定)/ 電腦(夥伴交易程式回報的 cfg_at = 這次設定)/ 元大(登入成功且還在回報)/ 看盤金鑰;
+   每項設定:手機上改了還沒傳送 = ✎;雲端的值 = 電腦回報正在用的值 = ✓ 已套用;否則 = ⏳ 等 08:45 */
+const agoTxt = at => { const m = Math.round((Date.now() - at) / 60000); return m < 1 ? "剛剛" : m < 60 ? `${m} 分鐘前` : whenTxt(at); };
+function okOf(p){ const c = p.c || {}, r = p.rep, v = (r && r.v) || {}, fresh = r && Date.now() - r.at < 3 * 60000, o = {};
+  o.cloud = !!c.at; o.cloudT = c.at ? `${whenTxt(c.at)} 收到設定` : "還沒有設定";
+  if (!r) { o.pc = c.at ? "wait" : false; o.pcT = "夥伴的交易程式還沒有回報"; }
+  else if (c.at && v.cfg_at === c.at) { o.pc = true; o.pcT = `已套用這次設定 · ${agoTxt(r.at)}回報`; }
+  else { o.pc = "wait"; const e = c.at ? effTxt(c.at) : ""; o.pcT = e && e !== "已生效" ? "等" + e.replace(" 生效", " 套用") : "電腦還沒讀到這次設定(下次 08:45 或交易程式重開時)"; }
+  if (p.st1 === "run") { o.yt = !!r && (fresh || !mkt()); o.ytT = !r ? "元大已登入 · 還沒有回報" : fresh ? `元大已登入 · ${agoTxt(r.at)}有回報` : mkt() ? `盤中 ${Math.round((Date.now() - r.at) / 60000)} 分鐘沒回報(夥伴電腦 / 交易程式?)` : `元大已登入 · 最後回報 ${whenTxt(r.at)}`; }
+  else if (p.st1 === "fail") { o.yt = false; o.ytT = p.msg; } else { o.yt = "wait"; o.ytT = p.msg || "還沒登入"; }
+  return o; }
+function setTags(p){ const c = p.c || {}, v = (p.rep && p.rep.v) || null, cj = c.judges || {}, sentJ = JN.filter(x => cj[x] !== false);
+  const one = (local, sent, applied) => sent == null ? (local !== undefined ? "e" : "") : local !== sent ? "e" : v && applied === sent ? "y" : "w";
+  return { m: [["max_amount", 0], ["cap", 1], ["max_loss", 2], ["kill_loss", 3]].map(([k, i]) => one(p.m[i], c[k], v && v[k])),
+    on: one(p.on, c.enabled === undefined ? undefined : c.enabled !== false, v && v.auto),
+    lot: one(p.lot, c.lot_mode, v && v.lot_mode),
+    j: (() => { const loc = JN.filter((x, i) => p.j[i]).join(), snt = sentJ.join(); if (!c.at) return ""; if (loc !== snt) return "e"; return v && JN.filter(x => (v.judges || []).includes(x)).join() === snt ? "y" : "w"; })() }; }   /* 公式不管電腦回報的順序 */
+function refreshTags(){ const p = P[S.cur]; if (!p || S.page !== "one") return; const t = setTags(p);
+  t.m.forEach((k, i) => { const e = $("tgm" + i); if (e) e.innerHTML = stTag(k); }); [["tgon", t.on], ["tgj", t.j], ["tglot", t.lot]].forEach(([id, k]) => { const e = $(id); if (e) e.innerHTML = stTag(k); }); }
+const CH = p => [["雲端", p.ok.cloud, p.ok.cloudT], ["電腦", p.ok.pc, p.ok.pcT], ["元大", p.ok.yt, p.ok.ytT], ["看盤金鑰", !!p.k, ""]];
+const chips = p => CH(p).map(([t, ok]) => `<span class="ch ${ok === true ? "y" : ok === "wait" ? "w" : "n"}">${ok === true ? "✓" : ok === "wait" ? "⏳" : "✗"} ${t}</span>`).join("");
+const chCard = p => `<div class="card" id="chc"><b style="font-size:calc(var(--uf) * 1.2)">通道</b>${CH(p).map(([t, ok, d]) => `<div class="chl"><span class="ck2 ${ok === true ? "y" : ok === "wait" ? "w" : "n"}">${ok === true ? "✓" : ok === "wait" ? "⏳" : "✗"}</span><span><b>${t}</b><small>${d}</small></span></div>`).join("")}</div>`;
+const stTag = k => k === "y" ? `<span class="tg2 y">✓ 已套用</span>` : k === "w" ? `<span class="tg2 w">⏳ 08:45 套用</span>` : k === "e" ? `<span class="tg2 e">✎ 還沒傳送</span>` : "";
 const esc = t => String(t || "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"})[c]);
 function vNew(){ return `<button type="button" class="back" id="bk">‹ 夥伴列表</button><h2>新增夥伴</h2>
   <label>夥伴名字<small>最多 12 個字,例如 小明、阿姨</small><input type="text" id="nm" value="${esc(S.nm0 || "")}" maxlength="12" placeholder="例如 小明"></label>
@@ -208,14 +243,14 @@ function vOne(){ const p = P[S.cur]; if (!p) return vList();
   if (p.st0 !== "run") return head + `<div class="card"><b style="font-size:calc(var(--uf) * 1.2)">狀態:${p.t}</b><p class="hint">${esc(p.d)}</p></div>
     ${p.st0 === "fail" ? `<button type="button" class="btn blue" id="retry">重新輸入再送一次</button>` : ""}
     <button type="button" class="btn" id="rm" style="color:var(--bad);border-color:#7A2A2E">移除 ${esc(p.n)}</button>`;
-  return head + `
+  return head + chCard(p) + `
   <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">${esc(p.n)} 的看盤金鑰 QR Code</b><div class="qbox">${p.k ? qrSvg(p.k) : ""}</div>
     <p class="hint" style="text-align:center">只給圖,不顯示金鑰</p>${USE(esc(p.n))}
     <div class="row2"><button type="button" class="btn gold" id="save">存到相簿</button><button type="button" class="btn blue" id="share">傳給夥伴</button></div></div>
-  <div class="card"><div class="sw"><span>自動交易</span><button type="button" class="tg${p.on ? " on" : ""}" id="tgl" aria-label="自動交易開關"></button></div><p class="hint">關掉 = 不再新進場(已有的部位照規則平倉)。</p></div>
-  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">公式(點一下開 / 關)</b><div class="jg">${JN.map((j, i) => `<button type="button" data-j="${i}" class="${p.j[i] ? "on" : ""}">${j}</button>`).join("")}</div></div>
-  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">額度</b>${money(p.m)}</div>
-  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)" id="lotH">進場張數(多空上限 ${fmtV(p.m[1] / 10000)} 萬)</b>
+  <div class="card"><div class="sw"><span>自動交易 <span id="tgon">${stTag(setTags(p).on)}</span></span><button type="button" class="tg${p.on ? " on" : ""}" id="tgl" aria-label="自動交易開關"></button></div><p class="hint">關掉 = 不再新進場(已有的部位照規則平倉)。</p></div>
+  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">公式(點一下開 / 關) <span id="tgj">${stTag(setTags(p).j)}</span></b><div class="jg">${JN.map((j, i) => `<button type="button" data-j="${i}" class="${p.j[i] ? "on" : ""}">${j}</button>`).join("")}</div></div>
+  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">額度</b>${money(p.m, setTags(p).m)}</div>
+  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)"><span id="lotH">進場張數(多空上限 ${fmtV(p.m[1] / 10000)} 萬)</span> <span id="tglot">${stTag(setTags(p).lot)}</span></b>
     <label class="opt${p.lot === 1 ? " on" : ""}" data-lot="1"><input type="radio" name="lot"${p.lot === 1 ? " checked" : ""}><span><b>① 能買幾張就幾張</b><small>上限內能買幾張買幾張(跟主導$ 現在一樣)</small></span></label>
     <label class="opt${p.lot === 2 ? " on" : ""}" data-lot="2"><input type="radio" name="lot"${p.lot === 2 ? " checked" : ""}><span><b>② 只買 1 張</b><small>上限內不管股價,每筆都只買 1 張</small></span></label>
     <label class="opt${p.lot === 3 ? " on" : ""}" data-lot="3"><input type="radio" name="lot"${p.lot === 3 ? " checked" : ""}><span><b>③ 分級</b><small>25 萬以前那套分級,照上限等比例縮小</small></span></label>
@@ -311,17 +346,17 @@ async function sendNew(){ const e = $("nerr"), nm = ($("nm").value || "").trim()
 async function saveOne(){ const p = P[S.cur], j = {}; JN.forEach((x, i) => j[x] = !!p.j[i]);
   try{ await api(`acfg=set&a=${encodeURIComponent(p.n)}`, {judges: j, enabled: p.on, max_amount: p.m[0], cap: p.m[1], max_loss: p.m[2], kill_loss: p.m[3], lot_mode: p.lot}); await refresh(); render(); toast("✓ 已傳送到雲端,電腦" + effTxt(Date.now()).replace(" 生效", " 套用")); }
   catch(x){ toast("儲存失敗:" + (x.message || x)); } }
-main.addEventListener("click", async e => { const o = e.target.closest(".opt[data-lot]"); if (o){ P[S.cur].lot = +o.dataset.lot; main.querySelectorAll(".opt[data-lot]").forEach(x => x.classList.toggle("on", x === o)); return; }
+main.addEventListener("click", async e => { const o = e.target.closest(".opt[data-lot]"); if (o){ P[S.cur].lot = +o.dataset.lot; main.querySelectorAll(".opt[data-lot]").forEach(x => x.classList.toggle("on", x === o)); refreshTags(); return; }
   const t = e.target.closest("button,.prow"); if (!t) return; const id = t.id;
   if (id === "in") return tryKey($("gk").value);
   if (id === "gscan") return qrScan(t2 => { $("gk").value = t2; tryKey(t2); }, () => {});
   if (t.classList.contains("prow")){ S.cur = +t.dataset.i; const p = P[S.cur]; if (p.st0 === "wait" || p.st0 === "pc"){ S.nm = p.n; S.page = "wait"; } else S.page = "one"; return render(); }
-  if (t.dataset.j != null){ const p = P[S.cur]; p.j[+t.dataset.j] = !p.j[+t.dataset.j]; t.classList.toggle("on"); return; }
+  if (t.dataset.j != null){ const p = P[S.cur]; p.j[+t.dataset.j] = !p.j[+t.dataset.j]; t.classList.toggle("on"); refreshTags(); return; }
   if (id === "add"){ S.nm0 = ""; S.page = "new"; return render(); }
   if (id === "retry"){ const q = P.find(x => x.n === S.nm) || P[S.cur]; S.nm0 = q ? q.n : ""; S.page = "new"; return render(); }
   if (id === "bk"){ S.page = "list"; await refresh(); return render(); }
   if (id === "send") return sendNew();
-  if (id === "tgl"){ const p = P[S.cur]; p.on = !p.on; t.classList.toggle("on"); return; }
+  if (id === "tgl"){ const p = P[S.cur]; p.on = !p.on; t.classList.toggle("on"); refreshTags(); return; }
   if (id === "sv") return saveOne();
   if (id === "save") return showPoster(P[S.cur].n, P[S.cur].k);
   if (id === "share") return sharePoster(P[S.cur].n, P[S.cur].k);
