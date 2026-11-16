@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.os.SystemClock
 import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
@@ -16,6 +17,9 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.webkit.WebViewAssetLoader
+import java.io.ByteArrayInputStream
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
  * 自動當沖 · 夥伴看盤 App(2026-11-15 使用者「看盤版 改成App 變成apk可以下載安裝 然後一進入就必須輸入金鑰 否則無法進入」)
@@ -43,7 +47,12 @@ class MainActivity : Activity() {
             allowContentAccess = true
         }
         web.webViewClient = object : WebViewClient() {
-            override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? = loader.shouldInterceptRequest(req.url)
+            // 2026-11-16 21:35 使用者「每一次都要重新安裝嗎」→「改」:畫面改從雲端讀最新的(Worker /partner/ = main 的 partner_app/mine.html),改畫面不用重裝;
+            //   網址照舊是 appassets(金鑰存的地方不變、相機照樣能用),只是內容換成雲端那份;雲端讀不到(沒網路、逾時)才用 App 裡內建的那份
+            override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? {
+                if (req.isForMainFrame && req.url.path == "/assets/mine.html") cloudPage()?.let { return it }
+                return loader.shouldInterceptRequest(req.url)
+            }
         }
         web.webChromeClient = object : WebChromeClient() {
             // 掃描金鑰 QR Code:網頁要相機 → 先問 Android 相機權限,同意了才給網頁
@@ -84,9 +93,26 @@ class MainActivity : Activity() {
         else super.onActivityResult(code, result, data)
     }
 
+    private var cloudOk = false
+    /** 讀雲端最新的畫面;內容不像夥伴看盤(例如雲端回錯誤頁)就不用 */
+    private fun cloudPage(): WebResourceResponse? = try {
+        val c = URL("https://twse-proxy.redwinds542688.workers.dev/partner/?app=1&_=" + System.currentTimeMillis()).openConnection() as HttpURLConnection
+        c.connectTimeout = 4000; c.readTimeout = 6000; c.useCaches = false
+        if (c.responseCode != 200) null else {
+            val b = c.inputStream.use { it.readBytes() }
+            val t = String(b, Charsets.UTF_8)
+            if (t.contains("夥伴看盤") && t.contains("</html>")) { cloudOk = true; WebResourceResponse("text/html", "utf-8", ByteArrayInputStream(b)) } else null
+        }
+    } catch (e: Exception) { cloudOk = false; null }
+
+    private var pausedAt = 0L
     override fun onSaveInstanceState(out: Bundle) { super.onSaveInstanceState(out); web.saveState(out) }
-    override fun onResume() { super.onResume(); web.onResume() }
-    override fun onPause() { web.onPause(); super.onPause() }
+    override fun onResume() {
+        super.onResume(); web.onResume()
+        // 離開超過 10 分鐘再回來 → 重新載入(拿到雲端最新的畫面);上次是用內建那份(沒網路)回來也再試一次雲端
+        if (pausedAt > 0 && (!cloudOk || SystemClock.elapsedRealtime() - pausedAt > 10 * 60_000L)) web.reload()
+    }
+    override fun onPause() { pausedAt = SystemClock.elapsedRealtime(); web.onPause(); super.onPause() }
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() { if (web.canGoBack()) web.goBack() else super.onBackPressed() }
@@ -99,6 +125,7 @@ class MainActivity : Activity() {
         @JavascriptInterface fun watchGranted(): Boolean = MainWatch.granted(this@MainActivity)
         @JavascriptInterface fun openWatchSettings() { runOnUiThread { try { startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) } catch (e: Exception) {} } }
         @JavascriptInterface fun version(): String = BuildConfig.VERSION_NAME
+        @JavascriptInterface fun cloud(): Boolean = cloudOk   // 畫面是雲端最新的(true)還是 App 內建的(false,沒網路)
     }
 
     companion object { const val REQ_CAM = 11; const val REQ_FILE = 12; const val REQ_NOTI = 13 }

@@ -509,7 +509,7 @@ document.addEventListener("click", e => { const b = e.target.closest("button"); 
 });
 function notifyQuiet(t){ const L = document.getElementById('toastL'); L.innerHTML = `<div class="toast pc" role="status"><b>${esc(t)}</b></div>`; clearTimeout(notify.t); notify.t = setTimeout(() => L.innerHTML = '', 1800); }
 start();
-try{ document.getElementById("ver").textContent = window.PartnerHost && PartnerHost.version ? "v" + PartnerHost.version() : "網頁版"; }catch(e){}
+try{ const H = window.PartnerHost; document.getElementById("ver").textContent = H && H.version ? "v" + H.version() + (H.cloud && !H.cloud() ? " 離線" : "") : "網頁版"; }catch(e){}   /* 1.0.16 起畫面讀雲端;沒網路用 App 內建那份時標「離線」 */
 // 字型(Noto Sans TC)下載完數字會變寬 → 再縮一次字;畫面大小變了也再算
 try{ document.fonts && document.fonts.ready.then(() => { fit(); fitText(); }); document.fonts && document.fonts.addEventListener && document.fonts.addEventListener("loadingdone", () => fitText()); }catch(e){}
 // 網址版(/partner/,iPhone / iPad / 電腦加到主畫面)才註冊;App(APK)裡不用
