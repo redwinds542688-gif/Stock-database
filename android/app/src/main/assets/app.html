@@ -489,7 +489,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611161126">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611161208">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2454,7 +2454,8 @@ function render(list){
       <div>
         <div class="nm">${s.name || s.code}</div>
         <div class="posline">${(t_ => t_ + (t_.includes('class="pos code"') ? '' : chgSp(s.code, s.chg_pct)))(
-          s.pos ? `<span class="pos ${s.pos}">${s.pos === 'long' ? '做多中' : '做空中'}${s.qty ? ' ' + s.qty + '張' : ''}</span>`
+          (rank.has(s.code) && window.NL_STATUS && NL_STATUS[s.code] === '預掛中') ? '<span class="pos ph">預掛中</span>'   // 2026-11-16 11:37 使用者「難道只有第一列才會顯示預掛中」→「改」:有預掛時「預掛中」優先(原本被手機公式的做多中 / 做空中蓋掉,大成鋼 11/16)
+          : s.pos ? `<span class="pos ${s.pos}">${s.pos === 'long' ? '做多中' : '做空中'}${s.qty ? ' ' + s.qty + '張' : ''}</span>`
                 : (posStatus(s.code) === 'closed' ? '<span class="pos done">已平倉</span>'
                 : (rank.has(s.code) && window.NL_STATUS && NL_STATUS[s.code]) ? `<span class="pos ${NL_STATUS[s.code] === '反彈中' ? 'rebound' : NL_STATUS[s.code] === '預掛中' ? 'ph' : 'attn'}">${NL_STATUS[s.code]}</span>`   // 2026-10-20 反彈中 / 請注意改顯示在這格
                 : (window.__openSide && __openSide.has(s.code)) ? `<span class="pos ${__openSide.get(s.code) === 'long' ? 'long' : 'short'}">${__openSide.get(s.code) === 'long' ? '做多中' : '做空中'}</span>`   // 2026-11-09 12:43 使用者「有進場未平倉的股票 監控中 要改為 做多 或是 做空」(跟當沖同一份)
@@ -7862,7 +7863,7 @@ window.bgTick = bgTick; window.BG = BG;
         if (o.type === 'entry'){ const pk = o.code + '|' + o.side, pv = pend.get(pk); if (pv && keep[pv.__ki] === pv){ pend.delete(pk); keep[pv.__ki] = null; const ki_ = keep.length; keep.push(o);   /* 2026-11-12 12:50 使用者「強制平倉的通知卡 手動平倉的通知卡 也都要這樣子做 通知欄上最前面就是顯示最新的訊息」:預掛成交的進場卡放到成交那一刻(最上面),原位置拿掉 */   // 預掛成交:同一個位置換成真的進場卡
             if (!o.madd && !open.has(kk)){ open.set(kk, o); o.__ki = ki_; } continue; } }
         if (o.type === 'warn' && o.phEnd){ o._hide = true; const pv = [...pend.values()].reverse().find(q => q.code === o.code);
-          if (pv){ pend.delete(pv.code + '|' + pv.side); pv._hide = true; } else { const e = [...open.values()].reverse().find(q => q.code === o.code && q.ph); if (e) e.ph = 0; }
+          if (pv){ pend.delete(pv.code + '|' + pv.side); pv._hide = true; } else { const e = [...open.values()].reverse().find(q => q.code === o.code && q.ph); if (e && !cards.some(x => x !== o && x.type === 'warn' && !x.phEnd && x.code === o.code && x.t === o.t && /預掛(?:買回|賣出)/.test((x.x && x.x.title) || ''))) e.ph = 0; }   /* 2026-11-16 11:47 使用者「改」(大成鋼刪 45.65 重掛 45.75 同一分鐘):Worker 同一分鐘照鍵排序,「預掛已取消」排到新「預掛買回」後面 → 把新預掛的標籤也清掉;同一分鐘同一檔有新預掛卡就不清 */
           keep.push(o); continue; }
         if (o.type === 'entry' && o.madd){ /* 2026-11-05 手動加碼卡:不蓋掉原本的進場卡,自己也不被蓋 */ }
         else if (o.type === 'entry'){ if (open.has(kk)){ o._hide = true; } else { open.set(kk, o); o.__ki = keep.length; } }
@@ -8341,12 +8342,12 @@ window.bgTick = bgTick; window.BG = BG;
         else if (o.type === 'exit' && o.price > 0) u += o.price * lt * 1000; } }catch(e){} return Math.round(u); };
     const used = usedOf(cards); const CAPD = 5000000;   // 2026-10-31 14:57 使用者「490萬 改成500萬」
     // 2026-10-29 使用者:「我說的可用資金是訊息右上那個」→ 有桌機推上來的當沖額度(今天、10 分鐘內)就用它:總額度 − 成交 − 掛著的(含手動);沒有就照上面 App 自己算的
-    let fundLeft = CAPD - used; try{ if (QUOTA.d === today && QUOTA.total > 0) fundLeft = Math.round(QUOTA.total - QUOTA.fill - QUOTA.work - (QUOTA.hold || 0)); }catch(e){}   // 2026-11-02 14:34 使用者「資金 怎麼會-500620」:收盤後電腦不再推額度,超過 10 分鐘就改用手機自己算(連沒交易的訊號都算進去)→ 今天電腦推過的就一直用最後那份
+    let fundLeft = CAPD - used; try{ if (QUOTA.d === today && QUOTA.total > 0) fundLeft = Math.round(QUOTA.total - QUOTA.fill); }catch(e){}   // 2026-11-02 14:34 使用者「資金 怎麼會-500620」:收盤後電腦不再推額度,超過 10 分鐘就改用手機自己算(連沒交易的訊號都算進去)→ 今天電腦推過的就一直用最後那份   /* 2026-11-16 12:03 使用者「永久會員版 資金那邊改 顯示500萬扣元大明細裡的總價金」:資金 = 500 萬 − 元大今天成交總價金(買 + 賣,照實際成交價);不再扣還掛著的委託 / 持倉漲停預留 */
     // 2026-10-30 03:39(實際時間)使用者「右上角 資金4900000 一樣確定開盤當日開盤前15分 才顯示 在此之前 都是顯示剩餘資金」:
     //   平日 08:45 以前(含週末、半夜)→ 顯示前一個交易日收盤時剩下的額度(桌機最後推的 ?quota 是那天的就用它:總額度 − 成交 − 掛著的;否則 490 萬 − 那天的成交),08:45 起才歸回 490 萬(和當沖頁換日的時間一樣)
     try{ const n_ = new Date(Date.now() + 8 * 3600000), hm_ = n_.getUTCHours() * 60 + n_.getUTCMinutes(), wd_ = n_.getUTCDay();
       if (!(wd_ >= 1 && wd_ <= 5 && hm_ >= 8 * 60 + 45)){ const prev = ds.filter(x => x < today).sort().reverse()[0];
-        if (prev){ if (QUOTA.d === prev && QUOTA.total > 0){ fundLeft = Math.round(QUOTA.total - QUOTA.fill - QUOTA.work - (QUOTA.hold || 0)); const Y = yFillsOf(prev), a = fillAmt(Y && Y.rows); if (a > 0) fundLeft = Math.round(QUOTA.total - a - QUOTA.work - (QUOTA.hold || 0)); }
+        if (prev){ if (QUOTA.d === prev && QUOTA.total > 0){ fundLeft = Math.round(QUOTA.total - QUOTA.fill); const Y = yFillsOf(prev), a = fillAmt(Y && Y.rows); if (a > 0) fundLeft = Math.round(QUOTA.total - a); }
           else { ensureCloud(prev); fundLeft = CAPD - usedOf(finish(prep(itemsFor(prev)))); } } } }catch(e){}
     // 2026-11-04 11:28 使用者「還沒回補回來」(電腦端改照成交價算要明天才生效):今天先在手機用元大的成交明細(?trade=fills,每 30 秒)照實際成交價算已成交金額,
     //   資金 = 總額度 − 實際成交金額 − 還掛著的 − 沒平倉的預留(後兩項照電腦推的)
@@ -8354,7 +8355,9 @@ window.bgTick = bgTick; window.BG = BG;
     try{ if (d === today) tfillsPoll(); const F = window.__tfills;
       if (d === today && QUOTA.d === today && QUOTA.total > 0){
         const rows = F && F.ok && F.d === today && Array.isArray(F.rows) && Date.now() - (F.at || 0) < 10 * 60000 ? F.rows : ((yFillsOf(today) || {}).rows);
-        const a = fillAmt(rows); if (a > 0) fundLeft = Math.round(QUOTA.total - a - QUOTA.work - (QUOTA.hold || 0)); } }catch(e){}
+        const a = fillAmt(rows); if (a > 0) fundLeft = Math.round(QUOTA.total - a); } }catch(e){}
+    // 2026-11-16 12:06 使用者「接回時先把今天的成交金額歸零再重算,並用成交序號去掉重複的成交。虛擬這邊要照做」:虛擬 = 500 萬 − 虛擬進出場成交金額(每次從零重算;同一張卡重複只算一次),不拿元大的額度
+    try{ if (window.DONE_VIRT){ const sk = new Set(); const vc = cards.filter(o => { const k = [o.type, o.code, o.side, o.rs || '', o.t, o.entP || 0, o.price || 0].join('|'); if (sk.has(k)) return false; sk.add(k); return true; }); fundLeft = CAPD - usedOf(vc); } }catch(e){}
     fundLeft = Math.max(0, fundLeft);   // 不顯示負的
     if (d === today) window.__fundLeft = fundLeft;   // 2026-10-28 強制進場:資金買不到 1 張 → 長按沒反應
     const ti = dayList.indexOf(window.NL_TOPDAY);

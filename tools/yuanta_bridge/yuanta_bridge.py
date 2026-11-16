@@ -1081,10 +1081,16 @@ class Bridge:
         for i in range(r.StkOrderList.Count):
             try: oprice[str(r.StkOrderList[i].OrderNo).strip()] = float(r.StkOrderList[i].Price or 0)
             except Exception: pass
+        _seen = set()   # 2026-11-16 12:06 使用者「用成交序號去掉重複的成交」:同一筆成交(書號 + 時間 + 價 + 量 + 買賣 + 代碼)回報兩次只算一次
         for i in range(r.StkTradeList.Count):
             x = r.StkTradeList[i]; dp = float(x.SPrice)
+            _k = (str(x.OrderNo).strip(), str(x.DateTime), dp, int(x.OkQty), str(x.BS).strip(), str(x.CompanyNo).strip())
+            if _k in _seen: continue
+            _seen.add(_k)
             fill += dp * int(x.OkQty)   # 2026-11-04 11:24 使用者「應該是平倉後 資金額度會回補回來」→「改」:已成交的照實際成交價算(強平掛漲停 / 跌停,成交後元大把多扣的補回);還掛著的單照委託價(work)、沒平倉的部位照漲停預留(hold)不變  # 原 11/02 版:成交照 max(成交價, 委託價)
-        if self.trader and fill > getattr(self.trader, "amount_today", 0):         # 程式下單前檢查的「今天已用額度」也照這個(比它記的多就用這個)
+        if self.trader and abs(fill - getattr(self.trader, "amount_today", 0)) >= 1:   # 2026-11-16 12:03 使用者「那就是計算出了問題 元大總資金還380幾萬」→「500萬扣元大明細裡的總價金」:程式「今天已用額度」一律照元大成交總價金(原本只往上調;11/16 斷線重開接回後程式算 5,784,900、元大實際約 340 萬 → 10:51 後都不進場、世紀手動加碼被平)
+            try: self.trader.log(f"[交易] 今天成交金額照元大總價金校正 {getattr(self.trader, 'amount_today', 0):,.0f} → {fill:,.0f}") if abs(fill - getattr(self.trader, "amount_today", 0)) >= 10000 else None
+            except Exception: pass
             self.trader.amount_today = fill
         for i in range(r.StkOrderList.Count):
             o = r.StkOrderList[i]

@@ -390,6 +390,14 @@ class Trader:
             oman = {}; ofl = {}   # 2026-11-11 22:20 開倉 / 加碼的成交(時間, 價)→ 接回元三時檢查鐵律
             order_types = order_types or {}
             signals = signals or []                                  # 2026-10-29 稽核 #1:讀通知失敗(None)當作沒有
+            # 2026-11-16 12:06 使用者「接回時先把今天的成交金額歸零再重算,並用成交序號去掉重複的成交」:11/16 斷線重開接回後程式算 5,784,900、元大總價金約 340 萬
+            #   → 先歸零;同一筆成交(委託書號 + 成交時間 + 價 + 量 + 買賣)回報兩次只算一次
+            self.amount_today = 0.0; _seen = set(); _tr = []
+            for t in trades:
+                k_ = (str(t.get("order_no", "")), str(t.get("time", "")), float(t.get("price") or 0), int(t.get("lots") or 0), str(t.get("bs", "")), str(t.get("code", "")))
+                if k_ in _seen: self.log(f"[交易] 接回:重複的成交回報不算 {t.get('code')} {t.get('bs')} {t.get('lots')} 張 @ {t.get('price')}(書號 {t.get('order_no')} {t.get('time')})"); continue
+                _seen.add(k_); _tr.append(t)
+            trades = _tr
             for t in sorted(trades, key=lambda x: x.get("time", "")):
                 c, q = t["code"], t["lots"] * (1 if t["bs"] == "B" else -1)
                 n0 = net.get(c, 0); n1 = n0 + q
