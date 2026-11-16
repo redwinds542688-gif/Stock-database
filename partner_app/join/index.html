@@ -97,7 +97,7 @@ function toast(t){ $("toastL").innerHTML = `<div class="toast">${t}</div>`; clea
 const QR = () => { let r = "", s = 7; for (let y = 0; y < 25; y++) for (let x = 0; x < 25; x++){ const f = (x < 7 && y < 7) || (x > 17 && y < 7) || (x < 7 && y > 17); const on = f ? ((x % 6 === 0 || y % 6 === 0 || (x % 6 > 1 && x % 6 < 5 && y % 6 > 1 && y % 6 < 5)) && !((x === 6 || y === 6) && false)) : ((s = (s * 1103515245 + 12345) & 0x7fffffff) % 3 === 0); if (on) r += `<rect x="${x}" y="${y}" width="1" height="1"/>`; } return `<svg viewBox="0 0 25 25" shape-rendering="crispEdges" aria-label="QR Code(範例)">${r}</svg>`; };
 
 /* 使用者「這程式需要自己製造 QR code 存圖功能 要給夥伴看盤使用的 QR CODE」:真的 QR Code(qrcode-generator),存成一張圖(QR + 名字 + 用法) */
-const invUrl = c => "https://twse-proxy.redwinds542688.workers.dev/partner/join/?invite=" + String(c).replace(/\s/g, "");   /* 邀請連結(範例;接真資料時換成雲端發的) */
+const invUrl = (c, n) => "https://twse-proxy.redwinds542688.workers.dev/partner/join/?invite=" + String(c).replace(/\s/g, "") + (n ? "&n=" + encodeURIComponent(n) : "");   /* 邀請連結(範例;接真資料時換成雲端發的) */
 const newKey = () => "fa11" + [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, "0")).join("");   /* 範例金鑰(接真資料後由雲端發) */
 function qrSvg(t){ const q = qrcode(0, "M"); q.addData(t); q.make(); return q.createSvgTag({cellSize: 4, margin: 2, scalable: true}); }
 function poster(name, key){
@@ -148,13 +148,13 @@ function aList(){
 function aNew(){
   return `<button type="button" class="back" id="bk">‹ 夥伴列表</button><h2>新增夥伴</h2>
   <label>夥伴名字<small>最多 12 個字,例如 小明、阿姨</small><input type="text" id="nm" value="${P.length ? "" : "夥伴A"}" placeholder="例如 小明" maxlength="12"></label>
-  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">額度(之後隨時可改)</b>${money([1000000,100000,20000,50000])}</div>
+  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">額度(之後隨時可改)</b>${money([1000000,100000,10000,20000])}</div>
   <button type="button" class="btn gold" id="mk">產生邀請 QR Code</button>`;
 }
 function aInvite(){
   return `<button type="button" class="back" id="bk">‹ 夥伴列表</button><h2>邀請 ${S.nm}</h2>
   <p class="hint">請夥伴用<b style="color:var(--fg)">自己的手機</b>掃這個 QR Code(或傳連結給他),在他手機上自己輸入元大帳號、電子密碼、憑證。</p>
-  <div class="qr">${qrSvg(invUrl(S.inv))}</div><div class="code">邀請碼 ${S.inv} · 24 小時內有效</div>
+  <div class="qr">${qrSvg(invUrl(S.inv, S.nm))}</div><div class="code">邀請碼 ${S.inv} · 24 小時內有效</div>
   <div class="row2"><button type="button" class="btn blue" id="cp">複製連結</button><button type="button" class="btn" id="bk2">完成</button></div>
   <div class="lock">🔒 夥伴輸入的資料在他手機上就先加密,只有你的電腦解得開;雲端只負責轉送,看不到內容、也不留存。</div>`;
 }
@@ -164,7 +164,7 @@ function money(m){
 }
 function aOne(){
   const p = P[S.cur];
-  const st = p.st === "run" ? `<div class="steps">${stp(4, 4)}</div>` : p.st === "pc" ? `<div class="steps">${stp(3, 4)}</div>` : p.st === "wait" ? `<div class="steps">${stp(1, 4)}</div><div class="qr">${qrSvg(invUrl(p.inv || ""))}</div><div class="code">邀請碼 ${p.inv || ""}</div>` : `<div class="lock" style="color:#FFC9C9;background:#2A1416;border-color:#7A2A2E">⚠ 元大登入失敗:找不到憑證。請夥伴重新掃邀請、再送一次。</div><button type="button" class="btn blue" id="re">重新產生邀請</button>`;
+  const st = p.st === "run" ? `<div class="steps">${stp(4, 4)}</div>` : p.st === "pc" ? `<div class="steps">${stp(3, 4)}</div>` : p.st === "wait" ? `<div class="steps">${stp(1, 4)}</div><div class="qr">${qrSvg(invUrl(p.inv || "", p.n))}</div><div class="code">邀請碼 ${p.inv || ""}</div>` : `<div class="lock" style="color:#FFC9C9;background:#2A1416;border-color:#7A2A2E">⚠ 元大登入失敗:找不到憑證。請夥伴重新掃邀請、再送一次。</div><button type="button" class="btn blue" id="re">重新產生邀請</button>`;
   return `<button type="button" class="back" id="bk">‹ 夥伴列表</button><h2>${p.n}</h2>${st}
   ${p.st === "run" ? `<div class="card"><b style="font-size:calc(var(--uf) * 1.2)">${p.n} 的夥伴看盤金鑰</b><div class="qr">${qrSvg(p.k)}</div><div class="code">fa11 · · · · ${p.k.slice(-4)}</div>
     <div class="row2"><button type="button" class="btn gold" id="save">存到相簿</button><button type="button" class="btn blue" id="share">傳給夥伴</button></div>
@@ -215,7 +215,7 @@ function bDone(){
 }
 
 function render(){
-  $("tag").textContent = S.who === "A" ? "主導$" : "夥伴的手機";
+  $("tag").textContent = S.who === "A" ? "主導$" : INV ? "加入邀請" : "夥伴的手機";
   $("wA").classList.toggle("on", S.who === "A"); $("wB").classList.toggle("on", S.who === "B");
   main.innerHTML = S.who === "A" ? ({list: aList, new: aNew, invite: aInvite, one: aOne})[S.page]() : ({form: bForm, wait: bWait, done: bDone})[S.page]();
   main.scrollTop = 0;
@@ -226,9 +226,9 @@ main.addEventListener("click", e => {
   if (t.classList.contains("prow")){ S.cur = +t.dataset.i; S.page = "one"; return render(); }
   if (t.dataset.j != null){ const p = P[S.cur]; p.j[+t.dataset.j] ^= 1; t.classList.toggle("on"); return; }
   if (id === "add"){ S.page = "new"; return render(); }
-  if (id === "bk2" && !P.some(p => p.n === S.nm)) P.push({n:S.nm, st:"wait", t:"等夥伴填資料", d:`邀請碼 ${S.inv} · 24 小時內有效`, inv:S.inv, m:[1000000,100000,20000,50000], j:[1,1,1,1,1,1,1,1,1], on:false});
+  if (id === "bk2" && !P.some(p => p.n === S.nm)) P.push({n:S.nm, st:"wait", t:"等夥伴填資料", d:`邀請碼 ${S.inv} · 24 小時內有效`, inv:S.inv, m:(S.m && S.m.length === 4 ? S.m : [1000000,100000,10000,20000]), j:[1,1,1,1,1,1,1,1,1], on:false});   /* 存實際填的額度(原本都存預設值) */
   if (id === "bk" || id === "bk2"){ S.page = "list"; return render(); }
-  if (id === "mk"){ S.nm = (($("nm") || {}).value || "").trim().slice(0, 12) || "夥伴" + "ABCDEFGHIJ"[P.length % 10]; S.inv = String(100000 + Math.floor(Math.random() * 900000)).replace(/(\d{3})(\d{3})/, "$1 $2"); S.page = "invite"; return render(); }
+  if (id === "mk"){ S.m = [...main.querySelectorAll(".unit input")].map(x => Math.round((parseFloat(x.value) || 0) * 10000)); S.nm = (($("nm") || {}).value || "").trim().slice(0, 12) || "夥伴" + "ABCDEFGHIJ"[P.length % 10]; S.inv = String(100000 + Math.floor(Math.random() * 900000)).replace(/(\d{3})(\d{3})/, "$1 $2"); S.page = "invite"; return render(); }
   if (id === "cp" ) return toast("(預覽)連結已複製,可以貼到 LINE 傳給夥伴");
   if (id === "re") return toast("(預覽)新的邀請 QR Code 已產生");
   if (id === "tgl"){ if (t.disabled) return; P[S.cur].on = !P[S.cur].on; t.classList.toggle("on"); return toast(P[S.cur].on ? "已打開自動交易" : "已關掉:不再新進場"); }
@@ -244,6 +244,10 @@ main.addEventListener("click", e => {
 });
 main.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.matches(".prow,.file")){ e.preventDefault(); e.target.click(); } });
 $("wA").onclick = () => { S.who = "A"; S.page = "list"; render(); };
+/* 2026-11-16 22:50 使用者「元大 帳號 憑證 那些 從哪裡輸入」→「改」:夥伴掃邀請 QR Code(?invite=邀請碼&n=名字)→ 直接打開夥伴的填寫頁,
+   看不到主導$ 的畫面和上面的預覽切換 */
+const INV = (() => { try{ const q = new URLSearchParams(location.search), c = (q.get("invite") || "").replace(/\D/g, ""); return c.length === 6 ? {c: c.slice(0, 3) + " " + c.slice(3), n: (q.get("n") || "").slice(0, 12)} : null; }catch(e){ return null; } })();
+if (INV){ S.who = "B"; S.page = "form"; S.inv = INV.c; S.nm = INV.n || "夥伴"; document.querySelector(".pv").style.display = "none"; }
 $("wB").onclick = () => { S.who = "B"; S.page = "form"; S.step = 1; S.key = ""; const w = P.slice().reverse().find(x => x.st === "wait"); if (w){ S.nm = w.n; S.inv = w.inv || S.inv; } render(); };
 render();
 /* 版本:App 顯示「App 1.0.0 · 雲端畫面」(畫面每次打開都讀雲端最新的);沒網路時「內建畫面(離線)」;網址版顯示「網頁版」 */
