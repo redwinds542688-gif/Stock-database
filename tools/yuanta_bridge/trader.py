@@ -928,6 +928,7 @@ class Trader:
            記成預掛(prehang)、通知手機;預掛還在時程式的停利 / 停損 / ±% / 平倉通知都先不平(只靠預掛出場),13:20 / 13:24 照舊處理;
            預掛取消 / 失效 → 拿掉、通知手機,程式恢復盯停利停損。手機強平不受影響(先取消預掛再平)"""
         if not no: return
+        if code in self.ignore: return   # 2026-11-16 13:10 使用者「和益 卷買 程式不用管」→「不管 怎麼程式還提示」:不管名單(ignore_codes.txt 留倉 / 借券)的手動委託 / 成交完全不理:不發預掛卡、不跳通知、不接元三
         p = self.positions.get(code); lst = self.prehang.get(code) or []
         # 2026-11-06 14:26 使用者「元大這邊 … 進場通知欄 可以看到我在程式裡強平 或是在元大手動交易 … 手動預掛 進場通知欄也可以看到預掛卡」:
         #   不是平程式部位的手動預掛(新進場 / 加碼)也發預掛卡;取消 / 失效 / 被退回再發一張;成交照舊變元三進場卡
@@ -986,6 +987,8 @@ class Trader:
 
     def on_other_fill(self, code, bs, qty_shares, price, order_no="", typ=""):
         """不是這支程式送的單成交了:手動開新部位(元三)、手動加碼、手動 / 條件單平倉,或程式平倉時條件單也同時觸發(多平了)"""
+        if code in self.ignore and code not in self.positions:   # 2026-11-16 13:10 使用者「和益 卷買 程式不用管」→「不管 怎麼程式還提示」:不管名單(ignore_codes.txt 留倉 / 借券)的手動委託 / 成交完全不理:不發預掛卡、不跳通知、不接元三
+            self.log(f"[交易] {code} 不管名單的手動成交 {'買' if bs == 'B' else '賣'} {qty_shares // 1000} 張 @ {price}(書號 {order_no})→ 不理"); return
         p = self.positions.get(code)
         close_side = lambda d: "B" if d < 0 else "S"
         lots = qty_shares // 1000
