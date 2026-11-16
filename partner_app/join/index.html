@@ -84,6 +84,13 @@ input[type=text],input[type=password],input[type=number]{height:calc(var(--uf) *
 .opt.on{border-color:var(--green);background:#0E1A12} .opt input{accent-color:var(--green);width:calc(var(--uf) * 1.3);height:calc(var(--uf) * 1.3);margin-top:.2em;flex:none}
 .opt span{display:flex;flex-direction:column;gap:2px} .opt b{color:var(--fg);font-size:calc(var(--uf) * 1.1)} .opt small{color:var(--sub);font-size:calc(var(--uf) * .9)}
 .lt{width:100%;border-collapse:collapse;font-size:calc(var(--uf) * 1.05);font-variant-numeric:tabular-nums} .lt th,.lt td{padding:calc(var(--uf) * .35);text-align:center;border-bottom:1px solid var(--line)} .lt th{color:var(--sub);font-weight:500} .lt td:first-child{text-align:left;color:var(--soft)}
+.wl{display:flex;align-items:center;justify-content:space-between;gap:calc(var(--u) * .5)} .wt{display:flex;flex-direction:column;gap:calc(var(--uf) * .2);font-size:calc(var(--uf) * 1.45);font-weight:700;color:var(--fg)} .wt small{font-size:calc(var(--uf) * 1.05);font-weight:500;color:var(--sub)}   /* 2026-11-17 使用者「字可以大一點 太小了」 */
+.wheel{flex:none;display:flex;align-items:center;gap:calc(var(--uf) * .4);touch-action:none;user-select:none;cursor:ns-resize;outline:none}
+.wv{width:calc(var(--uf) * 6);height:calc(var(--uf) * 9.4);overflow:hidden;border-radius:12px;background:#0B0E14;border:1px solid var(--line2);display:flex;flex-direction:column;justify-content:center;position:relative;
+  -webkit-mask-image:linear-gradient(transparent, #000 30%, #000 70%, transparent);mask-image:linear-gradient(transparent, #000 30%, #000 70%, transparent)}
+.wr{height:calc(var(--uf) * 1.85);display:flex;align-items:center;justify-content:center;font-size:calc(var(--uf) * 1.15);color:var(--sub);font-variant-numeric:tabular-nums}
+.wr.c{font-size:calc(var(--uf) * 1.7);font-weight:900;color:var(--gold);border-top:1px solid var(--line2);border-bottom:1px solid var(--line2);background:#151B28}
+.wheel:focus-visible .wv{border-color:var(--gold)} .wu{font-size:calc(var(--uf) * 1.3);color:var(--soft)}
 .mask{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
 .verl{white-space:nowrap;font-size:calc(var(--uf) * .75);color:var(--sub)}
 .gate .card{width:100%;max-width:420px;border:2px solid var(--gold)}
@@ -107,8 +114,28 @@ const S = {page:"gate", cur:0, step:0};
 function toast(t){ $("toastL").innerHTML = `<div class="toast">${t}</div>`; clearTimeout(toast.t); toast.t = setTimeout(() => $("toastL").innerHTML = "", 2200); }
 function qrSvg(t){ const q = qrcode(0, "M"); q.addData(t); q.make(); return q.createSvgTag({cellSize: 4, margin: 2, scalable: true}); }
 const newKey = () => "fa11" + [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, "0")).join("");
-const money = m => [["當日總額度","最多 500 萬(鐵律)"],["多空上限(每筆)","最多 25 萬(鐵律)"],["已平倉虧多少停止進場",""],["帳面虧多少全部平倉",""]]
-  .map(([a, b], i) => `<label>${a}${b ? `<small>${b}</small>` : ""}<div class="unit"><input type="number" value="${m[i] / 10000}" inputmode="decimal"><span>萬</span></div></label>`).join("");
+/* 2026-11-17 使用者「設定金額都改成滾輪式的調整 上滑減少下滑增加 多空限額變動 最下面張數的計算也要跟著變動」:
+   滾輪:手指往上滑 = 減少、往下滑 = 增加(電腦滑鼠滾輪往下 = 增加);中間那格是目前的值,上面一格大一級、下面一格小一級 */
+const WH = [{t:"當日總額度", s:"100~500 萬", min:100, max:500, st:10}, {t:"多空上限(每筆)", s:"10~25 萬", min:10, max:25, st:1},
+  {t:"已平倉虧多少停止進場", s:"0.5~3 萬", min:0.5, max:3, st:0.5}, {t:"帳面虧多少全部平倉", s:"1~5 萬", min:1, max:5, st:0.5}];   /* 2026-11-17 使用者「多空限額暫定最低10萬最高25萬 不再進場最低5000 最高30000 全部平倉最低一萬最高50000」 */
+const fmtV = v => (Math.round(v * 10) / 10).toString();
+const wheelRows = (i, v) => { const w = WH[i]; return [2, 1, 0, -1, -2].map(d => { const x = v + d * w.st; return `<div class="wr${d === 0 ? " c" : ""}">${x >= w.min - 1e-9 && x <= w.max + 1e-9 ? fmtV(x) : ""}</div>`; }).join(""); };
+const money = m => WH.map((w, i) => `<div class="wl"><span class="wt">${w.t}${w.s ? `<small>${w.s}</small>` : ""}</span>
+  <div class="wheel" data-i="${i}" data-v="${m[i] / 10000}" role="spinbutton" aria-label="${w.t}" aria-valuenow="${m[i] / 10000}" tabindex="0"><div class="wv">${wheelRows(i, m[i] / 10000)}</div><span class="wu">萬</span></div></div>`).join("");
+function wheelSet(el, v){ const i = +el.dataset.i, w = WH[i]; v = Math.min(w.max, Math.max(w.min, Math.round(v / w.st) * w.st)); if (+el.dataset.v === v) return;
+  el.dataset.v = v; el.setAttribute("aria-valuenow", v); el.querySelector(".wv").innerHTML = wheelRows(i, v); try{ navigator.vibrate && navigator.vibrate(8); }catch(e){}
+  if (S.page === "one"){ const p = P[S.cur]; p.m[i] = Math.round(v * 10000); if (i === 1) lotTable(); } }
+function lotTable(){ const p = P[S.cur], tb = $("lotTb"), h = $("lotH"); if (h) h.textContent = `進場張數(多空上限 ${fmtV(p.m[1] / 10000)} 萬)`;
+  if (tb) tb.innerHTML = [15,25,40,60,90,120].map(px => `<tr><td>${px} 元</td>${[1,2,3].map(m => `<td>${lotsOf(m, p.m[1], px)}</td>`).join("")}</tr>`).join(""); }
+/* 手指拖:每滑 28px 一級;往下 = 增加、往上 = 減少 */
+document.addEventListener("pointerdown", e => { const el = e.target.closest(".wheel"); if (!el) return; e.preventDefault(); el.setPointerCapture(e.pointerId);
+  let y0 = e.clientY, v0 = +el.dataset.v; const st = WH[+el.dataset.i].st;
+  const mv = ev => wheelSet(el, v0 + Math.round((ev.clientY - y0) / 28) * st);
+  const up = () => { el.removeEventListener("pointermove", mv); el.removeEventListener("pointerup", up); el.removeEventListener("pointercancel", up); };
+  el.addEventListener("pointermove", mv); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); });
+document.addEventListener("wheel", e => { const el = e.target.closest(".wheel"); if (!el) return; e.preventDefault(); wheelSet(el, +el.dataset.v + (e.deltaY > 0 ? 1 : -1) * WH[+el.dataset.i].st); }, {passive: false});
+document.addEventListener("keydown", e => { const el = e.target.closest && e.target.closest(".wheel"); if (!el) return; const st = WH[+el.dataset.i].st;
+  if (e.key === "ArrowDown"){ e.preventDefault(); wheelSet(el, +el.dataset.v + st); } else if (e.key === "ArrowUp"){ e.preventDefault(); wheelSet(el, +el.dataset.v - st); } });
 const steps = (n) => ["資料加密送到你的電腦","電腦用夥伴的帳號登入元大(用你電腦裡的憑證)","開始自動當沖","產生夥伴的金鑰 QR Code"]
   .map((t, i) => `<div class="step ${i < n ? "done" : i === n ? "now" : "todo"}"><i>${i < n ? "✓" : i + 1}</i>${t}</div>`).join("");
 const USE = name => `<div class="use"><div><i class="v">夥伴看盤</i><span>${name} 裝「夥伴看盤」掃這張(或從相簿選這張),幾支手機都可以;只看得到 ${name} 的元大真實交易,不能下單、不能改設定</span></div></div>`;
@@ -154,11 +181,11 @@ function vOne(){ const p = P[S.cur];
   <div class="card"><div class="sw"><span>自動交易</span><button type="button" class="tg on" aria-label="自動交易開關"></button></div></div>
   <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">公式(點一下開 / 關)</b><div class="jg">${JN.map(j => `<button type="button" class="on">${j}</button>`).join("")}</div></div>
   <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">額度</b>${money(p.m)}</div>
-  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">進場張數(多空上限 ${p.m[1] / 10000} 萬)</b>
+  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)" id="lotH">進場張數(多空上限 ${p.m[1] / 10000} 萬)</b>
     <label class="opt${(p.lot || 1) === 1 ? " on" : ""}" data-lot="1"><input type="radio" name="lot"${(p.lot || 1) === 1 ? " checked" : ""}><span><b>① 能買幾張就幾張</b><small>上限內能買幾張買幾張(跟主導$ 現在一樣)</small></span></label>
     <label class="opt${p.lot === 2 ? " on" : ""}" data-lot="2"><input type="radio" name="lot"${p.lot === 2 ? " checked" : ""}><span><b>② 只買 1 張</b><small>上限內不管股價,每筆都只買 1 張</small></span></label>
     <label class="opt${p.lot === 3 ? " on" : ""}" data-lot="3"><input type="radio" name="lot"${p.lot === 3 ? " checked" : ""}><span><b>③ 分級</b><small>25 萬以前那套分級,照上限等比例縮小</small></span></label>
-    <table class="lt"><thead><tr><th>股價</th><th>①</th><th>②</th><th>③</th></tr></thead><tbody>
+    <table class="lt"><thead><tr><th>股價</th><th>①</th><th>②</th><th>③</th></tr></thead><tbody id="lotTb">
     ${[15,25,40,60,90,120].map(px => `<tr><td>${px} 元</td>${[1,2,3].map(m => `<td>${lotsOf(m, p.m[1], px)}</td>`).join("")}</tr>`).join("")}
     </tbody></table><p class="hint">超額 = 1 張就超過多空上限,不進場。</p></div>
 
@@ -239,7 +266,7 @@ main.addEventListener("click", e => { const o = e.target.closest(".opt[data-lot]
   if (t.classList.contains("prow")){ S.cur = +t.dataset.i; S.page = "one"; return render(); }
   if (id === "add"){ S.page = "new"; return render(); }
   if (id === "bk"){ S.page = "list"; return render(); }
-  if (id === "send"){ S.m = [...main.querySelectorAll(".unit input")].map(x => Math.round((parseFloat(x.value) || 0) * 10000)); S.nm = ($("nm").value || "夥伴").trim(); S.step = 1; S.page = "wait"; return render(); }
+  if (id === "send"){ S.m = [...main.querySelectorAll(".wheel")].map(x => Math.round(+x.dataset.v * 10000)); S.nm = ($("nm").value || "夥伴").trim(); S.step = 1; S.page = "wait"; return render(); }
   if (id === "nx"){ S.step++; if (S.step >= 4){ P.push({n: S.nm, st: "run", t: "自動當沖中", d: `元大已登入 · 額度 ${(S.m && S.m[0] || 1000000) / 10000} 萬`, k: newKey(), m: (S.m && S.m.length === 4 ? S.m : [1000000,100000,10000,20000]), lot: 1}); S.cur = P.length - 1; S.page = "one"; } return render(); }
   if (id === "save") return showPoster(P[S.cur].n, P[S.cur].k);
   if (id === "share") return sharePoster(P[S.cur].n, P[S.cur].k);
