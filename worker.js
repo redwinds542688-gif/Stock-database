@@ -54,11 +54,11 @@ import { DurableObject } from "cloudflare:workers";
    ══════════════════════════════════════════════════════ */
 
 const GH_OWNER = "redwinds542688-gif", GH_REPO = "Stock-database", GH_REF = "main";
-const WORKFLOWS = { daily: "daily.yml", recheck: "recheck.yml" };
+const WORKFLOWS = { daily: "daily.yml", recheck: "recheck.yml", taiex: "taiex-1m.yml" };   // 2026-11-16 16:00 taiex:台指期 / 加權指數 1 分 K(GitHub 自己的 14:43 排程 11/16 沒跑 → 改由 Cloudflare 叫)
 
 async function dispatch(env, what) {
   const file = WORKFLOWS[what];
-  if (!file) return { ok: false, msg: "what 要是 daily 或 recheck" };
+  if (!file) return { ok: false, msg: "what 要是 daily、recheck 或 taiex" };
   if (!env || !env.GH_TOKEN) return { ok: false, msg: "Worker 沒有設定 GH_TOKEN" };
   const r = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/actions/workflows/${file}/dispatches`, {
     method: "POST",
@@ -891,7 +891,7 @@ export default {
     env = kvCounted(env, ctx);
     const t = new Date(Date.now() + 8 * 3600e3);                      // 台灣時間
     const key = `${t.getUTCHours()}:${String(t.getUTCMinutes()).padStart(2, "0")}`;
-    const SLOTS = { "8:20": "recheck", "8:45": "recheck", "9:05": "recheck", "14:30": "daily", "16:30": "daily", "20:30": "daily" };
+    const SLOTS = { "8:20": "recheck", "8:45": "recheck", "9:05": "recheck", "14:30": "daily", "14:45": "taiex", "16:30": "daily", "16:45": "taiex", "20:30": "daily" };   // 2026-11-16 16:00 加 14:45 / 16:45 台指期期交所完整 1 分 K(daily 的雲端那份只補缺的分鐘)
     const what = SLOTS[key];
     if (what) { const r = await dispatch(env, what); console.log(`cron ${event.cron} 台灣 ${key} → ${what}: ${r.msg}`); }
     // 2026-11-07 15:03 改 08:30 抓一次;08:45 只在 08:30 沒抓齊時補抓(usGet 有今天完整的就不抓)

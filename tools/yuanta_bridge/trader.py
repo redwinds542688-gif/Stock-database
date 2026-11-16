@@ -390,6 +390,14 @@ class Trader:
             oman = {}; ofl = {}   # 2026-11-11 22:20 開倉 / 加碼的成交(時間, 價)→ 接回元三時檢查鐵律
             order_types = order_types or {}
             signals = signals or []                                  # 2026-10-29 稽核 #1:讀通知失敗(None)當作沒有
+            # 2026-11-16 12:06 使用者「接回時先把今天的成交金額歸零再重算,並用成交序號去掉重複的成交」:11/16 斷線重開接回後程式算 5,784,900、元大總價金約 340 萬
+            #   → 先歸零;同一筆成交(委託書號 + 成交時間 + 價 + 量 + 買賣)回報兩次只算一次
+            self.amount_today = 0.0; _seen = set(); _tr = []
+            for t in trades:
+                k_ = (str(t.get("order_no", "")), str(t.get("time", "")), float(t.get("price") or 0), int(t.get("lots") or 0), str(t.get("bs", "")), str(t.get("code", "")))
+                if k_ in _seen: self.log(f"[交易] 接回:重複的成交回報不算 {t.get('code')} {t.get('bs')} {t.get('lots')} 張 @ {t.get('price')}(書號 {t.get('order_no')} {t.get('time')})"); continue
+                _seen.add(k_); _tr.append(t)
+            trades = _tr
             for t in sorted(trades, key=lambda x: x.get("time", "")):
                 c, q = t["code"], t["lots"] * (1 if t["bs"] == "B" else -1)
                 n0 = net.get(c, 0); n1 = n0 + q
@@ -920,6 +928,7 @@ class Trader:
            記成預掛(prehang)、通知手機;預掛還在時程式的停利 / 停損 / ±% / 平倉通知都先不平(只靠預掛出場),13:20 / 13:24 照舊處理;
            預掛取消 / 失效 → 拿掉、通知手機,程式恢復盯停利停損。手機強平不受影響(先取消預掛再平)"""
         if not no: return
+        if code in self.ignore: return   # 2026-11-16 13:10 使用者「和益 卷買 程式不用管」→「不管 怎麼程式還提示」:不管名單(ignore_codes.txt 留倉 / 借券)的手動委託 / 成交完全不理:不發預掛卡、不跳通知、不接元三
         p = self.positions.get(code); lst = self.prehang.get(code) or []
         # 2026-11-06 14:26 使用者「元大這邊 … 進場通知欄 可以看到我在程式裡強平 或是在元大手動交易 … 手動預掛 進場通知欄也可以看到預掛卡」:
         #   不是平程式部位的手動預掛(新進場 / 加碼)也發預掛卡;取消 / 失效 / 被退回再發一張;成交照舊變元三進場卡
@@ -978,6 +987,8 @@ class Trader:
 
     def on_other_fill(self, code, bs, qty_shares, price, order_no="", typ=""):
         """不是這支程式送的單成交了:手動開新部位(元三)、手動加碼、手動 / 條件單平倉,或程式平倉時條件單也同時觸發(多平了)"""
+        if code in self.ignore and code not in self.positions:   # 2026-11-16 13:10 使用者「和益 卷買 程式不用管」→「不管 怎麼程式還提示」:不管名單(ignore_codes.txt 留倉 / 借券)的手動委託 / 成交完全不理:不發預掛卡、不跳通知、不接元三
+            self.log(f"[交易] {code} 不管名單的手動成交 {'買' if bs == 'B' else '賣'} {qty_shares // 1000} 張 @ {price}(書號 {order_no})→ 不理"); return
         p = self.positions.get(code)
         close_side = lambda d: "B" if d < 0 else "S"
         lots = qty_shares // 1000
@@ -1969,14 +1980,9 @@ class Trader:
             px = float(price or 0) or float(self.last_px.get(code) or 0)
             p0 = self.positions.get(code)
             if p0 and p0["dir"] == d:   # 2026-11-12 11:55 「解鎖 改:只有手動加碼」:加碼預掛只看 500 萬額度
-                return "成交後超過今天 500 萬額度" if (self.max_amount > 0 and px > 0 and self.amount_today + px * lots * 1000 > self.max_amount + 1e-6) else ""
-            if not (self.j_from <= hm <= self.force_to): why.append(f"{hm} 不在 {self.j_from}~{self.force_to}")
+                return ""   # 2026-11-16 10:59 🔓→🔒 使用者「手動加碼 不受管500萬 跟25分級管束」→「解鎖 改」:手動加碼預掛不看鐵律 ⑤(500 萬額度、25 萬分級都不看);加碼金額照算進今天成交
+            # 2026-11-16 12:30 🔓→🔒 使用者「手動進場 鐵律3,5,不能管 解鎖改」:手動進場不檢查 ③ 時間、⑤(一張 25 萬上限 / 分級張數 / 500 萬額度),只剩 ① ±5%;進場後元三管理照舊、金額照算進 500 萬(預掛也一樣)
             if ref > 0 and px > 0 and abs(px / ref - 1) * 100 > self.ent_pct + 1e-9: why.append(f"價格離昨收 {(px / ref - 1) * 100:+.1f}%(超過 ±{self.ent_pct:g}%)")
-            if px > 0:
-                p = self.positions.get(code); have = p["qty"] if p and p["dir"] == d else 0
-                if px * 1000 > self.cap_lim(): why.append(f"一張 {px * 1000:,.0f} 超過多空上限 {self.cap_lim():,.0f}")
-                elif have + lots > lot_tier_qty(px): why.append(f"成交後共 {have + lots} 張,超過分級 {lot_tier_qty(px)} 張")
-                if self.max_amount > 0 and self.amount_today + px * lots * 1000 > self.max_amount + 1e-6: why.append("成交後超過今天 500 萬額度")
             return "、".join(why)
         except Exception as e:
             self.log(f"[交易] 預掛鐵律檢查失敗 {e!r}"); return ""
@@ -1988,8 +1994,7 @@ class Trader:
             if not Trader.IRON_LOTS: return False
             why = []; hm = self.hm(); ref = self.ref_of(p["code"]) or 0
             if str(what).startswith("手動加碼"):   # 2026-11-12 11:55 使用者「手動加碼 不受鐵律進場管制 但是進場之後 就要接受程式管轄」→「解鎖 改:只有手動加碼」:加碼不看 ③ 時間 / ① ±5% / ⑤ 分級、一張 25 萬,只看 500 萬額度
-                if not (self.max_amount > 0 and self.amount_today > self.max_amount + 1e-6): return False
-                why.append(f"今天成交 {self.amount_today:,.0f} 超過 500 萬")
+                return False   # 2026-11-16 10:59 🔓→🔒 使用者「手動加碼 不受管500萬 跟25分級管束」→「解鎖 改」:手動加碼不檢查鐵律 ⑤(500 萬額度、25 萬分級);加碼張數併進部位,停利 / 停損 / 移平 / 6.5% / 總停損 / 13:20 照舊一起平;加碼金額照算進今天成交(程式新單照 500 萬扣)
             # 2026-11-11 22:20 使用者「手動依舊受程式管束」:併入 / 對帳接回 / 重開接回也檢查;fills = [(成交時間, 成交價)],時間看不懂的不看時間(重開接回不能拿現在時間誤判)
             if fills is None: fl = [(hm, price)]
             else:
@@ -1997,13 +2002,9 @@ class Trader:
                 for t_, px_ in fills:
                     m_ = minutes_of(t_) if t_ else None
                     fl.append((f"{m_ // 60:02d}:{m_ % 60:02d}" if m_ is not None else None, float(px_ or 0)))
-            bad_t = sorted({t_ for t_, _ in fl if t_ and not (self.j_from <= t_ <= self.force_to)})
-            if bad_t: why.append(f"{'、'.join(bad_t)} 不在 {self.j_from}~{self.force_to}")
+            # 2026-11-16 12:30 🔓→🔒 使用者「手動進場 鐵律3,5,不能管 解鎖改」:手動進場不檢查 ③ 時間、⑤(一張 25 萬上限 / 分級張數 / 500 萬額度),只剩 ① ±5%;進場後元三管理照舊、金額照算進 500 萬
             bad_p = [px_ for _, px_ in fl if ref > 0 and px_ > 0 and abs(px_ / ref - 1) * 100 > self.ent_pct + 1e-9]
             if bad_p: why.append(f"成交價離昨收 {(bad_p[0] / ref - 1) * 100:+.1f}%(超過 ±{self.ent_pct:g}%)")
-            if p["entry"] * 1000 > self.cap_lim(): why.append(f"一張 {p['entry'] * 1000:,.0f} 超過多空上限 {self.cap_lim():,.0f}")
-            elif p["qty"] > lot_tier_qty(p["entry"]): why.append(f"共 {p['qty']} 張,超過分級 {lot_tier_qty(p['entry'])} 張")
-            if self.max_amount > 0 and self.amount_today > self.max_amount + 1e-6: why.append(f"今天成交 {self.amount_today:,.0f} 超過 500 萬")
             if not why: return False
             w = "、".join(why); code = p["code"]
             self.log(f"[交易] !! {code} 元大{what} {lots} 張 @ {price} 違反鐵律({w})→ 整個部位 {p['qty']} 張馬上平掉")
