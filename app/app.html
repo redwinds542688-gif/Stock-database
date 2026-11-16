@@ -490,7 +490,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611170019">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611170046">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -8106,7 +8106,8 @@ window.bgTick = bgTick; window.BG = BG;
           // 2026-11-05 00:31 使用者「這個虛擬 是可以切換 元大的 因為我是永久會員」:收盤後切在「元大」、這天手機還沒拿到元大成交 → 不拿虛擬交易冒充,寫「元大成交還沒拿到」(電腦連上會自動補)
           if (!yf && virtOk && !doneVirt && !vwOnly() && dd >= '2026-11-16') return [`<div class="r" data-day="${dd}"><span class="nm" style="color:#8C96AB;grid-column:1/-1">這天的元大成交還沒拿到(電腦連上會自動補)</span></div>`, 0, 1];
           return rowsOf(src, dd); };   /* 2026-11-02 23:25 使用者「永久會員 今天之前 全部都用虛擬的資料 填滿明細 今天之後包含今天 都用真實的元大資料 其他會員 一律用虛擬資料」:自己的 App 11/02 起用元大真實成交、11/01 以前一律用程式的虛擬交易;看盤版一律虛擬 */
-      const doneSrc = dd => { if (doneVirt){ try{ vdoneGet(dd); }catch(e){} if (vdoneHas(dd)) return VDONE[dd].list.filter(c => !c.over).map(c => ({type: 'exit', code: String(c.code), name: c.name || String(c.code), side: +c.side > 0 ? 'long' : 'short', entP: +c.e, price: +c.x, lots: +c.lots || 1, rs: c.rs || '', t: c.xt || '', entT: c.t || '', vnet: +c.net, prev: 0, x: {body: ''}})).sort((a, b) => a.t < b.t ? 1 : a.t > b.t ? -1 : 0); }   /* 2026-11-13 雲端虛擬明細優先 */
+      const doneSrc = dd => { if (doneVirt && BTF && BTF[dd] && BTF[dd].length){ const s = prep(btfCap(dd)); for (const o of s){ const q = +((((o.x || {}).body || '').match(/· (\d+)張/) || [])[1]) || 0; if (q) o.lots = q; } return finish(s); }   /* 2026-11-17 00:50 使用者「還是25000」:虛擬明細有重算紀錄(app/bt_fill.json)的日子以重算為準(11/16 重寫 +19,457;電腦推的 vdone 是盤中照通知記的,神達 / 大成鋼重複) */
+        if (doneVirt){ try{ vdoneGet(dd); }catch(e){} if (vdoneHas(dd)) return VDONE[dd].list.filter(c => !c.over).map(c => ({type: 'exit', code: String(c.code), name: c.name || String(c.code), side: +c.side > 0 ? 'long' : 'short', entP: +c.e, price: +c.x, lots: +c.lots || 1, rs: c.rs || '', t: c.xt || '', entT: c.t || '', vnet: +c.net, prev: 0, x: {body: ''}})).sort((a, b) => a.t < b.t ? 1 : a.t > b.t ? -1 : 0); }   /* 2026-11-13 雲端虛擬明細優先 */
         if (BTF && BTF[dd] && BTF[dd].length){ const s = prep(btfCap(dd)); for (const o of s){ const q = +((((o.x || {}).body || '').match(/· (\d+)張/) || [])[1]) || 0; if (q) o.lots = q; } return finish(s); }
         if (dd === today){ if (doneVirt){ try{ return finish(prep(itemsFor(today).filter(x => !/強平|元平|元大|預掛|強制 ·/.test((x.title || '') + ' ' + (x.body || '').replace(/已強平/g, ''))))); }catch(e){} } if (d === today) return cards; }
         ensureCloud(dd); return finish(prep(itemsFor(dd))); };
