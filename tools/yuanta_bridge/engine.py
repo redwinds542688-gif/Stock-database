@@ -1205,6 +1205,8 @@ class Engine:
             self.emitted.add(ek); log(f"判八 {code} {open_tm} 今天判八已 {len(self.j8)} 檔(到上限)→ 不發"); return n
         elif rs == "六3" and code not in self.j63 and len(self.j63) >= getattr(self, "j63max", J63MAX):   # 2026-11-12 23:40 判六做空一天最多 J63MAX 檔
             self.emitted.add(ek); log(f"判六(做空){code} {open_tm} 今天判六做空已 {len(self.j63)} 檔(到上限)→ 不發"); return n
+        elif any(c == code and r != rs for (r, c) in self.pos):   # 2026-11-17 00:17 使用者「同一檔同方向 只能做一筆」→「改」:同一檔已經有別的判別式的部位開著 → 不發(元大下單本來就一檔一筆;11/16 神達 判五 + 判六、大成鋼 判七 + 判五 虛擬帳重複記)
+            _o = next(r for (r, c) in self.pos if c == code and r != rs); self.emitted.add(ek); log(f"{JUDGE[rs]} {code} {open_tm} 這檔{JUDGE.get(_o, _o)}的部位還開著(同一檔只做一筆)→ 不發"); return n
         elif rs in ("六", "六3") and (("六3" if rs == "六" else "六"), code) in self.pos:   # 2026-11-12 23:40 判六做多 / 做空同一檔同時只留一筆
             self.emitted.add(ek); log(f"判六 {code} {open_tm} 這檔判六另一個方向的部位還開著 → 不發"); return n
         elif not self.tx_ok(rs, code, open_tm, d["side"]):   # 2026-11-13 22:30 ⑧ 台指期同步進場(23:32 改只看方向):台指期 60 分鐘往不利方向 → 這筆不做(記 emitted,不再發)
