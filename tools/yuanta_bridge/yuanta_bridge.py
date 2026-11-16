@@ -1303,7 +1303,7 @@ class Bridge:
             return
         t = self.trader
         if not hasattr(self, "_acfg_base"):   # 第一次:記下 bridge.env 的原值(雲端拿掉某欄時回到原值)
-            self._acfg_base = {"judges": set(t.judges), "auto": t.auto, "max_amount": t.max_amount, "cap": t.cap, "max_loss": t.max_loss, "kill_loss": t.kill_loss}
+            self._acfg_base = {"judges": set(t.judges), "auto": t.auto, "max_amount": t.max_amount, "cap": t.cap, "max_loss": t.max_loss, "kill_loss": t.kill_loss, "lot_mode": getattr(t, "lot_mode", 0)}
         b = self._acfg_base; want = dict(b)
         j = c.get("judges")
         if isinstance(j, dict) and j:
@@ -1321,10 +1321,11 @@ class Bridge:
         for k in ("max_loss", "kill_loss"):
             v = num(k, 1000, 5000000)
             if v: want[k] = v
+        if c.get("lot_mode") in (1, 2, 3): want["lot_mode"] = int(c["lot_mode"])   # 2026-11-17 進場張數方式(1 能買幾張 / 2 只買 1 張 / 3 分級照比例縮;trader.lots_for)
         chg = []
         with t.lock:
             for k, v in want.items():
-                if getattr(t, k) != v: chg.append(f"{k} {getattr(t, k)} → {v}"); setattr(t, k, v)
+                if getattr(t, k, None) != v: chg.append(f"{k} {getattr(t, k)} → {v}"); setattr(t, k, v)
         if chg: log(f"【{ACCT}】套用主導$ 雲端設定(之後的新進場才生效):" + ";".join(str(x) for x in chg))
 
     def resume_positions(self, day):

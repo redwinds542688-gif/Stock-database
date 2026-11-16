@@ -2094,6 +2094,19 @@ class Trader:
 
     def lots_for(self, px):
         """2026-11-11 14:49 張數分級:≤ 70 元 3 張、≤ 150 元 2 張、其他 1 張(TRADE_LOT_TIER=0 → 原本 多空上限 ÷ 一張)"""
+        # 自動當沖夥伴版(2026-11-17 使用者「多空限額 要有幾種分組方式 … 三種分級的選項設定 來定義該夥伴要使用哪一種進場」→「改 照比例縮」):
+        #   lot_mode 只有夥伴中繼(FAMILY)的 acfg_sync 會設;主導$ 這份沒有 lot_mode(= 0)→ 下面原本的算法完全不變
+        #   1 = 多空上限內能買幾張就幾張;2 = 上限內只買 1 張;3 = 25 萬以前的分級照上限等比例縮(≤ 80×k 元 最多 3 張且 ≤ 0.64×上限;其他 最多 2 張且 ≤ 上限;k = 上限 ÷ 25 萬)
+        #   一張就超過上限 = 超額,照原本的超額規則另外管(這裡不改)
+        lm = getattr(self, "lot_mode", 0)
+        if lm and self.cap > 0:
+            px = float(px or 0)
+            if px <= 0 or lm == 2: return 1
+            c = float(self.cap)
+            if lm == 3:
+                if px <= 80 * c / 250000: return max(1, min(3, int(0.64 * c // (px * 1000))))
+                return max(1, min(2, int(c // (px * 1000))))
+            return max(1, int(c // (px * 1000)))
         if self.cap <= 0: return min(self.qty, lot_tier_qty(px)) if Trader.IRON_LOTS else self.qty   # 鐵律 ⑤:固定張數也不能超過分級(IRON_LOTS 只有測試程式能關,設定檔關不掉)
         # 2026-11-11 16:43 使用者「股價10-80元最多一筆買3張且金額不超過16萬 80到250最多不超過2張且金額不超過25萬」→「改」(10 元以下同 10~80;超過 250 元照舊超額)
         if self.lot_tier: return lot_tier_qty(px)

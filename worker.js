@@ -1435,7 +1435,7 @@ export default {
     // ── 自動當沖夥伴版 §6.1(2026-11-15 使用者「夥伴版 只修改 增加夥伴所有的接口 設定 畫面 不能修改程式的核心邏輯」):夥伴設定雲端下發
     //   GET  ?acfg=get&a=<名字>  → {acct, judges:{判一:true…}, max_amount, cap, max_loss, kill_loss, enabled, at, by}
     //        權限:中繼金鑰 / owner 鑰匙 → 任何人;夥伴 fa11 鑰匙 → 只能讀自己(唯讀);其他 403
-    //   POST ?acfg=set&a=<名字> {judges?, max_amount?, cap?, max_loss?, kill_loss?, enabled?}(只改有帶的欄位)
+    //   POST ?acfg=set&a=<名字> {judges?, max_amount?, cap?, max_loss?, kill_loss?, enabled?, lot_mode?(1|2|3)}(只改有帶的欄位)
     //        權限:只有 owner 鑰匙(要帶 dv、不是緊急模式);中繼金鑰、fa11 鑰匙、其他一律 403
     //   存 Hub acfg:<名字>;中繼只套到「之後的新進場」(見 yuanta_bridge.py acfg_sync),鐵律上限在這裡和中繼兩邊都夾
     const acfgQ = url.searchParams.get("acfg");
@@ -1468,6 +1468,7 @@ export default {
       const err = num("max_amount", 10000, 5000000, "當日總額度") || num("cap", 0, 250000, "多空上限") || num("max_loss", 1000, 5000000, "停止新進場虧損") || num("kill_loss", 1000, 5000000, "全部平倉虧損");
       if (err) return J({ error: err }, 400);
       if (b.enabled != null) { if (typeof b.enabled !== "boolean") return J({ error: "enabled 要是 true/false" }, 400); o.enabled = b.enabled; }
+      if (b.lot_mode != null) { if (![1, 2, 3].includes(b.lot_mode)) return J({ error: "lot_mode 要是 1(能買幾張)/ 2(只買 1 張)/ 3(分級照比例縮)" }, 400); o.lot_mode = b.lot_mode; }   // 2026-11-17 夥伴進場張數方式
       o.at = Date.now(); o.by = String(KI.name || "主導$").slice(0, 20);
       await hub.kvPut("acfg:" + a, o);
       return J({ ok: true, acct: a, ...o });
