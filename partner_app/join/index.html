@@ -72,6 +72,8 @@ input[type=text],input[type=password],input[type=number]{height:calc(var(--uf) *
 .sum{display:grid;grid-template-columns:auto minmax(0,1fr);gap:calc(var(--uf) * .35) calc(var(--u) * .5);font-size:calc(var(--uf) * 1.05)} .sum span{color:var(--sub)} .sum b{text-align:right}
 .ok-big{align-self:center;font-size:calc(var(--uf) * 3)}
 .verl{white-space:nowrap;font-size:calc(var(--uf) * .75);color:var(--sub)}
+.zero{align-items:center;text-align:center;padding-top:calc(var(--uf) * 1.6);padding-bottom:calc(var(--uf) * 1.4)} .zero > b{font-size:calc(var(--uf) * 1.5)} .zi{font-size:calc(var(--uf) * 3.2);line-height:1} .zero .steps{align-self:stretch;text-align:left}
+.pmask{position:fixed;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;z-index:20;padding:calc(var(--uf) * 1.2)} .pbox{background:var(--card);border-radius:14px;padding:calc(var(--uf) * 1);display:flex;flex-direction:column;gap:calc(var(--uf) * .7);max-width:92vw;max-height:92vh} .pbox img{max-width:100%;max-height:62vh;object-fit:contain;border-radius:10px} .pbox b{color:var(--green);font-size:calc(var(--uf) * 1.3);text-align:center}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--uf) * 2);background:#0E1A12;border:1px solid var(--green);color:#C9FFE5;padding:calc(var(--uf) * .6) calc(var(--uf) * 1);border-radius:10px;font-size:calc(var(--uf) * 1);z-index:9;max-width:90vw}
 @media (prefers-reduced-motion:reduce){.tg::after{transition:none}}
 </style>
@@ -83,23 +85,61 @@ input[type=text],input[type=password],input[type=number]{height:calc(var(--uf) *
   <main id="main"></main>
 </div>
 <div id="toastL"></div>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 <script>
 // 只是畫面:範例資料,不連雲端、不連電腦、不會送出任何資料
 const $ = id => document.getElementById(id), main = $("main");
 const JN = ["判一","判二","判三","判四","判五","判六","判七","判八","判九"];
-const P = [
-  {n:"夥伴A", st:"run", t:"自動當沖中", d:"元大已登入 08:31 · 額度 300 萬 · 金鑰 fa11…a3c9", m:[3000000,150000,20000,50000], j:[1,1,1,1,1,1,1,0,1], on:true},
-  {n:"夥伴B", st:"pc",  t:"電腦設定中", d:"資料已加密送到電腦 · 正在登入元大", m:[2000000,150000,20000,50000], j:[1,1,1,1,1,1,1,1,1], on:false},
-  {n:"夥伴C", st:"wait",t:"等夥伴填資料", d:"邀請碼 482 913 · 24 小時內有效", m:[1500000,100000,20000,50000], j:[1,1,1,1,1,1,1,1,1], on:false},
-  {n:"夥伴D", st:"err", t:"元大登入失敗", d:"找不到憑證,請夥伴重新送一次", m:[1000000,100000,20000,50000], j:[1,1,1,1,1,1,1,1,1], on:false},
-];
-const S = {who:"A", page:"list", cur:0, step:1};
+const P = [];   /* 2026-11-16 使用者「目前沒有夥伴 從0開始」→「改」 */
+const S = {who:"A", page:"list", cur:0, step:1, nm:"夥伴A", inv:"517 206"};
 const fmtW = v => (v / 10000).toLocaleString();
 function toast(t){ $("toastL").innerHTML = `<div class="toast">${t}</div>`; clearTimeout(toast.t); toast.t = setTimeout(() => $("toastL").innerHTML = "", 2200); }
 const QR = () => { let r = "", s = 7; for (let y = 0; y < 25; y++) for (let x = 0; x < 25; x++){ const f = (x < 7 && y < 7) || (x > 17 && y < 7) || (x < 7 && y > 17); const on = f ? ((x % 6 === 0 || y % 6 === 0 || (x % 6 > 1 && x % 6 < 5 && y % 6 > 1 && y % 6 < 5)) && !((x === 6 || y === 6) && false)) : ((s = (s * 1103515245 + 12345) & 0x7fffffff) % 3 === 0); if (on) r += `<rect x="${x}" y="${y}" width="1" height="1"/>`; } return `<svg viewBox="0 0 25 25" shape-rendering="crispEdges" aria-label="QR Code(範例)">${r}</svg>`; };
 
+/* 使用者「這程式需要自己製造 QR code 存圖功能 要給夥伴看盤使用的 QR CODE」:真的 QR Code(qrcode-generator),存成一張圖(QR + 名字 + 用法) */
+const invUrl = c => "https://twse-proxy.redwinds542688.workers.dev/partner/join/?invite=" + String(c).replace(/\s/g, "");   /* 邀請連結(範例;接真資料時換成雲端發的) */
+const newKey = () => "fa11" + [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, "0")).join("");   /* 範例金鑰(接真資料後由雲端發) */
+function qrSvg(t){ const q = qrcode(0, "M"); q.addData(t); q.make(); return q.createSvgTag({cellSize: 4, margin: 2, scalable: true}); }
+function poster(name, key){
+  const q = qrcode(0, "M"); q.addData(key); q.make(); const n = q.getModuleCount();
+  const W = 1080, H = 1500, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
+  x.fillStyle = "#0B0E14"; x.fillRect(0, 0, W, H);
+  const g = x.createLinearGradient(140, 0, 940, 0); [["#FF5A5F",0],["#FFB13B",.3],["#3DDC84",.6],["#29B6F6",.8],["#B15CFF",1]].forEach(([c2,o]) => g.addColorStop(o, c2));
+  x.textAlign = "center"; x.fillStyle = g; x.font = "900 76px 'Noto Sans TC','PingFang TC','Microsoft JhengHei',sans-serif"; x.fillText("自動當沖 · 夥伴看盤", W / 2, 130);
+  x.fillStyle = "#FFD54F"; x.font = "900 64px 'Noto Sans TC','PingFang TC','Microsoft JhengHei',sans-serif"; x.fillText(name + " 的看盤金鑰", W / 2, 240);
+  const S = 800, ox = (W - S) / 2, oy = 300; x.fillStyle = "#fff"; x.beginPath(); x.roundRect ? x.roundRect(ox, oy, S, S, 36) : x.rect(ox, oy, S, S); x.fill();
+  const m = 60, cs = (S - m * 2) / n; x.fillStyle = "#000";
+  for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (q.isDark(r, k)) x.fillRect(Math.floor(ox + m + k * cs), Math.floor(oy + m + r * cs), Math.ceil(cs), Math.ceil(cs));
+  x.fillStyle = "#E6EAF2"; x.font = "500 44px 'Noto Sans TC','PingFang TC','Microsoft JhengHei',sans-serif";
+  x.fillText("打開「夥伴看盤」→ 按「掃描」", W / 2, 1200); x.fillText("或「從相簿選 QR Code 圖片」選這張", W / 2, 1265);
+  x.fillStyle = "#8C96AB"; x.font = "500 36px 'Noto Sans TC','PingFang TC','Microsoft JhengHei',sans-serif";
+  x.fillText("這把金鑰只看得到 " + name + " 自己的交易,不能下單、不能改設定", W / 2, 1360); x.fillText("請不要傳給其他人", W / 2, 1415);
+  return c;
+}
+function showPoster(name, key){   /* 存到相簿:App(1.0.2 起)直接存進相簿「Pictures/夥伴加入」;網頁 / 舊 App 下載圖檔,並秀出圖讓你長按存 */
+  const u = poster(name, key).toDataURL("image/png"), fn = `夥伴看盤金鑰-${name}.png`, H = window.JoinHost;
+  if (H && H.saveImage){ if (H.saveImage(u, fn)) return toast("✓ 已存到相簿(夥伴加入 資料夾)"); }
+  else { const a = document.createElement("a"); a.href = u; a.download = fn; document.body.appendChild(a); a.click(); a.remove(); }
+  $("toastL").innerHTML = `<div class="pmask"><div class="pbox"><b>長按圖片 → 儲存圖片</b><img src="${u}" alt="${name} 的看盤金鑰圖"><button type="button" class="btn" id="pmx">關閉</button></div></div>`;
+  $("pmx").onclick = () => $("toastL").innerHTML = ""; }
+async function sharePoster(name, key){   /* 傳給夥伴:App 打開手機分享(LINE 等);網頁用瀏覽器分享,不支援就改存圖 */
+  const c = poster(name, key), u = c.toDataURL("image/png"), fn = `夥伴看盤金鑰-${name}.png`, txt = `${name} 的夥伴看盤金鑰:打開「夥伴看盤」→ 從相簿選這張圖`, H = window.JoinHost;
+  if (H && H.shareImage){ if (H.shareImage(u, fn, txt)) return; }
+  try{ const b = await new Promise(r => c.toBlob(r, "image/png")), f = new File([b], fn, {type: "image/png"});
+    if (navigator.canShare && navigator.canShare({files: [f]})) return await navigator.share({files: [f], text: txt}); }catch(e){ return; }
+  showPoster(name, key); }
+
 /* ───────── 主導$ 的畫面 ───────── */
 function aList(){
+  if (!P.length) return `<h2>夥伴(0 位)</h2>
+  <div class="card zero"><div class="zi">👥</div><b>還沒有夥伴</b>
+    <p class="hint">加入夥伴只要三步:</p>
+    <div class="steps">
+      <div class="step now"><i>1</i>按下面「新增夥伴」,輸入名字和額度</div>
+      <div class="step todo"><i>2</i>夥伴用自己手機掃邀請 QR Code,填元大資料</div>
+      <div class="step todo"><i>3</i>你的電腦開始幫他自動當沖,他用「夥伴看盤」看自己的</div>
+    </div></div>
+  <button type="button" class="btn gold" id="add">＋ 新增第一位夥伴</button>`;
   return `<h2>夥伴(${P.length} 位)</h2>
   <p class="hint">點夥伴看狀態、改額度和公式。夥伴的元大帳號密碼只存在你的電腦,這裡看不到。</p>
   ${P.map((p, i) => `<div class="prow" data-i="${i}" role="button" tabindex="0"><b>${p.n}</b><span class="st ${p.st}">${p.t}</span><small>${p.d}</small></div>`).join("")}
@@ -107,14 +147,14 @@ function aList(){
 }
 function aNew(){
   return `<button type="button" class="back" id="bk">‹ 夥伴列表</button><h2>新增夥伴</h2>
-  <label>夥伴名字<small>最多 12 個字,例如 小明、阿姨</small><input type="text" id="nm" value="夥伴E" maxlength="12"></label>
+  <label>夥伴名字<small>最多 12 個字,例如 小明、阿姨</small><input type="text" id="nm" value="${P.length ? "" : "夥伴A"}" placeholder="例如 小明" maxlength="12"></label>
   <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">額度(之後隨時可改)</b>${money([1000000,100000,20000,50000])}</div>
   <button type="button" class="btn gold" id="mk">產生邀請 QR Code</button>`;
 }
 function aInvite(){
-  return `<button type="button" class="back" id="bk">‹ 夥伴列表</button><h2>邀請 夥伴E</h2>
+  return `<button type="button" class="back" id="bk">‹ 夥伴列表</button><h2>邀請 ${S.nm}</h2>
   <p class="hint">請夥伴用<b style="color:var(--fg)">自己的手機</b>掃這個 QR Code(或傳連結給他),在他手機上自己輸入元大帳號、電子密碼、憑證。</p>
-  <div class="qr">${QR()}</div><div class="code">邀請碼 517 206 · 24 小時內有效</div>
+  <div class="qr">${qrSvg(invUrl(S.inv))}</div><div class="code">邀請碼 ${S.inv} · 24 小時內有效</div>
   <div class="row2"><button type="button" class="btn blue" id="cp">複製連結</button><button type="button" class="btn" id="bk2">完成</button></div>
   <div class="lock">🔒 夥伴輸入的資料在他手機上就先加密,只有你的電腦解得開;雲端只負責轉送,看不到內容、也不留存。</div>`;
 }
@@ -124,14 +164,17 @@ function money(m){
 }
 function aOne(){
   const p = P[S.cur];
-  const st = p.st === "run" ? `<div class="steps">${stp(4, 4)}</div>` : p.st === "pc" ? `<div class="steps">${stp(3, 4)}</div>` : p.st === "wait" ? `<div class="steps">${stp(1, 4)}</div><div class="qr">${QR()}</div><div class="code">邀請碼 482 913</div>` : `<div class="lock" style="color:#FFC9C9;background:#2A1416;border-color:#7A2A2E">⚠ 元大登入失敗:找不到憑證。請夥伴重新掃邀請、再送一次。</div><button type="button" class="btn blue" id="re">重新產生邀請</button>`;
+  const st = p.st === "run" ? `<div class="steps">${stp(4, 4)}</div>` : p.st === "pc" ? `<div class="steps">${stp(3, 4)}</div>` : p.st === "wait" ? `<div class="steps">${stp(1, 4)}</div><div class="qr">${qrSvg(invUrl(p.inv || ""))}</div><div class="code">邀請碼 ${p.inv || ""}</div>` : `<div class="lock" style="color:#FFC9C9;background:#2A1416;border-color:#7A2A2E">⚠ 元大登入失敗:找不到憑證。請夥伴重新掃邀請、再送一次。</div><button type="button" class="btn blue" id="re">重新產生邀請</button>`;
   return `<button type="button" class="back" id="bk">‹ 夥伴列表</button><h2>${p.n}</h2>${st}
+  ${p.st === "run" ? `<div class="card"><b style="font-size:calc(var(--uf) * 1.2)">${p.n} 的夥伴看盤金鑰</b><div class="qr">${qrSvg(p.k)}</div><div class="code">fa11 · · · · ${p.k.slice(-4)}</div>
+    <div class="row2"><button type="button" class="btn gold" id="save">存到相簿</button><button type="button" class="btn blue" id="share">傳給夥伴</button></div>
+    <p class="hint">存下來的圖(QR Code + 名字 + 用法)傳給夥伴,他在「夥伴看盤」按「從相簿選 QR Code 圖片」選這張就能看自己的交易。弄丟了再存一次就好。</p></div>` : ""}
   <div class="card"><div class="sw"><span>自動交易</span><button type="button" class="tg${p.on ? " on" : ""}" id="tgl" aria-label="自動交易開關" ${p.st === "run" ? "" : "disabled style=\"opacity:.4\""}></button></div>
     <p class="hint">${p.st === "run" ? "關掉 = 這位夥伴不再新進場(已有的部位照規則平倉)。" : "元大登入成功後才能打開。"}</p></div>
   <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">公式(點一下開 / 關)</b><div class="jg">${JN.map((j, i) => `<button type="button" data-j="${i}" class="${p.j[i] ? "on" : ""}">${j}</button>`).join("")}</div></div>
   <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">額度</b>${money(p.m)}</div>
   <button type="button" class="btn gold" id="sv">儲存</button>
-  ${p.st === "run" ? `<div class="card"><b style="font-size:calc(var(--uf) * 1.2)">夥伴看盤金鑰</b><div class="qr">${QR()}</div><div class="code">fa11 · · · · a3c9</div><p class="hint">夥伴弄丟金鑰時,讓他用「夥伴看盤」再掃一次這個 QR Code。</p></div>` : ""}
+
   <button type="button" class="btn" id="rm" style="color:var(--bad);border-color:#7A2A2E">移除 ${p.n}</button>`;
 }
 function stp(n, of){
@@ -145,11 +188,11 @@ function bForm(){
      ① 證券帳號 = 分公司 4 碼 + 帳號 7 碼(不是身分證字號)② 電子交易密碼 ③ 憑證:Windows 上元大 API 用「裝在電腦 Windows 裡的憑證」,
      所以要夥伴的 .pfx 憑證檔 + 憑證密碼,電腦收到後裝進 Windows、裝好就刪檔;④ 先跟元大開通「API 下單」(不是輸入的東西,是事前要辦的) */
   return `<h2>加入 自動當沖</h2>
-  <p class="hint">主導$ 邀請你加入(邀請碼 517 206)。請輸入<b style="color:var(--fg)">你自己的</b>元大證券資料,電腦會用你的帳號幫你自動當沖。</p>
+  <p class="hint">主導$ 邀請你加入(邀請碼 ${S.inv})。請輸入<b style="color:var(--fg)">你自己的</b>元大證券資料,電腦會用你的帳號幫你自動當沖。</p>
   <div class="card"><b style="font-size:calc(var(--uf) * 1.15)">先確認(還沒辦的請先找元大營業員)</b>
     <label class="ck"><input type="checkbox"> 已開通元大「API 電子下單」</label>
     <label class="ck"><input type="checkbox"> 手機上已經有元大電子憑證(能用元大 App 下單)</label></div>
-  <label>你的名字<input type="text" value="夥伴E" readonly></label>
+  <label>你的名字<input type="text" value="${S.nm}" readonly></label>
   <label>證券帳號<small>分公司 4 碼 + 帳號 7 碼,例如 981R0123456(在元大 App 的帳號資料看得到)</small><input type="text" placeholder="981R0123456" autocomplete="off" inputmode="text" maxlength="12"></label>
   <label>電子交易密碼<small>登入元大 App / 網站下單用的那組密碼</small><input type="password" placeholder="••••••••" autocomplete="new-password"></label>
   <label>電子憑證檔(.pfx)<small>用元大的「憑證匯出」存到手機的檔案(不會匯出請問元大營業員)</small><div class="file" id="pfx" role="button" tabindex="0">📄 選擇憑證檔</div></label>
@@ -165,8 +208,8 @@ function bWait(){
 function bDone(){
   return `<div class="ok-big">✅</div><h2 style="text-align:center">加入完成</h2>
   <p class="hint" style="text-align:center">電腦已經用你的元大帳號開始自動當沖。<br>用「夥伴看盤」掃下面的金鑰,就能看你自己的交易。</p>
-  <div class="qr">${QR()}</div><div class="code">fa11 · · · · 7e21</div>
-  <button type="button" class="btn green" id="open">打開 夥伴看盤</button>
+  <div class="qr">${qrSvg(S.key)}</div><div class="code">fa11 · · · · ${S.key.slice(-4)}</div>
+  <div class="row2"><button type="button" class="btn gold" id="save">存到相簿</button><button type="button" class="btn green" id="open">打開 夥伴看盤</button></div>
   <button type="button" class="btn blue" id="dl">還沒裝?下載 夥伴看盤</button>
   <p class="hint">你只看得到自己的交易,不能下單、也不能改設定。要改額度請找主導$。</p>`;
 }
@@ -183,21 +226,25 @@ main.addEventListener("click", e => {
   if (t.classList.contains("prow")){ S.cur = +t.dataset.i; S.page = "one"; return render(); }
   if (t.dataset.j != null){ const p = P[S.cur]; p.j[+t.dataset.j] ^= 1; t.classList.toggle("on"); return; }
   if (id === "add"){ S.page = "new"; return render(); }
+  if (id === "bk2" && !P.some(p => p.n === S.nm)) P.push({n:S.nm, st:"wait", t:"等夥伴填資料", d:`邀請碼 ${S.inv} · 24 小時內有效`, inv:S.inv, m:[1000000,100000,20000,50000], j:[1,1,1,1,1,1,1,1,1], on:false});
   if (id === "bk" || id === "bk2"){ S.page = "list"; return render(); }
-  if (id === "mk"){ S.page = "invite"; return render(); }
+  if (id === "mk"){ S.nm = (($("nm") || {}).value || "").trim().slice(0, 12) || "夥伴" + "ABCDEFGHIJ"[P.length % 10]; S.inv = String(100000 + Math.floor(Math.random() * 900000)).replace(/(\d{3})(\d{3})/, "$1 $2"); S.page = "invite"; return render(); }
   if (id === "cp" ) return toast("(預覽)連結已複製,可以貼到 LINE 傳給夥伴");
   if (id === "re") return toast("(預覽)新的邀請 QR Code 已產生");
   if (id === "tgl"){ if (t.disabled) return; P[S.cur].on = !P[S.cur].on; t.classList.toggle("on"); return toast(P[S.cur].on ? "已打開自動交易" : "已關掉:不再新進場"); }
   if (id === "sv") return toast("(預覽)已儲存,下一筆新進場開始套用");
+  if (id === "save") return S.who === "A" ? showPoster(P[S.cur].n, P[S.cur].k) : showPoster(S.nm, S.key);
+  if (id === "share") return sharePoster(P[S.cur].n, P[S.cur].k);
   if (id === "rm") return toast("(預覽)會先問「確定移除?」,移除後電腦停止這位夥伴的自動交易");
   if (id === "pfx"){ t.classList.add("ok"); t.textContent = "✓ A123456789.pfx"; return; }
   if (id === "send"){ S.page = "wait"; S.step = 2; return render(); }
-  if (id === "nx"){ S.step++; if (S.step > 4){ S.page = "done"; } return render(); }
+  if (id === "nx"){ S.step++; if (S.step > 4){ S.page = "done"; S.key = S.key || newKey();
+    const q = P.find(x => x.n === S.nm); if (q) Object.assign(q, {st:"run", t:"自動當沖中", d:"元大已登入 · 額度 " + (q.m[0] / 10000) + " 萬", k:S.key, on:true}); } return render(); }
   if (id === "open" || id === "dl") return toast("(預覽)會打開 / 下載 夥伴看盤");
 });
 main.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.matches(".prow,.file")){ e.preventDefault(); e.target.click(); } });
 $("wA").onclick = () => { S.who = "A"; S.page = "list"; render(); };
-$("wB").onclick = () => { S.who = "B"; S.page = "form"; S.step = 1; render(); };
+$("wB").onclick = () => { S.who = "B"; S.page = "form"; S.step = 1; S.key = ""; const w = P.slice().reverse().find(x => x.st === "wait"); if (w){ S.nm = w.n; S.inv = w.inv || S.inv; } render(); };
 render();
 /* 版本:App 顯示「App 1.0.0 · 雲端畫面」(畫面每次打開都讀雲端最新的);沒網路時「內建畫面(離線)」;網址版顯示「網頁版」 */
 try{ const H = window.JoinHost; $("ver").textContent = H ? `App ${H.version()}${H.offline() ? " 離線" : ""}` : "網頁版"; }catch(e){}
