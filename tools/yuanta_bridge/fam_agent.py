@@ -210,7 +210,8 @@ def run():
         try:
             t = now_tw(); mkt = t.weekday() < 5 and "09:00" <= t.strftime("%H:%M") < "13:30"   # 2026-11-17 盤中不新增 / 不移除夥伴(13:30 後才處理)
             r = api("fam=jobs")
-            for j in ([] if mkt else (r.get("jobs", []) if isinstance(r, dict) else [])):
+            for j in (r.get("jobs", []) if isinstance(r, dict) else []):
+                if mkt and j.get("op") != "add": continue   # 盤中只先做「新增」(使用者「暫時還是要允許盤中加入新夥伴 畢竟還是要測試」);移除等 13:30 後
                 n = j.get("name", "")
                 try:
                     if j.get("op") == "add":

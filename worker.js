@@ -1474,7 +1474,7 @@ export default {
         return J({ ok: true, fams, agentAt: seen }); }
       if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
       const b = await body(); const n = b && String(b.name || "").trim(); if (!ACCT_RE.test(n || "")) return J({ error: "名字最多 12 個字,不能有空白或符號" }, 400);
-      if ((famQ === "add" || famQ === "del") && mktNow()) return J({ error: famQ === "add" ? "盤中(09:00~13:30)不能新增夥伴,13:30 收盤後再新增" : "盤中(09:00~13:30)不能移除夥伴(他可能還有部位),13:30 收盤後再移除" }, 409);   // 2026-11-17「改 新增夥伴盤中也擋」
+      if (famQ === "del" && mktNow())   /* 2026-11-17 使用者「暫時還是要允許盤中加入新夥伴 畢竟還是要測試」:盤中新增暫時開放(只擋移除) */ return J({ error: famQ === "add" ? "盤中(09:00~13:30)不能新增夥伴,13:30 收盤後再新增" : "盤中(09:00~13:30)不能移除夥伴(他可能還有部位),13:30 收盤後再移除" }, 409);   // 2026-11-17「改 新增夥伴盤中也擋」
       if (famQ === "add") {
         if (typeof b.enc !== "string" || b.enc.length < 100 || b.enc.length > 4000) return J({ error: "加密資料不對" }, 400);
         const L = await L0(); if (L[n] && L[n].st !== "fail") return J({ error: `已經有【${n}】` }, 409);

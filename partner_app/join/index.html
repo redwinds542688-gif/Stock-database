@@ -171,9 +171,9 @@ function vList(){
       <div class="step now"><i>1</i>先用夥伴的身分,在你的電腦申請 / 匯入元大憑證</div>
       <div class="step todo"><i>2</i>按「新增夥伴」,輸入他的元大帳號、密碼、額度</div>
       <div class="step todo"><i>3</i>電腦登入成功,自動產生他的看盤金鑰 QR Code,傳給他</div></div></div>
-    ${mkt() ? `<button type="button" class="btn" disabled style="opacity:.55">盤中不能新增夥伴(13:30 收盤後)</button>` : `<button type="button" class="btn gold" id="add">＋ 新增第一位夥伴</button>`}`;
+    <button type="button" class="btn gold" id="add">＋ 新增第一位夥伴</button>`;
   return `<h2>夥伴(${P.length} 位)</h2>${warn}${P.map((p, i) => `<div class="prow" data-i="${i}" role="button" tabindex="0"><b>${esc(p.n)}</b><span class="st ${p.st}">${p.t}</span><small>${esc(p.d)}</small></div>`).join("")}
-    ${mkt() ? `<button type="button" class="btn" disabled style="opacity:.55">盤中不能新增夥伴(13:30 收盤後)</button>` : `<button type="button" class="btn gold" id="add">＋ 新增夥伴</button>`}`;
+    <button type="button" class="btn gold" id="add">＋ 新增夥伴</button>`;
 }
 /* 2026-11-17 使用者「盤中修改設定 電腦與雲端不可以接受 只有盤後或盤前才能接受 … 盤前8.45檢查一次」→「改 新增夥伴盤中也擋」:
    台灣時間平日 09:00~13:29 = 盤中:傳送 / 新增 / 移除 按不下去(雲端也會擋);電腦每天 08:45 套用 */
@@ -196,7 +196,8 @@ function vNew(){ return `<button type="button" class="back" id="bk">‹ 夥伴�
   <div class="card"><b style="font-size:calc(var(--uf) * 1.15)">額度(之後隨時可改)</b>${money([1000000,100000,10000,20000])}</div>
   <div class="lock">🔒 帳號密碼在這支手機先用你電腦的鎖加密,只有你的電腦解得開;雲端只轉送、不留存。送出後這裡不再顯示密碼。</div>
   <div class="hint" id="nerr" style="color:#FF8A8A;min-height:1.4em"></div>
-  <button type="button" class="btn gold" id="send">加密送到電腦</button>`; }
+  <button type="button" class="btn gold" id="send">加密送到電腦</button>
+  ${mkt() ? `<p class="hint" style="color:#FFB13B">現在是盤中:測試期間暫時可以新增,電腦會馬上幫他登入元大、開始自動當沖。</p>` : ""}`; }
 function vWait(){ const q = P.find(x => x.n === S.nm), st = q ? q.st0 : "wait";
   const n = st === "pc" ? (q.d.includes("登入") ? 1 : 0) : st === "run" ? 4 : 0;
   return `<h2>${esc(S.nm)} 設定中…</h2><div class="card steps">${steps(n)}</div>
