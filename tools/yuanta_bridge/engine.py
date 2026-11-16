@@ -828,11 +828,13 @@ class Engine:
         self.envs = {}
         self.tx_req = tuple(getattr(rs_env, "IRON_TX_REQUIRE", ("八", "九")))   # 2026-11-14 18:35 使用者「改」:判八 / 判九拿不到台指期 / 加權指數 → 不進場
         self.txsync_fn = getattr(rs_env, "txsync", None)   # 2026-11-13 22:30 ⑧ 台指期同步進場(使用者「解鎖 改 全部套用」):判斷寫在私人庫 rs_env.txsync(模擬器同一份)
+        self.txcover_fn = getattr(rs_env, "txf_cover", None)   # 2026-11-16 14:38 使用者「改」:台指期缺一段 → ⑧ 改用加權指數(私人庫 rs_env.txf_cover;舊版 rs_env 沒有 = 照舊)
         self.j9max = int(getattr(rs_env, "J9MAX", J9MAX))   # 2026-11-14 判九
         self.j8max = int(getattr(rs_env, "J8MAX", J8MAX))   # 2026-11-14 判八
         self.j5max = int(getattr(rs_env, "J5MAX", J5MAX))   # 2026-11-05 判五一天上限(私人庫 rs_env.J5MAX;apply 裡沒有 rs_env 這個名字)
         for rs in RS_ALL: self.envs[rs] = rs_env.env_of(rs, str(DATA / "breadth.json") if rs in ("一", "二", "五", "六", "六3", "八", "九") else None)   # 判八要名單上漲比例(LBR)
         for _e in self.envs.values():
+            if _e.get("TXSYNC"): _e["IXFDIR"] = str(HERE / "engine_data" / "ix")   # 2026-11-16 14:38 使用者「改」:模擬器台指期缺一段時改讀加權指數(引擎每輪把 Worker ixbars 寫成 engine_data/ix/<日期>.csv)
             if _e.get("TXSYNC"): _e["TXFDIR"] = str(HERE / "kline_futures" / "TXF")   # ⑧ 模擬器讀中繼存的台指期 1 分 K   # 2026-11-10 23:05 判六(午盤 Ka 穿 VWAP)要寬度 10 分鐘變化   # 判五:名單平均檔 DATA/mktavg.json(write_breadth 寫)
         if self.envs.get("六", {}).get("MODE") not in ("j6k", "j6r"):   # 2026-11-10 23:05 判六 = 午盤 Ka 穿 VWAP(j6k;舊超賣急彈 j6r 封存但還認得);私人庫沒有 → 判六先不跑
             self.envs.pop("六", None); log("!! 私人庫 rs_env.py 還沒有觀察版判六(J6 MODE=j6k),判六今天先不跑")
@@ -1255,6 +1257,14 @@ class Engine:
         if not c or not fn: return True
         try:
             txf = self.txf_map(); frm = None
+            _cov = getattr(self, "txcover_fn", None)
+            if txf and _cov:
+                try:
+                    _n0 = int(float(c.split(":")[0]))
+                    if not _cov(txf, tm, _n0):   # 2026-11-16 14:38 使用者「現在已經收盤 改」:台指期缺一段(電腦斷線 / 停電 / 中繼盤中重開)→ 改用加權指數
+                        ix = self.ix_map()
+                        if ix: txf = ix; frm = "09:00"; log(f"{JUDGE[rs]} {code} {tm} 台指期這 {_n0} 分鐘缺資料 → ⑧ 改用加權指數")
+                except Exception as e: log("⑧ 台指期完整性檢查失敗(照舊用台指期)", e)
             if not txf:   # 2026-11-13 23:58 ⑧ 備援 3:元大 / 期交所台指期都沒有 → 用 Worker 記的加權指數(09:00 起)
                 txf = self.ix_map(); frm = "09:00" if txf else None
             if not txf:
@@ -1316,6 +1326,12 @@ class Engine:
             n_ev = self.apply(res, upto, **kw)
             return dtm, errs, n_ev
         # 2026-11-06 回放和盤中走同一條路:算完一檔就對帳、過了進場時段只算持倉
+        try:   # 2026-11-16 14:38 使用者「改」:⑧ 台指期缺一段時的加權指數備援,寫成檔給模擬器讀(IXFDIR)
+            _ix = self.ix_map()
+            if _ix:
+                _d = HERE / "engine_data" / "ix"; _d.mkdir(parents=True, exist_ok=True)
+                write_atomic(_d / f"{self.day}.csv", "date,time,open,high,low,close,volume\n" + "".join(f"{self.day},{k},{v},{v},{v},{v},0\n" for k, v in sorted(_ix.items())))
+        except Exception as e: log("⑧ 加權指數備援檔寫入失敗", e)
         self.upto_hm = upto; t0 = time.time(); it, njobs = self.compute(stream=True); errs = 0; n_ev = 0
         cutoff = hm_add(upto, -10); an = kw.get("allow_new", True); ap = kw.get("allow_phantom", True); rb = kw.get("rs_block") or {}
         for r in it:
