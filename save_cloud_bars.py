@@ -91,14 +91,22 @@ def save_fbars(d):
     rows = j.get("bars") or []
     if not rows: print(f"{d} 沒有台指期 1 分K"); return 0
     folder = os.path.join(ROOT, "kline_futures", "TXF"); os.makedirs(folder, exist_ok=True)
-    f = os.path.join(folder, f"{week_key(d)}.csv"); keep = []
+    f = os.path.join(folder, f"{week_key(d)}.csv"); keep = []; mine = {}
     if os.path.exists(f):
-        with open(f, encoding="utf-8") as fh: keep = [r for r in csv.DictReader(fh) if r["date"] != d]
+        with open(f, encoding="utf-8") as fh:
+            for r in csv.DictReader(fh):
+                if r["date"] != d: keep.append(r)
+                else: mine[r["time"]] = [r["open"], r["high"], r["low"], r["close"], r["volume"]]
+    # 2026-11-16 16:00 使用者「事後還是可以拿到完整的台指期分k」:檔案裡已經有的(期交所逐筆合成的完整一天,taiex-1m.yml)優先、不被雲端那份蓋掉;
+    #   雲端(中繼推的,盤中重開可能只剩一部分)只補檔案裡沒有的分鐘(11/16 雲端只剩 12:33 起,原本整天被換成 73 根)
+    add = 0
+    for r in rows:
+        if r[0] not in mine: mine[r[0]] = list(r[1:6]); add += 1
     with open(f, "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh); w.writerow(["date", "time", "open", "high", "low", "close", "volume"])
         for r in keep: w.writerow([r["date"], r["time"], r["open"], r["high"], r["low"], r["close"], r["volume"]])
-        for r in rows: w.writerow([d] + list(r[:6]))
-    print(f"{d} 台指期 {j.get('code', '')} 1 分K {len(rows)} 根"); return len(rows)
+        for hm in sorted(mine): w.writerow([d, hm] + list(mine[hm]))
+    print(f"{d} 台指期 {j.get('code', '')} 1 分K 雲端 {len(rows)} 根、補進 {add} 根,這天共 {len(mine)} 根"); return add
 
 def back_days(d):
     """2026-10-25 使用者「新進榜的股票 要回溯五天抓k」:桌機補抓的前幾天也推到 Worker 了,這裡把今天以前 8 天內 Worker 有的日子一起存(多 1 次請求 + 每天 1 次)"""
