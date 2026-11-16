@@ -49,13 +49,13 @@
 "code": "1303",
 "name": "南亞",
 "market": "twse",
-"lots": 85679
+"lots": 86436
 },
 {
 "code": "2317",
 "name": "鴻海",
 "market": "twse",
-"lots": 78873
+"lots": 80611
 },
 {
 "code": "6770",
@@ -94,16 +94,16 @@
 "lots": 45609
 },
 {
+"code": "2327",
+"name": "國巨*",
+"market": "twse",
+"lots": 42985
+},
+{
 "code": "2610",
 "name": "華航",
 "market": "twse",
 "lots": 42963
-},
-{
-"code": "2327",
-"name": "國巨*",
-"market": "twse",
-"lots": 42077
 },
 {
 "code": "2324",
@@ -115,13 +115,13 @@
 "code": "2337",
 "name": "旺宏",
 "market": "twse",
-"lots": 39092
+"lots": 39300
 },
 {
 "code": "2408",
 "name": "南亞科",
 "market": "twse",
-"lots": 38922
+"lots": 39044
 },
 {
 "code": "6112",
@@ -259,7 +259,7 @@
 "code": "2382",
 "name": "廣達",
 "market": "twse",
-"lots": 21466
+"lots": 21642
 },
 {
 "code": "2449",
@@ -376,6 +376,12 @@
 "lots": 14799
 },
 {
+"code": "2312",
+"name": "金寶",
+"market": "twse",
+"lots": 13994
+},
+{
 "code": "8150",
 "name": "南茂",
 "market": "twse",
@@ -410,12 +416,6 @@
 "name": "資通",
 "market": "twse",
 "lots": 13231
-},
-{
-"code": "2312",
-"name": "金寶",
-"market": "twse",
-"lots": 13121
 },
 {
 "code": "3441",
@@ -758,6 +758,12 @@
 "name": "巨有科技",
 "market": "tpex",
 "lots": 6157
+},
+{
+"code": "6794",
+"name": "向榮生技",
+"market": "twse",
+"lots": 6133
 },
 {
 "code": "3624",
