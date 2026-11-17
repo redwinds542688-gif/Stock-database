@@ -732,17 +732,22 @@ class Trader:
             return [(c, n) for c, n, _ in left]
 
     # ── 外部事件 ──
+    def unreal_pnl(self):
+        """持倉帳面損益(現價、扣手續費 / 稅)"""
+        unreal = 0.0
+        for p in self.positions.values():
+            if p["state"] != HOLDING: continue
+            px = self.last_px.get(p["code"]) or p["entry"]; lots = p["qty"]
+            buy, sell = (p["entry"], px) if p["dir"] > 0 else (px, p["entry"])
+            unreal += (px - p["entry"]) * p["dir"] * lots * 1000 - self.cost_amt(buy, sell, lots)
+        return unreal
+
     def check_kill(self):
         """2026-10-31 當天虧損保險:已平倉損益 + 持倉帳面(現價、扣手續費 / 稅)≤ −TRADE_KILL_LOSS → 全部平倉(漲停買 / 跌停賣),今天不再自動進場"""
         if self.killed or self.hm() < "09:00" or (self.kill_loss <= 0 and not self.loss_alerts and not self.win_alerts):
             return
         with self.lock:
-            unreal = 0.0
-            for p in self.positions.values():
-                if p["state"] != HOLDING: continue
-                px = self.last_px.get(p["code"]) or p["entry"]; lots = p["qty"]
-                buy, sell = (p["entry"], px) if p["dir"] > 0 else (px, p["entry"])
-                unreal += (px - p["entry"]) * p["dir"] * lots * 1000 - self.cost_amt(buy, sell, lots)
+            unreal = self.unreal_pnl()
             total = self.pnl + unreal
             kill = self.kill_loss > 0 and total <= -self.kill_loss
             # 2026-10-31 虧損級距通知(1 萬 / 2 萬 / 3 萬 / 4 萬 / 5 萬):每一級一天一次;同時到全部平倉的那級不另發(全部平倉那則已經寫了)
@@ -756,7 +761,7 @@ class Trader:
                     head = {1: "⚠ 注意", 2: "⚠⚠ 警告", 3: "🔴🔴🔴 危險", 4: "🚨🚨🚨🚨 緊急"}.get(n, "🚨🚨🚨🚨🚨 最高警戒")
                     body = f"已平倉 {self.pnl:+,.0f}、持倉帳面 {unreal:+,.0f},合計 {total:+,.0f}"
                     if n >= 2 and self.max_loss > 0:
-                        body += ";已停止新進場" if self.pnl <= -self.max_loss else f";已平倉虧到 {w(self.max_loss)} 會停止新進場"
+                        body += ";已停止新進場" if total <= -self.max_loss else f";已平倉 + 帳面虧到 {w(self.max_loss)} 會停止新進場"
                     if self.kill_loss > 0:
                         body += f";再虧 {self.kill_loss + total:,.0f} 就全部平倉" + ("!!" if n >= 4 else "")
                     if n >= 3:
@@ -2195,8 +2200,9 @@ class Trader:
             return f"已經有 {self.auto_count()} 檔部位(上限 {self.max_pos})"
         if getattr(self, "killed", False):
             return f"今天已虧到 {self.kill_loss:,.0f} 全部平倉過,不再自動進場"
-        if self.pnl <= -self.max_loss:
-            return f"今天已虧 {-self.pnl:,.0f}(上限 {self.max_loss:,.0f})"
+        _tot = self.pnl + self.unreal_pnl()   # 2026-11-17 15:20 使用者「浮虧也是虧」:停止新進場看 已平倉 + 持倉帳面
+        if _tot <= -self.max_loss:
+            return f"今天已虧 {-_tot:,.0f}(已平倉 {self.pnl:+,.0f}、帳面 {_tot - self.pnl:+,.0f};上限 {self.max_loss:,.0f})"
         hm = self.hm()
         if not ("09:00" <= hm < self.last_entry):
             return f"不在 09:00~{self.last_entry}"

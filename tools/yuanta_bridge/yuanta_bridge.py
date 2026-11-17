@@ -143,6 +143,8 @@ def load_env():
     return cfg
 
 
+# 2026-11-17 元大委託失敗錯誤碼 → 中文原因(看過的才列;沒列的照元大給的文字 / 開盤前複檢原因)
+REJECT_WHY = {"21352": "無券可借,不能放空", "21353": "今天暫停先賣後買(不能當沖放空)"}   # 21353:11/17 華邦電(複檢 noshort)手動放空被退時看到的碼
 CFG = load_env()
 LOG_LOCK = threading.Lock()
 # 2026-11-15 12:10 使用者「大概10個人 每個人的額度不一樣 … 九個判別式都一起啟動 … 我可以看到所有人的輸贏 但他們只能看到自己的輸贏」:
@@ -395,7 +397,22 @@ class Bridge:
                             if se == "21352" and str(r.BS).strip() == "S":   # 2026-11-06 使用者「應該是無券可藉來空 … 我手動操作元大也是一樣無法做空」:做空被 21352 擋 → 這檔今天不再送空單
                                 if self.trader: self.trader.no_short(cn, "元大 21352(無券可空)")
                             else:
-                                threading.Thread(target=lambda: self.phone_alert(f"⚠ 元大退回委託 {cn}", why or "元大回報委託失敗(原因見電腦紀錄)", "pc"), daemon=True).start()
+                                # 2026-11-17 15:20 使用者「1 要通知 通知說明原因」(華邦電 12:02 手動放空被退,原本只寫 X999):標題寫股票 / 買賣 / 張數 / 價格,內容寫原因
+                                #   原因:已知錯誤碼對照 → 開盤前複檢(處置 / 注意 / 不可當沖 / 不可先賣)→ 元大給的文字 / 錯誤碼
+                                bs_ = str(r.BS).strip(); oe = str(getattr(r, "OrderErrorNo", "") or "").strip()
+                                rs_ = REJECT_WHY.get(se) or REJECT_WHY.get(oe) or ""
+                                if not rs_:
+                                    try: import elig; rs_ = elig.blocked(cn, "short" if bs_ == "S" else "long")
+                                    except Exception: rs_ = ""
+                                if not rs_ and why and why not in (oe, se): rs_ = why
+                                try: lots_ = int(r.OrderQty) // 1000; px_ = float(r.Price)
+                                except Exception: lots_, px_ = 0, 0.0
+                                bd = (rs_ or "原因元大沒寫") + f"(元大錯誤碼 {'/'.join(x for x in (oe, se) if x) or '?'})"
+                                def _rej(cn=cn, bs_=bs_, lots_=lots_, px_=px_, bd=bd):   # 查名稱可能要連網,放另一條執行緒
+                                    try: nm_ = self.stock_name(cn)
+                                    except Exception: nm_ = ""
+                                    self.phone_alert(f"⛔ {nm_ + ' ' if nm_ and nm_ != cn else ''}{cn} {'賣出' if bs_ == 'S' else '買進'} {lots_} 張{f' @ {px_:g}' if px_ else ''} 被元大退單", bd, "pc")
+                                threading.Thread(target=_rej, daemon=True).start()
                         typ = str(getattr(r, "OrderType", "") or "").strip()   # 2026-10-28 平倉檢查 #6:委託種類(有的話元三平倉用同一種)
                         if self.trader: self.trader.on_report(rt, str(r.OrderNo), int(r.OrderStatus), int(r.OrderQty), float(r.Price), _bn(r.BasketNo), str(r.CompanyNo), str(r.BS).strip(), typ)
                     return

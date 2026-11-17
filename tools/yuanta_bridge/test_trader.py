@@ -1140,3 +1140,9 @@ for _no, _want in (("YA03V", False), ("M200", True)):
     po_["oco_live"] = True; po_["oco_no"] = "B26X"; no_ = len(go_.sent)
     to_.on_other_fill("6269", "B", 1000, 88.0, _no); ok((("del_oco", "B26X") in go_.sent[no_:]) == _want and not po_.get("oco_live"), (_no, go_.sent[no_:]))
 print("條件單觸發平倉不重刪 OK")
+
+# 2026-11-17 15:20 使用者「浮虧也是虧」:停止新進場 = 已平倉 + 持倉帳面 ≤ −上限
+NOW[0] = NOW0; tl_, gl_ = mk(TRADE_MAX_LOSS="20000"); tl_.on_tick("6269", 86.2); tl_.step([ENT]); tl_.on_report(51, "A0001", 0, 1000, 86.1); pl_ = tl_.positions["6269"]; pl_["qty"] = 10
+tl_.pnl = -5000.0; ok(not tl_.can_enter("2330", "判二", "long"), tl_.can_enter("2330", "判二", "long"))
+tl_.on_tick("6269", 87.8); w_ = tl_.can_enter("2330", "判二", "long"); ok("今天已虧" in w_ and "帳面" in w_, w_)   # 空 10 張 86.1 → 87.8 帳面約 −1.8 萬
+print("浮虧算進虧損上限 OK")
