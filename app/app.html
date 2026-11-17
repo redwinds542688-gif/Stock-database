@@ -501,7 +501,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611172346">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611180031">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -850,6 +850,23 @@
           background:none;          /* 透明,紅框不被蓋住 */
           visibility:hidden}
   .panel.open .wheels{visibility:visible}
+  /* 2026-11-18 00:26 使用者「解鎖 改 都改」:設定最下面一排 切換鍵(主導$ / 虛擬 / 夥伴…)+ 分級下單三顆;四顆一樣大、左右對齊上面文字;設定打開時面板加高放得下 */
+  .panel.open{height:334px}
+  #acctRow{order:30;flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;padding:6px 0 2px;box-sizing:border-box}
+  .acb,.lotb{flex:none;width:75px;height:43px;box-sizing:border-box;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden;font-weight:800;padding:0;font-family:inherit}
+  .acb{font-size:20px;background:#ffd34d;color:#111;border:2px solid #fff;box-shadow:0 0 0 2px #ffd34d}
+  .acb.virt{background:#a855f7;color:#fff;box-shadow:0 0 0 2px #a855f7}
+  .acb.pt{background:#2b6fd6;color:#fff;border-color:#7fb0ff;box-shadow:0 0 0 2px #ffd34d}
+  .acb > span,.vbtn > span.fit{display:inline-block;white-space:nowrap;transform-origin:center}
+  .lotb{font-size:15px;background:transparent;color:#8C96AB;border:2px solid #3a4150}
+  .lotb.on{color:#ffd166;border-color:#ffd166;background:rgba(255,209,102,.10)}
+  .lotb.dis{opacity:.5}
+  .wheels > .wheel.pw{display:none}
+  .wheels.pmode > .wheel:not(.pw){display:none}
+  .wheels.pmode > .wheel.pw{display:block}
+  #pwAmt{order:1} #pwCap{order:2} #pwLoss{order:3} #pwKill{order:4}
+  #notifLog .hd .vbtn.pt{background:#2b6fd6;color:#fff;border-color:#7fb0ff}
+  #notifLog .hd .vbtn.fixw{width:2.95em;padding-left:0;padding-right:0;overflow:hidden;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;flex:none}
   .panel.open #notifLog{visibility:hidden}   /* 設定滾輪打開時,監控紀錄先藏起來,不然兩個疊在一起 */
   .wheel{flex:0 0 calc((100% - 16px) / 3);position:relative;min-width:0}
   /* 2026-11-07 16:15 設定變三排(加最低張數 / 成交K棒 / 連續天數):滾輪框矮一點才放得下 */
@@ -1229,6 +1246,12 @@ body:has(#sheet.open) #bugDot::before,body:has(#sheet.open) #bugDot::after{displ
     <div class="scroller" id="wDays"></div>
     <div class="hl"></div>
   </div>
+  <!-- 2026-11-18 00:26 使用者「切換時 必須讀取 夥伴加入裡面 各自的設定值」:切到夥伴 → 九個滾輪換成夥伴加入的四個設定(總額度 / 多空上限 / 停止進場 / 全部平倉) -->
+  <div class="wheel locked pw" id="pwAmt"><div class="lbl">總額度</div><div class="scroller" id="wPAmt"></div><div class="hl"></div></div>
+  <div class="wheel locked pw" id="pwCap"><div class="lbl">多空上限</div><div class="scroller" id="wPCap"></div><div class="hl"></div></div>
+  <div class="wheel locked pw" id="pwLoss"><div class="lbl">停止進場</div><div class="scroller" id="wPLoss"></div><div class="hl"></div></div>
+  <div class="wheel locked pw" id="pwKill"><div class="lbl">全部平倉</div><div class="scroller" id="wPKill"></div><div class="hl"></div></div>
+  <div id="acctRow"><button type="button" class="acb" id="acctBtn"><span>主導$</span></button><button type="button" class="lotb" data-m="1">能買幾張</button><button type="button" class="lotb" data-m="2">只買1張</button><button type="button" class="lotb" data-m="3">分級縮</button></div>
 
 </div>
 </div>
@@ -1773,7 +1796,7 @@ try{ if (localStorage.getItem('mysh.rvReal') === '0') window.RV_REAL = false; }c
 const rvIsReal = () => !vwOnly() && !window.DONE_VIRT;   /* 2026-11-13 14:10(實際時間)使用者「資訊裡面 不需要 元大 虛擬 切換…明細裡是元大 檢討就是元大的檢討 明細裡是虛擬 檢討就是虛擬」:檢討跟著明細的元大 / 虛擬開關(資訊頁的切換鍵拿掉) */
 const rvHtml = (Y) => { const RR = window.__RV || {}, real = rvIsReal(), N0 = RR.notes || {}, R = real && Y && !Y.none ? Object.assign({}, RR, {auto: Y}) : real && !((RR.d || '') < '2026-11-16') ? Object.assign({}, RR, {auto: null}) : RR, A = R.auto || {}, N = (real ? (N0.real || (Array.isArray(N0.findings) ? N0 : null)) : N0.virt) || {}, e = x => String(x == null ? '' : x).replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]));
   const m = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(Math.round(v || 0)).toLocaleString('en-US'), cl = v => v > 0 ? 'up' : v < 0 ? 'dn' : '';
-  let h = `<div class="rvw"><div class="rvt"><span>${e((R.d || '').slice(5).replace('-', '/'))} ${real ? '元大' : '虛擬'}收盤檢討</span></div>`;   // 2026-11-07 16:00 使用者「虛擬電腦通知那個不用顯示」
+  let h = `<div class="rvw"><div class="rvt"><span>${e((R.d || '').slice(5).replace('-', '/'))} ${real ? '主導$' : '虛擬'}收盤檢討</span></div>`;   // 2026-11-07 16:00 使用者「虛擬電腦通知那個不用顯示」
   /* 2026-11-17 23:40 使用者「要的是贏錢 而不是贏筆數」→「改」:金額勝率 = 贏的合計 ÷(贏的合計 + |輸的合計|),50% = 打平 */
   const LL = (A.list || []).filter(c => !c.over), mwr = L => { let w = 0, l = 0; for (const c of L){ const v = +c.net || 0; if (v > 0) w += v; else l -= v; } return w + l > 0 ? (w * 100 / (w + l)).toFixed(1) + '%' : ''; };
   if (R.auto){ h += `<div class="rvr"><span>今日輸贏</span><b class="${cl(A.net)}">${m(A.net)}</b><span>${A.n || 0} 筆 ${A.w || 0} 贏 ${(A.n || 0) - (A.w || 0)} 輸${mwr(LL) ? ' · 金額勝率 ' + mwr(LL) : ''}</span></div>`;
@@ -2034,6 +2057,15 @@ function yLegMerge(legs){
   }catch(e){ return legs; }
 }
 const fillAmt = rows => { let a = 0; try{ for (const r of (rows || [])){ const q = +r.lots || 0, o = +r.open || 0; a += ((+r.buy || 0) * (q + Math.max(o, 0)) + (+r.sell || 0) * (q + Math.max(-o, 0))) * 1000; } }catch(e){} return a; };   // 2026-11-04 元大成交明細的實際成交金額(買 + 賣)
+/* 2026-11-18 00:26 明細切到夥伴:夥伴那天的元大成交(?acct=get&a=&d=&name=fills,owner 鑰匙);undefined = 讀取中,null = 沒有;今天每 60 秒重讀 */
+const PFC = {}; window.PFC = PFC;
+const pFillsOf = (a, dd) => { const k = a + '|' + dd, c = PFC[k], td = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+  if (c && (dd !== td || Date.now() - c.at < 60000)) return c.v;
+  if (!c || !c.ing){ PFC[k] = {v: c ? c.v : undefined, at: c ? c.at : 0, ing: 1};
+    fetch(BASE.liveUrl.replace(/\/$/, '') + '/?acct=get&a=' + encodeURIComponent(a) + '&d=' + dd + '&name=fills&_=' + Date.now(), {cache: 'no-store', signal: AbortSignal.timeout(9000)}).then(r => r.ok ? r.json() : null)
+      .then(j => { PFC[k] = {v: j && j.v && typeof j.v === 'object' ? j.v : null, at: Date.now()}; }).catch(() => { PFC[k] = {v: null, at: Date.now()}; })
+      .finally(() => { try{ if (window.NL_VIEW === 'done' && window.nlRender) nlRender(); }catch(e){} }); }
+  return c ? c.v : undefined; };
 const yFillsOf = dd => { if (dd && dd < '2026-11-16') return null; /* 2026-11-09 22:00 使用者「明細 燈號也不對」:22 天重寫後元大真實成交從 11/10 起,之前的日子(燈號 / 明細 / 進場)一律看重算的 */ try{ const j = JSON.parse(localStorage.getItem('mysh.yfills.' + dd) || 'null'); return j && Array.isArray(j.rows) ? j : null; }catch(e){ return null; } };
 function fmToast(msg, ms){ try{ let t = el('fmToast'); if (!t){ t = document.createElement('div'); t.id = 'fmToast'; document.body.appendChild(t); }
   t.textContent = msg; t.classList.add('on'); clearTimeout(t.__h); t.__h = setTimeout(() => t.classList.remove('on'), ms || 2600); }catch(e){} }
@@ -2084,7 +2116,8 @@ async function forceOpen(code, name, closeOnly){
   const cap = capFund(), one = z * 1000, left = (window.__fundLeft != null ? window.__fundLeft : 5000000);   /* 2026-10-31 14:57 使用者「490萬 改成500萬」 */
   if (left < one) return;                                   // 使用者:「強制當下如果資金已經不足 直接沒有作用就好 不用再出現這視窗」
   // 2026-11-11 19:59 鐵律 ⑤(使用者「分級張數 鎖定 監控所有判別式的進場」):強制進場張數照分級 —— ≤ 80 元 最多 3 張且 ≤ 16 萬、80~250 元 最多 2 張且 ≤ 25 萬;一張超過 25 萬 = 超額(電腦會擋)
-  let lots = Math.max(1, Math.floor(250000 / one)),   /* 2026-11-14 00:55 🔓→🔒 鐵律 ⑤ 改「不分級」(使用者「如果購買不分級呢」→「解鎖 改」):每筆 25 萬能買幾張就買幾張(原 ≤80 元最多 3 張 ≤16 萬、80~250 元最多 2 張) */ over = one > Math.min(cap, 250000);   /* 2026-11-11 22:46 使用者「最多上限改25萬」 */   /* 2026-11-11 22:24 使用者「針對 2項 改鐵律」:一張上限改以主導機多空上限為準,不再固定最多 25 萬 */
+  const c_ = Math.min(cap, 250000), lm_ = +window.MLOT || 1;   /* 2026-11-18 00:26 鐵律 ⑤ 張數照多空上限 + 主導機的分級下單(和電腦 trader.lots_for 同一套) */
+  let lots = lm_ === 2 ? 1 : lm_ === 3 ? (z <= 80 * c_ / 250000 ? Math.max(1, Math.min(3, Math.floor(0.64 * c_ / one))) : Math.max(1, Math.min(2, Math.floor(c_ / one)))) : Math.max(1, Math.floor(c_ / one)),   /* 2026-11-14 00:55 🔓→🔒 鐵律 ⑤ 改「不分級」(使用者「如果購買不分級呢」→「解鎖 改」):每筆 25 萬能買幾張就買幾張(原 ≤80 元最多 3 張 ≤16 萬、80~250 元最多 2 張) */ over = one > Math.min(cap, 250000);   /* 2026-11-11 22:46 使用者「最多上限改25萬」 */   /* 2026-11-11 22:24 使用者「針對 2項 改鐵律」:一張上限改以主導機多空上限為準,不再固定最多 25 萬 */
   fmShow({act: 'enter', code, name, z, y, cap, lots, over, left, enabled: j.enabled, pxOk: !!j.pxOk});
 }
 window.forceOpen = forceOpen;
@@ -3166,7 +3199,7 @@ const cfgApply = o => { let ch = false; capSyncing = true;
 function cfgSend(){
   clearTimeout(capPost.t); capPost.at = Date.now();   // 停 1.5 秒沒再轉才送(連轉幾格只寫一次雲端);不跳任何提示(使用者「不用顯示」)
   capPost.t = setTimeout(() => { const o = cfgSnap();
-    fetch(capUrl('set&v=' + Math.round(parseFloat(o.cap) * 10000)), {method: 'POST', cache: 'no-store', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({set: o}), signal: AbortSignal.timeout(9000)})
+    fetch(capUrl('set&v=' + Math.round(parseFloat(o.cap) * 10000)), {method: 'POST', cache: 'no-store', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({set: Object.assign({}, o, {lot_mode: String(window.MLOT || 1)})}), signal: AbortSignal.timeout(9000)})
       .then(r => r.json().catch(() => ({})).then(j => { if (!r.ok || !j.ok) throw new Error(j.error || r.status); cfgSent = o; }))
       .catch(e => { if (cfgSent) { cfgApply(cfgSent); saveFees(); queueScan(); } fmToast('沒改成功:' + (e && e.message || '連不上'), 3000); });
   }, 1500);
@@ -3188,6 +3221,7 @@ function capPull(){
     if (!j || !j.ok) return;
     if (!j.cap) { if (role === 'master' && !inSession()) cfgSend(); return; }   // 還沒設過 → 主導機把目前值送上去一次(盤外)
     const o = j.set ? {...j.set} : {}; o.cap = Math.round(j.cap / 10000) + '萬';
+    try{ const lm = +(j.set && j.set.lot_mode) || 1; if (lm !== window.MLOT){ window.MLOT = lm; if (window.acctUI) acctUI(); } }catch(e){}   /* 2026-11-18 分級下單跟主導機 */
     if (cfgApply(o)) { saveFees(); queueScan(); }
     cfgSent = cfgSnap();
     if (role === 'master' && !inSession() && (!j.set || Object.keys(CFGW()).some(k => !(k in j.set)))) cfgSend();   // 雲端只有上限(舊版)或少了新滾輪(2026-11-07 最低張數 / 成交K棒 / 連續天數)→ 主導機補送整組設定
@@ -3212,6 +3246,63 @@ const wFee = makeWheel('wFee', buildVals(CFG.disc && CFG.disc.range),
 const wLots = makeWheel('wLots', buildVals(CFG.lots && CFG.lots.range), startVal('lots', '6000'), cfgGuard('lots', onFeeChange));
 const wBars = makeWheel('wBars', buildVals(CFG.bars && CFG.bars.range), startVal('bars', '250'),  cfgGuard('bars', onFeeChange));
 const wDays = makeWheel('wDays', buildVals(CFG.days && CFG.days.range), startVal('days', '1天'),  cfgGuard('days', onFeeChange));
+/* 2026-11-18 00:26 🔓→🔒 使用者「解鎖 改 都改」:設定最下面一排 —— 切換鍵(主導$ → 虛擬 → 夥伴A → … → 主導$)+ 分級下單(1 能買幾張 / 2 只買 1 張 / 3 分級縮)
+   主導$ = 自己的帳號(主導機改了存雲端 cap=set 的 set.lot_mode,電腦下單照它);虛擬 = 固定現在的設定(能買幾張,不能改);
+   夥伴 = 讀夥伴加入的設定(?acfg=get):九個滾輪換成 總額度 / 多空上限 / 停止進場 / 全部平倉,改了存回 ?acfg=set(只有主導機、收盤後) */
+window.MLOT = 1; window.ACCTS = []; let SET_ACCT = '', pSync = false, PCFG = {};
+const pvals = (a, b, st, f) => { const o = []; for (let v = a; v <= b + 1e-9; v += st) o.push(f(Math.round(v * 10) / 10)); return o; };
+const wanF = v => (Number.isInteger(v) ? String(v) : v.toFixed(1)) + '萬';
+const wPAmt = makeWheel('wPAmt', pvals(100, 500, 10, wanF), '100萬', () => pSend());
+const wPCap = makeWheel('wPCap', pvals(10, 25, 1, wanF), '10萬', () => pSend());
+const wPLoss = makeWheel('wPLoss', pvals(0.5, 3, 0.5, wanF), '1萬', () => pSend());
+const wPKill = makeWheel('wPKill', pvals(1, 5, 0.5, wanF), '2萬', () => pSend());
+const PW = () => ({max_amount: wPAmt, cap: wPCap, max_loss: wPLoss, kill_loss: wPKill});
+const acctFit = b => { try{ const sp = b.firstElementChild; if (!sp) return; sp.style.transform = ''; const k = Math.min(1, (b.clientWidth - 8) / (sp.offsetWidth || 1)); if (k < 1) sp.style.transform = 'scale(' + k + ')'; }catch(e){} };
+window.acctFit = acctFit;
+const acctAlign = () => { try{ const r = document.getElementById('acctRow'), ws = r && r.parentElement; if (!r || !ws) return;
+  const tb = e => { const rg = document.createRange(); rg.selectNodeContents(e); return rg.getBoundingClientRect(); };
+  const L = tb(document.querySelector('#loWheel .lbl')), R = tb(document.querySelector('#daysWheel .lbl')), W = ws.getBoundingClientRect();
+  if (!(R.right > L.left)) return; r.style.marginLeft = (L.left - W.left - 6) + 'px'; r.style.width = (R.right - L.left) + 'px'; }catch(e){} };
+const lotEditable = () => !window.VIEWER && capRole() === 'master' && !inSession() && SET_ACCT !== '__virt';
+function acctUI(){
+  const b = document.getElementById('acctBtn'), ws = document.querySelector('.wheels'); if (!b || !ws) return;
+  const virt = SET_ACCT === '__virt', pt = !!SET_ACCT && !virt;
+  b.className = 'acb' + (virt ? ' virt' : pt ? ' pt' : ''); b.firstElementChild.textContent = virt ? '虛擬' : pt ? SET_ACCT : '主導$'; acctFit(b);
+  ws.classList.toggle('pmode', pt);
+  const m = virt ? 1 : pt ? (+PCFG.lot_mode || 1) : (+window.MLOT || 1), ed = lotEditable();
+  document.querySelectorAll('#acctRow .lotb').forEach(x => { x.classList.toggle('on', +x.dataset.m === m); x.classList.toggle('dis', !ed); });
+  if (pt) requestAnimationFrame(() => { for (const w of Object.values(PW())) try{ w.init(); }catch(e){} });
+  acctAlign(); }
+window.acctUI = acctUI;
+const acctBase = () => BASE.liveUrl.replace(/\/$/, '');
+function acctsPull(){ if (window.VIEWER || !capRole() || !liveOn()) return;
+  fetch(acctBase() + '/?acct=list&_=' + Date.now(), {cache: 'no-store', signal: AbortSignal.timeout(9000)}).then(r => r.ok ? r.json() : null).then(j => {
+    if (j && Array.isArray(j.rows)) window.ACCTS = j.rows.map(r => String(r.acct || '')).filter(Boolean); }).catch(() => {}); }
+setTimeout(acctsPull, 3000); setInterval(acctsPull, 10 * 60000); window.acctsPull = acctsPull;
+function pLoad(a){
+  PCFG = {}; acctUI();
+  fetch(acctBase() + '/?acfg=get&a=' + encodeURIComponent(a) + '&_=' + Date.now(), {cache: 'no-store', signal: AbortSignal.timeout(9000)}).then(r => r.json()).then(j => {
+    if (SET_ACCT !== a || !j || !j.ok) return; PCFG = j; pSync = true;
+    try{ const v = {max_amount: (+j.max_amount || 1000000) / 10000, cap: (+j.cap || 100000) / 10000, max_loss: (+j.max_loss || 10000) / 10000, kill_loss: (+j.kill_loss || 20000) / 10000};
+      for (const [k, w] of Object.entries(PW())) w.setValue(wanF(Math.round(v[k] * 10) / 10)); }finally{ setTimeout(() => { pSync = false; }, 400); }
+    acctUI(); }).catch(() => fmToast('讀不到【' + a + '】的設定', 2500)); }
+const pPost = (body, ok) => { const a = SET_ACCT;
+  fetch(acctBase() + '/?acfg=set&a=' + encodeURIComponent(a), {method: 'POST', cache: 'no-store', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body), signal: AbortSignal.timeout(9000)})
+    .then(r => r.json().catch(() => ({})).then(j => { if (!r.ok || !j.ok) throw new Error(j.error || r.status); PCFG = j; if (ok) ok(); acctUI(); }))
+    .catch(e => { fmToast('【' + a + '】沒改成功:' + (e && e.message || '連不上'), 3000); if (SET_ACCT === a) pLoad(a); }); };
+let pT = 0;
+function pSend(){ if (pSync || !SET_ACCT || SET_ACCT === '__virt') return;
+  if (!lotEditable()){ fmToast(inSession() ? '盤中不能改夥伴設定' : '只有主導機能改', 2000); return pLoad(SET_ACCT); }
+  clearTimeout(pT); pT = setTimeout(() => { const o = {}; for (const [k, w] of Object.entries(PW())) o[k] = Math.round(parseFloat(w.value) * 10000); pPost(o); }, 1500); }
+document.getElementById('acctBtn').addEventListener('click', ev => { ev.stopPropagation();
+  const L = window.VIEWER ? [] : (window.ACCTS || []);
+  if (!SET_ACCT) SET_ACCT = '__virt'; else if (SET_ACCT === '__virt') SET_ACCT = L[0] || ''; else { const i = L.indexOf(SET_ACCT); SET_ACCT = i >= 0 && i < L.length - 1 ? L[i + 1] : ''; }
+  if (SET_ACCT && SET_ACCT !== '__virt') pLoad(SET_ACCT); else acctUI(); });
+document.querySelectorAll('#acctRow .lotb').forEach(x => x.addEventListener('click', ev => { ev.stopPropagation();
+  const m = +x.dataset.m; if (!lotEditable()){ if (SET_ACCT !== '__virt') fmToast(inSession() ? '盤中不能改設定' : '只有主導機能改', 2000); return; }
+  if (!SET_ACCT){ window.MLOT = m; acctUI(); cfgSend(); } else pPost({lot_mode: m}); }));
+document.getElementById('gear').addEventListener('click', () => setTimeout(() => { SET_ACCT = ''; acctUI(); }, 60));
+addEventListener('resize', () => setTimeout(acctAlign, 100)); setTimeout(acctUI, 1500);
 { const days1 = () => { try{ if (localStorage.getItem('mysh.days1')) return; if (inSession()) return void setTimeout(days1, 60000); localStorage.setItem('mysh.days1', '1'); localStorage.setItem('mysh.days2', '1'); if (parseInt(wDays.value) !== 1) wDays.setValue('1天'); }catch(e){} }; setTimeout(days1, 900); }   // 2026-11-07 20:23 使用者「改回1」(17 天回測 1 天賺最多):每支手機開啟時撥一次回 1 天(主導機撥了就送雲端)   // 盤中設定不能送雲端 → 收盤後再撥   // 2026-11-07 19:21 使用者「連續1天改成2天 電腦也要照設定找出監控股票」:每支手機開啟時撥一次到 2 天(主導機撥了就送雲端,電腦跟著);之後自己轉就以你的為準
 function daysOk(s, minAmp){   // 連續天數篩選(手機 scan、電腦 engine build_universe 同一套)
   const L = +wLots.value || 6000, B = +wBars.value || 250, N = parseInt(wDays.value) || 1;
@@ -8137,7 +8228,7 @@ window.bgTick = bgTick; window.BG = BG;
         const ySrc = {}; window.__ySrc = ySrc;   // 哪幾天是元大的真實成交(標題列加「元大」)
         // 2026-11-03 13:48 使用者「永久板在明細那邊 增加一個可以看虛擬交易的結果的按鍵 只有在非開盤時間的時候 按鍵才會出現 其他版本沒有這個功能」:
         //   自己的 App(不是看盤版)、不在盤中 → 標題列多一顆「虛擬」/「元大」切換;切到虛擬 = 每天都列程式照判別式算的虛擬交易(含今天);一開盤自動切回元大
-        const virtOk = !vwOnly(); if (!virtOk) window.DONE_VIRT = false;   /* 2026-11-06 11:51 使用者「在明細裡按元大可以切換看到虛擬」:盤中也能切(原本盤中一律切回元大、按了沒反應) */ const doneVirt = virtOk && !!window.DONE_VIRT;
+        const virtOk = !vwOnly(); if (!virtOk) window.DONE_VIRT = false; if (!virtOk || window.VIEWER) window.DONE_ACCT = '';   /* 2026-11-06 11:51 使用者「在明細裡按元大可以切換看到虛擬」:盤中也能切(原本盤中一律切回元大、按了沒反應) */ const doneVirt = virtOk && !!window.DONE_VIRT; const dAcct = !doneVirt && virtOk && !window.VIEWER ? (window.DONE_ACCT || '') : '';   /* 2026-11-18 00:26 明細切到夥伴(使用者「解鎖 改 都改」) */
         /* 2026-11-09 觀察版判七:明細另外一段「判七(觀察)」列虛擬結果(只發通知、沒下單,不算進當天輸贏),元大 / 虛擬兩種都列 */
         const j7Rows = (arr, dd) => { let h = '', t = 0, c = 0;
           for (const o of (arr || []).filter(o => o.type === 'exit' && o.rs === '判七' && !o._hide && o.entP > 0 && o.price > 0 && o.side)){
@@ -8151,7 +8242,8 @@ window.bgTick = bgTick; window.BG = BG;
             h += `<div class="r" data-day="${dd}" data-code="${esc(o.code)}" data-name="${esc(o.name)}" style="opacity:.75"><span class="nm"><span class="sd ${dr > 0 ? 'long' : 'short'}">${dr > 0 ? '多' : '空'}</span>${esc(o.name)}</span><span class="num io"><span>${(+o.entP).toFixed(2)}</span><span>→</span><span>${(+o.price).toFixed(2)}</span></span><span class="num">${q}</span><span class="num ${v > 0 ? 'up' : v < 0 ? 'dn' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toLocaleString()}</span></div>`; }
           return c ? [`<div class="r" data-day="${dd}"><span class="nm" style="color:#8C96AB;grid-column:1/-1">判六(觀察,沒下單、不算輸贏)${c} 筆 約 ${t >= 0 ? '+' : ''}${t.toLocaleString()}</span></div>` + h, t, c] : ['', 0, 0]; };
         const dayRows = (dd, src) => dayRows0(dd, src);   /* 2026-11-11 00:20 判六上線:和其他判別式一起列(j6Rows 留著不用) */
-        const dayRows0 = (dd, src) => { if (dd !== today) yfillsFix(dd); const yf = dd === today ? (TF || (inSession() ? null : yFillsOf(dd))) : yFillsOf(dd);   /* 2026-11-02 14:49 收盤後問不到電腦 → 今天用手機存的最後一份元大成交(盤中照舊只認剛問到的) */   /* 2026-10-30 12:20 使用者「當無法連上主機 明細就顯示程式做的股票明細」:今天連不上電腦(沒有新的元大成交)→ 列程式的模擬交易(標「系統」) */ if (yf && vTrade() && dd >= '2026-11-16' && !doneVirt){   /* 2026-11-09 10:50 使用者電腦截圖「聯合再生根本沒交易」:電腦是主人鑰匙的看盤版,原本 !VIEWER 擋掉 → 拿虛擬交易冒充元大;改成主人鑰匙(vTrade)也用元大真實成交 */   /* 2026-11-06 22:21 使用者「以現在最新的判別式 重寫21天 永久會員元大 虛擬都一樣 下週一才開始接永久會員元大」:元大真實成交改從 11/09 起,11/06 以前永久版元大也顯示重算的虛擬 */   /* 2026-11-04 19:16 使用者「明天永久會員 接入元大真實資料 其他會員看虛擬版」(11/04 以前永久版也用重算的虛擬):元大真實成交從 11/05 起 */   /* 2026-11-03 14:30 使用者「元大這邊今天暫時先用虛擬交易資料 明天才開始正式用元大資料」:元大真實成交從 11/04 起 */ ySrc[dd] = true; return yRowsOf(yf, dd); }
+        const dayRows0 = (dd, src) => { if (dAcct){ const pf = pFillsOf(dAcct, dd); if (pf === undefined) return [`<div class="r" data-day="${dd}"><span class="nm" style="color:#8C96AB;grid-column:1/-1">讀取【${esc(dAcct)}】的成交中…</span></div>`, 0, 1]; if (!pf || !((pf.rows || []).some(r => r.lots > 0) || (pf.legs || []).length)) return [`<div class="r" data-day="${dd}"><span class="nm" style="color:#8C96AB;grid-column:1/-1">【${esc(dAcct)}】這天沒有成交</span></div>`, 0, 1]; return yRowsOf(pf, dd); }   /* 2026-11-18 00:26 夥伴的元大成交(?acct=get&name=fills,夥伴中繼每分鐘備份) */
+          if (dd !== today) yfillsFix(dd); const yf = dd === today ? (TF || (inSession() ? null : yFillsOf(dd))) : yFillsOf(dd);   /* 2026-11-02 14:49 收盤後問不到電腦 → 今天用手機存的最後一份元大成交(盤中照舊只認剛問到的) */   /* 2026-10-30 12:20 使用者「當無法連上主機 明細就顯示程式做的股票明細」:今天連不上電腦(沒有新的元大成交)→ 列程式的模擬交易(標「系統」) */ if (yf && vTrade() && dd >= '2026-11-16' && !doneVirt){   /* 2026-11-09 10:50 使用者電腦截圖「聯合再生根本沒交易」:電腦是主人鑰匙的看盤版,原本 !VIEWER 擋掉 → 拿虛擬交易冒充元大;改成主人鑰匙(vTrade)也用元大真實成交 */   /* 2026-11-06 22:21 使用者「以現在最新的判別式 重寫21天 永久會員元大 虛擬都一樣 下週一才開始接永久會員元大」:元大真實成交改從 11/09 起,11/06 以前永久版元大也顯示重算的虛擬 */   /* 2026-11-04 19:16 使用者「明天永久會員 接入元大真實資料 其他會員看虛擬版」(11/04 以前永久版也用重算的虛擬):元大真實成交從 11/05 起 */   /* 2026-11-03 14:30 使用者「元大這邊今天暫時先用虛擬交易資料 明天才開始正式用元大資料」:元大真實成交從 11/04 起 */ ySrc[dd] = true; return yRowsOf(yf, dd); }
           // 2026-11-05 00:31 使用者「這個虛擬 是可以切換 元大的 因為我是永久會員」:收盤後切在「元大」、這天手機還沒拿到元大成交 → 不拿虛擬交易冒充,寫「元大成交還沒拿到」(電腦連上會自動補)
           if (!yf && virtOk && !doneVirt && !vwOnly() && dd >= '2026-11-16') return [`<div class="r" data-day="${dd}"><span class="nm" style="color:#8C96AB;grid-column:1/-1">這天的元大成交還沒拿到(電腦連上會自動補)</span></div>`, 0, 1];
           return rowsOf(src, dd); };   /* 2026-11-02 23:25 使用者「永久會員 今天之前 全部都用虛擬的資料 填滿明細 今天之後包含今天 都用真實的元大資料 其他會員 一律用虛擬資料」:自己的 App 11/02 起用元大真實成交、11/01 以前一律用程式的虛擬交易;看盤版一律虛擬 */
@@ -8308,19 +8400,19 @@ window.bgTick = bgTick; window.BG = BG;
           body += `<div class="dsep" data-day="${dd}">${dd.slice(5).replace('-', '/')}</div>` + h; dayTot[dd] = t;   /* 2026-11-06 05:40 使用者「怎麼還有這14筆總輸贏 這個不用 上面已經有顯示了」:前幾天的「N 筆 總輸贏」列也拿掉(標題列右邊跟著捲到的那天顯示) */
         }
         // 2026-10-27 11:20 使用者:「最上面只顯示 明細 今日的總輸贏(靠右顯示)」:標題列左邊「明細」、最右邊今天已平倉的總輸贏(和當沖的合計同一個位置 .cash)
-        const hdDone = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(t0))}</span>`).replace('<span>明細</span>', `<span class="dlb">明細</span><span class="dwh">${Object.keys(dayTot).sort().reverse().map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span><span class="dsrc">${virtOk || ySrc[d0] ? '' : (window.VIEWER ? '' : ' 系統')}</span>${doneVirt && !vdoneHas(d0) ? '<span class="dsrc">暫算</span>' : ''}${virtOk ? `<button class="vbtn on${doneVirt ? ' virt' : ''}" type="button">${doneVirt ? '虛擬' : '元大'}</button>` : window.VIEWER ? '<span class="vbtn on virt vtag">虛擬</span>' : `<span class="vbtn on vtag ytag"${ySrc[d0] ? '' : ' style="display:none"'}>元大</span>`}`);   /* 2026-11-04 使用者「要 改」:開盤中明細的「元大」也是有框的黃色鍵(和當沖一樣;開盤中不能切換) */   /* 2026-11-04 使用者「好」(看盤版明細也加紫色「虛擬」,和當沖一樣) */   // 2026-10-29 12:25(實際時間)元大真實成交的日子標題寫「明細 元大」
+        const hdDone = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(t0))}</span>`).replace('<span>明細</span>', `<span class="dlb">明細</span><span class="dwh">${Object.keys(dayTot).sort().reverse().map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span><span class="dsrc">${virtOk || ySrc[d0] ? '' : (window.VIEWER ? '' : ' 系統')}</span>${doneVirt && !vdoneHas(d0) ? '<span class="dsrc">暫算</span>' : ''}${virtOk ? `<button class="vbtn on fixw${doneVirt ? ' virt' : dAcct ? ' pt' : ''}" type="button"><span class="fit">${doneVirt ? '虛擬' : dAcct ? esc(dAcct) : '主導$'}</span></button>` : window.VIEWER ? '<span class="vbtn on virt vtag">虛擬</span>' : `<span class="vbtn on vtag ytag"${ySrc[d0] ? '' : ' style="display:none"'}>主導$</span>`}`);   /* 2026-11-04 使用者「要 改」:開盤中明細的「元大」也是有框的黃色鍵(和當沖一樣;開盤中不能切換) */   /* 2026-11-04 使用者「好」(看盤版明細也加紫色「虛擬」,和當沖一樣) */   // 2026-10-29 12:25(實際時間)元大真實成交的日子標題寫「明細 元大」
         { const __H = hdDone + `<div class="tb done">` + body + `</div>`; if (nlSame(__H)){ if (__snapPrev[0]) box.classList.add('snapdt'); box.style.scrollPaddingTop = __snapPrev[1]; return; }
           if (Date.now() - (box.__dwT || 0) < 900){ clearTimeout(box.__dwLater); box.__dwLater = setTimeout(() => render(true), 500); return; }   /* 2026-11-03 15:25 滾輪轉動中先不重畫,停下來再補 */
           nlPut(__H); dwWire(box); }
         /* 2026-11-06 12:06 使用者「沒法切換」:盤中明細一直在更新,手指按下到放開之間標題列被重畫 → 按鍵換成新的,click 不會觸發。
            改成在通知欄上聽「按下」就切(標題列重畫也不影響),一按就換 */
         if (!box.__vbDel){ box.__vbDel = 1; box.addEventListener('pointerdown', ev => { try{ const b = ev.target && ev.target.closest && ev.target.closest('.hd .vbtn'); if (!b || window.NL_VIEW !== 'done' || typeof box.__vbH !== 'function') return; if (Date.now() - (box.__vbAt || 0) < 400) return; box.__vbAt = Date.now(); ev.preventDefault(); box.__vbH(ev); }catch(e){} }, true); }
-        { const vb = box.querySelector('.hd .vbtn'); if (vb) box.__vbH = ev => { ev.stopPropagation(); const day = box.__dwDay || window.__doneToday;
+        { const vb = box.querySelector('.hd .vbtn'); if (vb && window.acctFit) acctFit(vb); if (vb) box.__vbH = ev => { ev.stopPropagation(); const day = box.__dwDay || window.__doneToday;
             // 2026-11-04 使用者「在明細裡 上滑到比較下面的股票 然後按 元大或虛擬 會跳回開頭」:切換前記下畫面最上面那一列(哪天、哪檔、第幾列、離欄名多遠),切換後捲回同一檔(找不到就同一天的第幾列)
             const hbOf = () => { const h = box.querySelector('.tb.done > .r.h'), hd = box.querySelector('.hd'); return h ? h.getBoundingClientRect().bottom : hd ? hd.getBoundingClientRect().bottom : 0; };
             const anc = (() => { try{ const hb = hbOf(), rows = [...box.querySelectorAll('.tb.done > .r[data-code]')], top = rows.find(x => x.getBoundingClientRect().bottom > hb + 2); if (!top) return null;
               const same = rows.filter(x => x.dataset.day === top.dataset.day); return {day: top.dataset.day, code: top.dataset.code, idx: same.indexOf(top), off: top.getBoundingClientRect().top - hb}; }catch(e){ return null; } })();
-            window.DONE_VIRT = !window.DONE_VIRT; box.__dwT = 0; box.scrollTop = 0; render(true); box.__dwDay = day; try{ setTimeout(() => { try{ resortList(); }catch(e){} }, 300); }catch(e){}   /* 2026-11-13 12:10 使用者「這裡切換到虛擬 包含進場 包含當沖 包含監控區 包含明細 全部都要改成虛擬的資料」:這個開關全 App 共用(進場卡片不換元大成交價、當沖列電腦虛擬部位、監控區做多中 / 做空中跟著當沖) */
+            { const L = window.VIEWER ? [] : (window.ACCTS || []); if (window.DONE_ACCT){ const i = L.indexOf(window.DONE_ACCT); window.DONE_ACCT = i >= 0 && i < L.length - 1 ? L[i + 1] : ''; } else if (window.DONE_VIRT){ window.DONE_VIRT = false; window.DONE_ACCT = L[0] || ''; } else window.DONE_VIRT = true; }   /* 2026-11-18 00:26 主導$ → 虛擬 → 夥伴A → … → 主導$ */ box.__dwT = 0; box.scrollTop = 0; render(true); box.__dwDay = day; try{ setTimeout(() => { try{ resortList(); }catch(e){} }, 300); }catch(e){}   /* 2026-11-13 12:10 使用者「這裡切換到虛擬 包含進場 包含當沖 包含監控區 包含明細 全部都要改成虛擬的資料」:這個開關全 App 共用(進場卡片不換元大成交價、當沖列電腦虛擬部位、監控區做多中 / 做空中跟著當沖) */
             requestAnimationFrame(() => { dwGo(box, day);
               try{ if (anc && anc.idx > 0){ const rows = [...box.querySelectorAll(`.tb.done > .r[data-day="${anc.day}"][data-code]`)], t = rows.find(x => x.dataset.code === anc.code) || rows[Math.min(anc.idx, rows.length - 1)];
                 if (t) box.scrollTop += t.getBoundingClientRect().top - hbOf() - Math.max(0, anc.off); } }catch(e){}

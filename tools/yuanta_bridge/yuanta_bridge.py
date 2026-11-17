@@ -1351,7 +1351,13 @@ class Bridge:
         if v: self.trader.master_cap = v; self.cap_ok_day = time.strftime("%Y-%m-%d", time.gmtime(time.time() + 8 * 3600))   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:讀到了(今天)
         if self.trader.cap <= 0: return
         if v and v != self.trader.cap:
-            log(f"多空上限 {self.trader.cap:,} → {v:,}(5861 主導機)"); self.trader.cap = v   # 以主導機為準(鐵律 ⑤ 一張上限 = 主導機多空上限,2026-11-11 22:24 使用者「針對 2項 改鐵律」:一張上限改以主導機多空上限為準,不再固定最多 25 萬)
+            log(f"多空上限 {self.trader.cap:,} → {v:,}(5861 主導機)"); self.trader.cap = v
+        try:   # 2026-11-18 00:26 🔓→🔒 鐵律 ⑤(使用者「解鎖 改 都改」):主帳號的分級下單照主導機選的(App 設定:1 能買幾張 / 2 只買 1 張 / 3 分級縮;trader.lots_for 和夥伴同一套);沒設 = 1
+            import trader as _tr
+            lm = int(float((_tr.CLOUD_SET or {}).get("lot_mode") or 1))
+            if v and lm in (1, 2, 3) and lm != getattr(self.trader, "lot_mode", 0):
+                log(f"分級下單 {getattr(self.trader, 'lot_mode', 0)} → {lm}(5861 主導機)"); self.trader.lot_mode = lm
+        except Exception as e: log("分級下單讀取失敗(照舊)", e)   # 以主導機為準(鐵律 ⑤ 一張上限 = 主導機多空上限,2026-11-11 22:24 使用者「針對 2項 改鐵律」:一張上限改以主導機多空上限為準,不再固定最多 25 萬)
 
     def acfg_sync(self):
         """自動當沖夥伴版 §6.1(2026-11-15 使用者「夥伴版 只修改 增加夥伴所有的接口 設定 畫面 不能修改程式的核心邏輯」):
