@@ -1334,6 +1334,7 @@ class Engine:
             if frm: why = why.replace("台指期", "加權指數(台指期沒資料)")
             if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
             _th = float(self.envs.get(rs, {}).get("TXREL") or 0); _rf = getattr(self, "txrel_fn", None)
+            if side < 0 and float(self.envs.get(rs, {}).get("TXRELS") or 0) > 0: _th = float(self.envs[rs]["TXRELS"])   # 2026-11-17 22:57 判六做空強弱 0.5%(使用者「解鎖 改」;env TXRELS)
             if ok and _th > 0 and _rf:   # 🔒 ⑧ 台指期 vs 加權強弱(2026-11-17 18:58 使用者「解鎖 改」):台指期比加權強 > 0.7% 不做空、弱 > 0.7% 不做多(資料不全 → 不看)
                 try:
                     _tp, _ip = self.txrel_prev(); ok, why = _rf(side, tm, self.txf_map(), self.ix_map(), _tp, _ip, _th)
