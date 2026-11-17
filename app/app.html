@@ -490,7 +490,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611170947">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611170957">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1959,6 +1959,13 @@ function haltAsk(){
 })();
 /* 2026-10-29 12:25(實際時間)使用者:「既然真實接通 明細裡就要顯示元大裡的真實的交易與真實的輸贏」:明細開著、App 在前景時每 30 秒問電腦今天元大帳號的成交(?trade=fills,程式單 + 手動單、每檔輸贏);
    拿到就存在這支手機(mysh.yfills.日期,留 12 天),以後往上滑看前幾天也是元大的真實成交 */
+// 2026-11-17 09:56 使用者「進場裡面沒有 當沖裡面卻有 下面監控區還是出現做多中」:不管名單(借券 / 留倉,app/ignore_codes.json + 電腦 ?trade=pos 的 ignore)的元大成交,當沖 / 監控區 / 明細都不列、不算輸贏
+window.__IGN = window.__IGN || [];
+try{ fetch(`${REPO_RAW}/app/ignore_codes.json?v=${Math.floor(Date.now() / 600000)}`).then(r => r.ok ? r.json() : []).then(a => { if (Array.isArray(a)) window.__IGN = a.map(String); }).catch(() => {}); }catch(e){}
+function ignSet(){ return new Set([...(window.__IGN || []), ...(((window.__tpos || {}).ignore) || [])].map(String)); }
+function ignFills(j){ try{ const IG = ignSet(); if (!j || !j.ok || !IG.size || !Array.isArray(j.rows)) return j; const out = Object.assign({}, j); const drop = j.rows.filter(r => IG.has(String(r.code)));
+    if (!drop.length && !(Array.isArray(j.legs) && j.legs.some(g => IG.has(String(g.code))))) return j;
+    out.rows = j.rows.filter(r => !IG.has(String(r.code))); if (Array.isArray(j.legs)) out.legs = j.legs.filter(g => !IG.has(String(g.code))); out.net = (+j.net || 0) - drop.reduce((a, r) => a + (+r.net || 0), 0); out.n = Math.max(0, (+j.n || 0) - drop.reduce((a, r) => a + (+r.n || 0), 0)); return out; }catch(e){ return j; } }
 function tfillsPoll(force){
   try{
     if (!vTrade()) return;   // 2026-10-29 看盤版沒有電腦(明細照通知算)
@@ -1966,7 +1973,7 @@ function tfillsPoll(force){
     const now = Date.now(); if (!force && window.__tfillsAt && now - window.__tfillsAt < 30000) return;
     window.__tfillsAt = now; const d = fmToday();
     fetch(BASE.liveUrl.replace(/\/$/, '') + '/?trade=fills&_=' + now, {cache: 'no-store', signal: AbortSignal.timeout(9000)}).then(r => r.json())
-      .then(j => { const keep = window.__tfills && window.__tfills.ok && window.__tfills.d === d && Date.now() - (window.__tfills.at || 0) < 5 * 60000; if (!(j && j.ok) && keep) return;   // 2026-11-02 一次問不到不蓋掉剛拿到的元大成交
+      .then(j => { j = ignFills(j); const keep = window.__tfills && window.__tfills.ok && window.__tfills.d === d && Date.now() - (window.__tfills.at || 0) < 5 * 60000; if (!(j && j.ok) && keep) return;   // 2026-11-02 一次問不到不蓋掉剛拿到的元大成交
         window.__tfills = j && typeof j === 'object' ? j : {ok: false, msg: '回應不對'}; window.__tfills.at = Date.now(); window.__tfills.d = d;
         try{ if (j && j.ok && Array.isArray(j.rows)){ const rows = j.rows.map(r => Object.assign({}, r, {prev: +(((LIVE.get(r.code) || {}).y) || 0) || +(r.prev || 0) || 0}));
             const legs = Array.isArray(j.legs) ? j.legs.map(g => Object.assign({}, g, {prev: +(((LIVE.get(g.code) || {}).y) || 0) || +(g.prev || 0) || 0})) : null;   // 2026-10-29 12:33(實際時間)每一趟一列(使用者「要改」)
@@ -8038,7 +8045,7 @@ window.bgTick = bgTick; window.BG = BG;
         const open = over ? [] : (!TPL || !TPL.ok || window.DONE_VIRT) ? cards.filter(o => o.type === 'entry' && !o.over && !o.notrade && !o.madd && !o._hide && !o.phNew && o._alert !== 'exit' && o.entP > 0 && !cards.some(x => x.fc && x.code === o.code && x.t >= o.t)) : (TPL.pos || []).filter(p => p.qty > 0 && p.entry > 0 && (p.state === '持倉中' || p.state === '平倉中'))
           .map(p => ({code: p.code, name: nmOf(p.code), side: p.dir > 0 ? 'long' : 'short', entP: +p.entry, lots: +p.qty, rs: p.judge, exiting: p.state === '平倉中', t: String(p.t0 || '')}));
         // 2026-10-29 12:25(實際時間)使用者「既然真實接通 … 顯示元大裡的真實的交易」:元大帳號裡手動進場、還沒沖掉的張數(成交回報 open ≠ 0)也列進當沖(程式的部位已在上面,不重複)
-        if (TP && !over && !window.DONE_VIRT){ tfillsPoll(); try{ const F = window.__tfills; const IG_ = new Set((TP.ignore || []).map(String)); if (F && F.ok && F.d === today && Array.isArray(F.rows)) for (const r of F.rows){ const q = +r.open || 0; if (!q || IG_.has(String(r.code)) || open.some(o => o.code === r.code)) continue;   /* 2026-11-17 09:46 使用者「庫存的和益是借卷 空 我已經贖回 這邊不用顯示和益做多」:不管名單(電腦 ignore_codes.txt,?trade=pos 的 ignore)不列 */
+        if (TP && !over && !window.DONE_VIRT){ tfillsPoll(); try{ const F = window.__tfills; const IG_ = ignSet(); if (F && F.ok && F.d === today && Array.isArray(F.rows)) for (const r of F.rows){ const q = +r.open || 0; if (!q || IG_.has(String(r.code)) || open.some(o => o.code === r.code)) continue;   /* 2026-11-17 09:46 使用者「庫存的和益是借卷 空 我已經贖回 這邊不用顯示和益做多」:不管名單(電腦 ignore_codes.txt,?trade=pos 的 ignore)不列 */
               open.push({code: r.code, name: r.name || nmOf(r.code), side: q > 0 ? 'long' : 'short', entP: q > 0 ? +r.buy : +r.sell, lots: Math.abs(q), manual: true, t: String(r.t || r.time || '99:99')}); } }catch(e){} }
         open.sort((a, b) => String(b.t || '').localeCompare(String(a.t || '')));
         try{ const k_ = open.map(o => o.code + o.side).join(','); window.__openSide = new Map(open.map(o => [o.code, o.side])); window.__openReal = !!(TPL && TPL.ok) && !window.DONE_VIRT; window.__openPos = new Map(open.map(o => [o.code, {side: o.side, entP: +o.entP || 0, lots: +o.lots || (typeof lotsOf === 'function' ? +lotsOf(o) : 0) || 1}])); setTimeout(() => { try{ __needlesNow(); }catch(e){} }, 0); if (k_ !== window.__openSideK){ window.__openSideK = k_; setTimeout(() => { try{ window.__reList && __reList(); }catch(e){} }, 0); } }catch(e){}   // 2026-11-09 12:43 監控清單:進場還沒平倉的標做多 / 做空   // 2026-11-09 12:37 使用者「當沖顯示 最晚進來排最上面」:照進場時間,最晚的在最上面
