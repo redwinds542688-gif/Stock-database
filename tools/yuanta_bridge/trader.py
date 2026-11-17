@@ -239,8 +239,15 @@ class Trader:
         # 2026-11-05 13:29 使用者「程式要檢查 我是否預掛」→「改」:13:20 時手動預掛的平倉單(方向對、張數剛好等於未沖銷張數)保留,程式不另外平;
         #   到 TRADE_PREHANG_DEADLINE(13:24)還沒成交 → 取消那張、程式照舊漲停 / 跌停平倉。0 = 關(照舊 13:20 全部取消)
         # 2026-11-08 01:08 使用者「13點20分也要取消所有元大預掛」:預設 13:24 → 13:20(盤中照舊讓位給預掛;13:20 預掛和條件單、委託全部取消,程式平倉)
-        self.prehang_deadline = cfg.get("TRADE_PREHANG_DEADLINE", "13:20").strip()
-        if self.prehang_deadline not in ("", "0") and self.prehang_deadline > self.force_exit: self.prehang_deadline = self.force_exit   # 2026-11-11 21:34 使用者「13.20程式必須取消所有預掛 包含元大手動預掛」:預掛最晚等到 13:20(設定寫更晚也拉回)
+        # 2026-11-17 13:50 使用者「修改 13:20 預掛規則」(取代 11/11「13:20 取消所有預掛」):13:20 有手動預掛平倉單的部位先不平,預掛保留到 13:25;
+        #   13:25 還沒成交 → 取消該檔所有預掛,改掛漲停(買回空單)/ 跌停(賣出多單)平倉,進 13:30 收盤集合競價。沒預掛的部位照舊 13:20 平。
+        #   期限最晚 13:25(設定寫更晚也拉回);設 0 / 比 13:20 早 = 13:20 全部取消(舊做法)
+        self.prehang_deadline = cfg.get("TRADE_PREHANG_DEADLINE", "13:25").strip()
+        if self.prehang_deadline not in ("", "0") and self.prehang_deadline > "13:25": self.prehang_deadline = "13:25"
+        if self.prehang_deadline not in ("", "0") and self.prehang_deadline > self.force_exit:   # 期限那分鐘和下一分鐘一定要複查(取消預掛 → 平倉)
+            h_, m_ = map(int, self.prehang_deadline.split(":")); _nx = f"{h_ + (m_ + 1) // 60:02d}:{(m_ + 1) % 60:02d}"
+            self.recheck_times = sorted(set(self.recheck_times) | {self.prehang_deadline, _nx})
+        self.prehang_hard = _nx if self.prehang_deadline not in ("", "0") and self.prehang_deadline > self.force_exit else ""   # 中繼自己的備援:期限後再等 1 分鐘(先讓 bridge 確認取消預掛再平,免得預掛和平倉單一起成交)
         self.j2_brcap = [(float(a_), int(b_)) for a_, b_ in (x.split(":") for x in cfg.get("TRADE_J2_BRCAP", "").split(",") if ":" in x)]   # 2026-11-10 01:45 判二第二十六次修改:預設關(改用 TRADE_J2_BRRANGE)
         # 2026-11-10 01:45 判二第二十六次修改(使用者「判二 贏單 大盤寬度上下多少可以涵蓋所有贏單」→「解鎖 改」):TRADE_J2_BRRANGE="short:0.044:0.881,long:0.106:0.92",空字串 = 關(01:52 使用者「解鎖改 判二做多:10.6%~92%」做多上限 95.7% → 92%)
         self.j2_brng = {}
@@ -2256,6 +2263,11 @@ class Trader:
         if not p or p["state"] != HOLDING:
             return
         iron = bool(RE_IRON_EXIT.search(str(why)))   # 2026-11-11 21:34 使用者「鐵律檢測到平倉訊息 有權取消預掛 立即平倉」:6.5% / 總停損 / 移動停損利 / 手動單違反鐵律 / 13:20 → 先取消預掛(含元大手動預掛)再平,不讓位
+        if (str(why).startswith(f"{self.force_exit} 強制平倉") and not kill_ph and self.prehang.get(p["code"]) and getattr(self, "prehang_hard", "")
+                and self.prehang_deadline <= self.hm() < self.prehang_hard):   # 期限到了先讓 bridge 取消預掛、確認後由複查平;bridge 沒處理到的下一分鐘這裡自己取消再平
+            if not p.get("_ph_exp_log"): p["_ph_exp_log"] = True; self.log(f"[交易] {p['code']} 預掛到期限 {self.prehang_deadline} → 等 bridge 取消預掛確認後平倉({self.prehang_hard} 還在就程式自己取消再平)")
+            return
+        if iron and str(why).startswith(f"{self.force_exit} 強制平倉") and not kill_ph and self.prehang_wait(p["code"]): iron = False   # 2026-11-17 13:50 使用者「修改 13:20 預掛規則」:13:20 平倉不取消預掛,等到期限(13:25)
         if self.prehang.get(p["code"]) and (str(why).startswith("強平") or kill_ph or iron):   # 2026-11-08 00:55 緊急 / 虧損全平也先取消預掛(條件單下面刪)   # 手機強平:先取消預掛再平,不讓位
             nos = self.prehang.pop(p["code"], [])
             for no in nos:

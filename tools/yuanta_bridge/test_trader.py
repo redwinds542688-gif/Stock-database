@@ -578,7 +578,8 @@ ok(not s28.force_enter("2330", -1, 1)[0])
 s28b, _ = mk(); s28b.ref_of = lambda c: 100.0; s28b.on_tick("2331", 104.9); ok(s28b.force_enter("2331", -1, 1)[0])
 # PH) 2026-11-11 21:34 使用者「13.20程式必須取消所有預掛 包含元大手動預掛」(取代 11-05 保留預掛到期限):期限設更晚也拉回 13:20;13:20 有預掛 → 先取消再平
 import datetime as _dt
-tp_, gp_ = mk(TRADE_PREHANG_DEADLINE="13:24"); ok(tp_.prehang_deadline == "13:20", tp_.prehang_deadline)
+tp_, gp_ = mk(TRADE_PREHANG_DEADLINE="13:28"); ok(tp_.prehang_deadline == "13:25" and "13:25" in tp_.recheck_times and "13:26" in tp_.recheck_times, (tp_.prehang_deadline, tp_.recheck_times))   # 2026-11-17 期限最晚 13:25
+tp_, gp_ = mk(TRADE_PREHANG_DEADLINE="0")   # 設 0 = 舊做法(13:20 全部取消)
 tp_.on_tick("6269", 86.2); tp_.step([ENT]); tp_.on_report(51, "A0001", 0, 1000, 86.1); pp_ = tp_.positions["6269"]
 NOW0 = NOW[0]; NOW[0] = NOW0.replace(hour=13, minute=20, second=30)
 tp_.prehang = {"6269": ["M77"]}; n0 = len(gp_.sent)
@@ -593,7 +594,13 @@ ti_, gi_ = mk(); ti_.on_tick("6269", 86.2); ti_.step([ENT]); ti_.on_report(51, "
 ti_.prehang = {"6269": ["M80"]}; ni_ = len(gi_.sent); ti_.exit_pos(pi_, "停損", 88.8); ok(pi_["state"] == HOLDING and len(gi_.sent) == ni_ and ti_.prehang, gi_.sent[ni_:])   # 一般停損:照舊讓位給預掛
 # 2026-11-08 01:08 預設 13:20 全部取消預掛:13:21 有預掛也不讓位,直接平
 tp2, gp2 = mk(); tp2.on_tick("6269", 86.2); tp2.step([ENT]); tp2.on_report(51, "A0001", 0, 1000, 86.1); NOW[0] = NOW0.replace(hour=13, minute=21, second=5)
-tp2.prehang = {"6269": ["M78"]}; tp2.step(); ok(tp2.positions["6269"]["state"] == EXITING and tp2.prehang_deadline == "13:20"); NOW[0] = NOW0
+tp2.prehang = {"6269": ["M78"]}; n2 = len(gp2.sent); tp2.step(); ok(tp2.positions["6269"]["state"] == HOLDING and tp2.prehang_deadline == "13:25" and len(gp2.sent) == n2, gp2.sent[n2:])   # 2026-11-17 13:21 有預掛 → 不平、不取消
+tp2.exit_pos(tp2.positions["6269"], "13:20 強制平倉", 86.0, force_limit=True); ok(tp2.positions["6269"]["state"] == HOLDING and tp2.prehang and len(gp2.sent) == n2)
+NOW[0] = NOW0.replace(hour=13, minute=25, second=5); tp2.step(); ok(tp2.positions["6269"]["state"] == HOLDING and len(gp2.sent) == n2)   # 13:25 先讓 bridge 取消預掛
+tp2.prehang = {}; tp2.recheck([{"code": "6269", "bs": "S", "lots": 1}], [], "13:25"); ok(tp2.positions["6269"]["state"] == EXITING and gp2.sent[-1][:3] == ("6269", "B", 1) and tp2.positions["6269"]["force_limit"], gp2.sent[n2:])   # bridge 取消後複查 → 漲停買回
+NOW[0] = NOW0; tp3, gp3 = mk(); tp3.on_tick("6269", 86.2); tp3.step([ENT]); tp3.on_report(51, "A0001", 0, 1000, 86.1); tp3.prehang = {"6269": ["M81"]}; n3 = len(gp3.sent)
+NOW[0] = NOW0.replace(hour=13, minute=26, second=5); tp3.step(); ok(tp3.positions["6269"]["state"] == EXITING and ("cancel", "M81", "6269", "B") in gp3.sent[n3:] and any(x[:3] == ("6269", "B", 1) for x in gp3.sent[n3:]), gp3.sent[n3:])   # 13:26 bridge 沒處理 → 程式自己取消再平
+NOW[0] = NOW0
 
 # 2026-11-06 太晚了先記著 → 價格回到訊號價 ±0.5% 自動補進場;碰停利 / 過時間 / 平倉通知取消;0 = 關
 at(10, 0); tl, gl = mk(); tl.on_tick("6269", 87.0); tl.step([ENT]); ok("6269" not in tl.positions and "6269" in tl.late_wait)
