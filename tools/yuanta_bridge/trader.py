@@ -1134,6 +1134,9 @@ class Trader:
                 self.log(f"[交易] {code} 手動預掛成交完,還剩 {p['qty']} 張 → 程式恢復盯停利 {p['tp']} / 停損 {p['sl']}")
                 self.alert(f"↩ {self.name_of(code)} {code} 預掛成交完,還剩 {p['qty']} 張", f"程式恢復盯停利 {p['tp']} / 停損 {p['sl']}")
                 self.oco_refresh(p, "預掛成交完 → 條件單補回剩下張數")
+            if p.get("oco_live") and p["qty"] <= 0 and (str(order_no or "").strip().upper().startswith("YA") or p.get("_oco_fire_log")):
+                # 2026-11-17 15:14 使用者「改」(國喬 10:45、啟碁 11:16「刪除條件單執行異常」):平倉的是條件單自己送出的委託(書號 YA… / 看過 smart- 回報)→ 條件單已經用掉,不再去刪
+                p["oco_live"] = False; self.log(f"[交易] {code} 條件單 {p.get('oco_no')} 已觸發平倉完,元大那邊已結束,不用刪")
             if p.get("oco_live") and (not oco_hit or p["qty"] <= 0):   # 2026-11-08 00:55 部位歸零一律刪(條件單已觸發的刪了也無害;沒刪會留著開出反向新部位)
                 if p["state"] == HOLDING and p["qty"] > 0 and self.positions.get(code) is p: self.oco_refresh(p, "元平一部分")
                 else: self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False; self.log(f"[交易] {code} 元平 → 刪除元大條件單 {p['oco_no']}")

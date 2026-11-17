@@ -1132,3 +1132,11 @@ ns_ = len(gs_.sent); ts_.man_order("1101", "M101", 0, 1000, 30.0, "B"); ok(("can
 ts_.man_order("2303", "M102", 0, 1000, 50.0, "B"); ok(("cancel", "M102") not in [x[:2] for x in gs_.sent[ns_:]])
 _os.environ.pop("ENGINE_DIR", None)
 print("不合選股邏輯手動單取消 OK")
+
+# 2026-11-17 15:14 使用者「改」:條件單自己觸發平倉(書號 YA…)→ 不再去刪條件單(原本元大回「執行異常」);手動平倉照舊刪
+NOW[0] = NOW0
+for _no, _want in (("YA03V", False), ("M200", True)):
+    to_, go_ = mk(); to_.on_tick("6269", 86.2); to_.step([ENT]); to_.on_report(51, "A0001", 0, 1000, 86.1); po_ = to_.positions["6269"]
+    po_["oco_live"] = True; po_["oco_no"] = "B26X"; no_ = len(go_.sent)
+    to_.on_other_fill("6269", "B", 1000, 88.0, _no); ok((("del_oco", "B26X") in go_.sent[no_:]) == _want and not po_.get("oco_live"), (_no, go_.sent[no_:]))
+print("條件單觸發平倉不重刪 OK")
