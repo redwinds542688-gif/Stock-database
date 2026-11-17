@@ -554,6 +554,19 @@ class Bridge:
                 if self._tf_err in (1, 30) or self._tf_err % 300 == 0: log(f"[台指期·期交所] 抓不到(第 {self._tf_err} 次)", repr(e)[:160])
         threading.Thread(target=run, daemon=True).start()
 
+    def fut_pick(self):
+        """2026-11-17 16:13 使用者「哪一個穩定就固定哪一個 另外一個當備援」(11/17 TXFK6 / TXF1 逐筆一樣多,原本誰多用誰 → 來源一直跳):
+           固定用近月明確代號(例 TXFK6,和期交所 TXFK6-F 同一個);它沒資料或比別的代號落後超過 2 分鐘 → 才改用別的代號(TXF1 等)"""
+        n = getattr(self, "fut_n", None) or {}
+        if not n: return ""
+        y, m = self.fut_near(); prim = f"TXF{'ABCDEFGHIJKL'[m - 1]}{y % 10}"
+        mi = lambda h: int(h[:2]) * 60 + int(h[3:5])
+        last = {c: max(self.fut_bars.get(c) or {"00:00": 0}) for c in n}
+        top = max(mi(v) for v in last.values())
+        for c in [prim] + sorted((c for c in n if c != prim), key=lambda c: -n[c]):
+            if self.fut_bars.get(c) and mi(last[c]) >= top - 2: return c
+        return max(n, key=lambda c: n[c])
+
     def fut_flush(self):
         """⑧ 盤中每分鐘:台指期 1 分 K → HERE/kline_futures/TXF/<日期>.csv(電腦引擎 tx_ok 讀)+ 背景推 Worker ?fbars=push(手機讀)。
            來源:元大逐筆(逐筆最多的那個代號)優先;元大沒資料 / 落後超過 2 分鐘 → 用電腦直接問期交所的那份(fut_poll)"""
@@ -561,7 +574,7 @@ class Bridge:
         with lk:
             day = now_tw().strftime("%Y-%m-%d"); ya = {}; code = ""
             if getattr(self, "fut_n", None):
-                code = max(self.fut_n, key=lambda c: self.fut_n[c]); ya = dict(self.fut_bars.get(code) or {})
+                code = self.fut_pick(); ya = dict(self.fut_bars.get(code) or {})
             tf = dict(getattr(self, "fut_tf", {}) or {})
             last = lambda m: max(m) if m else "00:00"; mi = lambda h: int(h[:2]) * 60 + int(h[3:5])
             use, src = (ya, "元大 " + code) if ya and (not tf or mi(last(ya)) >= mi(last(tf)) - 2) else (tf, "期交所")
@@ -630,7 +643,7 @@ class Bridge:
         try:
             if not getattr(self, "fut_n", None): log("[台指期] 今天沒收到任何台指期逐筆(代號寫法都不對 / 元件不給),明天看上面那行元件功能清單再調"); return
             while now_tw().strftime("%H:%M") < "13:46" and self.api: time.sleep(5)
-            code = max(self.fut_n, key=lambda c: self.fut_n[c]); bars = self.fut_bars.get(code) or {}
+            code = self.fut_pick(); bars = self.fut_bars.get(code) or {}
             mg = dict(getattr(self, "_fut_old", {}) or {}) if getattr(self, "_fut_old_d", None) == day else {}   # 2026-11-16 14:26 盤中重開過:重開前存的早上那段也併進來(不被收工這份蓋掉)
             mg.update(getattr(self, "fut_tf", {}) or {})   # 2026-11-17 元大缺的分鐘用期交所那份補(和盤中合併一樣,元大優先)
             mg.update(bars); rows = [[hm] + list(v) for hm, v in sorted(mg.items())]
