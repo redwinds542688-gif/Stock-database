@@ -790,7 +790,7 @@ class Bridge:
         halted = (t.stop_file if t else stop_path(CFG)).exists()   # 2026-10-31 緊急停止狀態(手機標題變灰色)
         if not t:
             return {"ok": False, "msg": "電腦的交易程式還沒啟動(盤前 / 收盤後)", "halted": halted}
-        return {"ok": True, "enabled": t.enabled, "pos": t.positions_view(), "locked": sorted(t.locked), "skipped": sorted(getattr(t, "skipped", set()))[-300:], "closed": sorted(getattr(t, "closed_ok", set()))[-300:], "at": now_tw().strftime("%H:%M:%S"), "halted": halted, "pxOk": True, "redo": t.over_list() if hasattr(t, "over_list") else []}   # redo:2026-11-03 超額訊號回到上限內、等手機確認補進場的   # pxOk:2026-11-03 起強制進場可指定委託價(舊版電腦沒有這個 → 手機不顯示調價格)
+        return {"ok": True, "enabled": t.enabled, "pos": t.positions_view(), "locked": sorted(t.locked), "skipped": sorted(getattr(t, "skipped", set()))[-300:], "closed": sorted(getattr(t, "closed_ok", set()))[-300:], "at": now_tw().strftime("%H:%M:%S"), "halted": halted, "pxOk": True, "redo": t.over_list() if hasattr(t, "over_list") else [], "ignore": sorted(c for c in getattr(t, "ignore", set()) if c != "YY0070")}   # ignore:2026-11-17 09:46 使用者「庫存的和益是借卷 空 我已經贖回 這邊不用顯示和益做多」→ 手機監控區 / 當沖不列不管名單的成交   # redo:2026-11-03 超額訊號回到上限內、等手機確認補進場的   # pxOk:2026-11-03 起強制進場可指定委託價(舊版電腦沒有這個 → 手機不顯示調價格)
 
     def trade_cmd(self, cmd):
         pin = CFG.get("TRADE_CMD_PIN", "")

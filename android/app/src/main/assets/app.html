@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-17 11:20(實際時間)K 圖錯位(抓 bug 自動上傳:啟碁 10:55 K 圖卡在 09:00、指標二 / 乖離在 10:54)修兩層:① 開圖時指標二 / 乖離還沒資料的暫時範圍不再同步給 K 圖,改成它們跟 K 圖 ② 偵測到三張圖對不上時自動拉回同一個範圍(以 K 圖為準,K 圖不合理就以指標二為準)(使用者「抓bug」→「改」);版本 202611171120
   · 2026-11-16 13:33(實際時間)明細每筆的進、出價下面加進場時間 / 平倉時間(灰色小字)(使用者「要顯示進場時間跟平倉時間」→「改」);版本 202611161332
   · 2026-11-15 14:55(實際時間)卡片右邊贏 ▲ / 輸 ⚠ 改畫成同一個大小;下排進場 / 當沖 / 明細燈亮格拿掉光暈,和沒亮的格子一樣大(使用者「明細燈號 大小不一樣」→「一起改」);版本 202611151453
   · 2026-11-15 10:12(實際時間)監控清單已交易 / 監控中那幾列左邊黃線 3px → 1px,和其他格線一樣細(使用者「已交易最左格線很粗 其他則細」);版本 202611151012
@@ -490,7 +491,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611170148">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611171120">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1782,7 +1783,7 @@ const rvPoll = async () => { try{ if (!BASE.liveUrl || (!window.VIEWER && !liveO
   // 2026-11-09 21:58 使用者「檢討與明細不符合」:22 天紀錄照現行判別式重寫後,11/09 以前的檢討數字改用重算的(app/review_rebuilt.json,和明細 bt_fill 同一份);拖輸 / 通知晚幾秒照電腦當天的
   // 2026-11-17 01:48 使用者「如果 真有夥伴 照虛擬所有配置下單 你13.30之後重寫的 豈不是跟夥伴的帳對不上」→「改」:重算只用在 11/13 以前;11/16 起虛擬 / 檢討照盤中實際
   try{ if (j && j.d && j.d >= '2026-11-16' && j.auto && Array.isArray(j.auto.list)){ const L = vdDedupe(j.auto.list.filter(c => !c.over)); if (L.length !== j.auto.list.filter(c => !c.over).length){ const by = {}; for (const c of L){ const b = by[c.rs] || (by[c.rs] = {n: 0, w: 0, net: 0}); b.n++; b.w += +c.net > 0; b.net += +c.net; } j.auto = Object.assign({}, j.auto, {list: L, n: L.length, w: L.filter(c => +c.net > 0).length, net: L.reduce((a, c) => a + (+c.net || 0), 0), by, best: L.reduce((a, c) => !a || +c.net > +a.net ? c : a, null), worst: L.reduce((a, c) => !a || +c.net < +a.net ? c : a, null)}); } } }catch(e){}   /* 2026-11-17 01:48 使用者「改」:11/16 起檢討照盤中實際(電腦推的),只扣掉同一檔重複的 */
-  try{ if (j && j.d && j.d < '2026-11-16'){ if (!window.__RVB){ const rb = await fetch(`${REPO_RAW}/app/review_rebuilt.json?v=${Math.floor(Date.now() / 3600000)}`); if (rb.ok) window.__RVB = await rb.json(); }
+  try{ if (j && j.d && j.d <= '2026-11-16'){ if (!window.__RVB){ const rb = await fetch(`${REPO_RAW}/app/review_rebuilt.json?v=${Math.floor(Date.now() / 3600000)}`); if (rb.ok) window.__RVB = await rb.json(); }
       const X = window.__RVB && window.__RVB[j.d]; if (X) j.auto = Object.assign({}, j.auto || {}, X, {obs: {}}); } }catch(e){}
   if (j && 'd' in j){ const ch = JSON.stringify(j) !== JSON.stringify(window.__RV || null); window.__RV = j; if (ch && window.NL_VIEW === 'pos' && window.nlRender) nlRender(); } }catch(e){} };
 setTimeout(rvPoll, 4000); setInterval(rvPoll, 5 * 60000); window.rvPoll = rvPoll;
@@ -1959,6 +1960,13 @@ function haltAsk(){
 })();
 /* 2026-10-29 12:25(實際時間)使用者:「既然真實接通 明細裡就要顯示元大裡的真實的交易與真實的輸贏」:明細開著、App 在前景時每 30 秒問電腦今天元大帳號的成交(?trade=fills,程式單 + 手動單、每檔輸贏);
    拿到就存在這支手機(mysh.yfills.日期,留 12 天),以後往上滑看前幾天也是元大的真實成交 */
+// 2026-11-17 09:56 使用者「進場裡面沒有 當沖裡面卻有 下面監控區還是出現做多中」:不管名單(借券 / 留倉,app/ignore_codes.json + 電腦 ?trade=pos 的 ignore)的元大成交,當沖 / 監控區 / 明細都不列、不算輸贏
+window.__IGN = window.__IGN || [];
+try{ fetch(`${REPO_RAW}/app/ignore_codes.json?v=${Math.floor(Date.now() / 600000)}`).then(r => r.ok ? r.json() : []).then(a => { if (Array.isArray(a)) window.__IGN = a.map(String); }).catch(() => {}); }catch(e){}
+function ignSet(){ return new Set([...(window.__IGN || []), ...(((window.__tpos || {}).ignore) || [])].map(String)); }
+function ignFills(j){ try{ const IG = ignSet(); if (!j || !j.ok || !IG.size || !Array.isArray(j.rows)) return j; const out = Object.assign({}, j); const drop = j.rows.filter(r => IG.has(String(r.code)));
+    if (!drop.length && !(Array.isArray(j.legs) && j.legs.some(g => IG.has(String(g.code))))) return j;
+    out.rows = j.rows.filter(r => !IG.has(String(r.code))); if (Array.isArray(j.legs)) out.legs = j.legs.filter(g => !IG.has(String(g.code))); out.net = (+j.net || 0) - drop.reduce((a, r) => a + (+r.net || 0), 0); out.n = Math.max(0, (+j.n || 0) - drop.reduce((a, r) => a + (+r.n || 0), 0)); return out; }catch(e){ return j; } }
 function tfillsPoll(force){
   try{
     if (!vTrade()) return;   // 2026-10-29 看盤版沒有電腦(明細照通知算)
@@ -1966,7 +1974,7 @@ function tfillsPoll(force){
     const now = Date.now(); if (!force && window.__tfillsAt && now - window.__tfillsAt < 30000) return;
     window.__tfillsAt = now; const d = fmToday();
     fetch(BASE.liveUrl.replace(/\/$/, '') + '/?trade=fills&_=' + now, {cache: 'no-store', signal: AbortSignal.timeout(9000)}).then(r => r.json())
-      .then(j => { const keep = window.__tfills && window.__tfills.ok && window.__tfills.d === d && Date.now() - (window.__tfills.at || 0) < 5 * 60000; if (!(j && j.ok) && keep) return;   // 2026-11-02 一次問不到不蓋掉剛拿到的元大成交
+      .then(j => { j = ignFills(j); const keep = window.__tfills && window.__tfills.ok && window.__tfills.d === d && Date.now() - (window.__tfills.at || 0) < 5 * 60000; if (!(j && j.ok) && keep) return;   // 2026-11-02 一次問不到不蓋掉剛拿到的元大成交
         window.__tfills = j && typeof j === 'object' ? j : {ok: false, msg: '回應不對'}; window.__tfills.at = Date.now(); window.__tfills.d = d;
         try{ if (j && j.ok && Array.isArray(j.rows)){ const rows = j.rows.map(r => Object.assign({}, r, {prev: +(((LIVE.get(r.code) || {}).y) || 0) || +(r.prev || 0) || 0}));
             const legs = Array.isArray(j.legs) ? j.legs.map(g => Object.assign({}, g, {prev: +(((LIVE.get(g.code) || {}).y) || 0) || +(g.prev || 0) || 0})) : null;   // 2026-10-29 12:33(實際時間)每一趟一列(使用者「要改」)
@@ -5824,6 +5832,10 @@ function initChart(){
     //   左右捲動 / 縮放時把價格自動縮放開回來(價格軸拖的放大只維持到下次捲動)
     try{ for (const c of charts){ const ps = c.priceScale('left'); if (ps.options().autoScale === false) ps.applyOptions({autoScale: true}); } }catch(e){}
     if (syncing || !r) return;
+    // 2026-11-17 11:20 使用者「抓bug」→「改」(啟碁 10:55 K 圖卡在 09:00、指標二 / 乖離在 10:54):開圖時指標二 / 乖離還沒放好資料,套件先給暫時範圍「第 −45~1 根」,
+    //   這個範圍被同步到 K 圖、之後沒再同步回來。改:指標二 / 乖離的範圍跟 K 圖差很遠、又在最前面(K 有 60 根以上、範圍到第 3 根以前)→ 不同步出去,反過來跟 K 圖
+    if (a !== chart && typeof BARS !== 'undefined' && BARS.length > 60 && r.to < 3){ try{ const kr = chart.timeScale().getVisibleLogicalRange();
+      if (kr && kr.to > 3 && Math.abs(kr.to - r.to) > 20){ try{ bugAdd('fn', ['rgGuard', a === chartM ? 'M' : 'B', +r.from.toFixed(1), +r.to.toFixed(1)]); }catch(e){} syncing = true; try{ a.timeScale().setVisibleLogicalRange(kr); }catch(e){} syncing = false; return; } }catch(e){} }
     // 最後一根 K 之後只留 3 格空白,不能再往右拖出一大片空白;最少也要看得到 12 根(避免縮到只剩一根)
     const maxTo = (typeof BARS !== 'undefined' && BARS.length ? BARS.length - 1 : 0) + 3;
     let fixed = null;
@@ -8038,7 +8050,7 @@ window.bgTick = bgTick; window.BG = BG;
         const open = over ? [] : (!TPL || !TPL.ok || window.DONE_VIRT) ? cards.filter(o => o.type === 'entry' && !o.over && !o.notrade && !o.madd && !o._hide && !o.phNew && o._alert !== 'exit' && o.entP > 0 && !cards.some(x => x.fc && x.code === o.code && x.t >= o.t)) : (TPL.pos || []).filter(p => p.qty > 0 && p.entry > 0 && (p.state === '持倉中' || p.state === '平倉中'))
           .map(p => ({code: p.code, name: nmOf(p.code), side: p.dir > 0 ? 'long' : 'short', entP: +p.entry, lots: +p.qty, rs: p.judge, exiting: p.state === '平倉中', t: String(p.t0 || '')}));
         // 2026-10-29 12:25(實際時間)使用者「既然真實接通 … 顯示元大裡的真實的交易」:元大帳號裡手動進場、還沒沖掉的張數(成交回報 open ≠ 0)也列進當沖(程式的部位已在上面,不重複)
-        if (TP && !over && !window.DONE_VIRT){ tfillsPoll(); try{ const F = window.__tfills; if (F && F.ok && F.d === today && Array.isArray(F.rows)) for (const r of F.rows){ const q = +r.open || 0; if (!q || open.some(o => o.code === r.code)) continue;
+        if (TP && !over && !window.DONE_VIRT){ tfillsPoll(); try{ const F = window.__tfills; const IG_ = ignSet(); if (F && F.ok && F.d === today && Array.isArray(F.rows)) for (const r of F.rows){ const q = +r.open || 0; if (!q || IG_.has(String(r.code)) || open.some(o => o.code === r.code)) continue;   /* 2026-11-17 09:46 使用者「庫存的和益是借卷 空 我已經贖回 這邊不用顯示和益做多」:不管名單(電腦 ignore_codes.txt,?trade=pos 的 ignore)不列 */
               open.push({code: r.code, name: r.name || nmOf(r.code), side: q > 0 ? 'long' : 'short', entP: q > 0 ? +r.buy : +r.sell, lots: Math.abs(q), manual: true, t: String(r.t || r.time || '99:99')}); } }catch(e){} }
         open.sort((a, b) => String(b.t || '').localeCompare(String(a.t || '')));
         try{ const k_ = open.map(o => o.code + o.side).join(','); window.__openSide = new Map(open.map(o => [o.code, o.side])); window.__openReal = !!(TPL && TPL.ok) && !window.DONE_VIRT; window.__openPos = new Map(open.map(o => [o.code, {side: o.side, entP: +o.entP || 0, lots: +o.lots || (typeof lotsOf === 'function' ? +lotsOf(o) : 0) || 1}])); setTimeout(() => { try{ __needlesNow(); }catch(e){} }, 0); if (k_ !== window.__openSideK){ window.__openSideK = k_; setTimeout(() => { try{ window.__reList && __reList(); }catch(e){} }, 0); } }catch(e){}   // 2026-11-09 12:43 監控清單:進場還沒平倉的標做多 / 做空   // 2026-11-09 12:37 使用者「當沖顯示 最晚進來排最上面」:照進場時間,最晚的在最上面
@@ -8109,7 +8121,7 @@ window.bgTick = bgTick; window.BG = BG;
           // 2026-11-05 00:31 使用者「這個虛擬 是可以切換 元大的 因為我是永久會員」:收盤後切在「元大」、這天手機還沒拿到元大成交 → 不拿虛擬交易冒充,寫「元大成交還沒拿到」(電腦連上會自動補)
           if (!yf && virtOk && !doneVirt && !vwOnly() && dd >= '2026-11-16') return [`<div class="r" data-day="${dd}"><span class="nm" style="color:#8C96AB;grid-column:1/-1">這天的元大成交還沒拿到(電腦連上會自動補)</span></div>`, 0, 1];
           return rowsOf(src, dd); };   /* 2026-11-02 23:25 使用者「永久會員 今天之前 全部都用虛擬的資料 填滿明細 今天之後包含今天 都用真實的元大資料 其他會員 一律用虛擬資料」:自己的 App 11/02 起用元大真實成交、11/01 以前一律用程式的虛擬交易;看盤版一律虛擬 */
-      const doneSrc = dd => { if (doneVirt && dd < '2026-11-16' && BTF && BTF[dd] && BTF[dd].length){ const s = prep(btfCap(dd)); for (const o of s){ const q = +((((o.x || {}).body || '').match(/· (\d+)張/) || [])[1]) || 0; if (q) o.lots = q; } return finish(s); }   /* 2026-11-17 00:50 使用者「還是25000」:虛擬明細有重算紀錄(app/bt_fill.json)的日子以重算為準(11/16 重寫 +19,457;電腦推的 vdone 是盤中照通知記的,神達 / 大成鋼重複) */
+      const doneSrc = dd => { if (doneVirt && BTF && BTF[dd] && BTF[dd].length){   /* 2026-11-17 03:07 使用者「改回來 因為目前沒有夥伴」:有重算紀錄的日子(含 11/16)一律用重算 */ const s = prep(btfCap(dd)); for (const o of s){ const q = +((((o.x || {}).body || '').match(/· (\d+)張/) || [])[1]) || 0; if (q) o.lots = q; } return finish(s); }   /* 2026-11-17 00:50 使用者「還是25000」:虛擬明細有重算紀錄(app/bt_fill.json)的日子以重算為準(11/16 重寫 +19,457;電腦推的 vdone 是盤中照通知記的,神達 / 大成鋼重複) */
         if (doneVirt){ try{ vdoneGet(dd); }catch(e){} if (vdoneHas(dd)) return vdDedupe(VDONE[dd].list.filter(c => !c.over)).map(c => ({type: 'exit', code: String(c.code), name: c.name || String(c.code), side: +c.side > 0 ? 'long' : 'short', entP: +c.e, price: +c.x, lots: +c.lots || 1, rs: c.rs || '', t: c.xt || '', entT: c.t || '', vnet: +c.net, prev: 0, x: {body: ''}})).sort((a, b) => a.t < b.t ? 1 : a.t > b.t ? -1 : 0); }   /* 2026-11-13 雲端虛擬明細優先 */
         if (BTF && BTF[dd] && BTF[dd].length){ const s = prep(btfCap(dd)); for (const o of s){ const q = +((((o.x || {}).body || '').match(/· (\d+)張/) || [])[1]) || 0; if (q) o.lots = q; } return finish(s); }
         if (dd === today){ if (doneVirt){ try{ return finish(prep(itemsFor(today).filter(x => !/強平|元平|元大|預掛|強制 ·/.test((x.title || '') + ' ' + (x.body || '').replace(/已強平/g, ''))))); }catch(e){} } if (d === today) return cards; }
@@ -8538,7 +8550,11 @@ setInterval(() => { try{
   if (bad.length && !BUG.pendBad){ BUG.pendBad = true; BUG.lastChk = sig; return; }
   if (!bad.length) BUG.pendBad = false;
   if (bad.length){ BUG.hits++; if (!BUG.firstHit) BUG.firstHit = bugT(); bugAdd('BUG', {bad, s, touching: !!(window.isChartTouching && isChartTouching())});
-    if (!BUG.lastFreeze || Date.now() - BUG.lastFreeze > 15000){ BUG.lastFreeze = Date.now(); bugFreeze(bad.join(',')); } const d = el('bugDot'); if (d) d.classList.add('hit'); }
+    if (!BUG.lastFreeze || Date.now() - BUG.lastFreeze > 15000){ BUG.lastFreeze = Date.now(); bugFreeze(bad.join(',')); } const d = el('bugDot'); if (d) d.classList.add('hit');
+    // 2026-11-17 11:20 使用者「改」:偵測到三張圖對不上(上傳之後)順便自動拉回同一個範圍 —— 以 K 圖為準;K 圖範圍不合理(有 60 根以上、範圍到第 3 根以前)就以指標二 / 乖離為準
+    try{ if (!(window.isChartTouching && isChartTouching())){ const cs = {K: chart, M: typeof chartM !== 'undefined' ? chartM : null, B: typeof chartB !== 'undefined' ? chartB : null};
+      const okR = x => x && !x.err && x.f != null && !(s.n > 60 && x.t < 3); const m = okR(a) ? a : s.c.find(okR);
+      if (m && cs[m.nm]){ const rr = cs[m.nm].timeScale().getVisibleLogicalRange(); if (rr){ for (const k in cs) if (cs[k] && k !== m.nm) cs[k].timeScale().setVisibleLogicalRange(rr); bugAdd('fn', ['heal', m.nm, +rr.from.toFixed(1), +rr.to.toFixed(1)]); } } } }catch(e){} }
   else if (sig !== BUG.lastChk) bugAdd('chk', s);
   BUG.lastChk = sig; }catch(e){} }, 700);
 ['touchstart', 'touchend', 'touchcancel'].forEach(t => document.addEventListener(t, ev => { try{
