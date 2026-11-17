@@ -2002,20 +2002,45 @@ class Trader:
             if p0 and p0["dir"] == d:   # 2026-11-12 11:55 「解鎖 改:只有手動加碼」:加碼預掛只看 500 萬額度
                 return ""   # 2026-11-16 10:59 🔓→🔒 使用者「手動加碼 不受管500萬 跟25分級管束」→「解鎖 改」:手動加碼預掛不看鐵律 ⑤(500 萬額度、25 萬分級都不看);加碼金額照算進今天成交
             # 2026-11-16 12:30 🔓→🔒 使用者「手動進場 鐵律3,5,不能管 解鎖改」:手動進場不檢查 ③ 時間、⑤(一張 25 萬上限 / 分級張數 / 500 萬額度),只剩 ① ±5%;進場後元三管理照舊、金額照算進 500 萬(預掛也一樣)
-            ex = self.mon_excluded(code)
+            ex = self.mon_excluded(code, px)
             if ex: why.append(f"被監控排除({ex})")
             if ref > 0 and px > 0 and abs(px / ref - 1) * 100 > self.ent_pct + 1e-9: why.append(f"價格離昨收 {(px / ref - 1) * 100:+.1f}%(超過 ±{self.ent_pct:g}%)")
             return "、".join(why)
         except Exception as e:
             self.log(f"[交易] 預掛鐵律檢查失敗 {e!r}"); return ""
 
-    def mon_excluded(self, code):
+    def mon_excluded(self, code, px=0.0):
         """2026-11-17 15:07 使用者「如果有這種 被監控排除的 一預掛就取消」(華邦電不可先賣、手動放空被元大退單):
            開盤前複檢排除監控的股票(處置 / 注意 / 不可現股當沖 / 不可先賣)→ 手動新進場做多做空都不接(預掛直接取消、成交了馬上平);回原因,可以做回空字串"""
         try:
             import elig; eb = elig.blocked(code, "short")
         except Exception: eb = ""
-        return eb
+        return eb or self.sel_why(code, px)
+
+    def sel_why(self, code, px=0.0):
+        """2026-11-17 15:10 使用者「不合選股邏輯的也一預掛就取消,合乎的才補進監控」→「好」:照電腦引擎寫的 pool_today.json(sel / mon / R)判斷
+           在監控 → 可以;名單裡沒選上 → 照引擎記的原因(空 = 合乎,只是名額沒排到 → 可以,成交後補進監控);
+           名單外 → 只看得到的:4 碼普通股、價格範圍、金融保險、一檔跳動(振幅 / 成交量沒資料不擋)。讀不到檔 → 不擋"""
+        try:
+            c = str(code)
+            if c in self.ignore: return ""
+            import os as _os
+            f = Path(_os.environ.get("ENGINE_DIR") or (Path(__file__).resolve().parent / "engine_data")) / "pool_today.json"
+            mt = f.stat().st_mtime
+            if getattr(self, "_sel_mt", None) != mt: self._sel_j = json.loads(f.read_text(encoding="utf-8")); self._sel_mt = mt
+            j = self._sel_j or {}; R = j.get("R")
+            if not R: return ""
+            if c in set(map(str, j.get("mon") or [])): return ""
+            sel = j.get("sel") or {}
+            if c in sel: return f"不合選股條件:{sel[c]}" if sel[c] else ""
+            if any(str(x.get("code")) == c and x.get("extra") for x in (j.get("pool") or [])): return ""   # 今天已補進監控的名單外股票
+            if not re.fullmatch(r"[1-9]\d{3}", c): return "不合選股條件:非 4 碼普通股"
+            if c.startswith("28") or c in ("5820", "5871", "5876", "5878", "5880", "6005", "6024", "2820"): return "不合選股條件:金融保險"
+            p = float(px or 0) or float(self.last_px.get(c) or 0) or float(self.ref_of(c) or 0)
+            if p > 0 and not (float(R["lo"]) <= p <= float(R["hi"])): return f"不合選股條件:價格 {p:g} 不在 {float(R['lo']):g}~{float(R['hi']):g}"
+            if p > 0 and tick_size(p) / p * 100 > float(R.get("tick") or 99) + 1e-9: return "不合選股條件:一檔跳動太大"
+            return ""
+        except Exception: return ""
 
     def iron_manual(self, p, price, lots, what, fills=None):
         """2026-11-11 20:53 使用者「5.6不是沒做」(⑥ 元大 App 自己下的單也不能例外):手動進場 / 加碼成交後檢查鐵律
@@ -2033,7 +2058,7 @@ class Trader:
                     m_ = minutes_of(t_) if t_ else None
                     fl.append((f"{m_ // 60:02d}:{m_ % 60:02d}" if m_ is not None else None, float(px_ or 0)))
             # 2026-11-16 12:30 🔓→🔒 使用者「手動進場 鐵律3,5,不能管 解鎖改」:手動進場不檢查 ③ 時間、⑤(一張 25 萬上限 / 分級張數 / 500 萬額度),只剩 ① ±5%;進場後元三管理照舊、金額照算進 500 萬
-            ex = self.mon_excluded(p["code"]) if p.get("judge") == MANUAL else ""
+            ex = self.mon_excluded(p["code"], price) if p.get("judge") == MANUAL else ""
             if ex: why.append(f"被監控排除({ex})")
             bad_p = [px_ for _, px_ in fl if ref > 0 and px_ > 0 and abs(px_ / ref - 1) * 100 > self.ent_pct + 1e-9]
             if bad_p: why.append(f"成交價離昨收 {(bad_p[0] / ref - 1) * 100:+.1f}%(超過 ±{self.ent_pct:g}%)")

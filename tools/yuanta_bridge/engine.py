@@ -676,6 +676,20 @@ def build_universe(j, day, cap, held=(), noted=(), old_src=None):
         mkts[c] = "otc" if str(s.get("market", "")).lower() in ("otc", "tpex") else "tse"
         canshort[c] = s.get("daytrade") == 1 and s.get("short_first") == 1   # 2026-10-29 不能當沖 / 不能先賣 → 模擬器帶 CANSHORT=0(空單只記錄)
     out = dict(j); out["pool"] = [src[c] for c in src]   # 模擬器用代碼查昨收,換名單後不見的股票也要在裡面
+    # 2026-11-17 15:10 使用者「不合選股邏輯的也一預掛就取消,合乎的才補進監控」→「好」:中繼看手動單要知道每檔為什麼沒在監控
+    #   sel[代碼] = 不合選股邏輯的原因;"" = 合乎選股邏輯(只是名額 / 排名沒排到);mon = 現在監控的代碼;R = 價格範圍 / 一檔跳動 / 排除產業
+    try:
+        sel = {}
+        for s_ in pool:
+            c_ = str(s_.get("code", ""))
+            if not c_ or c_ in codes: continue
+            w_ = stock_ok(s_, j, R)
+            if not w_ and not (R["lo"] <= _f(s_.get("close"), 0) <= R["hi"]): w_ = "價格範圍"
+            if not w_ and (s_.get("amp") is None or _f(s_.get("amp"), 0) < R["amp"]): w_ = "振幅"
+            if not w_ and not days_ok(s_, R): w_ = "成交量 / K 棒 / 連續天數"
+            sel[c_] = w_ or ""
+        out["sel"] = sel; out["mon"] = list(codes); out["R"] = {"lo": R["lo"], "hi": R["hi"], "tick": R["tick"], "excl": R["excl"]}
+    except Exception as e: log("選股原因表失敗", repr(e))
     write_atomic(DATA / "pool_today.json", json.dumps(out, ensure_ascii=False))
     return {"codes": codes, "names": names, "prev": prev, "mkts": mkts, "canshort": canshort, "no_new": no_new, "src": src,
             "stamp": f"{j.get('generated', '')}|{j.get('elig_checked_at', '')}", "why": why, "R": R, "j": j, "xstamp": extra_stamp()}

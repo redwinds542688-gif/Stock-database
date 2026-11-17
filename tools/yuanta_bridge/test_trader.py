@@ -1121,3 +1121,14 @@ if _el0 is not None: _sys.modules["elig"] = _el0
 else: _sys.modules.pop("elig", None)
 NOW[0] = NOW0
 print("被監控排除手動單取消 OK")
+
+# 2026-11-17 15:10 使用者「不合選股邏輯的也一預掛就取消,合乎的才補進監控」:照引擎的 pool_today.json(sel / mon / R)
+import os as _os, json as _js, tempfile as _tf
+_ed = Path(_tf.mkdtemp()); _os.environ["ENGINE_DIR"] = str(_ed)
+(_ed / "pool_today.json").write_text(_js.dumps({"R": {"lo": 10, "hi": 500, "tick": 0.5, "excl": ["17"]}, "mon": ["2330"], "sel": {"1101": "振幅", "2303": ""}, "pool": []}), encoding="utf-8")
+NOW[0] = NOW0; ts_, gs_ = mk(); ts_.ref_of = lambda c: {"1101": 30.0, "2303": 50.0, "2881": 60.0, "9999": 5.0, "3008": 2000.0, "2412": 120.0}.get(c, 100.0)
+ok("振幅" in ts_.sel_why("1101") and ts_.sel_why("2303") == "" and ts_.sel_why("2330") == "" and "金融" in ts_.sel_why("2881") and "價格" in ts_.sel_why("9999", 5.0) and "價格" in ts_.sel_why("3008", 2000.0) and ts_.sel_why("2412", 120.0) == "")
+ns_ = len(gs_.sent); ts_.man_order("1101", "M101", 0, 1000, 30.0, "B"); ok(("cancel", "M101") in [x[:2] for x in gs_.sent[ns_:]], gs_.sent[ns_:])
+ts_.man_order("2303", "M102", 0, 1000, 50.0, "B"); ok(("cancel", "M102") not in [x[:2] for x in gs_.sent[ns_:]])
+_os.environ.pop("ENGINE_DIR", None)
+print("不合選股邏輯手動單取消 OK")
