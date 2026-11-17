@@ -1209,6 +1209,8 @@ class Engine:
             _o = next(r for (r, c) in self.pos if c == code and r != rs); self.emitted.add(ek); log(f"{JUDGE[rs]} {code} {open_tm} 這檔{JUDGE.get(_o, _o)}的部位還開著(同一檔只做一筆)→ 不發"); return n
         elif rs in ("六", "六3") and (("六3" if rs == "六" else "六"), code) in self.pos:   # 2026-11-12 23:40 判六做多 / 做空同一檔同時只留一筆
             self.emitted.add(ek); log(f"判六 {code} {open_tm} 這檔判六另一個方向的部位還開著 → 不發"); return n
+        elif _f(self.envs.get(rs, {}).get("PXMIN"), 0) > 0 and float(d.get("px") or 0) < _f(self.envs.get(rs, {}).get("PXMIN"), 0) - 1e-9:   # 2026-11-17 10:45 模擬器 PXMIN 在 close_trade 才擋(引擎看進場那行就發)→ 引擎自己擋(判四 70、判五 15;11/17 國喬 11.60 判五漏擋)
+            self.emitted.add(ek); log(f"{JUDGE[rs]} {code} {open_tm} 進場價 {float(d.get('px') or 0):.2f} 低於 {self.envs[rs]['PXMIN']} 元 → 不發"); return n
         elif not self.tx_ok(rs, code, open_tm, d["side"]):   # 2026-11-13 22:30 ⑧ 台指期同步進場(23:32 改只看方向):台指期 60 分鐘往不利方向 → 這筆不做(記 emitted,不再發)
             self.emitted.add(ek); return n
         else: why = None
