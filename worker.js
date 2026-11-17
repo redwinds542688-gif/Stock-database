@@ -1462,6 +1462,7 @@ export default {
         const b = await body(); const n = b && String(b.name || ""); if (!ACCT_RE.test(n || "")) return J({ error: "name 不對" }, 400);
         if (famQ === "done") { await hub.kvPut("famjob:" + n, null); return J({ ok: true }); }
         const L = await L0(); const o = L[n] || {}; o.st = String(b.st || o.st || "").slice(0, 12); o.msg = String(b.msg || "").slice(0, 160); o.at = Date.now();
+        if (b.chk && typeof b.chk === "object") { const c = {}; for (const k of ["acct", "cert", "api"]) if (["y", "n", "w"].includes(b.chk[k])) c[k] = b.chk[k]; o.chk = c; }   // 2026-11-18 電腦自動檢查:帳號密碼 / 憑證 / API
         if (o.st === "gone") { delete L[n]; await hub.kvPut("fams", L); return J({ ok: true }); }
         if (o.st === "run" && !o.key) {   // 登入成功 → 發看盤金鑰(和 ?keys=add {acct} 同一種)
           const k = newKey(FAM_PRE); await env.LOGS.put("key:" + k, JSON.stringify({ name: n, role: "viewer", on: true, made: ymdOf(twNow()), acct: n, by: "夥伴加入" })); o.key = k; }
@@ -1472,7 +1473,7 @@ export default {
         for (const [n, o] of Object.entries(L)) { let cfg = null, rep = null; try { cfg = await hub.kvGet("acfg:" + n); } catch (e) {}
           // 2026-11-17 打勾:夥伴交易程式最近一次回報(每分鐘 ?pcbk=put 的 info:現在用的設定、套用的是哪一次 cfg_at)
           try { const d = AC && AC[n] && AC[n].d; if (d) { const x = await hub.kvGet(`pcbka:${n}:${d}:info`); if (x && x.v) rep = { at: x.at || 0, v: x.v }; } } catch (e) {}
-          fams.push({ name: n, st: o.st || "wait", msg: o.msg || "", at: o.at || 0, key: o.key || "", cfg: cfg || {}, rep }); }
+          fams.push({ name: n, st: o.st || "wait", msg: o.msg || "", at: o.at || 0, key: o.key || "", cfg: cfg || {}, rep, chk: o.chk || {} }); }
         let seen = 0; try { seen = await hub.kvGet("famseen") || 0; } catch (e) {}
         return J({ ok: true, fams, agentAt: seen }); }
       if (request.method !== "POST") return J({ error: "要用 POST" }, 405);

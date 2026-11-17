@@ -108,6 +108,7 @@ main.locked .wheel, main.locked .opt, main.locked .seg button, main.locked .jg b
 .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:calc(var(--u) * .3)} .seg button{height:calc(var(--uf) * 2.8);border-radius:10px;border:1px solid var(--line2);background:transparent;color:var(--soft);font-size:calc(var(--uf) * 1.05);font-weight:700}
 .seg button.on{border:2px solid var(--green);color:var(--green);background:#0E1A12}
 .hbk{margin-left:auto;flex:none;background:none;border:1px solid #1E5A7A;border-radius:999px;color:var(--blue);font-size:calc(var(--uf) * .95);padding:calc(var(--uf) * .15) calc(var(--uf) * .6);cursor:pointer;white-space:nowrap} .hbk + .tag{margin-left:calc(var(--uf) * .4)}
+.chk2{display:flex;align-items:center;gap:calc(var(--uf) * .6);font-size:calc(var(--uf) * 1.05);color:var(--soft)} .ck3{width:calc(var(--uf) * 1.6);height:calc(var(--uf) * 1.6);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;flex:none} .ck3.w{border:2px solid var(--line2);color:var(--sub)}
 .mask{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
 .verl{white-space:nowrap;font-size:calc(var(--uf) * .75);color:var(--sub)}
 .gate .card{width:100%;max-width:420px;border:2px solid var(--gold)}
@@ -174,7 +175,7 @@ async function tryKey(k){ k = String(k || "").trim(); const e = $("gerr"); if (e
 const ST = {wait: ["wait", "等電腦處理"], pc: ["pc", "電腦設定中"], run: ["run", "自動當沖中"], fail: ["err", "失敗"], del: ["off", "移除中"]};
 const P = [];
 function fromList(j){ P.length = 0; for (const f of (j && j.fams) || []){ const c = f.cfg || {}, js = c.judges || {};
-  P.push({n: f.name, st0: f.st, st: (ST[f.st] || ["wait", f.st])[0], t: (ST[f.st] || ["", f.st])[1], d: f.msg || "", k: f.key || "",
+  P.push({chk: f.chk || {}, n: f.name, st0: f.st, st: (ST[f.st] || ["wait", f.st])[0], t: (ST[f.st] || ["", f.st])[1], d: f.msg || "", k: f.key || "",
     m: [c.max_amount || 1000000, c.cap || 100000, c.max_loss || 10000, c.kill_loss || 20000], lot: c.lot_mode || 1, at: c.at || 0, c, rep: f.rep || null, msg: f.msg || "", st1: f.st, on: c.enabled !== false, j: JN.map(x => js[x] !== false)}); }
   for (const p of P) p.ok = okOf(p); S.agentAt = (j && j.agentAt) || 0; }
 const agentOk = () => S.agentAt && Date.now() - S.agentAt < 3 * 60000;
@@ -225,7 +226,7 @@ function setTags(p){ const c = p.c || {}, v = (p.rep && p.rep.v) || null, cj = c
     j: (() => { const loc = JN.filter((x, i) => p.j[i]).join(), snt = sentJ.join(); if (!c.at) return ""; if (loc !== snt) return "e"; return v && JN.filter(x => (v.judges || []).includes(x)).join() === snt ? "y" : "w"; })() }; }   /* 公式不管電腦回報的順序 */
 function refreshTags(){ const p = P[S.cur]; if (!p || S.page !== "one") return; const t = setTags(p);
   t.m.forEach((k, i) => { const e = $("tgm" + i); if (e) e.innerHTML = stTag(k); }); [["tgon", t.on], ["tgj", t.j], ["tglot", t.lot]].forEach(([id, k]) => { const e = $(id); if (e) e.innerHTML = stTag(k); }); }
-const CH = p => [["雲端", p.ok.cloud, p.ok.cloudT], ["電腦", p.ok.pc, p.ok.pcT], ["元大", p.ok.yt, p.ok.ytT], ["看盤金鑰", !!p.k, ""]];
+const CH = p => { const c = p.chk || {}, b = v => v === "y" ? true : v === "n" ? false : "wait"; return [["雲端", p.ok.cloud, p.ok.cloudT], ["電腦", p.ok.pc, p.ok.pcT], ["元大", p.ok.yt, p.ok.ytT], ["憑證", b(c.cert || (p.st1 === "run" ? "y" : "")), ""], ["API 下單", b(c.api || (p.st1 === "run" ? "y" : "")), ""], ["看盤金鑰", !!p.k, ""]]; };
 const chips = p => CH(p).map(([t, ok]) => `<span class="ch ${ok === true ? "y" : ok === "wait" ? "w" : "n"}">${ok === true ? "✓" : ok === "wait" ? "⏳" : "✗"} ${t}</span>`).join("");
 const chCard = p => `<div class="card" id="chc"><b style="font-size:calc(var(--uf) * 1.2)">通道</b>${CH(p).map(([t, ok, d]) => `<div class="chl"><span class="ck2 ${ok === true ? "y" : ok === "wait" ? "w" : "n"}">${ok === true ? "✓" : ok === "wait" ? "⏳" : "✗"}</span><span><b>${t}</b><small>${d}</small></span></div>`).join("")}</div>`;
 const stTag = k => k === "y" ? `<span class="tg2 y">✓ 已套用</span>` : k === "w" ? `<span class="tg2 w">⏳ 08:45 套用</span>` : k === "e" ? `<span class="tg2 e">✎ 還沒傳送</span>` : "";
@@ -233,25 +234,27 @@ const esc = t => String(t || "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&
 function vNew(){ return `
   <label>夥伴名字<input type="text" id="nm" value="${esc(S.nm0 || "")}" maxlength="12" placeholder="例如 小明"></label>
   <div class="card">
-    <label>證券帳號<input type="text" id="ac" placeholder="981R0123456" autocomplete="off" maxlength="13"></label>
-    <label>電子交易密碼<input type="password" id="pw" autocomplete="new-password"></label>
-    <label class="ck" style="flex-direction:row;align-items:center;gap:.6em"><input type="checkbox" id="c1"> 憑證已裝進電腦</label>
-    <label class="ck" style="flex-direction:row;align-items:center;gap:.6em"><input type="checkbox" id="c2"> 已開通 API 下單</label></div>
+    <label>元大帳號<input type="text" id="ac" placeholder="981R0123456" autocomplete="off" maxlength="13"></label>
+    <label>元大密碼<input type="password" id="pw" autocomplete="new-password"></label>
+    <div class="chk2"><span class="ck3 w">○</span>憑證已裝進電腦</div>
+    <div class="chk2"><span class="ck3 w">○</span>已開通 API 下單</div></div>
   <div class="card"><div class="sw"><span>自動交易</span><button type="button" class="tg${S.nOn === false ? "" : " on"}" id="ntg" aria-label="自動交易開關"></button></div></div>
   <div class="card">${money([1000000,100000,10000,20000])}</div>
   <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">進場張數</b>
-    <div class="seg" id="nseg">${[["1","能買幾張"],["2","只買 1 張"],["3","分級"]].map(([k, t]) => `<button type="button" data-lot="${k}" class="${(S.nLot || 1) === +k ? "on" : ""}">${t}</button>`).join("")}</div></div>
+    <div class="seg" id="nseg">${[["1","極限進場"],["2","單張進場"],["3","分級進場"]].map(([k, t]) => `<button type="button" data-lot="${k}" class="${(S.nLot || 1) === +k ? "on" : ""}">${t}</button>`).join("")}</div></div>
   
   <div class="hint" id="nerr" style="color:#FF8A8A;min-height:1.4em"></div>
   <button type="button" class="btn gold" id="send">加密送到電腦</button>`; }
+/* 2026-11-18 使用者「憑證 與 api 程式自己偵測 有就打勾」「後臺檢查沒問題 自動打勾 有問題 打叉」→「改」:電腦登入元大後依結果回報 chk {acct, cert, api}(y / n / w) */
+const ckRow = (t, st, d) => `<div class="chl"><span class="ck2 ${st === "y" ? "y" : st === "n" ? "n" : "w"}">${st === "y" ? "✓" : st === "n" ? "✗" : "⏳"}</span><span><b>${t}</b><small>${esc(d || "")}</small></span></div>`;
+const ckRows = q => { const c = (q && q.chk) || {}, bad = q && q.st0 === "fail" ? q.d : "";
+  return ckRow("元大帳號密碼", c.acct, c.acct === "n" ? bad : c.acct === "y" ? "" : "電腦登入元大中…") + ckRow("憑證已裝進電腦", c.cert, c.cert === "n" ? bad : "") + ckRow("已開通 API 下單", c.api, c.api === "n" ? bad : ""); };
 function vWait(){ const q = P.find(x => x.n === S.nm), st = q ? q.st0 : "wait";
-  const n = st === "pc" ? (q.d.includes("登入") ? 1 : 0) : st === "run" ? 4 : 0;
-  return `<h2>${esc(S.nm)} 設定中…</h2><div class="card steps">${steps(n)}</div>
-  ${st === "fail" ? `<div class="lock" style="color:#FFC9C9;background:#2A1416;border-color:#7A2A2E">⚠ ${esc(q.d)}</div><button type="button" class="btn blue" id="retry">重新輸入再送一次</button>` : `<p class="hint">不用一直開著這個畫面,電腦登入元大成功後,夥伴列表就會出現他的看盤金鑰。${agentOk() ? "" : "<br><b style='color:#FF8A8A'>電腦的夥伴服務現在沒在跑,開電腦後才會處理。</b>"}</p>`}
-  <button type="button" class="btn" id="bk">回夥伴列表</button>`; }
+  return `<h2>${esc(S.nm)}</h2><div class="card"><b style="font-size:calc(var(--uf) * 1.2)">電腦自動檢查</b>${ckRows(q)}</div>
+  ${st === "fail" ? `<button type="button" class="btn blue" id="retry">重新輸入再送一次</button>` : !agentOk() ? `<p class="hint" style="color:#FF8A8A">電腦的夥伴服務現在沒在跑,開電腦後才會處理</p>` : ""}`; }
 function vOne(){ const p = P[S.cur]; if (!p) return vList();
   const head = `<h2>${esc(p.n)}</h2>`;
-  if (p.st0 !== "run") return head + `<div class="card"><b style="font-size:calc(var(--uf) * 1.2)">${p.t}</b><p class="hint">${esc(p.d)}</p></div>
+  if (p.st0 !== "run") return head + `<div class="card"><b style="font-size:calc(var(--uf) * 1.2)">電腦自動檢查</b>${ckRows(p)}</div>
     ${p.st0 === "fail" ? `<button type="button" class="btn blue" id="retry">重新輸入再送一次</button>` : ""}
     <button type="button" class="btn" id="rm" style="color:var(--bad);border-color:#7A2A2E">移除 ${esc(p.n)}</button>`;
   return head + (mkt() ? `<div class="lock" style="color:#FFE7A3;background:#2A2410;border-color:#8A7320">🔒 盤中不能調整參數</div>` : "") + chCard(p) + `
@@ -260,7 +263,7 @@ function vOne(){ const p = P[S.cur]; if (!p) return vList();
   <div class="card"><div class="sw"><span>自動交易 <span id="tgon">${stTag(setTags(p).on)}</span></span><button type="button" class="tg${p.on ? " on" : ""}" id="tgl" aria-label="自動交易開關"></button></div></div>
   <div class="card">${money(p.m, setTags(p).m)}</div>
   <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">進場張數 <span id="tglot">${stTag(setTags(p).lot)}</span></b>
-    <div class="seg" id="dseg">${[["1","能買幾張"],["2","只買 1 張"],["3","分級"]].map(([k, t]) => `<button type="button" data-lot="${k}" class="${p.lot === +k ? "on" : ""}">${t}</button>`).join("")}</div></div>
+    <div class="seg" id="dseg">${[["1","極限進場"],["2","單張進場"],["3","分級進場"]].map(([k, t]) => `<button type="button" data-lot="${k}" class="${p.lot === +k ? "on" : ""}">${t}</button>`).join("")}</div></div>
   ${mkt() ? `<button type="button" class="btn" id="sv" disabled style="opacity:.55">盤中不能傳送</button>`
          : `<button type="button" class="btn gold" id="sv">傳送到雲端和電腦</button>`}
   ${p.at ? `<p class="hint" style="text-align:center">上次傳送 ${whenTxt(p.at)} · ${effTxt(p.at)}</p>` : ""}
@@ -340,9 +343,8 @@ function render(){ const hb = $("hbk"); if (hb){ hb.hidden = !["new", "one", "wa
 /* 加密送到電腦:手機用電腦登記在雲端的公開鎖(RSA-OAEP / SHA-256)加密 {acct, pass},雲端解不開;電腦 fam_agent.py 用私鑰解 */
 async function sendNew(){ const e = $("nerr"), nm = ($("nm").value || "").trim(), ac = ($("ac").value || "").replace(/[\s-]/g, "").toUpperCase(), pw = $("pw").value || "";
   if (!nm || /[\s|:\/\\?#&<>"']/.test(nm)) return e.textContent = "名字不能空白、不能有符號";
-  if (!/^S?[0-9A-Z]{11}$/.test(ac)) return e.textContent = "證券帳號要 11 碼(分公司 4 碼 + 帳號 7 碼)";
-  if (!pw) return e.textContent = "請輸入電子交易密碼";
-  if (!$("c1").checked || !$("c2").checked) return e.textContent = "請先確認兩項:憑證已裝進你的電腦、已開通 API 電子下單";
+  if (!/^S?[0-9A-Z]{11}$/.test(ac)) return e.textContent = "元大帳號要 11 碼(分公司 4 碼 + 帳號 7 碼)";
+  if (!pw) return e.textContent = "請輸入元大密碼";
   const m = [...main.querySelectorAll(".wheel")].map(x => Math.round(+x.dataset.v * 10000));
   e.textContent = "加密送出中…"; $("send").disabled = true;
   try{ const pub = await api("fam=pub");

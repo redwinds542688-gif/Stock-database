@@ -189,17 +189,29 @@ def del_partner(name):
 
 
 def login_state(name, since):
-    """看夥伴的紀錄檔:元大登入成功 / 被拒 / 還沒有結果"""
+    """看夥伴的紀錄檔,回 (結果, 訊息, chk):結果 True = 登入成功 / False = 失敗 / None = 還沒結果;
+       chk = {acct, cert, api}:y 通過、n 有問題、w 還不知道(2026-11-18 使用者「憑證 與 api 程式自己偵測 … 沒問題 自動打勾 有問題 打叉」)
+       元大的代碼:登入 0102 密碼凍結 / 未啟用 → 帳號密碼 ✗;0112 無此權限 → API 下單 ✗;查詢 [9 加簽失敗 / 憑證異常] → 憑證 ✗;[4 帳號錯] [11 帳號資訊異常] → 帳號密碼 ✗;[5 權限不足] → API ✗"""
     f = FAM / name / "log" / f"bridge_{now_tw().strftime('%Y-%m-%d')}.log"
-    if not f.exists(): return None, ""
-    try: txt = f.read_text(encoding="utf-8", errors="ignore")[-20000:]
-    except Exception: return None, ""
-    for line in reversed(txt.splitlines()):
+    if not f.exists(): return None, "", {}
+    try: lines = f.read_text(encoding="utf-8", errors="ignore")[-40000:].splitlines()
+    except Exception: return None, "", {}
+    ok = None
+    for line in lines:
+        m = re.search(r"查詢回應 \[(\d+) ([^\]]*)\]", line)
+        if m and m.group(1) in ("4", "5", "9", "11"):
+            d = m.group(1); k = {"9": "cert", "5": "api"}.get(d, "acct")
+            chk = {"acct": "y", "cert": "y", "api": "y"} if k != "acct" else {"acct": "n", "cert": "w", "api": "w"}
+            chk[k] = "n"; return False, f"元大回:{d} {m.group(2)}", chk
         m = re.search(r"登入 (\S+) (.*) 帳號數 (\d+)", line)
-        if m: return (True, "") if m.group(1) in ("0001", "00001") or int(m.group(3)) > 0 else (False, f"元大拒絕登入:{m.group(1)} {m.group(2)}")
-        if "元大拒絕登入" in line: return False, line.split("元大拒絕登入", 1)[1].strip(": ")[:120]
-        if "30 秒還沒連上元大交易主機" in line or "登入逾時" in line: return False, "連不上元大(網路 / 憑證 / API 權限 / 固定 IP?)"
-    return None, ""
+        if m:
+            if m.group(1) in ("0001", "00001") or int(m.group(3)) > 0: ok = True; continue
+            if m.group(1) == "0112" or "權限" in m.group(2): return False, f"元大回:{m.group(1)} {m.group(2)}", {"acct": "y", "cert": "w", "api": "n"}
+            return False, f"元大回:{m.group(1)} {m.group(2)}", {"acct": "n", "cert": "w", "api": "w"}
+        if "30 秒還沒連上元大交易主機" in line or "登入逾時" in line:
+            return False, "連不上元大(網路 / 固定 IP?)", {}
+    if ok: return True, "元大登入成功", {"acct": "y", "cert": "w", "api": "y"}
+    return None, "", {}
 
 
 def run():
@@ -217,18 +229,22 @@ def run():
                     if j.get("op") == "add":
                         api("fam=status", {"name": n, "st": "pc", "msg": "電腦收到,建立中"})
                         add_partner(n, j.get("enc", ""), key)
-                        api("fam=status", {"name": n, "st": "pc", "msg": "電腦登入元大中"}); watch[n] = time.time()
+                        api("fam=status", {"name": n, "st": "pc", "msg": "電腦登入元大中", "chk": {"acct": "w", "cert": "w", "api": "w"}}); watch[n] = {"t0": time.time()}
                     elif j.get("op") == "del":
                         del_partner(n); api("fam=status", {"name": n, "st": "gone"})
                 except Exception as e:
                     log(f"!! 【{n}】處理失敗:", e); api("fam=status", {"name": n, "st": "fail", "msg": str(e)[:150]})
                 api("fam=done", {"name": n})
-            for n, t0 in list(watch.items()):
-                ok, msg = login_state(n, t0)
-                if ok is True: api("fam=status", {"name": n, "st": "run", "msg": "元大已登入"}); log(f"【{n}】元大登入成功"); watch.pop(n)
-                elif ok is False: api("fam=status", {"name": n, "st": "fail", "msg": msg}); log(f"!! 【{n}】", msg); watch.pop(n)
-                elif time.time() - t0 > 600:
-                    api("fam=status", {"name": n, "st": "fail", "msg": f"10 分鐘還沒登入元大(看 {FAM / n / 'log'})"}); watch.pop(n)
+            for n, w in list(watch.items()):
+                ok, msg, chk = login_state(n, w["t0"])
+                if ok is False:
+                    api("fam=status", {"name": n, "st": "fail", "msg": msg, "chk": chk}); log(f"!! 【{n}】", msg); watch.pop(n)
+                elif ok is True and not w.get("ok_at"):
+                    w["ok_at"] = time.time(); api("fam=status", {"name": n, "st": "pc", "msg": "元大登入成功,檢查憑證中", "chk": chk}); log(f"【{n}】元大登入成功,等 3 分鐘看憑證")
+                elif ok is True and time.time() - w["ok_at"] > 180:   # 登入後 3 分鐘查成交都沒有「加簽失敗 / 憑證異常」→ 憑證也打勾
+                    api("fam=status", {"name": n, "st": "run", "msg": "元大已登入", "chk": {"acct": "y", "cert": "y", "api": "y"}}); log(f"【{n}】三項檢查都通過"); watch.pop(n)
+                elif ok is None and time.time() - w["t0"] > 600:
+                    api("fam=status", {"name": n, "st": "fail", "msg": f"10 分鐘還沒登入元大(看 {FAM / n / 'log'})", "chk": {}}); watch.pop(n)
         except Exception as e:
             log("!! 夥伴服務這一輪出錯:", e)
         time.sleep(30)
