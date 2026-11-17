@@ -501,7 +501,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611180048">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611180051">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1379,7 +1379,7 @@ window.MONITOR_SETTINGS = {
   cap: {                      // (判別式相關說明已移到私人庫)
     label: '多空上限',
     init : '25萬',                // 2026-11-08 20:22 使用者「維持 25 萬好」(20:13 曾改 30 萬,沒生效就改回);2026-11-07 15:18 使用者「35 萬 … 改25」(實際一直用 25 萬,10/29 手機設的);2026-10-15 使用者改 35 萬
-    range: [{ from: 5, to: 50, step: 1, suffix: '萬' }],   // 長按跳 5/10/…/50
+    range: [{ from: 10, to: 25, step: 1, suffix: '萬' }],   // 2026-11-18 00:50 使用者「改」:比照夥伴加入 10~25 萬、每格 1 萬(原 5~50 萬;鐵律最多 25 萬)
   },
 
   cnt: {                      // 監控檔數
@@ -3385,8 +3385,7 @@ attachCycle('loWheel',  wLo,  ['50', '40', '30', '20', '15', '10']);
 attachCycle('hiWheel',  wHi,  ['50','100','150','200','250','300',
                                '350','400','450','500']);
 attachCycle('ampWheel', wAmp, ['3.0%', '4.0%', '5.0%', '8.0%'], 'high');
-attachCycle('capWheel', wCap, ['5萬','10萬','15萬','20萬','25萬',
-                               '30萬','35萬','40萬','45萬','50萬']);
+attachCycle('capWheel', wCap, ['10萬','15萬','20萬','25萬']);   // 2026-11-18 10~25 萬
 
 /* 2026-11-07 18:42 費率層(證商費 / 證手費 / 證交稅)對齊第一排(監控低價那排)的位置與高度 */
 window.subPlace = () => { try{ const sub = document.getElementById('subFee'), lo = document.getElementById('loWheel'); if (!sub || !lo) return;
