@@ -1357,7 +1357,20 @@ class Bridge:
             lm = int(float((_tr.CLOUD_SET or {}).get("lot_mode") or 1))
             if v and lm in (1, 2, 3) and lm != getattr(self.trader, "lot_mode", 0):
                 log(f"分級下單 {getattr(self.trader, 'lot_mode', 0)} → {lm}(5861 主導機)"); self.trader.lot_mode = lm
-        except Exception as e: log("分級下單讀取失敗(照舊)", e)   # 以主導機為準(鐵律 ⑤ 一張上限 = 主導機多空上限,2026-11-11 22:24 使用者「針對 2項 改鐵律」:一張上限改以主導機多空上限為準,不再固定最多 25 萬)
+        except Exception as e: log("分級下單讀取失敗(照舊)", e)
+        try:   # 2026-11-18 00:46 使用者「投資金額 / 禁止入場 / 全部平倉」→「照 浮輸 然後 改」:主導機 App 設定(set.amt / stop / kill,「500萬」「2萬」「5萬」)→ trader.max_amount / max_loss / kill_loss(都看 已平倉 + 帳面);範圍和夥伴一樣,超出 / 讀不到 = 照舊
+            import trader as _tr
+            S = _tr.CLOUD_SET or {}
+            def _w(k, lo, hi):
+                try:
+                    x = float(str(S.get(k, "")).replace("萬", "")) * 10000
+                    return x if lo <= x <= hi else None
+                except Exception: return None
+            for k, attr, lo, hi in (("amt", "max_amount", 1000000, IRON_AMOUNT), ("stop", "max_loss", 5000, 30000), ("kill", "kill_loss", 10000, 50000)):
+                x = _w(k, lo, hi)
+                if v and x is not None and abs(float(getattr(self.trader, attr, 0) or 0) - x) > 0.5:
+                    log(f"{attr} {getattr(self.trader, attr, 0):,.0f} → {x:,.0f}(5861 主導機)"); setattr(self.trader, attr, x)
+        except Exception as e: log("投資金額 / 停止進場 / 全部平倉讀取失敗(照舊)", e)   # 以主導機為準(鐵律 ⑤ 一張上限 = 主導機多空上限,2026-11-11 22:24 使用者「針對 2項 改鐵律」:一張上限改以主導機多空上限為準,不再固定最多 25 萬)
 
     def acfg_sync(self):
         """自動當沖夥伴版 §6.1(2026-11-15 使用者「夥伴版 只修改 增加夥伴所有的接口 設定 畫面 不能修改程式的核心邏輯」):
