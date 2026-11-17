@@ -775,7 +775,7 @@ async function pushTier(env, s) {
   if (s.dv) { let first = null; try { first = await hubOf(env).kvGet("free:" + s.dv); } catch (e) {} return !first || Date.now() - +first <= 7 * 86400e3 ? "free" : ""; }
   return "";
 }
-const pushCanSee = (tier, x) => !!tier && !!x && (tier === "owner" ? (x.kind !== "sys" && x.kind !== "warn")
+const pushCanSee = (tier, x) => !!tier && !!x && (tier === "owner" ? (x.kind !== "sys" && x.kind !== "warn" && !/·\s*未進場/.test(String(x.body || "")))   // 2026-11-17 15:00 使用者「只有交易成功後 再顯示通知」:中繼沒進場的訊號(未進場:原因)不推給自己
   : PUSH_KINDS.has(x.kind) && !REAL_RE.test(String(x.body || "")) && !String(x.key || x._k || "").startsWith("yt|"));
 async function pushFanout(env, item) {
   let subs = []; try { subs = await hubOf(env).pushSubs(); } catch (e) { return; }

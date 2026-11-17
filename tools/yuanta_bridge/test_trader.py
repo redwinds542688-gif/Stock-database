@@ -578,7 +578,8 @@ ok(not s28.force_enter("2330", -1, 1)[0])
 s28b, _ = mk(); s28b.ref_of = lambda c: 100.0; s28b.on_tick("2331", 104.9); ok(s28b.force_enter("2331", -1, 1)[0])
 # PH) 2026-11-11 21:34 使用者「13.20程式必須取消所有預掛 包含元大手動預掛」(取代 11-05 保留預掛到期限):期限設更晚也拉回 13:20;13:20 有預掛 → 先取消再平
 import datetime as _dt
-tp_, gp_ = mk(TRADE_PREHANG_DEADLINE="13:24"); ok(tp_.prehang_deadline == "13:20", tp_.prehang_deadline)
+tp_, gp_ = mk(TRADE_PREHANG_DEADLINE="13:28"); ok(tp_.prehang_deadline == "13:25" and "13:25" in tp_.recheck_times and "13:26" in tp_.recheck_times, (tp_.prehang_deadline, tp_.recheck_times))   # 2026-11-17 期限最晚 13:25
+tp_, gp_ = mk(TRADE_PREHANG_DEADLINE="0")   # 設 0 = 舊做法(13:20 全部取消)
 tp_.on_tick("6269", 86.2); tp_.step([ENT]); tp_.on_report(51, "A0001", 0, 1000, 86.1); pp_ = tp_.positions["6269"]
 NOW0 = NOW[0]; NOW[0] = NOW0.replace(hour=13, minute=20, second=30)
 tp_.prehang = {"6269": ["M77"]}; n0 = len(gp_.sent)
@@ -593,7 +594,19 @@ ti_, gi_ = mk(); ti_.on_tick("6269", 86.2); ti_.step([ENT]); ti_.on_report(51, "
 ti_.prehang = {"6269": ["M80"]}; ni_ = len(gi_.sent); ti_.exit_pos(pi_, "停損", 88.8); ok(pi_["state"] == HOLDING and len(gi_.sent) == ni_ and ti_.prehang, gi_.sent[ni_:])   # 一般停損:照舊讓位給預掛
 # 2026-11-08 01:08 預設 13:20 全部取消預掛:13:21 有預掛也不讓位,直接平
 tp2, gp2 = mk(); tp2.on_tick("6269", 86.2); tp2.step([ENT]); tp2.on_report(51, "A0001", 0, 1000, 86.1); NOW[0] = NOW0.replace(hour=13, minute=21, second=5)
-tp2.prehang = {"6269": ["M78"]}; tp2.step(); ok(tp2.positions["6269"]["state"] == EXITING and tp2.prehang_deadline == "13:20"); NOW[0] = NOW0
+tp2.prehang = {"6269": ["M78"]}; n2 = len(gp2.sent); tp2.step(); ok(tp2.positions["6269"]["state"] == HOLDING and tp2.prehang_deadline == "13:25" and len(gp2.sent) == n2, gp2.sent[n2:])   # 2026-11-17 13:21 有預掛 → 不平、不取消
+tp2.exit_pos(tp2.positions["6269"], "13:20 強制平倉", 86.0, force_limit=True); ok(tp2.positions["6269"]["state"] == HOLDING and tp2.prehang and len(gp2.sent) == n2)
+NOW[0] = NOW0.replace(hour=13, minute=25, second=5); tp2.step(); ok(tp2.positions["6269"]["state"] == HOLDING and len(gp2.sent) == n2)   # 13:25 先讓 bridge 取消預掛
+tp2.prehang = {}; tp2.recheck([{"code": "6269", "bs": "S", "lots": 1}], [], "13:25"); ok(tp2.positions["6269"]["state"] == EXITING and gp2.sent[-1][:3] == ("6269", "B", 1) and tp2.positions["6269"]["force_limit"], gp2.sent[n2:])   # bridge 取消後複查 → 漲停買回
+NOW[0] = NOW0; tp3, gp3 = mk(); tp3.on_tick("6269", 86.2); tp3.step([ENT]); tp3.on_report(51, "A0001", 0, 1000, 86.1); tp3.prehang = {"6269": ["M81"]}; n3 = len(gp3.sent)
+NOW[0] = NOW0.replace(hour=13, minute=26, second=5); tp3.step(); ok(tp3.positions["6269"]["state"] == EXITING and ("cancel", "M81", "6269", "B") in gp3.sent[n3:] and any(x[:3] == ("6269", "B", 1) for x in gp3.sent[n3:]), gp3.sent[n3:])   # 13:26 bridge 沒處理 → 程式自己取消再平
+# 2026-11-17 14:05 使用者「四張平倉 二張照預掛邏輯 一直到13點25分」:預掛比部位少 → 13:20 只平沒預掛的張數,預掛的留到 13:25
+NOW[0] = NOW0; tq, gq = mk(); tq.on_tick("6269", 86.2); tq.step([ENT]); tq.on_report(51, "A0001", 0, 1000, 86.1); pq = tq.positions["6269"]; pq["qty"] = 3
+tq.prehang = {"6269": ["M91"]}; tq.man_meta["M91"] = {"bs": "B", "typ": "0", "lots": 1, "fl": 0, "px": 85.0}; nq = len(gq.sent)
+NOW[0] = NOW0.replace(hour=13, minute=20, second=10); tq.recheck([{"code": "6269", "bs": "S", "lots": 3}], [{"code": "6269", "bs": "B", "lots": 1, "no": "M91"}], "13:20")
+ok(pq["state"] == EXITING and any(x[:3] == ("6269", "B", 2) for x in gq.sent[nq:]) and tq.prehang.get("6269") and not any(x[0] == "cancel" for x in gq.sent[nq:]), gq.sent[nq:])
+NOW[0] = NOW0
+NOW[0] = NOW0
 
 # 2026-11-06 太晚了先記著 → 價格回到訊號價 ±0.5% 自動補進場;碰停利 / 過時間 / 平倉通知取消;0 = 關
 at(10, 0); tl, gl = mk(); tl.on_tick("6269", 87.0); tl.step([ENT]); ok("6269" not in tl.positions and "6269" in tl.late_wait)
@@ -1084,3 +1097,52 @@ _np, _na = len(tz9.posts), len(getattr(tz9, "_alerts", []) or [])
 tz9.on_report(50, "M90", 0, 1000, 49.0, "", "1709", "B", "3"); tz9.on_report(51, "M90", 0, 1000, 49.0, "", "1709", "B", "3")
 ok("1709" not in tz9.positions and len(tz9.posts) == _np and "M90" not in tz9.man_cards, (tz9.positions.get("1709"), tz9.posts[_np:]))
 print("trader.py 測試通過(延遲紀錄 3 + 32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7 + 判七上線 2 + 判六上線 4 + 判七 +8% 強平 2 + 判二大盤分級檔數 7 + 判二寬度範圍 11 + 條件單編號存檔 3 + 沒昨收不進 3 + 預掛鐵律 9 + 主導機上限 4 + 手動受管束 13 + 超額補進 10 分鐘 6 + 太晚補進 10 分鐘 3 + 設定關不掉保護 4 + 第二輪 1~5 9 + 全改 9 + 第三輪 9 + 超額補進鐵律平倉 2)")
+
+# 2026-11-17 14:52 使用者「多出來二張 程式就照反向監管」:預掛比部位多,全部成交 → 多出來的當下接成元三(反向)
+NOW[0] = NOW0; tx, gx = mk(TRADE_Y3_POST_DELAY="0"); tx.ref_of = lambda c: 86.0; tx.on_tick("6269", 86.2); tx.step([ENT]); tx.on_report(51, "A0001", 0, 1000, 86.1); px_ = tx.positions["6269"]; px_["qty"] = 3
+tx.man_order("6269", "M95", 0, 5000, 85.5, "B"); ok(tx.prehang.get("6269") == ["M95"])
+tx.on_other_fill("6269", "B", 5000, 85.5, "M95"); qx = tx.positions.get("6269")
+ok(qx is not None and qx["dir"] == 1 and qx["qty"] == 2 and qx["judge"] == "元三" and qx["state"] == HOLDING and qx["sl"] and any("已由程式接管" in a for a in tx.alerts), (qx, tx.alerts[-3:]))
+# 13:20 以後手動新進場 → 立即平
+NOW[0] = NOW0.replace(hour=13, minute=20, second=40); ty, gy = mk(TRADE_Y3_POST_DELAY="0"); ty.ref_of = lambda c: 86.0; ty.on_tick("6271", 86.0); ny = len(gy.sent)
+ty.on_other_fill("6271", "B", 1000, 86.0, "M96"); qy = ty.positions.get("6271")
+ok(qy is not None and qy["state"] == EXITING and any(x[:3] == ("6271", "S", 1) for x in gy.sent[ny:]), (qy, gy.sent[ny:]))
+NOW[0] = NOW0
+print("手動多平接元三 + 13:20 後手動進場立即平 OK")
+
+# 2026-11-17 15:07 使用者「被監控排除的 一預掛就取消」:不可先賣(華邦電)手動預掛做空 / 做多都直接取消;成交了也馬上平
+NOW[0] = NOW0; tz, gz = mk(); tz.ref_of = lambda c: 113.0; tz.on_tick("2344", 111.0); nz = len(gz.sent)
+import sys as _sys, types as _ty; _el0 = _sys.modules.get("elig"); _sys.modules["elig"] = _ty.SimpleNamespace(blocked=lambda c, k="": "今天不可先賣後買(暫停放空)" if c == "2344" else "")
+tz.man_order("2344", "M97", 0, 2000, 111.0, "S"); ok(("cancel", "M97", "2344", "S") in [x[:4] for x in gz.sent[nz:]] and any("違反鐵律" in a for a in tz.alerts), gz.sent[nz:])
+tz.man_order("2344", "M98", 0, 1000, 111.0, "B"); ok(("cancel", "M98", "2344", "B") in [x[:4] for x in gz.sent[nz:]], gz.sent[nz:])
+tz.on_other_fill("2344", "B", 1000, 111.0, "M99"); qz = tz.positions.get("2344"); ok(qz is not None and qz["state"] == EXITING, qz)
+tz.ref_of = lambda c: 600.0 if c == "2330" else 113.0; tz.man_order("2330", "M100", 0, 1000, 600.0, "B"); ok(("cancel", "M100") not in [x[:2] for x in gz.sent[nz:]])   # 沒被排除的照舊
+if _el0 is not None: _sys.modules["elig"] = _el0
+else: _sys.modules.pop("elig", None)
+NOW[0] = NOW0
+print("被監控排除手動單取消 OK")
+
+# 2026-11-17 15:10 使用者「不合選股邏輯的也一預掛就取消,合乎的才補進監控」:照引擎的 pool_today.json(sel / mon / R)
+import os as _os, json as _js, tempfile as _tf
+_ed = Path(_tf.mkdtemp()); _os.environ["ENGINE_DIR"] = str(_ed)
+(_ed / "pool_today.json").write_text(_js.dumps({"R": {"lo": 10, "hi": 500, "tick": 0.5, "excl": ["17"]}, "mon": ["2330"], "sel": {"1101": "振幅", "2303": ""}, "pool": []}), encoding="utf-8")
+NOW[0] = NOW0; ts_, gs_ = mk(); ts_.ref_of = lambda c: {"1101": 30.0, "2303": 50.0, "2881": 60.0, "9999": 5.0, "3008": 2000.0, "2412": 120.0}.get(c, 100.0)
+ok("振幅" in ts_.sel_why("1101") and ts_.sel_why("2303") == "" and ts_.sel_why("2330") == "" and "金融" in ts_.sel_why("2881") and "價格" in ts_.sel_why("9999", 5.0) and "價格" in ts_.sel_why("3008", 2000.0) and ts_.sel_why("2412", 120.0) == "")
+ns_ = len(gs_.sent); ts_.man_order("1101", "M101", 0, 1000, 30.0, "B"); ok(("cancel", "M101") in [x[:2] for x in gs_.sent[ns_:]], gs_.sent[ns_:])
+ts_.man_order("2303", "M102", 0, 1000, 50.0, "B"); ok(("cancel", "M102") not in [x[:2] for x in gs_.sent[ns_:]])
+_os.environ.pop("ENGINE_DIR", None)
+print("不合選股邏輯手動單取消 OK")
+
+# 2026-11-17 15:14 使用者「改」:條件單自己觸發平倉(書號 YA…)→ 不再去刪條件單(原本元大回「執行異常」);手動平倉照舊刪
+NOW[0] = NOW0
+for _no, _want in (("YA03V", False), ("M200", True)):
+    to_, go_ = mk(); to_.on_tick("6269", 86.2); to_.step([ENT]); to_.on_report(51, "A0001", 0, 1000, 86.1); po_ = to_.positions["6269"]
+    po_["oco_live"] = True; po_["oco_no"] = "B26X"; no_ = len(go_.sent)
+    to_.on_other_fill("6269", "B", 1000, 88.0, _no); ok((("del_oco", "B26X") in go_.sent[no_:]) == _want and not po_.get("oco_live"), (_no, go_.sent[no_:]))
+print("條件單觸發平倉不重刪 OK")
+
+# 2026-11-17 15:20 使用者「浮虧也是虧」:停止新進場 = 已平倉 + 持倉帳面 ≤ −上限
+NOW[0] = NOW0; tl_, gl_ = mk(TRADE_MAX_LOSS="20000"); tl_.on_tick("6269", 86.2); tl_.step([ENT]); tl_.on_report(51, "A0001", 0, 1000, 86.1); pl_ = tl_.positions["6269"]; pl_["qty"] = 10
+tl_.pnl = -5000.0; ok(not tl_.can_enter("2330", "判二", "long"), tl_.can_enter("2330", "判二", "long"))
+tl_.on_tick("6269", 87.8); w_ = tl_.can_enter("2330", "判二", "long"); ok("今天已虧" in w_ and "帳面" in w_, w_)   # 空 10 張 86.1 → 87.8 帳面約 −1.8 萬
+print("浮虧算進虧損上限 OK")

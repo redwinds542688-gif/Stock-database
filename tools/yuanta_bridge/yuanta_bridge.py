@@ -143,6 +143,8 @@ def load_env():
     return cfg
 
 
+# 2026-11-17 元大委託失敗錯誤碼 → 中文原因(看過的才列;沒列的照元大給的文字 / 開盤前複檢原因)
+REJECT_WHY = {"21352": "無券可借,不能放空", "21353": "今天暫停先賣後買(不能當沖放空)"}   # 21353:11/17 華邦電(複檢 noshort)手動放空被退時看到的碼
 CFG = load_env()
 LOG_LOCK = threading.Lock()
 # 2026-11-15 12:10 使用者「大概10個人 每個人的額度不一樣 … 九個判別式都一起啟動 … 我可以看到所有人的輸贏 但他們只能看到自己的輸贏」:
@@ -395,7 +397,22 @@ class Bridge:
                             if se == "21352" and str(r.BS).strip() == "S":   # 2026-11-06 使用者「應該是無券可藉來空 … 我手動操作元大也是一樣無法做空」:做空被 21352 擋 → 這檔今天不再送空單
                                 if self.trader: self.trader.no_short(cn, "元大 21352(無券可空)")
                             else:
-                                threading.Thread(target=lambda: self.phone_alert(f"⚠ 元大退回委託 {cn}", why or "元大回報委託失敗(原因見電腦紀錄)", "pc"), daemon=True).start()
+                                # 2026-11-17 15:20 使用者「1 要通知 通知說明原因」(華邦電 12:02 手動放空被退,原本只寫 X999):標題寫股票 / 買賣 / 張數 / 價格,內容寫原因
+                                #   原因:已知錯誤碼對照 → 開盤前複檢(處置 / 注意 / 不可當沖 / 不可先賣)→ 元大給的文字 / 錯誤碼
+                                bs_ = str(r.BS).strip(); oe = str(getattr(r, "OrderErrorNo", "") or "").strip()
+                                rs_ = REJECT_WHY.get(se) or REJECT_WHY.get(oe) or ""
+                                if not rs_:
+                                    try: import elig; rs_ = elig.blocked(cn, "short" if bs_ == "S" else "long")
+                                    except Exception: rs_ = ""
+                                if not rs_ and why and why not in (oe, se): rs_ = why
+                                try: lots_ = int(r.OrderQty) // 1000; px_ = float(r.Price)
+                                except Exception: lots_, px_ = 0, 0.0
+                                bd = (rs_ or "原因元大沒寫") + f"(元大錯誤碼 {'/'.join(x for x in (oe, se) if x) or '?'})"
+                                def _rej(cn=cn, bs_=bs_, lots_=lots_, px_=px_, bd=bd):   # 查名稱可能要連網,放另一條執行緒
+                                    try: nm_ = self.stock_name(cn)
+                                    except Exception: nm_ = ""
+                                    self.phone_alert(f"⛔ {nm_ + ' ' if nm_ and nm_ != cn else ''}{cn} {'賣出' if bs_ == 'S' else '買進'} {lots_} 張{f' @ {px_:g}' if px_ else ''} 被元大退單", bd, "pc")
+                                threading.Thread(target=_rej, daemon=True).start()
                         typ = str(getattr(r, "OrderType", "") or "").strip()   # 2026-10-28 平倉檢查 #6:委託種類(有的話元三平倉用同一種)
                         if self.trader: self.trader.on_report(rt, str(r.OrderNo), int(r.OrderStatus), int(r.OrderQty), float(r.Price), _bn(r.BasketNo), str(r.CompanyNo), str(r.BS).strip(), typ)
                     return
@@ -537,6 +554,19 @@ class Bridge:
                 if self._tf_err in (1, 30) or self._tf_err % 300 == 0: log(f"[台指期·期交所] 抓不到(第 {self._tf_err} 次)", repr(e)[:160])
         threading.Thread(target=run, daemon=True).start()
 
+    def fut_pick(self):
+        """2026-11-17 16:13 使用者「哪一個穩定就固定哪一個 另外一個當備援」(11/17 TXFK6 / TXF1 逐筆一樣多,原本誰多用誰 → 來源一直跳):
+           固定用近月明確代號(例 TXFK6,和期交所 TXFK6-F 同一個);它沒資料或比別的代號落後超過 2 分鐘 → 才改用別的代號(TXF1 等)"""
+        n = getattr(self, "fut_n", None) or {}
+        if not n: return ""
+        y, m = self.fut_near(); prim = f"TXF{'ABCDEFGHIJKL'[m - 1]}{y % 10}"
+        mi = lambda h: int(h[:2]) * 60 + int(h[3:5])
+        last = {c: max(self.fut_bars.get(c) or {"00:00": 0}) for c in n}
+        top = max(mi(v) for v in last.values())
+        for c in [prim] + sorted((c for c in n if c != prim), key=lambda c: -n[c]):
+            if self.fut_bars.get(c) and mi(last[c]) >= top - 2: return c
+        return max(n, key=lambda c: n[c])
+
     def fut_flush(self):
         """⑧ 盤中每分鐘:台指期 1 分 K → HERE/kline_futures/TXF/<日期>.csv(電腦引擎 tx_ok 讀)+ 背景推 Worker ?fbars=push(手機讀)。
            來源:元大逐筆(逐筆最多的那個代號)優先;元大沒資料 / 落後超過 2 分鐘 → 用電腦直接問期交所的那份(fut_poll)"""
@@ -544,7 +574,7 @@ class Bridge:
         with lk:
             day = now_tw().strftime("%Y-%m-%d"); ya = {}; code = ""
             if getattr(self, "fut_n", None):
-                code = max(self.fut_n, key=lambda c: self.fut_n[c]); ya = dict(self.fut_bars.get(code) or {})
+                code = self.fut_pick(); ya = dict(self.fut_bars.get(code) or {})
             tf = dict(getattr(self, "fut_tf", {}) or {})
             last = lambda m: max(m) if m else "00:00"; mi = lambda h: int(h[:2]) * 60 + int(h[3:5])
             use, src = (ya, "元大 " + code) if ya and (not tf or mi(last(ya)) >= mi(last(tf)) - 2) else (tf, "期交所")
@@ -571,6 +601,13 @@ class Bridge:
                 fh.write("date,time,open,high,low,close,volume\n")
                 for r in rows: fh.write(f"{day},{r[0]},{r[1]},{r[2]},{r[3]},{r[4]},{r[5]}\n")
             os.replace(tmp, f / f"{day}.csv")
+            # 2026-11-17 15:55 使用者「5 可以」(台指期資料拆開):合併那份照舊給引擎;另外各來源各存一份 + 每分鐘用哪個來源,出問題查得出是哪邊斷
+            try:
+                sm = {hm: "接回" for hm in self._fut_old}
+                if use is ya: sm.update({hm: "期交所" for hm in tf})
+                sm.update({hm: (f"元大 {code}" if use is ya else "期交所") for hm in use})
+                self.fut_src_save(day, {"元大": ya, "期交所": tf}, sm, cur)
+            except Exception as e: log("[台指期] 分來源存檔失敗", e)
             if CFG.get("PUSH_KEY") and CFG.get("WORKER_URL") and rows[-1][0] != getattr(self, "_fut_pushed", None):
                 self._fut_pushed = rows[-1][0]
                 def _p():
@@ -581,20 +618,44 @@ class Bridge:
                     except Exception: pass
                 threading.Thread(target=_p, daemon=True).start()
 
+    def fut_src_save(self, day, srcs, smap, cur="99:99"):
+        """台指期分來源存檔:kline_futures/TXF_src/<日期>_元大.csv、<日期>_期交所.csv(各自原始 1 分 K)、<日期>_來源.csv(合併那份每分鐘用哪個來源)"""
+        d = HERE / "kline_futures" / "TXF_src"; d.mkdir(parents=True, exist_ok=True)
+        for nm, bars in srcs.items():
+            rows = [(hm, v) for hm, v in sorted((bars or {}).items()) if hm < cur]
+            if not rows: continue
+            tmp = d / f"{day}_{nm}.csv.tmp"
+            with open(tmp, "w", encoding="utf-8") as fh:
+                fh.write("date,time,open,high,low,close,volume\n")
+                for hm, v in rows: fh.write(f"{day},{hm}," + ",".join(str(x) for x in list(v)[:5]) + "\n")
+            os.replace(tmp, d / f"{day}_{nm}.csv")
+        rows = [(hm, w) for hm, w in sorted(smap.items()) if hm < cur]
+        if rows:
+            tmp = d / f"{day}_來源.csv.tmp"
+            with open(tmp, "w", encoding="utf-8") as fh:
+                fh.write("date,time,src\n")
+                for hm, w in rows: fh.write(f"{day},{hm},{w}\n")
+            os.replace(tmp, d / f"{day}_來源.csv")
+
     def fut_save(self, day):
         """收工:等到 13:46(台指期 13:45 收盤)→ 存本機 + 推 Worker 一次"""
         if FAMILY: return
         try:
             if not getattr(self, "fut_n", None): log("[台指期] 今天沒收到任何台指期逐筆(代號寫法都不對 / 元件不給),明天看上面那行元件功能清單再調"); return
             while now_tw().strftime("%H:%M") < "13:46" and self.api: time.sleep(5)
-            code = max(self.fut_n, key=lambda c: self.fut_n[c]); bars = self.fut_bars.get(code) or {}
+            code = self.fut_pick(); bars = self.fut_bars.get(code) or {}
             mg = dict(getattr(self, "_fut_old", {}) or {}) if getattr(self, "_fut_old_d", None) == day else {}   # 2026-11-16 14:26 盤中重開過:重開前存的早上那段也併進來(不被收工這份蓋掉)
+            mg.update(getattr(self, "fut_tf", {}) or {})   # 2026-11-17 元大缺的分鐘用期交所那份補(和盤中合併一樣,元大優先)
             mg.update(bars); rows = [[hm] + list(v) for hm, v in sorted(mg.items())]
             f = HERE / "kline_futures" / "TXF"; f.mkdir(parents=True, exist_ok=True)
             with open(f / f"{day}.csv", "w", encoding="utf-8") as fh:
                 fh.write("date,time,open,high,low,close,volume\n")
                 for r in rows: fh.write(f"{day},{r[0]},{r[1]},{r[2]},{r[3]},{r[4]},{r[5]}\n")
             log(f"[台指期] {code} 1 分 K {len(rows)} 根存好(逐筆 {self.fut_n[code]} 筆;各代號筆數 {self.fut_n})")
+            try:   # 2026-11-17 分來源:收工時元大那份存完整;來源表標「元大」(重開前接回的標「接回」)
+                tf_ = dict(getattr(self, "fut_tf", {}) or {}); sm = {hm: ("期交所" if hm in tf_ else "接回") for hm in mg if hm not in bars}; sm.update({hm: f"元大 {code}" for hm in bars})
+                self.fut_src_save(day, {"元大": bars, "期交所": dict(getattr(self, "fut_tf", {}) or {})}, sm)
+            except Exception as e: log("[台指期] 分來源存檔失敗", e)
             if rows and CFG.get("PUSH_KEY") and CFG.get("WORKER_URL"):
                 rq = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?fbars=push", data=json.dumps({"d": day, "code": code, "bars": rows}).encode(), method="POST",
                                             headers={"Content-Type": "application/json", "X-Push-Key": CFG["PUSH_KEY"], "User-Agent": "yuanta-bridge"})
@@ -1207,8 +1268,8 @@ class Bridge:
         self.trader.recheck(r["trades"], [w for w in r["working"] if w.get("no") in keep], at)
 
     def prehang_pick(self, at):
-        """13:20 查元大還掛著的委託:手動下的(沒有程式的自訂編號)、方向是平倉、同一檔加起來剛好等於未沖銷張數 → 保留,回傳書號集合;
-           張數不夠 / 太多 / 期限設 0 → 不保留(照舊取消,程式全部平)"""
+        """13:20 查元大還掛著的委託:手動下的(沒有程式的自訂編號)、方向是平倉、同一檔加起來不超過未沖銷張數 → 保留,回傳書號集合;
+           張數比未沖銷少也保留(沒預掛的張數程式平,2026-11-17);太多 / 期限設 0 → 不保留(照舊取消,程式全部平)"""
         t = self.trader; t.prehang = {}
         if t.prehang_deadline in ("", "0") or t.prehang_deadline <= t.force_exit: return set()   # 2026-11-08 01:08 期限 ≤ 13:20 = 13:20 全部取消(預設)
         r = self.query_today(with_oco=False)
@@ -1222,11 +1283,13 @@ class Bridge:
             man = [w for w in r["working"] if w["code"] == c and w["bs"] == cs and not str(w.get("tag") or "").strip()]
             q = sum(w["lots"] for w in man)
             if not man: continue
-            if q == abs(n):
+            if 0 < q <= abs(n):   # 2026-11-17 14:05 使用者「四張平倉 二張照預掛邏輯 一直到13點25分」→「改」:預掛比部位少也保留,沒預掛的張數 13:20 由程式平
                 keep |= {w["no"] for w in man}; t.prehang[c] = [w["no"] for w in man]
-                log(f"[交易] {at} {c} 有手動預掛平倉 {q} 張(未沖銷 {abs(n)} 張)→ 保留,{t.prehang_deadline} 前沒成交才由程式平")
+                for w in man:   # ph_lots 要知道每張預掛的張數(盤中沒看到的預掛這裡補記),才能只平沒預掛的張數
+                    if not (t.man_meta.get(w["no"]) or {}).get("lots"): t.man_meta[w["no"]] = {"bs": w["bs"], "typ": w.get("typ"), "lots": w["lots"], "fl": 0, "px": w.get("price") or 0}
+                log(f"[交易] {at} {c} 有手動預掛平倉 {q} 張(未沖銷 {abs(n)} 張)→ 保留,{t.prehang_deadline} 前沒成交才由程式平" + (f";沒預掛的 {abs(n) - q} 張程式現在平" if q < abs(n) else ""))
             else:
-                log(f"[交易] {at} {c} 手動預掛 {q} 張和未沖銷 {abs(n)} 張不一樣 → 照舊取消,程式全部平")
+                log(f"[交易] {at} {c} 手動預掛 {q} 張比未沖銷 {abs(n)} 張多 → 照舊取消,程式全部平")
         if keep: self.phone_alert(f"✅ {at} 保留手動預掛平倉 {len(t.prehang)} 檔", f"{', '.join(t.prehang)};{t.prehang_deadline} 前沒成交會改由程式平倉")
         return keep
 
