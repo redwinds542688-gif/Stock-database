@@ -99,6 +99,7 @@ input[type=text],input[type=password],input[type=number]{height:calc(var(--uf) *
 .ck2.y{background:var(--green);color:#000} .ck2.w{background:#2A2410;color:var(--gold);border:2px solid var(--gold)} .ck2.n{background:#2A1416;color:#FF8A8A;border:2px solid #FF6B6B}
 .tg2{display:inline-block;vertical-align:middle;font-size:calc(var(--uf) * .78);font-weight:700;border-radius:999px;padding:0 calc(var(--uf) * .5);border:1px solid;white-space:nowrap}
 .tg2.y{color:var(--green);border-color:#1F5A33;background:#0E1A12} .tg2.w{color:var(--gold);border-color:#8A7320;background:#2A2410} .tg2.e{color:#7FD3FF;border-color:#1E5A7A;background:#0B1A26}
+main.locked .wheel, main.locked .opt, main.locked .jg button, main.locked .tg{pointer-events:none;opacity:.45;filter:grayscale(.6)}
 .mask{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
 .verl{white-space:nowrap;font-size:calc(var(--uf) * .75);color:var(--sub)}
 .gate .card{width:100%;max-width:420px;border:2px solid var(--gold)}
@@ -140,7 +141,7 @@ document.addEventListener("pointerdown", e => { const el = e.target.closest(".wh
   const up = () => { el.removeEventListener("pointermove", mv); el.removeEventListener("pointerup", up); el.removeEventListener("pointercancel", up); };
   el.addEventListener("pointermove", mv); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); });
 document.addEventListener("wheel", e => { const el = e.target.closest(".wheel"); if (!el) return; e.preventDefault(); wheelSet(el, +el.dataset.v + (e.deltaY > 0 ? 1 : -1) * WH[+el.dataset.i].st); }, {passive: false});
-document.addEventListener("keydown", e => { const el = e.target.closest && e.target.closest(".wheel"); if (!el) return; const st = WH[+el.dataset.i].st;
+document.addEventListener("keydown", e => { const el = e.target.closest && e.target.closest(".wheel"); if (!el || main.classList.contains("locked")) return; const st = WH[+el.dataset.i].st;
   if (e.key === "ArrowDown"){ e.preventDefault(); wheelSet(el, +el.dataset.v + st); } else if (e.key === "ArrowUp"){ e.preventDefault(); wheelSet(el, +el.dataset.v - st); } });
 const steps = (n) => ["資料加密送到你的電腦","電腦用夥伴的帳號登入元大(用你電腦裡的憑證)","開始自動當沖","產生夥伴的金鑰 QR Code"]
   .map((t, i) => `<div class="step ${i < n ? "done" : i === n ? "now" : "todo"}"><i>${i < n ? "✓" : i + 1}</i>${t}</div>`).join("");
@@ -243,7 +244,7 @@ function vOne(){ const p = P[S.cur]; if (!p) return vList();
   if (p.st0 !== "run") return head + `<div class="card"><b style="font-size:calc(var(--uf) * 1.2)">狀態:${p.t}</b><p class="hint">${esc(p.d)}</p></div>
     ${p.st0 === "fail" ? `<button type="button" class="btn blue" id="retry">重新輸入再送一次</button>` : ""}
     <button type="button" class="btn" id="rm" style="color:var(--bad);border-color:#7A2A2E">移除 ${esc(p.n)}</button>`;
-  return head + chCard(p) + `
+  return head + (mkt() ? `<div class="lock" style="color:#FFE7A3;background:#2A2410;border-color:#8A7320">🔒 盤中(09:00~13:30)不能調整參數,13:30 收盤後才能改、才能傳送</div>` : "") + chCard(p) + `
   <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">${esc(p.n)} 的看盤金鑰 QR Code</b><div class="qbox">${p.k ? qrSvg(p.k) : ""}</div>
     <p class="hint" style="text-align:center">只給圖,不顯示金鑰</p>${USE(esc(p.n))}
     <div class="row2"><button type="button" class="btn gold" id="save">存到相簿</button><button type="button" class="btn blue" id="share">傳給夥伴</button></div></div>
@@ -327,7 +328,9 @@ async function sharePoster(name, key){   /* 傳給夥伴:App 打開手機分享(
 function lotsOf(m, cap, px){ if (px * 1000 > cap) return "超額"; let n;
   if (m === 2) n = 1; else if (m === 3) n = px <= 80 * cap / 250000 ? Math.max(1, Math.min(3, Math.floor(0.64 * cap / (px * 1000)))) : Math.max(1, Math.min(2, Math.floor(cap / (px * 1000))));
   else n = Math.max(1, Math.floor(cap / (px * 1000))); return n + " 張"; }
-function render(){ main.innerHTML = S.page === "gate" ? vGate() : ({list: vList, new: vNew, wait: vWait, one: vOne})[S.page](); if (S.page === "one") lotTable(); if (S.page !== "one") main.scrollTop = 0; }
+/* 2026-11-17 使用者「盤中 不能調整參數」→「改」:盤中詳細頁所有參數鎖住(變灰、轉不動、按不動);通道打勾、金鑰 QR、存圖 / 傳送照常 */
+function lockUI(){ main.classList.toggle("locked", S.page === "one" && mkt()); }
+function render(){ main.innerHTML = S.page === "gate" ? vGate() : ({list: vList, new: vNew, wait: vWait, one: vOne})[S.page](); if (S.page === "one") lotTable(); lockUI(); if (S.page !== "one") main.scrollTop = 0; }
 /* 加密送到電腦:手機用電腦登記在雲端的公開鎖(RSA-OAEP / SHA-256)加密 {acct, pass},雲端解不開;電腦 fam_agent.py 用私鑰解 */
 async function sendNew(){ const e = $("nerr"), nm = ($("nm").value || "").trim(), ac = ($("ac").value || "").replace(/[\s-]/g, "").toUpperCase(), pw = $("pw").value || "";
   if (!nm || /[\s|:\/\\?#&<>"']/.test(nm)) return e.textContent = "名字不能空白、不能有符號";
