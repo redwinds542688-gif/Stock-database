@@ -843,6 +843,7 @@ class Engine:
         self.tx_req = tuple(getattr(rs_env, "IRON_TX_REQUIRE", ("八", "九")))   # 2026-11-14 18:35 使用者「改」:判八 / 判九拿不到台指期 / 加權指數 → 不進場
         self.txsync_fn = getattr(rs_env, "txsync", None)   # 2026-11-13 22:30 ⑧ 台指期同步進場(使用者「解鎖 改 全部套用」):判斷寫在私人庫 rs_env.txsync(模擬器同一份)
         self.txoffhi_fn = getattr(rs_env, "txoffhi", None)   # 2026-11-17 20:28 判九(使用者「改」):台指期離今高跌 > 2% 不追空(私人庫 rs_env.txoffhi;env TXOFFHI)
+        self.txlonghi_fn = getattr(rs_env, "txlonghi", None)   # 2026-11-17 21:47 判一 / 二 / 六做多(使用者「解鎖 都改」):台指期離今高跌 > 1.5% 不做多(私人庫 rs_env.txlonghi;env TXLONGHI)
         self.txrel_fn = getattr(rs_env, "txrel", None)   # 2026-11-17 18:58 ⑧ 台指期 vs 加權強弱(使用者「解鎖 改」0.7%;私人庫 rs_env.txrel,模擬器同一份;舊版 rs_env 沒有 = 不看)
         self.txcover_fn = getattr(rs_env, "txf_cover", None)   # 2026-11-16 14:38 使用者「改」:台指期缺一段 → ⑧ 改用加權指數(私人庫 rs_env.txf_cover;舊版 rs_env 沒有 = 照舊)
         self.j9max = int(getattr(rs_env, "J9MAX", J9MAX))   # 2026-11-14 判九
@@ -1344,6 +1345,12 @@ class Engine:
                     ok, why = _of(side, tm, self.txf_map(), _oh)
                     if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
                 except Exception as e: log("判九離今高檢查失敗(照舊)", e); ok = True
+            _lh = self.envs.get(rs, {}).get("TXLONGHI"); _lf = getattr(self, "txlonghi_fn", None)
+            if ok and _lh and _lf and side > 0:   # 判一 / 二 / 六做多 2026-11-17 21:47 使用者「解鎖 都改」:台指期離今高已跌 > 1.5% 不做多
+                try:
+                    ok, why = _lf(side, tm, self.txf_map(), _lh)
+                    if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
+                except Exception as e: log("做多離今高檢查失敗(照舊)", e); ok = True
             return ok
         except Exception as e:
             if rs in getattr(self, "tx_req", ("八", "九")): log(f"⑧ 檢查失敗 → {JUDGE[rs]}不進場", e); return False   # 2026-11-14 18:35 使用者「改」
