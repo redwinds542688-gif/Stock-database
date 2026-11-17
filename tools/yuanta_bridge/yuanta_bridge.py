@@ -588,6 +588,13 @@ class Bridge:
                 fh.write("date,time,open,high,low,close,volume\n")
                 for r in rows: fh.write(f"{day},{r[0]},{r[1]},{r[2]},{r[3]},{r[4]},{r[5]}\n")
             os.replace(tmp, f / f"{day}.csv")
+            # 2026-11-17 15:55 使用者「5 可以」(台指期資料拆開):合併那份照舊給引擎;另外各來源各存一份 + 每分鐘用哪個來源,出問題查得出是哪邊斷
+            try:
+                sm = {hm: "接回" for hm in self._fut_old}
+                if use is ya: sm.update({hm: "期交所" for hm in tf})
+                sm.update({hm: (f"元大 {code}" if use is ya else "期交所") for hm in use})
+                self.fut_src_save(day, {"元大": ya, "期交所": tf}, sm, cur)
+            except Exception as e: log("[台指期] 分來源存檔失敗", e)
             if CFG.get("PUSH_KEY") and CFG.get("WORKER_URL") and rows[-1][0] != getattr(self, "_fut_pushed", None):
                 self._fut_pushed = rows[-1][0]
                 def _p():
@@ -598,6 +605,25 @@ class Bridge:
                     except Exception: pass
                 threading.Thread(target=_p, daemon=True).start()
 
+    def fut_src_save(self, day, srcs, smap, cur="99:99"):
+        """台指期分來源存檔:kline_futures/TXF_src/<日期>_元大.csv、<日期>_期交所.csv(各自原始 1 分 K)、<日期>_來源.csv(合併那份每分鐘用哪個來源)"""
+        d = HERE / "kline_futures" / "TXF_src"; d.mkdir(parents=True, exist_ok=True)
+        for nm, bars in srcs.items():
+            rows = [(hm, v) for hm, v in sorted((bars or {}).items()) if hm < cur]
+            if not rows: continue
+            tmp = d / f"{day}_{nm}.csv.tmp"
+            with open(tmp, "w", encoding="utf-8") as fh:
+                fh.write("date,time,open,high,low,close,volume\n")
+                for hm, v in rows: fh.write(f"{day},{hm}," + ",".join(str(x) for x in list(v)[:5]) + "\n")
+            os.replace(tmp, d / f"{day}_{nm}.csv")
+        rows = [(hm, w) for hm, w in sorted(smap.items()) if hm < cur]
+        if rows:
+            tmp = d / f"{day}_來源.csv.tmp"
+            with open(tmp, "w", encoding="utf-8") as fh:
+                fh.write("date,time,src\n")
+                for hm, w in rows: fh.write(f"{day},{hm},{w}\n")
+            os.replace(tmp, d / f"{day}_來源.csv")
+
     def fut_save(self, day):
         """收工:等到 13:46(台指期 13:45 收盤)→ 存本機 + 推 Worker 一次"""
         if FAMILY: return
@@ -606,12 +632,17 @@ class Bridge:
             while now_tw().strftime("%H:%M") < "13:46" and self.api: time.sleep(5)
             code = max(self.fut_n, key=lambda c: self.fut_n[c]); bars = self.fut_bars.get(code) or {}
             mg = dict(getattr(self, "_fut_old", {}) or {}) if getattr(self, "_fut_old_d", None) == day else {}   # 2026-11-16 14:26 盤中重開過:重開前存的早上那段也併進來(不被收工這份蓋掉)
+            mg.update(getattr(self, "fut_tf", {}) or {})   # 2026-11-17 元大缺的分鐘用期交所那份補(和盤中合併一樣,元大優先)
             mg.update(bars); rows = [[hm] + list(v) for hm, v in sorted(mg.items())]
             f = HERE / "kline_futures" / "TXF"; f.mkdir(parents=True, exist_ok=True)
             with open(f / f"{day}.csv", "w", encoding="utf-8") as fh:
                 fh.write("date,time,open,high,low,close,volume\n")
                 for r in rows: fh.write(f"{day},{r[0]},{r[1]},{r[2]},{r[3]},{r[4]},{r[5]}\n")
             log(f"[台指期] {code} 1 分 K {len(rows)} 根存好(逐筆 {self.fut_n[code]} 筆;各代號筆數 {self.fut_n})")
+            try:   # 2026-11-17 分來源:收工時元大那份存完整;來源表標「元大」(重開前接回的標「接回」)
+                tf_ = dict(getattr(self, "fut_tf", {}) or {}); sm = {hm: ("期交所" if hm in tf_ else "接回") for hm in mg if hm not in bars}; sm.update({hm: f"元大 {code}" for hm in bars})
+                self.fut_src_save(day, {"元大": bars, "期交所": dict(getattr(self, "fut_tf", {}) or {})}, sm)
+            except Exception as e: log("[台指期] 分來源存檔失敗", e)
             if rows and CFG.get("PUSH_KEY") and CFG.get("WORKER_URL"):
                 rq = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?fbars=push", data=json.dumps({"d": day, "code": code, "bars": rows}).encode(), method="POST",
                                             headers={"Content-Type": "application/json", "X-Push-Key": CFG["PUSH_KEY"], "User-Agent": "yuanta-bridge"})
