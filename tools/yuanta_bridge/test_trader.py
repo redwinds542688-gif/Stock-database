@@ -1109,3 +1109,15 @@ ty.on_other_fill("6271", "B", 1000, 86.0, "M96"); qy = ty.positions.get("6271")
 ok(qy is not None and qy["state"] == EXITING and any(x[:3] == ("6271", "S", 1) for x in gy.sent[ny:]), (qy, gy.sent[ny:]))
 NOW[0] = NOW0
 print("手動多平接元三 + 13:20 後手動進場立即平 OK")
+
+# 2026-11-17 15:07 使用者「被監控排除的 一預掛就取消」:不可先賣(華邦電)手動預掛做空 / 做多都直接取消;成交了也馬上平
+NOW[0] = NOW0; tz, gz = mk(); tz.ref_of = lambda c: 113.0; tz.on_tick("2344", 111.0); nz = len(gz.sent)
+import sys as _sys, types as _ty; _el0 = _sys.modules.get("elig"); _sys.modules["elig"] = _ty.SimpleNamespace(blocked=lambda c, k="": "今天不可先賣後買(暫停放空)" if c == "2344" else "")
+tz.man_order("2344", "M97", 0, 2000, 111.0, "S"); ok(("cancel", "M97", "2344", "S") in [x[:4] for x in gz.sent[nz:]] and any("違反鐵律" in a for a in tz.alerts), gz.sent[nz:])
+tz.man_order("2344", "M98", 0, 1000, 111.0, "B"); ok(("cancel", "M98", "2344", "B") in [x[:4] for x in gz.sent[nz:]], gz.sent[nz:])
+tz.on_other_fill("2344", "B", 1000, 111.0, "M99"); qz = tz.positions.get("2344"); ok(qz is not None and qz["state"] == EXITING, qz)
+tz.ref_of = lambda c: 600.0 if c == "2330" else 113.0; tz.man_order("2330", "M100", 0, 1000, 600.0, "B"); ok(("cancel", "M100") not in [x[:2] for x in gz.sent[nz:]])   # 沒被排除的照舊
+if _el0 is not None: _sys.modules["elig"] = _el0
+else: _sys.modules.pop("elig", None)
+NOW[0] = NOW0
+print("被監控排除手動單取消 OK")

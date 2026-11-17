@@ -2002,10 +2002,20 @@ class Trader:
             if p0 and p0["dir"] == d:   # 2026-11-12 11:55 「解鎖 改:只有手動加碼」:加碼預掛只看 500 萬額度
                 return ""   # 2026-11-16 10:59 🔓→🔒 使用者「手動加碼 不受管500萬 跟25分級管束」→「解鎖 改」:手動加碼預掛不看鐵律 ⑤(500 萬額度、25 萬分級都不看);加碼金額照算進今天成交
             # 2026-11-16 12:30 🔓→🔒 使用者「手動進場 鐵律3,5,不能管 解鎖改」:手動進場不檢查 ③ 時間、⑤(一張 25 萬上限 / 分級張數 / 500 萬額度),只剩 ① ±5%;進場後元三管理照舊、金額照算進 500 萬(預掛也一樣)
+            ex = self.mon_excluded(code)
+            if ex: why.append(f"被監控排除({ex})")
             if ref > 0 and px > 0 and abs(px / ref - 1) * 100 > self.ent_pct + 1e-9: why.append(f"價格離昨收 {(px / ref - 1) * 100:+.1f}%(超過 ±{self.ent_pct:g}%)")
             return "、".join(why)
         except Exception as e:
             self.log(f"[交易] 預掛鐵律檢查失敗 {e!r}"); return ""
+
+    def mon_excluded(self, code):
+        """2026-11-17 15:07 使用者「如果有這種 被監控排除的 一預掛就取消」(華邦電不可先賣、手動放空被元大退單):
+           開盤前複檢排除監控的股票(處置 / 注意 / 不可現股當沖 / 不可先賣)→ 手動新進場做多做空都不接(預掛直接取消、成交了馬上平);回原因,可以做回空字串"""
+        try:
+            import elig; eb = elig.blocked(code, "short")
+        except Exception: eb = ""
+        return eb
 
     def iron_manual(self, p, price, lots, what, fills=None):
         """2026-11-11 20:53 使用者「5.6不是沒做」(⑥ 元大 App 自己下的單也不能例外):手動進場 / 加碼成交後檢查鐵律
@@ -2023,6 +2033,8 @@ class Trader:
                     m_ = minutes_of(t_) if t_ else None
                     fl.append((f"{m_ // 60:02d}:{m_ % 60:02d}" if m_ is not None else None, float(px_ or 0)))
             # 2026-11-16 12:30 🔓→🔒 使用者「手動進場 鐵律3,5,不能管 解鎖改」:手動進場不檢查 ③ 時間、⑤(一張 25 萬上限 / 分級張數 / 500 萬額度),只剩 ① ±5%;進場後元三管理照舊、金額照算進 500 萬
+            ex = self.mon_excluded(p["code"]) if p.get("judge") == MANUAL else ""
+            if ex: why.append(f"被監控排除({ex})")
             bad_p = [px_ for _, px_ in fl if ref > 0 and px_ > 0 and abs(px_ / ref - 1) * 100 > self.ent_pct + 1e-9]
             if bad_p: why.append(f"成交價離昨收 {(bad_p[0] / ref - 1) * 100:+.1f}%(超過 ±{self.ent_pct:g}%)")
             if not why: return False
