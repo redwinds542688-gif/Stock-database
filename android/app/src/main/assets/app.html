@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-17 11:20(實際時間)K 圖錯位(抓 bug 自動上傳:啟碁 10:55 K 圖卡在 09:00、指標二 / 乖離在 10:54)修兩層:① 開圖時指標二 / 乖離還沒資料的暫時範圍不再同步給 K 圖,改成它們跟 K 圖 ② 偵測到三張圖對不上時自動拉回同一個範圍(以 K 圖為準,K 圖不合理就以指標二為準)(使用者「抓bug」→「改」);版本 202611171120
   · 2026-11-16 13:33(實際時間)明細每筆的進、出價下面加進場時間 / 平倉時間(灰色小字)(使用者「要顯示進場時間跟平倉時間」→「改」);版本 202611161332
   · 2026-11-15 14:55(實際時間)卡片右邊贏 ▲ / 輸 ⚠ 改畫成同一個大小;下排進場 / 當沖 / 明細燈亮格拿掉光暈,和沒亮的格子一樣大(使用者「明細燈號 大小不一樣」→「一起改」);版本 202611151453
   · 2026-11-15 10:12(實際時間)監控清單已交易 / 監控中那幾列左邊黃線 3px → 1px,和其他格線一樣細(使用者「已交易最左格線很粗 其他則細」);版本 202611151012
@@ -490,7 +491,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611171043">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611171120">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5831,6 +5832,10 @@ function initChart(){
     //   左右捲動 / 縮放時把價格自動縮放開回來(價格軸拖的放大只維持到下次捲動)
     try{ for (const c of charts){ const ps = c.priceScale('left'); if (ps.options().autoScale === false) ps.applyOptions({autoScale: true}); } }catch(e){}
     if (syncing || !r) return;
+    // 2026-11-17 11:20 使用者「抓bug」→「改」(啟碁 10:55 K 圖卡在 09:00、指標二 / 乖離在 10:54):開圖時指標二 / 乖離還沒放好資料,套件先給暫時範圍「第 −45~1 根」,
+    //   這個範圍被同步到 K 圖、之後沒再同步回來。改:指標二 / 乖離的範圍跟 K 圖差很遠、又在最前面(K 有 60 根以上、範圍到第 3 根以前)→ 不同步出去,反過來跟 K 圖
+    if (a !== chart && typeof BARS !== 'undefined' && BARS.length > 60 && r.to < 3){ try{ const kr = chart.timeScale().getVisibleLogicalRange();
+      if (kr && kr.to > 3 && Math.abs(kr.to - r.to) > 20){ try{ bugAdd('fn', ['rgGuard', a === chartM ? 'M' : 'B', +r.from.toFixed(1), +r.to.toFixed(1)]); }catch(e){} syncing = true; try{ a.timeScale().setVisibleLogicalRange(kr); }catch(e){} syncing = false; return; } }catch(e){} }
     // 最後一根 K 之後只留 3 格空白,不能再往右拖出一大片空白;最少也要看得到 12 根(避免縮到只剩一根)
     const maxTo = (typeof BARS !== 'undefined' && BARS.length ? BARS.length - 1 : 0) + 3;
     let fixed = null;
@@ -8545,7 +8550,11 @@ setInterval(() => { try{
   if (bad.length && !BUG.pendBad){ BUG.pendBad = true; BUG.lastChk = sig; return; }
   if (!bad.length) BUG.pendBad = false;
   if (bad.length){ BUG.hits++; if (!BUG.firstHit) BUG.firstHit = bugT(); bugAdd('BUG', {bad, s, touching: !!(window.isChartTouching && isChartTouching())});
-    if (!BUG.lastFreeze || Date.now() - BUG.lastFreeze > 15000){ BUG.lastFreeze = Date.now(); bugFreeze(bad.join(',')); } const d = el('bugDot'); if (d) d.classList.add('hit'); }
+    if (!BUG.lastFreeze || Date.now() - BUG.lastFreeze > 15000){ BUG.lastFreeze = Date.now(); bugFreeze(bad.join(',')); } const d = el('bugDot'); if (d) d.classList.add('hit');
+    // 2026-11-17 11:20 使用者「改」:偵測到三張圖對不上(上傳之後)順便自動拉回同一個範圍 —— 以 K 圖為準;K 圖範圍不合理(有 60 根以上、範圍到第 3 根以前)就以指標二 / 乖離為準
+    try{ if (!(window.isChartTouching && isChartTouching())){ const cs = {K: chart, M: typeof chartM !== 'undefined' ? chartM : null, B: typeof chartB !== 'undefined' ? chartB : null};
+      const okR = x => x && !x.err && x.f != null && !(s.n > 60 && x.t < 3); const m = okR(a) ? a : s.c.find(okR);
+      if (m && cs[m.nm]){ const rr = cs[m.nm].timeScale().getVisibleLogicalRange(); if (rr){ for (const k in cs) if (cs[k] && k !== m.nm) cs[k].timeScale().setVisibleLogicalRange(rr); bugAdd('fn', ['heal', m.nm, +rr.from.toFixed(1), +rr.to.toFixed(1)]); } } } }catch(e){} }
   else if (sig !== BUG.lastChk) bugAdd('chk', s);
   BUG.lastChk = sig; }catch(e){} }, 700);
 ['touchstart', 'touchend', 'touchcancel'].forEach(t => document.addEventListener(t, ev => { try{
