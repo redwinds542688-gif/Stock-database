@@ -600,6 +600,12 @@ NOW[0] = NOW0.replace(hour=13, minute=25, second=5); tp2.step(); ok(tp2.position
 tp2.prehang = {}; tp2.recheck([{"code": "6269", "bs": "S", "lots": 1}], [], "13:25"); ok(tp2.positions["6269"]["state"] == EXITING and gp2.sent[-1][:3] == ("6269", "B", 1) and tp2.positions["6269"]["force_limit"], gp2.sent[n2:])   # bridge 取消後複查 → 漲停買回
 NOW[0] = NOW0; tp3, gp3 = mk(); tp3.on_tick("6269", 86.2); tp3.step([ENT]); tp3.on_report(51, "A0001", 0, 1000, 86.1); tp3.prehang = {"6269": ["M81"]}; n3 = len(gp3.sent)
 NOW[0] = NOW0.replace(hour=13, minute=26, second=5); tp3.step(); ok(tp3.positions["6269"]["state"] == EXITING and ("cancel", "M81", "6269", "B") in gp3.sent[n3:] and any(x[:3] == ("6269", "B", 1) for x in gp3.sent[n3:]), gp3.sent[n3:])   # 13:26 bridge 沒處理 → 程式自己取消再平
+# 2026-11-17 14:05 使用者「四張平倉 二張照預掛邏輯 一直到13點25分」:預掛比部位少 → 13:20 只平沒預掛的張數,預掛的留到 13:25
+NOW[0] = NOW0; tq, gq = mk(); tq.on_tick("6269", 86.2); tq.step([ENT]); tq.on_report(51, "A0001", 0, 1000, 86.1); pq = tq.positions["6269"]; pq["qty"] = 3
+tq.prehang = {"6269": ["M91"]}; tq.man_meta["M91"] = {"bs": "B", "typ": "0", "lots": 1, "fl": 0, "px": 85.0}; nq = len(gq.sent)
+NOW[0] = NOW0.replace(hour=13, minute=20, second=10); tq.recheck([{"code": "6269", "bs": "S", "lots": 3}], [{"code": "6269", "bs": "B", "lots": 1, "no": "M91"}], "13:20")
+ok(pq["state"] == EXITING and any(x[:3] == ("6269", "B", 2) for x in gq.sent[nq:]) and tq.prehang.get("6269") and not any(x[0] == "cancel" for x in gq.sent[nq:]), gq.sent[nq:])
+NOW[0] = NOW0
 NOW[0] = NOW0
 
 # 2026-11-06 太晚了先記著 → 價格回到訊號價 ±0.5% 自動補進場;碰停利 / 過時間 / 平倉通知取消;0 = 關

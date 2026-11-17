@@ -1207,8 +1207,8 @@ class Bridge:
         self.trader.recheck(r["trades"], [w for w in r["working"] if w.get("no") in keep], at)
 
     def prehang_pick(self, at):
-        """13:20 查元大還掛著的委託:手動下的(沒有程式的自訂編號)、方向是平倉、同一檔加起來剛好等於未沖銷張數 → 保留,回傳書號集合;
-           張數不夠 / 太多 / 期限設 0 → 不保留(照舊取消,程式全部平)"""
+        """13:20 查元大還掛著的委託:手動下的(沒有程式的自訂編號)、方向是平倉、同一檔加起來不超過未沖銷張數 → 保留,回傳書號集合;
+           張數比未沖銷少也保留(沒預掛的張數程式平,2026-11-17);太多 / 期限設 0 → 不保留(照舊取消,程式全部平)"""
         t = self.trader; t.prehang = {}
         if t.prehang_deadline in ("", "0") or t.prehang_deadline <= t.force_exit: return set()   # 2026-11-08 01:08 期限 ≤ 13:20 = 13:20 全部取消(預設)
         r = self.query_today(with_oco=False)
@@ -1222,11 +1222,13 @@ class Bridge:
             man = [w for w in r["working"] if w["code"] == c and w["bs"] == cs and not str(w.get("tag") or "").strip()]
             q = sum(w["lots"] for w in man)
             if not man: continue
-            if q == abs(n):
+            if 0 < q <= abs(n):   # 2026-11-17 14:05 使用者「四張平倉 二張照預掛邏輯 一直到13點25分」→「改」:預掛比部位少也保留,沒預掛的張數 13:20 由程式平
                 keep |= {w["no"] for w in man}; t.prehang[c] = [w["no"] for w in man]
-                log(f"[交易] {at} {c} 有手動預掛平倉 {q} 張(未沖銷 {abs(n)} 張)→ 保留,{t.prehang_deadline} 前沒成交才由程式平")
+                for w in man:   # ph_lots 要知道每張預掛的張數(盤中沒看到的預掛這裡補記),才能只平沒預掛的張數
+                    if not (t.man_meta.get(w["no"]) or {}).get("lots"): t.man_meta[w["no"]] = {"bs": w["bs"], "typ": w.get("typ"), "lots": w["lots"], "fl": 0, "px": w.get("price") or 0}
+                log(f"[交易] {at} {c} 有手動預掛平倉 {q} 張(未沖銷 {abs(n)} 張)→ 保留,{t.prehang_deadline} 前沒成交才由程式平" + (f";沒預掛的 {abs(n) - q} 張程式現在平" if q < abs(n) else ""))
             else:
-                log(f"[交易] {at} {c} 手動預掛 {q} 張和未沖銷 {abs(n)} 張不一樣 → 照舊取消,程式全部平")
+                log(f"[交易] {at} {c} 手動預掛 {q} 張比未沖銷 {abs(n)} 張多 → 照舊取消,程式全部平")
         if keep: self.phone_alert(f"✅ {at} 保留手動預掛平倉 {len(t.prehang)} 檔", f"{', '.join(t.prehang)};{t.prehang_deadline} 前沒成交會改由程式平倉")
         return keep
 
