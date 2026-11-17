@@ -99,7 +99,15 @@ input[type=text],input[type=password],input[type=number]{height:calc(var(--uf) *
 .ck2.y{background:var(--green);color:#000} .ck2.w{background:#2A2410;color:var(--gold);border:2px solid var(--gold)} .ck2.n{background:#2A1416;color:#FF8A8A;border:2px solid #FF6B6B}
 .tg2{display:inline-block;vertical-align:middle;font-size:calc(var(--uf) * .78);font-weight:700;border-radius:999px;padding:0 calc(var(--uf) * .5);border:1px solid;white-space:nowrap}
 .tg2.y{color:var(--green);border-color:#1F5A33;background:#0E1A12} .tg2.w{color:var(--gold);border-color:#8A7320;background:#2A2410} .tg2.e{color:#7FD3FF;border-color:#1E5A7A;background:#0B1A26}
-main.locked .wheel, main.locked .opt, main.locked .jg button, main.locked .tg{pointer-events:none;opacity:.45;filter:grayscale(.6)}
+main.locked .wheel, main.locked .opt, main.locked .seg button, main.locked .jg button, main.locked .tg{pointer-events:none;opacity:.45;filter:grayscale(.6)}
+.sec{margin:calc(var(--uf) * .6) 0 0;font-size:calc(var(--uf) * 1.3);color:var(--gold);border-left:4px solid var(--gold);padding-left:calc(var(--uf) * .5)} .sec small{color:var(--sub);font-size:calc(var(--uf) * .85);font-weight:500}
+.wg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:calc(var(--u) * .4)}
+.wc{display:flex;flex-direction:column;align-items:center;gap:calc(var(--uf) * .3)}
+.wt2{font-size:calc(var(--uf) * 1.15);font-weight:700;color:var(--fg);white-space:nowrap;display:flex;flex-direction:column;align-items:center}
+.wc .wv{width:100%;height:calc(var(--uf) * 5.4)} .wc .wheel{width:100%} .wu2{font-size:calc(var(--uf) * .9);color:var(--sub);margin-top:calc(var(--uf) * -.2)}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:calc(var(--u) * .3)} .seg button{height:calc(var(--uf) * 2.8);border-radius:10px;border:1px solid var(--line2);background:transparent;color:var(--soft);font-size:calc(var(--uf) * 1.05);font-weight:700}
+.seg button.on{border:2px solid var(--green);color:var(--green);background:#0E1A12}
+.hbk{margin-left:auto;flex:none;background:none;border:1px solid #1E5A7A;border-radius:999px;color:var(--blue);font-size:calc(var(--uf) * .95);padding:calc(var(--uf) * .15) calc(var(--uf) * .6);cursor:pointer;white-space:nowrap} .hbk + .tag{margin-left:calc(var(--uf) * .4)}
 .mask{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
 .verl{white-space:nowrap;font-size:calc(var(--uf) * .75);color:var(--sub)}
 .gate .card{width:100%;max-width:420px;border:2px solid var(--gold)}
@@ -108,7 +116,7 @@ main.locked .wheel, main.locked .opt, main.locked .jg button, main.locked .tg{po
 <body>
 <div class="wrap">
   <div class="pv"><span>只有主導$ · 管理鑰匙</span><b></b><span class="verl" id="ver"></span></div>
-  <header class="ttl"><h1>自動當沖 · 夥伴加入</h1><span class="tag">主導$</span></header>
+  <header class="ttl"><h1>自動當沖 · 夥伴加入</h1><button type="button" class="hbk" id="hbk" hidden>‹ 夥伴列表</button><span class="tag">主導$</span></header>
   <main id="main"></main>
 </div>
 <div id="toastL"></div>
@@ -123,12 +131,12 @@ function toast(t){ $("toastL").innerHTML = `<div class="toast">${t}</div>`; clea
 function qrSvg(t){ const q = qrcode(0, "M"); q.addData(t); q.make(); return q.createSvgTag({cellSize: 4, margin: 2, scalable: true}); }
 /* 2026-11-17 使用者「設定金額都改成滾輪式的調整 上滑減少下滑增加 多空限額變動 最下面張數的計算也要跟著變動」:
    滾輪:手指往上滑 = 減少、往下滑 = 增加(電腦滑鼠滾輪往下 = 增加);中間那格是目前的值,上面一格大一級、下面一格小一級 */
-const WH = [{t:"當日總額度", s:"100~500 萬", min:100, max:500, st:10}, {t:"多空上限(每筆)", s:"10~25 萬", min:10, max:25, st:1},
-  {t:"已平倉虧多少停止進場", s:"0.5~3 萬", min:0.5, max:3, st:0.5}, {t:"帳面虧多少全部平倉", s:"1~5 萬", min:1, max:5, st:0.5}];   /* 2026-11-17 使用者「多空限額暫定最低10萬最高25萬 不再進場最低5000 最高30000 全部平倉最低一萬最高50000」 */
+const WH = [{t:"投資金額", s:"100~500 萬", min:100, max:500, st:10}, {t:"多空上限", s:"10~25 萬", min:10, max:25, st:1},
+  {t:"禁止入場", s:"0.5~3 萬", min:0.5, max:3, st:0.5}, {t:"全部平倉", s:"1~5 萬", min:1, max:5, st:0.5}];   /* 2026-11-17 使用者「多空限額暫定最低10萬最高25萬 不再進場最低5000 最高30000 全部平倉最低一萬最高50000」 */
 const fmtV = v => (Math.round(v * 10) / 10).toString();
-const wheelRows = (i, v) => { const w = WH[i]; return [2, 1, 0, -1, -2].map(d => { const x = v + d * w.st; return `<div class="wr${d === 0 ? " c" : ""}">${x >= w.min - 1e-9 && x <= w.max + 1e-9 ? fmtV(x) : ""}</div>`; }).join(""); };
-const money = (m, tg) => WH.map((w, i) => `<div class="wl"><span class="wt"><span>${w.t} ${tg ? `<span id="tgm${i}">${stTag(tg[i])}</span>` : ""}</span>${w.s ? `<small>${w.s}</small>` : ""}</span>
-  <div class="wheel" data-i="${i}" data-v="${m[i] / 10000}" role="spinbutton" aria-label="${w.t}" aria-valuenow="${m[i] / 10000}" tabindex="0"><div class="wv">${wheelRows(i, m[i] / 10000)}</div><span class="wu">萬</span></div></div>`).join("");
+const wheelRows = (i, v) => { const w = WH[i]; return [1, 0, -1].map(d => { const x = v + d * w.st; return `<div class="wr${d === 0 ? " c" : ""}">${x >= w.min - 1e-9 && x <= w.max + 1e-9 ? fmtV(x) : ""}</div>`; }).join(""); };
+const money = (m, tg) => `<div class="wg">${WH.map((w, i) => `<div class="wc"><span class="wt2">${w.t}${tg ? `<span id="tgm${i}">${stTag(tg[i])}</span>` : ""}</span>
+  <div class="wheel" data-i="${i}" data-v="${m[i] / 10000}" role="spinbutton" aria-label="${w.t}" aria-valuenow="${m[i] / 10000}" tabindex="0"><div class="wv">${wheelRows(i, m[i] / 10000)}</div></div><span class="wu2">萬</span></div>`).join("")}</div>`;
 function wheelSet(el, v){ const i = +el.dataset.i, w = WH[i]; v = Math.min(w.max, Math.max(w.min, Math.round(v / w.st) * w.st)); if (+el.dataset.v === v) return;
   el.dataset.v = v; el.setAttribute("aria-valuenow", v); el.querySelector(".wv").innerHTML = wheelRows(i, v); try{ navigator.vibrate && navigator.vibrate(8); }catch(e){}
   if (S.page === "one" && P[S.cur]){ const p = P[S.cur]; p.m[i] = Math.round(v * 10000); if (i === 1) lotTable(); refreshTags(); } }
@@ -222,43 +230,40 @@ const chips = p => CH(p).map(([t, ok]) => `<span class="ch ${ok === true ? "y" :
 const chCard = p => `<div class="card" id="chc"><b style="font-size:calc(var(--uf) * 1.2)">通道</b>${CH(p).map(([t, ok, d]) => `<div class="chl"><span class="ck2 ${ok === true ? "y" : ok === "wait" ? "w" : "n"}">${ok === true ? "✓" : ok === "wait" ? "⏳" : "✗"}</span><span><b>${t}</b><small>${d}</small></span></div>`).join("")}</div>`;
 const stTag = k => k === "y" ? `<span class="tg2 y">✓ 已套用</span>` : k === "w" ? `<span class="tg2 w">⏳ 08:45 套用</span>` : k === "e" ? `<span class="tg2 e">✎ 還沒傳送</span>` : "";
 const esc = t => String(t || "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"})[c]);
-function vNew(){ return `<button type="button" class="back" id="bk">‹ 夥伴列表</button><h2>新增夥伴</h2>
-  <label>夥伴名字<small>最多 12 個字,例如 小明、阿姨</small><input type="text" id="nm" value="${esc(S.nm0 || "")}" maxlength="12" placeholder="例如 小明"></label>
-  <div class="card"><b style="font-size:calc(var(--uf) * 1.15)">夥伴的元大資料(你輸入)</b>
-    <label>證券帳號<small>分公司 4 碼 + 帳號 7 碼,例如 981R0123456</small><input type="text" id="ac" placeholder="981R0123456" autocomplete="off" maxlength="13"></label>
+function vNew(){ return `
+  <label>夥伴名字<input type="text" id="nm" value="${esc(S.nm0 || "")}" maxlength="12" placeholder="例如 小明"></label>
+  <div class="card">
+    <label>證券帳號<input type="text" id="ac" placeholder="981R0123456" autocomplete="off" maxlength="13"></label>
     <label>電子交易密碼<input type="password" id="pw" autocomplete="new-password"></label>
-    <label class="ck" style="flex-direction:row;align-items:center;gap:.6em"><input type="checkbox" id="c1"> 他的元大憑證已經裝進我的電腦(元大憑證 e 管家)</label>
-    <label class="ck" style="flex-direction:row;align-items:center;gap:.6em"><input type="checkbox" id="c2"> 他已開通元大「API 電子下單」</label></div>
-  <div class="card"><b style="font-size:calc(var(--uf) * 1.15)">額度(之後隨時可改)</b>${money([1000000,100000,10000,20000])}</div>
-  <div class="lock">🔒 帳號密碼在這支手機先用你電腦的鎖加密,只有你的電腦解得開;雲端只轉送、不留存。送出後這裡不再顯示密碼。</div>
+    <label class="ck" style="flex-direction:row;align-items:center;gap:.6em"><input type="checkbox" id="c1"> 憑證已裝進電腦</label>
+    <label class="ck" style="flex-direction:row;align-items:center;gap:.6em"><input type="checkbox" id="c2"> 已開通 API 下單</label></div>
+  <div class="card"><div class="sw"><span>自動交易</span><button type="button" class="tg${S.nOn === false ? "" : " on"}" id="ntg" aria-label="自動交易開關"></button></div></div>
+  <div class="card">${money([1000000,100000,10000,20000])}</div>
+  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">進場張數</b>
+    <div class="seg" id="nseg">${[["1","能買幾張"],["2","只買 1 張"],["3","分級"]].map(([k, t]) => `<button type="button" data-lot="${k}" class="${(S.nLot || 1) === +k ? "on" : ""}">${t}</button>`).join("")}</div></div>
+  
   <div class="hint" id="nerr" style="color:#FF8A8A;min-height:1.4em"></div>
-  <button type="button" class="btn gold" id="send">加密送到電腦</button>
-  ${mkt() ? `<p class="hint" style="color:#FFB13B">現在是盤中:測試期間暫時可以新增,電腦會馬上幫他登入元大、開始自動當沖。</p>` : ""}`; }
+  <button type="button" class="btn gold" id="send">加密送到電腦</button>`; }
 function vWait(){ const q = P.find(x => x.n === S.nm), st = q ? q.st0 : "wait";
   const n = st === "pc" ? (q.d.includes("登入") ? 1 : 0) : st === "run" ? 4 : 0;
   return `<h2>${esc(S.nm)} 設定中…</h2><div class="card steps">${steps(n)}</div>
   ${st === "fail" ? `<div class="lock" style="color:#FFC9C9;background:#2A1416;border-color:#7A2A2E">⚠ ${esc(q.d)}</div><button type="button" class="btn blue" id="retry">重新輸入再送一次</button>` : `<p class="hint">不用一直開著這個畫面,電腦登入元大成功後,夥伴列表就會出現他的看盤金鑰。${agentOk() ? "" : "<br><b style='color:#FF8A8A'>電腦的夥伴服務現在沒在跑,開電腦後才會處理。</b>"}</p>`}
   <button type="button" class="btn" id="bk">回夥伴列表</button>`; }
 function vOne(){ const p = P[S.cur]; if (!p) return vList();
-  const head = `<button type="button" class="back" id="bk">‹ 夥伴列表</button><h2>${esc(p.n)}</h2>`;
-  if (p.st0 !== "run") return head + `<div class="card"><b style="font-size:calc(var(--uf) * 1.2)">狀態:${p.t}</b><p class="hint">${esc(p.d)}</p></div>
+  const head = `<h2>${esc(p.n)}</h2>`;
+  if (p.st0 !== "run") return head + `<div class="card"><b style="font-size:calc(var(--uf) * 1.2)">${p.t}</b><p class="hint">${esc(p.d)}</p></div>
     ${p.st0 === "fail" ? `<button type="button" class="btn blue" id="retry">重新輸入再送一次</button>` : ""}
     <button type="button" class="btn" id="rm" style="color:var(--bad);border-color:#7A2A2E">移除 ${esc(p.n)}</button>`;
-  return head + (mkt() ? `<div class="lock" style="color:#FFE7A3;background:#2A2410;border-color:#8A7320">🔒 盤中(09:00~13:30)不能調整參數,13:30 收盤後才能改、才能傳送</div>` : "") + chCard(p) + `
-  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">${esc(p.n)} 的看盤金鑰 QR Code</b><div class="qbox">${p.k ? qrSvg(p.k) : ""}</div>
-    <p class="hint" style="text-align:center">只給圖,不顯示金鑰</p>${USE(esc(p.n))}
+  return head + (mkt() ? `<div class="lock" style="color:#FFE7A3;background:#2A2410;border-color:#8A7320">🔒 盤中不能調整參數</div>` : "") + chCard(p) + `
+  <div class="card"><div class="qbox">${p.k ? qrSvg(p.k) : ""}</div>
     <div class="row2"><button type="button" class="btn gold" id="save">存到相簿</button><button type="button" class="btn blue" id="share">傳給夥伴</button></div></div>
-  <div class="card"><div class="sw"><span>自動交易 <span id="tgon">${stTag(setTags(p).on)}</span></span><button type="button" class="tg${p.on ? " on" : ""}" id="tgl" aria-label="自動交易開關"></button></div><p class="hint">關掉 = 不再新進場(已有的部位照規則平倉)。</p></div>
-  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">公式(點一下開 / 關) <span id="tgj">${stTag(setTags(p).j)}</span></b><div class="jg">${JN.map((j, i) => `<button type="button" data-j="${i}" class="${p.j[i] ? "on" : ""}">${j}</button>`).join("")}</div></div>
-  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">額度</b>${money(p.m, setTags(p).m)}</div>
-  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)"><span id="lotH">進場張數(多空上限 ${fmtV(p.m[1] / 10000)} 萬)</span> <span id="tglot">${stTag(setTags(p).lot)}</span></b>
-    <label class="opt${p.lot === 1 ? " on" : ""}" data-lot="1"><input type="radio" name="lot"${p.lot === 1 ? " checked" : ""}><span><b>① 能買幾張就幾張</b><small>上限內能買幾張買幾張(跟主導$ 現在一樣)</small></span></label>
-    <label class="opt${p.lot === 2 ? " on" : ""}" data-lot="2"><input type="radio" name="lot"${p.lot === 2 ? " checked" : ""}><span><b>② 只買 1 張</b><small>上限內不管股價,每筆都只買 1 張</small></span></label>
-    <label class="opt${p.lot === 3 ? " on" : ""}" data-lot="3"><input type="radio" name="lot"${p.lot === 3 ? " checked" : ""}><span><b>③ 分級</b><small>25 萬以前那套分級,照上限等比例縮小</small></span></label>
-    <table class="lt"><thead><tr><th>股價</th><th>①</th><th>②</th><th>③</th></tr></thead><tbody id="lotTb"></tbody></table><p class="hint">超額 = 1 張就超過多空上限,不進場。</p></div>
-  ${mkt() ? `<button type="button" class="btn" id="sv" disabled style="opacity:.55">盤中不能傳送(13:30 收盤後再傳)</button>`
+  <div class="card"><div class="sw"><span>自動交易 <span id="tgon">${stTag(setTags(p).on)}</span></span><button type="button" class="tg${p.on ? " on" : ""}" id="tgl" aria-label="自動交易開關"></button></div></div>
+  <div class="card">${money(p.m, setTags(p).m)}</div>
+  <div class="card"><b style="font-size:calc(var(--uf) * 1.2)">進場張數 <span id="tglot">${stTag(setTags(p).lot)}</span></b>
+    <div class="seg" id="dseg">${[["1","能買幾張"],["2","只買 1 張"],["3","分級"]].map(([k, t]) => `<button type="button" data-lot="${k}" class="${p.lot === +k ? "on" : ""}">${t}</button>`).join("")}</div></div>
+  ${mkt() ? `<button type="button" class="btn" id="sv" disabled style="opacity:.55">盤中不能傳送</button>`
          : `<button type="button" class="btn gold" id="sv">傳送到雲端和電腦</button>`}
-  <p class="hint" style="text-align:center">盤前 / 盤後才能傳送;電腦每天 <b>08:45</b> 套用(開盤中不改)${p.at ? `<br>上次傳送:${whenTxt(p.at)} · ${effTxt(p.at)}` : ""}</p>
+  ${p.at ? `<p class="hint" style="text-align:center">上次傳送 ${whenTxt(p.at)} · ${effTxt(p.at)}</p>` : ""}
   ${mkt() ? "" : `<button type="button" class="btn" id="rm" style="color:var(--bad);border-color:#7A2A2E">移除 ${esc(p.n)}</button>`}`; }
 function toastNoop(){}
 const loadJsQR = () => window.jsQR ? Promise.resolve() : new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
@@ -330,7 +335,8 @@ function lotsOf(m, cap, px){ if (px * 1000 > cap) return "超額"; let n;
   else n = Math.max(1, Math.floor(cap / (px * 1000))); return n + " 張"; }
 /* 2026-11-17 使用者「盤中 不能調整參數」→「改」:盤中詳細頁所有參數鎖住(變灰、轉不動、按不動);通道打勾、金鑰 QR、存圖 / 傳送照常 */
 function lockUI(){ main.classList.toggle("locked", S.page === "one" && mkt()); }
-function render(){ main.innerHTML = S.page === "gate" ? vGate() : ({list: vList, new: vNew, wait: vWait, one: vOne})[S.page](); if (S.page === "one") lotTable(); lockUI(); if (S.page !== "one") main.scrollTop = 0; }
+function render(){ const hb = $("hbk"); if (hb){ hb.hidden = !["new", "one", "wait"].includes(S.page); hb.onclick = async () => { S.page = "list"; await refresh(); render(); }; }
+ main.innerHTML = S.page === "gate" ? vGate() : ({list: vList, new: vNew, wait: vWait, one: vOne})[S.page](); if (S.page === "one") lotTable(); lockUI(); if (S.page !== "one") main.scrollTop = 0; }
 /* 加密送到電腦:手機用電腦登記在雲端的公開鎖(RSA-OAEP / SHA-256)加密 {acct, pass},雲端解不開;電腦 fam_agent.py 用私鑰解 */
 async function sendNew(){ const e = $("nerr"), nm = ($("nm").value || "").trim(), ac = ($("ac").value || "").replace(/[\s-]/g, "").toUpperCase(), pw = $("pw").value || "";
   if (!nm || /[\s|:\/\\?#&<>"']/.test(nm)) return e.textContent = "名字不能空白、不能有符號";
@@ -343,22 +349,23 @@ async function sendNew(){ const e = $("nerr"), nm = ($("nm").value || "").trim()
     const key = await crypto.subtle.importKey("jwk", pub.jwk, {name: "RSA-OAEP", hash: "SHA-256"}, false, ["encrypt"]);
     const ct = await crypto.subtle.encrypt({name: "RSA-OAEP"}, key, new TextEncoder().encode(JSON.stringify({acct: ac, pass: pw})));
     const enc = btoa(String.fromCharCode(...new Uint8Array(ct)));
-    await api("fam=add", {name: nm, enc, cfg: {max_amount: m[0], cap: m[1], max_loss: m[2], kill_loss: m[3], lot_mode: 1}});
+    await api("fam=add", {name: nm, enc, cfg: {max_amount: m[0], cap: m[1], max_loss: m[2], kill_loss: m[3], lot_mode: S.nLot || 1, enabled: S.nOn !== false}});
     $("pw").value = ""; S.nm = nm; S.nm0 = ""; await refresh(); S.page = "wait"; render(); poll();
   }catch(x){ e.textContent = x.message || String(x); $("send").disabled = false; } }
 async function saveOne(){ const p = P[S.cur], j = {}; JN.forEach((x, i) => j[x] = !!p.j[i]);
-  try{ await api(`acfg=set&a=${encodeURIComponent(p.n)}`, {judges: j, enabled: p.on, max_amount: p.m[0], cap: p.m[1], max_loss: p.m[2], kill_loss: p.m[3], lot_mode: p.lot}); await refresh(); render(); toast("✓ 已傳送到雲端,電腦" + effTxt(Date.now()).replace(" 生效", " 套用")); }
+  try{ await api(`acfg=set&a=${encodeURIComponent(p.n)}`, {enabled: p.on, max_amount: p.m[0], cap: p.m[1], max_loss: p.m[2], kill_loss: p.m[3], lot_mode: p.lot}); await refresh(); render(); toast("✓ 已傳送到雲端,電腦" + effTxt(Date.now()).replace(" 生效", " 套用")); }
   catch(x){ toast("儲存失敗:" + (x.message || x)); } }
-main.addEventListener("click", async e => { const o = e.target.closest(".opt[data-lot]"); if (o){ P[S.cur].lot = +o.dataset.lot; main.querySelectorAll(".opt[data-lot]").forEach(x => x.classList.toggle("on", x === o)); refreshTags(); return; }
+main.addEventListener("click", async e => { const o = e.target.closest(".seg [data-lot]"); if (o){ if (S.page === "one") P[S.cur].lot = +o.dataset.lot; else S.nLot = +o.dataset.lot; o.parentNode.querySelectorAll("[data-lot]").forEach(x => x.classList.toggle("on", x === o)); refreshTags(); return; }
   const t = e.target.closest("button,.prow"); if (!t) return; const id = t.id;
   if (id === "in") return tryKey($("gk").value);
   if (id === "gscan") return qrScan(t2 => { $("gk").value = t2; tryKey(t2); }, () => {});
   if (t.classList.contains("prow")){ S.cur = +t.dataset.i; const p = P[S.cur]; if (p.st0 === "wait" || p.st0 === "pc"){ S.nm = p.n; S.page = "wait"; } else S.page = "one"; return render(); }
   if (t.dataset.j != null){ const p = P[S.cur]; p.j[+t.dataset.j] = !p.j[+t.dataset.j]; t.classList.toggle("on"); refreshTags(); return; }
-  if (id === "add"){ S.nm0 = ""; S.page = "new"; return render(); }
+  if (id === "add"){ S.nm0 = ""; S.nLot = 1; S.nOn = true; S.page = "new"; return render(); }
   if (id === "retry"){ const q = P.find(x => x.n === S.nm) || P[S.cur]; S.nm0 = q ? q.n : ""; S.page = "new"; return render(); }
   if (id === "bk"){ S.page = "list"; await refresh(); return render(); }
   if (id === "send") return sendNew();
+  if (id === "ntg"){ S.nOn = S.nOn === false; t.classList.toggle("on", S.nOn !== false); return; }
   if (id === "tgl"){ const p = P[S.cur]; p.on = !p.on; t.classList.toggle("on"); refreshTags(); return; }
   if (id === "sv") return saveOne();
   if (id === "save") return showPoster(P[S.cur].n, P[S.cur].k);

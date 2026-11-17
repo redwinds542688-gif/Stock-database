@@ -1486,7 +1486,7 @@ export default {
         num("max_amount", 1000000, 5000000); num("cap", 100000, 250000); num("max_loss", 5000, 30000); num("kill_loss", 10000, 50000);
         if (c.lot_mode != null) { if ([1, 2, 3].includes(c.lot_mode)) o.lot_mode = c.lot_mode; else bad.push("lot_mode"); }
         if (bad.length) return J({ error: "設定超出範圍:" + bad.join(",") }, 400);
-        o.enabled = true; o.at = Date.now(); o.by = "夥伴加入";
+        o.enabled = c.enabled !== false; o.at = Date.now(); o.by = "夥伴加入";   /* 2026-11-18 新增頁就能設自動交易開關 */
         await hub.kvPut("acfg:" + n, o); await hub.kvPut("famjob:" + n, { op: "add", enc: b.enc, at: Date.now() });
         L[n] = { st: "wait", msg: "等電腦來拿", at: Date.now() }; await hub.kvPut("fams", L); return J({ ok: true });
       }
