@@ -1097,3 +1097,15 @@ _np, _na = len(tz9.posts), len(getattr(tz9, "_alerts", []) or [])
 tz9.on_report(50, "M90", 0, 1000, 49.0, "", "1709", "B", "3"); tz9.on_report(51, "M90", 0, 1000, 49.0, "", "1709", "B", "3")
 ok("1709" not in tz9.positions and len(tz9.posts) == _np and "M90" not in tz9.man_cards, (tz9.positions.get("1709"), tz9.posts[_np:]))
 print("trader.py 測試通過(延遲紀錄 3 + 32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7 + 判七上線 2 + 判六上線 4 + 判七 +8% 強平 2 + 判二大盤分級檔數 7 + 判二寬度範圍 11 + 條件單編號存檔 3 + 沒昨收不進 3 + 預掛鐵律 9 + 主導機上限 4 + 手動受管束 13 + 超額補進 10 分鐘 6 + 太晚補進 10 分鐘 3 + 設定關不掉保護 4 + 第二輪 1~5 9 + 全改 9 + 第三輪 9 + 超額補進鐵律平倉 2)")
+
+# 2026-11-17 14:52 使用者「多出來二張 程式就照反向監管」:預掛比部位多,全部成交 → 多出來的當下接成元三(反向)
+NOW[0] = NOW0; tx, gx = mk(TRADE_Y3_POST_DELAY="0"); tx.ref_of = lambda c: 86.0; tx.on_tick("6269", 86.2); tx.step([ENT]); tx.on_report(51, "A0001", 0, 1000, 86.1); px_ = tx.positions["6269"]; px_["qty"] = 3
+tx.man_order("6269", "M95", 0, 5000, 85.5, "B"); ok(tx.prehang.get("6269") == ["M95"])
+tx.on_other_fill("6269", "B", 5000, 85.5, "M95"); qx = tx.positions.get("6269")
+ok(qx is not None and qx["dir"] == 1 and qx["qty"] == 2 and qx["judge"] == "元三" and qx["state"] == HOLDING and qx["sl"] and any("已由程式接管" in a for a in tx.alerts), (qx, tx.alerts[-3:]))
+# 13:20 以後手動新進場 → 立即平
+NOW[0] = NOW0.replace(hour=13, minute=20, second=40); ty, gy = mk(TRADE_Y3_POST_DELAY="0"); ty.ref_of = lambda c: 86.0; ty.on_tick("6271", 86.0); ny = len(gy.sent)
+ty.on_other_fill("6271", "B", 1000, 86.0, "M96"); qy = ty.positions.get("6271")
+ok(qy is not None and qy["state"] == EXITING and any(x[:3] == ("6271", "S", 1) for x in gy.sent[ny:]), (qy, gy.sent[ny:]))
+NOW[0] = NOW0
+print("手動多平接元三 + 13:20 後手動進場立即平 OK")

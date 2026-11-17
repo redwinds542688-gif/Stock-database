@@ -1091,6 +1091,10 @@ class Trader:
                     p["no_max_move"] = True; self.log(f"[交易] 元三 {code} 進場時已經離昨收 {(price / ref0 - 1) * 100:+.1f}%(超過 ±{mv0:g}%)→ 這筆不套 ±{self.max_move:g}%,只用停利 / 停損")
                 self.set_forced_tpsl(p, price); self.amount_today += price * lots * 1000; self.save_state()
                 self.sub(p)
+                if self.hm() >= self.force_exit:   # 2026-11-17 14:52 使用者「13.20手動入場 立即平倉」:13:20 以後的手動新進場接起來馬上平(不等下一輪)
+                    self.log(f"[交易] 元三 {code} {self.hm()} 手動進場(已過 {self.force_exit})→ 立即平倉")
+                    self.alert(f"⏰ {self.name_of(code)} {code} {self.force_exit} 後手動進場", f"{lots} 張 @ {price},已立即{'跌停賣出' if d > 0 else '漲停買回'}")
+                    self.exit_pos(p, f"{self.force_exit} 強制平倉", price, force_limit=True, kill_ph=True); return
                 if self.iron_manual(p, price, lots, "手動進場"): return   # 2026-11-11 20:53 鐵律沒有例外:元大手動單違反鐵律 → 接起來馬上全部平掉
                 self.log(f"[交易] 元三:元大手動{'買進' if d > 0 else '賣出'} {code} {lots} 張 @ {price}(委託種類 {typ or '?'})→ 交給判三管(停利 {p['tp']} 停損 {p['sl']})")
                 # 2026-11-03 13:00 使用者「我做多是5張 訊息寫一張」:同一張委託分批成交(1+1+1+2)時,原本第一筆成交就發卡(寫 1 張)→ 等 3 秒把分批成交併完再發,寫總張數 / 均價
@@ -1137,7 +1141,7 @@ class Trader:
                 # 2026-11-07 23:34 強平中(預掛取消前成交 / 程式平倉單也成交)多出來的反向部位 → 程式自己再強平
                 self.alert(f"⚠ {self.name_of(code)} {code} 平倉多了 {extra} 張", f"強平時預掛也成交,多出 {extra} 張反向部位,程式已再強平")
                 self.flatten_later(code, 1 if bs == "B" else -1, extra, price, typ or None)
-            elif extra > 0:
+            elif extra > 0 and p["state"] == EXITING and p.get("order") and not p["order"].get("dead"):
                 self.alert(f"⚠ {code} 手動平倉多了 {extra} 張", f"程式記 {take} 張,手動平了 {lots} 張,多出來的 {extra} 張變反向部位,請自己處理")
             o = p.get("order")
             if p["state"] == EXITING and o and not o.get("dead"):
@@ -1146,6 +1150,15 @@ class Trader:
                 return
             if p["qty"] <= 0:
                 p["order"] = None; self.finish_pos(p)
+                if extra > 0 and not (p.get("forced_close") or (order_no and order_no in self.ph_cancel)) and code not in self.positions:
+                    # 2026-11-17 14:52 使用者「多出來二張 程式就照反向監管」:手動平倉 / 預掛比部位多 → 多出來的張數當下就當成手動新進場接成元三
+                    #   (停利 / 停損照判三、掛元大條件單、只看 ① ±5%;13:20 後馬上平),不再等每分鐘對帳(原本 1~2 分鐘沒停損、別的手動單掛著時一直不接)
+                    self.log(f"[交易] {code} 手動平倉多了 {extra} 張 @ {price} → 多出來的當成反向手動進場,接成元三")
+                    self.flat_watch.pop(code, None)   # 剛平完的「多平補回」保護不套在這幾張(是手動多下的,不是條件單同時觸發)
+                    self.on_other_fill(code, bs, extra * 1000, price, f"{order_no or ''}+x", typ)
+                    q = self.positions.get(code)
+                    if q and q["state"] in (HOLDING, EXITING):
+                        self.alert(f"↔ {self.name_of(code)} {code} 多出 {extra} 張{'多' if bs == 'B' else '空'}單,已由程式接管", f"手動平倉 {lots} 張、原部位 {take} 張;多出來的照判三管(停利 {q.get('tp')} / 停損 {q.get('sl')})")
             return
         fw = self.flat_watch.get(code) if self.broker_stop else None   # 多平補回只在有掛元大條件單時才需要(獨立檢查 #5)
         if fw and bs == close_side(fw["dir"]) and time.time() < fw["until"] and code not in self.positions:
