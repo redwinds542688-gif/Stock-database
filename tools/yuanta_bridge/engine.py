@@ -842,6 +842,7 @@ class Engine:
         self.envs = {}
         self.tx_req = tuple(getattr(rs_env, "IRON_TX_REQUIRE", ("八", "九")))   # 2026-11-14 18:35 使用者「改」:判八 / 判九拿不到台指期 / 加權指數 → 不進場
         self.txsync_fn = getattr(rs_env, "txsync", None)   # 2026-11-13 22:30 ⑧ 台指期同步進場(使用者「解鎖 改 全部套用」):判斷寫在私人庫 rs_env.txsync(模擬器同一份)
+        self.txrel_fn = getattr(rs_env, "txrel", None)   # 2026-11-17 18:58 ⑧ 台指期 vs 加權強弱(使用者「解鎖 改」0.7%;私人庫 rs_env.txrel,模擬器同一份;舊版 rs_env 沒有 = 不看)
         self.txcover_fn = getattr(rs_env, "txf_cover", None)   # 2026-11-16 14:38 使用者「改」:台指期缺一段 → ⑧ 改用加權指數(私人庫 rs_env.txf_cover;舊版 rs_env 沒有 = 照舊)
         self.j9max = int(getattr(rs_env, "J9MAX", J9MAX))   # 2026-11-14 判九
         self.j8max = int(getattr(rs_env, "J8MAX", J8MAX))   # 2026-11-14 判八
@@ -1254,6 +1255,36 @@ class Engine:
         except Exception: m = (c[2] if c and c[1] == self.day else {})
         self._ix_c = (time.time(), self.day, m); return m
 
+    def txrel_prev(self):
+        """⑧ 強弱用的前一個交易日收盤:(台指期 13:45 前最後一根, 加權 13:30 前最後一根);台指期先看本機 kline_futures/TXF/<日期>.csv,沒有再問 Worker ?fbars;加權問 Worker ?ixbars;往前找 7 天;一天算一次(拿不到的 5 分鐘後再試)"""
+        c = self.__dict__.get("_txrel_p")
+        if c and c[0] == self.day and (c[1] and c[2] or time.time() - c[3] < 300): return c[1], c[2]
+        tp = ip = None; d0 = dt.date.fromisoformat(self.day)
+        for i in range(1, 8):
+            d = (d0 - dt.timedelta(days=i)).isoformat()
+            if tp is None:
+                m = {}
+                try:
+                    with open(HERE / "kline_futures" / "TXF" / f"{d}.csv", encoding="utf-8") as fh:
+                        for r in csv.DictReader(fh):
+                            if r.get("date") == d and "08:45" <= r["time"] <= "13:45": m[r["time"]] = float(r["close"])
+                except Exception: pass
+                if not m:
+                    try:
+                        for b in ((http(worker_url(f"fbars={d}"), timeout=6) or {}).get("bars") or []):
+                            if "08:45" <= str(b[0]) <= "13:45": m[str(b[0])] = float(b[4])
+                    except Exception: pass
+                if m: tp = m[max(m)]
+            if ip is None:
+                try:
+                    m = {k: float(v) for k, v in ((http(worker_url(f"ixbars={d}"), timeout=6) or {}).get("m") or {}).items() if "09:00" <= k <= "13:30"}
+                    if m: ip = m[max(m)]
+                except Exception: pass
+            if tp is not None and ip is not None: break
+        self._txrel_p = (self.day, tp, ip, time.time())
+        if not (tp and ip): log(f"!! ⑧ 強弱:前一天收盤拿不到(台指期 {tp} / 加權 {ip})→ 強弱先不看")
+        return tp, ip
+
     def stock_closes(self, code):
         """⑧ 這檔今天 09:00~13:30 的 1 分 K 收盤(模擬器同一份 kline_yuanta/<代號>/<週>.csv)"""
         try:
@@ -1300,6 +1331,12 @@ class Engine:
             ok, why = fn(side, tm, self.stock_closes(code), txf, n_, r_, frm, **kw) if frm else fn(side, tm, self.stock_closes(code), txf, n_, r_, **kw)
             if frm: why = why.replace("台指期", "加權指數(台指期沒資料)")
             if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
+            _th = float(self.envs.get(rs, {}).get("TXREL") or 0); _rf = getattr(self, "txrel_fn", None)
+            if ok and _th > 0 and _rf:   # 🔒 ⑧ 台指期 vs 加權強弱(2026-11-17 18:58 使用者「解鎖 改」):台指期比加權強 > 0.7% 不做空、弱 > 0.7% 不做多(資料不全 → 不看)
+                try:
+                    _tp, _ip = self.txrel_prev(); ok, why = _rf(side, tm, self.txf_map(), self.ix_map(), _tp, _ip, _th)
+                    if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
+                except Exception as e: log("⑧ 強弱檢查失敗(照舊)", e); ok = True
             return ok
         except Exception as e:
             if rs in getattr(self, "tx_req", ("八", "九")): log(f"⑧ 檢查失敗 → {JUDGE[rs]}不進場", e); return False   # 2026-11-14 18:35 使用者「改」
