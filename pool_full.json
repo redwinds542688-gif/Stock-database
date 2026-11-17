@@ -28,16 +28,16 @@
 "lots": 153808
 },
 {
+"code": "1303",
+"name": "南亞",
+"market": "twse",
+"lots": 122552
+},
+{
 "code": "2303",
 "name": "聯電",
 "market": "twse",
 "lots": 122307
-},
-{
-"code": "1303",
-"name": "南亞",
-"market": "twse",
-"lots": 118391
 },
 {
 "code": "1815",
@@ -58,6 +58,12 @@
 "lots": 65787
 },
 {
+"code": "2317",
+"name": "鴻海",
+"market": "twse",
+"lots": 58002
+},
+{
 "code": "2327",
 "name": "國巨*",
 "market": "twse",
@@ -70,12 +76,6 @@
 "lots": 56945
 },
 {
-"code": "2317",
-"name": "鴻海",
-"market": "twse",
-"lots": 54040
-},
-{
 "code": "9933",
 "name": "中鼎",
 "market": "twse",
@@ -85,19 +85,19 @@
 "code": "2408",
 "name": "南亞科",
 "market": "twse",
-"lots": 51746
+"lots": 51756
 },
 {
 "code": "1301",
 "name": "台塑",
 "market": "twse",
-"lots": 48970
+"lots": 48986
 },
 {
 "code": "1326",
 "name": "台化",
 "market": "twse",
-"lots": 48165
+"lots": 48220
 },
 {
 "code": "5314",
@@ -118,6 +118,12 @@
 "lots": 41421
 },
 {
+"code": "3231",
+"name": "緯創",
+"market": "twse",
+"lots": 41107
+},
+{
 "code": "2610",
 "name": "華航",
 "market": "twse",
@@ -128,12 +134,6 @@
 "name": "華通",
 "market": "twse",
 "lots": 40516
-},
-{
-"code": "3231",
-"name": "緯創",
-"market": "twse",
-"lots": 40220
 },
 {
 "code": "2355",
@@ -157,7 +157,7 @@
 "code": "2618",
 "name": "長榮航",
 "market": "twse",
-"lots": 32851
+"lots": 32855
 },
 {
 "code": "1101",
@@ -208,16 +208,16 @@
 "lots": 25705
 },
 {
+"code": "4958",
+"name": "臻鼎-KY",
+"market": "twse",
+"lots": 25563
+},
+{
 "code": "6182",
 "name": "合晶",
 "market": "tpex",
 "lots": 25501
-},
-{
-"code": "4958",
-"name": "臻鼎-KY",
-"market": "twse",
-"lots": 25413
 },
 {
 "code": "2492",
@@ -265,7 +265,13 @@
 "code": "6505",
 "name": "台塑化",
 "market": "twse",
-"lots": 20984
+"lots": 21116
+},
+{
+"code": "2301",
+"name": "光寶科",
+"market": "twse",
+"lots": 20933
 },
 {
 "code": "6443",
@@ -322,12 +328,6 @@
 "lots": 17127
 },
 {
-"code": "2301",
-"name": "光寶科",
-"market": "twse",
-"lots": 16801
-},
-{
 "code": "5230",
 "name": "雷笛克光學",
 "market": "tpex",
@@ -364,6 +364,12 @@
 "lots": 15727
 },
 {
+"code": "2615",
+"name": "萬海",
+"market": "twse",
+"lots": 15349
+},
+{
 "code": "2382",
 "name": "廣達",
 "market": "twse",
@@ -380,12 +386,6 @@
 "name": "世界",
 "market": "tpex",
 "lots": 14920
-},
-{
-"code": "2615",
-"name": "萬海",
-"market": "twse",
-"lots": 14771
 },
 {
 "code": "8358",
@@ -415,7 +415,7 @@
 "code": "4938",
 "name": "和碩",
 "market": "twse",
-"lots": 12791
+"lots": 13258
 },
 {
 "code": "6919",
@@ -428,6 +428,12 @@
 "name": "長榮",
 "market": "twse",
 "lots": 11940
+},
+{
+"code": "8069",
+"name": "元太",
+"market": "tpex",
+"lots": 11894
 },
 {
 "code": "1714",
@@ -452,12 +458,6 @@
 "name": "恩德",
 "market": "twse",
 "lots": 11641
-},
-{
-"code": "8069",
-"name": "元太",
-"market": "tpex",
-"lots": 11459
 },
 {
 "code": "3706",
@@ -622,6 +622,12 @@
 "lots": 8202
 },
 {
+"code": "3044",
+"name": "健鼎",
+"market": "twse",
+"lots": 8170
+},
+{
 "code": "5202",
 "name": "力新",
 "market": "tpex",
@@ -745,7 +751,7 @@
 "code": "2377",
 "name": "微星",
 "market": "twse",
-"lots": 6475
+"lots": 6628
 },
 {
 "code": "6150",
@@ -782,12 +788,6 @@
 "name": "強新",
 "market": "tpex",
 "lots": 5973
-},
-{
-"code": "3044",
-"name": "健鼎",
-"market": "twse",
-"lots": 5957
 },
 {
 "code": "1409",
@@ -916,6 +916,12 @@
 "lots": 5330
 },
 {
+"code": "2451",
+"name": "創見",
+"market": "twse",
+"lots": 5326
+},
+{
 "code": "3016",
 "name": "嘉晶",
 "market": "twse",
@@ -938,12 +944,6 @@
 "name": "康舒",
 "market": "twse",
 "lots": 5265
-},
-{
-"code": "2451",
-"name": "創見",
-"market": "twse",
-"lots": 5220
 },
 {
 "code": "8042",
