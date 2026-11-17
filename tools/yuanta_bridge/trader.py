@@ -95,11 +95,12 @@ def minutes_of(s):
         return int(m.group(1)) * 60 + int(m.group(2))
     return None
 FORCED = "強三"
-def lot_tier_qty(px):
+def lot_tier_qty(px, cap=250000):   # 2026-11-17 23:45 🔓→🔒 鐵律 ⑤(使用者「依照多空上限金額 能買幾張算幾張」→「解鎖改」):每筆照多空上限(cap,最多 25 萬)能買幾張就買幾張;一張就超過上限 = 超額另外管
     """2026-11-11 16:43 張數分級:≤ 80 元 最多 3 張且 ≤ 16 萬;80~250 元 最多 2 張且 ≤ 25 萬;至少 1 張(超過 250 元一張 > 25 萬 = 超額,另外管)"""
     px = float(px or 0)
     if px <= 0: return 1
-    return max(1, int(250000 // (px * 1000)))   # 2026-11-14 00:55 🔓→🔒 鐵律 ⑤ 改「不分級」(使用者「如果購買不分級呢」→「解鎖 改」):每筆 25 萬能買幾張就買幾張(原 ≤80 元最多 3 張 ≤16 萬、80~250 元最多 2 張);超過 250 元一張 > 25 萬 = 超額,另外管
+    cap = min(float(cap or 250000), 250000.0)
+    return max(1, int(cap // (px * 1000)))   # 2026-11-14 00:55 🔓→🔒 鐵律 ⑤ 改「不分級」(使用者「如果購買不分級呢」→「解鎖 改」):每筆 25 萬能買幾張就買幾張(原 ≤80 元最多 3 張 ≤16 萬、80~250 元最多 2 張);超過 250 元一張 > 25 萬 = 超額,另外管
 IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG, IRON_BRX_L, IRON_BRX_E = 5.0, 6.5, "09:30", "12:30", "12:32", 1.5, 0.15   # 鐵律 ③ 09:30(23:38 曾改 09:15,23:49 使用者「改成9點30分進場 解鎖改」改回)
 IRON_CAP_MAX = 250000   # 2026-11-11 22:46 使用者「最多上限改25萬」:多空上限(設定檔 / 主導機)最多 25 萬   # 原 500000 # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:設定檔的多空上限最多 50 萬(和主導機能設的範圍一樣)
 IRON_EXIT, JUDGES_ALL = "13:20", ("判一", "判二", "判三", "判四", "判五", "判六", "判七", "判八", "判九")   # 2026-11-14 15:14 加判八;17:58 加判九   # 2026-11-11 22:25 使用者「改13」:設定檔的開關不能關掉鐵律保護
@@ -1689,7 +1690,7 @@ class Trader:
         """鐵律 ⑤(2026-11-11 19:59):強制進場張數 = min(手機送來的, 分級, 剩餘額度夠的張數)"""
         pr = self._force_px(code, d, px)
         if pr <= 0: return lots
-        n = min(int(lots), lot_tier_qty(pr) if Trader.IRON_LOTS else int(lots))
+        n = min(int(lots), lot_tier_qty(pr, self.cap_lim()) if Trader.IRON_LOTS else int(lots))
         if self.max_amount > 0 and Trader.IRON_LOTS:
             room = self.max_amount - self.amount_today - self.hold_reserve() - self.pend_reserve(); lu = self.lu_of(code, pr)
             n = min(n, int(room // ((pr + lu) * 1000)))
@@ -2172,9 +2173,9 @@ class Trader:
                 if px <= 80 * c / 250000: return max(1, min(3, int(0.64 * c // (px * 1000))))
                 return max(1, min(2, int(c // (px * 1000))))
             return max(1, int(c // (px * 1000)))
-        if self.cap <= 0: return min(self.qty, lot_tier_qty(px)) if Trader.IRON_LOTS else self.qty   # 鐵律 ⑤:固定張數也不能超過分級(IRON_LOTS 只有測試程式能關,設定檔關不掉)
+        if self.cap <= 0: return min(self.qty, lot_tier_qty(px, self.cap_lim())) if Trader.IRON_LOTS else self.qty   # 鐵律 ⑤:固定張數也不能超過分級(IRON_LOTS 只有測試程式能關,設定檔關不掉)
         # 2026-11-11 16:43 使用者「股價10-80元最多一筆買3張且金額不超過16萬 80到250最多不超過2張且金額不超過25萬」→「改」(10 元以下同 10~80;超過 250 元照舊超額)
-        if self.lot_tier: return lot_tier_qty(px)
+        if self.lot_tier: return lot_tier_qty(px, self.cap_lim())   # 2026-11-17 23:45 照多空上限算張數
         return max(1, int(self.cap // (px * 1000)))
 
     def can_enter(self, code, judge, kind=None, over=False):
