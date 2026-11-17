@@ -490,7 +490,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611170307">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611170947">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -8038,7 +8038,7 @@ window.bgTick = bgTick; window.BG = BG;
         const open = over ? [] : (!TPL || !TPL.ok || window.DONE_VIRT) ? cards.filter(o => o.type === 'entry' && !o.over && !o.notrade && !o.madd && !o._hide && !o.phNew && o._alert !== 'exit' && o.entP > 0 && !cards.some(x => x.fc && x.code === o.code && x.t >= o.t)) : (TPL.pos || []).filter(p => p.qty > 0 && p.entry > 0 && (p.state === '持倉中' || p.state === '平倉中'))
           .map(p => ({code: p.code, name: nmOf(p.code), side: p.dir > 0 ? 'long' : 'short', entP: +p.entry, lots: +p.qty, rs: p.judge, exiting: p.state === '平倉中', t: String(p.t0 || '')}));
         // 2026-10-29 12:25(實際時間)使用者「既然真實接通 … 顯示元大裡的真實的交易」:元大帳號裡手動進場、還沒沖掉的張數(成交回報 open ≠ 0)也列進當沖(程式的部位已在上面,不重複)
-        if (TP && !over && !window.DONE_VIRT){ tfillsPoll(); try{ const F = window.__tfills; if (F && F.ok && F.d === today && Array.isArray(F.rows)) for (const r of F.rows){ const q = +r.open || 0; if (!q || open.some(o => o.code === r.code)) continue;
+        if (TP && !over && !window.DONE_VIRT){ tfillsPoll(); try{ const F = window.__tfills; const IG_ = new Set((TP.ignore || []).map(String)); if (F && F.ok && F.d === today && Array.isArray(F.rows)) for (const r of F.rows){ const q = +r.open || 0; if (!q || IG_.has(String(r.code)) || open.some(o => o.code === r.code)) continue;   /* 2026-11-17 09:46 使用者「庫存的和益是借卷 空 我已經贖回 這邊不用顯示和益做多」:不管名單(電腦 ignore_codes.txt,?trade=pos 的 ignore)不列 */
               open.push({code: r.code, name: r.name || nmOf(r.code), side: q > 0 ? 'long' : 'short', entP: q > 0 ? +r.buy : +r.sell, lots: Math.abs(q), manual: true, t: String(r.t || r.time || '99:99')}); } }catch(e){} }
         open.sort((a, b) => String(b.t || '').localeCompare(String(a.t || '')));
         try{ const k_ = open.map(o => o.code + o.side).join(','); window.__openSide = new Map(open.map(o => [o.code, o.side])); window.__openReal = !!(TPL && TPL.ok) && !window.DONE_VIRT; window.__openPos = new Map(open.map(o => [o.code, {side: o.side, entP: +o.entP || 0, lots: +o.lots || (typeof lotsOf === 'function' ? +lotsOf(o) : 0) || 1}])); setTimeout(() => { try{ __needlesNow(); }catch(e){} }, 0); if (k_ !== window.__openSideK){ window.__openSideK = k_; setTimeout(() => { try{ window.__reList && __reList(); }catch(e){} }, 0); } }catch(e){}   // 2026-11-09 12:43 監控清單:進場還沒平倉的標做多 / 做空   // 2026-11-09 12:37 使用者「當沖顯示 最晚進來排最上面」:照進場時間,最晚的在最上面
