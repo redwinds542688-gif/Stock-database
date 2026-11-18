@@ -1230,6 +1230,8 @@ class Engine:
             self.emitted.add(ek); log(f"判六 {code} {open_tm} 這檔判六另一個方向的部位還開著 → 不發"); return n
         elif _f(self.envs.get(rs, {}).get("PXMIN"), 0) > 0 and float(d.get("px") or 0) < _f(self.envs.get(rs, {}).get("PXMIN"), 0) - 1e-9:   # 2026-11-17 10:45 模擬器 PXMIN 在 close_trade 才擋(引擎看進場那行就發)→ 引擎自己擋(判四 70、判五 15;11/17 國喬 11.60 判五漏擋)
             self.emitted.add(ek); log(f"{JUDGE[rs]} {code} {open_tm} 進場價 {float(d.get('px') or 0):.2f} 低於 {self.envs[rs]['PXMIN']} 元 → 不發"); return n
+        elif getattr(self, "pre_mode", False) and self.pre_wait(rs, code, open_tm, d["side"]):   # 2026-11-18 16:43 使用者「定穎 改緩衝那個」:預判收盤確認時台指期這根還沒收、或台指期條件離門檻太近 → 先不發(不記 emitted),等整輪用收完的 K 再判
+            why = self.pre_wait(rs, code, open_tm, d["side"])
         elif not self.tx_ok(rs, code, open_tm, d["side"]):   # 2026-11-13 22:30 ⑧ 台指期同步進場(23:32 改只看方向):台指期 60 分鐘往不利方向 → 這筆不做(記 emitted,不再發)
             self.emitted.add(ek); return n
         else: why = None
@@ -1237,6 +1239,29 @@ class Engine:
             log(f"{JUDGE[rs]} {code} {open_tm} 進場先不發:{why}"); return n   # 不記 emitted:10 分鐘內恢復就照發
         if self.push_entry(rs, code, open_tm, d, upto): self.emitted.add(ek)
         return n
+
+    PRE_BUF = 0.15   # 預判緩衝(百分點)
+
+    def pre_wait(self, rs, code, tm, side):
+        """2026-11-18 16:43 預判緩衝(使用者「定穎 改緩衝那個」;11/18 定穎判九 09:41 預判時台指期離今高 < 2%,那根收完 2.23% → 重算不見):
+           預判收盤確認時 ① 台指期檔還沒有 tm 這根 → 等;② 台指期條件(離今高 / 離今高不做多 / 急彈 / 強弱)門檻收緊 PRE_BUF 會擋 → 等。回 說明(要等)或 None"""
+        try:
+            self._txf_c = None; txf = self.txf_map()
+            if not txf: return None
+            if tm not in txf: return f"預判:台指期 {tm} 這根還沒收,等整輪確認"
+            e = self.envs.get(rs, {}); B = self.PRE_BUF; chk = []
+            if side < 0 and e.get("TXOFFHI") and getattr(self, "txoffhi_fn", None): chk.append(("離今高", self.txoffhi_fn, float(e["TXOFFHI"])))
+            if side > 0 and e.get("TXLONGHI") and getattr(self, "txlonghi_fn", None): chk.append(("離今高(做多)", self.txlonghi_fn, float(e["TXLONGHI"])))
+            if side < 0 and e.get("TXBOUNCE") and getattr(self, "txbounce_fn", None): chk.append(("急彈", self.txbounce_fn, float(e["TXBOUNCE"])))
+            for nm, fn, th in chk:
+                if th - B > 0 and not fn(side, tm, txf, th - B)[0]: return f"預判:台指期{nm}離門檻 {th:g}% 不到 {B:g}%,等整輪確認"
+            _th = float(e.get("TXREL") or 0)
+            if side < 0 and float(e.get("TXRELS") or 0) > 0: _th = float(e["TXRELS"])
+            if _th > B and getattr(self, "txrel_fn", None):
+                _tp, _ip = self.txrel_prev()
+                if not self.txrel_fn(side, tm, txf, self.ix_map(), _tp, _ip, _th - B)[0]: return f"預判:台指期強弱離門檻 {_th:g}% 不到 {B:g}%,等整輪確認"
+        except Exception as ex: log("預判緩衝檢查失敗(照舊)", ex)
+        return None
 
     def txf_map(self):
         """⑧ 中繼(yuanta_bridge.py)每分鐘寫的台指期近月 1 分 K:HERE/kline_futures/TXF/<日期>.csv → {HH:MM: 收盤};20 秒快取"""
@@ -1503,7 +1528,9 @@ def live():
                         write_today(day, bs, upto=hm, forming=fm)
                         if any(r == "二" for r, _ in cand): write_breadth(day)
                         res_, dtm_, nj_ = eng.compute(only=cand)
-                        nb = len(eng.sent); eng.apply(res_, hm, allow_new=True, allow_phantom=False, rs_block=pre["rs_block"])
+                        nb = len(eng.sent); eng.pre_mode = True   # 2026-11-18 16:43 預判緩衝
+                        try: eng.apply(res_, hm, allow_new=True, allow_phantom=False, rs_block=pre["rs_block"])
+                        finally: eng.pre_mode = False
                         log(f"預判收盤確認 {hm}:候選 {len(cand)} 個,推出 {len(eng.sent) - nb} 則,{time.time() - t0:.1f} 秒")
                 except Exception as e: log("預判確認失敗", repr(e))
                 continue
