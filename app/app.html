@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 通知欄標題左上角的「進場 / 資訊 / 當沖 / 明細」框拿掉,日期和旁邊的鍵貼到最左邊,右邊金額大小位置不變;當沖的 贏% 平倉選單改長按日期格(篩選判別式時進場仍顯示「判X進場」)
   · 2026-11-19 進場 / 當沖 / 明細按鍵燈號:10 格 → 20 格、格子連在一起(每格 1.5px、間隔 0);錢一格 5,000 → 2,500(滿格 5 萬,超過換色第二圈);進場一格一檔(最多 20)
   · 2026-11-19 資訊頁標題列(資訊鍵 / 日期 / 檢討)位置和進場完全一樣(原本往右下偏 6px、標題列較矮)
   · 2026-11-19 前幾天的進場卡下排也有「現」= 那天的收盤價(固定,存手機);報價別處先抓到也會重畫
@@ -527,7 +528,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611190408">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611190423">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -598,10 +599,11 @@
   #notifLog .hd .dwh{display:inline-block;height:1.3em;line-height:1.3em;overflow-y:scroll;scroll-snap-type:y mandatory;overscroll-behavior:contain;touch-action:pan-y;scrollbar-width:none;padding:0 4px;border-radius:6px;border:1px solid #3A4252;-webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,.35),#000 22%,#000 78%,rgba(0,0,0,.35));mask-image:linear-gradient(180deg,rgba(0,0,0,.35),#000 22%,#000 78%,rgba(0,0,0,.35))}   /* 2026-11-03 15:25 明細日期滾輪 */
   #notifLog .hd .vtag{display:inline-block;pointer-events:none}
   #notifLog .hd .dwh.dstat{overflow:hidden;pointer-events:none}   /* 2026-11-03 17:28 當沖的日期格:和明細滾輪同寬同樣子,但不能捲 */   /* 2026-11-03 17:27 當沖的「元大」:和明細按鍵同樣子,但只是標示、按了沒作用 */
-  #notifLog .hd .lb .dwh{margin-left:6px;vertical-align:middle}
+  #notifLog .hd .lb .dwh{margin-left:6px;vertical-align:middle}  #notifLog .hd:not(.meas) .lb .dlb.ghost + .dwh{margin-left:0}  #notifLog .hd.meas .dlb.ghost{position:static!important}   /* 2026-11-19 進場框拿掉後日期貼最左,和資訊 / 當沖 / 明細同位置 */
   #notifLog .hd .dwh{font-size:30px!important}   /* 2026-11-03 19:10 使用者「進場日期字太小 要跟明細的一致」:日期滾輪一律 30px(標題列其他字照舊自動縮放) */   /* 2026-11-03 17:20 進場頁日期滾輪 */
   #notifLog .hd .dlb{color:#1DD75B;font-weight:700;flex:none;display:inline-block;margin-left:4px;padding:1px 10px;border-radius:7px;border:2px solid #1DD75B;box-shadow:0 0 0 2px #000,0 0 0 3.5px #8C96AB;background:#000;font-size:.85em;line-height:normal;vertical-align:middle}   /* 2026-11-03 15:30 使用者「明細 綠色 日期 銀色 顯示位置都固定」;17:35「進場 當沖 明細 也跟元大的按鍵一樣大小加框 只是這三個是綠色」 */
-  #notifLog .hd.msg .dlb,#notifLog .hd.msg .cash .mlb.rlb{font-size:min(25.5px,6.2vw)!important}   /* 2026-11-03 17:45 進場列的綠框/紅框固定和當沖、明細的框一樣大(不跟著整列字縮放) */
+  #notifLog .hd.msg .dlb,#notifLog .hd.msg .cash .mlb.rlb{font-size:min(25.5px,6.2vw)!important}
+  #notifLog .hd .dlb.ghost{position:absolute;visibility:hidden;pointer-events:none;left:0;top:0}   /* 2026-11-19 進場框拿掉,只留來量寬度 */   /* 2026-11-03 17:45 進場列的綠框/紅框固定和當沖、明細的框一樣大(不跟著整列字縮放) */
   #notifLog .hd.msg .cash .mlb.rlb{display:inline-block;-webkit-appearance:none;box-sizing:border-box;height:1.7em;line-height:calc(1.7em - 4px);padding:0 10px;margin:0 .45em 0 4px;border-radius:7px;border:2px solid #FF4D5E;box-shadow:0 0 0 2px #000,0 0 0 3.5px #8C96AB;background:#000;color:#FF4D5E;opacity:1;font-weight:700;font-size:1em;vertical-align:middle}   /* 2026-11-03 17:42 使用者「進場裡的 資金 也改成一樣的 只不過是 紅色」:和進場/當沖/明細綠框同樣子,紅色 */
   #notifLog .hd .dlb,#notifLog .hd .vbtn{-webkit-appearance:none;appearance:none;box-sizing:border-box;height:1.7em;line-height:calc(1.7em - 4px);padding:0 10px;min-height:0;margin-top:0;margin-bottom:0;font-family:inherit;letter-spacing:normal}   /* 2026-11-03 17:40 使用者「這元大的太大 與左邊的明細框一致即可」:手機上按鍵(button)和標籤(span)預設高度不同,兩個都定死同高同行距 */   /* 進場標題列整列字小一號(.85),綠框字就不再縮,三個一樣大 */
   /* 2026-11-05 00:02 使用者「可以 改」:開盤中 進場 / 當沖 / 明細(下排按鍵)左右各一條 10 格燈(進場:左黃 = 進場檔數、右藍 = 已平倉檔數;當沖 / 明細:贏亮左紅、輸亮右綠,5,000 一格,5~10 萬第二圈金 / 紫),字放到最大 */
@@ -2536,7 +2538,7 @@ window.fmShow = fmShow;
       b.style.cssText = `height:${ih}px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:7px;border:2px solid ${c};box-shadow:0 0 0 2px #000,0 0 0 3.5px #8C96AB;background:#000;color:${c};font-weight:700;font-size:${Math.min(24, Math.max(13, ih * 0.42))}px;white-space:nowrap;padding:0;font-family:inherit`;
       b.addEventListener('click', ev => { ev.stopPropagation(); choose(th, m); }); m.appendChild(b); });
     document.body.appendChild(m); setTimeout(() => document.addEventListener('pointerdown', outside, true), 0); };
-  const isLb = t => t && t.closest && t.closest('#notifLog .hd .dlb');
+  const isLb = t => t && t.closest && (t.closest('#notifLog .hd .dlb') || (window.NL_VIEW === 'pos' && t.closest('#notifLog .hd .dstat')));   /* 2026-11-19 04:18 當沖框拿掉後,長按日期格開 贏% 平倉選單 */
   box.addEventListener('pointerdown', ev => { if (!isLb(ev.target)) return; x0 = ev.clientX; y0 = ev.clientY; clearTimeout(tm); tm = setTimeout(() => { tm = null; openM(); }, 600); }, true);
   box.addEventListener('pointermove', ev => { if (tm && (Math.abs(ev.clientX - x0) > 10 || Math.abs(ev.clientY - y0) > 10)){ clearTimeout(tm); tm = null; } }, true);
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => box.addEventListener(t, () => { clearTimeout(tm); tm = null; }, true));
@@ -8483,7 +8485,7 @@ window.bgTick = bgTick; window.BG = BG;
         }
         // (判別式相關說明已移到私人庫)
         // 2026-10-27 10:30(實際時間)使用者:「當沖 通知欄 最下面的資訊 改在上面顯示 這邊不用」:「N 檔 未平倉 + 合計輸贏」改放標題列(取代 當日),最下面那列拿掉
-        const hdPos = hd.replace(/<\/span><span>\d+ 則<\/span>/, (usOn() ? '</span>' : `</span><span class="cash">${money(Math.round(tot))}</span>`)).replace(`<span>${usLabel()}</span>`, `<span class="dlb">${usLabel()}</span><span class="dwh dstat"${inSession() || usOn() ? '' : ' style="visibility:hidden"'}><span class="dwi">${usOn() ? String(window.__US.us || '').slice(5).replace('-', '/') : today.slice(5).replace('-', '/')}</span></span><span class="dsrc"></span>${usOn() ? '' : spkBtn()}`);   /* 2026-11-04 使用者「開盤版 當沖裡也是只能顯示 虛擬」:看盤版當沖標題和永久版同一個樣子,那格固定紫色「虛擬」(原「當沖 系統」) */   /* 2026-11-04 使用者「開盤中 會顯示 元大 如果真連不上線 一樣顯示虛擬 原來顯示元大的那個鍵 改顯示 虛擬」:列的是程式訊號(虛擬部位)時,同一格改紫色「虛擬」 */   /* 2026-11-03 17:28 使用者「當沖啟動時 也就是盤中 元大按鍵位置 與 明細裡的位置一致」:當沖也放一格同寬的日期(不能捲),元大就和明細的按鍵對齊;17:32「(非開盤時間)就不用 顯示 日期」:非盤中日期格隱藏(位置留著,元大照樣對齊) */   /* 17:24 使用者「連得上電腦時 當沖 元大。把 元大 放上去」 */   /* 2026-11-03 17:22 使用者「把 當沖 改 綠色 後面的系統不顯示」:綠色、不寫元大 / 系統(看盤版照舊「當沖 系統」) */   // 13:21 連得上電腦(元大真實部位)標「元大」,模擬標「系統」(看盤版標題本來就是「當沖 系統」)   // 2026-10-27 10:40(實際時間)使用者:「輸贏金額 顯示在最右邊」:合計放標題列最右邊(.cash);10:45「幾檔也不用顯示」:左邊只剩 當沖
+        const hdPos = hd.replace(/<\/span><span>\d+ 則<\/span>/, (usOn() ? '</span>' : `</span><span class="cash">${money(Math.round(tot))}</span>`)).replace(`<span>${usLabel()}</span>`, `<span class="dlb ghost" aria-hidden="true">${usLabel()}</span><span class="dwh dstat"${inSession() || usOn() ? '' : ' style="visibility:hidden"'}><span class="dwi">${usOn() ? String(window.__US.us || '').slice(5).replace('-', '/') : today.slice(5).replace('-', '/')}</span></span><span class="dsrc"></span>${usOn() ? '' : spkBtn()}`);   /* 2026-11-04 使用者「開盤版 當沖裡也是只能顯示 虛擬」:看盤版當沖標題和永久版同一個樣子,那格固定紫色「虛擬」(原「當沖 系統」) */   /* 2026-11-04 使用者「開盤中 會顯示 元大 如果真連不上線 一樣顯示虛擬 原來顯示元大的那個鍵 改顯示 虛擬」:列的是程式訊號(虛擬部位)時,同一格改紫色「虛擬」 */   /* 2026-11-03 17:28 使用者「當沖啟動時 也就是盤中 元大按鍵位置 與 明細裡的位置一致」:當沖也放一格同寬的日期(不能捲),元大就和明細的按鍵對齊;17:32「(非開盤時間)就不用 顯示 日期」:非盤中日期格隱藏(位置留著,元大照樣對齊) */   /* 17:24 使用者「連得上電腦時 當沖 元大。把 元大 放上去」 */   /* 2026-11-03 17:22 使用者「把 當沖 改 綠色 後面的系統不顯示」:綠色、不寫元大 / 系統(看盤版照舊「當沖 系統」) */   // 13:21 連得上電腦(元大真實部位)標「元大」,模擬標「系統」(看盤版標題本來就是「當沖 系統」)   // 2026-10-27 10:40(實際時間)使用者:「輸贏金額 顯示在最右邊」:合計放標題列最右邊(.cash);10:45「幾檔也不用顯示」:左邊只剩 當沖
         if (window.__nlV !== 'pos'){ box.scrollTop = 0; window.__nlV = 'pos'; }   // 2026-10-27 11:20 切到當沖也從最上面開始
         window.__posWin = window.__posWinTmp || []; window.__posWinTP = !!TP;
         const __usx = !!(__ub && !open.length);
@@ -8539,7 +8541,7 @@ window.bgTick = bgTick; window.BG = BG;
           body += `<div class="dsep" data-day="${dd}">${dd.slice(5).replace('-', '/')}</div>` + h; dayTot[dd] = t;   /* 2026-11-06 05:40 使用者「怎麼還有這14筆總輸贏 這個不用 上面已經有顯示了」:前幾天的「N 筆 總輸贏」列也拿掉(標題列右邊跟著捲到的那天顯示) */
         }
         // 2026-10-27 11:20 使用者:「最上面只顯示 明細 今日的總輸贏(靠右顯示)」:標題列左邊「明細」、最右邊今天已平倉的總輸贏(和當沖的合計同一個位置 .cash)
-        const hdDone = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(t0))}</span>`).replace('<span>明細</span>', `<span class="dlb">明細</span><span class="dwh">${Object.keys(dayTot).sort().reverse().map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span><span class="dsrc">${virtOk || ySrc[d0] ? '' : (window.VIEWER ? '' : ' 系統')}</span>${doneVirt && !vdoneHas(d0) ? '<span class="dsrc">暫算</span>' : ''}${virtOk ? `<button class="vbtn on fixw${doneVirt ? ' virt' : dAcct ? ' pt' : ''}" type="button"><span class="fit">${doneVirt ? '虛擬' : dAcct ? esc(dAcct) : '主導$'}</span></button>` : window.VIEWER ? '<span class="vbtn on virt vtag">虛擬</span>' : `<span class="vbtn on vtag ytag"${ySrc[d0] ? '' : ' style="display:none"'}>主導$</span>`}`);   /* 2026-11-04 使用者「要 改」:開盤中明細的「元大」也是有框的黃色鍵(和當沖一樣;開盤中不能切換) */   /* 2026-11-04 使用者「好」(看盤版明細也加紫色「虛擬」,和當沖一樣) */   // 2026-10-29 12:25(實際時間)元大真實成交的日子標題寫「明細 元大」
+        const hdDone = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(t0))}</span>`).replace('<span>明細</span>', `<span class="dlb ghost" aria-hidden="true">明細</span><span class="dwh">${Object.keys(dayTot).sort().reverse().map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span><span class="dsrc">${virtOk || ySrc[d0] ? '' : (window.VIEWER ? '' : ' 系統')}</span>${doneVirt && !vdoneHas(d0) ? '<span class="dsrc">暫算</span>' : ''}${virtOk ? `<button class="vbtn on fixw${doneVirt ? ' virt' : dAcct ? ' pt' : ''}" type="button"><span class="fit">${doneVirt ? '虛擬' : dAcct ? esc(dAcct) : '主導$'}</span></button>` : window.VIEWER ? '<span class="vbtn on virt vtag">虛擬</span>' : `<span class="vbtn on vtag ytag"${ySrc[d0] ? '' : ' style="display:none"'}>主導$</span>`}`);   /* 2026-11-04 使用者「要 改」:開盤中明細的「元大」也是有框的黃色鍵(和當沖一樣;開盤中不能切換) */   /* 2026-11-04 使用者「好」(看盤版明細也加紫色「虛擬」,和當沖一樣) */   // 2026-10-29 12:25(實際時間)元大真實成交的日子標題寫「明細 元大」
         { const __H = hdDone + `<div class="tb done">` + body + `</div>`; if (nlSame(__H)){ if (__snapPrev[0]) box.classList.add('snapdt'); box.style.scrollPaddingTop = __snapPrev[1]; return; }
           if (Date.now() - (box.__dwT || 0) < 900){ clearTimeout(box.__dwLater); box.__dwLater = setTimeout(() => render(true), 500); return; }   /* 2026-11-03 15:25 滾輪轉動中先不重畫,停下來再補 */
           nlPut(__H); dwWire(box); }
@@ -8643,7 +8645,7 @@ window.bgTick = bgTick; window.BG = BG;
     fundLeft = Math.max(0, fundLeft);   // 不顯示負的
     if (d === today) window.__fundLeft = fundLeft;   // 2026-10-28 強制進場:資金買不到 1 張 → 長按沒反應
     const ti = dayList.indexOf(window.NL_TOPDAY);
-    const hdMsg = `<div class="hd msg"><span class="nav"><span class="lb"><span class="dlb">${window.LOG_RS || ''}進場</span><span class="dwh mwh">${dayList.map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span></span></span><span class="cash"><span class="mlb rlb">資金</span><b class="dnet" style="color:#FFD54F">${fundLeft}</b></span></div>`;   /* 2026-10-27 05:30 使用者「資金紅色 資金數字 黃色」 */   // 2026-10-27 05:25 使用者「進場與金額不用顯示」:只留 資金(2400000 − 進場中金額)   // 2026-10-27 05:15 使用者:「左鍵+“監控”+日期+右鍵 空1px “資金”+(…)空1px "進場"」
+    const hdMsg = `<div class="hd msg"><span class="nav"><span class="lb">${window.LOG_RS ? `<span class="dlb">${window.LOG_RS}進場</span>` : '<span class="dlb ghost" aria-hidden="true">進場</span>'}<span class="dwh mwh">${dayList.map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span></span></span><span class="cash"><span class="mlb rlb">資金</span><b class="dnet" style="color:#FFD54F">${fundLeft}</b></span></div>`;   /* 2026-10-27 05:30 使用者「資金紅色 資金數字 黃色」 */   // 2026-10-27 05:25 使用者「進場與金額不用顯示」:只留 資金(2400000 − 進場中金額)   // 2026-10-27 05:15 使用者:「左鍵+“監控”+日期+右鍵 空1px “資金”+(…)空1px "進場"」
     { const __H = hdMsg + html; if (nlSame(__H)) return; nlPut(__H); }
     // 2026-11-03 17:20 使用者「把 進場 日期 這 改成 與 明細那邊一樣 變成 進場+日期滾輪」:◀ ▶ 拿掉,日期改成滾輪(和明細同一種);轉到哪天清單跳到那天,捲清單滾輪跟著轉
     { const w = box.querySelector('.hd .mwh'); if (w){ mwSet(box, window.NL_TOPDAY || d);
@@ -8710,10 +8712,10 @@ window.bgTick = bgTick; window.BG = BG;
       const h = box.querySelector('.hd'); if (!h) return; const nav = h.querySelector('.nav'), pn = h.querySelector('.pnl'), m = h.querySelector('.m30');
       h.style.fontSize = '12px'; if (m) m.style.marginLeft = '4px';
       if (h.classList.contains('msg')){   // 2026-10-27 05:00 訊息標題列:整列(◀ 監控訊息 日期 ▶ + 可用 / 已動資金)放大到塞滿寬度
-        const cash = h.querySelector('.cash'); const need = nav.getBoundingClientRect().width + 1 + (cash ? cash.getBoundingClientRect().width : 0);
+        const cash = h.querySelector('.cash'), gh = h.querySelector('.dlb.ghost'); if (gh) h.classList.add('meas'); const need = nav.getBoundingClientRect().width + 1 + (cash ? cash.getBoundingClientRect().width : 0);   /* 2026-11-19 04:14 使用者「把通知欄的進場拿掉 … 最右邊的資金金額位置不動」:進場框拿掉(留一個看不見的量尺寸用),字級照原本算 → 金額大小、位置不變 */
         // 2026-11-03 17:45 綠框「進場」紅框「資金」是固定大小,不跟著放大 → 先扣掉再算其他字能放多大
         const fx = [...h.querySelectorAll('.dlb,.rlb')].reduce((a, e) => a + e.getBoundingClientRect().width, 0);
-        h.style.fontSize = Math.max(12, Math.min(30, Math.floor(12 * (h.clientWidth - 4 - fx) / Math.max(1, need - fx) * 2) / 2)) + 'px'; return; }
+        h.style.fontSize = Math.max(12, Math.min(30, Math.floor(12 * (h.clientWidth - 4 - fx) / Math.max(1, need - fx) * 2) / 2)) + 'px'; if (gh) h.classList.remove('meas'); return; }
       const hb = h.getBoundingClientRect(), hw = h.clientWidth - 2;
       const lbl = nav && nav.firstElementChild, navW = lbl ? lbl.getBoundingClientRect().width : 0, pnb = pn ? pn.getBoundingClientRect() : null;   // .pnl 在 .nav 裡面,只量「監控紀錄」那段
       let fs = 12;
@@ -8727,7 +8729,8 @@ window.bgTick = bgTick; window.BG = BG;
       } else { const cash = h.querySelector('.cash'); fs = 12 * (hw - 6) / (navW + (pnb ? pnb.width + 4 : 0) + (cash ? cash.getBoundingClientRect().width + 4 : 0)); }   // 2026-10-27 10:40 右邊的合計(.cash)也算進去
       h.style.fontSize = Math.max(12, Math.min(30, Math.floor(fs * 2) / 2)) + 'px'; }catch(e){} };
     // 放大後再保險縮一次:塞不下就往下縮到不折行
-    const fitHdShrink = () => { try{ const h = box.querySelector('.hd'); if (!h) return; let fs = parseFloat(h.style.fontSize) || 12;
+    const fitHdShrink = () => { const gh = box.querySelector('.hd .dlb.ghost'), h0 = box.querySelector('.hd'); if (gh) h0.classList.add('meas'); try{ fitHdShrink0(); }catch(e){} if (gh) h0.classList.remove('meas'); };   /* 2026-11-19 進場框拿掉後字級照有框時算(金額大小、位置不變) */
+    const fitHdShrink0 = () => { try{ const h = box.querySelector('.hd'); if (!h) return; let fs = parseFloat(h.style.fontSize) || 12;
         if (h.querySelector('.dwh')){ /* 2026-11-05 21:34 「進場 / 明細 最慢」:原本 0.5 一步往上試(最多 60 次排版)→ 二分搜尋找最大不超出的字級(約 6 次),結果一樣 */
           const ov = f => { h.style.fontSize = f + 'px'; return h.scrollWidth > h.clientWidth + 1; };
           let lo = fs, hi = 30; if (ov(lo)){ fs = lo; } else { if (!ov(hi)) lo = hi; else { while (hi - lo > 0.5){ const m = Math.round((lo + hi)) / 2; if (ov(m)) hi = m; else lo = m; } } fs = lo; } h.style.fontSize = fs + 'px'; }   /* 2026-11-03 19:12 日期滾輪固定 30px 後,上面的估算會把其他字縮太小 → 有空位就再放大到剛好塞滿 */
