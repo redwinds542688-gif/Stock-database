@@ -556,6 +556,38 @@ class Bridge:
                 if self._tf_err in (1, 30) or self._tf_err % 300 == 0: log(f"[台指期·期交所] 抓不到(第 {self._tf_err} 次)", repr(e)[:160])
         threading.Thread(target=run, daemon=True).start()
 
+    def ix_poll(self):
+        """2026-11-18 21:05 使用者「加權指數可能延遲好幾分鐘 … 直接改」:電腦直接問證交所即時行情(mis.twse tse_t00 加權指數),
+           09:00~13:31 每 5 秒一次 → 每分鐘最後價寫 HERE/engine_data/ix_live/<日期>.json({"y": 昨收, "m": {HH:MM: 收}}),電腦引擎 ix_map / txrel_prev 優先用它
+           (11/18 引擎用 Worker ?ixbars,加權落後約 5 分鐘,⑧ 強弱算偏)"""
+        if FAMILY or CFG.get("IX_LIVE", "1") != "1": return
+        n = now_tw()
+        if n.weekday() >= 5 or not ("09:00" <= n.strftime("%H:%M") <= "13:31") or time.time() - getattr(self, "_ix_at", 0) < 5: return
+        self._ix_at = time.time()
+        def run():
+            try:
+                u = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_t00.tw&json=1&delay=0&_={int(time.time() * 1000)}"
+                r = json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://mis.twse.com.tw/stock/index.jsp"}), timeout=4).read().decode("utf-8"))
+                q = (r.get("msgArray") or [{}])[0]
+                z = str(q.get("z") or "").replace(",", ""); t = str(q.get("t") or ""); y = str(q.get("y") or "").replace(",", "")
+                try: px = float(z)
+                except Exception: return
+                if px <= 0 or len(t) < 5: return
+                hm = t[:5]
+                if not ("09:00" <= hm <= "13:30"): return
+                day = n.strftime("%Y-%m-%d")
+                if getattr(self, "_ix_day", None) != day: self._ix_day = day; self._ix_m = {}; self._ix_y = None
+                self._ix_m[hm] = px
+                try: self._ix_y = float(y) or self._ix_y
+                except Exception: pass
+                f = HERE / "engine_data" / "ix_live"; f.mkdir(parents=True, exist_ok=True); tmp = f / f"{day}.json.tmp"
+                tmp.write_text(json.dumps({"y": self._ix_y, "m": dict(sorted(self._ix_m.items()))}), encoding="utf-8"); os.replace(tmp, f / f"{day}.json")
+                if not getattr(self, "_ix_ok", False): self._ix_ok = True; log(f"[加權·證交所] 收得到:{hm} {px}(昨收 {self._ix_y})")
+            except Exception as e:
+                self._ix_err = getattr(self, "_ix_err", 0) + 1
+                if self._ix_err in (1, 30) or self._ix_err % 300 == 0: log(f"[加權·證交所] 抓不到(第 {self._ix_err} 次)", repr(e)[:160])
+        threading.Thread(target=run, daemon=True).start()
+
     def fut_pick(self):
         """2026-11-17 16:13 使用者「哪一個穩定就固定哪一個 另外一個當備援」(11/17 TXFK6 / TXF1 逐筆一樣多,原本誰多用誰 → 來源一直跳):
            固定用近月明確代號(例 TXFK6,和期交所 TXFK6-F 同一個);它沒資料或比別的代號落後超過 2 分鐘 → 才改用別的代號(TXF1 等)"""
@@ -1740,6 +1772,8 @@ class Bridge:
                         self.resume_positions(day); resumed = True          # 今天第一次連上:接回程式開的未平部位(斷線重連不用,部位一直在記憶體裡)
                 time.sleep(1); k += 1
                 try: self.fut_poll()   # ⑧ 備援 2:電腦直接問期交所台指期(每 10 秒,08:44~13:46)
+                except Exception: pass
+                try: self.ix_poll()   # 2026-11-18 21:05 加權指數直接問證交所(每 5 秒,09:00~13:31)
                 except Exception: pass
                 if self.pending_sub:                                     # 手機強制進場的股票補訂閱(在主執行緒呼叫元大元件)
                     subs, self.pending_sub = self.pending_sub, []

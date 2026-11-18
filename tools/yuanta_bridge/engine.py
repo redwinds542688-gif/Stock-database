@@ -1286,13 +1286,22 @@ class Engine:
         m = {}
         try: m = {k: float(v) for k, v in ((http(worker_url(f"ixbars={self.day}"), timeout=6) or {}).get("m") or {}).items()}
         except Exception: m = (c[2] if c and c[1] == self.day else {})
+        lv = self.ix_live()   # 2026-11-18 21:05 使用者「直接改」:電腦自己問證交所的加權(即時)蓋過 Worker 那份(11/18 Worker 加權落後約 5 分鐘)
+        if lv.get("m"): m = dict(m); m.update(lv["m"])
         self._ix_c = (time.time(), self.day, m); return m
+
+    def ix_live(self, day=None):
+        """中繼 ix_poll 寫的 HERE/engine_data/ix_live/<日期>.json:{"y": 昨收, "m": {HH:MM: 加權}};沒有回 {}"""
+        try: return json.loads((HERE / "engine_data" / "ix_live" / f"{day or self.day}.json").read_text(encoding="utf-8")) or {}
+        except Exception: return {}
 
     def txrel_prev(self):
         """⑧ 強弱用的前一個交易日收盤:(台指期 13:45 前最後一根, 加權 13:30 前最後一根);台指期先看本機 kline_futures/TXF/<日期>.csv,沒有再問 Worker ?fbars;加權問 Worker ?ixbars;往前找 7 天;一天算一次(拿不到的 5 分鐘後再試)"""
         c = self.__dict__.get("_txrel_p")
-        if c and c[0] == self.day and (c[1] and c[2] or time.time() - c[3] < 300): return c[1], c[2]
+        if c and c[0] == self.day and ((c[1] and c[2] and (len(c) < 5 or c[4])) or time.time() - c[3] < 300): return c[1], c[2]   # 加權昨收還不是證交所那份 → 5 分鐘後再試
         tp = ip = None; d0 = dt.date.fromisoformat(self.day)
+        try: ip = float(self.ix_live().get("y") or 0) or None   # 2026-11-18 21:05 證交所給的加權昨收(官方收盤,和模擬器 kline_index 13:30 那根同一個;Worker ixbars 有時只到 13:29)
+        except Exception: ip = None
         for i in range(1, 8):
             d = (d0 - dt.timedelta(days=i)).isoformat()
             if tp is None:
@@ -1314,7 +1323,7 @@ class Engine:
                     if m: ip = m[max(m)]
                 except Exception: pass
             if tp is not None and ip is not None: break
-        self._txrel_p = (self.day, tp, ip, time.time())
+        self._txrel_p = (self.day, tp, ip, time.time(), bool(self.ix_live().get("y")))
         if not (tp and ip): log(f"!! ⑧ 強弱:前一天收盤拿不到(台指期 {tp} / 加權 {ip})→ 強弱先不看")
         return tp, ip
 
