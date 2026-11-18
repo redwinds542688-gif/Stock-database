@@ -843,6 +843,7 @@ class Engine:
         self.envs = {}
         self.tx_req = tuple(getattr(rs_env, "IRON_TX_REQUIRE", ("八", "九")))   # 2026-11-14 18:35 使用者「改」:判八 / 判九拿不到台指期 / 加權指數 → 不進場
         self.txsync_fn = getattr(rs_env, "txsync", None)   # 2026-11-13 22:30 ⑧ 台指期同步進場(使用者「解鎖 改 全部套用」):判斷寫在私人庫 rs_env.txsync(模擬器同一份)
+        self.txbounce_fn = getattr(rs_env, "txbounce", None)   # 2026-11-18 11:31 🔒 ⑧ 急彈不做空(使用者「解鎖 改」):台指期 15 分鐘內從低點急彈 > 0.8% 不做空(私人庫 rs_env.txbounce;env TXBOUNCE)
         self.txoffhi_fn = getattr(rs_env, "txoffhi", None)   # 2026-11-17 20:28 判九(使用者「改」):台指期離今高跌 > 2% 不追空(私人庫 rs_env.txoffhi;env TXOFFHI)
         self.txlonghi_fn = getattr(rs_env, "txlonghi", None)   # 2026-11-17 21:47 判一 / 二 / 六做多(使用者「解鎖 都改」):台指期離今高跌 > 1.5% 不做多(私人庫 rs_env.txlonghi;env TXLONGHI)
         self.txrel_fn = getattr(rs_env, "txrel", None)   # 2026-11-17 18:58 ⑧ 台指期 vs 加權強弱(使用者「解鎖 改」0.7%;私人庫 rs_env.txrel,模擬器同一份;舊版 rs_env 沒有 = 不看)
@@ -1341,6 +1342,12 @@ class Engine:
                     _tp, _ip = self.txrel_prev(); ok, why = _rf(side, tm, self.txf_map(), self.ix_map(), _tp, _ip, _th)
                     if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
                 except Exception as e: log("⑧ 強弱檢查失敗(照舊)", e); ok = True
+            _bh = self.envs.get(rs, {}).get("TXBOUNCE"); _bf = getattr(self, "txbounce_fn", None)
+            if ok and _bh and _bf and side < 0:   # 🔒 ⑧ 急彈不做空 2026-11-18 11:31 使用者「解鎖 改」:台指期 15 分鐘內從低點急彈 > 0.8% 不做空
+                try:
+                    ok, why = _bf(side, tm, self.txf_map(), _bh)
+                    if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
+                except Exception as e: log("⑧ 急彈檢查失敗(照舊)", e); ok = True
             _oh = self.envs.get(rs, {}).get("TXOFFHI"); _of = getattr(self, "txoffhi_fn", None)
             if ok and _oh and _of and side < 0:   # 判九 2026-11-17 20:28 使用者「改」:台指期離今高已跌 > 2% 不追空
                 try:
