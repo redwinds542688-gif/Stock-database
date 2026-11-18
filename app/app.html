@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 通知欄 / 監控區捲動改順:拿掉 CSS 一列一列吸附(甩動慣性被截短,使用者「滑不太動」),改成慣性跑完才輕輕對齊到最近整列
   · 2026-11-19 漲跌幅上下對齊:監控區代碼和狀態標籤同寬、漲跌幅固定寬靠右;明細 / 當沖的漲跌幅也固定寬靠右
   · 2026-11-19 監控區每一檔(只有代碼的也)都顯示漲跌幅;明細過去的日子也顯示漲跌幅(用那天的昨收,存手機;清單沒有的股票向 Worker 要一次報價)
   · 2026-11-19 通知欄 進場/當沖/明細 一頁 3 筆改 4 筆(每筆 54px,跟監控區一檔差不多高),字不切到
@@ -522,7 +523,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611190218">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611190225">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -639,7 +640,7 @@
   /* 2026-10-17 18:30 三列卡片 */
   #notifLog .card{margin:3px 0;padding:2px 2px 1px;border-radius:0;cursor:pointer}
   #notifLog .card:nth-child(n+12),#notifLog .dsep:nth-child(n+12){content-visibility:auto;contain-intrinsic-size:auto 60px}   /* 2026-11-10 14:55 平板開機卡頓:通知欄一次掛了 10 天約 350 張卡(7 千多個元素),每次量字級都要整欄排版;畫面外的卡先不排版(捲到才排),前 11 個照常 */
-  #notifLog.snap{scroll-snap-type:y mandatory} #notifLog.snap .card,#notifLog.snap .dsep,#notifLog.snap .e845{scroll-snap-align:start}   /* 2026-11-06 08:45 空白那塊也是停點,不然被吸到下面 11/05 */
+  #notifLog.snap{scroll-snap-type:none}   /* 2026-11-19 02:25 使用者「捲動 不順暢」→「滑不太動」:CSS 吸附讓甩動的慣性被吃掉 → 拿掉,改成停下來後才對齊到整列(rowSettle) */ #notifLog.snap .card,#notifLog.snap .dsep,#notifLog.snap .e845{scroll-snap-align:start}   /* 2026-11-06 08:45 空白那塊也是停點,不然被吸到下面 11/05 */
   #notifLog.snap .card,#notifLog.snap .dsep{border-top:0;border-bottom:1px solid rgba(255,255,255,.28)}   /* 2026-10-27 08:20 使用者:「通知訊息之間要有1px的間隔」:每一列(卡片、日期分隔列)底下一條 1px 的淡線隔開 */   /* 2026-10-27 07:00 五列制:一列一列停,最下面那列不切半 */   /* 2026-10-19 使用者:「通知訊息的外框都拿掉,有三種都拿掉」→ 白框、黃框、藍框全部取消 */
   /* 2026-10-18 使用者:做多淺紫色網狀底、做空淺藍色網狀底(原本做多淺紅、做空淺綠) */
   #notifLog .card.c-long{background-color:rgba(170,120,255,.16);background-image:repeating-linear-gradient(0deg,rgba(190,150,255,.30) 0 1px,transparent 1px 6px),repeating-linear-gradient(90deg,rgba(190,150,255,.30) 0 1px,transparent 1px 6px)}   /* 做多:直橫方格網(做空是斜紋交叉網),2026-10-18 使用者:「做多的網狀改別種形式」 */
@@ -855,7 +856,7 @@
   #notifLog .tb .tot{display:flex;justify-content:space-between;padding:8px 2px 2px;font-size:1em}
   #notifLog .tb .sd{display:inline-block;font-size:.78em;line-height:1.15;padding:0 .12em;margin-right:.18em;border:1px solid;border-radius:3px;vertical-align:.08em}   /* 2026-10-27 11:50 使用者:「當沖裡面 股票看不出來做多還是做空」:名稱前面加「多」紅框 /「空」綠框 */
   #notifLog .tb .sd.long{color:var(--up);border-color:var(--up)} #notifLog .tb .sd.short{color:var(--down);border-color:var(--down)}
-  #notifLog.snapdt{scroll-snap-type:y mandatory} #notifLog.snapdt .tb > *{scroll-snap-align:start}   /* 2026-10-27 11:30 明細 / 當沖捲動時一列一列停,最下面那列不會切一半 */
+  #notifLog.snapdt{scroll-snap-type:none}   /* 2026-11-19 同上:改停下來才對齊 */ #notifLog.snapdt .tb > *{scroll-snap-align:start}   /* 2026-10-27 11:30 明細 / 當沖捲動時一列一列停,最下面那列不會切一半 */
   #notifLog .tb .r.late{background:rgba(255,59,59,.18);border-radius:6px} #notifLog .tb .late-note{color:#FF3B3B;font-size:.75em;font-weight:600;padding:4px 2px;white-space:normal}
   .tool.rs{position:relative;overflow:visible}
   .tool.rs .mdot{display:none;position:absolute;top:-5px;right:-5px;width:12px;height:12px;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,.7)}
@@ -985,7 +986,7 @@
   #resultFrame.hidden{display:none}
   #result .grid.head{position:sticky;top:0;z-index:3;background:var(--ink);border-bottom-color:#FFD54F}   /* 2026-10-27 09:45 標題列底線也黃色,八列區四邊都是黃框 */
   #result{will-change:scroll-position} #bands .row{contain:layout style}   /* 2026-11-02 22:58 清單捲動順暢:捲動區自己一層、每列重排不牽動整個清單 */
-  #result.rows8{scroll-snap-type:y proximity}   /* 2026-10-27 18:30 使用者:「點進k圖再退出」清單自己一直往下跳換股票 → 強制吸附(mandatory)改成靠近才吸附,手機 WebView 不會再自己重新對齊、一頁一頁跳 */
+  #result.rows8{scroll-snap-type:none}   /* 2026-11-19 同上:監控區也改停下來才對齊 */   /* 2026-10-27 18:30 使用者:「點進k圖再退出」清單自己一直往下跳換股票 → 強制吸附(mandatory)改成靠近才吸附,手機 WebView 不會再自己重新對齊、一頁一頁跳 */
   #result.rows8 .row{scroll-snap-align:start;box-sizing:border-box;padding-top:0;padding-bottom:0;overflow:hidden}
   #result.rows8 .row .nm{font-size:calc(var(--uf) * 1.9 * var(--rk, 1))} #result.rows8 .row .posline{font-size:calc(var(--uf) * 1.1 * var(--rk, 1))}   /* 列高不夠裝名稱 + 部位兩行時按比例縮(--rk ≤ 1) */
   .head div{font-size:calc(var(--uf) * 1.8);color:var(--dim);   /* 2026-10-27 04:20 鐵律 19 巡檢:1.15u → 1.8u(3 個字 5.4u,塞得進 8u 的價格 / 量欄) */
@@ -2265,7 +2266,7 @@ window.fmShow = fmShow;
 /* 2026-11-18 14:13 使用者「電腦版 主程式 滑鼠滾輪一格太多 有些資訊看不到」:電腦上滑鼠滾輪一格原本捲 100 多 px(加上一列一列吸附常常跳過一列)→
    監控清單、進場 / 當沖 / 明細欄:滾輪一格剛好捲一列(下一列的頂端對齊標題列下緣);觸控板(小幅度)照原本順滑捲,手機沒有滾輪不受影響 */
 (function wheelRow(){
-  const rowsIn = sc => sc.id === 'result' ? [...sc.querySelectorAll('.row')] : [...sc.querySelectorAll(':scope > .card, :scope > .dsep, :scope > .e845, :scope > .tb > *:not(.h), :scope > .d30 > *')];
+  const rowsIn = window.__rowsIn = sc => sc.id === 'result' ? [...sc.querySelectorAll('.row')] : [...sc.querySelectorAll(':scope > .card, :scope > .dsep, :scope > .e845, :scope > .tb > *:not(.h), :scope > .d30 > *')];
   document.addEventListener('wheel', ev => {
     try{
       if (ev.ctrlKey || Math.abs(ev.deltaY) <= Math.abs(ev.deltaX)) return;
@@ -2285,6 +2286,34 @@ window.fmShow = fmShow;
       sc.scrollTop += tgt.getBoundingClientRect().top - top0;
     }catch(e){}
   }, {passive: false, capture: true});
+})();
+
+/* 2026-11-19 02:25 使用者「捲動 不順暢 通知欄 監控區 都一樣」→「滑不太動」:原本 CSS scroll-snap 一列一列吸,手機甩動的慣性被截短;
+   改成照手指自然捲,手放開、捲動停下來以後才輕輕對齊到最近的整列(畫面上一樣是整列,不會切半) */
+(function rowSettle(){
+  let finger = 0; const T = new WeakMap();
+  document.addEventListener('touchstart', () => { finger = 1; }, {passive: true, capture: true});
+  const up = () => { finger = 0; }; document.addEventListener('touchend', up, {passive: true, capture: true}); document.addEventListener('touchcancel', up, {passive: true, capture: true});
+  const settle = sc => { try{
+    if (finger || sc.scrollHeight <= sc.clientHeight + 2) return;
+    if (sc.id === 'notifLog' && !(sc.classList.contains('snap') || sc.classList.contains('snapdt'))) return;
+    if (sc.id === 'result' && !sc.classList.contains('rows8')) return;
+    let top0 = sc.getBoundingClientRect().top;
+    for (const h of sc.querySelectorAll(':scope > .grid.head, :scope > .hd, :scope > .tb > .r.h')) if (h.offsetHeight > 0 && getComputedStyle(h).display !== 'none') top0 = Math.max(top0, h.getBoundingClientRect().bottom);
+    const R = window.__rowsIn(sc).filter(x => x.offsetHeight > 8); if (!R.length) return;
+    if (sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 2) return;   // 到底了不動
+    let best = null, bd = 1e9; for (const x of R){ const d = x.getBoundingClientRect().top - top0; if (Math.abs(d) < Math.abs(bd)){ bd = d; best = x; } }
+    if (best && Math.abs(bd) > 1) sc.scrollTo({top: Math.round(sc.scrollTop + bd), behavior: 'smooth'});
+  }catch(e){} };
+  const our = sc => sc && (sc.id === 'notifLog' || sc.id === 'result');
+  if ('onscrollend' in window){   // 甩動的慣性整個跑完才會有 scrollend → 不會打斷慣性
+    document.addEventListener('scrollend', ev => { if (our(ev.target)) settle(ev.target); }, {passive: true, capture: true});
+    document.addEventListener('touchend', () => { setTimeout(() => { for (const id of ['notifLog', 'result']){ const sc = document.getElementById(id); if (sc && !sc.__mv) settle(sc); } }, 60); }, {passive: true, capture: true});
+    document.addEventListener('scroll', ev => { const sc = ev.target; if (our(sc)){ sc.__mv = 1; clearTimeout(T.get(sc)); T.set(sc, setTimeout(() => { sc.__mv = 0; }, 400)); } }, {passive: true, capture: true});
+  } else {
+    const arm = sc => { clearTimeout(T.get(sc)); T.set(sc, setTimeout(() => settle(sc), 400)); };
+    document.addEventListener('scroll', ev => { if (our(ev.target)) arm(ev.target); }, {passive: true, capture: true});
+  }
 })();
 
 /* 2026-11-07 12:48 使用者「提示時 除了手機會看到 程式也在股票監控區這 顯示一個(在圖一上面顯示 "拖輸通知" 下面顯示圖一)」→ 示意圖 →
