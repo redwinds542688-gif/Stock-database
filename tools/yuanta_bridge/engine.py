@@ -543,6 +543,7 @@ def exit_text(why):
     if why.startswith("停利"): return "停利"
     if "總停損" in why: return "總平"           # 2026-11-11 22:47 使用者「總停損 =總平 移動停損利=移平」:通知標題用短名(原「總停損」)   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 5:鐵律出場照原名寫進通知標題,中繼才認得(有權取消預掛立即平)
     if "移動停損利" in why: return "移平"
+    if "急彈贏單" in why: return "急彈平"   # 2026-11-18 16:53 ⑧ 急彈贏單平倉
     if "停損" in why: return "停損"
     if why.startswith("OBV"): return "OBV"
     if "量縮轉折" in why: return "量縮轉折"   # 2026-11-06 判四第十九次修改:反向量縮轉折出場
@@ -854,7 +855,7 @@ class Engine:
         for rs in RS_ALL: self.envs[rs] = rs_env.env_of(rs, str(DATA / "breadth.json") if rs in ("一", "二", "五", "六", "六3", "八", "九") else None)   # 判八要名單上漲比例(LBR)
         for _e in self.envs.values():
             if _e.get("TXSYNC"): _e["IXFDIR"] = str(HERE / "engine_data" / "ix")   # 2026-11-16 14:38 使用者「改」:模擬器台指期缺一段時改讀加權指數(引擎每輪把 Worker ixbars 寫成 engine_data/ix/<日期>.csv)
-            if _e.get("TXSYNC"): _e["TXFDIR"] = str(HERE / "kline_futures" / "TXF")   # ⑧ 模擬器讀中繼存的台指期 1 分 K   # 2026-11-10 23:05 判六(午盤 Ka 穿 VWAP)要寬度 10 分鐘變化   # 判五:名單平均檔 DATA/mktavg.json(write_breadth 寫)
+            if _e.get("TXSYNC") or _e.get("TXBOUNCE") or _e.get("TXBOUNCEW"): _e["TXFDIR"] = str(HERE / "kline_futures" / "TXF")   # 2026-11-18 16:53 判七沒有 TXSYNC 也要台指期(⑧ 急彈 / 急彈贏單平倉)   # ⑧ 模擬器讀中繼存的台指期 1 分 K   # 2026-11-10 23:05 判六(午盤 Ka 穿 VWAP)要寬度 10 分鐘變化   # 判五:名單平均檔 DATA/mktavg.json(write_breadth 寫)
         if self.envs.get("六", {}).get("MODE") not in ("j6k", "j6r"):   # 2026-11-10 23:05 判六 = 午盤 Ka 穿 VWAP(j6k;舊超賣急彈 j6r 封存但還認得);私人庫沒有 → 判六先不跑
             self.envs.pop("六", None); log("!! 私人庫 rs_env.py 還沒有觀察版判六(J6 MODE=j6k),判六今天先不跑")
         if self.envs.get("六3", {}).get("MODE") != "j63" or "六" not in self.envs:   # 2026-11-12 23:40 判六做空(判六3):私人庫沒有 J63 / 判六沒開 → 不跑
