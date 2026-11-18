@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 通知欄 進場/當沖/明細 一頁 3 筆改 4 筆(每筆 54px,跟監控區一檔差不多高),字不切到
   · 2026-11-19 02:00(實際時間)檢討字體放大(17 → 20px、一行 25 → 30px,標題 22、今日輸贏 25)、不切字:可見高度是行高整數倍,捲完自動對齊整行(換行的長段落也停在整行),電腦版滑鼠滾輪一格剛好一行(使用者「檢討 字體再大一些 但不要切到 電腦版那邊 滑鼠滾動鍵一格一格都要銜接好」);版本 202611190156
   · 2026-11-19 01:50(實際時間)通知欄固定一樣大:進場 / 當沖 / 明細 / 公式 / 設定 全部用設定的寬高(原本一般 276px、設定 334px)(使用者「通知欄就固定這麼大 … 通通一樣大 不要再變來變去」);版本 202611190148
   · 2026-11-19 01:45(實際時間)從設定按公式,通知欄還留在設定的高度(變大)→ 打開公式前先把設定收起來(使用者「通知欄 怎麼忽大忽小」);版本 202611190145
@@ -519,7 +520,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611190156">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611190203">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -8393,8 +8394,8 @@ window.bgTick = bgTick; window.BG = BG;
           if (h1){ h1.style.position = 'sticky'; h1.style.top = hh + 'px'; h1.style.zIndex = '2'; h1.style.background = 'var(--panel)'; h1.style.boxShadow = '0 -16px 0 var(--panel)';   // 2026-10-27 14:25 原本整片往上搬 hh+4(蓋到標題、縫反而沒蓋到)→ 只往上補 16px 蓋住標題和欄名中間的縫(標題列 z 3 在上面,不會被蓋)
             try{ if (window.ResizeObserver && hd && !hd.__ro){ hd.__ro = new ResizeObserver(() => { try{ const t = box.querySelector('.tb > .r.h'); if (t) t.style.top = hd.offsetHeight + 'px'; }catch(e){} }); hd.__ro.observe(hd, {box: 'border-box'}); } }catch(e){} }   // 標題列高度之後有變(字型載入 / 縮字)欄名列跟著貼齊   // 2026-10-27 14:10 使用者:「第一列明顯背後有文字殘影」:標題列和欄名列中間的縫會露出捲上去的列 → 欄名列往上用底色蓋滿到頂
           const ch = h1 ? h1.offsetHeight : 0, avail = H0 - hh - ch;
-          const H = Math.floor(avail / 3); if (H < 20) return;
-          const rem = avail - H * 3; if (rem > 0) box.style.bottom = (3 + rem) + 'px';
+          const H = Math.floor(avail / 4); if (H < 20) return;   // 2026-11-19 02:01 使用者「通知欄 三筆改四筆」→「改 不要切到」
+          const rem = avail - H * 4; if (rem > 0) box.style.bottom = (3 + rem) + 'px';
           for (const x of tb.children){ if (x.classList.contains('h')) continue;
             x.style.boxSizing = 'border-box'; x.style.height = H + 'px'; x.style.minHeight = H + 'px'; x.style.marginTop = x.style.marginBottom = '0'; x.style.paddingTop = x.style.paddingBottom = '0'; x.style.overflow = 'hidden';
             if (!x.classList.contains('r')){ x.style.display = 'flex'; x.style.alignItems = 'center'; }
@@ -8626,8 +8627,8 @@ window.bgTick = bgTick; window.BG = BG;
         // 2026-10-27 11:20 使用者(截圖:「世紀下面的網紋是什麼」= 第 4 則卡片的上緣從剩下的幾 px 露出來):先把底邊還原再量,
         //   三列分不盡的餘數(含原本多扣的 3px)用通知欄自己的底邊吃掉,標題 + 3 列剛好填滿,下一則不會露出一條
         box.style.bottom = ''; const H0 = box.clientHeight;
-        const rowH = Math.floor((H0 - hdH) / 3);
-        if (rowH > 20){ const rem = H0 - hdH - rowH * 3; if (rem > 0) box.style.bottom = (3 + rem) + 'px'; }   // 2026-10-27 08:05 使用者:「訊息 通知欄 分四列 文字最大化」→ 標題列 + 3 列 = 四列(原本五列);列變高,字級跟著放大
+        const rowH = Math.floor((H0 - hdH) / 4);   // 2026-11-19 02:01 使用者「通知欄 三筆改四筆」→「改 不要切到」(進場卡也是 4 張)
+        if (rowH > 20){ const rem = H0 - hdH - rowH * 4; if (rem > 0) box.style.bottom = (3 + rem) + 'px'; }   // 2026-10-27 08:05 使用者:「訊息 通知欄 分四列 文字最大化」→ 標題列 + 3 列 = 四列(原本五列);列變高,字級跟著放大
         if (rowH > 20){
           box.classList.add('snap'); box.style.scrollPaddingTop = hdH + 'px';
           const cards = box.querySelectorAll('.card'), seps = box.querySelectorAll('.dsep');
