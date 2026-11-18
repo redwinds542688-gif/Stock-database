@@ -544,6 +544,7 @@ def exit_text(why):
     if "總停損" in why: return "總平"           # 2026-11-11 22:47 使用者「總停損 =總平 移動停損利=移平」:通知標題用短名(原「總停損」)   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 5:鐵律出場照原名寫進通知標題,中繼才認得(有權取消預掛立即平)
     if "移動停損利" in why: return "移平"
     if "急彈贏單" in why: return "急彈平"   # 2026-11-18 16:53 ⑧ 急彈贏單平倉
+    if "急殺贏單" in why: return "急殺平"   # 2026-11-18 17:12 ⑧ 急殺贏單平倉
     if "停損" in why: return "停損"
     if why.startswith("OBV"): return "OBV"
     if "量縮轉折" in why: return "量縮轉折"   # 2026-11-06 判四第十九次修改:反向量縮轉折出場
@@ -845,6 +846,7 @@ class Engine:
         self.tx_req = tuple(getattr(rs_env, "IRON_TX_REQUIRE", ("八", "九")))   # 2026-11-14 18:35 使用者「改」:判八 / 判九拿不到台指期 / 加權指數 → 不進場
         self.txsync_fn = getattr(rs_env, "txsync", None)   # 2026-11-13 22:30 ⑧ 台指期同步進場(使用者「解鎖 改 全部套用」):判斷寫在私人庫 rs_env.txsync(模擬器同一份)
         self.txbounce_fn = getattr(rs_env, "txbounce", None)   # 2026-11-18 11:31 🔒 ⑧ 急彈不做空(使用者「解鎖 改」):台指期 15 分鐘內從低點急彈 > 0.8% 不做空(私人庫 rs_env.txbounce;env TXBOUNCE)
+        self.txdrop_fn = getattr(rs_env, "txdrop", None)   # 2026-11-18 17:12 🔒 ⑧ 急殺不做多(使用者「解鎖 改」;私人庫 rs_env.txdrop;env TXDROP)
         self.txoffhi_fn = getattr(rs_env, "txoffhi", None)   # 2026-11-17 20:28 判九(使用者「改」):台指期離今高跌 > 2% 不追空(私人庫 rs_env.txoffhi;env TXOFFHI)
         self.txlonghi_fn = getattr(rs_env, "txlonghi", None)   # 2026-11-17 21:47 判一 / 二 / 六做多(使用者「解鎖 都改」):台指期離今高跌 > 1.5% 不做多(私人庫 rs_env.txlonghi;env TXLONGHI)
         self.txrel_fn = getattr(rs_env, "txrel", None)   # 2026-11-17 18:58 ⑧ 台指期 vs 加權強弱(使用者「解鎖 改」0.7%;私人庫 rs_env.txrel,模擬器同一份;舊版 rs_env 沒有 = 不看)
@@ -855,7 +857,7 @@ class Engine:
         for rs in RS_ALL: self.envs[rs] = rs_env.env_of(rs, str(DATA / "breadth.json") if rs in ("一", "二", "五", "六", "六3", "八", "九") else None)   # 判八要名單上漲比例(LBR)
         for _e in self.envs.values():
             if _e.get("TXSYNC"): _e["IXFDIR"] = str(HERE / "engine_data" / "ix")   # 2026-11-16 14:38 使用者「改」:模擬器台指期缺一段時改讀加權指數(引擎每輪把 Worker ixbars 寫成 engine_data/ix/<日期>.csv)
-            if _e.get("TXSYNC") or _e.get("TXBOUNCE") or _e.get("TXBOUNCEW"): _e["TXFDIR"] = str(HERE / "kline_futures" / "TXF")   # 2026-11-18 16:53 判七沒有 TXSYNC 也要台指期(⑧ 急彈 / 急彈贏單平倉)   # ⑧ 模擬器讀中繼存的台指期 1 分 K   # 2026-11-10 23:05 判六(午盤 Ka 穿 VWAP)要寬度 10 分鐘變化   # 判五:名單平均檔 DATA/mktavg.json(write_breadth 寫)
+            if _e.get("TXSYNC") or _e.get("TXBOUNCE") or _e.get("TXBOUNCEW") or _e.get("TXDROP") or _e.get("TXDROPW"): _e["TXFDIR"] = str(HERE / "kline_futures" / "TXF")   # 2026-11-18 16:53 判七沒有 TXSYNC 也要台指期(⑧ 急彈 / 急彈贏單平倉)   # ⑧ 模擬器讀中繼存的台指期 1 分 K   # 2026-11-10 23:05 判六(午盤 Ka 穿 VWAP)要寬度 10 分鐘變化   # 判五:名單平均檔 DATA/mktavg.json(write_breadth 寫)
         if self.envs.get("六", {}).get("MODE") not in ("j6k", "j6r"):   # 2026-11-10 23:05 判六 = 午盤 Ka 穿 VWAP(j6k;舊超賣急彈 j6r 封存但還認得);私人庫沒有 → 判六先不跑
             self.envs.pop("六", None); log("!! 私人庫 rs_env.py 還沒有觀察版判六(J6 MODE=j6k),判六今天先不跑")
         if self.envs.get("六3", {}).get("MODE") != "j63" or "六" not in self.envs:   # 2026-11-12 23:40 判六做空(判六3):私人庫沒有 J63 / 判六沒開 → 不跑
@@ -1254,6 +1256,7 @@ class Engine:
             if side < 0 and e.get("TXOFFHI") and getattr(self, "txoffhi_fn", None): chk.append(("離今高", self.txoffhi_fn, float(e["TXOFFHI"])))
             if side > 0 and e.get("TXLONGHI") and getattr(self, "txlonghi_fn", None): chk.append(("離今高(做多)", self.txlonghi_fn, float(e["TXLONGHI"])))
             if side < 0 and e.get("TXBOUNCE") and getattr(self, "txbounce_fn", None): chk.append(("急彈", self.txbounce_fn, float(e["TXBOUNCE"])))
+            if side > 0 and e.get("TXDROP") and getattr(self, "txdrop_fn", None): chk.append(("急殺", self.txdrop_fn, float(e["TXDROP"])))
             for nm, fn, th in chk:
                 if th - B > 0 and not fn(side, tm, txf, th - B)[0]: return f"預判:台指期{nm}離門檻 {th:g}% 不到 {B:g}%,等整輪確認"
             _th = float(e.get("TXREL") or 0)
@@ -1333,6 +1336,12 @@ class Engine:
         """⑧ 台指期同步進場(2026-11-13 22:17 使用者「解鎖 改 全部套用」;23:32「只看台指期方向 解鎖改」):rs_env 有 TXSYNC 才看;判斷用私人庫 rs_env.txsync(和模擬器同一份)。
            這天完全沒有台指期 → 先不看(照舊進場)+ 推一次警告;其他算不出來 / 不合 → 不做"""
         c = self.envs.get(rs, {}).get("TXSYNC"); fn = getattr(self, "txsync_fn", None)
+        if not c and side > 0 and self.envs.get(rs, {}).get("TXDROP") and getattr(self, "txdrop_fn", None):   # 2026-11-18 17:12 🔒 ⑧ 急殺不做多 判七也套
+            try:
+                ok, why = self.txdrop_fn(side, tm, self.txf_map(), self.envs[rs]["TXDROP"])
+                if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
+                return ok
+            except Exception as e: log("⑧ 急殺檢查失敗(照舊)", e); return True
         if not c and side < 0 and self.envs.get(rs, {}).get("TXBOUNCE") and getattr(self, "txbounce_fn", None):   # 2026-11-18 11:49 🔒 ⑧ 急彈不做空 判七也套用(使用者「解鎖 改」;判七沒有 TXSYNC,單獨檢查)
             try:
                 ok, why = self.txbounce_fn(side, tm, self.txf_map(), self.envs[rs]["TXBOUNCE"])
@@ -1374,6 +1383,12 @@ class Engine:
                     _tp, _ip = self.txrel_prev(); ok, why = _rf(side, tm, self.txf_map(), self.ix_map(), _tp, _ip, _th)
                     if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
                 except Exception as e: log("⑧ 強弱檢查失敗(照舊)", e); ok = True
+            _dh = self.envs.get(rs, {}).get("TXDROP"); _df = getattr(self, "txdrop_fn", None)
+            if ok and _dh and _df and side > 0:   # 🔒 ⑧ 急殺不做多 2026-11-18 17:12 使用者「解鎖 改」:台指期 15 分鐘內從高點急殺 > 0.8% 不做多
+                try:
+                    ok, why = _df(side, tm, self.txf_map(), _dh)
+                    if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
+                except Exception as e: log("⑧ 急殺檢查失敗(照舊)", e); ok = True
             _bh = self.envs.get(rs, {}).get("TXBOUNCE"); _bf = getattr(self, "txbounce_fn", None)
             if ok and _bh and _bf and side < 0:   # 🔒 ⑧ 急彈不做空 2026-11-18 11:31 使用者「解鎖 改」:台指期 15 分鐘內從低點急彈 > 0.8% 不做空
                 try:
