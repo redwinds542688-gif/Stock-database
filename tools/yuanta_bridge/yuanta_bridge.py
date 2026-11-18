@@ -903,6 +903,8 @@ class Bridge:
                 ok, msg = t.force_close_manual(code, r["trades"], r["working"], r.get("tags"), r.get("types"), cid) if r else (False, "查不到元大今天的成交,請自己到投資先生平")
             else:
                 ok, msg = t.force_close(code, cid)
+        elif act == "reoco":                                         # 2026-11-18 12:14 使用者「加上」:手機「重掛條件單」→ 照現在張數 / 均價重算停利停損、刪舊的掛新的
+            ok, msg = t.reoco(code, cid)
         elif act == "redo":                                          # 2026-11-03 手機「確認補進場」(超額訊號回到多空上限內)
             ok, msg = t.over_confirm(code, cid)
         elif act == "redo_no":

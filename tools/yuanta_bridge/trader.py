@@ -1628,6 +1628,29 @@ class Trader:
                         self.after_report(p)
 
     # ── 手機的強制指令 ──
+    def reoco(self, code, cmd_id=None):
+        """2026-11-18 12:14 使用者「要不要加一個手機的「重掛條件單」指令」→「加上」(寶成 11:45 加碼後條件單沒重掛):
+           照現在的張數 / 均價重算停利停損(元三 / 強三照設定 %;判別式照原本離進場價的 % 不動)→ 有舊條件單先刪、元大確認後掛新的;沒有就直接掛"""
+        with self.lock:
+            if cmd_id and cmd_id in self.cmd_seen: return self.cmd_seen[cmd_id]
+            p = self.positions.get(code)
+            if not p: r = (False, "電腦這邊沒有這檔的部位")
+            elif p["state"] != HOLDING or p["qty"] <= 0: r = (False, f"部位現在是「{p['state']}」,不能重掛")
+            elif not self.broker_stop: r = (False, "電腦沒開元大條件單(TRADE_BROKER_STOP),停利停損由程式自己盯")
+            elif p.get("carry"): r = (False, "留倉部位不掛條件單(程式自己盯)")
+            elif self.hm() >= self.force_exit: r = (False, f"{self.force_exit} 以後不掛條件單")
+            elif self.oco_lots(code) <= 0: r = (False, "整個部位都有手動預掛,預掛的不掛條件單")
+            elif p.get("oco_del") or (p.get("oco_no") is None and code in self.oco_q): r = (False, "條件單正在跟元大確認中,幾秒後再試")
+            else:
+                if p.get("judge") == MANUAL: p["y3_posted"] = True
+                if p.get("judge") in (MANUAL, FORCED) and (p.get("tp_pct") or p.get("sl_pct")): self.set_forced_tpsl(p, p["entry"])
+                self.log(f"[交易] {code} 手機重掛條件單:{p['qty']} 張 均價 {p['entry']:.2f} 停利 {p.get('tp')} 停損 {p.get('sl')}")
+                had = bool(p.get("oco_live")); self.oco_refresh(p, "手機重掛")
+                n = self.oco_lots(code)
+                r = (True, f"{'刪掉舊的、' if had else ''}重掛條件單 {n} 張(停利 {p.get('tp')} / 停損 {p.get('sl')})")
+            if cmd_id: self.cmd_seen[cmd_id] = r
+            return r
+
     def set_forced_tpsl(self, p, avg):
         d = p["dir"]; tpp, slp = p.get("tp_pct"), p.get("sl_pct")
         p["tp"] = round(avg * (1 + float(tpp) / 100 * d), 2) if tpp else 0.0
