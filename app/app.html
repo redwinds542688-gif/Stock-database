@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 公式篩選判別式時(判X進場),標題列不顯示資金框和金額;全部通知照舊
   · 2026-11-19 每日輸贏:日期格單擊 / 雙擊 / 長按切換範圍 三天 → 七天 → 本週 → 本月 → 三天(交易日),右邊總輸贏跟著範圍
   · 2026-11-19 每日輸贏:手機返回鍵 / 滑鼠右鍵也退回原明細(單擊 / 雙擊 / 長按金額照舊來回切)
   · 2026-11-19 每日輸贏改成 日期 星期 | 贏筆 | 輸筆 | 總筆 | 當天輸贏(拿掉累計)
@@ -532,7 +533,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611190533">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611190539">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -8678,7 +8679,7 @@ window.bgTick = bgTick; window.BG = BG;
     fundLeft = Math.max(0, fundLeft);   // 不顯示負的
     if (d === today) window.__fundLeft = fundLeft;   // 2026-10-28 強制進場:資金買不到 1 張 → 長按沒反應
     const ti = dayList.indexOf(window.NL_TOPDAY);
-    const hdMsg = `<div class="hd msg"><span class="nav"><span class="lb">${window.LOG_RS ? `<span class="dlb">${window.LOG_RS}進場</span>` : '<span class="dlb ghost" aria-hidden="true">進場</span>'}<span class="dwh mwh">${dayList.map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span></span></span><span class="cash"><span class="mlb rlb">資金</span><b class="dnet" style="color:#FFD54F">${fundLeft}</b></span></div>`;   /* 2026-10-27 05:30 使用者「資金紅色 資金數字 黃色」 */   // 2026-10-27 05:25 使用者「進場與金額不用顯示」:只留 資金(2400000 − 進場中金額)   // 2026-10-27 05:15 使用者:「左鍵+“監控”+日期+右鍵 空1px “資金”+(…)空1px "進場"」
+    const hdMsg = `<div class="hd msg"><span class="nav"><span class="lb">${window.LOG_RS ? `<span class="dlb">${window.LOG_RS}進場</span>` : '<span class="dlb ghost" aria-hidden="true">進場</span>'}<span class="dwh mwh">${dayList.map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span></span></span>${window.LOG_RS ? '<span class="cash"></span>' : `<span class="cash"><span class="mlb rlb">資金</span><b class="dnet" style="color:#FFD54F">${fundLeft}</b></span>`}</div>`;   /* 2026-11-19 05:39 使用者(判三篩選畫面)「把資金跟後面的金額拿掉」:篩選判別式時不顯示資金 */   /* 2026-10-27 05:30 使用者「資金紅色 資金數字 黃色」 */   // 2026-10-27 05:25 使用者「進場與金額不用顯示」:只留 資金(2400000 − 進場中金額)   // 2026-10-27 05:15 使用者:「左鍵+“監控”+日期+右鍵 空1px “資金”+(…)空1px "進場"」
     { const __H = hdMsg + html; if (nlSame(__H)) return; nlPut(__H); }
     // 2026-11-03 17:20 使用者「把 進場 日期 這 改成 與 明細那邊一樣 變成 進場+日期滾輪」:◀ ▶ 拿掉,日期改成滾輪(和明細同一種);轉到哪天清單跳到那天,捲清單滾輪跟著轉
     { const w = box.querySelector('.hd .mwh'); if (w){ mwSet(box, window.NL_TOPDAY || d);
