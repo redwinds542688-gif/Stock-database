@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 當沖每一檔都有漲跌幅(上下對齊):元大部位不在監控清單的也一起抓報價,現價跟著更新
   · 2026-11-19 通知欄 / 監控區捲動改順:拿掉 CSS 一列一列吸附(甩動慣性被截短,使用者「滑不太動」),改成慣性跑完才輕輕對齊到最近整列
   · 2026-11-19 漲跌幅上下對齊:監控區代碼和狀態標籤同寬、漲跌幅固定寬靠右;明細 / 當沖的漲跌幅也固定寬靠右
   · 2026-11-19 監控區每一檔(只有代碼的也)都顯示漲跌幅;明細過去的日子也顯示漲跌幅(用那天的昨收,存手機;清單沒有的股票向 Worker 要一次報價)
@@ -523,7 +524,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611190225">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611190229">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4420,9 +4421,12 @@ function redrawLive(){
   }
 }
 
+/* 2026-11-19 02:29 使用者「當沖畫面 一樣顯示漲跌幅 且上下對齊」:當沖列的是元大部位(?trade=pos),不在監控清單的股票原本沒報價 → 沒漲跌幅、現價也不動;
+   部位的代碼也一起抓報價(多幾檔,同一個 Worker 請求) */
+function posCodesX(){ try{ const g = window.__tpos; return g && g.ok && Array.isArray(g.pos) ? g.pos.filter(p => p && p.qty > 0).map(p => String(p.code)) : []; }catch(e){ return []; } }
 async function livePoll(){
   if (!liveOn() || !inSession()) return;
-  const codes = new Set([...LIST_CODES, ...POSITIONS.keys()]);
+  const codes = new Set([...LIST_CODES, ...POSITIONS.keys(), ...posCodesX()]);   // 2026-11-19 當沖裡的股票(元大部位)不在清單也一起抓報價
   if (BARS_CODE && el('sheet').classList.contains('open')) codes.add(BARS_CODE);
   if (!codes.size) return;
   try{
@@ -4462,7 +4466,7 @@ function liveStatus(){
    只抓清單裡還沒有即時價的代號;讀不到就維持雲端的價,不報錯。 */
 async function liveSnapshot(){
   if (!liveOn() || inSession()) return;
-  const codes = [...new Set([...LIST_CODES, ...POSITIONS.keys()])].filter(c => !LIVE.has(c));
+  const codes = [...new Set([...LIST_CODES, ...POSITIONS.keys(), ...posCodesX()])].filter(c => !LIVE.has(c));
   if (!codes.length) return;
   try{
     await liveFetch(codes);
@@ -8464,7 +8468,7 @@ window.bgTick = bgTick; window.BG = BG;
           tot += v; cnt++;
           // 2026-11-18 13:01 使用者「圖一是主程式的當沖 圖二是夥伴看盤版的當沖 修改主程式讓他與看盤一致」:改成夥伴版的兩行排法 ——
           //   名稱(下一行 代碼 漲跌%)| 現價(下 現價)| 最低攤平點位(下 做空 / 做多 N張)| 輸贏(下 帳面)(13:05 使用者「主程式跟看盤 都改成 最低攤平點位」)
-          const y_ = +(((LIVE.get(o.code) || {}).y) || 0), pc_ = y_ > 0 ? (cur_ / y_ - 1) * 100 : null;
+          const y_ = +(((LIVE.get(o.code) || {}).y) || 0) || yPrevOf(o.code, new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10)), pc_ = y_ > 0 ? (cur_ / y_ - 1) * 100 : null;   // 2026-11-19 沒報價 → yPrevOf 會向 Worker 要一次再重畫
           body += `<div class="r p2${late ? ' late' : ''}" data-code="${esc(o.code)}" data-name="${esc(o.name)}"><span class="nm2"><b>${esc(o.name)}</b><span class="cd"><i>${esc(o.code)}</i>${pc_ == null ? '' : `<em class="${pc_ > 0 ? 'up' : pc_ < 0 ? 'dn' : ''}">${pc_ > 0 ? '+' : pc_ < 0 ? '−' : ''}${Math.abs(pc_).toFixed(2)}%</em>`}</span></span><span class="num n">${cur_.toFixed(2)}</span><span class="num n">${be.toFixed(2)}</span>${amt(v).replace('class="num', 'class="num pl')}<span class="lb now">現價</span><span class="lb sub"><i class="sd2 ${dr > 0 ? 'long' : 'short'}">${dr > 0 ? '做多' : '做空'}</i>${lt}張</span><span class="lb tg">帳面</span></div>`;
         }
         // (判別式相關說明已移到私人庫)
