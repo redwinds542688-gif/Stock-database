@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 五個按鍵都一樣:按哪個就停在哪個,再按一次(或雙擊)也停在原頁(當沖 / 明細原本再按回進場、設定原本再按關掉)
   · 2026-11-19 公式鍵一律打開公式選單(已開就不動),不再開 / 關切換(原本再按一次會關掉露出上一頁,像在兩頁間跳)
   · 2026-11-19 公式篩選判別式的進場畫面:手機返回鍵 / 滑鼠右鍵退回公式選單
   · 2026-11-19 公式篩選判別式時(判X進場),標題列不顯示資金框和金額;全部通知照舊
@@ -535,7 +536,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611190547">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611190551">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2849,8 +2850,8 @@ window.fitBands = fitBands;
   // 2026-11-03 22:16 使用者「按公式 再按明細 結果會跳到 進場」:原本「已經在明細再按一次 = 回進場」,但公式 / 設定蓋在上面時畫面上看到的不是明細,還是照「在明細」算 → 跳到進場。
   //   改成:公式 / 設定開著時按當沖 / 明細,一律打開那一頁;只有畫面上真的正在看那一頁才切回進場
   const shownView = () => { const pnl = document.querySelector('.panel'); if (Date.now() - (window.__menuShutAt || 0) < 800){ window.__menuShutAt = 0; return ''; } if (menuOpen() || (pnl && pnl.classList.contains('open'))) return '';   /* 手指按下時公式剛被收起來,也算公式開著 */ return window.NL_VIEW; };
-  tapOn(document.getElementById('btnState'), () => setView(shownView() === 'pos' ? 'msg' : 'pos'));
-  tapOn(document.getElementById('btnRules'), () => setView(shownView() === 'done' ? 'msg' : 'done'));
+  tapOn(document.getElementById('btnState'), () => setView('pos'));   /* 2026-11-19 05:49 使用者「所有按鍵都一樣 按哪個就在哪個 再按一次同樣的 也是停留在原來按鍵位置」:原本再按一次切回進場 → 一律停在當沖 */
+  tapOn(document.getElementById('btnRules'), () => setView('done'));   /* 同上:一律停在明細 */
   document.addEventListener('touchstart', ev => { if (menuOpen() && !menu.contains(ev.target) && ev.target.id !== 'btnReload'){ window.__menuShutAt = Date.now(); closeMenu(); } }, {passive: true});
   // 燈號:綠 = 開盤時段(週一~五 08:45~13:35)+ 這份有開 + App 背景監控在跑;紅 = 開盤時段但這份沒開或監控沒在跑;灰 = 收盤
   const rsLampUpd = () => { try{
@@ -2985,7 +2986,8 @@ document.addEventListener('pointerdown', e => { try{ if (e.pointerType !== 'mous
   const toggle = () => {
     try{ sessLocked = inSession(); }catch(e){}
     if (sessLocked && !panel.classList.contains('open')){ lockMsg('開盤中不能改設定(13:30 後才能用)'); return; }
-    panel.classList.toggle('open');
+    if (panel.classList.contains('open')) return;   /* 2026-11-19 05:49 使用者「再按一次同樣的 也是停留在原來按鍵位置」:設定開著再按設定不關;離開按其他鍵或返回 */
+    panel.classList.add('open');
     try{ const m_ = document.getElementById('rsMenu'); if (m_ && !m_.classList.contains('hidden')) m_.classList.add('hidden'); }catch(e){}   // 2026-11-06 02:55 使用者「按鍵 設定 怎麼跑 公式的畫面」:公式選單開著時按設定,選單(z-index 200)蓋在設定面板上 → 按設定先收公式選單
     if (!panel.classList.contains('open') && window.feeLock) feeLock();   // 2026-10-24 關掉設定面板 = 離開,手續折扣回暗灰
     if (panel.classList.contains('open')){ WHEELS.forEach(w => w.init()); if (window.hideInfo) hideInfo(); }
