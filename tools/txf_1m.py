@@ -29,9 +29,17 @@ def fetch(d):
         except Exception: continue
         ticks[mth].append((tm, p, q)); vol[mth] += q
     if not vol: return None
-    m = vol.most_common(1)[0][0]; bars = {}
+    def third_wed(y, mo):
+        x = dt.date(y, mo, 1); x += dt.timedelta(days=(2 - x.weekday()) % 7); return x + dt.timedelta(days=14)
+    ny, nm = d.year, d.month
+    if d > third_wed(ny, nm): ny, nm = (ny + 1, 1) if nm == 12 else (ny, nm + 1)
+    near = f"{ny}{nm:02d}"   # 2026-11-18 21:05 使用者「改」:固定近月(結算日當天還是本月;原本取成交量最大,結算日會拿到下個月)
+    m = near if near in vol else vol.most_common(1)[0][0]; bars = {}
+    settle = d == third_wed(d.year, d.month) and m == f"{d:%Y%m}"   # 結算日近月 13:30 收盤
     for tm, p, q in ticks[m]:
-        t = f"{tm[:2]}:{tm[2:4]}"; b = bars.get(t)
+        t = f"{tm[:2]}:{tm[2:4]}"
+        if settle and t > "13:30": continue
+        b = bars.get(t)
         if b is None: bars[t] = [p, p, p, p, q]
         else: b[1] = max(b[1], p); b[2] = min(b[2], p); b[3] = p; b[4] += q
     return m, bars
