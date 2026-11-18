@@ -501,7 +501,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611180051">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611180936">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -7968,7 +7968,7 @@ window.bgTick = bgTick; window.BG = BG;
            「預掛已取消 / 失效 / 被元大退回」卡 → 藏起來,同時拿掉那檔的預掛卡或進場卡上的黃色預掛標籤 */
         if (o.kind === 'warn' && /預掛/.test(rest)){ const pm = /預掛(?:加碼)?(做多|做空)\s*([\d.]+|市價)?/.exec(rest);
           if (pm){ o.type = 'entry'; o.phNew = true; o.side = pm[1] === '做多' ? 'long' : 'short'; o.price = o.entP = +pm[2] || 0; o.ph = +pm[2] || -1; o.entT = o.t; o.alert = ''; }
-          else if (/預掛(?:已取消|失效|被元大退回|價穩失效)/.test(rest)) o.phEnd = true; }
+          else if (/預掛(?:已取消|失效|被元大退回|價穩失效)/.test(rest)){ o.phEnd = true; o.phPx = +((b.match(/@ ([\d.]+)/) || [])[1]) || 0; } }   /* 2026-11-18 09:35 取消卡帶的價格,用來對到同一張預掛 */
       } else return null;
       return o;
     };
@@ -8013,11 +8013,12 @@ window.bgTick = bgTick; window.BG = BG;
     { const keep = []; const open = new Map();   // key = code|rs → 進場卡已顯示、還沒平倉
       const pend = new Map();   // 2026-11-07 code|side → 還沒成交的手動預掛卡
       for (let k = cards.length - 1; k >= 0; k--){ const o = cards[k]; const kk = o.code + '|' + (o.rs || '');
-        if (o.type === 'entry' && o.phNew){ pend.set(o.code + '|' + o.side, o); o.__ki = keep.length; keep.push(o); continue; }
-        if (o.type === 'entry'){ const pk = o.code + '|' + o.side, pv = pend.get(pk); if (pv && keep[pv.__ki] === pv){ pend.delete(pk); keep[pv.__ki] = null; const ki_ = keep.length; keep.push(o);   /* 2026-11-12 12:50 使用者「強制平倉的通知卡 手動平倉的通知卡 也都要這樣子做 通知欄上最前面就是顯示最新的訊息」:預掛成交的進場卡放到成交那一刻(最上面),原位置拿掉 */   // 預掛成交:同一個位置換成真的進場卡
+        if (o.type === 'entry' && o.phNew){ pend.set(o.code + '|' + o.side + '|' + (o.ph > 0 ? o.ph : 'm') + '|' + k, o); o.__ki = keep.length; keep.push(o); continue; }   /* 2026-11-18 09:35 使用者「元大已經沒有預掛 程式為何還有」:同一檔同方向掛了兩張(富喬 118.5 / 119.5)會互相蓋掉 → 每張預掛各自一筆(代號|方向|價|序) */
+        if (o.type === 'entry'){ const pk_ = [...pend.keys()].reverse().find(q => q.startsWith(o.code + '|' + o.side + '|')), pk = pk_ || '', pv = pk_ ? pend.get(pk_) : null; if (pv && keep[pv.__ki] === pv){ pend.delete(pk); keep[pv.__ki] = null; const ki_ = keep.length; keep.push(o);   /* 2026-11-12 12:50 使用者「強制平倉的通知卡 手動平倉的通知卡 也都要這樣子做 通知欄上最前面就是顯示最新的訊息」:預掛成交的進場卡放到成交那一刻(最上面),原位置拿掉 */   // 預掛成交:同一個位置換成真的進場卡
             if (!o.madd && !open.has(kk)){ open.set(kk, o); o.__ki = ki_; } continue; } }
-        if (o.type === 'warn' && o.phEnd){ o._hide = true; const pv = [...pend.values()].reverse().find(q => q.code === o.code);
-          if (pv){ pend.delete(pv.code + '|' + pv.side); pv._hide = true; } else { const e = [...open.values()].reverse().find(q => q.code === o.code && q.ph); if (e && !cards.some(x => x !== o && x.type === 'warn' && !x.phEnd && x.code === o.code && x.t === o.t && /預掛(?:買回|賣出)/.test((x.x && x.x.title) || ''))) e.ph = 0; }   /* 2026-11-16 11:47 使用者「改」(大成鋼刪 45.65 重掛 45.75 同一分鐘):Worker 同一分鐘照鍵排序,「預掛已取消」排到新「預掛買回」後面 → 把新預掛的標籤也清掉;同一分鐘同一檔有新預掛卡就不清 */
+        if (o.type === 'warn' && o.phEnd){ o._hide = true; const ks_ = [...pend.keys()].reverse(), m_ = (q, f) => q.startsWith(o.code + '|') && f(q.split('|'));
+          const pk_ = ks_.find(q => m_(q, z => z[1] === o.side && o.phPx > 0 && Math.abs(+z[2] - o.phPx) < 1e-6)) || ks_.find(q => m_(q, z => z[1] === o.side)) || ks_.find(q => m_(q, () => true)), pv = pk_ ? pend.get(pk_) : null;   /* 2026-11-18 先對同方向同價,再同方向,最後同一檔 */
+          if (pv){ pend.delete(pk_); pv._hide = true; } else { const e = [...open.values()].reverse().find(q => q.code === o.code && q.ph); if (e && !cards.some(x => x !== o && x.type === 'warn' && !x.phEnd && x.code === o.code && x.t === o.t && /預掛(?:買回|賣出)/.test((x.x && x.x.title) || ''))) e.ph = 0; }   /* 2026-11-16 11:47 使用者「改」(大成鋼刪 45.65 重掛 45.75 同一分鐘):Worker 同一分鐘照鍵排序,「預掛已取消」排到新「預掛買回」後面 → 把新預掛的標籤也清掉;同一分鐘同一檔有新預掛卡就不清 */
           keep.push(o); continue; }
         if (o.type === 'entry' && o.madd){ /* 2026-11-05 手動加碼卡:不蓋掉原本的進場卡,自己也不被蓋 */ }
         else if (o.type === 'entry'){ if (open.has(kk)){ o._hide = true; } else { open.set(kk, o); o.__ki = keep.length; } }
