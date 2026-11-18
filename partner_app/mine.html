@@ -305,6 +305,9 @@ const errText = e => { e = String(e || ""); if (/缺少 codes|夥伴資料的雲
   if (/無效|停用|badKey/.test(e)) return "鑰匙無效或已停用,請找主導$ 確認"; return e; };
 const fp = x => (+x).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
 const FEE = 0.001425 * 0.25, TAX = 0.0015;   // 帳面輸贏扣的成本照主導版預設(手續費 0.1425%×25% 最低 20 元、證交稅 0.15%)
+// 2026-11-18 13:05 最低攤平點位(和主程式同一個算法):做多 = 進場 ×(1+手續費)÷(1−手續費−稅)往上取到跳動單位;做空 = 進場 ×(1−手續費−稅)÷(1+手續費)往下取
+const tkOf = v => v < 10 ? 0.01 : v < 50 ? 0.05 : v < 100 ? 0.1 : v < 500 ? 0.5 : v < 1000 ? 1 : 5;
+const beOf = (s, ent) => { if (!(ent > 0)) return ent; const up = s !== "s", v = up ? ent * (1 + FEE) / (1 - FEE - TAX) : ent * (1 - FEE - TAX) / (1 + FEE), t = tkOf(v), q = up ? Math.ceil(v / t - 1e-9) : Math.floor(v / t + 1e-9); return Math.round(q * t * 100) / 100; };
 const netOf = (s, ent, ex, q) => { const d = s === "s" ? -1 : 1, a = ent * q * 1000, b = ex * q * 1000, buy = d > 0 ? a : b, sell = d > 0 ? b : a, f = x => Math.max(20, Math.floor(x * FEE + 1e-6));
   return Math.round((ex - ent) * d * q * 1000 - f(buy) - f(sell) - Math.floor(sell * TAX + 1e-6)); };
 const pctOf = (v, prev) => { if (!(v > 0) || !(prev > 0)) return ""; const p = (v - prev) / prev * 100; return (p >= 0 ? "+" : "−") + Math.abs(p).toFixed(2); };
@@ -399,7 +402,7 @@ async function loadMore(){   // 明細往上滑到底:再往前讀(週末不問;
 function rebuild(){
   if (ST.day !== twDate()){ const k = keyGet(); stReset(); if (k){ setTimeout(start, 0); } }   // 換日:從今天重來(不是看幾點,是日期變了)
   ENTRY = (ST.pos || []).map(p => { const c = String(p.code), q = ST.q.get(c) || {}, s0 = +p.dir > 0 ? "l" : "s", now = q.z > 0 ? q.z : +p.entry;
-    return {nm: nameOf(c), code: c, pct: pctOf(now, q.y), s: s0, ent: fp(p.entry), now: q.z > 0 ? fp(q.z) : "—", q: +p.qty, p: q.z > 0 ? netOf(s0, +p.entry, q.z, +p.qty) : 0, st: "o", t0: String(p.t0 || "")}; })
+    return {nm: nameOf(c), code: c, pct: pctOf(now, q.y), s: s0, ent: fp(beOf(s0, +p.entry)),   /* 2026-11-18 13:05 使用者「主程式跟看盤 都改成 最低攤平點位」:扣完手續費和稅剛好不賠的價 */ now: q.z > 0 ? fp(q.z) : "—", q: +p.qty, p: q.z > 0 ? netOf(s0, +p.entry, q.z, +p.qty) : 0, st: "o", t0: String(p.t0 || "")}; })
     .sort((a, b) => b.t0.localeCompare(a.t0));
   const fl = ENTRY.reduce((a, o) => a + o.p, 0), lv = Math.max(-5, Math.min(5, Math.trunc(fl / 10000)));   // 浮贏 / 浮輸每 1 萬一級(主導版 1~5 萬響 1~5 次),同級一天一次
   if (lv > ST.hi){ ST.hi = lv; notify(`🎉 當沖浮贏 ${lv} 萬`, `持倉 ${ENTRY.length} 檔帳面 ${fmt(fl)}`, "win" + lv); }
