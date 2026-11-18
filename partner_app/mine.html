@@ -39,7 +39,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .ttl{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .ttl h1{margin:0;font-size:clamp(22px,7vw,30px);font-weight:900;letter-spacing:1px;background:linear-gradient(90deg,#FF5A5F,#FFB13B 30%,#3DDC84 60%,#29B6F6 80%,#B15CFF);-webkit-background-clip:text;background-clip:text;color:transparent;white-space:nowrap}
 .ttl{align-items:center}
-.key{display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 10px;border-radius:8px;border:1px solid var(--line2);background:#0E121A;color:var(--soft);font:500 14px var(--f);cursor:pointer;white-space:nowrap}
+.key{cursor:default !important;border-color:transparent !important;background:transparent !important;display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 10px;border-radius:8px;border:1px solid var(--line2);background:#0E121A;color:var(--soft);font:500 14px var(--f);cursor:pointer;white-space:nowrap}
 .ver{font-size:12px;color:var(--sub);margin-left:auto}   /* 版本號:App 版顯示 App 版本,網址版顯示「網頁版」(2026-11-15 使用者截圖還是舊版才跳列,看不出版本) */
 .key.none{border-color:var(--gold);color:var(--gold);font-weight:700}
 .mask{position:fixed;inset:0;background:rgba(3,5,9,.75);display:flex;align-items:center;justify-content:center;padding:20px;z-index:40}
@@ -226,7 +226,7 @@ const keyGet = () => { if (KEY_MEM != null) return KEY_MEM; try{ return localSto
 const keySet = v => { KEY_MEM = v; try{ v ? localStorage.setItem(KEY_K, v) : localStorage.removeItem(KEY_K); }catch(e){} };
 function keyPaint(){ const b = document.getElementById("keyBtn"), k = keyGet();
   b.className = "key" + (k ? "" : " none"); b.innerHTML = k ? esc(keyWho(k)) : "🔑 金鑰";   /* 11/16 21:25 使用者「金鑰地方 改顯示 主導$ 下面顯示版本」:只顯示身分(主導$ / 夥伴名字),不顯示金鑰尾碼 */
-  b.setAttribute("aria-label", k ? "已輸入金鑰,按一下更換" : "輸入金鑰"); }
+  b.setAttribute("aria-label", k ? "金鑰主人:" + keyWho(k) : "輸入金鑰"); }
 /* 20:20 使用者「看盤版 改成App … 一進入就必須輸入金鑰 否則無法進入」:沒有金鑰 → 整個畫面蓋住的入口(不能取消、看不到任何資料),輸入 / 掃描 / 相簿選 QR 存好才進得去;
    雲端說鑰匙無效或停用 → 清掉、回到入口 */
 function keyOpen(gate, why){
@@ -505,7 +505,7 @@ document.addEventListener("click", e => { const b = e.target.closest("button"); 
   if (b.id === "spk" && coexist()){ notifyQuiet("名揚四海正開著:由名揚四海響,夥伴看盤不響也不震"); return; }
   if (b.id === "spk"){ const m = !muted(); sndSet(m); MUTED_MEM = m; render(); notifyQuiet(m ? "這台靜音(不響,震動照舊)" : "這台通知有聲音"); if (!m) webSnd("long", ""); return; }
   if (b.dataset.tab){ S.tab = b.dataset.tab; S.day = null; render(); document.getElementById("list").scrollTop = 0; return; }
-  if (b.id === "keyBtn"){ keyOpen(); return; }
+  if (b.id === "keyBtn") return;   /* 2026-11-18 使用者「金鑰通過後 這看盤版就專屬金鑰主人的 不需要更換他人的功能」:按了沒反應 */
 });
 function notifyQuiet(t){ const L = document.getElementById('toastL'); L.innerHTML = `<div class="toast pc" role="status"><b>${esc(t)}</b></div>`; clearTimeout(notify.t); notify.t = setTimeout(() => L.innerHTML = '', 1800); }
 start();
