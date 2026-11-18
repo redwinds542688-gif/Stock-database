@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 監控區每一檔(只有代碼的也)都顯示漲跌幅;明細過去的日子也顯示漲跌幅(用那天的昨收,存手機;清單沒有的股票向 Worker 要一次報價)
   · 2026-11-19 通知欄 進場/當沖/明細 一頁 3 筆改 4 筆(每筆 54px,跟監控區一檔差不多高),字不切到
   · 2026-11-19 02:00(實際時間)檢討字體放大(17 → 20px、一行 25 → 30px,標題 22、今日輸贏 25)、不切字:可見高度是行高整數倍,捲完自動對齊整行(換行的長段落也停在整行),電腦版滑鼠滾輪一格剛好一行(使用者「檢討 字體再大一些 但不要切到 電腦版那邊 滑鼠滾動鍵一格一格都要銜接好」);版本 202611190156
   · 2026-11-19 01:50(實際時間)通知欄固定一樣大:進場 / 當沖 / 明細 / 公式 / 設定 全部用設定的寬高(原本一般 276px、設定 334px)(使用者「通知欄就固定這麼大 … 通通一樣大 不要再變來變去」);版本 202611190148
@@ -520,7 +521,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611190203">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611190216">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -833,8 +834,8 @@
   #notifLog .tb .r.p2[data-code]{display:grid;grid-template-columns:minmax(0,1fr) 22% 22% 23%;grid-template-rows:auto auto;column-gap:6px;row-gap:2px;align-content:center;padding:0 10px!important}
   #notifLog .tb .r.p2 .nm2{grid-row:1 / span 2;min-width:0;align-self:center}
   #notifLog .tb .r.p2 .nm2 b{display:block;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #notifLog .tb .r.p2 .cd{display:flex;gap:6px;align-items:baseline;font-size:.78em;white-space:nowrap;font-variant-numeric:tabular-nums}
-  #notifLog .tb .r.p2 .cd i{font-style:normal;color:#2EE59D} #notifLog .tb .r.p2 .cd em{font-style:normal;font-weight:700}
+  #notifLog .tb .r.p2 .cd{display:flex;gap:3px;align-items:baseline;font-size:.78em;white-space:nowrap;font-variant-numeric:tabular-nums}
+  #notifLog .tb .r.p2 .cd i{font-style:normal;color:#2EE59D} #notifLog .tb .r.p2 .cd em{font-style:normal;font-weight:700;font-size:.86em;letter-spacing:-.02em}   /* 2026-11-19 漲跌幅 +10.00% 也不切到 */
   #notifLog .tb .r.p2 .cd em.up{color:#FF4D5E} #notifLog .tb .r.p2 .cd em.dn{color:#2EE59D}
   #notifLog .tb .r.p2 .n{text-align:right;color:#E6EAF2}
   #notifLog .tb .r.p2 .pl{text-align:right}
@@ -2108,6 +2109,14 @@ const pFillsOf = (a, dd) => { const k = a + '|' + dd, c = PFC[k], td = new Date(
       .then(j => { PFC[k] = {v: j && j.v && typeof j.v === 'object' ? j.v : null, at: Date.now()}; }).catch(() => { PFC[k] = {v: null, at: Date.now()}; })
       .finally(() => { try{ if (window.NL_VIEW === 'done' && window.nlRender) nlRender(); }catch(e){} }); }
   return c ? c.v : undefined; };
+/* 2026-11-19 02:12 使用者「明細裡 股票監控區 都要 漲跌幅」:明細(元大成交)的漲跌幅要那天的昨收;元大成交沒帶 →
+   報價是那天的(LIVE 的交易日期 = 那天)就用它的昨收,並存在手機(mysh.yprev.日期),之後翻回那天也有 */
+function yPrevOf(code, dd){ try{ const k = 'mysh.yprev.' + dd; let M = {}; try{ M = JSON.parse(localStorage.getItem(k) || '{}') || {}; }catch(e){}
+  const L = LIVE.get(String(code)); if (L && L.y > 0 && String(L.d || '') === String(dd).replace(/-/g, '')){ if (M[code] !== L.y){ M[code] = L.y; try{ localStorage.setItem(k, JSON.stringify(M)); }catch(e){} } return +L.y; }
+  // 報價裡沒有這檔(明細的股票不在現在的監控清單)→ 向 Worker 要一次報價(同一檔只問一次),拿到再重畫
+  if (!L && typeof liveFetch === 'function'){ const A = window.__yPrevAsk || (window.__yPrevAsk = new Set()); if (!A.has(String(code))){ A.add(String(code)); clearTimeout(window.__yPrevT);
+    window.__yPrevT = setTimeout(() => { const cs = [...A].filter(c => !LIVE.has(c)); if (cs.length) liveFetch(cs).then(() => { if (window.nlRender) nlRender(); }).catch(() => {}); }, 300); } }
+  return +(M[code] || 0); }catch(e){ return 0; } }
 const yFillsOf = dd => { if (dd && dd < '2026-11-16') return null; /* 2026-11-09 22:00 使用者「明細 燈號也不對」:22 天重寫後元大真實成交從 11/10 起,之前的日子(燈號 / 明細 / 進場)一律看重算的 */ try{ const j = JSON.parse(localStorage.getItem('mysh.yfills.' + dd) || 'null'); return j && Array.isArray(j.rows) ? j : null; }catch(e){ return null; } };
 function fmToast(msg, ms){ try{ let t = el('fmToast'); if (!t){ t = document.createElement('div'); t.id = 'fmToast'; document.body.appendChild(t); }
   t.textContent = msg; t.classList.add('on'); clearTimeout(t.__h); t.__h = setTimeout(() => t.classList.remove('on'), ms || 2600); }catch(e){} }
@@ -2577,7 +2586,7 @@ function render(list){
       <div></div>
       <div>
         <div class="nm">${s.name || s.code}</div>
-        <div class="posline">${(t_ => t_ + (t_.includes('class="pos code"') ? '' : chgSp(s.code, s.chg_pct)))(
+        <div class="posline">${(t_ => t_ + chgSp(s.code, s.chg_pct))(   /* 2026-11-19 02:12 使用者「股票監控區 原本是有訊號才顯示 現在改成都顯示」:只有代碼的列也加漲跌幅 */
           (rank.has(s.code) && window.NL_STATUS && NL_STATUS[s.code] === '預掛中') ? '<span class="pos ph">預掛中</span>'   // 2026-11-16 11:37 使用者「難道只有第一列才會顯示預掛中」→「改」:有預掛時「預掛中」優先(原本被手機公式的做多中 / 做空中蓋掉,大成鋼 11/16)
           : s.pos ? `<span class="pos ${s.pos}">${s.pos === 'long' ? '做多中' : '做空中'}${s.qty ? ' ' + s.qty + '張' : ''}</span>`
                 : (posStatus(s.code) === 'closed' ? '<span class="pos done">已平倉</span>'
@@ -8304,7 +8313,7 @@ window.bgTick = bgTick; window.BG = BG;
           const rows0 = Array.isArray(yf.legs) && (yf.legs.length || !(yf.rows || []).some(r => r.lots > 0)) ? yf.legs : yf.rows;   // 2026-10-31 一趟都沒配到、合併列卻有沖銷的 → 用合併列
           const rows = rows0 === yf.legs ? yLegMerge(rows0) : rows0;   // 2026-11-03 同一次進出場被元大拆成好幾個價格 → 合併成一列(均價)
           for (const r of rows){ if (!(r.lots > 0)) continue; const lg = r.dir === '做多'; const ent = r.ent != null ? +r.ent : lg ? +r.buy : +r.sell, ex = r.ex != null ? +r.ex : lg ? +r.sell : +r.buy, v = +r.net || 0; t += v; c++;
-            const y = dd === today ? (+(((LIVE.get(r.code) || {}).y) || 0) || +(r.prev || 0)) : +(r.prev || 0);
+            const y = dd === today ? (+(((LIVE.get(r.code) || {}).y) || 0) || +(r.prev || 0)) : (+(r.prev || 0) || yPrevOf(r.code, dd));   // 2026-11-19 02:12 使用者「明細裡 … 都要 漲跌幅」:過去的日子元大成交沒帶昨收 → 用那天的報價昨收(手機有存)
             h += p2Row({dd, code: r.code, name: r.name || yNm(r.code), lg, ent, ex, lots: r.lots, v, y, lab: '元大成交'}); }   /* 2026-11-18 13:29 改夥伴版排法 */
           return [h, t, c]; };
         const ySrc = {}; window.__ySrc = ySrc;   // 哪幾天是元大的真實成交(標題列加「元大」)
