@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 明細:單擊 / 雙擊 / 長按標題列的輸贏 → 每日輸贏(日期 星期 | 筆數 | 累計 | 當天輸贏,最新在上,一頁 4 天),標題列右邊顯示全部天數總輸贏;再按回明細,按某天跳到那天
   · 2026-11-19 通知欄標題左上角的「進場 / 資訊 / 當沖 / 明細」框拿掉,日期和旁邊的鍵貼到最左邊,右邊金額大小位置不變;當沖的 贏% 平倉選單改長按日期格(篩選判別式時進場仍顯示「判X進場」)
   · 2026-11-19 進場 / 當沖 / 明細按鍵燈號:10 格 → 20 格、格子連在一起(每格 1.5px、間隔 0);錢一格 5,000 → 2,500(滿格 5 萬,超過換色第二圈);進場一格一檔(最多 20)
   · 2026-11-19 資訊頁標題列(資訊鍵 / 日期 / 檢討)位置和進場完全一樣(原本往右下偏 6px、標題列較矮)
@@ -528,7 +529,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611190423">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611190447">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -845,7 +846,7 @@
   #notifLog .tb .r.p2 .nm2 b{display:block;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #notifLog .tb .r.p2 .cd{display:flex;gap:3px;align-items:baseline;font-size:.78em;white-space:nowrap;font-variant-numeric:tabular-nums}
   #notifLog .tb .r.p2 .cd i{font-style:normal;color:#2EE59D} #notifLog .tb .r.p2 .cd em{font-style:normal;font-weight:700;font-size:.86em;letter-spacing:-.02em;display:inline-block;min-width:4.4em;text-align:right;flex:0 0 auto}   /* 2026-11-19 漲跌幅 +10.00% 也不切到 */
-  #notifLog .tb .r.p2 .cd em.up{color:#FF4D5E} #notifLog .tb .r.p2 .cd em.dn{color:#2EE59D}
+  #notifLog .tb.dsumv .r.dsum .num.up{color:#FF4D5E} #notifLog .tb.dsumv .r.dsum .num.dn{color:#2EE59D} #notifLog .tb.dsumv .r.dsum{cursor:pointer}   /* 2026-11-19 每日輸贏 */  #notifLog .tb .r.p2 .cd em.up{color:#FF4D5E} #notifLog .tb .r.p2 .cd em.dn{color:#2EE59D}
   #notifLog .tb .r.p2 .n{text-align:right;color:#E6EAF2}
   #notifLog .tb .r.p2 .pl{text-align:right}
   #notifLog .tb .r.p2 .lb{font-size:.62em;font-weight:600;color:#8C96AB;text-align:right;white-space:nowrap;line-height:1.2}
@@ -8531,22 +8532,42 @@ window.bgTick = bgTick; window.BG = BG;
         let empty0 = d0 === today ? '今天還沒有平倉的股票' : '這天沒有平倉的股票';
         void TPe;   // 2026-10-30 12:20 原本「自動交易開著但讀不到元大 → 不列模擬的」改成連不上就列程式的模擬交易(使用者「當無法連上主機 明細就顯示程式做的股票明細」)
         body = (c0 ? h0 : `<div class="empty" data-day="${d0}">${empty0}</div>`);   // 2026-10-27 11:45 使用者:「今日總輸贏不用顯示在這個最下面 上面已經有顯示了」:今天那段的「今日 N 筆 總輸贏」拿掉(標題列右邊已有);前幾天的每日合計照留
-        const dayTot = {[d0]: t0};   // 2026-10-27 14:15 每天的總輸贏(捲到哪天,標題列右邊就顯示哪天的)
+        const dayTot = {[d0]: t0}, dayCnt = {[d0]: c0};   // 2026-10-27 14:15 每天的總輸贏(捲到哪天,標題列右邊就顯示哪天的)
         let sessD = false;   // 2026-10-28 12:10 使用者「開盤中 明細無法滑動看昨天嗎」:開盤中也接前幾天,往上滑就看得到(原 10-27 11:40 開盤中只列今天)
         // 2026-11-02 23:27 使用者「我要的是你說重新這二份資料」:前幾天的虛擬交易改用現行判別式重算的(app/bt_fill.json,10/06 起 17 天元大 K 重跑),沒有重算的日子才用當天的雲端通知;最多往前 40 天
         for (const dd of (sessD ? [] : [...new Set([...ds, ...Object.keys(BTF || {})])].filter(x => x < d0).sort().reverse().slice(0, 40))){
           /* 2026-11-09 22:05 前幾天也用 doneSrc(和燈號同一份) */
           const pp = doneSrc(dd);
           const [h, t, c, cm] = dayRows(dd, pp); if (!c) continue;
-          body += `<div class="dsep" data-day="${dd}">${dd.slice(5).replace('-', '/')}</div>` + h; dayTot[dd] = t;   /* 2026-11-06 05:40 使用者「怎麼還有這14筆總輸贏 這個不用 上面已經有顯示了」:前幾天的「N 筆 總輸贏」列也拿掉(標題列右邊跟著捲到的那天顯示) */
+          body += `<div class="dsep" data-day="${dd}">${dd.slice(5).replace('-', '/')}</div>` + h; dayTot[dd] = t; dayCnt[dd] = c;   /* 2026-11-06 05:40 使用者「怎麼還有這14筆總輸贏 這個不用 上面已經有顯示了」:前幾天的「N 筆 總輸贏」列也拿掉(標題列右邊跟著捲到的那天顯示) */
         }
         // 2026-10-27 11:20 使用者:「最上面只顯示 明細 今日的總輸贏(靠右顯示)」:標題列左邊「明細」、最右邊今天已平倉的總輸贏(和當沖的合計同一個位置 .cash)
         const hdDone = hd.replace(/<\/span><span>\d+ 則<\/span>/, `</span><span class="cash">${money(Math.round(t0))}</span>`).replace('<span>明細</span>', `<span class="dlb ghost" aria-hidden="true">明細</span><span class="dwh">${Object.keys(dayTot).sort().reverse().map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span><span class="dsrc">${virtOk || ySrc[d0] ? '' : (window.VIEWER ? '' : ' 系統')}</span>${doneVirt && !vdoneHas(d0) ? '<span class="dsrc">暫算</span>' : ''}${virtOk ? `<button class="vbtn on fixw${doneVirt ? ' virt' : dAcct ? ' pt' : ''}" type="button"><span class="fit">${doneVirt ? '虛擬' : dAcct ? esc(dAcct) : '主導$'}</span></button>` : window.VIEWER ? '<span class="vbtn on virt vtag">虛擬</span>' : `<span class="vbtn on vtag ytag"${ySrc[d0] ? '' : ' style="display:none"'}>主導$</span>`}`);   /* 2026-11-04 使用者「要 改」:開盤中明細的「元大」也是有框的黃色鍵(和當沖一樣;開盤中不能切換) */   /* 2026-11-04 使用者「好」(看盤版明細也加紫色「虛擬」,和當沖一樣) */   // 2026-10-29 12:25(實際時間)元大真實成交的日子標題寫「明細 元大」
-        { const __H = hdDone + `<div class="tb done">` + body + `</div>`; if (nlSame(__H)){ if (__snapPrev[0]) box.classList.add('snapdt'); box.style.scrollPaddingTop = __snapPrev[1]; return; }
+        /* 2026-11-19 04:35 使用者「在明細裡 單擊，雙擊或長按 輸贏金額 則顯示 每天輸贏金額 最上面最新 最下面最舊 一次四天 上下滑捲動 原輸贏金額位置顯示全部天數的總輸贏金額」:
+           按標題列右邊的輸贏 → 切成「每日輸贏」:一天一列(日期 / 星期 | 筆數 | 累計 | 那天輸贏),一頁 4 天;標題列右邊 = 全部天數合計。再按一次輸贏回明細,按某一天跳到那天的明細 */
+        const __dS = (() => { if (!window.__dSum) return null; const ks = Object.keys(dayTot).filter(k => (dayCnt[k] || 0) > 0 || k === d0).sort(); if (!ks.length) return null;
+          const all = ks.reduce((a, k) => a + Math.round(dayTot[k] || 0), 0); let cum = 0; const cumOf = {}; for (const k of ks){ cum += Math.round(dayTot[k] || 0); cumOf[k] = cum; }
+          const sg = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}`, cl = v => v > 0 ? 'up' : v < 0 ? 'dn' : '', WK = '日一二三四五六';
+          const rows = [...ks].reverse().map(k => { const v = Math.round(dayTot[k] || 0), wk = WK[new Date(k + 'T12:00:00+08:00').getUTCDay()];
+            return `<div class="r p2 dsum" data-day="${k}" data-code="sum${k}"><span class="nm2"><b>${k.slice(5).replace('-', '/')}</b><span class="cd"><i>星期${wk}</i></span></span>`
+              + `<span class="num n">${dayCnt[k] || 0}</span><span class="num n ${cl(cumOf[k])}">${sg(cumOf[k])}</span><span class="num pl ${cl(v)}">${sg(v)}</span>`
+              + `<span class="lb now">筆數</span><span class="lb sub">累計</span><span class="lb tg">當天輸贏</span></div>`; }).join('');
+          const dwh0 = `<span class="dwh">${Object.keys(dayTot).sort().reverse().map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span>`;
+          const hd2 = hdDone.replace(`<span class="cash">${money(Math.round(t0))}</span>`, `<span class="cash">${money(all)}</span>`).replace(dwh0, `<span class="dwh dsumd"><span class="dwi">${ks.length} 天</span></span>`);
+          return {h: hd2, body: rows, all, n: ks.length}; })();
+        { const __H = __dS ? __dS.h + `<div class="tb done dsumv">` + __dS.body + `</div>` : hdDone + `<div class="tb done">` + body + `</div>`; if (nlSame(__H)){ if (__snapPrev[0]) box.classList.add('snapdt'); box.style.scrollPaddingTop = __snapPrev[1]; return; }
           if (Date.now() - (box.__dwT || 0) < 900){ clearTimeout(box.__dwLater); box.__dwLater = setTimeout(() => render(true), 500); return; }   /* 2026-11-03 15:25 滾輪轉動中先不重畫,停下來再補 */
           nlPut(__H); dwWire(box); }
         /* 2026-11-06 12:06 使用者「沒法切換」:盤中明細一直在更新,手指按下到放開之間標題列被重畫 → 按鍵換成新的,click 不會觸發。
            改成在通知欄上聽「按下」就切(標題列重畫也不影響),一按就換 */
+        if (!box.__dsDel){ box.__dsDel = 1;   /* 2026-11-19 04:35 明細標題列的輸贏:單擊 / 雙擊 / 長按 → 每日輸贏;再按回明細;每日輸贏按某一天 → 回明細跳到那天 */
+          const tog = ev => { try{ if (window.NL_VIEW !== 'done') return; const c = ev.target && ev.target.closest && ev.target.closest('#notifLog .hd .cash'); if (!c) return;
+            ev.preventDefault(); ev.stopPropagation(); if (Date.now() - (box.__dsAt || 0) < 500) return; box.__dsAt = Date.now();
+            window.__dSum = !window.__dSum; box.scrollTop = 0; render(true); requestAnimationFrame(() => { box.scrollTop = 0; }); }catch(e){} };
+          box.addEventListener('pointerdown', tog, true); box.addEventListener('dblclick', ev => { if (ev.target.closest && ev.target.closest('#notifLog .hd .cash')) ev.preventDefault(); }, true);
+          box.addEventListener('contextmenu', ev => { if (ev.target.closest && ev.target.closest('#notifLog .hd .cash')) ev.preventDefault(); }, true);
+          box.addEventListener('click', ev => { try{ if (!window.__dSum || window.NL_VIEW !== 'done') return; const r = ev.target.closest && ev.target.closest('.tb.dsumv > .r.dsum'); if (!r) return;
+            const day = r.dataset.day; window.__dSum = false; window.__linkDay = day; render(true); requestAnimationFrame(() => { try{ dwGo(box, day); }catch(e){} }); }catch(e){} }); }
         if (!box.__vbDel){ box.__vbDel = 1; box.addEventListener('pointerdown', ev => { try{ const b = ev.target && ev.target.closest && ev.target.closest('.hd .vbtn'); if (!b || window.NL_VIEW !== 'done' || typeof box.__vbH !== 'function') return; if (Date.now() - (box.__vbAt || 0) < 400) return; box.__vbAt = Date.now(); ev.preventDefault(); box.__vbH(ev); }catch(e){} }, true); }
         { const vb = box.querySelector('.hd .vbtn'); if (vb && window.acctFit) acctFit(vb); if (vb) box.__vbH = ev => { ev.stopPropagation(); const day = box.__dwDay || window.__doneToday;
             // 2026-11-04 使用者「在明細裡 上滑到比較下面的股票 然後按 元大或虛擬 會跳回開頭」:切換前記下畫面最上面那一列(哪天、哪檔、第幾列、離欄名多遠),切換後捲回同一檔(找不到就同一天的第幾列)
@@ -8562,7 +8583,7 @@ window.bgTick = bgTick; window.BG = BG;
         // 2026-10-27 14:15 使用者:「明細 畫面捲動到10/22 就要顯示10/22的總輸贏」:捲動時看欄名列下面第一列是哪一天,標題列右邊換成那天的總輸贏,左邊「明細」後面加日期(今天不加)
         window.__doneTot = dayTot; window.__doneToday = d0;
         if (!box.__doneScroll){ box.__doneScroll = true;
-          box.addEventListener('scroll', () => { if (box.__dsR) return; box.__dsR = requestAnimationFrame(() => { box.__dsR = 0; try{ if (window.NL_VIEW !== 'done') return;   // 2026-11-02 23:40 捲動中一格畫面只算一次
+          box.addEventListener('scroll', () => { if (box.__dsR) return; box.__dsR = requestAnimationFrame(() => { box.__dsR = 0; try{ if (window.NL_VIEW !== 'done' || window.__dSum) return;   // 2026-11-02 23:40 捲動中一格畫面只算一次
             const h = box.querySelector('.tb.done > .r.h') || box.querySelector('.hd'); if (!h) return; const hb = h.getBoundingClientRect().bottom;
             let day = nlTopDay(box, hb, '.tb.done > .dsep[data-day]', '.tb.done > [data-day]') || window.__doneToday; if (day === box.__dDay && box.__dDayFc === box.firstChild && box.__dDayTot === window.__doneTot) return; box.__dDay = day; box.__dDayFc = box.firstChild; box.__dDayTot = window.__doneTot;   /* 2026-11-06 同一天就不再改標題 / 滾輪(捲動中每格畫面省掉 5 次查找) */
             const v = Math.round((window.__doneTot || {})[day] || 0), c = box.querySelector('.hd .cash'), lb = box.querySelector('.hd .nav > span');
