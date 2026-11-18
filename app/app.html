@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 資訊頁標題列(資訊鍵 / 日期 / 檢討)位置和進場完全一樣(原本往右下偏 6px、標題列較矮)
   · 2026-11-19 前幾天的進場卡下排也有「現」= 那天的收盤價(固定,存手機);報價別處先抓到也會重畫
   · 2026-11-19 當沖每一檔都有漲跌幅(上下對齊):元大部位不在監控清單的也一起抓報價,現價跟著更新
   · 2026-11-19 通知欄 / 監控區捲動改順:拿掉 CSS 一列一列吸附(甩動慣性被截短,使用者「滑不太動」),改成慣性跑完才輕輕對齊到最近整列
@@ -525,7 +526,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611190343">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611190354">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -807,6 +808,7 @@
   /* 2026-11-07 14:32 使用者「資訊 增加 s&p 500 的圖」「增加一個按鍵 … 名為 檢討」:資訊頁標題列佔整列(右邊放「檢討」鍵,和明細的元大 / 虛擬同位置),下面 2 欄 × 3 列六張行情卡;按「檢討」換成當天檢討 */
   #notifLog.usm{grid-template-rows:auto repeat(3,minmax(0,1fr))!important} #notifLog.usm .hd{grid-column:1/-1}
   #notifLog.usm .hd{justify-content:flex-start!important} #notifLog.usm .hd .rvb{margin-left:14px}
+  #notifLog.usm .hd{margin:-5px -6px 0;padding:6px 0 7px;height:56px;box-sizing:border-box;align-self:stretch;overflow:visible}   /* 2026-11-19 03:52 使用者「資訊按鍵/日期的位置 要跟 進場的一致」:抵掉資訊格子的內距,標題列和進場一樣貼邊、一樣高 56 */
   #notifLog.usm .usk{padding:2px 4px 2px 7px} #notifLog.usm .usk .usn{font-size:clamp(10px,2.9vw,13px);line-height:1.1} #notifLog.usm .usk .usv{font-size:clamp(13px,4.1vw,19px);line-height:1.08} #notifLog.usm .usk .usd{font-size:clamp(9px,2.5vw,11px);line-height:1.15}
   #notifLog.usm .usk{container-type:size} #notifLog.usm .usk .usn{font-size:min(clamp(10px,2.9vw,13px),24cqh)} #notifLog.usm .usk .usv{font-size:min(clamp(13px,4.1vw,19px),34cqh)} #notifLog.usm .usk .usd{font-size:min(clamp(9px,2.5vw,11px),21cqh)}   /* 2026-11-10 14:39 使用者「各圖 漲跌多少 被切了」(電腦視窗矮,卡片高度不夠):字大小也跟卡片高度走,三行一定放得下 */
   #notifLog .usk .usv{color:#FFD54F!important} #notifLog.usm .usk .usd{line-height:1.12}   /* 2026-11-11 00:42 使用者「指數用黃色顯示 指數下面的漲跌似乎有切到」:指數數字一律黃色(漲跌還是看下面那行紅綠);字再縮一點、漲跌那行行高收一點,不被切 */
