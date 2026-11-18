@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-18 13:05(實際時間)當沖列改成和夥伴看盤版一樣(使用者「修改主程式讓他與看盤一致」):兩行 —— 名稱(下 代碼 漲跌%)| 現價(下 現價)| 進場均價(下 做空 / 做多 N張)| 輸贏(下 帳面);原本第二欄的最低攤平點位改成進場均價;版本 202611181303
   · 2026-11-18 12:18(實際時間)拿掉手機「重掛條件單」按鈕和電腦的指令(使用者「這個手機的重掛條件單 不需要」);加碼後自動重掛條件單照留;版本 202611181219
   · 2026-11-18 12:15(實際時間)手機「重掛條件單」(使用者「加上」):長按有部位的股票 → 平倉視窗多一顆「重掛條件單」→ 電腦照現在張數 / 均價重算停利停損(元三 / 強三照設定 %),有舊條件單先刪、元大確認後掛新的;留倉 / 13:20 後 / 全部預掛 / 正在跟元大確認中不能重掛會說原因(電腦要收盤自動更新後才認得這個指令);版本 202611181215
   · 2026-11-18 11:50(實際時間)寶成 11:45 手動加碼兩張的兩個 bug(使用者「短時間內加碼做空兩張 進場欄位只顯示一張」):① 判別式部位被手動加碼改元三後,刪掉舊條件單卻一直沒掛新的(元三開倉發卡旗標沒設)→ 修好 ② 同一分鐘的加碼卡第二張蓋掉第一張、只寫 1 張 → 同一檔同一分鐘的加碼累計成一張(寫總張數);版本 202611181149
@@ -504,7 +505,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611181219">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611181303">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -813,6 +814,20 @@
   #notifLog .usk .usc{min-height:0;align-self:stretch;padding:4px 0} #notifLog .usk .ussv{display:block;width:100%;height:100%}
   #notifLog .tb.pos .r{grid-template-columns:10fr 1fr 8fr 1fr 8fr 1fr 3fr 1fr 7fr;column-gap:0}   /* 2026-10-27 02:45 使用者:「張數改3 當沖輸贏改7」 */   /* 2026-10-27 02:35 使用者:「股票名稱10,空格1,現在股價8,空格1,攤平股價8,空格1,張數2,空格1,當沖輸贏8 把一列平均40個欄位」:一列分 40 等份照這個排(02:20 版是 36 欄沒張數) */
   #notifLog .tb.pos{padding-left:0;padding-right:0}
+  /* 2026-11-18 13:01 當沖列照夥伴看盤版:名稱(代碼 漲跌%)| 現價 | 進場均價(做空 N張)| 輸贏(帳面) */
+  #notifLog .tb.pos .r.p2{display:grid;grid-template-columns:minmax(0,1fr) 22% 22% 23%;grid-template-rows:auto auto;column-gap:6px;row-gap:2px;align-content:center;padding:0 10px!important}
+  #notifLog .tb.pos .r.p2 .nm2{grid-row:1 / span 2;min-width:0;align-self:center}
+  #notifLog .tb.pos .r.p2 .nm2 b{display:block;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #notifLog .tb.pos .r.p2 .cd{display:flex;gap:6px;align-items:baseline;font-size:.78em;white-space:nowrap;font-variant-numeric:tabular-nums}
+  #notifLog .tb.pos .r.p2 .cd i{font-style:normal;color:#2EE59D} #notifLog .tb.pos .r.p2 .cd em{font-style:normal;font-weight:700}
+  #notifLog .tb.pos .r.p2 .cd em.up{color:#FF4D5E} #notifLog .tb.pos .r.p2 .cd em.dn{color:#2EE59D}
+  #notifLog .tb.pos .r.p2 .n{text-align:right;color:#E6EAF2}
+  #notifLog .tb.pos .r.p2 .pl{text-align:right}
+  #notifLog .tb.pos .r.p2 .lb{font-size:.62em;font-weight:600;color:#8C96AB;text-align:right;white-space:nowrap;line-height:1.2}
+  #notifLog .tb.pos .r.p2 .now{grid-column:2} #notifLog .tb.pos .r.p2 .tg{grid-column:4}
+  #notifLog .tb.pos .r.p2 .sub{grid-column:3;display:flex;justify-content:flex-end;align-items:center;gap:4px}
+  #notifLog .tb.pos .r.p2 .sd2{font-style:normal;font-weight:700;border:1.5px solid;border-radius:5px;padding:0 4px}
+  #notifLog .tb.pos .r.p2 .sd2.short{color:#2EE59D;border-color:#2EE59D} #notifLog .tb.pos .r.p2 .sd2.long{color:#FF4D5E;border-color:#FF4D5E}
   #notifLog .tb.done .r{grid-template-columns:minmax(0,10fr) minmax(0,16fr) minmax(0,4fr) minmax(0,7fr);column-gap:0} #notifLog .tb.done .r > *{min-width:0;overflow:hidden} #notifLog .tb.done .io{display:grid;grid-template-columns:1fr auto 1fr;text-align:right} #notifLog .tb.done .io > :nth-child(2){padding:0 .1em} #notifLog .tb.done .io .tm{font-size:.56em;font-weight:600;color:#8C96AB;line-height:1.1;margin-top:1px}   /* 2026-10-27 13:05 使用者:「箭頭位置固定」:進、出各一格靠右,箭頭固定在正中間,小數點上下對齊 */   /* 2026-10-27 13:00 使用者:「改 要對齊」:名稱 10 | 進→出 16 | 張 4 | 輸贏 7;minmax(0,…) 欄寬固定,長的價格不會把後面的欄推歪 */   /* 2026-10-27 12:10 判別式欄拿掉(使用者:「明細 判二這不用顯示」):名稱 11 | 進→出 14 | 張 4 | 輸贏 8 = 37 等份 */   /* 2026-10-27 04:20 明細也照 38 等份排:名稱 10 | 判別式 5 | 進→出 13 | 張 3 | 輸贏 7,字級 = 2 欄寬(鐵律 19) */
   #notifLog .tb.done{padding-left:0;padding-right:0}
   #notifLog .tb .r.h{font-size:.62em;font-weight:600;color:var(--dim);padding:2px 0 3px;border-bottom:1px solid rgba(255,255,255,.14)}   /* 2026-10-27 04:20 欄名跟著表的字級走 */
@@ -8358,7 +8373,10 @@ window.bgTick = bgTick; window.BG = BG;
           const v = (cur_ - ent) * dr * lt * 1000 - (dr > 0 ? costAmt(ent * lt * 1000, cur_ * lt * 1000, C) : costAmt(cur_ * lt * 1000, ent * lt * 1000, C));
           try{ (window.__posWinTmp || (window.__posWinTmp = [])).push({code: o.code, name: o.name, net: v, pct: ent > 0 && lt > 0 ? v / (ent * lt * 1000) * 100 : 0, manual: !!o.manual, exiting: !!o.exiting, px: cur_, side: dr, y: +(((LIVE.get(o.code) || {}).y) || 0)}); }catch(e){}   /* 2026-11-04 贏幾%平倉用:扣手續費 / 稅後的淨輸贏、對進場金額的 % */
           tot += v; cnt++;
-          body += `<div class="r${late ? ' late' : ''}" data-code="${esc(o.code)}" data-name="${esc(o.name)}"><span class="nm"><span class="sd ${dr > 0 ? 'long' : 'short'}">${dr > 0 ? '多' : '空'}</span>${esc(o.name)}</span><span></span><span class="num ${cur_ > ent ? 'up' : cur_ < ent ? 'dn' : ''}">${cur_.toFixed(2)}</span><span></span><span class="num">${be.toFixed(2)}</span><span></span><span class="num">${lt}</span><span></span>${amt(v)}</div>`;
+          // 2026-11-18 13:01 使用者「圖一是主程式的當沖 圖二是夥伴看盤版的當沖 修改主程式讓他與看盤一致」:改成夥伴版的兩行排法 ——
+          //   名稱(下一行 代碼 漲跌%)| 現價(下 現價)| 進場均價(下 做空 / 做多 N張)| 輸贏(下 帳面);原本第二欄的「最低攤平點位」改成進場均價(和看盤版一樣)
+          const y_ = +(((LIVE.get(o.code) || {}).y) || 0), pc_ = y_ > 0 ? (cur_ / y_ - 1) * 100 : null;
+          body += `<div class="r p2${late ? ' late' : ''}" data-code="${esc(o.code)}" data-name="${esc(o.name)}"><span class="nm2"><b>${esc(o.name)}</b><span class="cd"><i>${esc(o.code)}</i>${pc_ == null ? '' : `<em class="${pc_ > 0 ? 'up' : pc_ < 0 ? 'dn' : ''}">${pc_ > 0 ? '+' : pc_ < 0 ? '−' : ''}${Math.abs(pc_).toFixed(2)}%</em>`}</span></span><span class="num n">${cur_.toFixed(2)}</span><span class="num n">${ent.toFixed(2)}</span>${amt(v).replace('class="num', 'class="num pl')}<span class="lb now">現價</span><span class="lb sub"><i class="sd2 ${dr > 0 ? 'long' : 'short'}">${dr > 0 ? '做多' : '做空'}</i>${lt}張</span><span class="lb tg">帳面</span></div>`;
         }
         // (判別式相關說明已移到私人庫)
         // 2026-10-27 10:30(實際時間)使用者:「當沖 通知欄 最下面的資訊 改在上面顯示 這邊不用」:「N 檔 未平倉 + 合計輸贏」改放標題列(取代 當日),最下面那列拿掉
