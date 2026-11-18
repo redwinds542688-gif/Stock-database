@@ -532,6 +532,8 @@ class Bridge:
                 js = json.loads(urllib.request.urlopen(rq, timeout=8).read().decode("utf-8"))
                 L = ((js.get("RtData") or {}).get("QuoteList") or [])
                 best = None
+                _y, _m = self.fut_near(); _near = f"TXF{'ABCDEFGHIJKL'[_m - 1]}{_y % 10}-F"   # 2026-11-18 21:00 使用者「改」:固定近月代號(結算日下個月成交量比較大,原本「量最大」會選到下個月)
+                if any(str(q.get("SymbolID", "")) == _near for q in L): L = [q for q in L if str(q.get("SymbolID", "")) == _near]
                 for q in L:
                     sid = str(q.get("SymbolID", ""))
                     if not re.match(r"^TXF[A-L]\d-F$", sid): continue
@@ -578,6 +580,9 @@ class Bridge:
             tf = dict(getattr(self, "fut_tf", {}) or {})
             last = lambda m: max(m) if m else "00:00"; mi = lambda h: int(h[:2]) * 60 + int(h[3:5])
             use, src = (ya, "元大 " + code) if ya and (not tf or mi(last(ya)) >= mi(last(tf)) - 2) else (tf, "期交所")
+            _nd = now_tw().date(); _y, _m = self.fut_near(_nd)
+            if (_y, _m) == (_nd.year, _nd.month) and self.fut_near(_nd + dt.timedelta(days=1)) != (_y, _m) and ya and mi(last(ya)) >= mi("13:28"):   # 2026-11-18 21:00 使用者「改」:結算日近月 13:30 收,之後期交所那份(下個月)不准蓋掉整天
+                use, src = ya, "元大 " + code
             if not use: return
             if src != getattr(self, "_fut_src", None): self._fut_src = src; log(f"[台指期] 1 分 K 來源:{src}")
             cur = now_tw().strftime("%H:%M")
@@ -595,6 +600,7 @@ class Bridge:
                 except FileNotFoundError: pass
                 except Exception as e: log("[台指期] 讀本機舊 1 分 K 失敗", e)
             mg = dict(self._fut_old); mg.update(tf if use is ya else {}); mg.update(use)
+            if self.fut_near(_nd + dt.timedelta(days=1)) != (_y, _m) and (_y, _m) == (_nd.year, _nd.month): mg = {k: v for k, v in mg.items() if k <= "13:30"}   # 2026-11-18 21:00 結算日:近月 13:30 收盤,之後不寫(避免混進下個月)
             rows = [[hm] + list(v) for hm, v in sorted(mg.items()) if hm < cur]   # 只寫已經收完的分鐘
             if not rows: return
             with open(tmp, "w", encoding="utf-8") as fh:
