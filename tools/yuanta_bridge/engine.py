@@ -1307,6 +1307,12 @@ class Engine:
         """⑧ 台指期同步進場(2026-11-13 22:17 使用者「解鎖 改 全部套用」;23:32「只看台指期方向 解鎖改」):rs_env 有 TXSYNC 才看;判斷用私人庫 rs_env.txsync(和模擬器同一份)。
            這天完全沒有台指期 → 先不看(照舊進場)+ 推一次警告;其他算不出來 / 不合 → 不做"""
         c = self.envs.get(rs, {}).get("TXSYNC"); fn = getattr(self, "txsync_fn", None)
+        if not c and side < 0 and self.envs.get(rs, {}).get("TXBOUNCE") and getattr(self, "txbounce_fn", None):   # 2026-11-18 11:49 🔒 ⑧ 急彈不做空 判七也套用(使用者「解鎖 改」;判七沒有 TXSYNC,單獨檢查)
+            try:
+                ok, why = self.txbounce_fn(side, tm, self.txf_map(), self.envs[rs]["TXBOUNCE"])
+                if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
+                return ok
+            except Exception as e: log("⑧ 急彈檢查失敗(照舊)", e); return True
         if not c or not fn: return True
         try:
             txf = self.txf_map(); frm = None
