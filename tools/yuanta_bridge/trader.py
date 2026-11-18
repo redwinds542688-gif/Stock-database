@@ -1023,7 +1023,8 @@ class Trader:
             p["y3_lots"] = max(p.get("y3_lots") or 0, tot); p["y3_px"] = p["entry"]
             if p.get("judge") not in (MANUAL, FORCED):   # 2026-11-11 16:49 使用者「手動進場或加碼 … 都受判三管轄」:判別式部位被手動加碼 → 整個部位改由判三管(記「元三」,停利 / 停損照判三 % 從新均價算)
                 self.log(f"[交易] {code} {p.get('judge')} 部位被手動加碼 → 改由判三管(元三,停利 {self.y3_tp:g}% / 停損 {self.y3_sl:g}%)")
-                p.update({"judge0": p.get("judge"), "judge": MANUAL, "tp_pct": self.y3_tp, "sl_pct": self.y3_sl})
+                p.update({"judge0": p.get("judge"), "judge": MANUAL, "tp_pct": self.y3_tp, "sl_pct": self.y3_sl,
+                          "y3_posted": True})   # 2026-11-18 11:46 寶成:判二被手動加碼改元三後沒標 y3_posted → oco_refresh 一直當成「元三開倉還沒發卡」不掛新條件單(11 張沒有元大條件單)
             if p.get("judge") in (MANUAL, FORCED) and (p.get("tp_pct") or p.get("sl_pct")): self.set_forced_tpsl(p, p["entry"])
             elif e0 > 0:   # 2026-11-02 11:45 使用者「這邊需要重新再算過停利跟停損」:判一~四照原本停利 / 停損離進場價的 % 不變,從新均價重算
                 if p.get("tp"): p["tp"] = round(p["entry"] * p["tp"] / e0, 2)
@@ -1048,19 +1049,20 @@ class Trader:
             #   同一張委託分批成交等 3 秒併成一張卡
             try:
               if not (order_no and str(order_no) == str(p.get("y3_no") or "")):   # 元三開倉那張委託分批成交的後幾筆不算加碼(開倉卡已經寫總張數)
-                ak = (code, str(order_no or "")); A = self.__dict__.setdefault("_add_post", {})
-                a0 = A.get(ak); first = a0 is None
-                if first: a0 = A[ak] = {"lots": 0, "cost": 0.0, "t": self.hm(), "dir": p["dir"]}
-                a0["lots"] += lots; a0["cost"] += price * lots
-                if first:
-                    def _post_add(ak=ak, code=code):
-                        with self.lock:
-                            x = self.__dict__.get("_add_post", {}).pop(ak, None); q = self.positions.get(code) or {}
-                        if not x or x["lots"] <= 0: return
-                        px = x["cost"] / x["lots"]
-                        self.post(f"{self.name_of(code)} {code} {'做多' if x['dir'] > 0 else '做空'}進場 {px:.2f}",
-                                  f"{x['t']} 元大 · 加碼 · 共 {q.get('qty', '?')} 張 均價 {float(q.get('entry') or 0):.2f} · {x['lots']}張 · {MANUAL}", "long" if x["dir"] > 0 else "short")
-                    threading.Timer(max(0.0, self.y3_post_delay), _post_add).start()
+                # 2026-11-18 11:46 使用者「短時間內加碼做空兩張 進場欄位只顯示一張」(寶成 11:45 兩張委託各 1 張):原本一張委託一張卡,同一分鐘同標題在 Worker 是同一個鍵 →
+                #   第二張蓋掉第一張、卡上只寫 1 張。改:同一檔同一分鐘的加碼累計成一張卡(張數 / 均價是這分鐘加的總和),最後一次加碼重發同一個鍵蓋掉前面那張
+                A = self.__dict__.setdefault("_add_post", {})
+                for k_ in [k for k in A if k[0] == code and k[1] != self.hm()]: A.pop(k_, None)   # 換分鐘了,舊的累計不要
+                ak = (code, self.hm()); a0 = A.setdefault(ak, {"lots": 0, "cost": 0.0, "t": self.hm(), "dir": p["dir"], "n": 0})
+                a0["lots"] += lots; a0["cost"] += price * lots; a0["n"] += 1; nseq = a0["n"]
+                def _post_add(ak=ak, code=code, nseq=nseq):
+                    with self.lock:
+                        x = dict(self.__dict__.get("_add_post", {}).get(ak) or {}); q = self.positions.get(code) or {}
+                        if not x or x["lots"] <= 0 or x.get("n") != nseq: return   # 後面又有加碼 → 交給最後那次發(累計的)
+                    px = x["cost"] / x["lots"]
+                    self.post(f"{self.name_of(code)} {code} {'做多' if x['dir'] > 0 else '做空'}進場 {px:.2f}",
+                              f"{x['t']} 元大 · 加碼 · 共 {q.get('qty', '?')} 張 均價 {float(q.get('entry') or 0):.2f} · {x['lots']}張 · {MANUAL}", "long" if x["dir"] > 0 else "short")
+                threading.Timer(max(0.0, self.y3_post_delay), _post_add).start()
             except Exception as e: self.log(f"[交易] 手動加碼發卡失敗 {e!r}")
             self.save_state()
             if p["state"] == EXITING:
