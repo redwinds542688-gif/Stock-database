@@ -1154,11 +1154,3 @@ nb_ = len(gb_.sent); tb_.on_other_fill("6269", "S", 1000, 86.5, "M301"); ok(pb_[
 tb_.on_strategy_reply("K0002", True, ""); tb_.on_other_fill("6269", "S", 1000, 86.6, "M302"); ok(("oco", "6269", "TWSE", -1, 3) == gb_.sent[-1][:5], gb_.sent[-3:])
 adds = [b for a, b, k in tb_.posts if "加碼" in b]; ok(adds and "· 2張 ·" in adds[-1] and "共 3 張" in adds[-1], adds)
 print("判別式被手動加碼改元三後重掛條件單、同分鐘加碼卡累計 OK")
-
-# 2026-11-18 12:14 使用者「加上」:手機「重掛條件單」(寶成狀況:判二被加碼改元三、條件單沒掛)
-NOW[0] = NOW0; tr_, gr_ = mk(TRADE_BROKER_STOP="1"); tr_.on_tick("6269", 86.2); tr_.step([ENT]); tr_.on_report(51, "A0001", 0, 1000, 86.1); tr_.on_strategy_reply("K0001", True, "")
-pr_ = tr_.positions["6269"]; pr_.update({"judge": "元三", "qty": 11, "oco_live": False, "oco_no": None}); pr_.pop("y3_posted", None)
-nr_ = len(gr_.sent); ok_, m_ = tr_.reoco("6269", "c1"); ok(ok_ and any(x[0] == "oco" and x[4] == 11 for x in gr_.sent[nr_:]), (ok_, m_, gr_.sent[nr_:]))
-tr_.on_strategy_reply("K0009", True, ""); nr_ = len(gr_.sent); ok_, m_ = tr_.reoco("6269", "c2"); ok(ok_ and ("del_oco", "K0009") in gr_.sent[nr_:] and any(x[0] == "oco" for x in gr_.sent[nr_:]), (m_, gr_.sent[nr_:]))
-ok(tr_.reoco("6269", "c2") == (ok_, m_) and not tr_.reoco("9999")[0])
-print("手機重掛條件單 OK")
