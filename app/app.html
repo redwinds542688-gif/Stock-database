@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-18 14:15(實際時間)電腦版滑鼠滾輪一格剛好捲一列(使用者「電腦版 主程式 滑鼠滾輪一格太多 有些資訊看不到」):監控清單、進場 / 當沖 / 明細欄,下一列頂端對齊標題列下緣;觸控板照原本順滑捲,手機不受影響;版本 202611181415
   · 2026-11-18 13:32(實際時間)明細每筆改成和夥伴看盤版一樣(使用者「主程式的明細 修改與看盤一樣」):兩行 —— 名稱(下 代碼 出場價比昨收%)| 出場價(下 出場價;虛擬寫出場時間)| 進場價(下 做空 / 做多 N張)| 輸贏(下 元大成交;虛擬寫判別式);版本 202611181331
   · 2026-11-18 13:07(實際時間)當沖列第二個價格改回「最低攤平點位」(扣完手續費和稅剛好不賠的價),夥伴看盤版也一起改成一樣的算法(使用者「把主程式跟看盤 都改成 最低攤平點位」);版本 202611181306
   · 2026-11-18 13:05(實際時間)當沖列改成和夥伴看盤版一樣(使用者「修改主程式讓他與看盤一致」):兩行 —— 名稱(下 代碼 漲跌%)| 現價(下 現價)| 進場均價(下 做空 / 做多 N張)| 輸贏(下 帳面);原本第二欄的最低攤平點位改成進場均價;版本 202611181303
@@ -507,7 +508,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611181331">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611181415">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2235,6 +2236,29 @@ function fmShow(o){
   kn.addEventListener('touchend', end); kn.addEventListener('touchcancel', () => { drag = null; kn.style.transform = ''; });
 }
 window.fmShow = fmShow;
+
+/* 2026-11-18 14:13 使用者「電腦版 主程式 滑鼠滾輪一格太多 有些資訊看不到」:電腦上滑鼠滾輪一格原本捲 100 多 px(加上一列一列吸附常常跳過一列)→
+   監控清單、進場 / 當沖 / 明細欄:滾輪一格剛好捲一列(下一列的頂端對齊標題列下緣);觸控板(小幅度)照原本順滑捲,手機沒有滾輪不受影響 */
+(function wheelRow(){
+  const rowsIn = sc => sc.id === 'result' ? [...sc.querySelectorAll('.row')] : [...sc.querySelectorAll(':scope > .card, :scope > .dsep, :scope > .e845, :scope > .tb > *:not(.h), :scope > .d30 > *')];
+  document.addEventListener('wheel', ev => {
+    try{
+      if (ev.ctrlKey || Math.abs(ev.deltaY) <= Math.abs(ev.deltaX)) return;
+      const mouse = ev.deltaMode === 1 || (ev.deltaMode === 0 && Math.abs(ev.deltaY) >= 50 && Number.isInteger(ev.deltaY)); if (!mouse) return;
+      const t = ev.target; if (!t || !t.closest || t.closest('.rvw, .dwh, .scroller, #fmWin, .modal')) return;
+      const sc = t.closest('#notifLog, #result'); if (!sc || sc.scrollHeight <= sc.clientHeight + 2) return;
+      const R = rowsIn(sc).filter(x => x.offsetHeight > 8); if (!R.length) return;
+      ev.preventDefault();
+      let top0 = sc.getBoundingClientRect().top;
+      for (const h of sc.querySelectorAll(':scope > .grid.head, :scope > .hd, :scope > .tb > .r.h')) if (h.offsetHeight > 0 && getComputedStyle(h).display !== 'none') top0 = Math.max(top0, h.getBoundingClientRect().bottom);
+      const dn = ev.deltaY > 0; let tgt = null;
+      if (dn) tgt = R.find(x => x.getBoundingClientRect().top > top0 + 2);
+      else for (const x of R) if (x.getBoundingClientRect().top < top0 - 2) tgt = x;
+      if (!tgt) return;
+      sc.scrollTop += tgt.getBoundingClientRect().top - top0;
+    }catch(e){}
+  }, {passive: false, capture: true});
+})();
 
 /* 2026-11-07 12:48 使用者「提示時 除了手機會看到 程式也在股票監控區這 顯示一個(在圖一上面顯示 "拖輸通知" 下面顯示圖一)」→ 示意圖 →
    「下面應該顯示目前輸贏多少 加上一個強制平倉的拖曳 那個返回鍵關閉那個不需要」:
