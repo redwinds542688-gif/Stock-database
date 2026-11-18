@@ -59,7 +59,7 @@ RE_CODE = re.compile(r"\b(\d{4,6})\b")
 RE_TPSL = re.compile(r"停利\s*([\d,]+(?:\.\d+)?)\s*停損\s*([\d,]+(?:\.\d+)?)")
 RE_PX_END = re.compile(r"([\d,]+(?:\.\d+)?)\s*$")      # 標題最後的進場價
 RE_BAR = re.compile(r"^\s*(\d{1,2}:\d{2})")            # 2026-10-29 稽核 #3:通知內容開頭的 K 棒時間(例如「09:05 多✓ · …」)
-RE_JUDGE = re.compile(r"判[一二三四五六七八九]")   # 2026-11-11 00:20 判六上線(使用者「把判六啟動 加入明天進場行列」:照通知自動下單);2026-11-10 加觀察版判六
+RE_JUDGE = re.compile(r"判[一二三四五六七八九十]")   # 2026-11-11 00:20 判六上線(使用者「把判六啟動 加入明天進場行列」:照通知自動下單);2026-11-10 加觀察版判六
 _RE_JUDGE_OLD = re.compile(r"判[一二三四五七]")   # 2026-11-05 加判五;2026-11-09 加判七(15:28 使用者「判七 解凍上線」:照通知自動下單)
 EXIT_KINDS = ("loss", "profit", "exit")
 
@@ -103,7 +103,7 @@ def lot_tier_qty(px, cap=250000):   # 2026-11-17 23:45 🔓→🔒 鐵律 ⑤(�
     return max(1, int(cap // (px * 1000)))   # 2026-11-14 00:55 🔓→🔒 鐵律 ⑤ 改「不分級」(使用者「如果購買不分級呢」→「解鎖 改」):每筆 25 萬能買幾張就買幾張(原 ≤80 元最多 3 張 ≤16 萬、80~250 元最多 2 張);超過 250 元一張 > 25 萬 = 超額,另外管
 IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG, IRON_BRX_L, IRON_BRX_E = 5.0, 6.5, "09:30", "12:30", "12:32", 1.5, 0.15   # 鐵律 ③ 09:30(23:38 曾改 09:15,23:49 使用者「改成9點30分進場 解鎖改」改回)
 IRON_CAP_MAX = 250000   # 2026-11-11 22:46 使用者「最多上限改25萬」:多空上限(設定檔 / 主導機)最多 25 萬   # 原 500000 # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:設定檔的多空上限最多 50 萬(和主導機能設的範圍一樣)
-IRON_EXIT, JUDGES_ALL = "13:20", ("判一", "判二", "判三", "判四", "判五", "判六", "判七", "判八", "判九")   # 2026-11-14 15:14 加判八;17:58 加判九   # 2026-11-11 22:25 使用者「改13」:設定檔的開關不能關掉鐵律保護
+IRON_EXIT, JUDGES_ALL = "13:20", ("判一", "判二", "判三", "判四", "判五", "判六", "判七", "判八", "判九", "判十")   # 2026-11-18 23:35 加判十   # 2026-11-14 15:14 加判八;17:58 加判九   # 2026-11-11 22:25 使用者「改13」:設定檔的開關不能關掉鐵律保護
 RE_IRON_EXIT = re.compile(r"超過?\s*[\d.]+\s*%|總停損|移動停損利|總平|移平|鐵律|強制平倉")   # 2026-11-11 22:47 使用者「總停損 =總平 移動停損利=移平」:加短名 總平 / 移平   # 2026-11-11 21:34 鐵律平倉(含引擎平倉通知標題):有權取消手動預掛、立即平
 IRON_MTSL_EX = {"判五": 4.0}   # 2026-11-15 01:07 🔓→🔒 鐵律 ⑥ 例外(使用者「解鎖 改」):判五移平 4%(私人庫 rs_env IRON_MTSL_EX 同一套)
 IRON_CAP, IRON_AMOUNT, IRON_MTSL = 250000, 5000000.0, 3.0   # ⑥ 2026-11-13 02:37 🔓 使用者「解鎖 改」:改用股價、3%(2026-11-12 08:34 3 → 3.5)   # ⑤ IRON_CAP = 固定張數模式(cap=0)時的一張上限;2026-11-11 22:24 使用者「針對 2項 改鐵律」:一張上限改以主導機多空上限為準,不再固定最多 25 萬   # 原:一張上限 25 萬(超過 = 超額)、一天總額度 500 萬   # 鐵律(2026-11-11 15:42),見 __init__
@@ -160,12 +160,13 @@ class Trader:
         self.max_amount = float(cfg.get("TRADE_MAX_AMOUNT", "5000000"))
         # 2026-10-31 14:57 使用者「490萬 改成500萬」:預設 500 萬;bridge.env 還是以前寫的 4900000 也當 500 萬(不用動桌機檔案)
         if self.max_amount == 4900000: self.max_amount = 5000000
-        self.judges = set(x.strip() for x in cfg.get("TRADE_JUDGES", "判一,判二,判三,判四,判五,判六,判七,判八,判九").split(",") if x.strip())   # 2026-10-31 預設加判四(使用者「判四 … 真正的下單也啟動 自動平倉機制也啟動」);bridge.env 有寫 TRADE_JUDGES 的要自己加
+        self.judges = set(x.strip() for x in cfg.get("TRADE_JUDGES", "判一,判二,判三,判四,判五,判六,判七,判八,判九,判十").split(",") if x.strip())   # 2026-10-31 預設加判四(使用者「判四 … 真正的下單也啟動 自動平倉機制也啟動」);bridge.env 有寫 TRADE_JUDGES 的要自己加
         if self.judges == {"判一", "判二", "判三"}: self.judges.add("判四")
         if self.judges == {"判一", "判二", "判三", "判四"}: self.judges.add("判五")   # 2026-11-05 使用者「完整上線」判五:bridge.env 寫的是判一~四(舊預設)= 沒特別排除 → 一樣加判五   # bridge.env 還是舊範本那行(判一,判二,判三)= 沒特別排除 → 一樣加判四;要排除就寫成別的(例如 判一,判二,判三,-)
         if self.judges == {"判一", "判二", "判三", "判四", "判五", "判七"}: self.judges.add("判六")   # 2026-11-11 00:20 判六上線:bridge.env 寫的是舊預設(一~五 + 七)= 沒特別排除 → 一樣加判六
         if self.judges == {"判一", "判二", "判三", "判四", "判五", "判六", "判七"}: self.judges.add("判八")
         if self.judges == {"判一", "判二", "判三", "判四", "判五", "判六", "判七", "判八"}: self.judges.add("判九")   # 2026-11-14 17:58 判九上線(使用者「改」):舊預設(一~八)一樣加判九   # 2026-11-14 15:14 判八上線(使用者「判八 100% 先加入修改好」):bridge.env 寫的是舊預設(一~七)= 沒特別排除 → 一樣加判八
+        if {"判一", "判二", "判三", "判四", "判五", "判六", "判七", "判八", "判九"} <= self.judges: self.judges.add("判十")   # 2026-11-18 23:35 判十上線(使用者「直接用9筆這一個 加入判十 明天直接上線 解鎖 改」):舊設定檔列滿判一~九 → 自動加判十
         self.slip = int(cfg.get("TRADE_SLIP_TICKS", "2"))          # 讓價檔數(確保成交)
         self.max_dev = float(cfg.get("TRADE_MAX_DEV_PCT", "0.5"))  # 現價離訊號價超過 % 就不追
         # 2026-11-03 12:08 使用者(晶豪科 257.50 超額沒進,跌到 250 以下也沒補)「改」:超額的進場訊號先記著,現價回到一張 ≤ 多空上限、還在停利 / 停損之間、
@@ -1023,7 +1024,8 @@ class Trader:
             p["y3_lots"] = max(p.get("y3_lots") or 0, tot); p["y3_px"] = p["entry"]
             if p.get("judge") not in (MANUAL, FORCED):   # 2026-11-11 16:49 使用者「手動進場或加碼 … 都受判三管轄」:判別式部位被手動加碼 → 整個部位改由判三管(記「元三」,停利 / 停損照判三 % 從新均價算)
                 self.log(f"[交易] {code} {p.get('judge')} 部位被手動加碼 → 改由判三管(元三,停利 {self.y3_tp:g}% / 停損 {self.y3_sl:g}%)")
-                p.update({"judge0": p.get("judge"), "judge": MANUAL, "tp_pct": self.y3_tp, "sl_pct": self.y3_sl})
+                p.update({"judge0": p.get("judge"), "judge": MANUAL, "tp_pct": self.y3_tp, "sl_pct": self.y3_sl,
+                          "y3_posted": True})   # 2026-11-18 11:46 寶成:判二被手動加碼改元三後沒標 y3_posted → oco_refresh 一直當成「元三開倉還沒發卡」不掛新條件單(11 張沒有元大條件單)
             if p.get("judge") in (MANUAL, FORCED) and (p.get("tp_pct") or p.get("sl_pct")): self.set_forced_tpsl(p, p["entry"])
             elif e0 > 0:   # 2026-11-02 11:45 使用者「這邊需要重新再算過停利跟停損」:判一~四照原本停利 / 停損離進場價的 % 不變,從新均價重算
                 if p.get("tp"): p["tp"] = round(p["entry"] * p["tp"] / e0, 2)
@@ -1048,19 +1050,20 @@ class Trader:
             #   同一張委託分批成交等 3 秒併成一張卡
             try:
               if not (order_no and str(order_no) == str(p.get("y3_no") or "")):   # 元三開倉那張委託分批成交的後幾筆不算加碼(開倉卡已經寫總張數)
-                ak = (code, str(order_no or "")); A = self.__dict__.setdefault("_add_post", {})
-                a0 = A.get(ak); first = a0 is None
-                if first: a0 = A[ak] = {"lots": 0, "cost": 0.0, "t": self.hm(), "dir": p["dir"]}
-                a0["lots"] += lots; a0["cost"] += price * lots
-                if first:
-                    def _post_add(ak=ak, code=code):
-                        with self.lock:
-                            x = self.__dict__.get("_add_post", {}).pop(ak, None); q = self.positions.get(code) or {}
-                        if not x or x["lots"] <= 0: return
-                        px = x["cost"] / x["lots"]
-                        self.post(f"{self.name_of(code)} {code} {'做多' if x['dir'] > 0 else '做空'}進場 {px:.2f}",
-                                  f"{x['t']} 元大 · 加碼 · 共 {q.get('qty', '?')} 張 均價 {float(q.get('entry') or 0):.2f} · {x['lots']}張 · {MANUAL}", "long" if x["dir"] > 0 else "short")
-                    threading.Timer(max(0.0, self.y3_post_delay), _post_add).start()
+                # 2026-11-18 11:46 使用者「短時間內加碼做空兩張 進場欄位只顯示一張」(寶成 11:45 兩張委託各 1 張):原本一張委託一張卡,同一分鐘同標題在 Worker 是同一個鍵 →
+                #   第二張蓋掉第一張、卡上只寫 1 張。改:同一檔同一分鐘的加碼累計成一張卡(張數 / 均價是這分鐘加的總和),最後一次加碼重發同一個鍵蓋掉前面那張
+                A = self.__dict__.setdefault("_add_post", {})
+                for k_ in [k for k in A if k[0] == code and k[1] != self.hm()]: A.pop(k_, None)   # 換分鐘了,舊的累計不要
+                ak = (code, self.hm()); a0 = A.setdefault(ak, {"lots": 0, "cost": 0.0, "t": self.hm(), "dir": p["dir"], "n": 0})
+                a0["lots"] += lots; a0["cost"] += price * lots; a0["n"] += 1; nseq = a0["n"]
+                def _post_add(ak=ak, code=code, nseq=nseq):
+                    with self.lock:
+                        x = dict(self.__dict__.get("_add_post", {}).get(ak) or {}); q = self.positions.get(code) or {}
+                        if not x or x["lots"] <= 0 or x.get("n") != nseq: return   # 後面又有加碼 → 交給最後那次發(累計的)
+                    px = x["cost"] / x["lots"]
+                    self.post(f"{self.name_of(code)} {code} {'做多' if x['dir'] > 0 else '做空'}進場 {px:.2f}",
+                              f"{x['t']} 元大 · 加碼 · 共 {q.get('qty', '?')} 張 均價 {float(q.get('entry') or 0):.2f} · {x['lots']}張 · {MANUAL}", "long" if x["dir"] > 0 else "short")
+                threading.Timer(max(0.0, self.y3_post_delay), _post_add).start()
             except Exception as e: self.log(f"[交易] 手動加碼發卡失敗 {e!r}")
             self.save_state()
             if p["state"] == EXITING:

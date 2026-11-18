@@ -532,6 +532,8 @@ class Bridge:
                 js = json.loads(urllib.request.urlopen(rq, timeout=8).read().decode("utf-8"))
                 L = ((js.get("RtData") or {}).get("QuoteList") or [])
                 best = None
+                _y, _m = self.fut_near(); _near = f"TXF{'ABCDEFGHIJKL'[_m - 1]}{_y % 10}-F"   # 2026-11-18 21:00 使用者「改」:固定近月代號(結算日下個月成交量比較大,原本「量最大」會選到下個月)
+                if any(str(q.get("SymbolID", "")) == _near for q in L): L = [q for q in L if str(q.get("SymbolID", "")) == _near]
                 for q in L:
                     sid = str(q.get("SymbolID", ""))
                     if not re.match(r"^TXF[A-L]\d-F$", sid): continue
@@ -552,6 +554,38 @@ class Bridge:
             except Exception as e:
                 self._tf_err = getattr(self, "_tf_err", 0) + 1
                 if self._tf_err in (1, 30) or self._tf_err % 300 == 0: log(f"[台指期·期交所] 抓不到(第 {self._tf_err} 次)", repr(e)[:160])
+        threading.Thread(target=run, daemon=True).start()
+
+    def ix_poll(self):
+        """2026-11-18 21:05 使用者「加權指數可能延遲好幾分鐘 … 直接改」:電腦直接問證交所即時行情(mis.twse tse_t00 加權指數),
+           09:00~13:31 每 5 秒一次 → 每分鐘最後價寫 HERE/engine_data/ix_live/<日期>.json({"y": 昨收, "m": {HH:MM: 收}}),電腦引擎 ix_map / txrel_prev 優先用它
+           (11/18 引擎用 Worker ?ixbars,加權落後約 5 分鐘,⑧ 強弱算偏)"""
+        if FAMILY or CFG.get("IX_LIVE", "1") != "1": return
+        n = now_tw()
+        if n.weekday() >= 5 or not ("09:00" <= n.strftime("%H:%M") <= "13:31") or time.time() - getattr(self, "_ix_at", 0) < 5: return
+        self._ix_at = time.time()
+        def run():
+            try:
+                u = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_t00.tw&json=1&delay=0&_={int(time.time() * 1000)}"
+                r = json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://mis.twse.com.tw/stock/index.jsp"}), timeout=4).read().decode("utf-8"))
+                q = (r.get("msgArray") or [{}])[0]
+                z = str(q.get("z") or "").replace(",", ""); t = str(q.get("t") or ""); y = str(q.get("y") or "").replace(",", "")
+                try: px = float(z)
+                except Exception: return
+                if px <= 0 or len(t) < 5: return
+                hm = t[:5]
+                if not ("09:00" <= hm <= "13:30"): return
+                day = n.strftime("%Y-%m-%d")
+                if getattr(self, "_ix_day", None) != day: self._ix_day = day; self._ix_m = {}; self._ix_y = None
+                self._ix_m[hm] = px
+                try: self._ix_y = float(y) or self._ix_y
+                except Exception: pass
+                f = HERE / "engine_data" / "ix_live"; f.mkdir(parents=True, exist_ok=True); tmp = f / f"{day}.json.tmp"
+                tmp.write_text(json.dumps({"y": self._ix_y, "m": dict(sorted(self._ix_m.items()))}), encoding="utf-8"); os.replace(tmp, f / f"{day}.json")
+                if not getattr(self, "_ix_ok", False): self._ix_ok = True; log(f"[加權·證交所] 收得到:{hm} {px}(昨收 {self._ix_y})")
+            except Exception as e:
+                self._ix_err = getattr(self, "_ix_err", 0) + 1
+                if self._ix_err in (1, 30) or self._ix_err % 300 == 0: log(f"[加權·證交所] 抓不到(第 {self._ix_err} 次)", repr(e)[:160])
         threading.Thread(target=run, daemon=True).start()
 
     def fut_pick(self):
@@ -578,6 +612,9 @@ class Bridge:
             tf = dict(getattr(self, "fut_tf", {}) or {})
             last = lambda m: max(m) if m else "00:00"; mi = lambda h: int(h[:2]) * 60 + int(h[3:5])
             use, src = (ya, "元大 " + code) if ya and (not tf or mi(last(ya)) >= mi(last(tf)) - 2) else (tf, "期交所")
+            _nd = now_tw().date(); _y, _m = self.fut_near(_nd)
+            if (_y, _m) == (_nd.year, _nd.month) and self.fut_near(_nd + dt.timedelta(days=1)) != (_y, _m) and ya and mi(last(ya)) >= mi("13:28"):   # 2026-11-18 21:00 使用者「改」:結算日近月 13:30 收,之後期交所那份(下個月)不准蓋掉整天
+                use, src = ya, "元大 " + code
             if not use: return
             if src != getattr(self, "_fut_src", None): self._fut_src = src; log(f"[台指期] 1 分 K 來源:{src}")
             cur = now_tw().strftime("%H:%M")
@@ -595,6 +632,7 @@ class Bridge:
                 except FileNotFoundError: pass
                 except Exception as e: log("[台指期] 讀本機舊 1 分 K 失敗", e)
             mg = dict(self._fut_old); mg.update(tf if use is ya else {}); mg.update(use)
+            if self.fut_near(_nd + dt.timedelta(days=1)) != (_y, _m) and (_y, _m) == (_nd.year, _nd.month): mg = {k: v for k, v in mg.items() if k <= "13:30"}   # 2026-11-18 21:00 結算日:近月 13:30 收盤,之後不寫(避免混進下個月)
             rows = [[hm] + list(v) for hm, v in sorted(mg.items()) if hm < cur]   # 只寫已經收完的分鐘
             if not rows: return
             with open(tmp, "w", encoding="utf-8") as fh:
@@ -1113,7 +1151,7 @@ class Bridge:
             return self.phone_alert(title, re.sub(r"\s*·\s*元大中繼\s*$", "", body or ""), "pc")
         try:
             n = now_tw(); m = re.match(r"^\S+ (\d{4,6})", title); code = m.group(1) if m else ""
-            rs = (re.search(r"· (判[一二三四五六七八九])\s*$", body) or [None, ""])[1]   # 2026-11-13 10:30 判五~七也帶判別式(鍵和手機一樣)
+            rs = (re.search(r"· (判[一二三四五六七八九十])\s*$", body) or [None, ""])[1]   # 2026-11-13 10:30 判五~七也帶判別式(鍵和手機一樣)
             it = {"d": n.strftime("%Y-%m-%d"), "t": t or n.strftime("%H:%M"), "title": title,   # 2026-11-10 t:元三進場卡改寫時用原本那分鐘(同鍵覆蓋)
                   "body": body, "kind": kind,
                   "key": code + "|" + re.sub(r"[0-9.,+−%↑↓\s⚠✅-]", "", title) + "|" + rs}   # 鍵和手機一樣:代碼|標題去掉數字|判別式
@@ -1734,6 +1772,8 @@ class Bridge:
                         self.resume_positions(day); resumed = True          # 今天第一次連上:接回程式開的未平部位(斷線重連不用,部位一直在記憶體裡)
                 time.sleep(1); k += 1
                 try: self.fut_poll()   # ⑧ 備援 2:電腦直接問期交所台指期(每 10 秒,08:44~13:46)
+                except Exception: pass
+                try: self.ix_poll()   # 2026-11-18 21:05 加權指數直接問證交所(每 5 秒,09:00~13:31)
                 except Exception: pass
                 if self.pending_sub:                                     # 手機強制進場的股票補訂閱(在主執行緒呼叫元大元件)
                     subs, self.pending_sub = self.pending_sub, []

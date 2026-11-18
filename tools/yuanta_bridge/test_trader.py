@@ -1146,3 +1146,11 @@ NOW[0] = NOW0; tl_, gl_ = mk(TRADE_MAX_LOSS="20000"); tl_.on_tick("6269", 86.2);
 tl_.pnl = -5000.0; ok(not tl_.can_enter("2330", "判二", "long"), tl_.can_enter("2330", "判二", "long"))
 tl_.on_tick("6269", 87.8); w_ = tl_.can_enter("2330", "判二", "long"); ok("今天已虧" in w_ and "帳面" in w_, w_)   # 空 10 張 86.1 → 87.8 帳面約 −1.8 萬
 print("浮虧算進虧損上限 OK")
+
+# 2026-11-18 11:46 寶成:判二被手動加碼(兩張委託各 1 張、同一分鐘)→ ① 改元三後刪舊條件單、元大確認後要掛新的 ② 進場欄加碼卡累計 2 張(GW 假的刪單會馬上回確認)
+NOW[0] = NOW0; tb_, gb_ = mk(TRADE_BROKER_STOP="1"); tb_.on_tick("6269", 86.2); tb_.step([ENT]); tb_.on_report(51, "A0001", 0, 1000, 86.1)
+tb_.on_strategy_reply("K0001", True, ""); pb_ = tb_.positions["6269"]; ok(pb_["oco_live"])
+nb_ = len(gb_.sent); tb_.on_other_fill("6269", "S", 1000, 86.5, "M301"); ok(pb_["judge"] == "元三" and pb_["qty"] == 2 and ("oco", "6269", "TWSE", -1, 2) == gb_.sent[-1][:5], gb_.sent[nb_:])
+tb_.on_strategy_reply("K0002", True, ""); tb_.on_other_fill("6269", "S", 1000, 86.6, "M302"); ok(("oco", "6269", "TWSE", -1, 3) == gb_.sent[-1][:5], gb_.sent[-3:])
+adds = [b for a, b, k in tb_.posts if "加碼" in b]; ok(adds and "· 2張 ·" in adds[-1] and "共 3 張" in adds[-1], adds)
+print("判別式被手動加碼改元三後重掛條件單、同分鐘加碼卡累計 OK")
