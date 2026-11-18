@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 每日輸贏:手機返回鍵 / 滑鼠右鍵也退回原明細(單擊 / 雙擊 / 長按金額照舊來回切)
   · 2026-11-19 每日輸贏改成 日期 星期 | 贏筆 | 輸筆 | 總筆 | 當天輸贏(拿掉累計)
   · 2026-11-19 明細:單擊 / 雙擊 / 長按標題列的輸贏 → 每日輸贏(日期 星期 | 筆數 | 累計 | 當天輸贏,最新在上,一頁 4 天),標題列右邊顯示全部天數總輸贏;再按回明細,按某天跳到那天
   · 2026-11-19 通知欄標題左上角的「進場 / 資訊 / 當沖 / 明細」框拿掉,日期和旁邊的鍵貼到最左邊,右邊金額大小位置不變;當沖的 贏% 平倉選單改長按日期格(篩選判別式時進場仍顯示「判X進場」)
@@ -530,7 +531,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611190506">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611190517">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6561,6 +6562,7 @@ window.appBack = () => { try{
   const bp = document.getElementById('bugPanel'); if (bp && bp.classList.contains('on')){ bp.classList.remove('on'); return 'closed'; }
   const m = document.getElementById('rsMenu'); if (m && !m.classList.contains('hidden') && window.closeRsMenu){ closeRsMenu(); return 'closed'; }
   const sh = document.getElementById('sheet'); if (sh && sh.classList.contains('open')){ closeChart(); return 'closed'; }
+  if (window.__dSum && window.NL_VIEW === 'done'){ window.__dSum = false; const nb = document.getElementById('notifLog'); if (nb) nb.scrollTop = 0; if (window.nlRender) nlRender(); return 'closed'; }   /* 2026-11-19 05:16 使用者「手機返回或滑鼠右鍵 退回原明細」:每日輸贏 → 返回 / 右鍵回明細 */
   const pn = document.querySelector('.panel');
   { const fw = document.getElementById('feeWheel'), sf = document.getElementById('subFee');   // 2026-11-07 18:42 使用者「按返回 退出 手續折扣 回設定 手續折扣恢復為灰色」
     if (pn && pn.classList.contains('open') && window.feeLock && (document.querySelector('.wheels > .wheel:not(.locked)') || (sf && sf.classList.contains('show')))){ feeLock(); return 'closed'; } }   /* 19:08 任何一個滾輪解鎖中 → 返回先全部鎖回 */
@@ -8564,7 +8566,7 @@ window.bgTick = bgTick; window.BG = BG;
         /* 2026-11-06 12:06 使用者「沒法切換」:盤中明細一直在更新,手指按下到放開之間標題列被重畫 → 按鍵換成新的,click 不會觸發。
            改成在通知欄上聽「按下」就切(標題列重畫也不影響),一按就換 */
         if (!box.__dsDel){ box.__dsDel = 1;   /* 2026-11-19 04:35 明細標題列的輸贏:單擊 / 雙擊 / 長按 → 每日輸贏;再按回明細;每日輸贏按某一天 → 回明細跳到那天 */
-          const tog = ev => { try{ if (window.NL_VIEW !== 'done') return; const c = ev.target && ev.target.closest && ev.target.closest('#notifLog .hd .cash'); if (!c) return;
+          const tog = ev => { try{ if (window.NL_VIEW !== 'done' || (ev.pointerType === 'mouse' && ev.button === 2)) return; const c = ev.target && ev.target.closest && ev.target.closest('#notifLog .hd .cash'); if (!c) return;
             ev.preventDefault(); ev.stopPropagation(); if (Date.now() - (box.__dsAt || 0) < 500) return; box.__dsAt = Date.now();
             window.__dSum = !window.__dSum; box.scrollTop = 0; render(true); requestAnimationFrame(() => { box.scrollTop = 0; }); }catch(e){} };
           box.addEventListener('pointerdown', tog, true); box.addEventListener('dblclick', ev => { if (ev.target.closest && ev.target.closest('#notifLog .hd .cash')) ev.preventDefault(); }, true);
