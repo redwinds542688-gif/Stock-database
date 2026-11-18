@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 每日輸贏改成 日期 星期 | 贏筆 | 輸筆 | 總筆 | 當天輸贏(拿掉累計)
   · 2026-11-19 明細:單擊 / 雙擊 / 長按標題列的輸贏 → 每日輸贏(日期 星期 | 筆數 | 累計 | 當天輸贏,最新在上,一頁 4 天),標題列右邊顯示全部天數總輸贏;再按回明細,按某天跳到那天
   · 2026-11-19 通知欄標題左上角的「進場 / 資訊 / 當沖 / 明細」框拿掉,日期和旁邊的鍵貼到最左邊,右邊金額大小位置不變;當沖的 贏% 平倉選單改長按日期格(篩選判別式時進場仍顯示「判X進場」)
   · 2026-11-19 進場 / 當沖 / 明細按鍵燈號:10 格 → 20 格、格子連在一起(每格 1.5px、間隔 0);錢一格 5,000 → 2,500(滿格 5 萬,超過換色第二圈);進場一格一檔(最多 20)
@@ -529,7 +530,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611190447">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611190506">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -846,7 +847,7 @@
   #notifLog .tb .r.p2 .nm2 b{display:block;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #notifLog .tb .r.p2 .cd{display:flex;gap:3px;align-items:baseline;font-size:.78em;white-space:nowrap;font-variant-numeric:tabular-nums}
   #notifLog .tb .r.p2 .cd i{font-style:normal;color:#2EE59D} #notifLog .tb .r.p2 .cd em{font-style:normal;font-weight:700;font-size:.86em;letter-spacing:-.02em;display:inline-block;min-width:4.4em;text-align:right;flex:0 0 auto}   /* 2026-11-19 漲跌幅 +10.00% 也不切到 */
-  #notifLog .tb.dsumv .r.dsum .num.up{color:#FF4D5E} #notifLog .tb.dsumv .r.dsum .num.dn{color:#2EE59D} #notifLog .tb.dsumv .r.dsum{cursor:pointer}   /* 2026-11-19 每日輸贏 */  #notifLog .tb .r.p2 .cd em.up{color:#FF4D5E} #notifLog .tb .r.p2 .cd em.dn{color:#2EE59D}
+  #notifLog .tb.dsumv .r.dsum .num.up{color:#FF4D5E} #notifLog .tb.dsumv .r.dsum .num.dn{color:#2EE59D} #notifLog .tb.dsumv .r.dsum{cursor:pointer;grid-template-columns:minmax(0,1fr) 12% 12% 12% 25%} #notifLog .tb.dsumv .r.dsum .lb{text-align:right;grid-row:2} #notifLog .tb.dsumv .r.dsum > :nth-child(2),#notifLog .tb.dsumv .r.dsum > :nth-child(6){grid-column:2} #notifLog .tb.dsumv .r.dsum > :nth-child(3),#notifLog .tb.dsumv .r.dsum > :nth-child(7){grid-column:3} #notifLog .tb.dsumv .r.dsum > :nth-child(4),#notifLog .tb.dsumv .r.dsum > :nth-child(8){grid-column:4} #notifLog .tb.dsumv .r.dsum > :nth-child(5),#notifLog .tb.dsumv .r.dsum > :nth-child(9){grid-column:5} #notifLog .tb.dsumv .r.dsum .wln b{font-weight:700} #notifLog .tb.dsumv .r.dsum .wln b.up{color:#FF4D5E} #notifLog .tb.dsumv .r.dsum .wln b.dn{color:#2EE59D} #notifLog .tb.dsumv .r.dsum .wln i{font-style:normal;color:#8C96AB;margin:0 1px}   /* 2026-11-19 每日輸贏 */  #notifLog .tb .r.p2 .cd em.up{color:#FF4D5E} #notifLog .tb .r.p2 .cd em.dn{color:#2EE59D}
   #notifLog .tb .r.p2 .n{text-align:right;color:#E6EAF2}
   #notifLog .tb .r.p2 .pl{text-align:right}
   #notifLog .tb .r.p2 .lb{font-size:.62em;font-weight:600;color:#8C96AB;text-align:right;white-space:nowrap;line-height:1.2}
@@ -8331,7 +8332,9 @@ window.bgTick = bgTick; window.BG = BG;
           return out.sort((a, b) => a.t < b.t ? 1 : a.t > b.t ? -1 : 0); };
         // 2026-11-18 13:29 使用者「圖一是主程式的明細 修改與看盤 圖二一樣」:明細每筆改成夥伴看盤版的兩行排法 ——
         //   名稱(下 代碼 出場價比昨收的漲跌%)| 出場價(下 出場價 / 出場時間)| 進場價(下 做空 / 做多 N張)| 輸贏(下 元大成交 / 判別式)
+        const __WL = {}, __WLk = new Set();   /* 2026-11-19 04:50 使用者「增加 贏筆 輸筆 總筆」:每日輸贏用,畫明細列時順便數每天贏 / 輸幾筆 */
         const p2Row = (q) => { const pc_ = q.y > 0 && q.ex > 0 ? (q.ex / q.y - 1) * 100 : null;
+          try{ const k = [q.dd, q.code, q.ent, q.ex, q.lots, q.v, q.tx || ''].join('|'); if (!__WLk.has(k)){ __WLk.add(k); const w = __WL[q.dd] || (__WL[q.dd] = {w: 0, l: 0, n: 0}); w.n++; if (Math.round(+q.v || 0) > 0) w.w++; else if (Math.round(+q.v || 0) < 0) w.l++; } }catch(e){}
           return `<div class="r p2${q.cls || ''}" data-day="${q.dd}" data-code="${esc(q.code)}" data-name="${esc(q.name)}"${q.sty ? ` style="${q.sty}"` : ''}><span class="nm2"><b>${esc(q.name)}${q.tag || ''}</b><span class="cd"><i>${esc(q.code)}</i>${pc_ == null ? '' : `<em class="${pc_ > 0 ? 'up' : pc_ < 0 ? 'dn' : ''}">${pc_ > 0 ? '+' : pc_ < 0 ? '−' : ''}${Math.abs(pc_).toFixed(2)}%</em>`}</span></span>`
             + `<span class="num n">${(+q.ex).toFixed(2)}</span><span class="num n">${(+q.ent).toFixed(2)}</span>${amt(q.v).replace('class="num', 'class="num pl')}`
             + `<span class="lb now">${q.tx ? '出場 ' + esc(q.tx) : '出場價'}</span><span class="lb sub"><i class="sd2 ${q.lg ? 'long' : 'short'}">${q.lg ? '做多' : '做空'}</i>${q.lots}張</span><span class="lb tg">${esc(q.lab || '元大成交')}</span></div>`; };
@@ -8550,8 +8553,8 @@ window.bgTick = bgTick; window.BG = BG;
           const sg = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}`, cl = v => v > 0 ? 'up' : v < 0 ? 'dn' : '', WK = '日一二三四五六';
           const rows = [...ks].reverse().map(k => { const v = Math.round(dayTot[k] || 0), wk = WK[new Date(k + 'T12:00:00+08:00').getUTCDay()];
             return `<div class="r p2 dsum" data-day="${k}" data-code="sum${k}"><span class="nm2"><b>${k.slice(5).replace('-', '/')}</b><span class="cd"><i>星期${wk}</i></span></span>`
-              + `<span class="num n">${dayCnt[k] || 0}</span><span class="num n ${cl(cumOf[k])}">${sg(cumOf[k])}</span><span class="num pl ${cl(v)}">${sg(v)}</span>`
-              + `<span class="lb now">筆數</span><span class="lb sub">累計</span><span class="lb tg">當天輸贏</span></div>`; }).join('');
+              + (() => { const w = __WL[k] || {w: '', l: '', n: dayCnt[k] || 0}; return `<span class="num n up">${w.w}</span><span class="num n dn">${w.l}</span><span class="num n">${w.n}</span>`; })() + `<span class="num pl ${cl(v)}">${sg(v)}</span>`
+              + `<span class="lb">贏筆</span><span class="lb">輸筆</span><span class="lb">總筆</span><span class="lb tg">當天輸贏</span></div>`; }).join('');   /* 2026-11-19 05:03 使用者「贏筆數 輸筆數 總筆數 分開」 */   /* 2026-11-19 05:00 使用者「累計 不需要」 */
           const dwh0 = `<span class="dwh">${Object.keys(dayTot).sort().reverse().map(x => `<span class="dwi" data-day="${x}">${x.slice(5).replace('-', '/')}</span>`).join('')}</span>`;
           const hd2 = hdDone.replace(`<span class="cash">${money(Math.round(t0))}</span>`, `<span class="cash">${money(all)}</span>`).replace(dwh0, `<span class="dwh dsumd"><span class="dwi">${ks.length} 天</span></span>`);
           return {h: hd2, body: rows, all, n: ks.length}; })();
