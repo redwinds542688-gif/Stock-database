@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 判別式開 / 關防誤觸:長按 0.6 秒改 1.5 秒,而且跳確認框要再按「確定」才會開 / 關(放手那一下不算)
   · 2026-11-19 判二被關掉(紅燈,使用者沒碰)→ 一次性把手機上關掉的判別式全部打開
   · 2026-11-19 修正監控區成交價顯示「—」(寶成):開盤前還沒成交顯示昨收;報價有紀錄沒成交價的(元大中繼回「-」)收盤後直接問證交所補
   · 2026-11-19 開盤中公式選單「鑰匙」二字也變灰,只有鑰匙符號亮
@@ -544,7 +545,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611191036">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611191041">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -692,6 +693,7 @@
   #notifLog .fz{color:#FF3B3B;font-weight:inherit}
   #notifLog .card .ln .qt .tsd{font-weight:700;display:inline-block;border:2px solid currentColor;border-radius:4px;padding:0 2px;line-height:1.1;font-size:.9em} #notifLog .card .ln .qt .tsd.win{color:#FF4D5E} #notifLog .card .ln .qt .tsd.lose{color:#2EE59D}   /* (判別式相關說明已移到私人庫) */   /* 2026-10-28 強三 / 強平 的「強」紅色 */
   /* 2026-10-28 強制模式視窗 */
+  .rsask{position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center} .rsaskb{background:#1B2232;border:1px solid #FFD54F;border-radius:12px;padding:18px 18px 14px;min-width:240px;max-width:86vw;color:#E6EAF2;text-align:center} .rsaskq{font-size:20px;font-weight:700;margin-bottom:6px} .rsasks{font-size:14px;color:#8C96AB;margin-bottom:14px} .rsaskr{display:flex;gap:12px} .rsaskr button{flex:1;font-size:17px;font-weight:700;padding:10px 0;border-radius:8px;border:1px solid #4A5570;background:#232B3D;color:#E6EAF2} .rsaskr .rsyes{border-color:#FFD54F;color:#FFD54F}   /* 2026-11-19 判別式開關確認框 */
   #fmToast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);max-width:86vw;background:#1B2233;color:#E6EAF2;border:1px solid #4A5570;border-radius:10px;padding:8px 14px;font-size:15px;z-index:1200;opacity:0;pointer-events:none;transition:opacity .2s;text-align:center}
   #fmToast.on{opacity:1}
   /* 2026-11-07 12:48 使用者「提示時 … 程式也在股票監控區這 顯示一個(上面顯示「拖輸通知」下面顯示 K 圖)」→ 示意圖 →「下面應該顯示目前輸贏多少 加上一個強制平倉的拖曳」:拖輸通知視窗 */
@@ -2895,6 +2897,12 @@ window.fitBands = fitBands;
     try{ bgLog('[監控] 開盤了背景監控沒在跑 → 自動啟動(' + r + ')'); }catch(e){} try{ fmToast('背景監控已自動啟動', 3000); }catch(e){} setTimeout(rsLampUpd, 2500);
   }catch(e){} }, 20000);
   /* 2026-11-19 07:56 使用者「公式 按鍵 也與設定鍵 防誤觸」→ 選「2」:開盤中(09:00–13:30)公式選單只能看燈:判別式單擊(篩選)、長按(開 / 關)、鑰匙都按不動,只跳提示;說明照常 */
+  /* 2026-11-19 10:38 判別式開 / 關的確認框(不用瀏覽器內建 confirm) */
+  const rsAsk = (q, sub, yes) => { try{ const o = document.createElement('div'); o.className = 'rsask';
+    o.innerHTML = `<div class="rsaskb"><div class="rsaskq">${q}</div><div class="rsasks">${sub}</div><div class="rsaskr"><button class="rsno">取消</button><button class="rsyes">確定</button></div></div>`;
+    let fin = false; const done = ok => { if (fin) return; fin = true; o.remove(); if (ok) yes(); };   // 用 pointerup(電腦版滑鼠 click 會被別的 mousedown 處理吃掉)
+    let dn = false; o.addEventListener('pointerdown', ev => { ev.stopPropagation(); dn = true; }); o.addEventListener('pointerup', ev => { ev.stopPropagation(); if (!dn) return; dn = false;   /* 長按放手那一下不算,要在框上重新按下才算 */ const t = ev.target; if (t.closest('.rsyes')) done(true); else if (t.closest('.rsno') || t === o) done(false); });
+    document.body.appendChild(o); }catch(e){} };
   const rsLk = () => { try{ return inSession(); }catch(e){ return false; } }, rsLkMsg = () => {};   /* 2026-11-19 08:03 使用者「下面的提示不用顯示」 */
   if (menu) menu.querySelectorAll('.rsm').forEach(b => {
     const k = b.dataset.rs, lb = b.textContent.trim();
@@ -2905,7 +2913,8 @@ window.fitBands = fitBands;
     const st = () => { rsLong = false; rsMoved = false; clearTimeout(rsHold); if (rsLk()) return; rsHold = setTimeout(() => {
       rsLong = true; try{ navigator.vibrate && navigator.vibrate(30); }catch(e){}
       // 2026-10-24 13:50 長按 = 關閉 / 重新開啟這份判別式(背景監控、通知)
-      const on = !rsOn(k); rsSet(k, on); setStatus(lb + (on ? ' 已開啟(監控、通知)' : ' 已關閉(不監控、不通知)')); rsLampUpd(); refreshToolbar(); }, 600); };
+      // 2026-11-19 10:38 使用者「改」:判二被誤關(使用者沒碰)→ 長按 0.6 秒改 1.5 秒,而且要再按「確定」才會開 / 關
+      const on = !rsOn(k); rsAsk(`確定${on ? '打開' : '關閉'} ${lb}?`, on ? '打開後會監控、通知' : '關閉後這支手機不監控、不通知', () => { rsSet(k, on); setStatus(lb + (on ? ' 已開啟(監控、通知)' : ' 已關閉(不監控、不通知)')); rsLampUpd(); refreshToolbar(); }); }, 1500); };
     b.addEventListener('touchstart', st, {passive: true});
     b.addEventListener('touchmove', () => { rsMoved = true; clearTimeout(rsHold); }, {passive: true});
     b.addEventListener('touchcancel', () => clearTimeout(rsHold), {passive: true});
