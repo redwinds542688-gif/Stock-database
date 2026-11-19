@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 點監控區標題「股票」→ 監控區換成線圖(上:大盤紅 / 台指期白,點數刻度、昨收虛線;下:寬度 %),9:00~13:30 單頁、按住出現十字虛線看那一分鐘的值;收盤後留到隔天開盤
   · 2026-11-19 預掛中改成直接對元大現在還掛著的委託(中繼 ?trade=pos 多給 orders):元大沒有掛著的預掛 → 預掛卡藏、平倉預掛標籤拿掉(市價預掛、取消通知沒送到也對)
   · 2026-11-19 修正:同一分鐘內「掛預掛 → 取消」(友達 12:10 26.3),雲端順序顛倒時預掛卡沒被取消、監控一直「預掛中」→ 同檔同方向同價有取消卡就算結束
   · 2026-11-19 同一檔今天進場兩次:最後一張進場卡(現在的部位)張數 = 元大合計 − 已平倉(= 還沒沖的張數)
@@ -551,7 +552,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611191549">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611191627">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1017,6 +1018,7 @@
   #resultFrame{position:fixed;left:0;right:0;bottom:0;z-index:49;pointer-events:none;border:1px solid #FFD54F;box-sizing:border-box}   /* 2026-10-27 09:45 使用者:「股票監控區 一樣用黃色框起來」:與通知欄同色的黃框,top 由 sync 設 */
   #resultFrame.hidden{display:none}
   #result .grid.head{position:sticky;top:0;z-index:3;background:var(--ink);border-bottom-color:#FFD54F}   /* 2026-10-27 09:45 標題列底線也黃色,八列區四邊都是黃框 */
+  #mkChart{position:fixed;left:0;right:0;z-index:5;background:#141A26;display:none;touch-action:none;user-select:none;-webkit-user-select:none}   /* 2026-11-19 大盤 / 台指期 / 寬度線圖(蓋在監控區八檔上) */
   #result{will-change:scroll-position} #bands .row{contain:layout style}   /* 2026-11-02 22:58 清單捲動順暢:捲動區自己一層、每列重排不牽動整個清單 */
   #result.rows8{scroll-snap-type:none}   /* 2026-11-19 同上:監控區也改停下來才對齊 */   /* 2026-10-27 18:30 使用者:「點進k圖再退出」清單自己一直往下跳換股票 → 強制吸附(mandatory)改成靠近才吸附,手機 WebView 不會再自己重新對齊、一頁一頁跳 */
   #result.rows8 .row{scroll-snap-align:start;box-sizing:border-box;padding-top:0;padding-bottom:0;overflow:hidden}
@@ -4299,6 +4301,95 @@ function brBadge(){ try{ const el = document.getElementById('listBr'); if (!el) 
   if (cn) cn.style.display = 'none'; el.style.marginLeft = '.35em'; el.style.fontSize = '';
 }catch(e){} }
 window.brBadge = brBadge; setInterval(brBadge, 15000); setTimeout(brBadge, 3000);
+/* 2026-11-19 16:24 使用者「改」(看過 mock_13):點監控區標題「股票 ○○」→ 監控區八檔的位置換成線圖,再點一次收起。
+   上格:大盤指數(紅)、台指期(白),左邊刻度 = 點數,虛線 = 大盤昨收;下格:大盤寬度(黃,上漲家數 %),左邊刻度 0 / 50 / 100%。
+   單頁、時間軸固定 9:00~13:30(下方每 30 分一格),只畫到現在;按住 / 滑動出現十字虛線(只能在 9:00 到最後一筆之間),顯示那一分鐘的大盤 / 台指期 / 寬度;放開消失。
+   收盤後留著當天整天,隔天 09:00 開盤才換新的一天(週末 / 休市日留最近一個交易日)。
+   資料:雲端現成的三份 —— 加權每分鐘 ?ixbars、台指期 1 分 K ?fbars(電腦每分鐘推)、寬度 ?breadth;只在圖打開時抓,開盤中每 60 秒更新 */
+const MKC = { open: false, d: '', ix: {}, fx: {}, br: {}, y0: 0, at: 0, busy: false, ci: -1 };
+async function mkcFetch(force){
+  if (MKC.busy) return; MKC.busy = true;
+  try{
+    const U = BASE.liveUrl.replace(/\/$/, ''), J_ = async q => { try{ const r = await fetch(`${U}/?${q}&_=${Date.now()}`, {cache: 'no-store', signal: AbortSignal.timeout(9000)}); return r.ok ? await r.json() : null; }catch(e){ return null; } };
+    const tw = new Date(Date.now() + 8 * 3600000), hm = tw.getUTCHours() * 60 + tw.getUTCMinutes();
+    let d = new Date(tw.getTime()); if (hm < 9 * 60) d.setUTCDate(d.getUTCDate() - 1);
+    let day = '', ix = null;
+    for (let k = 0; k < 8 && !day; k++){ const wd = d.getUTCDay(), ds = d.toISOString().slice(0, 10);
+      if (wd !== 0 && wd !== 6){ if (!force && MKC.d === ds && !(ds === todayTW() && inSession())){ day = ds; break; }
+        const j = await J_('ixbars=' + ds); if (j && j.m && Object.keys(j.m).length){ day = ds; ix = j.m; break; }
+        if (ds === todayTW() && inSession()){ day = ds; ix = {}; break; } }
+      d.setUTCDate(d.getUTCDate() - 1); }
+    if (!day){ MKC.busy = false; return; }
+    if (ix === null && MKC.d === day){ MKC.busy = false; mkcDraw(); return; }   // 過去那天已經抓過(收盤後不變)
+    const [fb, br, q] = await Promise.all([J_('fbars=' + day), day === BREADTH.d && BREADTH.arr.length ? null : J_('breadth=' + day), J_('codes=t00&mkt=tse&src=mis')]);
+    MKC.d = day; MKC.ix = {}; for (const [k, v] of Object.entries(ix || {})) if (+v > 0 && k >= '09:00' && k <= '13:30') MKC.ix[k] = +v;
+    MKC.fx = {}; for (const b of ((fb && fb.bars) || [])) if (b && b[0] >= '09:00' && b[0] <= '13:30' && +b[4] > 0) MKC.fx[b[0]] = +b[4];
+    MKC.br = {}; if (br && br.br){ for (const [k, v] of Object.entries(br.br)) if (isFinite(+v)) MKC.br[k] = +v * 100; }
+    else if (day === BREADTH.d) for (const [t, v] of BREADTH.arr){ const k = new Date((t + 8 * 3600) * 1000).toISOString().slice(11, 16); MKC.br[k] = +v * 100; }
+    const m = q && (q.msgArray || []).find(x => x.c === 't00'); MKC.y0 = m && String(m.d || '') === day.replace(/-/g, '') && +m.y > 0 ? +m.y : 0;   // 證交所 t00 的昨收(只有同一天才用)
+    MKC.at = Date.now();
+  }catch(e){}
+  MKC.busy = false; mkcDraw();
+}
+function mkcBox(){ let el = document.getElementById('mkChart'); if (!el){ el = document.createElement('div'); el.id = 'mkChart'; document.body.appendChild(el);
+    el.addEventListener('pointerdown', ev => { el.setPointerCapture && el.setPointerCapture(ev.pointerId); mkcPt(ev); ev.preventDefault(); });
+    el.addEventListener('pointermove', ev => { if (MKC.ci >= 0 || ev.buttons) mkcPt(ev); });
+    const up = () => { MKC.ci = -1; mkcDraw(); }; el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('pointerleave', ev => { if (ev.pointerType === 'mouse') up(); }); }
+  return el; }
+function mkcPos(){ const el = document.getElementById('mkChart'), rs = document.getElementById('result'), hd = rs && rs.querySelector('.grid.head'); if (!el || !rs || !hd) return;
+  const a = hd.getBoundingClientRect(), b = rs.getBoundingClientRect(); el.style.top = Math.round(a.bottom) + 'px'; el.style.height = Math.max(120, Math.round(b.bottom - a.bottom)) + 'px'; }
+const MKC_M = hm => (+hm.slice(0, 2)) * 60 + (+hm.slice(3, 5)) - 540;   // 09:00 → 0 … 13:30 → 270
+function mkcGeom(){ const el = document.getElementById('mkChart'); const W = el.clientWidth, H = el.clientHeight, L = 46, R = 8, T1 = 30, B1 = Math.round(H * 0.6), T2 = B1 + 24, B2 = H - 18;
+  return {W, H, L, R, T1, B1, T2, B2, x: i => L + (W - L - R) * i / 270}; }
+function mkcPt(ev){ try{ const el = document.getElementById('mkChart'), g = mkcGeom(), r = el.getBoundingClientRect();
+  const keys = [...Object.keys(MKC.ix), ...Object.keys(MKC.fx), ...Object.keys(MKC.br)]; if (!keys.length) return;
+  const last = Math.max(...keys.map(MKC_M).filter(v => v >= 0 && v <= 270)); let i = Math.round((ev.clientX - r.left - g.L) / (g.W - g.L - g.R) * 270);
+  MKC.ci = Math.max(0, Math.min(last, i)); mkcDraw(); }catch(e){} }
+function mkcDraw(){ try{
+  const el = document.getElementById('mkChart'); if (!el || !MKC.open) return; mkcPos();
+  const g = mkcGeom(), {W, H, L, R, T1, B1, T2, B2, x} = g, S = (o, k) => Object.keys(o).filter(h => h >= '09:00' && h <= '13:30').sort().map(h => [MKC_M(h), o[h]]);
+  const IX = S(MKC.ix), FX = S(MKC.fx), BR = S(MKC.br); let h = '';
+  const md = MKC.d ? MKC.d.slice(5).replace('-', '/') : '';
+  h += `<text x="6" y="15" font-size="12.5" font-weight="700" fill="#FF3B3B">大盤指數 <tspan fill="#FFFFFF">台指期</tspan><tspan fill="#8C96AB" font-weight="400">(點)${md ? ' · ' + md : ''}</tspan></text>`;
+  const pv = [...IX, ...FX].map(p => p[1]); if (MKC.y0) pv.push(MKC.y0);
+  if (pv.length){ const mn = Math.min(...pv), mx = Math.max(...pv), sp = Math.max(1, mx - mn), st = [10, 20, 50, 100, 200, 500, 1000].find(v => sp / v <= 7) || 1000, lo = Math.floor(mn / st) * st, hi = Math.ceil(mx / st) * st || lo + st;
+    const y1 = v => T1 + (B1 - T1) * (hi - v) / Math.max(1, hi - lo);
+    for (let v = hi; v >= lo; v -= st) h += `<line x1="${L}" x2="${W - R}" y1="${y1(v)}" y2="${y1(v)}" stroke="#2A3346"/><text x="${L - 4}" y="${y1(v) + 4}" font-size="10.5" fill="#8C96AB" text-anchor="end">${v}</text>`;
+    if (MKC.y0){ h += `<line x1="${L}" x2="${W - R}" y1="${y1(MKC.y0)}" y2="${y1(MKC.y0)}" stroke="#8C96AB" stroke-dasharray="4 3"/><text x="${W - R - 2}" y="${y1(MKC.y0) - 3}" font-size="9.5" fill="#8C96AB" text-anchor="end">昨收 ${MKC.y0.toFixed(0)}</text>`;
+      if (IX.length > 1){ const P = IX.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y1(p[1]).toFixed(1)).join(' '); const up = IX[IX.length - 1][1] >= MKC.y0;
+        h += `<path d="${P} L${x(IX[IX.length - 1][0])} ${y1(MKC.y0)} L${x(IX[0][0])} ${y1(MKC.y0)} Z" fill="${up ? '#FF3B3B' : '#1DD75B'}" opacity=".12"/>`; } }
+    const line = (A, col, w) => A.length ? `<path d="${A.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y1(p[1]).toFixed(1)).join(' ')}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linejoin="round"/>` : '';
+    h += line(FX, '#FFFFFF', 2) + line(IX, '#FF3B3B', 2.4); g.y1 = y1; }
+  else h += `<text x="${W / 2}" y="${(T1 + B1) / 2}" font-size="12" fill="#8C96AB" text-anchor="middle">還沒有大盤 / 台指期資料</text>`;
+  h += `<line x1="0" x2="${W}" y1="${B1 + 8}" y2="${B1 + 8}" stroke="#3A4356"/><text x="6" y="${T2 - 4}" font-size="12.5" font-weight="700" fill="#FFD54F">寬度(上漲家數 %)</text>`;
+  const y2 = v => T2 + 6 + (B2 - T2 - 6) * (100 - v) / 100;
+  for (const v of [100, 50, 0]) h += `<line x1="${L}" x2="${W - R}" y1="${y2(v)}" y2="${y2(v)}" stroke="${v === 50 ? '#B89A3C' : '#2A3346'}" ${v === 50 ? 'stroke-dasharray="4 3"' : ''}/><text x="${L - 4}" y="${y2(v) + 4}" font-size="10.5" fill="#B89A3C" text-anchor="end">${v}%</text>`;
+  if (BR.length > 1){ const P = BR.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y2(p[1]).toFixed(1)).join(' '), A = `${P} L${x(BR[BR.length - 1][0])} ${y2(50)} L${x(BR[0][0])} ${y2(50)} Z`;
+    h += `<clipPath id="mkcU"><rect x="${L}" y="${T2}" width="${W - L - R}" height="${y2(50) - T2}"/></clipPath><clipPath id="mkcD"><rect x="${L}" y="${y2(50)}" width="${W - L - R}" height="${B2 - y2(50)}"/></clipPath>`;
+    h += `<path d="${A}" fill="#FF3B3B" opacity=".3" clip-path="url(#mkcU)"/><path d="${A}" fill="#1DD75B" opacity=".3" clip-path="url(#mkcD)"/><path d="${P}" fill="none" stroke="#FFD54F" stroke-width="1.8"/>`; }
+  for (let i = 0; i <= 270; i += 30) h += `<line x1="${x(i)}" x2="${x(i)}" y1="${T1}" y2="${B2}" stroke="#1F2635"/><text x="${x(i)}" y="${H - 4}" font-size="10" fill="#8C96AB" text-anchor="${i === 0 ? 'start' : i === 270 ? 'end' : 'middle'}">${9 + Math.floor(i / 60)}:${i % 60 ? '30' : '00'}</text>`;
+  // 還沒到的時間(開盤中)變暗
+  const keys = [...IX, ...FX, ...BR].map(p => p[0]); const last = keys.length ? Math.max(...keys) : -1;
+  if (MKC.d === todayTW() && inSession() && last >= 0 && last < 270) h += `<rect x="${x(last)}" y="${T1}" width="${x(270) - x(last)}" height="${B2 - T1}" fill="#0B0F17" opacity=".45"/>`;
+  // 十字虛線
+  if (MKC.ci >= 0){ const i = MKC.ci, at = A => { let r = null; for (const p of A){ if (p[0] > i) break; r = p[1]; } return r; }, vi = at(IX), vf = at(FX), vb = at(BR), cx = x(i), tl = `${String(9 + Math.floor((i + 0) / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}`;
+    h += `<line x1="${cx}" x2="${cx}" y1="${T1}" y2="${B2}" stroke="#E6EAF2" stroke-dasharray="4 3"/>`;
+    if (vi != null && g.y1){ const cy = g.y1(vi); h += `<line x1="${L}" x2="${W - R}" y1="${cy}" y2="${cy}" stroke="#E6EAF2" stroke-dasharray="4 3"/><rect x="0" y="${cy - 8}" width="${L - 2}" height="16" rx="3" fill="#E6EAF2"/><text x="${(L - 2) / 2}" y="${cy + 4}" font-size="10.5" font-weight="700" fill="#0B0F17" text-anchor="middle">${vi.toFixed(0)}</text><circle cx="${cx}" cy="${cy}" r="4" fill="#FF3B3B" stroke="#fff"/>`; }
+    if (vf != null && g.y1) h += `<circle cx="${cx}" cy="${g.y1(vf)}" r="3.5" fill="#fff"/>`;
+    if (vb != null) h += `<circle cx="${cx}" cy="${y2(vb)}" r="3.5" fill="#FFD54F"/>`;
+    const bw = 132, bx = cx + 10 + bw > W - R ? cx - 10 - bw : cx + 10, by = T1 + 6, pct = vi != null && MKC.y0 ? ` ${((vi / MKC.y0 - 1) * 100).toFixed(2)}%` : '';
+    h += `<rect x="${bx}" y="${by}" width="${bw}" height="72" rx="5" fill="#0B0F17" stroke="#5A6478" opacity=".95"/><text x="${bx + 7}" y="${by + 15}" font-size="12" font-weight="700" fill="#E6EAF2">${tl}</text>`
+      + `<text x="${bx + 7}" y="${by + 32}" font-size="11.5" font-weight="700" fill="#FF3B3B">大盤 ${vi != null ? vi.toFixed(0) : '—'}${pct}</text><text x="${bx + 7}" y="${by + 49}" font-size="11.5" font-weight="700" fill="#FFFFFF">台指期 ${vf != null ? vf.toFixed(0) : '—'}</text><text x="${bx + 7}" y="${by + 66}" font-size="11.5" font-weight="700" fill="#FFD54F">寬度 ${vb != null ? vb.toFixed(1) + '%' : '—'}</text>`;
+    h += `<rect x="${cx - 18}" y="${B2 + 1}" width="36" height="15" rx="3" fill="#E6EAF2"/><text x="${cx}" y="${B2 + 12}" font-size="10" font-weight="700" fill="#0B0F17" text-anchor="middle">${tl}</text>`; }
+  el.innerHTML = `<svg width="${W}" height="${H}" style="display:block">${h}</svg>`;
+}catch(e){} }
+function mkcToggle(){ MKC.open = !MKC.open; const el = mkcBox(); el.style.display = MKC.open ? 'block' : 'none'; MKC.ci = -1;
+  if (MKC.open){ mkcPos(); el.innerHTML = '<div style="color:#8C96AB;font-size:13px;padding:14px">讀取大盤 / 台指期 / 寬度…</div>'; mkcFetch(false); } }
+window.mkcToggle = mkcToggle;
+setInterval(() => { if (MKC.open && MKC.d === todayTW() && inSession() && Date.now() - MKC.at > 60000) mkcFetch(true); }, 15000);
+setInterval(() => { if (MKC.open && MKC.d && MKC.d !== todayTW() && inSession()) mkcFetch(true); }, 60000);   // 隔天開盤 → 換新的一天
+window.addEventListener('resize', () => { if (MKC.open) mkcDraw(); });
+setTimeout(() => { try{ const hn = document.querySelector('#result .grid.head .h-nm'); if (hn){ hn.style.cursor = 'pointer'; hn.addEventListener('click', ev => { ev.stopPropagation(); mkcToggle(); }); } }catch(e){} }, 0);
 window.BREADTH = BREADTH;
 async function loadTodayBars(code, force){
   const cached = TODAY_BARS.get(code);
