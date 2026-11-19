@@ -1769,7 +1769,8 @@ export default {
       if (!env || !env.GH_TOKEN) return J({ error: "Worker 沒有 GH_TOKEN" }, 503);
       const rp = { db: GH_REPO, logic: GH_REPO_LOGIC, lottery: "Lottery-database" }[url.searchParams.get("repo") || "db"];
       if (!rp) return J({ error: "repo 不對" }, 400);
-      const H = { Authorization: "token " + env.GH_TOKEN, "User-Agent": "twse-proxy", Accept: "application/vnd.github+json" };
+      const pub = rp === "Lottery-database";   // 2026-11-19 21:35 Lottery-database 是公開庫,GH_TOKEN 沒有它的權限(回 404 → 502)→ 不帶 token 讀
+      const H = pub ? { "User-Agent": "twse-proxy", Accept: "application/vnd.github+json" } : { Authorization: "token " + env.GH_TOKEN, "User-Agent": "twse-proxy", Accept: "application/vnd.github+json" };
       if (gh === "tree") {
         const c = await fetch(`https://api.github.com/repos/${GH_OWNER}/${rp}/commits/${GH_REF}`, { headers: H });
         if (!c.ok) return J({ error: "commit " + c.status }, 502);
@@ -1787,7 +1788,7 @@ export default {
       // 用 raw.githubusercontent(不吃 GitHub API 每小時 5,000 次的額度;第一次同步約 6,000 個檔);要帶 path + ref(提交編號)
       const fp = String(url.searchParams.get("path") || ""), rf = url.searchParams.get("ref") || "";
       if (!fp || fp.includes("..") || !/^[0-9a-f]{40}$/.test(rf)) return J({ error: "path / ref 不對" }, 400);
-      const b = await fetch(`https://raw.githubusercontent.com/${GH_OWNER}/${rp}/${rf}/${fp.split("/").map(encodeURIComponent).join("/")}`, { headers: { Authorization: "token " + env.GH_TOKEN, "User-Agent": "twse-proxy" } });
+      const b = await fetch(`https://raw.githubusercontent.com/${GH_OWNER}/${rp}/${rf}/${fp.split("/").map(encodeURIComponent).join("/")}`, { headers: pub ? { "User-Agent": "twse-proxy" } : { Authorization: "token " + env.GH_TOKEN, "User-Agent": "twse-proxy" } });
       if (!b.ok) return J({ error: "blob " + b.status }, b.status === 404 ? 404 : 502);
       const res = new Response(b.body, { status: 200, headers: { "Content-Type": "application/octet-stream", "Cache-Control": "public, max-age=86400" } });
       try { await cache.put(ck, res.clone()); } catch (e) {}
