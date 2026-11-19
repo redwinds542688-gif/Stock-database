@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 大盤線圖一打開十字虛線就停在最新一分鐘(放開手也回到最新);下面時間刻度不再擠在一起
   · 2026-11-19 大盤線圖字放大(說明框 16px、刻度 13px),手機上看得清楚
   · 2026-11-19 大盤線圖十字虛線說明分上下兩框(上:時間/大盤/台指期,下:寬度),自動找不壓線的位置
   · 2026-11-19 主畫面按返回鍵不再跳「離開程式?」,直接回桌面、背景監控照跑(APK 1.5.70)
@@ -556,7 +557,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611191651">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611191658">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4343,7 +4344,7 @@ function mkcBox(){ let el = document.getElementById('mkChart'); if (!el){ el = d
 function mkcPos(){ const el = document.getElementById('mkChart'), rs = document.getElementById('result'), hd = rs && rs.querySelector('.grid.head'); if (!el || !rs || !hd) return;
   const a = hd.getBoundingClientRect(), b = rs.getBoundingClientRect(); el.style.top = Math.round(a.bottom) + 'px'; el.style.height = Math.max(120, Math.round(b.bottom - a.bottom)) + 'px'; }
 const MKC_M = hm => (+hm.slice(0, 2)) * 60 + (+hm.slice(3, 5)) - 540;   // 09:00 → 0 … 13:30 → 270
-function mkcGeom(){ const el = document.getElementById('mkChart'); const W = el.clientWidth, H = el.clientHeight, L = 56, R = 8, T1 = 36, B1 = Math.round(H * 0.6), T2 = B1 + 30, B2 = H - 22;
+function mkcGeom(){ const el = document.getElementById('mkChart'); const W = el.clientWidth, H = el.clientHeight, L = 56, R = 20, T1 = 36, B1 = Math.round(H * 0.6), T2 = B1 + 30, B2 = H - 22;
   return {W, H, L, R, T1, B1, T2, B2, x: i => L + (W - L - R) * i / 270}; }
 function mkcPt(ev){ try{ const el = document.getElementById('mkChart'), g = mkcGeom(), r = el.getBoundingClientRect();
   const keys = [...Object.keys(MKC.ix), ...Object.keys(MKC.fx), ...Object.keys(MKC.br)]; if (!keys.length) return;
@@ -4371,12 +4372,14 @@ function mkcDraw(){ try{
   if (BR.length > 1){ const P = BR.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y2(p[1]).toFixed(1)).join(' '), A = `${P} L${x(BR[BR.length - 1][0])} ${y2(50)} L${x(BR[0][0])} ${y2(50)} Z`;
     h += `<clipPath id="mkcU"><rect x="${L}" y="${T2}" width="${W - L - R}" height="${y2(50) - T2}"/></clipPath><clipPath id="mkcD"><rect x="${L}" y="${y2(50)}" width="${W - L - R}" height="${B2 - y2(50)}"/></clipPath>`;
     h += `<path d="${A}" fill="#FF3B3B" opacity=".3" clip-path="url(#mkcU)"/><path d="${A}" fill="#1DD75B" opacity=".3" clip-path="url(#mkcD)"/><path d="${P}" fill="none" stroke="#FFD54F" stroke-width="1.8"/>`; }
-  for (let i = 0; i <= 270; i += 30) h += `<line x1="${x(i)}" x2="${x(i)}" y1="${T1}" y2="${B2}" stroke="#1F2635"/><text x="${x(i)}" y="${H - 5}" font-size="13" fill="#A9B2C4" text-anchor="${i === 0 ? 'start' : i === 270 ? 'end' : 'middle'}">${9 + Math.floor(i / 60)}:${i % 60 ? '30' : '00'}</text>`;
-  // 還沒到的時間(開盤中)變暗
   const keys = [...IX, ...FX, ...BR].map(p => p[0]); const last = keys.length ? Math.max(...keys) : -1;
+  const curI = MKC.ci >= 0 ? MKC.ci : last;   /* 刻度字跟十字線時間標籤重疊就不畫那個刻度字 */
+  for (let i = 0; i <= 270; i += 30) h += `<line x1="${x(i)}" x2="${x(i)}" y1="${T1}" y2="${B2}" stroke="#1F2635"/><text x="${x(i)}" y="${H - 5}" font-size="12.5" fill="#A9B2C4" text-anchor="middle" class="mkt">${curI >= 0 && Math.abs(x(i) - x(curI)) < 44 ? '' : 9 + Math.floor(i / 60) + ':' + (i % 60 ? '30' : '00')}</text>`;
+  // 還沒到的時間(開盤中)變暗
   if (MKC.d === todayTW() && inSession() && last >= 0 && last < 270) h += `<rect x="${x(last)}" y="${T1}" width="${x(270) - x(last)}" height="${B2 - T1}" fill="#0B0F17" opacity=".45"/>`;
   // 十字虛線
-  if (MKC.ci >= 0){ const i = MKC.ci, at = A => { let r = null; for (const p of A){ if (p[0] > i) break; r = p[1]; } return r; }, vi = at(IX), vf = at(FX), vb = at(BR), cx = x(i), tl = `${String(9 + Math.floor((i + 0) / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}`;
+  /* 2026-11-19 16:57 使用者「一進去 十字虛線就直接出現在最後一個」:沒在拖時十字線停在最新一分鐘 */
+  if (MKC.ci >= 0 || last >= 0){ const i = MKC.ci >= 0 ? MKC.ci : last, at = A => { let r = null; for (const p of A){ if (p[0] > i) break; r = p[1]; } return r; }, vi = at(IX), vf = at(FX), vb = at(BR), cx = x(i), tl = `${String(9 + Math.floor((i + 0) / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}`;
     h += `<line x1="${cx}" x2="${cx}" y1="${T1}" y2="${B2}" stroke="#E6EAF2" stroke-dasharray="4 3"/>`;
     if (vi != null && g.y1){ const cy = g.y1(vi); h += `<line x1="${L}" x2="${W - R}" y1="${cy}" y2="${cy}" stroke="#E6EAF2" stroke-dasharray="4 3"/><rect x="0" y="${cy - 10}" width="${L - 2}" height="20" rx="3" fill="#E6EAF2"/><text x="${(L - 2) / 2}" y="${cy + 5}" font-size="13.5" font-weight="700" fill="#0B0F17" text-anchor="middle">${vi.toFixed(0)}</text><circle cx="${cx}" cy="${cy}" r="4" fill="#FF3B3B" stroke="#fff"/>`; }
     if (vf != null && g.y1) h += `<circle cx="${cx}" cy="${g.y1(vf)}" r="3.5" fill="#fff"/>`;
