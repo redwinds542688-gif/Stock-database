@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 修正:同一分鐘內「掛預掛 → 取消」(友達 12:10 26.3),雲端順序顛倒時預掛卡沒被取消、監控一直「預掛中」→ 同檔同方向同價有取消卡就算結束
   · 2026-11-19 同一檔今天進場兩次:最後一張進場卡(現在的部位)張數 = 元大合計 − 已平倉(= 還沒沖的張數)
   · 2026-11-19 修正:同一檔今天進場兩次(大成鋼),進場卡被元大整天合計蓋成 10 張 → 各卡照自己的張數;舊平倉卡不再因新部位標「平倉中」
   · 2026-11-19 修正:同一檔強平 / 元平後又重新進場(大成鋼 10:57 判三),進場卡被藏 → 只藏到下一張進場卡為止,新部位照常顯示
@@ -548,7 +549,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611191126">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611191240">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -8194,6 +8195,9 @@ window.bgTick = bgTick; window.BG = BG;
             // 2026-11-12 12:48 使用者「這張預掛卡 必須在預掛的當下 排在通知欄最前面」:進場卡搬到預掛那一刻的位置(最新的排最上面);之後元平也在這個位置換掉
             if (keep[e.__ki] === e){ keep[e.__ki] = null; e.__ki = keep.length; keep.push(e); e.phT = o.t; } } } }
         keep.push(o); }
+      /* 2026-11-19 12:39 使用者「友達 我目前沒有預掛」:12:10 同一分鐘「取消 26.35 → 掛 26.3 → 取消 26.3」,雲端同一分鐘的順序不保證 → 26.3 的取消卡先處理、對不到,26.3 的預掛卡留著(監控一直「預掛中」)。
+         補一道:還留著的預掛卡,同一檔、同方向、同價、時間不早於它的取消卡存在 → 這張預掛也算結束 */
+      for (const o of keep) if (o && o.type === 'entry' && o.phNew && !o._hide && o.ph > 0 && keep.some(x => x && x.type === 'warn' && x.phEnd && x.code === o.code && (!x.side || x.side === o.side) && x.phPx > 0 && Math.abs(x.phPx - o.ph) < 1e-6 && x.t >= o.t)) o._hide = true;
       for (let i_ = keep.length - 1; i_ >= 0; i_--) if (keep[i_] === null) keep.splice(i_, 1);   // 搬走留下的空位(搬完 __ki 只在上面用過,之後不再用)
       keep.reverse(); cards.length = 0; cards.push(...keep); }   // (判別式相關說明已移到私人庫)
     // 警示欄位:每張卡算「這筆交易之後最新的狀態」(items 新的在前):平倉 / 注意 / 反彈 那則自己 = 自己的狀態;進場那則往後(更新的)找同一檔,
