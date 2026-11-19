@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 主畫面按返回鍵不再跳「離開程式?」,直接回桌面、背景監控照跑(APK 1.5.70)
   · 2026-11-19 線圖:手機返回鍵 / 滑鼠右鍵收起,回到股票監控區
   · 2026-11-19 點監控區標題「股票」→ 監控區換成線圖(上:大盤紅 / 台指期白,點數刻度、昨收虛線;下:寬度 %),9:00~13:30 單頁、按住出現十字虛線看那一分鐘的值;收盤後留到隔天開盤
   · 2026-11-19 預掛中改成直接對元大現在還掛著的委託(中繼 ?trade=pos 多給 orders):元大沒有掛著的預掛 → 預掛卡藏、平倉預掛標籤拿掉(市價預掛、取消通知沒送到也對)
@@ -553,7 +554,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611191630">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611191634">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
