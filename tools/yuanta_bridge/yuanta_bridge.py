@@ -2031,6 +2031,17 @@ def main():
     if CFG.get("QUOTE_ENABLE", "0") == "1":        # 預設關閉:要使用者自己決定要不要讓手機即時價走元大(會透過 Cloudflare Tunnel 對外開一個要金鑰的服務;2026-10-28 起也接手機的強制交易指令,要 TRADE_CMD_PIN)
         b.serve_quotes()
     hist_done = set()
+    # 2026-11-19 19:30 使用者「雲端更新,電腦也有跟著更新」→「現在馬上做」:另開一條執行緒,每 10 分鐘把 GitHub 三個庫同步到 C:\Yuanta\雲端備份\<庫名>(win_sync.py);
+    #   盤中一次最多 200 個檔(不影響行情 / 下單),盤後不限;bridge.env 設 CLOUD_SYNC=0 可關掉
+    if CFG.get("CLOUD_SYNC", "1") == "1" and not FAMILY:
+        def _sync_loop():
+            time.sleep(60)
+            while True:
+                try:
+                    import importlib, win_sync; importlib.reload(win_sync); win_sync.run(log)
+                except Exception as e: log("雲端同步失敗", e)
+                time.sleep(600)
+        threading.Thread(target=_sync_loop, daemon=True, name="cloud_sync").start()
     while True:
         n = now_tw(); hm = n.strftime("%H:%M")
         # 2026-10-29 13:38 使用者「明細沒了」:收盤後(或重開程式時)今天還沒存到元大成交 → 登入一次查完存起來就登出(一天只試一次,手機明細才有今天的真實成交)

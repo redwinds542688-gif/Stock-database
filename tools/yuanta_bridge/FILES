@@ -11,3 +11,4 @@ win_install.py
 elig.py
 win_family.py
 fam_agent.py
+win_sync.py

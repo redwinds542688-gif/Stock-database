@@ -1762,6 +1762,37 @@ export default {
       const h = new Headers(r.headers); for (const [k, v] of Object.entries(CORS)) h.set(k, v); h.set("Cache-Control", "no-store");
       return new Response(r.body, { status: r.status, headers: h });
     }
+    // 2026-11-19 19:30 使用者「雲端更新,電腦也有跟著更新」→「現在馬上做」:電腦中繼 win_sync.py 每 10 分鐘把 GitHub 三個庫同步到 C:\Yuanta\雲端備份\<庫名>
+    //   ?gh=tree&repo=db|logic|lottery → {commit, files:[[路徑, blob sha, 大小]]};?gh=blob&repo=..&sha=<blob sha>&ref=<提交>&path=<路徑> → 檔案內容(依 blob sha 快取一天)。只給中繼金鑰(X-Push-Key)
+    if (gh === "tree" || gh === "blob") {
+      if (!pushOk) return J({ error: "要中繼金鑰" }, 403);
+      if (!env || !env.GH_TOKEN) return J({ error: "Worker 沒有 GH_TOKEN" }, 503);
+      const rp = { db: GH_REPO, logic: GH_REPO_LOGIC, lottery: "Lottery-database" }[url.searchParams.get("repo") || "db"];
+      if (!rp) return J({ error: "repo 不對" }, 400);
+      const H = { Authorization: "token " + env.GH_TOKEN, "User-Agent": "twse-proxy", Accept: "application/vnd.github+json" };
+      if (gh === "tree") {
+        const c = await fetch(`https://api.github.com/repos/${GH_OWNER}/${rp}/commits/${GH_REF}`, { headers: H });
+        if (!c.ok) return J({ error: "commit " + c.status }, 502);
+        const cj = await c.json();
+        const t = await fetch(`https://api.github.com/repos/${GH_OWNER}/${rp}/git/trees/${cj.commit.tree.sha}?recursive=1`, { headers: H });
+        if (!t.ok) return J({ error: "tree " + t.status }, 502);
+        const tj = await t.json();
+        return J({ repo: rp, commit: cj.sha, at: cj.commit && cj.commit.committer && cj.commit.committer.date, truncated: !!tj.truncated,
+                   files: (tj.tree || []).filter(x => x.type === "blob").map(x => [x.path, x.sha, x.size]) });
+      }
+      const sha = url.searchParams.get("sha") || "";
+      if (!/^[0-9a-f]{40}$/.test(sha)) return J({ error: "sha 不對" }, 400);
+      const cache = caches.default, ck = new Request(`https://twse-proxy.internal/__blob/${rp}/${sha}`);
+      const hit = await cache.match(ck); if (hit) return hit;
+      // 用 raw.githubusercontent(不吃 GitHub API 每小時 5,000 次的額度;第一次同步約 6,000 個檔);要帶 path + ref(提交編號)
+      const fp = String(url.searchParams.get("path") || ""), rf = url.searchParams.get("ref") || "";
+      if (!fp || fp.includes("..") || !/^[0-9a-f]{40}$/.test(rf)) return J({ error: "path / ref 不對" }, 400);
+      const b = await fetch(`https://raw.githubusercontent.com/${GH_OWNER}/${rp}/${rf}/${fp.split("/").map(encodeURIComponent).join("/")}`, { headers: { Authorization: "token " + env.GH_TOKEN, "User-Agent": "twse-proxy" } });
+      if (!b.ok) return J({ error: "blob " + b.status }, b.status === 404 ? 404 : 502);
+      const res = new Response(b.body, { status: 200, headers: { "Content-Type": "application/octet-stream", "Cache-Control": "public, max-age=86400" } });
+      try { await cache.put(ck, res.clone()); } catch (e) {}
+      return res;
+    }
     if (gh === "status") {
       const hasToken = !!(env && env.GH_TOKEN), hasKey = !!(env && env.CRON_KEY);
       let github = "未測";
