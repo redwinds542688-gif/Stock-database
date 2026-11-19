@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 大盤線圖說明框「大盤」改「大盤指」,漲跌幅跌綠、漲紅
   · 2026-11-19 大盤線圖一打開十字虛線就停在最新一分鐘(放開手也回到最新);下面時間刻度不再擠在一起
   · 2026-11-19 大盤線圖字放大(說明框 16px、刻度 13px),手機上看得清楚
   · 2026-11-19 大盤線圖十字虛線說明分上下兩框(上:時間/大盤/台指期,下:寬度),自動找不壓線的位置
@@ -557,7 +558,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611191658">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611191706">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4393,10 +4394,11 @@ function mkcDraw(){ try{
           if (!best || n < best.n) best = {bx, by, n}; if (n === 0) break; }
         if (best && best.n === 0 && best.bx === bx) break; }
       return best || {bx: Math.max(L, Math.min(W - R - bw, cx + 10)), by: top}; };
-    const pct = vi != null && MKC.y0 ? ` ${((vi / MKC.y0 - 1) * 100).toFixed(2)}%` : '';
-    { const bw = Math.min(W - L - R - 20, 192), bh = 76, q = place(bw, bh, T1 + 2, B1 - 2, pts1);
+    /* 17:06 使用者:「大盤」改「大盤指」,漲跌幅跌要綠色(漲紅、平白) */
+    const pr = vi != null && MKC.y0 ? (vi / MKC.y0 - 1) * 100 : null, pct = pr == null ? '' : ` <tspan fill="${pr > 0 ? '#FF3B3B' : pr < 0 ? '#1DD75B' : '#E6EAF2'}">${pr > 0 ? '+' : ''}${pr.toFixed(2)}%</tspan>`;
+    { const bw = Math.min(W - L - R - 10, 200), bh = 76, q = place(bw, bh, T1 + 2, B1 - 2, pts1);
       h += `<rect x="${q.bx}" y="${q.by}" width="${bw}" height="${bh}" rx="5" fill="#0B0F17" stroke="#5A6478" opacity=".95"/><text x="${q.bx + 7}" y="${q.by + 21}" font-size="16" font-weight="700" fill="#E6EAF2">${tl}</text>`
-        + `<text x="${q.bx + 7}" y="${q.by + 44}" font-size="16" font-weight="700" fill="#FF3B3B">大盤 ${vi != null ? vi.toFixed(0) : '—'}${pct}</text><text x="${q.bx + 7}" y="${q.by + 67}" font-size="16" font-weight="700" fill="#FFFFFF">台指期 ${vf != null ? vf.toFixed(0) : '—'}</text>`; }
+        + `<text x="${q.bx + 7}" y="${q.by + 44}" font-size="16" font-weight="700" fill="#FF3B3B">大盤指 ${vi != null ? vi.toFixed(0) : '—'}${pct}</text><text x="${q.bx + 7}" y="${q.by + 67}" font-size="16" font-weight="700" fill="#FFFFFF">台指期 ${vf != null ? vf.toFixed(0) : '—'}</text>`; }
     { const bw = 118, bh = 30, q = place(bw, bh, T2 + 6, B2 - 2, pts2);
       h += `<rect x="${q.bx}" y="${q.by}" width="${bw}" height="${bh}" rx="5" fill="#0B0F17" stroke="#5A6478" opacity=".95"/><text x="${q.bx + 7}" y="${q.by + 21}" font-size="16" font-weight="700" fill="#FFD54F">寬度 ${vb != null ? vb.toFixed(1) + '%' : '—'}</text>`; }
     h += `<rect x="${Math.max(0, Math.min(W - 48, cx - 24))}" y="${B2 + 1}" width="48" height="20" rx="3" fill="#E6EAF2"/><text x="${Math.max(24, Math.min(W - 24, cx))}" y="${B2 + 16}" font-size="13.5" font-weight="700" fill="#0B0F17" text-anchor="middle">${tl}</text>`; }
