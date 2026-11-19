@@ -4567,5 +4567,11 @@
    "daytrade": 1,
    "short_first": 1
   }
- ]
+ ],
+ "elig_checked_at": "2026-11-19 15:35",
+ "elig_source_today": [
+  "上市",
+  "上櫃"
+ ],
+ "elig_checked": "2026-11-19"
 }
