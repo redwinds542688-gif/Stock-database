@@ -60,8 +60,14 @@ def sync_repo(c, key, name, limit, log):
     if idx.get("commit") == tree["commit"] and not idx.get("pending"):
         return 0, 0, tree["commit"]
     want = {p: s for p, s, _ in tree["files"]}
-    todo = [p for p, s in want.items() if files0.get(p) != s or not (root / p).exists()]
-    done = 0; bad = 0; files = dict(files0)
+    files = dict(files0)
+    for p, s in want.items():   # 2026-11-19 20:05 中途關機 / 重開:紀錄沒存到的檔,本機已經是對的內容就直接記上,不重抓
+        if files.get(p) != s and (root / p).is_file():
+            try:
+                if blob_sha((root / p).read_bytes()) == s: files[p] = s
+            except Exception: pass
+    todo = [p for p, s in want.items() if files.get(p) != s or not (root / p).exists()]
+    done = 0; bad = 0
     for p in todo[:limit] if limit else todo:
         try:
             b = _get(c, f"gh=blob&repo={key}&sha={want[p]}&ref={tree['commit']}&path={urllib.parse.quote(p)}", timeout=120)
@@ -69,6 +75,8 @@ def sync_repo(c, key, name, limit, log):
             dst = root / p; dst.parent.mkdir(parents=True, exist_ok=True)
             tmp = dst.with_name(dst.name + ".synctmp"); tmp.write_bytes(b); tmp.replace(dst)
             files[p] = want[p]; done += 1
+            if done % 200 == 0:   # 每 200 個檔存一次進度(中途關機下次接著抓)
+                tmp = idx_f.with_name(idx_f.name + ".synctmp"); tmp.write_text(json.dumps(dict(idx, files=files, pending=1), ensure_ascii=False), encoding="utf-8"); tmp.replace(idx_f)
         except Exception as e:
             bad += 1
             if bad <= 3: log(f"同步 {name}:{p} 失敗 {e}")
