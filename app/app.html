@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 修正:同一檔強平 / 元平後又重新進場(大成鋼 10:57 判三),進場卡被藏 → 只藏到下一張進場卡為止,新部位照常顯示
   · 2026-11-19 判別式開 / 關防誤觸:長按 0.6 秒改 1.5 秒,而且跳確認框要再按「確定」才會開 / 關(放手那一下不算)
   · 2026-11-19 判二被關掉(紅燈,使用者沒碰)→ 一次性把手機上關掉的判別式全部打開
   · 2026-11-19 修正監控區成交價顯示「—」(寶成):開盤前還沒成交顯示昨收;報價有紀錄沒成交價的(元大中繼回「-」)收盤後直接問證交所補
@@ -545,7 +546,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611191041">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611191108">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -8146,7 +8147,10 @@ window.bgTick = bgTick; window.BG = BG;
     // 2026-11-02 10:23 使用者「有些股票 我已經強制平倉 訊息欄要顯示 而這檔已經平倉者 就不用再通知顯示停利或其他了」:
     //   同一天某檔有「強平」平倉卡 → 那張之後這檔的進場 / 停利 / 停損 / 出場 / 注意卡都不顯示(強平那張照顯示;強平之前的照舊)
     { const fcT = new Map(); for (const o of _pc) if (o.fc && o.t && (!fcT.has(o.code) || o.t < fcT.get(o.code))) fcT.set(o.code, o.t);
-      if (fcT.size) for (let k = _pc.length - 1; k >= 0; k--){ const o = _pc[k], t0 = fcT.get(o.code); if (t0 && !o.fc && o.type !== 'turn' && o.rs !== '強三' && o.rs !== '元三' && o.t >= t0) _pc.splice(k, 1);   /* 強平後自己再強制進場(強三)/ 元大手動(元三)照顯示 */ } }
+      /* 2026-11-19 11:06 使用者「為什麼大成鋼當沖出現 進場裡卻沒有」:大成鋼 10:14 元平後,判三 10:57 又進場(真的成交)→ 被這條「強平後全藏」藏掉。
+         改成:強平之後到「下一張進場卡」之前的才藏;之後重新進場(新部位)和它後面的卡照常顯示 */
+      const reT = new Map(); if (fcT.size) for (const o of _pc){ const t0 = fcT.get(o.code); if (t0 && o.type === 'entry' && !o.fc && o.t > t0 && (!reT.has(o.code) || o.t < reT.get(o.code))) reT.set(o.code, o.t); }
+      if (fcT.size) for (let k = _pc.length - 1; k >= 0; k--){ const o = _pc[k], t0 = fcT.get(o.code), t1 = reT.get(o.code); if (t0 && !o.fc && o.type !== 'turn' && o.rs !== '強三' && o.rs !== '元三' && o.t >= t0 && !(t1 && o.t >= t1)) _pc.splice(k, 1);   /* 強平後自己再強制進場(強三)/ 元大手動(元三)照顯示 */ } }
     // 2026-11-02 11:39 使用者「金山電 早已經強制平倉 怎麼還出現停損訊息」:判四強平今天電腦還沒寫強平卡(明天更新後才寫)→ 這支手機自己強平過的股票(fclosed)也藏後面的停利 / 停損 / 出場
     if (d === today && !window.DONE_VIRT){ let fl = []; try{ fl = fcList(); if (!vwOnly()) tposPoll(); }catch(e){}
       if (fl.length) for (let k = _pc.length - 1; k >= 0; k--){ const o = _pc[k]; if (fl.includes(o.code) && !_pc.some(x => x.fc && x.code === o.code) && o.type === 'exit' && !o.fc && /^判[一二三四五六七八九十]$/.test(o.rs || '')) _pc.splice(k, 1); } }
