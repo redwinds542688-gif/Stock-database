@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 判二被關掉(紅燈,使用者沒碰)→ 一次性把手機上關掉的判別式全部打開
   · 2026-11-19 修正監控區成交價顯示「—」(寶成):開盤前還沒成交顯示昨收;報價有紀錄沒成交價的(元大中繼回「-」)收盤後直接問證交所補
   · 2026-11-19 開盤中公式選單「鑰匙」二字也變灰,只有鑰匙符號亮
   · 2026-11-19 開盤中公式選單:字變灰(燈號、鑰匙照亮),按了不跳提示
@@ -543,7 +544,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611190842">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611191036">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5350,6 +5351,9 @@ let SIG = RULESET.sig;   // 2026-10-19 改成 let:背景監控一輪裡輪流切
 window.rsOn = k => { try{ const v = (window.Android && Android.getPref) ? Android.getPref('rsOff') : localStorage.getItem('mysh.rsOff'); return !String(v || '').split(',').includes(k); }catch(e){ return true; } };
 window.rsSet = (k, on) => { try{ const cur = String(((window.Android && Android.getPref) ? Android.getPref('rsOff') : localStorage.getItem('mysh.rsOff')) || '').split(',').filter(x => x && x !== k); if (!on) cur.push(k); const v = cur.join(',');
   if (window.Android && Android.setPref) Android.setPref('rsOff', v); localStorage.setItem('mysh.rsOff', v); }catch(e){} };
+/* 2026-11-19 10:36 使用者「判二」紅燈 →「我根本沒碰」「請打開」:這支手機的判二開關被關掉了(只有長按會關)→ 一次性把關掉的判別式全部打開(只做一次,記號 rsOn1119) */
+try{ const g_ = k => (window.Android && Android.getPref) ? Android.getPref(k) : localStorage.getItem('mysh.' + k);
+  if (!g_('rsOn1119')){ if (window.Android && Android.setPref){ Android.setPref('rsOff', ''); Android.setPref('rsOn1119', '1'); } localStorage.setItem('mysh.rsOff', ''); localStorage.setItem('mysh.rsOn1119', '1'); } }catch(e){}
 const BG_RS = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];   // 2026-11-18 23:35 加判十   // 2026-11-14 17:58 加判九   // 2026-11-14 15:14 加判八   // 2026-11-13 18:10 加判六(手機也算,電腦停了照樣發判六多 / 空)   // 2026-11-09 加判七(15:28 解凍上線)   // 2026-11-05 加判五   // (判別式相關說明已移到私人庫)
 // (判別式相關說明已移到私人庫)
 window.BG_RS = BG_RS;
