@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 資訊「檢討」開著時,除了捲動檢討內文,碰其他任何地方都只先關閉檢討回資訊,不會順便按到東西
   · 2026-11-19 大盤線圖開著時,碰線圖以外任何地方(按鍵、通知欄…)都只先關閉線圖回股票監控區,不會順便按到東西
   · 2026-11-19 大盤線圖說明框:台指期跟大盤指誰的點數高誰排上面
   · 2026-11-19 大盤線圖說明框「大盤」改「大盤指」,漲跌幅跌綠、漲紅
@@ -562,7 +563,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611192311">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611192317">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4417,7 +4418,10 @@ window.mkcToggle = mkcToggle; window.MKC = MKC;
 (function(){ let eat = 0, end = 0;   /* eat = 這一下手勢被吃掉中;end = 手指放開後再吃 350ms(收尾的 click / mouse 相容事件) */
   const on = () => eat && (!end || Date.now() < end);
   const outside = ev => { const el = document.getElementById('mkChart'); return !(el && ev.target instanceof Node && el.contains(ev.target)); };
+  /* 2026-11-19 23:16 使用者「除了捲動檢討資料 否則觸碰其他地方皆關閉檢討 返回資訊」:檢討開著時,碰檢討內文以外(檢討鍵、日期、按鍵列、監控區…)只關檢討 */
+  const rvOut = ev => { if (!window.__rvOn) return false; const rv = document.querySelector('#notifLog .rvw'); if (!rv || !rv.offsetParent) return false; return !(ev.target instanceof Node && rv.contains(ev.target)); };
   const down = ev => { if (MKC.open && outside(ev)){ eat = 1; end = 0; mkcToggle(); ev.preventDefault(); ev.stopImmediatePropagation(); return; }
+    if (rvOut(ev)){ eat = 1; end = 0; window.__rvOn = false; try{ localStorage.setItem('mysh.rvSeen', rvKey()); }catch(e){} try{ if (window.nlRender) nlRender(); }catch(e){} ev.preventDefault(); ev.stopImmediatePropagation(); return; }
     if (on()){ ev.preventDefault(); ev.stopImmediatePropagation(); } else eat = 0; };
   const swallow = ev => { if (!on()){ eat = 0; return; } ev.preventDefault(); ev.stopImmediatePropagation();
     if (/up|end/.test(ev.type) && !end) end = Date.now() + 350; if (ev.type === 'click'){ eat = 0; end = 0; } };
