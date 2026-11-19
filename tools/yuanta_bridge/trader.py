@@ -1793,6 +1793,20 @@ class Trader:
             self.log(f"[交易] {code} 長按強平:元大有手動 {abs(n)} 張{'多' if d > 0 else '空'}單、程式還沒接手 → 接成元三(均價 {avg:.2f})馬上強平")
             return self.force_close(code, cmd_id)
 
+    def live_orders(self):
+        """2026-11-19 13:42 使用者「改」(友達 12:10 預掛掛了又取消,手機一直顯示預掛中):元大現在還掛著的手動預掛委託,給手機直接對
+        kind = new(新進場 / 加碼預掛)/ close(平倉預掛);成交完 / 取消 / 失效的不列"""
+        out = []
+        with self.lock:
+            for no, mc in list(self.man_cards.items()):
+                if mc.get("end") or (mc.get("lots") and mc.get("fl", 0) >= mc["lots"]): continue
+                out.append({"code": mc.get("code", ""), "no": no, "kind": "new", "side": "long" if mc.get("d", 0) > 0 else "short", "px": mc.get("px") or 0, "lots": mc.get("lots", 0) - mc.get("fl", 0)})
+            for code, lst in list(self.prehang.items()):
+                for no in lst or []:
+                    m = self.man_meta.get(no) or {}
+                    out.append({"code": code, "no": no, "kind": "close", "bs": m.get("bs", ""), "px": m.get("px") or 0, "lots": (m.get("lots") or 0) - (m.get("fl") or 0)})
+        return out
+
     def positions_view(self):
         with self.lock:
             return [{"code": p["code"], "dir": p["dir"], "qty": p["qty"], "entry": round(p["entry"], 2), "judge": p["judge"], "state": p["state"],
