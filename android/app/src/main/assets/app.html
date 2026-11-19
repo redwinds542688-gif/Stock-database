@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-19 大盤線圖十字虛線說明分上下兩框(上:時間/大盤/台指期,下:寬度),自動找不壓線的位置
   · 2026-11-19 主畫面按返回鍵不再跳「離開程式?」,直接回桌面、背景監控照跑(APK 1.5.70)
   · 2026-11-19 線圖:手機返回鍵 / 滑鼠右鍵收起,回到股票監控區
   · 2026-11-19 點監控區標題「股票」→ 監控區換成線圖(上:大盤紅 / 台指期白,點數刻度、昨收虛線;下:寬度 %),9:00~13:30 單頁、按住出現十字虛線看那一分鐘的值;收盤後留到隔天開盤
@@ -554,7 +555,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611191634">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611191648">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4379,9 +4380,21 @@ function mkcDraw(){ try{
     if (vi != null && g.y1){ const cy = g.y1(vi); h += `<line x1="${L}" x2="${W - R}" y1="${cy}" y2="${cy}" stroke="#E6EAF2" stroke-dasharray="4 3"/><rect x="0" y="${cy - 8}" width="${L - 2}" height="16" rx="3" fill="#E6EAF2"/><text x="${(L - 2) / 2}" y="${cy + 4}" font-size="10.5" font-weight="700" fill="#0B0F17" text-anchor="middle">${vi.toFixed(0)}</text><circle cx="${cx}" cy="${cy}" r="4" fill="#FF3B3B" stroke="#fff"/>`; }
     if (vf != null && g.y1) h += `<circle cx="${cx}" cy="${g.y1(vf)}" r="3.5" fill="#fff"/>`;
     if (vb != null) h += `<circle cx="${cx}" cy="${y2(vb)}" r="3.5" fill="#FFD54F"/>`;
-    const bw = 132, bx = cx + 10 + bw > W - R ? cx - 10 - bw : cx + 10, by = T1 + 6, pct = vi != null && MKC.y0 ? ` ${((vi / MKC.y0 - 1) * 100).toFixed(2)}%` : '';
-    h += `<rect x="${bx}" y="${by}" width="${bw}" height="72" rx="5" fill="#0B0F17" stroke="#5A6478" opacity=".95"/><text x="${bx + 7}" y="${by + 15}" font-size="12" font-weight="700" fill="#E6EAF2">${tl}</text>`
-      + `<text x="${bx + 7}" y="${by + 32}" font-size="11.5" font-weight="700" fill="#FF3B3B">大盤 ${vi != null ? vi.toFixed(0) : '—'}${pct}</text><text x="${bx + 7}" y="${by + 49}" font-size="11.5" font-weight="700" fill="#FFFFFF">台指期 ${vf != null ? vf.toFixed(0) : '—'}</text><text x="${bx + 7}" y="${by + 66}" font-size="11.5" font-weight="700" fill="#FFD54F">寬度 ${vb != null ? vb.toFixed(1) + '%' : '—'}</text>`;
+    /* 2026-11-19 16:46 使用者「十字虛線 點位說明 上面只顯示台指期跟大盤指數 下面另外多一個 說明寬度 都不可以壓線」:
+       上格小框 = 時間 + 大盤 + 台指期;下格另一個小框 = 寬度;兩個框都找不壓到線的位置(十字左 / 右 × 上下各位置,壓到最少的點、同分取靠上) */
+    const pts1 = [...IX, ...FX].map(p => [x(p[0]), g.y1 ? g.y1(p[1]) : -99]), pts2 = BR.map(p => [x(p[0]), y2(p[1])]);
+    const place = (bw, bh, top, bot, pts) => { let best = null;
+      for (const bx of [cx + 10, cx - 10 - bw]){ if (bx < L || bx + bw > W - R) continue;
+        for (let by = top; by + bh <= bot; by += 6){ let n = 0; for (const [px, py] of pts) if (px >= bx - 3 && px <= bx + bw + 3 && py >= by - 3 && py <= by + bh + 3) n++;
+          if (!best || n < best.n) best = {bx, by, n}; if (n === 0) break; }
+        if (best && best.n === 0 && best.bx === bx) break; }
+      return best || {bx: Math.max(L, Math.min(W - R - bw, cx + 10)), by: top}; };
+    const pct = vi != null && MKC.y0 ? ` ${((vi / MKC.y0 - 1) * 100).toFixed(2)}%` : '';
+    { const bw = 136, bh = 56, q = place(bw, bh, T1 + 2, B1 - 2, pts1);
+      h += `<rect x="${q.bx}" y="${q.by}" width="${bw}" height="${bh}" rx="5" fill="#0B0F17" stroke="#5A6478" opacity=".95"/><text x="${q.bx + 7}" y="${q.by + 15}" font-size="12" font-weight="700" fill="#E6EAF2">${tl}</text>`
+        + `<text x="${q.bx + 7}" y="${q.by + 32}" font-size="11.5" font-weight="700" fill="#FF3B3B">大盤 ${vi != null ? vi.toFixed(0) : '—'}${pct}</text><text x="${q.bx + 7}" y="${q.by + 49}" font-size="11.5" font-weight="700" fill="#FFFFFF">台指期 ${vf != null ? vf.toFixed(0) : '—'}</text>`; }
+    { const bw = 92, bh = 22, q = place(bw, bh, T2 + 6, B2 - 2, pts2);
+      h += `<rect x="${q.bx}" y="${q.by}" width="${bw}" height="${bh}" rx="5" fill="#0B0F17" stroke="#5A6478" opacity=".95"/><text x="${q.bx + 7}" y="${q.by + 15}" font-size="11.5" font-weight="700" fill="#FFD54F">寬度 ${vb != null ? vb.toFixed(1) + '%' : '—'}</text>`; }
     h += `<rect x="${cx - 18}" y="${B2 + 1}" width="36" height="15" rx="3" fill="#E6EAF2"/><text x="${cx}" y="${B2 + 12}" font-size="10" font-weight="700" fill="#0B0F17" text-anchor="middle">${tl}</text>`; }
   el.innerHTML = `<svg width="${W}" height="${H}" style="display:block">${h}</svg>`;
 }catch(e){} }
