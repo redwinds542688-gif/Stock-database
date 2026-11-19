@@ -1097,6 +1097,14 @@ igz = tmp / "ign9.txt"; igz.write_text("1709\n", encoding="utf-8"); at(11, 0); t
 _np, _na = len(tz9.posts), len(getattr(tz9, "_alerts", []) or [])
 tz9.on_report(50, "M90", 0, 1000, 49.0, "", "1709", "B", "3"); tz9.on_report(51, "M90", 0, 1000, 49.0, "", "1709", "B", "3")
 ok("1709" not in tz9.positions and len(tz9.posts) == _np and "M90" not in tz9.man_cards, (tz9.positions.get("1709"), tz9.posts[_np:]))
+# 2026-11-20 使用者「改1234」 4:雲端讀不到多空上限 → 用電腦存的最後一次(不算「今天讀到了」)
+import trader as _trc4, os as _os4
+_cf4 = _os4.path.join(_os4.path.dirname(_os4.path.abspath(_trc4.__file__)), "cloud_cap_last.json"); _bk4 = open(_cf4, encoding="utf-8").read() if _os4.path.exists(_cf4) else None
+open(_cf4, "w", encoding="utf-8").write('{"cap": 180000, "set": {"lot_mode": 2}, "at": "t"}')
+ok(_trc4.fetch_cap("http://127.0.0.1:9", "x") == 180000 and _trc4.CAP_FROM_CACHE and _trc4.CLOUD_SET.get("lot_mode") == 2, (_trc4.CAP_FROM_CACHE, _trc4.CLOUD_SET))
+_os4.remove(_cf4)
+ok(_trc4.fetch_cap("http://127.0.0.1:9", "x") is None)   # 雲端讀不到、電腦也沒存過 → 維持原值
+if _bk4 is not None: open(_cf4, "w", encoding="utf-8").write(_bk4)
 print("trader.py 測試通過(延遲紀錄 3 + 32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7 + 判七上線 2 + 判六上線 4 + 判七 +8% 強平 2 + 判二大盤分級檔數 7 + 判二寬度範圍 11 + 條件單編號存檔 3 + 沒昨收不進 3 + 預掛鐵律 9 + 主導機上限 4 + 手動受管束 13 + 超額補進 10 分鐘 6 + 太晚補進 10 分鐘 3 + 設定關不掉保護 4 + 第二輪 1~5 9 + 全改 9 + 第三輪 9 + 超額補進鐵律平倉 2)")
 
 # 2026-11-17 14:52 使用者「多出來二張 程式就照反向監管」:預掛比部位多,全部成交 → 多出來的當下接成元三(反向)

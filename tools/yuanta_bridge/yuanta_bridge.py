@@ -121,12 +121,19 @@ def fills_legs(trades, names=None, disc=0.25, broker=0.001425, tpex=0.0, tax=0.0
 def gh_get(path, ref="main", timeout=30, repo=""):
     """2026-10-29 16:16 repo 改私人:GitHub 的檔案經 Worker 代讀(?gh=raw,帶中繼金鑰);沒設 PUSH_KEY 就直接抓 raw(repo 還公開時能用)
        18:05 repo="logic" = 私人庫 Stock-logic(判一二三、模擬器),一定要經 Worker"""
+    raw = urllib.request.Request(f"https://raw.githubusercontent.com/redwinds542688-gif/Stock-database/{ref}/{path}?t={int(time.time())}", headers={"User-Agent": "yuanta-bridge/1"})
     if CFG.get("PUSH_KEY") and CFG.get("WORKER_URL"):
         url = CFG["WORKER_URL"].rstrip("/") + "/?gh=raw&path=" + path + ("&ref=" + ref if ref != "main" else "") + ("&repo=" + repo if repo else "") + f"&_={int(time.time())}"
         req = urllib.request.Request(url, headers={"X-Push-Key": CFG["PUSH_KEY"], "User-Agent": "yuanta-bridge/1"})
-    else:
-        req = urllib.request.Request(f"https://raw.githubusercontent.com/redwinds542688-gif/Stock-database/{ref}/{path}?t={int(time.time())}", headers={"User-Agent": "yuanta-bridge/1"})
-    return urllib.request.urlopen(req, timeout=timeout).read()
+        try: return urllib.request.urlopen(req, timeout=timeout).read()
+        except urllib.error.HTTPError as e:
+            if e.code == 404 or repo: raise
+            log(f"雲端讀不到 {path}(HTTP {e.code})→ 改直接從 GitHub 讀")
+        except Exception as e:
+            if repo: raise   # 私人庫只能經雲端
+            log(f"雲端讀不到 {path}({str(e)[:60]})→ 改直接從 GitHub 讀")   # 2026-11-20 使用者「改1234」 1:公開庫的檔(名單、版本、程式更新)
+        return urllib.request.urlopen(raw, timeout=timeout).read()
+    return urllib.request.urlopen(raw, timeout=timeout).read()
 
 
 def load_env():
@@ -1386,7 +1393,11 @@ class Bridge:
         if FAMILY: return   # 2026-11-15 家人帳號:多空上限照自己的 bridge.env,不跟 5861 主導機
         v = fetch_cap(CFG["WORKER_URL"], CFG.get("PUSH_KEY", ""))
         if v: v = min(v, 250000)   # 2026-11-11 22:46 使用者「最多上限改25萬」
-        if v: self.trader.master_cap = v; self.cap_ok_day = time.strftime("%Y-%m-%d", time.gmtime(time.time() + 8 * 3600))   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:讀到了(今天)
+        try: import trader as _trc; _cached = bool(getattr(_trc, "CAP_FROM_CACHE", False))
+        except Exception: _cached = False
+        if v and _cached: log(f"多空上限:雲端讀不到,用電腦存的最後一次 {v:,}(雲端恢復會再讀)")
+        if v: self.trader.master_cap = v
+        if v and not _cached: self.cap_ok_day = time.strftime("%Y-%m-%d", time.gmtime(time.time() + 8 * 3600))   # 2026-11-20:用電腦存的不算「今天讀到了」,雲端恢復還會再讀   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:讀到了(今天)
         if self.trader.cap <= 0: return
         if v and v != self.trader.cap:
             log(f"多空上限 {self.trader.cap:,} → {v:,}(5861 主導機)"); self.trader.cap = v

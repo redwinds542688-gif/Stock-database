@@ -15,7 +15,7 @@
 
 這個檔不依賴元大元件:下單 / 取消透過 gateway(bridge 提供),測試時可以換成假的。
 """
-import json, math, re, time, threading, urllib.request
+import json, math, os, re, time, threading, urllib.request
 from pathlib import Path
 
 
@@ -2580,14 +2580,25 @@ CLOUD_SET = {}   # 2026-11-07 主導機的整組設定(手續費估算用);fetch
 
 def fetch_cap(worker_url, push_key=""):
     """2026-11-02 多空上限主控(使用者:「金鑰裡面有5861的為主導機」):讀 5861 主導機設定的每筆上限(元);讀不到 / 沒設過 / 超出 5萬~50萬 → None(維持原值)"""
+    global CAP_FROM_CACHE
+    f = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cloud_cap_last.json")   # 2026-11-20 使用者「改1234」 4:讀到就存一份,雲端讀不到用最後一次的
     try:
         r = urllib.request.urlopen(urllib.request.Request(f"{worker_url.rstrip('/')}/?cap=get&_={int(time.time())}", headers={"X-Push-Key": push_key or "", "User-Agent": "yuanta-bridge/1"}), timeout=8)
-        j = json.loads(r.read().decode("utf-8"))
-        if isinstance(j.get("set"), dict): CLOUD_SET.clear(); CLOUD_SET.update(j["set"])
-        v = int(j.get("cap") or 0)
-        return v if 50000 <= v <= 500000 else None
+        j = json.loads(r.read().decode("utf-8")); CAP_FROM_CACHE = False
+        try:
+            with open(f + ".tmp", "w", encoding="utf-8") as fh: json.dump({"cap": j.get("cap"), "set": j.get("set"), "at": time.strftime("%Y-%m-%d %H:%M", time.gmtime(time.time() + 8 * 3600))}, fh, ensure_ascii=False)
+            os.replace(f + ".tmp", f)
+        except Exception: pass
     except Exception:
-        return None
+        try:
+            with open(f, encoding="utf-8") as fh: j = json.load(fh)
+            CAP_FROM_CACHE = True
+        except Exception: return None
+    if isinstance(j.get("set"), dict): CLOUD_SET.clear(); CLOUD_SET.update(j["set"])
+    try: v = int(j.get("cap") or 0)
+    except Exception: return None
+    return v if 50000 <= v <= 500000 else None
+CAP_FROM_CACHE = False   # fetch_cap 這次是不是用電腦存的(雲端讀不到)
 
 
 def fetch_signals(worker_url, day, push_key=""):

@@ -109,11 +109,36 @@ def write_atomic(p, text):
             time.sleep(0.2)
 
 
+# 2026-11-20 使用者「改1234」 2:雲端斷路器 —— 雲端連不上 / 太慢(逾時一次、或連續失敗兩次)→ 60 秒內所有雲端請求直接跳過(不再每個卡 20 秒拖慢整輪);
+#   通知已經先寫本機檔給中繼下單,雲端那份排隊(cloud_queue_<日>.jsonl),恢復後背景補送
+_CB = {"until": 0.0, "fails": 0, "noted": 0.0}
+def cloud_up(): return time.time() >= _CB["until"]
+def _is_cloud(url):
+    w = CFG.get("WORKER_URL") or ""; return bool(w) and str(url).startswith(w.rstrip("/"))
+def _cb_fail(e):
+    _CB["fails"] += 1
+    slow = "timed out" in str(e).lower() or isinstance(e, TimeoutError)
+    if slow or _CB["fails"] >= 2:
+        _CB["until"] = time.time() + 60
+        if time.time() - _CB["noted"] > 300: _CB["noted"] = time.time(); log(f"!! 雲端{'太慢' if slow else '連不上'}({str(e)[:80]})→ 60 秒內先不連雲端(下單照常,通知排隊補送)")
+def _cb_ok(): _CB["fails"] = 0
+
+
 def http(url, data=None, key=False, timeout=20):
     h = {"Content-Type": "application/json", "User-Agent": "mysh-engine/1"}   # Cloudflare 會擋 Python-urllib 這個 UA(2026-10-29 測試 403)
     if key: h["X-Push-Key"] = CFG.get("PUSH_KEY", "")
+    cl = _is_cloud(url)
+    if cl and not cloud_up(): raise ConnectionError("雲端暫停中(連不上 / 太慢,稍後自動再試)")
     req = urllib.request.Request(url, data=json.dumps(data).encode() if data is not None else None, method="POST" if data is not None else "GET", headers=h)
-    return json.loads(urllib.request.urlopen(req, timeout=timeout).read().decode("utf-8"))
+    try: raw = urllib.request.urlopen(req, timeout=timeout).read()
+    except urllib.error.HTTPError as e:
+        if cl and e.code >= 500: _cb_fail(e)
+        raise
+    except Exception as e:
+        if cl: _cb_fail(e)
+        raise
+    if cl: _cb_ok()
+    return json.loads(raw.decode("utf-8"))
 
 
 def worker_url(q):
@@ -125,13 +150,18 @@ CLOUD_SET = {}   # 2026-11-07 主導機的整組設定(cap=get 的 set);目前�
 
 def cloud_cap(cur):
     """2026-11-02 多空上限主控:5861 主導機設定的每筆上限(元);讀不到 / 沒設過 → 原值 cur"""
+    f = DATA / "cloud_cap_last.json"   # 2026-11-20 使用者「改1234」 4:讀到就存一份,雲端讀不到用最後一次的(不是設定檔的預設)
     try:
         j = http(worker_url(f"cap=get&_={int(time.time())}"), key=True, timeout=8)
-        if isinstance(j.get("set"), dict): CLOUD_SET.clear(); CLOUD_SET.update(j["set"])
-        v = int(j.get("cap") or 0)
-        return min(v, 250000) if 50000 <= v <= 500000 else cur   # 2026-11-11 22:46 使用者「最多上限改25萬」:最多 25 萬(和中繼一樣,超額標記才對得上)
+        try: write_atomic(f, json.dumps({"cap": j.get("cap"), "set": j.get("set"), "at": now_tw().strftime("%Y-%m-%d %H:%M")}, ensure_ascii=False))
+        except Exception: pass
     except Exception:
-        return cur
+        try: j = json.loads(f.read_text(encoding="utf-8")); log(f"多空上限:雲端讀不到,用電腦存的最後一次({j.get('at', '')})")
+        except Exception: return cur
+    if isinstance(j.get("set"), dict): CLOUD_SET.clear(); CLOUD_SET.update(j["set"])
+    try: v = int(j.get("cap") or 0)
+    except Exception: return cur
+    return min(v, 250000) if 50000 <= v <= 500000 else cur   # 2026-11-11 22:46 使用者「最多上限改25萬」:最多 25 萬(和中繼一樣,超額標記才對得上)
 
 
 def iso_week(d):
@@ -146,16 +176,29 @@ def weeks_back(d, n=3):
 
 
 def fetch_raw(path, dest, retry=2, repo=""):
-    """GitHub 的檔案:有 PUSH_KEY 就經 Worker 代讀(?gh=raw;repo 改私人也讀得到),沒有就直接抓 raw;repo="logic" = 私人庫 Stock-logic(模擬器在那裡)"""
+    """GitHub 的檔案:有 PUSH_KEY 就經 Worker 代讀(?gh=raw;repo 改私人也讀得到),沒有就直接抓 raw;repo="logic" = 私人庫 Stock-logic(模擬器在那裡)
+       2026-11-20 使用者「改1234」 1:雲端讀不到(或斷路器開著)→ 公開庫 Stock-database 的檔(名單、K 線)改直接從 GitHub 讀;私人庫只能經雲端,讀不到就沿用本機舊的"""
+    def _save(b):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dest.with_name(dest.name + f".dl{os.getpid()}"); tmp.write_bytes(b); os.replace(tmp, dest)   # 2026-10-29 先寫暫存再換(模擬器不會讀到半個檔)
+    if CFG.get("PUSH_KEY") and CFG.get("WORKER_URL"):
+        for k in range(retry + 1):
+            if not cloud_up(): break
+            try:
+                req = urllib.request.Request(worker_url("gh=raw&path=" + path + ("&repo=" + repo if repo else "") + f"&_={int(time.time())}"), headers={"X-Push-Key": CFG["PUSH_KEY"], "User-Agent": "mysh-engine/1"})
+                b = urllib.request.urlopen(req, timeout=30).read(); _cb_ok(); _save(b); return True
+            except urllib.error.HTTPError as e:
+                if e.code == 404: return False
+                if e.code >= 500: _cb_fail(e)
+                time.sleep(1)
+            except Exception as e:
+                _cb_fail(e); time.sleep(1)
+        if repo: return False
+        if not getattr(fetch_raw, "_noted", False): fetch_raw._noted = True; log(f"!! 雲端讀不到 {path} → 公開庫的檔改直接從 GitHub 讀")
     for k in range(retry + 1):
         try:
-            if CFG.get("PUSH_KEY"):
-                req = urllib.request.Request(worker_url("gh=raw&path=" + path + ("&repo=" + repo if repo else "") + f"&_={int(time.time())}"), headers={"X-Push-Key": CFG["PUSH_KEY"], "User-Agent": "mysh-engine/1"})
-            else:
-                req = urllib.request.Request(RAW.replace("Stock-database", "Stock-logic") + path + f"?t={int(time.time())}" if repo else RAW + path + f"?t={int(time.time())}", headers={"User-Agent": "mysh-engine/1"})
-            b = urllib.request.urlopen(req, timeout=30).read()
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            tmp = dest.with_name(dest.name + f".dl{os.getpid()}"); tmp.write_bytes(b); os.replace(tmp, dest); return True   # 2026-10-29 先寫暫存再換(模擬器不會讀到半個檔)
+            req = urllib.request.Request(RAW.replace("Stock-database", "Stock-logic") + path + f"?t={int(time.time())}" if repo else RAW + path + f"?t={int(time.time())}", headers={"User-Agent": "mysh-engine/1"})
+            _save(urllib.request.urlopen(req, timeout=30).read()); return True
         except urllib.error.HTTPError as e:
             if e.code == 404: return False
             time.sleep(1)
@@ -240,9 +283,32 @@ def prep_day(day, codes):
 
 
 def today_bars(day, since=""):
-    """Worker ?ybars=<day> → {code: [[hm, o, h, l, c, v], …]}(量 = 股)"""
-    j = http(worker_url(f"ybars={day}" + (f"&since={since}" if since else "")), timeout=40)
-    return j.get("bars", {}), j.get("last", "")
+    """Worker ?ybars=<day> → {code: [[hm, o, h, l, c, v], …]}(量 = 股)
+       2026-11-20 使用者「改1234」(雲端掛了電腦還能跑):雲端讀不到 / 斷路器開著 → 改讀中繼每分鐘存在本機的 bars_yuanta/<日>.csv(中繼推雲端之前先存的,同一份)"""
+    if cloud_up():
+        try:
+            j = http(worker_url(f"ybars={day}" + (f"&since={since}" if since else "")), timeout=40)
+            if getattr(today_bars, "_local", False): today_bars._local = False; log("雲端 K 恢復,改回讀雲端")
+            return j.get("bars", {}), j.get("last", "")
+        except Exception as e:
+            log("雲端 K 抓不到 → 改讀中繼本機 K", repr(e)[:100])
+    if not getattr(today_bars, "_local", False): today_bars._local = True; log("!! 今天的 K 改讀中繼本機檔(雲端連不上 / 太慢)")
+    return today_bars_local(day, since)
+
+
+def today_bars_local(day, since=""):
+    """中繼本機的今天 1 分 K:BARS_DIR(預設 bars_yuanta)/<日>.csv,欄位 code,date,time,open,high,low,close,volume(量 = 股,和雲端 ybars 同一份)"""
+    f = Path(CFG.get("BARS_DIR") or (HERE / "bars_yuanta")) / f"{day}.csv"
+    out = {}; last = ""
+    with open(f, encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            t = r.get("time") or ""
+            if r.get("date") != day or (since and t < since): continue
+            try: out.setdefault(str(r["code"]), []).append([t, float(r["open"]), float(r["high"]), float(r["low"]), float(r["close"]), int(float(r["volume"]))])
+            except Exception: continue
+            if t > last: last = t
+    for c in out: out[c].sort(key=lambda x: x[0])
+    return out, last
 
 
 _TB = {"d": "", "rows": {}, "last": "", "full_at": 0.0}
@@ -359,7 +425,7 @@ def write_breadth(day):
     f = DATA / "breadth.json"
     try:
         j = http(worker_url(f"breadth={day}"), timeout=30); br = j.get("br") or {}
-        av = j.get("av") or {}
+        av = av_fill(day, j.get("av") or {})   # 2026-11-20 使用者「改1234」 3:雲端缺的分鐘用電腦自己算的補
         if av: write_atomic(DATA / "mktavg.json", json.dumps({day: av}))   # 2026-11-05 判五:名單平均(Worker ?breadth 的 av)
         elif not (DATA / "mktavg.json").exists(): write_atomic(DATA / "mktavg.json", "{}")
         br = br_fill(day, br)
@@ -369,6 +435,10 @@ def write_breadth(day):
         return False, 0, ""
     except Exception as e:
         log("寬度抓不到", e)
+        try:
+            av = av_fill(day, {})   # 2026-11-20 使用者「改1234」 3:雲端掛了,判五的名單平均也用電腦自己算的
+            if av: write_atomic(DATA / "mktavg.json", json.dumps({day: av}))
+        except Exception as e2: log("名單平均自己算失敗", e2)
         try:
             br = br_fill(day, {})
             if br: write_atomic(f, json.dumps({day: br})); return True, len(br), max(br)
@@ -403,6 +473,44 @@ def br_local(day):
         if u + dn: out[t] = round(u / (u + dn), 3)
         t = hm_add(t, 1)
     return out
+
+
+def av_local(day):
+    """2026-11-20 使用者「改1234」 3:判五的名單平均(每檔對昨收漲跌 % 的平均,和 Worker ?breadth 的 av 同一套)用電腦的元大 1 分 K 自己算(和 br_local 同一批資料)"""
+    if _TB.get("d") != day or not _TB.get("rows") or not _BR_PREV: return {}
+    ser = {}
+    for c, dc in _TB["rows"].items():
+        y = float(_BR_PREV.get(c) or 0)
+        if y > 0 and dc: ser[c] = (y, sorted(dc.items()))
+    if not ser: return {}
+    last = _TB.get("last") or ""
+    out = {}; idx = {c: 0 for c in ser}; cur = {}
+    t = "09:00"
+    while t <= last and t <= "13:30":
+        sp = 0.0; npn = 0
+        for c, (y, rows) in ser.items():
+            i = idx[c]
+            while i < len(rows) and rows[i][0] <= t: cur[c] = float(rows[i][1][4]); i += 1
+            idx[c] = i
+            z = cur.get(c)
+            if z is None or z <= 0: continue
+            sp += (z / y - 1) * 100; npn += 1
+        if npn: out[t] = round(sp / npn, 3)
+        t = hm_add(t, 1)
+    return out
+
+
+def av_fill(day, av):
+    """雲端名單平均缺的分鐘(或整個抓不到)→ 用電腦自己算的補上;雲端有的照雲端"""
+    try:
+        loc = av_local(day)
+        if not loc: return av
+        add = {k: v for k, v in loc.items() if k not in av}
+        if add:
+            if not av: log(f"名單平均:雲端沒有,用電腦元大 K 自己算({len(add)} 分鐘)")
+            av = dict(av); av.update(add); av = dict(sorted(av.items()))
+    except Exception as e: log("名單平均自己算失敗", repr(e))
+    return av
 
 
 def br_fill(day, br):
@@ -754,6 +862,13 @@ class Engine:
         self.j8 = set()       # 2026-11-14 判八今天已進場的股票:一天最多 J8MAX 檔
         self.j5 = set()       # 2026-11-05 判五今天已進場的股票:一天最多 J5MAX 檔
         self.j4 = set()       # 2026-10-31 判四今天已進場(推了、或雲端已有,超額的不算)的股票:一天最多 T4MAX 檔
+        self._cq = []; self._cq_lock = threading.Lock(); self._cq_th = None   # 2026-11-20 雲端排隊(使用者「改1234」 2)
+        try:
+            qf = DATA / f"cloud_queue_{day}.jsonl"
+            if not dry and qf.exists():
+                self._cq = [json.loads(x) for x in qf.read_text(encoding="utf-8").splitlines() if x.strip()]
+                if self._cq: self._cq_th = threading.Thread(target=self._cq_flush, daemon=True); self._cq_th.start(); log(f"雲端排隊:上次還有 {len(self._cq)} 則沒送,背景補送")
+        except Exception as e: log("讀雲端排隊失敗", e)
         self.closed = []; self.lat = []; self.rounds = []   # 2026-11-07 收盤檢討(A):今天平倉的部位、進場通知晚幾秒、每輪幾秒
         self.drag = set()     # 2026-11-07 已發過「可能拖輸」提示的部位(判別式|代碼|進場時間)
         self.no_bar_note = set()   # 2026-11-10 今天還沒成交、先不算的股票(log 只寫一次)
@@ -889,14 +1004,46 @@ class Engine:
                 f.write(json.dumps({**it, "_k": kk}, ensure_ascii=False) + "\n"); f.flush(); os.fsync(f.fileno())
         except Exception as e: log("!! 本機通知檔寫不進去(中繼改等 Worker)", e); kk = None
         if kk and it.get("kind") in ("long", "short"): it = self.verdict(it, kk)
-        for k in range(3):
+        # 2026-11-20 使用者「改1234」 2:本機通知檔已經寫好(中繼照常下單)→ 雲端連不上 / 太慢就排隊,不在這裡重試卡住整輪;本機沒寫成才照舊重試 3 次
+        if kk and not cloud_up(): self.cq_add(it); return True
+        for k in range(1 if kk else 3):
             try:
                 r = http(worker_url("log=add"), it, key=True)
                 if r.get("ok"): return True
                 log("推通知被拒", r); return False
             except Exception as e:
-                log(f"推通知失敗 第 {k + 1} 次", e); time.sleep(2)
+                log(f"推通知失敗 第 {k + 1} 次", e)
+                if kk: self.cq_add(it); return True
+                time.sleep(2)
         return False
+
+    def cq_add(self, it):
+        """雲端排隊:先存本機 cloud_queue_<日>.jsonl,背景每 15 秒試補送(雲端恢復才送;送出或被拒就移掉)"""
+        with self._cq_lock:
+            self._cq.append(it); self._cq_save()
+            log(f"[雲端排隊] {it.get('t', '')} {it.get('title', '')}(排隊 {len(self._cq)} 則)")
+            if not self._cq_th or not self._cq_th.is_alive():
+                self._cq_th = threading.Thread(target=self._cq_flush, daemon=True); self._cq_th.start()
+
+    def _cq_save(self):
+        try: write_atomic(DATA / f"cloud_queue_{self.day}.jsonl", "".join(json.dumps(x, ensure_ascii=False) + "\n" for x in self._cq))
+        except Exception as e: log("雲端排隊存檔失敗", e)
+
+    def _cq_flush(self):
+        while True:
+            time.sleep(15)
+            with self._cq_lock:
+                if not self._cq: return
+            if not cloud_up(): continue
+            while True:
+                with self._cq_lock:
+                    if not self._cq: return
+                    it = self._cq[0]
+                try: r = http(worker_url("log=add"), it, key=True)
+                except Exception as e: log("雲端補送失敗(稍後再試)", e); break
+                with self._cq_lock:
+                    if self._cq and self._cq[0] is it: self._cq.pop(0); self._cq_save()
+                log(f"[雲端補送] {it.get('t', '')} {it.get('title', '')} → {'OK' if r.get('ok') else r}")
 
     def verdict(self, it, kk):
         """2026-11-13 11:20 使用者選 A(和益在不管名單沒進場,手機卻跳「進場」):進場通知推雲端前,等中繼回報有沒有進場(engine_data/verdict_<日期>.jsonl,
@@ -928,11 +1075,12 @@ class Engine:
     def sync_cloud(self):
         """2026-10-29 稽核 #7:讀雲端今天的通知(手機 / 上一個 engine / 重開前的自己發的),同一個訊號不重發、還開著的接回來管平倉"""
         if self.dry or not CFG.get("WORKER_URL"): return False
+        if not cloud_up(): return False   # 2026-11-20 斷路器開著:這輪不讀雲端
         try:
             r = urllib.request.urlopen(urllib.request.Request(worker_url(f"log=get&d={self.day}&_={int(time.time())}"), headers={"X-Push-Key": CFG.get("PUSH_KEY", ""), "User-Agent": "mysh-engine/1"}), timeout=10)
             arr = json.loads(r.read().decode("utf-8"))
         except Exception as e:
-            log("讀雲端通知失敗(這輪只靠本機狀態去重)", e); return False
+            _cb_fail(e); log("讀雲端通知失敗(這輪只靠本機狀態去重)", e); return False
         for it in arr if isinstance(arr, list) else []:
             if re.search(r"·\s*強平\s*·", it.get("body", "")):   # 2026-11-02 10:23 使用者「這檔已經平倉者 就不用再通知顯示停利或其他了」
                 mf = re.search(r"\b(\d{4,6})\b", it.get("title", ""))
