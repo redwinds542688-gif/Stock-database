@@ -1769,7 +1769,7 @@ export default {
       if (!env || !env.GH_TOKEN) return J({ error: "Worker 沒有 GH_TOKEN" }, 503);
       const rp = { db: GH_REPO, logic: GH_REPO_LOGIC, lottery: "Lottery-database" }[url.searchParams.get("repo") || "db"];
       if (!rp) return J({ error: "repo 不對" }, 400);
-      const pub = rp === "Lottery-database";   // 2026-11-19 21:35 Lottery-database 是公開庫,GH_TOKEN 沒有它的權限(回 404 → 502)→ 不帶 token 讀
+      const pub = false;   // 2026-11-19 21:50 Lottery-database 是私人庫;使用者在 GitHub 把 cloudflare-cron 鑰匙加上 Lottery-database 讀取權限 → 三個庫都帶 token 讀
       const H = pub ? { "User-Agent": "twse-proxy", Accept: "application/vnd.github+json" } : { Authorization: "token " + env.GH_TOKEN, "User-Agent": "twse-proxy", Accept: "application/vnd.github+json" };
       if (gh === "tree") {
         const c = await fetch(`https://api.github.com/repos/${GH_OWNER}/${rp}/commits/${GH_REF}`, { headers: H });
