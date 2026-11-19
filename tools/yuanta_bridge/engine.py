@@ -1128,7 +1128,8 @@ class Engine:
             if rs not in self.envs: continue   # 2026-11-05 判五規則還沒到
             # 2026-11-06 加速:過了這個判別式最後進場時間 + 11 分鐘(10 分鐘內的進場還會補發),只算還開著虛擬部位的股票
             if rs == "六3" and hm_now and hm_now < "10:29" and not any(k_[0] == "六3" for k_ in self.pos): continue   # 2026-11-12 23:40 判六做空 10:30 才開始,之前不用算
-            e_ = self.envs[rs]; last_ = e_.get("NOENTRYAFTER") or e_.get("T5TO") or e_.get("T4NOENTRY") or e_.get("T8TO") or ""
+            e_ = self.envs[rs]; _lt = [x for x in (e_.get("NOENTRYAFTER"), e_.get("T5TO"), e_.get("T4NOENTRY"), e_.get("T8TO"), e_.get("ENTRYTO")) if x and re.match(r"^\d\d:\d\d$", str(x))]
+            last_ = min(_lt) if _lt else ""   # 2026-11-19 使用者「改A」:加鐵律 ③ ENTRYTO(12:30,每個判別式都有)—— 原本判一 / 三 / 六 / 七 / 九 / 十沒有自己的最後進場時間,整個下午照算;取最早的
             idle = bool(last_) and bool(hm_now) and hm_now > hm_add(last_, 11) and CFG.get("ENGINE_SKIP_IDLE", "1") == "1"
             for c in self.codes:
                 if only is not None and (rs, c) not in only: continue
