@@ -423,32 +423,41 @@ def pre_frame(bars, upto, codes=None, base=None):
     return bs, fm
 
 
+_BR_LAST = {"d": "", "br": {}, "av": {}, "at": 0.0}   # 2026-11-21 使用者「改」(3 寬度先用電腦算的):最近一次抓到的雲端寬度 / 名單平均
+
+def breadth_fetch(day):
+    """只抓雲端 ?breadth(不寫檔),記進 _BR_LAST"""
+    j = http(worker_url(f"breadth={day}"), timeout=30)
+    _BR_LAST.update(d=day, br=j.get("br") or {}, av=j.get("av") or {}, at=time.time())
+    return j
+
+def breadth_apply(day, br, av):
+    """雲端寬度 / 名單平均(缺的分鐘用電腦元大 K 補)寫成模擬器讀的檔;回傳 (有沒有寬度, 幾分鐘, 最後一分鐘)"""
+    f = DATA / "breadth.json"
+    av = av_fill(day, av or {})   # 2026-11-20 使用者「改1234」 3:雲端缺的分鐘用電腦自己算的補
+    if av: write_atomic(DATA / "mktavg.json", json.dumps({day: av}))   # 2026-11-05 判五:名單平均(Worker ?breadth 的 av)
+    elif not (DATA / "mktavg.json").exists(): write_atomic(DATA / "mktavg.json", "{}")
+    br = br_fill(day, br or {})
+    if br:
+        write_atomic(f, json.dumps({day: br})); return True, len(br), max(br)
+    if not f.exists(): write_atomic(f, "{}")
+    return False, 0, ""
+
+def breadth_cached(day):
+    """雲端這輪還沒回 / 抓不到:用上一次抓到的雲端寬度 + 新的分鐘電腦自己補(和雲端慢 1~2 分鐘時本來的做法一樣);今天還沒抓到過 = 全部電腦自己算"""
+    same = _BR_LAST.get("d") == day
+    return breadth_apply(day, _BR_LAST["br"] if same else {}, _BR_LAST["av"] if same else {})
+
 def write_breadth(day):
     """2026-10-29 每分鐘抓;回傳 (抓到沒, 今天幾分鐘, 最後一分鐘)。抓不到 / 今天沒資料:不覆蓋已經有的檔(歷史不變,已推的判二部位不會因為重算變了被誤平),
        檔案不存在就寫 {}(模擬器不會因為沒有檔當掉;判二帶 BRMISSING=block → 今天沒資料就不進)"""
-    f = DATA / "breadth.json"
     try:
-        j = http(worker_url(f"breadth={day}"), timeout=30); br = j.get("br") or {}
-        av = av_fill(day, j.get("av") or {})   # 2026-11-20 使用者「改1234」 3:雲端缺的分鐘用電腦自己算的補
-        if av: write_atomic(DATA / "mktavg.json", json.dumps({day: av}))   # 2026-11-05 判五:名單平均(Worker ?breadth 的 av)
-        elif not (DATA / "mktavg.json").exists(): write_atomic(DATA / "mktavg.json", "{}")
-        br = br_fill(day, br)
-        if br:
-            write_atomic(f, json.dumps({day: br})); return True, len(br), max(br)
-        if not f.exists(): write_atomic(f, "{}")
-        return False, 0, ""
+        j = breadth_fetch(day)
     except Exception as e:
         log("寬度抓不到", e)
-        try:
-            av = av_fill(day, {})   # 2026-11-20 使用者「改1234」 3:雲端掛了,判五的名單平均也用電腦自己算的
-            if av: write_atomic(DATA / "mktavg.json", json.dumps({day: av}))
-        except Exception as e2: log("名單平均自己算失敗", e2)
-        try:
-            br = br_fill(day, {})
-            if br: write_atomic(f, json.dumps({day: br})); return True, len(br), max(br)
-            if not f.exists(): write_atomic(f, "{}")
-        except Exception: pass
-        return False, 0, ""
+        try: return breadth_cached(day)   # 2026-11-21 原本雲端掛了整天電腦自己算;改成上一次雲端 + 新的分鐘電腦補(今天沒抓到過才全部自己算)
+        except Exception as e2: log("寬度自己算失敗", e2); return False, 0, ""
+    return breadth_apply(day, j.get("br") or {}, j.get("av") or {})
 
 
 _BR_PREV = {}
@@ -1516,6 +1525,7 @@ class Engine:
             res.sort(key=lambda r: idx.get((r[1], r[0]), 0))
             return res, time.time() - t0, len(jobs)
         upto = self.upto_hm or "99:99"
+        _it = self.pool.imap_unordered(_sim_group, args, chunksize=1)   # 2026-11-21 馬上送出(原本在 gen() 第一次取才送;改了對帳等待移到開算之後)
         def gen():
             left = {}   # 判別式 → 還沒交回的工作序號
             for i, j in enumerate(jobs): left.setdefault(j[2], set()).add(i)
@@ -1537,7 +1547,7 @@ class Engine:
                             r = q.pop(0); left[r[1]].discard(idx[(r[1], r[0])]); moved = True
                             yield r
                         if not q: ready.pop(c)
-            for g in self.pool.imap_unordered(_sim_group, args, chunksize=1):
+            for g in _it:
                 if g:
                     ready[g[0][0]] = sorted(g, key=lambda r: idx[(r[1], r[0])])
                 yield from drain()
@@ -1920,7 +1930,7 @@ def live():
     #   判斷依據還是收盤後的 K(和回測一樣);第 4 秒的整輪照舊(已推的不會重發,沒趕上的照發)。ENGINE_PRE=0 關掉
     # 2026-11-06 13:14 使用者「那把預判拿掉 浪費時間」:一輪要 ~53 秒,第 45 秒開始的預判算完已過下一分鐘第 4 秒 → 快速確認幾乎跑不到
     #   (11/02~11/06 約 960 次預判只提早推出 4 則,11/04 起 0 則),還連續搶走整輪(11/06 華經 10:22 訊號連 3 輪預判,10:26:35 才通知)→ 預設關;ENGINE_PRE=1 可再開
-    pre_on = CFG.get("ENGINE_PRE", "1") == "1"; pre_sec = int(CFG.get("ENGINE_PRE_SEC", "45")); pre_max = float(CFG.get("ENGINE_PRE_MAXSEC", "15"))   # 2026-11-08 20:28 預設改回開(有 15 秒保險)
+    pre_on = CFG.get("ENGINE_PRE", "1") == "1"; pre_sec = int(CFG.get("ENGINE_PRE_SEC", "45")); pre_max = float(CFG.get("ENGINE_PRE_MAXSEC", "20"))   # 2026-11-21 使用者「改」:15 → 20 秒   # 2026-11-08 20:28 預設改回開(有 15 秒保險)
     try: start_sec = int(CFG.get("ENGINE_START_SEC", "2"))
     except Exception: start_sec = 2
     pre = {"for": "", "cand": set(), "done": set(), "fast": set(), "ok": False, "rs_block": {}}
@@ -1993,9 +2003,9 @@ def live():
                     except Exception as e: log("名單外股票加入失敗", repr(e))
                 # 2026-11-07 使用者「看看還有什麼會拖慢速度的」:寬度 / 名單平均(Worker ?breadth)和雲端通知對帳(?log=get)原本排在等到 K 之後一個一個做 → 一開始就在背景同時做,開算前等它們做完
                 _bg = {}
-                def _bg_br():
-                    try: _bg["br"] = write_breadth(day)
-                    except Exception as e: _bg["br"] = (False, 0, ""); log("寬度背景抓失敗", repr(e))
+                def _bg_br():   # 2026-11-21 使用者「改」(3):背景只抓雲端(不寫檔),寫檔由主程式決定用哪一份
+                    try: _bg["j"] = breadth_fetch(day)
+                    except Exception as e: _bg["err"] = e; log("寬度背景抓失敗", repr(e)[:120])
                 def _bg_sync():
                     try: eng.sync_cloud()
                     except Exception as e: log("雲端通知對帳失敗", repr(e))
@@ -2017,7 +2027,15 @@ def live():
                 try: eng.apply_refs()   # 2026-11-10 每分鐘對一次昨收(中繼的元大參考價檔有新的就套上)
                 except Exception as e: log("昨收對照失敗", repr(e))
                 # 寬度每分鐘(稽核 #1)
-                _tm["整理K"] = _msec(); _ths[0].join(35); _tm["寬度"] = _msec(); ok, nbr, blast = _bg.get("br", (False, 0, ""))
+                # 2026-11-21 使用者「改」(3 寬度先用電腦算的):K 到齊後最多再等雲端寬度 ENGINE_BR_WAIT(0.5)秒;還沒回 → 先用上一次的雲端 + 新的分鐘電腦補(原本最多等 35 秒)
+                _tm["整理K"] = _msec(); _ths[0].join(max(0.0, float(CFG.get("ENGINE_BR_WAIT", "0.5") or 0.5)))
+                try:
+                    if "j" in _bg: ok, nbr, blast = breadth_apply(day, _bg["j"].get("br") or {}, _bg["j"].get("av") or {})
+                    else:
+                        if "err" not in _bg: flags.append("寬度先補")
+                        ok, nbr, blast = breadth_cached(day)
+                except Exception as e: ok, nbr, blast = False, 0, ""; log("寬度寫檔失敗", repr(e))
+                _tm["寬度"] = _msec()
                 if ok: br.update(ok_at=time.time(), last=blast)
                 rs_block = {}
                 if not br["last"] or time.time() - br["ok_at"] > 180 or (hm < "13:26" and br["last"] < hm_add(hm, -5)):
@@ -2030,10 +2048,10 @@ def live():
                 if not eng.codes: off.append("名單是空的")
                 if stale_bars: off.append(f"K 只到 {lb or '(沒有)'}")
                 if late_n >= 3: off.append(f"K 連續 {late_n} 分鐘晚到")
-                _ths[1].join(15); _tm["對帳"] = _msec()
                 # 2026-11-06 13:24 使用者「還有什麼可以再更快的」:算完一檔就對帳發通知,不等整輪(順序和以前一樣)
                 eng.upto_hm = hm
                 eng.t_first = None; t0c = time.time(); it, njobs = eng.compute(stream=True); res = []; errs = 0; n_ev = 0
+                _ths[1].join(15); _tm["對帳"] = _msec()   # 2026-11-21 使用者「改」(2):先開算(工作行程已經在跑),對帳前才等雲端通知對帳回來(原本開算前等)
                 cutoff = hm_add(hm, -10); ok0 = not off and not late
                 for r in it:
                     res.append(r); errs += bool(r[3])
