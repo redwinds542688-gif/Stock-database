@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-20 進場卡右下標籤「損」→「停損」、「平」→「平倉」
   · 2026-11-20 預掛標籤分三種:有部位又掛平倉 → 預贖、有部位同方向加碼 → 加碼、沒部位 → 預空 / 預多;有平倉預掛的進場卡也照樣標「損」
   · 2026-11-20 平倉線的「損」字改綠色
   · 2026-11-20 進場卡還開著的平倉線改標「損」(例:損 46.20),平倉後照舊「平」+ 實際平倉價
@@ -572,7 +573,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611201100">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611201102">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -878,7 +879,7 @@
   #notifLog .card .ln.sub .xpv,#notifLog .card .ln.sub .xpd{font-size:.62em;font-weight:700;font-style:normal;line-height:1.1;color:#C9D1E0;letter-spacing:0;white-space:nowrap}
   #notifLog .card .ln.sub .xpd{color:#8C96AB;font-weight:600}
   #notifLog .card .ln.sub .xpv > .pxl{color:#1DD75B}   /* 2026-11-20 10:52 使用者「損 改綠色」:「損」字綠色(價照舊白 / 黃 / 紅閃) */
-  #notifLog .card .ln.sub .xpv,#notifLog .card .ln.sub .xpd{display:inline-flex;justify-content:space-between;align-items:baseline;width:5.3em;vertical-align:baseline}   /* 2026-11-20 10:33 使用者「平 在固定位置 上下卡片的 平 要對齊」:固定寬,「平」靠左、價靠右 */
+  #notifLog .card .ln.sub .xpv,#notifLog .card .ln.sub .xpd{display:inline-flex;justify-content:space-between;align-items:baseline;width:6.3em;vertical-align:baseline}   /* 2026-11-20 10:33 使用者「平 在固定位置 上下卡片的 平 要對齊」:固定寬,「平」靠左、價靠右 */
   #notifLog .card .ln.sub .xpv.xy{color:#FFD54F} #notifLog .card .ln.sub .xpv.xr{color:#FF3B3B;animation:xpBlink .8s steps(2, start) infinite}
   @keyframes xpBlink{50%{opacity:.25}}   /* 2026-11-20 平倉價:差 1% 黃、0.5% 紅閃 */
   #notifLog .card .ln.sub .pxl{font-weight:600;color:#8C96AB;margin-right:3px;font-size:.92em}
@@ -4733,7 +4734,7 @@ const xpCell = code => { try{ const T = window.__tpos; if (!T || !T.ok || !Array
   let x = +p.xp > 0 ? +p.xp : +p.sl; if (!(x > 0)) return ''; const d = +p.dir || (p.side === 'long' ? 1 : -1), t = tickOf(x);
   x = Math.round((d < 0 ? Math.ceil(x / t - 1e-9) : Math.floor(x / t + 1e-9)) * t * 100) / 100;
   const z = +(((LIVE.get(String(code)) || {}).z) || 0), r = z > 0 ? (d < 0 ? (x - z) / z : (z - x) / z) : 1;
-  return `<b class="xpv${r <= 0.005 ? ' xr' : r <= 0.01 ? ' xy' : ''}"><b class="pxl">損</b>${x.toFixed(2)}</b>`;   /* 2026-11-20 10:47 使用者「(還開著的)改成 損 46.20」;平倉後照舊「平」 */ }catch(e){ return ''; } };
+  return `<b class="xpv${r <= 0.005 ? ' xr' : r <= 0.01 ? ' xy' : ''}"><b class="pxl">停損</b>${x.toFixed(2)}</b>`;   /* 2026-11-20 11:02 使用者「損 改成 停損 平改成 平倉」 */   /* 2026-11-20 10:47 使用者「(還開著的)改成 損 46.20」;平倉後照舊「平」 */ }catch(e){ return ''; } };
 setInterval(() => { try{ document.querySelectorAll('#notifLog .xpx').forEach(e => { const h = xpCell(e.dataset.c); if (e.innerHTML !== h) e.innerHTML = h; }); }catch(e){} }, 3000);
 setInterval(() => { try{ document.querySelectorAll('#notifLog .nowp').forEach(e => { const z = +(((LIVE.get(e.dataset.c) || {}).z) || 0); if (z > 0){ const t = z.toFixed(2); if (e.textContent !== t) e.textContent = t; } }); }catch(e){} }, 3000);   // 2026-11-10 進場卡「現」跟報價更新
 window.__needlesNow = () => { try{ document.querySelectorAll('#bands .row').forEach(row => rowNeedle(row, LIVE.get(row.dataset.code))); }catch(e){} };
@@ -8244,7 +8245,7 @@ window.bgTick = bgTick; window.BG = BG;
     const nlKey = () => (window.NL_VIEW || 'msg') + (window.NL_SHOW30 ? '|30' : '') + '|' + (box.parentElement ? box.parentElement.clientWidth + 'x' + box.parentElement.clientHeight : '') + '|' + innerWidth + 'x' + innerHeight;   // 視窗大小變了照樣重排
     // 2026-11-13 12:29 使用者「檢查所有捲動 似乎不太順暢」:卡片裡的即時價(.nowp)每 5 秒都不同 → 每次都整欄重建 + 重量字級(手機上一次 0.1~0.5 秒,捲動就頓);
     //   比對時不看 .nowp 裡的數字(它由每 3 秒的小計時器自己更新),其他都一樣就不重建
-    const nlNorm = H => H.replace(/(<span class="nowp"[^>]*>)[^<]*/g, '$1').replace(/(<span class="xpx"[^>]*>)<b class="xpv[^"]*"><b class="pxl">損<\/b>[^<]*<\/b>/g, '$1');   /* 2026-11-20 平倉價的數字 / 顏色由每 3 秒的小計時器自己更新,比對時不看 */
+    const nlNorm = H => H.replace(/(<span class="nowp"[^>]*>)[^<]*/g, '$1').replace(/(<span class="xpx"[^>]*>)<b class="xpv[^"]*"><b class="pxl">停損<\/b>[^<]*<\/b>/g, '$1');   /* 2026-11-20 平倉價的數字 / 顏色由每 3 秒的小計時器自己更新,比對時不看 */
     const nlSame = H => !cur && !window.NL_GOTO && box.__h === nlNorm(H) && box.__hv === nlKey() && box.__hf === box.firstChild && box.__hl === box.lastChild && box.firstChild;
     const nlPut = H => { box.classList.toggle('usm', H.indexOf('class="usx"') >= 0 || H.indexOf('class="rvw"') >= 0);   /* 2026-11-07 15:58 使用者「怎麼檢討 位置不同 圖一才是正確的」:檢討畫面沒有 usx → usm 被拿掉,檢討鍵跑到最右邊 */ box.innerHTML = H; box.__h = nlNorm(H); box.__hv = nlKey(); box.__hf = box.firstChild; box.__hl = box.lastChild; if (H.indexOf('class="rvw"') >= 0 && window.rvFit) rvFit(); };
     if (window.NL_VIEW !== 'pos') box.classList.remove('usm');   /* 2026-11-07 00:36 使用者影片「進場 顯示錯誤」:從資訊切回進場,資訊頁的 2 欄排版(usm)沒拿掉 → 進場卡片被排成兩欄;內容換掉時一律照內容決定 */
@@ -8428,7 +8429,7 @@ window.bgTick = bgTick; window.BG = BG;
       const phLb = o.phNew ? ((o.phAdd || (() => { try{ return window.__openSide && window.__openSide.get(o.code) === o.side; }catch(e){ return false; } })()) ? '加碼' : o.side === 'long' ? '預多' : '預空') : '預贖';
       const rs = (o.type === 'entry' && (o.ph > 0 || o.phNew)) ? `<span class="rs al al-ph">${phLb}</span>` : (o.type === 'entry' && o.phFc) ? '<span class="rs al al-exit"><b class="fz">強</b>平</span>' : (al === 'exit' && dd === today && (() => { try{ const T = window.__tpos; return T && T.ok && Array.isArray(T.pos) && T.pos.some(q => String(q.code) === String(o.code) && (!o.rs || !q.judge || q.judge === o.rs) && !(q.t0 && o.t && String(q.t0).slice(0, 5) > o.t)); }catch(e){ return false; } })()) ? '<span class="rs al al-ph">平倉中</span>' : al ? `<span class="rs al al-${al}">${al === 'exit' && o.fc ? (o.yp ? '<b class="fz">元</b>平' : '<b class="fz">強</b>平') : AL[al]}</span>` : '<span class="rs"></span>';   /* 2026-11-11 11:37(實際時間)使用者「和益 哪有平倉 還有一張」:平倉通知發了、但元大還有這檔部位(平倉單沒成交,例如鎖漲停)→ 標「平倉中」,成交後才變「平倉」 */   // 2026-10-28 強平:「強」紅色   // 2026-10-19 使用者:「反彈 / 平倉 / 注意一直閃太干擾,不要閃了」→ 拿掉 blink,只用顏色,不再閃爍(fresh 保留給之後可能用)
       return `<div class="ln"><span class="nmblk"><span class="nm">${esc(o.name)}</span></span><span class="px${ud(+entP)}"${!o.prev && dd === today && entP ? ` data-pc="${esc(o.code)}" data-pv="${+entP}"` : ''}>${pxTop}</span><span class="sd${sideTxt ? (o.side === 'long' ? ' win' : ' lose') : ''}">${sideTxt}</span><span class="qt">${o.over ? '<b style="color:#FFD24D;font-weight:700">超額</b>' : o.notrade ? '<b style="color:#8C96AB;font-weight:700">未交易</b>' : (o.madd && lots) ? '<b style="color:#FFD54F;font-weight:700">+</b>' + lots + '張' : lots ? lots + '張' : (o.type === 'turn' && (o.add || o.warnT) && o.side) ? `<b class="tsd ${o.side === 'long' ? 'win' : 'lose'}">${o.side === 'long' ? '做多' : '做空'}</b>` : ''}</span><span class="exm">${ex}</span>${rs}</div>`
-           + `<div class="ln sub"><span class="nmblk"><span class="cd">${esc(o.code)}</span></span><span class="px${ud(+o.price)}"><i class="s">${pxBot}</i></span><span class="sd"><i class="s rsb">${o.rs === '強三' ? '<b class="fz">強</b>三' : o.rs === '元三' ? '<b class="fz">元</b>三' : (o.rs || '')}</i></span><span class="qt">${o.t ? `<i class="s tm">${esc(o.t)}</i>` : ''}</span><span class="exm">${al === 'exit' ? ((o._xp || (o.type === 'exit' ? +o.price : 0)) > 0 ? `<i class="s xpd"><b class="pxl">平</b>${(+(o._xp || o.price)).toFixed(2)}</i>` : '') : (o.type === 'entry' && dd === today && !o.phNew && !o.over && !o.notrade && !o.phFc) ? `<span class="xpx" data-c="${esc(o.code)}">${xpCell(o.code)}</span>` : ''}</span><span class="rs">${al === 'exit' && o._win != null ? `<i class="s wl ${o._win ? 'win' : 'lose'}">${o._win ? '贏' : '輸'}</i>` : ''}</span></div>`;   // 2026-10-18 使用者:平倉下面顯示 輸 / 贏,加框
+           + `<div class="ln sub"><span class="nmblk"><span class="cd">${esc(o.code)}</span></span><span class="px${ud(+o.price)}"><i class="s">${pxBot}</i></span><span class="sd"><i class="s rsb">${o.rs === '強三' ? '<b class="fz">強</b>三' : o.rs === '元三' ? '<b class="fz">元</b>三' : (o.rs || '')}</i></span><span class="qt">${o.t ? `<i class="s tm">${esc(o.t)}</i>` : ''}</span><span class="exm">${al === 'exit' ? ((o._xp || (o.type === 'exit' ? +o.price : 0)) > 0 ? `<i class="s xpd"><b class="pxl">平倉</b>${(+(o._xp || o.price)).toFixed(2)}</i>` : '') : (o.type === 'entry' && dd === today && !o.phNew && !o.over && !o.notrade && !o.phFc) ? `<span class="xpx" data-c="${esc(o.code)}">${xpCell(o.code)}</span>` : ''}</span><span class="rs">${al === 'exit' && o._win != null ? `<i class="s wl ${o._win ? 'win' : 'lose'}">${o._win ? '贏' : '輸'}</i>` : ''}</span></div>`;   // 2026-10-18 使用者:平倉下面顯示 輸 / 贏,加框
     };
     // 2026-11-02 13:53 使用者選「標未交易 不寫原因」:電腦說沒變成部位的進場訊號(?trade=pos 的 skipped:代碼|判別式|訊號那根),進場卡和同一筆的平倉卡標「未交易」;
     //   拿到的存在手機(電腦連不上時照樣標);看盤版沒有電腦、不標
