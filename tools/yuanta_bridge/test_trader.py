@@ -1195,3 +1195,8 @@ OUT_[("四", "B")] = ""; e2_ = _mkeng(["B", "A"], hot=["B"]); r2_ = [(r[1], r[0]
 ok(r2_ == [("四", "B"), ("一", "B"), ("四", "A"), ("一", "A")], r2_)   # B 沒訊號 → 算完就交回
 ok(e2_._hot_codes() == {"B"})
 print("熱門股先算 / 交回順序 OK")
+# 2026-11-20 使用者「改B」:名單這類資料只在前段用到才共用;函式裡 / 後段 / globals()['名字'] 用到就不共用;函式自己的區域變數同名不算
+import ast as _ast_t
+_u = _eng._ss_uses(_ast_t.parse("P = {'a': 1}\nQ = [1]\nR = 2\ndef f():\n    P = []\n    P.append(1)\n    return Q\ng = lambda: globals()['R']\n"))
+ok(_u["P"] == {0} and -1 in _u["Q"] and -1 in _u["R"], _u)
+print("名單資料共用判斷 OK")

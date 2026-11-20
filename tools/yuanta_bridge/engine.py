@@ -604,6 +604,25 @@ def _ss_pure_expr(e):
         if isinstance(n, _ast.Attribute) and n.attr not in _SS_OKATTR: return False
     return True
 
+def _ss_uses(tree):
+    """名字 → 在哪裡被用到(非區域變數):top-level 句號集合;在函式裡 / globals()['名字'] 用到的記 -1"""
+    out = {}
+    def add(nm, k): out.setdefault(nm, set()).add(k)
+    def visit(node, k, locs):
+        if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.Lambda)):
+            a = node.args; mine = {x.arg for x in a.args + a.kwonlyargs + getattr(a, "posonlyargs", [])} | ({a.vararg.arg} if a.vararg else set()) | ({a.kwarg.arg} if a.kwarg else set())
+            body = node.body if isinstance(node.body, list) else [node.body]
+            glb = {n for b in body for x in _ast.walk(b) if isinstance(x, (_ast.Global, _ast.Nonlocal)) for n in x.names}
+            mine |= {x.id for b in body for x in _ast.walk(b) if isinstance(x, _ast.Name) and isinstance(x.ctx, _ast.Store)} - glb
+            for d in getattr(node, "decorator_list", []) + list(a.defaults) + [x for x in a.kw_defaults if x is not None]: visit(d, k, locs)
+            for b in body: visit(b, -1, locs | mine)
+            return
+        if isinstance(node, _ast.Name) and node.id not in locs: add(node.id, k)
+        if isinstance(node, _ast.Constant) and isinstance(node.value, str): add(node.value, -1 if k == -1 else k)   # globals()['P'] 這種
+        for ch in _ast.iter_child_nodes(node): visit(ch, k, locs)
+    for k, st in enumerate(tree.body): visit(st, k, frozenset())
+    return out
+
 def _ss_split():
     """sim_day.py → 前段一句一句的程式 + 後段(檔案改了才重做)"""
     f = SIMD / "sim_day.py"; st = f.stat(); key = (st.st_mtime_ns, st.st_size)
@@ -624,7 +643,11 @@ def _ss_split():
                 and _ss_pure_expr(s_.value) and not (tg & later_w[k]))
         stm.append({"co": compile(_ast.Module(body=[s_], type_ignores=[]), path, "exec"), "pure": pure, "w": tg, "r": _ss_names(s_),
                     "strs": {n.value for n in _ast.walk(s_) if isinstance(n, _ast.Constant) and isinstance(n.value, str)}})
-    _SS.update(pre=stm, suf=compile("\n" * i + "\n".join(lines[i:]), path, "exec"))
+    # 2026-11-20 使用者「改B」:名單這類大資料(P / P2)只在前段一開始組好、之後沒人再碰 → 不用每個判別式深拷貝一份
+    #   條件(程式自己檢查,模擬器改了會重算):名字只出現在前段 top-level 句子(不在任何函式裡、不在後段、沒有 globals()['名字']),記下最後出現的句號
+    pre_u = _ss_uses(_ast.Module(body=body, type_ignores=[])); suf_u = _ss_uses(_ast.parse("\n" * i + "\n".join(lines[i:]), path))
+    last = {nm: max(ks) for nm, ks in pre_u.items() if -1 not in ks and nm not in suf_u}
+    _SS.update(pre=stm, suf=compile("\n" * i + "\n".join(lines[i:]), path, "exec"), last=last)
     return _SS
 
 class _SSRec(_MM):
@@ -639,11 +662,11 @@ class _SSRec(_MM):
     def __len__(self): return len(self.real)
 
 _SS_SKIP = (_types.ModuleType, type, _types.BuiltinFunctionType, _types.CodeType)
-def _ss_clone(g):
-    """前段的變數空間複製一份:資料深拷貝,前段定義的函式改指向新的空間"""
+def _ss_clone(g, share=()):
+    """前段的變數空間複製一份:資料深拷貝,前段定義的函式改指向新的空間;share = 之後沒人會碰的名字(直接共用,不拷貝)"""
     ng = {}; memo = {id(g): ng}
     for k, v in g.items():
-        if k == "__builtins__" or isinstance(v, _SS_SKIP) or isinstance(v, _types.FunctionType): ng[k] = v
+        if k == "__builtins__" or k in share or isinstance(v, _SS_SKIP) or isinstance(v, _types.FunctionType): ng[k] = v
         else: ng[k] = _copy.deepcopy(v, memo)
     for k, v in g.items():
         if isinstance(v, _types.FunctionType) and v.__globals__ is g:
@@ -684,6 +707,8 @@ def _sim_group(args):
         if s_["pure"]:
             for w in s_["w"]: pn[w] = s_["strs"]
     cut = {k for k, s_ in enumerate(stm) if not s_["pure"] and ((s_["strs"] & vary) or any(pn.get(r, set()) & vary for r in s_["r"]))}
+    _c0 = min(cut) if cut else n
+    share = {nm for nm, k in (C.get("last") or {}).items() if k < _c0} if CFG.get("ENGINE_SHARE_RO", "1") == "1" else set()   # 最後一次出現在第一個存檔點之前 → 存檔後沒人碰
     cps = []   # 存檔點 [(句號, ((設定, 值)…), 變數空間, 到這裡的輸出, 每句讀到的設定)]
     for rs, env in envs:
         _sim_env(env, day); sys.argv = ["sim_day.py", code, name, "10", "10"]; buf = io.StringIO(); err = ""; real = os.environ
@@ -695,7 +720,7 @@ def _sim_group(args):
                 if cp is None:
                     k0 = 0; g = {"__name__": "__main__", "__file__": path, "__builtins__": __builtins__}; envk = [set() for _ in stm]; ptxt = ""
                 else:
-                    k0, _, g0, ptxt, envk0 = cp; g = _ss_clone(g0); envk = [set(x) for x in envk0]
+                    k0, _, g0, ptxt, envk0 = cp; g = _ss_clone(g0, share); envk = [set(x) for x in envk0]
                     for j in range(k0):
                         if stm[j]["pure"]: exec(stm[j]["co"], g)   # 純常數句換成這個判別式的設定
                 print(ptxt, end=""); pbuf = io.StringIO()
@@ -704,13 +729,13 @@ def _sim_group(args):
                         for k in range(k0, n):
                             if k in cut and k > k0:
                                 ks = _ss_deps(stm, k, envk)
-                                cps.append((k, tuple((x, real.get(x)) for x in sorted(ks)), _ss_clone(g), ptxt + pbuf.getvalue(), [set(x) for x in envk]))
+                                cps.append((k, tuple((x, real.get(x)) for x in sorted(ks)), _ss_clone(g, share), ptxt + pbuf.getvalue(), [set(x) for x in envk]))
                             rec = _SSRec(real); os.environ = rec
                             try: exec(stm[k]["co"], g)
                             finally: os.environ = real; envk[k] = rec.seen
                 finally: print(pbuf.getvalue(), end="")
                 ks = tuple((x, real.get(x)) for x in sorted(_ss_deps(stm, n, envk)))
-                if not any(c[0] == n and c[1] == ks for c in cps): cps.append((n, ks, _ss_clone(g), ptxt + pbuf.getvalue(), [set(x) for x in envk]))
+                if not any(c[0] == n and c[1] == ks for c in cps): cps.append((n, ks, _ss_clone(g, share), ptxt + pbuf.getvalue(), [set(x) for x in envk]))
                 exec(C["suf"], g)
         except SystemExit:
             pass
