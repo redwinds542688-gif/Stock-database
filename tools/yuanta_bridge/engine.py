@@ -679,6 +679,18 @@ def _f(v, d):
     except Exception: return float(d)
 
 
+CNT_ALL = 10 ** 6   # 2026-11-20 使用者「改」:監控檔數「不限」(主導機滾輪存「不限」;9999 以上也算不限)
+def _cnt_of(v, cfgv):
+    """監控檔數:主導機設定 → bridge.env ENGINE_MAX_CODES → 99;「不限」或 ≥ 9999 → CNT_ALL(不截斷)"""
+    for x in (v, cfgv):
+        if x is None or str(x).strip() == "": continue
+        if "不限" in str(x): return CNT_ALL
+        try: n = float(re.sub(r"[^\d.]", "", str(x)))
+        except Exception: continue
+        if n > 0: return CNT_ALL if n >= 9999 else int(n)
+    return 99
+
+
 def pool_rules(j, cap):
     r = (j.get("rules") or {}) if isinstance(j, dict) else {}
     # 2026-11-07 19:16 使用者「這裡面的設定 程式要照設定走」:監控低價 / 高價 / 最低振幅 / 監控檔數 改跟主導機的設定(cap=get 的 set);讀不到才用 bridge.env 的 ENGINE_*
@@ -686,7 +698,7 @@ def pool_rules(j, cap):
     return {"lo": max(_f(r.get("lo"), 10), cs("lo", _f(CFG.get("ENGINE_LO"), 10))),           # 滾輪「監控低價」(名單底線 10 元以下不會有)
             "hi": min(_f(r.get("hi"), 500), cs("hi", _f(CFG.get("ENGINE_HI"), 500))),           # 滾輪「監控高價」
             "amp": max(_f(r.get("min_amp"), 3.0), cs("amp", _f(CFG.get("ENGINE_AMP"), 3.0))),   # 滾輪「最低振幅」
-            "size": int(_f(r.get("size"), 130)), "cnt": int(cs("cnt", _f(CFG.get("ENGINE_MAX_CODES"), 99))),   # 滾輪「監控檔數」
+            "size": int(_f(r.get("size"), 130)), "cnt": _cnt_of(CLOUD_SET.get("cnt"), CFG.get("ENGINE_MAX_CODES")),   # 滾輪「監控檔數」(2026-11-20 加「不限」)
             "tick": _f(r.get("tick_max_pct"), 0.5), "excl": [str(x) for x in (r.get("exclude_industry") or ["17"])],
             "a5": _f(r.get("avg5_min_amp"), 3.0), "hits": r.get("avg5_min_hits"),
             # 2026-11-07 16:15 使用者加手機滾輪「最低張數 / 成交K棒 / 連續天數」(初始 6000 / 250 / 1):跟主導機設定,讀不到用初始值
@@ -750,7 +762,7 @@ def set_desc(j, cap):
     """2026-11-11 17:02 使用者「主導機 明明設6000 成交K 明明設250 怎麼電腦自己變了」→ 開工 / 重選時把實際用的選股設定寫進紀錄(讀沒讀到主導機一看就知道)"""
     try:
         R = pool_rules(j if isinstance(j, dict) else {"pool": j}, cap); src = "主導機" if CLOUD_SET else "讀不到主導機,用預設"
-        return f"選股設定({src}):{R['lo']:g}~{R['hi']:g} 元、振幅 ≥{R['amp']:g}%、張數 ≥{R['lots']:g}、成交K棒 ≥{R['bars']:g}、連續 {R['days']} 天、監控 {R['cnt']} 檔、多空上限 {cap:,}"
+        return f"選股設定({src}):{R['lo']:g}~{R['hi']:g} 元、振幅 ≥{R['amp']:g}%、張數 ≥{R['lots']:g}、成交K棒 ≥{R['bars']:g}、連續 {R['days']} 天、監控 {'不限' if R['cnt'] >= CNT_ALL else R['cnt']} 檔、多空上限 {cap:,}"
     except Exception as e: return f"選股設定(寫紀錄失敗 {e!r})"
 
 def build_universe(j, day, cap, held=(), noted=(), old_src=None):
