@@ -1163,3 +1163,10 @@ nb_ = len(gb_.sent); tb_.on_other_fill("6269", "S", 1000, 86.5, "M301"); ok(pb_[
 tb_.on_strategy_reply("K0002", True, ""); tb_.on_other_fill("6269", "S", 1000, 86.6, "M302"); ok(("oco", "6269", "TWSE", -1, 3) == gb_.sent[-1][:5], gb_.sent[-3:])
 adds = [b for a, b, k in tb_.posts if "加碼" in b]; ok(adds and "· 2張 ·" in adds[-1] and "共 3 張" in adds[-1], adds)
 print("判別式被手動加碼改元三後重掛條件單、同分鐘加碼卡累計 OK")
+# 2026-11-20 10:25 手機平倉價(顯示用):停損 / 移平 / 離昨收 ±x% 取反向最先碰到的
+tx_, gx_ = mk(); tx_.last_px["5314"] = 19.0
+tx_.positions["5314"] = {"code": "5314", "dir": -1, "qty": 6, "entry": 19.35, "judge": "元三", "state": HOLDING, "tp": 18.77, "sl": 20.22, "t0": "09:59", "mt_px": 19.12}
+vx_ = {q["code"]: q for q in tx_.positions_view()}["5314"]; ok(abs(vx_["xp"] - 19.12 * 1.03) < 1e-6, vx_)   # 移平 19.69 比停損 20.22 近
+tx_.positions["5314"]["mt_px"] = None; ok(abs({q["code"]: q for q in tx_.positions_view()}["5314"]["xp"] - 19.35 * 1.03) < 1e-6)
+tx_.positions["5314"].update({"dir": 1, "sl": 18.9, "mt_px": 19.5}); ok(abs({q["code"]: q for q in tx_.positions_view()}["5314"]["xp"] - 19.5 * 0.97) < 1e-6)   # 做多:取最高(18.92 > 18.9)
+print("手機平倉價(最先碰到的反向價)OK")

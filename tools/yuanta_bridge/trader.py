@@ -1810,7 +1810,24 @@ class Trader:
     def positions_view(self):
         with self.lock:
             return [{"code": p["code"], "dir": p["dir"], "qty": p["qty"], "entry": round(p["entry"], 2), "judge": p["judge"], "state": p["state"],
-                     "tp": p["tp"], "sl": p["sl"], "t0": p.get("t0", "")} for p in self.positions.values()]
+                     "tp": p["tp"], "sl": p["sl"], "t0": p.get("t0", ""), "xp": self.exit_px(p)} for p in self.positions.values()]
+
+    def exit_px(self, p):
+        """2026-11-20 10:25 使用者「每張卡片 在最右下面 輸 的前面 顯示一個 平倉價 進場時 就加上 接近時 變色提示」→ 選「最先會碰到的反向價」:
+           只給手機顯示用(不改任何平倉判斷):停損、移平(⑥ 最有利價 × (1 ∓ 3%))、離昨收 ±x% 三個裡,做空取最低、做多取最高 = 股價往反方向走最先碰到的那個價"""
+        try:
+            d = p["dir"]; c = []
+            if p.get("sl"): c.append(float(p["sl"]))
+            if self.mtsl > 0 and p.get("entry"):
+                th = max(self.mtsl, IRON_MTSL_EX.get(p.get("judge"), 0)) if p.get("judge") in IRON_MTSL_EX else self.mtsl
+                a = float(p.get("mt_px") or p["entry"]); c.append(a * (1 - th / 100) if d > 0 else a * (1 + th / 100))
+            ref = self.ref_of(p["code"]) or p.get("ref") or 0
+            man = p.get("judge") in (MANUAL, FORCED) and self.man_move > 0
+            mm = self.man_move if man else self.j7_move if p.get("judge") in ("判七", "判四", "判五") and self.j7_move > 0 else self.max_move
+            if (man or not p.get("no_max_move")) and ref > 0 and mm > 0: c.append(ref * (1 - mm / 100) if d > 0 else ref * (1 + mm / 100))
+            c = [x for x in c if x > 0]
+            return round(max(c) if d > 0 else min(c), 4) if c else 0
+        except Exception: return 0
 
     # ── 訊號 ──
     def exit_match(self, p, judge):
