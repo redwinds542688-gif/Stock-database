@@ -579,7 +579,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611201626">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611201640">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1933,7 +1933,7 @@ const rvPoll = async () => { try{ if (!BASE.liveUrl || (!window.VIEWER && !liveO
   // 2026-11-09 21:58 使用者「檢討與明細不符合」:22 天紀錄照現行判別式重寫後,11/09 以前的檢討數字改用重算的(app/review_rebuilt.json,和明細 bt_fill 同一份);拖輸 / 通知晚幾秒照電腦當天的
   // 2026-11-17 01:48 使用者「如果 真有夥伴 照虛擬所有配置下單 你13.30之後重寫的 豈不是跟夥伴的帳對不上」→「改」:重算只用在 11/13 以前;11/16 起虛擬 / 檢討照盤中實際
   try{ if (j && j.d && j.d >= '2026-11-16' && j.auto && Array.isArray(j.auto.list)){ const L = vdDedupe(j.auto.list.filter(c => !c.over)); if (L.length !== j.auto.list.filter(c => !c.over).length){ const by = {}; for (const c of L){ const b = by[c.rs] || (by[c.rs] = {n: 0, w: 0, net: 0}); b.n++; b.w += +c.net > 0; b.net += +c.net; } j.auto = Object.assign({}, j.auto, {list: L, n: L.length, w: L.filter(c => +c.net > 0).length, net: L.reduce((a, c) => a + (+c.net || 0), 0), by, best: L.reduce((a, c) => !a || +c.net > +a.net ? c : a, null), worst: L.reduce((a, c) => !a || +c.net < +a.net ? c : a, null)}); } } }catch(e){}   /* 2026-11-17 01:48 使用者「改」:11/16 起檢討照盤中實際(電腦推的),只扣掉同一檔重複的 */
-  try{ if (j && j.d && j.d <= '2026-11-19'){ if (!window.__RVB){   /* 2026-11-17 21:51 使用者「從寫今天的紀錄虛擬」:11/17 檢討也看現行規則重算的 */ const rb = await fetch(`${REPO_RAW}/app/review_rebuilt.json?v=${Math.floor(Date.now() / 3600000)}`); if (rb.ok) window.__RVB = await rb.json(); }
+  try{ if (j && j.d && j.d <= '2026-11-22'){ if (!window.__RVB){   /* 2026-11-17 21:51 使用者「從寫今天的紀錄虛擬」:11/17 檢討也看現行規則重算的 */ const rb = await fetch(`${REPO_RAW}/app/review_rebuilt.json?v=${Math.floor(Date.now() / 3600000)}`); if (rb.ok) window.__RVB = await rb.json(); }
       const X = window.__RVB && window.__RVB[j.d]; if (X) j.auto = Object.assign({}, j.auto || {}, X, {obs: {}}); } }catch(e){}
   if (j && 'd' in j){ const ch = JSON.stringify(j) !== JSON.stringify(window.__RV || null); window.__RV = j; if (ch && window.NL_VIEW === 'pos' && window.nlRender) nlRender(); } }catch(e){} };
 setTimeout(rvPoll, 4000); setInterval(rvPoll, 5 * 60000); window.rvPoll = rvPoll;
