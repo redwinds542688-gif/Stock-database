@@ -29,6 +29,7 @@
   "6140",
   "6697",
   "6751",
+  "7610",
   "7717",
   "8084"
  ],
@@ -331,7 +332,7 @@
     ]
    ],
    "daytrade": 1,
-   "short_first": 0
+   "short_first": 1
   },
   {
    "code": "2468",
@@ -5579,5 +5580,11 @@
    "daytrade": 1,
    "short_first": 1
   }
- ]
+ ],
+ "elig_checked_at": "2026-11-20 08:21",
+ "elig_source_today": [
+  "上市",
+  "上櫃"
+ ],
+ "elig_checked": "2026-11-20"
 }
