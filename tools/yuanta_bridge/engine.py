@@ -574,6 +574,154 @@ def _sim_one(args):
     return (code, rs, buf.getvalue(), "")
 
 
+
+# ── 2026-11-20 20:40 使用者「改1,2」① 前段共用:同一檔股票的各判別式,sim_day.py 前段(讀 K、算指標,到 MODE 分流前)只跑一次 ──
+#   原本每檔每個判別式都從頭跑(讀前三週 K、算 Ka / OBV…),前段約佔每次的 60%,11 個判別式重複 11 遍。
+#   做法:前段一句一句跑、記下每句讀到哪些設定;在「這組判別式設定不一樣的句子」(Ka 跨日 / OBV 跨日…)前面存一份(存檔點);
+#   下一個判別式找最後一個「之前讀到的設定都和自己一樣」的存檔點,複製一份(資料深拷貝,前段定義的函式改指向新的變數空間),
+#   先把純常數句(ENTRYMAX = float(os.environ.get(...)) 這種)換成自己的設定重跑,再接著往下跑、跑後段。
+#   2026-11-20 雲端驗證:11/18~11/20 每檔 × 11 個判別式的模擬器輸出和原本逐字相同。共用這條路出任何錯 → 這個判別式改用原本整支重跑(結果和以前一樣)。
+#   ENGINE_PREFIX_SHARE=0 關掉(照原本一檔一判)
+import ast as _ast, copy as _copy, types as _types
+from collections.abc import MutableMapping as _MM
+_SS_MARK = "if os.environ.get('MODE','one') == 'rf':"
+_SS = {"key": None}
+_SS_OKCALL = {"float", "int", "str", "bool", "abs", "min", "max", "round", "len"}
+_SS_OKATTR = ("environ", "argv", "get", "lower", "strip", "split", "upper")
+
+def _ss_names(node, store=False):
+    return {n.id for n in _ast.walk(node) if isinstance(n, _ast.Name) and isinstance(n.ctx, _ast.Store if store else _ast.Load)}
+
+def _ss_pure_expr(e):
+    """只用設定 / 字面值 / float()… 算出來的式子(重跑很便宜、不改任何資料)"""
+    for n in _ast.walk(e):
+        if isinstance(n, _ast.Call):
+            f = n.func
+            if isinstance(f, _ast.Name) and f.id in _SS_OKCALL: continue
+            if isinstance(f, _ast.Attribute) and f.attr in _SS_OKATTR[2:]: continue
+            return False
+        if isinstance(n, (_ast.Lambda, _ast.NamedExpr, _ast.Await, _ast.Yield, _ast.YieldFrom, _ast.ListComp, _ast.DictComp, _ast.SetComp, _ast.GeneratorExp)): return False
+        if isinstance(n, _ast.Attribute) and n.attr not in _SS_OKATTR: return False
+    return True
+
+def _ss_split():
+    """sim_day.py → 前段一句一句的程式 + 後段(檔案改了才重做)"""
+    f = SIMD / "sim_day.py"; st = f.stat(); key = (st.st_mtime_ns, st.st_size)
+    if _SS["key"] == key: return _SS
+    src = f.read_bytes().decode("utf-8"); lines = src.split("\n"); path = str(f)
+    i = next((k for k, l in enumerate(lines) if l.startswith(_SS_MARK)), None)
+    _SS.update(key=key, pre=None, suf=None)
+    if i is None: return _SS
+    if re.search(r"from\s+os\s+import|(?<!os\.)\benviron\b|\bimport\s+os\s+as\b", "\n".join(lines[:i])): return _SS   # 前段不是用 os.environ 讀設定(記不到讀了哪些)→ 不共用,照原本一檔一判
+    body = _ast.parse("\n".join(lines[:i]), path).body
+    later_w = [set() for _ in body]; acc = set()
+    for k in range(len(body) - 1, -1, -1):
+        later_w[k] = set(acc); acc |= _ss_names(body[k], True) | {n.name for n in _ast.walk(body[k]) if isinstance(n, (_ast.FunctionDef, _ast.ClassDef))}
+    stm = []
+    for k, s_ in enumerate(body):
+        tg = _ss_names(s_, True)
+        pure = (isinstance(s_, _ast.Assign) and all(isinstance(x, (_ast.Name, _ast.Tuple, _ast.Store, _ast.Load)) for t in s_.targets for x in _ast.walk(t))
+                and _ss_pure_expr(s_.value) and not (tg & later_w[k]))
+        stm.append({"co": compile(_ast.Module(body=[s_], type_ignores=[]), path, "exec"), "pure": pure, "w": tg, "r": _ss_names(s_),
+                    "strs": {n.value for n in _ast.walk(s_) if isinstance(n, _ast.Constant) and isinstance(n.value, str)}})
+    _SS.update(pre=stm, suf=compile("\n" * i + "\n".join(lines[i:]), path, "exec"))
+    return _SS
+
+class _SSRec(_MM):
+    """前段跑的時候暫時換掉 os.environ:照常讀寫真的環境變數,另外記下讀了哪些"""
+    def __init__(self, real): self.real = real; self.seen = set()
+    def __getitem__(self, k): self.seen.add(k); return self.real[k]
+    def get(self, k, d=None): self.seen.add(k); return self.real.get(k, d)
+    def __contains__(self, k): self.seen.add(k); return k in self.real
+    def __setitem__(self, k, v): self.real[k] = v
+    def __delitem__(self, k): del self.real[k]
+    def __iter__(self): return iter(self.real)
+    def __len__(self): return len(self.real)
+
+_SS_SKIP = (_types.ModuleType, type, _types.BuiltinFunctionType, _types.CodeType)
+def _ss_clone(g):
+    """前段的變數空間複製一份:資料深拷貝,前段定義的函式改指向新的空間"""
+    ng = {}; memo = {id(g): ng}
+    for k, v in g.items():
+        if k == "__builtins__" or isinstance(v, _SS_SKIP) or isinstance(v, _types.FunctionType): ng[k] = v
+        else: ng[k] = _copy.deepcopy(v, memo)
+    for k, v in g.items():
+        if isinstance(v, _types.FunctionType) and v.__globals__ is g:
+            f = _types.FunctionType(v.__code__, ng, v.__name__, _copy.deepcopy(v.__defaults__, memo), v.__closure__)
+            f.__kwdefaults__ = v.__kwdefaults__; f.__dict__.update(v.__dict__); ng[k] = f
+    return ng
+
+def _ss_deps(stm, k, envk):
+    """前 k 句:非純常數句讀到的設定 + 它們(直接或間接)用到的純常數句讀到的設定"""
+    need = set(); keys = set()
+    for j in range(k):
+        if not stm[j]["pure"]: keys |= envk[j]; need |= stm[j]["r"]
+    for j in range(k - 1, -1, -1):
+        if stm[j]["pure"] and stm[j]["w"] & need: keys |= envk[j]; need |= stm[j]["r"]
+    return keys
+
+def _sim_env(env, day):
+    os.environ.clear(); os.environ.update(BASE_ENV)
+    os.environ.update(env); os.environ["DAY"] = day; os.environ["REPO_DIR"] = str(DATA); os.environ["SIM_DIR"] = str(SIMD)
+    os.environ["POOL"] = str(DATA / "pool_today.json")
+    for k in ("TRACESTOP", "TRACEF", "TRACEX", "TRACET", "TRACES", "TRACELC", "TRACED", "TRACEG", "TRACE", "OBCTRACE"): os.environ.pop(k, None)
+
+def _sim_group(args):
+    """一檔股票、多個判別式(照傳進來的順序)→ [(代碼, 判別式, 輸出, 錯誤)]"""
+    code, name, envs, day = args
+    if CFG.get("ENGINE_PREFIX_SHARE", "1") != "1": return [_sim_one((code, name, rs, env, day)) for rs, env in envs]
+    sys.path.insert(0, str(SIMD)); out = []
+    try:
+        C = _ss_split(); stm = C["pre"]
+        if CFG.get("ENGINE_CSV_CACHE", "1") == "1": _csv_cache_on()
+    except Exception as e:
+        log("前段共用準備失敗 → 照原本一檔一判", repr(e)); stm = None
+    if stm is None: return [_sim_one((code, name, rs, env, day)) for rs, env in envs]
+    n = len(stm); path = str(SIMD / "sim_day.py")
+    vary = {k for k in set().union(*[set(e) for _, e in envs]) if len({str(e.get(k)) for _, e in envs}) > 1}
+    pn = {}
+    for s_ in stm:
+        if s_["pure"]:
+            for w in s_["w"]: pn[w] = s_["strs"]
+    cut = {k for k, s_ in enumerate(stm) if not s_["pure"] and ((s_["strs"] & vary) or any(pn.get(r, set()) & vary for r in s_["r"]))}
+    cps = []   # 存檔點 [(句號, ((設定, 值)…), 變數空間, 到這裡的輸出, 每句讀到的設定)]
+    for rs, env in envs:
+        _sim_env(env, day); sys.argv = ["sim_day.py", code, name, "10", "10"]; buf = io.StringIO(); err = ""; real = os.environ
+        try:
+            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
+                cp = None
+                for c in cps:
+                    if (cp is None or c[0] > cp[0]) and all(real.get(k) == v for k, v in c[1]): cp = c
+                if cp is None:
+                    k0 = 0; g = {"__name__": "__main__", "__file__": path, "__builtins__": __builtins__}; envk = [set() for _ in stm]; ptxt = ""
+                else:
+                    k0, _, g0, ptxt, envk0 = cp; g = _ss_clone(g0); envk = [set(x) for x in envk0]
+                    for j in range(k0):
+                        if stm[j]["pure"]: exec(stm[j]["co"], g)   # 純常數句換成這個判別式的設定
+                print(ptxt, end=""); pbuf = io.StringIO()
+                try:
+                    with contextlib.redirect_stdout(pbuf):
+                        for k in range(k0, n):
+                            if k in cut and k > k0:
+                                ks = _ss_deps(stm, k, envk)
+                                cps.append((k, tuple((x, real.get(x)) for x in sorted(ks)), _ss_clone(g), ptxt + pbuf.getvalue(), [set(x) for x in envk]))
+                            rec = _SSRec(real); os.environ = rec
+                            try: exec(stm[k]["co"], g)
+                            finally: os.environ = real; envk[k] = rec.seen
+                finally: print(pbuf.getvalue(), end="")
+                ks = tuple((x, real.get(x)) for x in sorted(_ss_deps(stm, n, envk)))
+                if not any(c[0] == n and c[1] == ks for c in cps): cps.append((n, ks, _ss_clone(g), ptxt + pbuf.getvalue(), [set(x) for x in envk]))
+                exec(C["suf"], g)
+        except SystemExit:
+            pass
+        except Exception:
+            os.environ = real; out.append(_sim_one((code, name, rs, env, day))); continue   # 共用這條路出錯(含模擬器本身的錯)→ 這個判別式照原本整支重跑,結果和以前一樣
+        finally:
+            os.environ = real
+        out.append((code, rs, buf.getvalue(), err))
+    return out
+
+
 RE_ENTRY = re.compile(r"^\s*(\d\d:\d\d) (強)?(多|空)(✓)?[✓✕]* 價 ([\d.]+) .*→ 進場 ([\d.]+) ×(\d+)張")
 RE_FB = re.compile(r"^\s*(\d\d:\d\d) 假突破跌破 Ka.*→ 進場空 ([\d.]+) ×(\d+)張,停損 ([\d.]+)")
 RE_T4 = re.compile(r"^\s*(\d\d:\d\d) 判四 .*→ 進場空 ([\d.]+) ×(\d+)張,停損 ([\d.]+)")
@@ -1307,10 +1455,66 @@ class Engine:
                 if not self.canshort.get(c, False): env["CANSHORT"] = "0"   # 2026-10-29 稽核 #3:不能先賣 → 空單只記錄
                 jobs.append((c, self.names.get(c, c), rs, env, self.day))
         if skip_on: jobs.sort(key=lambda x: 0 if (x[2], x[0]) in self.pos else 1)   # 2026-11-07 開著的部位先算(停損 / 停利早一點發);其他照原本順序(新進場的先後不變)
+        if CFG.get("ENGINE_GROUP", "1") == "1" and jobs:   # 2026-11-20 使用者「改1,2」:同一檔的判別式一起算(① 前段共用)+ ② 熱門股先算
+            return self._compute_group(jobs, stream)
         if stream:   # 2026-11-06 算完一檔就交回(照原本順序,對帳順序和以前一樣)
             return (self.pool.imap(_sim_one, jobs, chunksize=1) if jobs else iter(())), len(jobs)
         t0 = time.time(); res = self.pool.map(_sim_one, jobs, chunksize=4) if jobs else []
         return res, time.time() - t0, len(jobs)
+
+    CAPPED = ("四", "五", "六3", "八", "九")   # 一天有檔數上限的判別式:同一輪兩檔搶最後一格時,照原本順序(先排的先拿)
+
+    def _hot_codes(self):
+        """② 熱門股:有開著的部位、或最近 10 分鐘有訊號 / 等回 Ka~Kb / 被擋的股票"""
+        lim = hm_add(self.upto_hm or "00:00", -10); hot = {c for _, c in self.pos}
+        hot |= {c for c, t in self.__dict__.setdefault("hot", {}).items() if t >= lim}
+        return hot
+
+    def _compute_group(self, jobs, stream):
+        """jobs(原本的順序)按股票分組;熱門股的組先送去算;算完的組照「不影響結果」的順序交回:
+           - 同一檔的判別式照原本順序(同一檔只做一筆、判六多空互斥都看先後)
+           - 有檔數上限的判別式(判四 / 五 / 六3 / 八 / 九)若這筆會是新進場,要等原本排在它前面的同判別式都對帳完才交回
+             (兩檔同一分鐘搶最後一格時,拿到的和以前一樣);其他(平倉、沒訊號、沒上限的判別式)算完就交回"""
+        idx = {(j[2], j[0]): i for i, j in enumerate(jobs)}
+        groups = {}
+        for j in jobs: groups.setdefault(j[0], []).append(j)
+        hot = self._hot_codes(); first = {c: idx[(g[0][2], c)] for c, g in groups.items()}
+        order = sorted(groups, key=lambda c: (0 if c in hot else 1, first[c]))
+        args = [(c, groups[c][0][1], [(j[2], j[3]) for j in groups[c]], groups[c][0][4]) for c in order]
+        if not stream:
+            t0 = time.time(); res = [r for g in self.pool.map(_sim_group, args, chunksize=1) for r in g]
+            res.sort(key=lambda r: idx.get((r[1], r[0]), 0))
+            return res, time.time() - t0, len(jobs)
+        upto = self.upto_hm or "99:99"
+        def gen():
+            left = {}   # 判別式 → 還沒交回的工作序號
+            for i, j in enumerate(jobs): left.setdefault(j[2], set()).add(i)
+            ready = {}   # 代碼 → 這檔還沒交回的結果(照原本順序)
+            def blocked(r):
+                code, rs = r[0], r[1]
+                if rs not in self.CAPPED or r[3] or (rs, code) in self.pos: return False
+                i = idx[(rs, code)]
+                if not any(x < i for x in left.get(rs, ())): return False
+                try: return sim_trades(parse_events(r[2]), upto)[1] is not None   # 會是新進場才要等
+                except Exception: return True
+            def drain():
+                moved = True
+                while moved:
+                    moved = False
+                    for c in list(ready):
+                        q = ready[c]
+                        while q and not blocked(q[0]):
+                            r = q.pop(0); left[r[1]].discard(idx[(r[1], r[0])]); moved = True
+                            yield r
+                        if not q: ready.pop(c)
+            for g in self.pool.imap_unordered(_sim_group, args, chunksize=1):
+                if g:
+                    ready[g[0][0]] = sorted(g, key=lambda r: idx[(r[1], r[0])])
+                yield from drain()
+            yield from drain()
+            for c, q in ready.items():   # 照理不會剩;保險起見照原本順序交回
+                for r in sorted(q, key=lambda r: idx[(r[1], r[0])]): yield r
+        return gen(), len(jobs)
 
     def apply(self, res, upto, allow_new=True, allow_phantom=True, rs_block=None):
         """對帳(2026-10-29 稽核 #2 / #7):每檔每判,拿模擬器現在的交易清單和已推的部位對;
@@ -1327,6 +1531,10 @@ class Engine:
         if err: log(f"模擬器錯誤 {JUDGE[rs]} {code}: {err[:160]}"); return n
         ev = parse_events(out); n = sum(1 for tm, _, _ in ev if tm < upto)
         trades, open_tm = sim_trades(ev, upto); k = (rs, code)
+        try:   # 2026-11-20 ② 最近 10 分鐘有進出場訊號的股票 → 下一輪先算
+            _lim = hm_add(upto, -10)
+            if any(_lim <= tm < upto for tm, _, _ in ev): self.__dict__.setdefault("hot", {})[code] = upto
+        except Exception: pass
         try: self.note_blocked(rs, code, out, upto)   # 2026-11-12 20:29 使用者「再來」(物盡其用 4):被鐵律 ⑦ / 大盤條件擋掉、在等回 Ka~Kb 的訊號記下來(中繼備份到雲端)
         except Exception: pass
         fc = code in self.fclosed   # 2026-11-02 強平過:部位已由中繼平掉,不發新進場
@@ -1600,6 +1808,7 @@ class Engine:
         for line in out.splitlines():
             m = self.RE_BLK.match(line)
             if not m or m.group(1) >= upto: continue
+            if m.group(1) >= hm_add(upto, -10): self.__dict__.setdefault("hot", {})[code] = upto   # 2026-11-20 ② 等回 Ka~Kb / 被擋的 → 下一輪先算
             key = (rs, code, line.strip())
             if key in seen: continue
             seen.add(key); new.append({"t": m.group(1), "rs": JUDGE.get(rs, rs), "rsk": rs, "code": code, "name": self.names.get(code, ""), "line": line.strip()})

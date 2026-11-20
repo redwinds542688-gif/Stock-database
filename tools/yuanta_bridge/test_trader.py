@@ -1178,3 +1178,20 @@ ok(pm_["qty"] == 2 and abs(pm_["mt_px"] - 239.75) < 1e-9 and abs(tm_.exit_px(pm_
 tm_._mt_test = True; ok(not tm_.mt_px_hit(pm_, 245.0, -1, pm_["entry"]))   # 原本最有利 236 × 1.03 = 243.08 → 245 會平;重算後 239.75 × 1.03 = 246.94 不平
 ok(tm_.mt_px_hit(pm_, 247.0, -1, pm_["entry"]))
 print("鐵律 ⑥ 手動加碼移平重算 OK")
+# 2026-11-20 使用者「改1,2」② 熱門股先算:分組算完的交回順序 —— 有上限的判別式會是新進場時,等原本排前面的同判別式先對帳
+class _FP:
+    def __init__(self, order): self.order = order
+    def imap_unordered(self, fn, args, chunksize=1):
+        m = {a[0]: a for a in args}; seen = [a[0] for a in args]
+        for c in self.order: yield [(c, rs, OUT_[(rs, c)], "") for rs, _ in m[c][2]]
+_ENTRY4 = "  10:05 判四 測試 → 進場空 50.00 ×3張,停損 52.00\n"
+def _mkeng(order, hot=()):
+    e_ = _eng.Engine.__new__(_eng.Engine); e_.pos = {}; e_.upto_hm = "10:07"; e_.hot = {c: "10:06" for c in hot}; e_.pool = _FP(order); return e_
+_jobs = [("A", "A", "四", {}, "d"), ("B", "B", "四", {}, "d"), ("A", "A", "一", {}, "d"), ("B", "B", "一", {}, "d")]
+OUT_ = {("四", "A"): _ENTRY4, ("四", "B"): _ENTRY4, ("一", "A"): "", ("一", "B"): ""}
+e1_ = _mkeng(["B", "A"], hot=["B"]); g1_, n1_ = e1_._compute_group(_jobs, True); r1_ = [(r[1], r[0]) for r in g1_]
+ok(r1_ == [("四", "A"), ("一", "A"), ("四", "B"), ("一", "B")], r1_)   # B 先算完,但判四 B 會進場、A 排前面 → 等 A
+OUT_[("四", "B")] = ""; e2_ = _mkeng(["B", "A"], hot=["B"]); r2_ = [(r[1], r[0]) for r in e2_._compute_group(_jobs, True)[0]]
+ok(r2_ == [("四", "B"), ("一", "B"), ("四", "A"), ("一", "A")], r2_)   # B 沒訊號 → 算完就交回
+ok(e2_._hot_codes() == {"B"})
+print("熱門股先算 / 交回順序 OK")
