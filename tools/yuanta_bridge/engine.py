@@ -1275,7 +1275,10 @@ class Engine:
         for rs in sorted(RS_ALL, key=lambda x: pri.index(x) if x in pri else 99):   # 2026-11-10 同一分鐘同一檔:勝率高的判別式先算、先發
             if rs not in self.envs: continue   # 2026-11-05 判五規則還沒到
             # 2026-11-06 加速:過了這個判別式最後進場時間 + 11 分鐘(10 分鐘內的進場還會補發),只算還開著虛擬部位的股票
-            if rs == "六3" and hm_now and hm_now < "10:29" and not any(k_[0] == "六3" for k_ in self.pos): continue   # 2026-11-12 23:40 判六做空 10:30 才開始,之前不用算
+            # 2026-11-20 使用者「改 B D」 D:還沒到這個判別式最早能進場的時間(判六做多 T6KFROM 10:50、判七 T7FROM 10:00、判六做空 T63FROM 10:30、鐵律 ③ ENTRYFROM 09:30,取最晚的)
+            #   前一分鐘以前、又沒開部位 → 不算(原本只有判六做空 10:29 前不算;這段時間本來就不可能進場,每分鐘重算整天、不影響之後)
+            _e0 = self.envs.get(rs, {}); _fr = [x for x in (_e0.get("T6KFROM"), _e0.get("T7FROM"), _e0.get("T63FROM"), _e0.get("T5FROM"), _e0.get("ENTRYFROM")) if x and re.match(r"^\d\d:\d\d$", str(x))]
+            if _fr and hm_now and hm_now < hm_add(max(_fr), -1) and not any(k_[0] == rs for k_ in self.pos): continue
             e_ = self.envs[rs]; _lt = [x for x in (e_.get("NOENTRYAFTER"), e_.get("T5TO"), e_.get("T4NOENTRY"), e_.get("T8TO"), e_.get("ENTRYTO")) if x and re.match(r"^\d\d:\d\d$", str(x))]
             last_ = min(_lt) if _lt else ""   # 2026-11-19 使用者「改A」:加鐵律 ③ ENTRYTO(12:30,每個判別式都有)—— 原本判一 / 三 / 六 / 七 / 九 / 十沒有自己的最後進場時間,整個下午照算;取最早的
             idle = bool(last_) and bool(hm_now) and hm_now > hm_add(last_, 11) and CFG.get("ENGINE_SKIP_IDLE", "1") == "1"
