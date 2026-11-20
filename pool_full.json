@@ -19,7 +19,7 @@
 "code": "2303",
 "name": "聯電",
 "market": "twse",
-"lots": 231391
+"lots": 232408
 },
 {
 "code": "3481",
@@ -31,7 +31,7 @@
 "code": "6770",
 "name": "力積電",
 "market": "twse",
-"lots": 102428
+"lots": 103428
 },
 {
 "code": "2468",
@@ -43,7 +43,7 @@
 "code": "2344",
 "name": "華邦電",
 "market": "twse",
-"lots": 84095
+"lots": 85345
 },
 {
 "code": "2327",
@@ -55,7 +55,7 @@
 "code": "2317",
 "name": "鴻海",
 "market": "twse",
-"lots": 69053
+"lots": 69153
 },
 {
 "code": "2337",
@@ -79,7 +79,7 @@
 "code": "2324",
 "name": "仁寶",
 "market": "twse",
-"lots": 56536
+"lots": 57274
 },
 {
 "code": "1101",
@@ -133,7 +133,7 @@
 "code": "3711",
 "name": "日月光投控",
 "market": "twse",
-"lots": 35789
+"lots": 35944
 },
 {
 "code": "2618",
@@ -166,6 +166,12 @@
 "lots": 26095
 },
 {
+"code": "2353",
+"name": "宏碁",
+"market": "twse",
+"lots": 25875
+},
+{
 "code": "9933",
 "name": "中鼎",
 "market": "twse",
@@ -178,16 +184,10 @@
 "lots": 25667
 },
 {
-"code": "2353",
-"name": "宏碁",
-"market": "twse",
-"lots": 25655
-},
-{
 "code": "1216",
 "name": "統一",
 "market": "twse",
-"lots": 23610
+"lots": 23615
 },
 {
 "code": "2471",
@@ -313,7 +313,7 @@
 "code": "6285",
 "name": "啟碁",
 "market": "twse",
-"lots": 14191
+"lots": 14270
 },
 {
 "code": "4904",
@@ -349,7 +349,7 @@
 "code": "1402",
 "name": "遠東新",
 "market": "twse",
-"lots": 13413
+"lots": 13524
 },
 {
 "code": "2376",
