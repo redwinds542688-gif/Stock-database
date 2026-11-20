@@ -428,8 +428,8 @@ _BR_LAST = {"d": "", "br": {}, "av": {}, "at": 0.0}   # 2026-11-21 使用者「�
 def breadth_fetch(day):
     """只抓雲端 ?breadth(不寫檔),記進 _BR_LAST"""
     j = http(worker_url(f"breadth={day}"), timeout=30)
-    _BR_LAST.update(d=day, br=j.get("br") or {}, av=j.get("av") or {}, at=time.time())
-    return j
+    if isinstance(j, dict) and j.get("br"): _BR_LAST.update(d=day, br=j.get("br") or {}, av=j.get("av") or {}, at=time.time())   # 雲端回空的 / 錯誤內容:不蓋掉上一次好的
+    return j if isinstance(j, dict) else {}
 
 def breadth_apply(day, br, av):
     """雲端寬度 / 名單平均(缺的分鐘用電腦元大 K 補)寫成模擬器讀的檔;回傳 (有沒有寬度, 幾分鐘, 最後一分鐘)"""
@@ -605,16 +605,22 @@ _SS_OKATTR = ("environ", "argv", "get", "lower", "strip", "split", "upper")
 def _ss_names(node, store=False):
     return {n.id for n in _ast.walk(node) if isinstance(n, _ast.Name) and isinstance(n.ctx, _ast.Store if store else _ast.Load)}
 
+def _ss_is_env(x):
+    return isinstance(x, _ast.Attribute) and x.attr == "environ" and isinstance(x.value, _ast.Name) and x.value.id == "os"
+
 def _ss_pure_expr(e):
-    """只用設定 / 字面值 / float()… 算出來的式子(重跑很便宜、不改任何資料)"""
+    """只用設定 / 字面值 / float()… 算出來的式子(重跑很便宜、不改任何資料)
+       2026-11-21 收緊(檢查抓到的理論漏洞):.get 只認 os.environ.get;不可以有 [] {} 這種可變的值(之後被改內容會被重跑清掉)"""
     for n in _ast.walk(e):
         if isinstance(n, _ast.Call):
             f = n.func
             if isinstance(f, _ast.Name) and f.id in _SS_OKCALL: continue
-            if isinstance(f, _ast.Attribute) and f.attr in _SS_OKATTR[2:]: continue
+            if isinstance(f, _ast.Attribute) and f.attr == "get" and _ss_is_env(f.value): continue
+            if isinstance(f, _ast.Attribute) and f.attr in ("lower", "strip", "split", "upper"): continue
             return False
-        if isinstance(n, (_ast.Lambda, _ast.NamedExpr, _ast.Await, _ast.Yield, _ast.YieldFrom, _ast.ListComp, _ast.DictComp, _ast.SetComp, _ast.GeneratorExp)): return False
+        if isinstance(n, (_ast.Lambda, _ast.NamedExpr, _ast.Await, _ast.Yield, _ast.YieldFrom, _ast.ListComp, _ast.DictComp, _ast.SetComp, _ast.GeneratorExp, _ast.List, _ast.Dict, _ast.Set)): return False
         if isinstance(n, _ast.Attribute) and n.attr not in _SS_OKATTR: return False
+        if isinstance(n, _ast.Attribute) and n.attr == "environ" and not _ss_is_env(n): return False
     return True
 
 def _ss_uses(tree):
@@ -1190,7 +1196,7 @@ class Engine:
     def push(self, it):
         """回傳 True = 推上去了(dry 也算);失敗的進場不記,下一輪(10 分鐘內)再試;失敗的平倉部位留著,下一輪再推"""
         it.setdefault("ts", int(time.time() * 1000))
-        if self.__dict__.get("t_first") is None: self.t_first = _msec()   # 2026-11-20 使用者「改1,4」:這輪第一則通知在整分後第幾秒推出   # 2026-11-13 14:30 使用者「開始」(Cloudflare 第二輪 1 延遲紀錄):引擎推出的時間(毫秒),中繼 / 雲端各自記收到的時間
+        if self.__dict__.get("t_first") is None and threading.current_thread() is threading.main_thread(): self.t_first = _msec()   # 背景執行緒(可能拖輸提示)推的不算   # 2026-11-20 使用者「改1,4」:這輪第一則通知在整分後第幾秒推出   # 2026-11-13 14:30 使用者「開始」(Cloudflare 第二輪 1 延遲紀錄):引擎推出的時間(毫秒),中繼 / 雲端各自記收到的時間
         self.sent.append(it)
         log(f"[通知] {it['kind']:6} {it['t']} {it['title']} | {it['body']}")
         if self.dry: return True
@@ -1501,7 +1507,7 @@ class Engine:
         t0 = time.time(); res = self.pool.map(_sim_one, jobs, chunksize=4) if jobs else []
         return res, time.time() - t0, len(jobs)
 
-    CAPPED = ("四", "五", "六3", "八", "九")   # 一天有檔數上限的判別式:同一輪兩檔搶最後一格時,照原本順序(先排的先拿)
+    CAPPED = ("四", "五", "六3", "八", "九")   # 一天有檔數上限的判別式(2026-11-21 起所有判別式的新進場都照原本順序交回,見 blocked)
 
     def _hot_codes(self):
         """② 熱門股:有開著的部位、或最近 10 分鐘有訊號 / 等回 Ka~Kb / 被擋的股票"""
@@ -1512,8 +1518,8 @@ class Engine:
     def _compute_group(self, jobs, stream):
         """jobs(原本的順序)按股票分組;熱門股的組先送去算;算完的組照「不影響結果」的順序交回:
            - 同一檔的判別式照原本順序(同一檔只做一筆、判六多空互斥都看先後)
-           - 有檔數上限的判別式(判四 / 五 / 六3 / 八 / 九)若這筆會是新進場,要等原本排在它前面的同判別式都對帳完才交回
-             (兩檔同一分鐘搶最後一格時,拿到的和以前一樣);其他(平倉、沒訊號、沒上限的判別式)算完就交回"""
+           - 會是新進場的(任何判別式),要等原本排在它前面的工作都對帳完才交回(判別式檔數上限、中繼總額度 / 同時檔數都先到先拿,順序和以前一樣);
+             平倉、沒訊號的算完就交回"""
         idx = {(j[2], j[0]): i for i, j in enumerate(jobs)}
         groups = {}
         for j in jobs: groups.setdefault(j[0], []).append(j)
@@ -1530,11 +1536,14 @@ class Engine:
             left = {}   # 判別式 → 還沒交回的工作序號
             for i, j in enumerate(jobs): left.setdefault(j[2], set()).add(i)
             ready = {}   # 代碼 → 這檔還沒交回的結果(照原本順序)
+            pend = set(range(len(jobs)))   # 還沒交回的工作序號(全部判別式)
             def blocked(r):
+                # 2026-11-21 使用者「跑程式確認程式邏輯無漏洞」→ 檢查抓到:中繼 trader 的總額度 / 同時檔數上限是「先到先拿」,
+                #   跨股票的新進場通知順序也要和以前一樣 → 任何判別式會是新進場的,都等原本排在它前面的工作全部交回才交(平倉、沒訊號照舊算完就交)
                 code, rs = r[0], r[1]
-                if rs not in self.CAPPED or r[3] or (rs, code) in self.pos: return False
+                if r[3] or (rs, code) in self.pos: return False
                 i = idx[(rs, code)]
-                if not any(x < i for x in left.get(rs, ())): return False
+                if not pend or min(pend) >= i: return False
                 try: return sim_trades(parse_events(r[2]), upto)[1] is not None   # 會是新進場才要等
                 except Exception: return True
             def drain():
@@ -1544,7 +1553,7 @@ class Engine:
                     for c in list(ready):
                         q = ready[c]
                         while q and not blocked(q[0]):
-                            r = q.pop(0); left[r[1]].discard(idx[(r[1], r[0])]); moved = True
+                            r = q.pop(0); left[r[1]].discard(idx[(r[1], r[0])]); pend.discard(idx[(r[1], r[0])]); moved = True
                             yield r
                         if not q: ready.pop(c)
             for g in _it:
@@ -2028,7 +2037,7 @@ def live():
                 except Exception as e: log("昨收對照失敗", repr(e))
                 # 寬度每分鐘(稽核 #1)
                 # 2026-11-21 使用者「改」(3 寬度先用電腦算的):K 到齊後最多再等雲端寬度 ENGINE_BR_WAIT(0.5)秒;還沒回 → 先用上一次的雲端 + 新的分鐘電腦補(原本最多等 35 秒)
-                _tm["整理K"] = _msec(); _ths[0].join(max(0.0, float(CFG.get("ENGINE_BR_WAIT", "0.5") or 0.5)))
+                _tm["整理K"] = _msec(); _ths[0].join(max(0.0, _f(CFG.get("ENGINE_BR_WAIT"), 0.5)))
                 try:
                     if "j" in _bg: ok, nbr, blast = breadth_apply(day, _bg["j"].get("br") or {}, _bg["j"].get("av") or {})
                     else:
