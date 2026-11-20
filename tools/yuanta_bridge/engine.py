@@ -39,17 +39,18 @@ now_tw = lambda: dt.datetime.now(TW)
 RAW = "https://raw.githubusercontent.com/redwinds542688-gif/Stock-database/main/"
 DATA = Path(os.environ.get("ENGINE_DIR", HERE / "engine_data"))
 SIMD = DATA / "sim"
-RS_ALL = ["一", "二", "三", "四", "五", "六", "六3", "七", "八", "九", "十"]   # 2026-11-18 23:35 判十上線   # 2026-11-14 15:14 判八上線(使用者「判八 100% 先加入修改好」)   # 2026-11-12 23:40 使用者「併入判六」:「六3」= 判六做空(判六3,模擬器 MODE=j63),通知 / 部位名稱一樣寫「判六」
+RS_ALL = ["一", "一2", "二", "三", "四", "五", "六", "六3", "七", "八", "九", "十"]   # 2026-11-21 判一急彈空(一2,模擬器 MODE=j11;原候選判十一,使用者「把判十一加在判一裡面」→「解鎖 改」):通知 / 部位名稱一樣寫「判一」   # 2026-11-18 23:35 判十上線   # 2026-11-14 15:14 判八上線(使用者「判八 100% 先加入修改好」)   # 2026-11-12 23:40 使用者「併入判六」:「六3」= 判六做空(判六3,模擬器 MODE=j63),通知 / 部位名稱一樣寫「判六」
 # 2026-11-10 14:03(實際時間)使用者「同時被選 以勝率決定誰進場」:同一分鐘同一檔被兩個以上判別式選中 → 勝率高的先算、先發通知(中繼照先到的進場,後面的「這檔已經有部位」不進);
 #   22 天(10/06~11/09)不限額度勝率:判五 91%、判七 88%、判一 86%、判三 83%、判四 81%、判二 70%;判六觀察版放最後。私人庫 rs_env.RS_PRIORITY 有設就用它
 RS_PRIORITY = ["六", "五", "七", "一", "三", "四", "二"]   # 2026-11-11 00:20 判六上線(23 天 23 筆全勝,勝率最高排第一)   # 2026-11-10 23:05 判六改成午盤 Ka 穿 VWAP 追多(觀察版)   # 2026-11-10 02:30 加觀察版判六(超賣急彈做多,只發通知,中繼不下單;使用者「改 +3%」)   # 2026-11-09 加觀察版判七(只發通知,中繼不下單); 2026-11-05 加判五(使用者「先加 在公式 增加判五」→「完整上線」;模擬器 MODE=fail5)
 _RS_ALL_OLD = ["一", "二", "三", "四"]   # 2026-10-31 使用者「現在把新轉折 直接改名為 判四 加在公式 裡面 燈號啟動 真正的下單也啟動 自動平倉機制也啟動」:判四 = 新轉折做空(模擬器 MODE=turn4)
-JUDGE = {"一": "判一", "二": "判二", "三": "判三", "四": "判四", "五": "判五", "六": "判六", "六3": "判六", "七": "判七", "八": "判八", "九": "判九", "十": "判十"}
+JUDGE = {"一": "判一", "一2": "判一", "二": "判二", "三": "判三", "四": "判四", "五": "判五", "六": "判六", "六3": "判六", "七": "判七", "八": "判八", "九": "判九", "十": "判十"}
 J5MAX = 6   # 2026-11-05 判五一天最多 6 筆(17:15 使用者「改限6筆」)(全部股票合計、照出現先後;超額的不算);實際用私人庫 rs_env.J5MAX
 T4MAX = 10   # 判四一天最多幾筆的預設;實際用私人庫 rs_env.py 的 T4MAX(全部股票合計、照出現先後;超額的不算)
-RS_OF = {v: k for k, v in JUDGE.items() if k != "六3"}   # 「判六」對回「六」(六3 是判六的做空那一半)
+RS_OF = {v: k for k, v in JUDGE.items() if k not in ("六3", "一2")}   # 「判六」對回「六」(六3 是判六的做空那一半)
 J9MAX = 5   # 2026-11-14 17:58 判九一天最多 5 檔(實際用私人庫 rs_env.J9MAX)
 J8MAX = 5   # 2026-11-14 15:14 判八一天最多 5 檔(實際用私人庫 rs_env.J8MAX)
+J12MAX = 5   # 2026-11-21 判一急彈空(一2)一天最多 5 檔;同一輪多檔時量比大的先(order12);實際用私人庫 rs_env.J12MAX
 J63MAX = 5   # 2026-11-12 23:40 使用者選「只限一天最多5筆」:判六做空(判六3)一天最多 5 檔;實際用私人庫 rs_env.J63MAX
 TAKE = 2.5
 RULE_FILES = (("backtest/sim_day.py", "sys.argv"), ("backtest/chk/rs_env.py", "def env_of"))   # 2026-10-29 只從私人庫 Stock-logic 抓(公開庫 tools/backtest/ 已刪,不再退回);第二欄 = 內容一定要有的字(擋 Worker 回錯誤頁)
@@ -774,6 +775,7 @@ RE_T5 = re.compile(r"^\s*(\d\d:\d\d) 判五 .*→ 進場空 ([\d.]+) ×(\d+)張,
 RE_T7 = re.compile(r"^\s*(\d\d:\d\d) 判七 .*?量縮 ([\d.]+) 離今高 ([\d.]+)% 今高離VWAP ([-\d.]+)% → 進場空 ([\d.]+) ×(\d+)張,停損 ([\d.]+)")   # 2026-11-09 觀察版判七進場(帶量縮 / 離今高 / 今高離 VWAP,12/06 驗證用)
 RE_T6 = re.compile(r"^\s*(\d\d:\d\d) 判六 超賣急彈 低 ([\d.]+).*?彈 ([\d.]+)% RSI ([\d.]+) 跳空 ([-+\d.]+)% → 進場多 ([\d.]+) ×(\d+)張 停損 ([\d.]+)")   # 2026-11-10 觀察版判六(超賣急彈做多)進場
 RE_T6K = re.compile(r"^\s*(\d\d:\d\d) 判六 午盤Ka穿VWAP 離低 ([\d.]+)% Oa−Ob ([-\d.]+)% RSI ([\d.]+) → 進場多 ([\d.]+) ×(\d+)張 停利 ([\d.]+) 停損 ([\d.]+)")   # 2026-11-10 23:05 判六改成「午盤 Ka 穿 VWAP 追多」(使用者「改為判六 原判六封存」;觀察版,中繼不下單)
+RE_T12 = re.compile(r"^\s*(\d\d:\d\d) 判一急彈空 回Kb 寬度 ([-+\d.]+)/([-+\d.]+) 量比 ([\d.]+) → 進場空 ([\d.]+) ×(\d+)張 停利 ([\d.]+) 停損 ([\d.]+)")   # 2026-11-21 判一急彈空(一2)
 RE_T63 = re.compile(r"^\s*(\d\d:\d\d) 判六3 Ka跌破VWAP 離高 ([\d.]+)% RSI ([\d.]+) → 進場空 ([\d.]+) ×(\d+)張 停利 ([\d.]+) 停損 ([\d.]+)")   # 2026-11-12 23:40 判六做空(判六3)併入判六
 RE_EXIT = re.compile(r"^\s*(\d\d:\d\d) (.+?) 出 ([\d.]+)\s*$")
 RE_REV = re.compile(r"^\s*(\d\d:\d\d) .*→ (反向確認點|逆勢單遇反向點) 平倉 ([\d.]+)")
@@ -799,6 +801,10 @@ def parse_events(out):
         m = RE_FB.match(line)
         if m:
             ev.append((m.group(1), "entry", {"side": -1, "strong": False, "sig": float(m.group(2)), "px": float(m.group(2)), "lots": int(m.group(3)), "text": "空✓破", "sl": float(m.group(4))})); continue
+        m = RE_T12.match(line)
+        if m:
+            ev.append((m.group(1), "entry", {"side": -1, "strong": False, "sig": float(m.group(5)), "px": float(m.group(5)), "lots": int(m.group(6)), "text": "空", "tp": float(m.group(7)), "sl": float(m.group(8)),
+                                             "vr": float(m.group(4)), "note": f"急彈空 寬度 3分 {m.group(2)} / 30分 {m.group(3)} 量比 {m.group(4)}"})); continue
         m = RE_T63.match(line)
         if m:
             ev.append((m.group(1), "entry", {"side": -1, "strong": False, "sig": float(m.group(4)), "px": float(m.group(4)), "lots": int(m.group(5)), "text": "空", "tp": float(m.group(6)), "sl": float(m.group(7)),
@@ -1061,6 +1067,7 @@ class Engine:
         self.cloud_in = {}    # (rs, code, tm) → item:雲端今天的進場通知(手機 / 上一個 engine 發的)
         self.cloud_out = set()  # (rs, code, tm):雲端已經有平倉通知的部位
         self.fclosed = set()    # 2026-11-02 今天手機強平過的股票(雲端有「· 強平 ·」的平倉):這檔不再發任何判一~四的進場 / 平倉通知
+        self.j12 = set()      # 2026-11-21 判一急彈空(一2)今天已進場的股票:一天最多 J12MAX 檔
         self.j63 = set()      # 2026-11-12 23:40 判六做空(判六3)今天已進場的股票:一天最多 J63MAX 檔
         self.j9 = set()       # 2026-11-14 判九今天已進場的股票:一天最多 J9MAX 檔
         self.j8 = set()       # 2026-11-14 判八今天已進場的股票:一天最多 J8MAX 檔
@@ -1083,7 +1090,7 @@ class Engine:
                 j = json.loads(self.state_f.read_text(encoding="utf-8"))
                 self.pos = {tuple(k.split("|")): v for k, v in j.get("pos", {}).items()}
                 self.emitted = set(tuple(x) for x in j.get("emitted", []))
-                self.j4 = set(j.get("j4", [])); self.j5 = set(j.get("j5", [])); self.j63 = set(j.get("j63", [])); self.j8 = set(j.get("j8", [])); self.j9 = set(j.get("j9", []))
+                self.j4 = set(j.get("j4", [])); self.j5 = set(j.get("j5", [])); self.j63 = set(j.get("j63", [])); self.j12 = set(j.get("j12", [])); self.j8 = set(j.get("j8", [])); self.j9 = set(j.get("j9", []))
                 self.drag = set(j.get("drag", []))
                 self.closed = j.get("closed", []); self.lat = j.get("lat", [])
                 self.emitted |= {(x[0], x[1], x[2]) for x in j.get("seen", []) if len(x) == 4 and x[3] == "entry"}   # 舊版狀態檔
@@ -1173,7 +1180,7 @@ class Engine:
         self.j9max = int(getattr(rs_env, "J9MAX", J9MAX))   # 2026-11-14 判九
         self.j8max = int(getattr(rs_env, "J8MAX", J8MAX))   # 2026-11-14 判八
         self.j5max = int(getattr(rs_env, "J5MAX", J5MAX))   # 2026-11-05 判五一天上限(私人庫 rs_env.J5MAX;apply 裡沒有 rs_env 這個名字)
-        for rs in RS_ALL: self.envs[rs] = rs_env.env_of(rs, str(DATA / "breadth.json") if rs in ("一", "二", "五", "六", "六3", "八", "九", "十") else None)   # 判八要名單上漲比例(LBR)
+        for rs in RS_ALL: self.envs[rs] = rs_env.env_of(rs, str(DATA / "breadth.json") if rs in ("一", "一2", "二", "五", "六", "六3", "八", "九", "十") else None)   # 判八要名單上漲比例(LBR)
         for _e in self.envs.values():
             if _e.get("TXSYNC"): _e["IXFDIR"] = str(HERE / "engine_data" / "ix")   # 2026-11-16 14:38 使用者「改」:模擬器台指期缺一段時改讀加權指數(引擎每輪把 Worker ixbars 寫成 engine_data/ix/<日期>.csv)
             if _e.get("TXSYNC") or _e.get("TXBOUNCE") or _e.get("TXBOUNCEW") or _e.get("TXDROP") or _e.get("TXDROPW"): _e["TXFDIR"] = str(HERE / "kline_futures" / "TXF")   # 2026-11-18 16:53 判七沒有 TXSYNC 也要台指期(⑧ 急彈 / 急彈贏單平倉)   # ⑧ 模擬器讀中繼存的台指期 1 分 K   # 2026-11-10 23:05 判六(午盤 Ka 穿 VWAP)要寬度 10 分鐘變化   # 判五:名單平均檔 DATA/mktavg.json(write_breadth 寫)
@@ -1182,6 +1189,9 @@ class Engine:
         if self.envs.get("六3", {}).get("MODE") != "j63" or "六" not in self.envs:   # 2026-11-12 23:40 判六做空(判六3):私人庫沒有 J63 / 判六沒開 → 不跑
             self.envs.pop("六3", None); log("!! 私人庫 rs_env.py 沒有判六3(J63)或判六沒開,判六做空今天先不跑")
         self.j63max = int(getattr(rs_env, "J63MAX", J63MAX))
+        if self.envs.get("一2", {}).get("MODE") != "j11" or "一" not in self.envs:   # 2026-11-21 判一急彈空(一2):私人庫沒有 J12 / 判一沒開 → 不跑
+            self.envs.pop("一2", None); log("!! 私人庫 rs_env.py 沒有判一急彈空(J12)或判一沒開,判一急彈空今天先不跑")
+        self.j12max = int(getattr(rs_env, "J12MAX", J12MAX))
         if self.envs.get("七", {}).get("MODE") != "j7":   # 2026-11-09 私人庫 rs_env.py 還沒有觀察版判七(J7)→ 判七先不跑
             self.envs.pop("七", None); log("!! 私人庫 rs_env.py 還沒有判七(J7),判七今天先不跑")
         if self.envs.get("五", {}).get("MODE") != "fail5":   # 私人庫的 rs_env.py 還是舊版(沒有 J5)→ 判五先不跑(不然會拿判二的參數亂算)
@@ -1190,7 +1200,7 @@ class Engine:
 
     def save(self):
         if not self.state_f: return
-        try: write_atomic(self.state_f, json.dumps({"emitted": sorted(self.emitted), "j4": sorted(self.j4), "j5": sorted(self.j5), "j63": sorted(getattr(self, "j63", set())), "j8": sorted(getattr(self, "j8", set())), "j9": sorted(getattr(self, "j9", set())), "drag": sorted(self.drag), "closed": self.closed, "lat": self.lat, "pos": {"|".join(k): v for k, v in self.pos.items()}, "ver": RULES["ver"]}, ensure_ascii=False))
+        try: write_atomic(self.state_f, json.dumps({"emitted": sorted(self.emitted), "j4": sorted(self.j4), "j5": sorted(self.j5), "j63": sorted(getattr(self, "j63", set())), "j12": sorted(getattr(self, "j12", set())), "j8": sorted(getattr(self, "j8", set())), "j9": sorted(getattr(self, "j9", set())), "drag": sorted(self.drag), "closed": self.closed, "lat": self.lat, "pos": {"|".join(k): v for k, v in self.pos.items()}, "ver": RULES["ver"]}, ensure_ascii=False))
         except Exception as e: log("!! 狀態檔寫不進去", e)
 
     def push(self, it):
@@ -1293,6 +1303,7 @@ class Engine:
             mj = re.search(r"判[一二三四五六七八九十]", it.get("body", "")); rs = RS_OF.get(mj.group(0)) if mj else None   # 2026-11-13 00:02 使用者「改 A B」 A:判六也對帳(原本漏掉,重開又沒狀態檔時判六會重發、做空一天 5 檔上限接不回來)
             if not rs: continue
             if rs == "六" and (it.get("kind") == "short" or (it.get("kind") not in ("long", "short") and re.search(r"做空\s+\d\d:\d\d\s+進", it.get("body", "")))): rs = "六3"   # B:判六做空(進場 kind=short、平倉內容「做空 HH:MM 進」)對回 六3
+            if rs == "一" and "急彈空" in it.get("body", ""): rs = "一2"   # 2026-11-21 判一急彈空(進場內容帶「急彈空」)對回 一2
             if it.get("kind") in ("long", "short"):
                 mc = re.search(r"\b(\d{4,6})\b", it.get("title", "")); mt = re.match(r"\s*(\d\d:\d\d)", it.get("body", ""))
                 if mc and mt: self.cloud_in[(rs, mc.group(1), mt.group(1))] = it
@@ -1300,10 +1311,11 @@ class Engine:
                 if mc and rs == "五" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j5.add(mc.group(1))
                 if mc and rs == "八" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j8.add(mc.group(1))   # 2026-11-14 判八一天上限從雲端接回
                 if mc and rs == "九" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j9.add(mc.group(1))   # 2026-11-14 判九
+                if mc and rs == "一2" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j12.add(mc.group(1))   # 2026-11-21 判一急彈空一天上限從雲端接回
                 if mc and rs == "六3" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j63.add(mc.group(1))   # A:判六做空一天上限也從雲端接回   # 2026-10-31 手機 / 上一個 engine 發過的判四也算進一天上限
             elif it.get("pos"):
                 p = str(it["pos"]).split("|")
-                if len(p) == 3 and p[0] in RS_OF: self.cloud_out.add(("六3" if rs == "六3" else RS_OF[p[0]], p[1], p[2]))   # B:判六做空的平倉記成 六3
+                if len(p) == 3 and p[0] in RS_OF: self.cloud_out.add((rs if rs in ("六3", "一2") else RS_OF[p[0]], p[1], p[2]))   # B:判六做空的平倉記成 六3
         return True
 
     def push_exit(self, rs, code, p, tm, ex, why, at, phantom=False):
@@ -1451,7 +1463,7 @@ class Engine:
         over = px * 1000 > self.cap
         title = f"{nm} {code} {side}{'強訊號' if d['strong'] else ''}進場 {px:.2f}"
         body = f"{tm} {d['text']} · 停利 {tp:.2f} 停損 {sl:.2f} · {'超額' if over else str(qty) + '張'} · {j}"
-        if rs in ("六", "六3", "七"): body = f"{tm} {d['text']} · 停利 {tp:.2f} 停損 {sl:.2f} · {'超額' if over else str(qty) + '張'} · {d.get('note', '')} · {j}"   # 2026-11-10 觀察版判六一樣帶研究數字   # 2026-11-09 判七帶 12/06 驗證用的三個數字(15:28 解凍上線:照張數下單)
+        if rs in ("六", "六3", "七", "一2"): body = f"{tm} {d['text']} · 停利 {tp:.2f} 停損 {sl:.2f} · {'超額' if over else str(qty) + '張'} · {d.get('note', '')} · {j}"   # 2026-11-10 觀察版判六一樣帶研究數字   # 2026-11-09 判七帶 12/06 驗證用的三個數字(15:28 解凍上線:照張數下單)
         it = {"d": self.day, "t": at, "title": title, "body": body, "kind": "long" if d["side"] > 0 else "short", "key": self.key_of(code, title, rs)}
         y = self.prev.get(code)
         if y: it["prev"] = y
@@ -1465,6 +1477,7 @@ class Engine:
             if rs == "八" and not over: self.j8.add(code)
             if rs == "九" and not over: self.j9.add(code)
             if rs == "六3" and not over: self.j63.add(code)
+            if rs == "一2" and not over: self.j12.add(code)
             return True
         return False
 
@@ -1475,7 +1488,7 @@ class Engine:
         # 2026-11-07 19:52 使用者「加速 程式運行跟進場訊息」:不可能再發進場、也沒持倉的不算 —— 強平過的股票;判四 / 判五今天檔數已滿、又不是已進過的股票
         #   (對帳那邊本來就不會發,算了也白算);ENGINE_SKIP_IDLE=0 全部照算
         skip_on = CFG.get("ENGINE_SKIP_IDLE", "1") == "1"
-        full = {"四": len(self.j4) >= int(_f(self.envs.get("四", {}).get("T4MAX"), T4MAX)), "五": len(self.j5) >= getattr(self, "j5max", J5MAX), "六3": len(self.j63) >= getattr(self, "j63max", J63MAX), "八": len(getattr(self, "j8", set())) >= getattr(self, "j8max", J8MAX), "九": len(getattr(self, "j9", set())) >= getattr(self, "j9max", J9MAX)}
+        full = {"四": len(self.j4) >= int(_f(self.envs.get("四", {}).get("T4MAX"), T4MAX)), "五": len(self.j5) >= getattr(self, "j5max", J5MAX), "六3": len(self.j63) >= getattr(self, "j63max", J63MAX), "一2": len(getattr(self, "j12", set())) >= getattr(self, "j12max", J12MAX), "八": len(getattr(self, "j8", set())) >= getattr(self, "j8max", J8MAX), "九": len(getattr(self, "j9", set())) >= getattr(self, "j9max", J9MAX)}
         pri = list(getattr(self, "rs_pri", None) or RS_PRIORITY)
         for rs in sorted(RS_ALL, key=lambda x: pri.index(x) if x in pri else 99):   # 2026-11-10 同一分鐘同一檔:勝率高的判別式先算、先發
             if rs not in self.envs: continue   # 2026-11-05 判五規則還沒到
@@ -1490,7 +1503,7 @@ class Engine:
             for c in self.codes:
                 if only is not None and (rs, c) not in only: continue
                 if idle and (rs, c) not in self.pos: continue
-                if skip_on and only is None and (rs, c) not in self.pos and (c in self.fclosed or (full.get(rs) and c not in (self.j4 if rs == "四" else self.j63 if rs == "六3" else self.j8 if rs == "八" else self.j9 if rs == "九" else self.j5))): continue
+                if skip_on and only is None and (rs, c) not in self.pos and (c in self.fclosed or (full.get(rs) and c not in (self.j4 if rs == "四" else self.j63 if rs == "六3" else self.j12 if rs == "一2" else self.j8 if rs == "八" else self.j9 if rs == "九" else self.j5))): continue
                 # 2026-11-10 13:35(實際時間)使用者「修」:今天還沒有任何成交(元大第一根 K 還沒出來,例:11/10 中華電 2412、3605 09:02 才第一筆)的股票先不算 ——
                 #   原本模擬器找不到今天的 K 會退到 Yahoo 備用檔(引擎沒有)→ FileNotFoundError,log 出現假的「錯誤 14/462」;沒成交本來就不會有訊號
                 if self.last_hm and c not in self.last_hm and (rs, c) not in self.pos:
@@ -1507,7 +1520,19 @@ class Engine:
         t0 = time.time(); res = self.pool.map(_sim_one, jobs, chunksize=4) if jobs else []
         return res, time.time() - t0, len(jobs)
 
-    CAPPED = ("四", "五", "六3", "八", "九")   # 一天有檔數上限的判別式(2026-11-21 起所有判別式的新進場都照原本順序交回,見 blocked)
+    def order12(self, it, upto):
+        """2026-11-21 判一急彈空(一2):同一輪會新進場的判一急彈空先留著,這輪其他結果交回完後,照(進場那根、量比大的先)交回(一天 5 檔名額給量比大的)"""
+        buf = []
+        for r in it:
+            if r[1] == "一2" and not r[3] and ("一2", r[0]) not in self.pos:
+                try:
+                    tr, ot = sim_trades(parse_events(r[2]), upto)
+                    if ot is not None: buf.append((ot, -float((tr[ot][0] or {}).get("vr") or 0), r)); continue
+                except Exception: pass
+            yield r
+        for _, _, r in sorted(buf, key=lambda x: (x[0], x[1])): yield r
+
+    CAPPED = ("四", "五", "六3", "八", "九", "一2")   # 一天有檔數上限的判別式(2026-11-21 起所有判別式的新進場都照原本順序交回,見 blocked)
 
     def _hot_codes(self):
         """② 熱門股:有開著的部位、或最近 10 分鐘有訊號 / 等回 Ka~Kb / 被擋的股票"""
@@ -1569,7 +1594,7 @@ class Engine:
         """對帳(2026-10-29 稽核 #2 / #7):每檔每判,拿模擬器現在的交易清單和已推的部位對;
            allow_new = 這輪可以發新進場;allow_phantom = 這輪資料完整、可以判定「訊號消失」;rs_block = {判別式: 原因} 這輪不發新進場"""
         cutoff = hm_add(upto, -10); n_ev = 0; rs_block = rs_block or {}
-        for r in res:
+        for r in self.order12(res, upto):
             n_ev += self.apply_one(r, upto, cutoff, allow_new, allow_phantom, rs_block)
         self.save()
         return n_ev
@@ -1646,6 +1671,8 @@ class Engine:
             self.emitted.add(ek); log(f"判九 {code} {open_tm} 今天判九已 {len(self.j9)} 檔(到上限)→ 不發"); return n
         elif rs == "八" and code not in self.j8 and len(self.j8) >= getattr(self, "j8max", J8MAX):   # 2026-11-14 判八一天最多 J8MAX 檔
             self.emitted.add(ek); log(f"判八 {code} {open_tm} 今天判八已 {len(self.j8)} 檔(到上限)→ 不發"); return n
+        elif rs == "一2" and code not in self.j12 and len(self.j12) >= getattr(self, "j12max", J12MAX):   # 2026-11-21 判一急彈空一天最多 J12MAX 檔
+            self.emitted.add(ek); log(f"判一(急彈空){code} {open_tm} 今天判一急彈空已 {len(self.j12)} 檔(到上限)→ 不發"); return n
         elif rs == "六3" and code not in self.j63 and len(self.j63) >= getattr(self, "j63max", J63MAX):   # 2026-11-12 23:40 判六做空一天最多 J63MAX 檔
             self.emitted.add(ek); log(f"判六(做空){code} {open_tm} 今天判六做空已 {len(self.j63)} 檔(到上限)→ 不發"); return n
         elif any(c == code and r != rs for (r, c) in self.pos):   # 2026-11-17 00:17 使用者「同一檔同方向 只能做一筆」→「改」:同一檔已經有別的判別式的部位開著 → 不發(元大下單本來就一檔一筆;11/16 神達 判五 + 判六、大成鋼 判七 + 判五 虛擬帳重複記)
@@ -1890,7 +1917,7 @@ class Engine:
         except Exception as e: log("⑧ 加權指數備援檔寫入失敗", e)
         self.upto_hm = upto; t0 = time.time(); it, njobs = self.compute(stream=True); errs = 0; n_ev = 0
         cutoff = hm_add(upto, -10); an = kw.get("allow_new", True); ap = kw.get("allow_phantom", True); rb = kw.get("rs_block") or {}
-        for r in it:
+        for r in self.order12(it, upto):
             errs += bool(r[3]); n_ev += self.apply_one(r, upto, cutoff, an, ap, rb)
         self.save()
         return time.time() - t0, errs, n_ev
@@ -2062,7 +2089,7 @@ def live():
                 eng.t_first = None; t0c = time.time(); it, njobs = eng.compute(stream=True); res = []; errs = 0; n_ev = 0
                 _ths[1].join(15); _tm["對帳"] = _msec()   # 2026-11-21 使用者「改」(2):先開算(工作行程已經在跑),對帳前才等雲端通知對帳回來(原本開算前等)
                 cutoff = hm_add(hm, -10); ok0 = not off and not late
-                for r in it:
+                for r in eng.order12(it, hm):
                     res.append(r); errs += bool(r[3])
                     ok = ok0 and not (njobs and errs / njobs > err_max)
                     n_ev += eng.apply_one(r, hm, cutoff, ok, ok, rs_block)
