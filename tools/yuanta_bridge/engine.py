@@ -93,6 +93,10 @@ def log(*a):
     except Exception: pass
 
 
+def _msec():
+    """2026-11-20 使用者「改1,4」:現在是整分後第幾秒(台灣時間,含小數)"""
+    n = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))); return n.second + n.microsecond / 1e6
+
 def hm_add(hm, k):
     m = int(hm[:2]) * 60 + int(hm[3:5]) + k; return f"{m // 60:02d}:{m % 60:02d}"
 
@@ -1176,7 +1180,8 @@ class Engine:
 
     def push(self, it):
         """回傳 True = 推上去了(dry 也算);失敗的進場不記,下一輪(10 分鐘內)再試;失敗的平倉部位留著,下一輪再推"""
-        it.setdefault("ts", int(time.time() * 1000))   # 2026-11-13 14:30 使用者「開始」(Cloudflare 第二輪 1 延遲紀錄):引擎推出的時間(毫秒),中繼 / 雲端各自記收到的時間
+        it.setdefault("ts", int(time.time() * 1000))
+        if self.__dict__.get("t_first") is None: self.t_first = _msec()   # 2026-11-20 使用者「改1,4」:這輪第一則通知在整分後第幾秒推出   # 2026-11-13 14:30 使用者「開始」(Cloudflare 第二輪 1 延遲紀錄):引擎推出的時間(毫秒),中繼 / 雲端各自記收到的時間
         self.sent.append(it)
         log(f"[通知] {it['kind']:6} {it['t']} {it['title']} | {it['body']}")
         if self.dry: return True
@@ -1951,10 +1956,10 @@ def live():
                         write_today(day, bs, upto=hm, forming=fm)
                         if any(r == "二" for r, _ in cand): write_breadth(day)
                         res_, dtm_, nj_ = eng.compute(only=cand)
-                        nb = len(eng.sent); eng.pre_mode = True   # 2026-11-18 16:43 預判緩衝
+                        nb = len(eng.sent); eng.pre_mode = True; eng.t_first = None   # 2026-11-18 16:43 預判緩衝
                         try: eng.apply(res_, hm, allow_new=True, allow_phantom=False, rs_block=pre["rs_block"])
                         finally: eng.pre_mode = False
-                        log(f"預判收盤確認 {hm}:候選 {len(cand)} 個,推出 {len(eng.sent) - nb} 則,{time.time() - t0:.1f} 秒")
+                        log(f"預判收盤確認 {hm}:候選 {len(cand)} 個,推出 {len(eng.sent) - nb} 則,{time.time() - t0:.1f} 秒" + (f",第一則在整分後 {eng.t_first:.1f} 秒" if eng.__dict__.get("t_first") is not None else ""))
                 except Exception as e: log("預判確認失敗", repr(e))
                 continue
             if hm in ("08:50", "08:58") and ("cfg" + hm) not in done:   # 2026-11-07 19:32 使用者「開盤中不用追蹤主導機設定 因為開盤中 設定是封閉的」:
@@ -1973,7 +1978,7 @@ def live():
                 except Exception as e: log("開盤前讀主導機設定失敗", repr(e))
             if hm < "09:01" or n.second < start_sec or hm in done:   # 2026-11-07 中繼換分鐘第 1 秒就推 K → 開算從第 4 秒提早到第 2 秒(ENGINE_START_SEC;下面還是會等 hm-1 那根到齊)
                 time.sleep(0.2); continue   # 2026-11-07 等開算 1 → 0.2 秒(第 2 秒準時開)
-            done.add(hm)
+            done.add(hm); _tm = {"開始": _msec()}   # 2026-11-20 使用者「改1,4」:每輪各段在整分後第幾秒完成(log + 心跳)
             c2 = cloud_cap(eng.cap) if hm < "09:00" else eng.cap   # 2026-11-07 19:32 使用者「開盤中不用追蹤主導機設定」:原 09:03 前 → 09:00 前(開盤前最後一次為準)   # 2026-11-02 跟 5861 主導機的多空上限(通知裡的張數);盤中設定禁改 → 只在開盤頭兩分鐘再確認
             if c2 != eng.cap: log(f"多空上限 {eng.cap:,} → {c2:,}(5861 主導機)"); eng.cap = c2
             try:
@@ -2002,6 +2007,7 @@ def live():
                     bars, last = today_bars_fast(day); lb = latest_bar(bars, last)   # 2026-11-07 只抓最近幾分鐘
                     if lb >= want or time.time() >= t_end: break
                     time.sleep(0.5)   # 2026-11-06 3 → 1 秒;2026-11-07 → 0.5 秒
+                _tm["K到齊"] = _msec()
                 forming = live_forming(eng.codes, eng.mkts, hm, bars)
                 write_today(day, bars, upto=hm, forming=forming)
                 eng.last_hm = {}
@@ -2011,7 +2017,7 @@ def live():
                 try: eng.apply_refs()   # 2026-11-10 每分鐘對一次昨收(中繼的元大參考價檔有新的就套上)
                 except Exception as e: log("昨收對照失敗", repr(e))
                 # 寬度每分鐘(稽核 #1)
-                _ths[0].join(35); ok, nbr, blast = _bg.get("br", (False, 0, ""))
+                _tm["整理K"] = _msec(); _ths[0].join(35); _tm["寬度"] = _msec(); ok, nbr, blast = _bg.get("br", (False, 0, ""))
                 if ok: br.update(ok_at=time.time(), last=blast)
                 rs_block = {}
                 if not br["last"] or time.time() - br["ok_at"] > 180 or (hm < "13:26" and br["last"] < hm_add(hm, -5)):
@@ -2024,10 +2030,10 @@ def live():
                 if not eng.codes: off.append("名單是空的")
                 if stale_bars: off.append(f"K 只到 {lb or '(沒有)'}")
                 if late_n >= 3: off.append(f"K 連續 {late_n} 分鐘晚到")
-                _ths[1].join(15)
+                _ths[1].join(15); _tm["對帳"] = _msec()
                 # 2026-11-06 13:24 使用者「還有什麼可以再更快的」:算完一檔就對帳發通知,不等整輪(順序和以前一樣)
                 eng.upto_hm = hm
-                t0c = time.time(); it, njobs = eng.compute(stream=True); res = []; errs = 0; n_ev = 0
+                eng.t_first = None; t0c = time.time(); it, njobs = eng.compute(stream=True); res = []; errs = 0; n_ev = 0
                 cutoff = hm_add(hm, -10); ok0 = not off and not late
                 for r in it:
                     res.append(r); errs += bool(r[3])
@@ -2041,8 +2047,11 @@ def live():
                 healthy = not off
                 pre["ok"] = healthy and not late and bool(bars); pre["rs_block"] = dict(rs_block); pre["base"] = bars   # 2026-10-30 預判只在上一輪健康時做,判二沒寬度那種封鎖也照帶
                 if off: log(f"!! {hm} 心跳送 on=0(手機接手):{';'.join(off)}")
-                eng.heartbeat(healthy, f"{hm} {dtm:.0f}s {n_ev} 事件" + (" " + ";".join(off) if off else ""), flags)
+                _tm["算完"] = _msec(); _ft = eng.__dict__.get("t_first")
+                _tt = " ".join(f"{k} {v:.1f}" for k, v in _tm.items()) + (f" 第一則通知 {_ft:.1f}" if _ft is not None else "")
+                eng.heartbeat(healthy, f"{hm} {dtm:.0f}s {n_ev} 事件" + (" " + ";".join(off) if off else "") + f" ⏱K{_tm['K到齊']:.1f}/寬{_tm['寬度']:.1f}/對{_tm['對帳']:.1f}/完{_tm['算完']:.1f}" + (f"/通{_ft:.1f}" if _ft is not None else ""), flags)
                 log(f"{hm} 算完 {dtm:.1f} 秒,K 到 {lb},事件 {n_ev},錯誤 {errs}/{njobs},開著 {len(eng.pos)}{' ' + ' '.join(flags) if flags else ''}")
+                log(f"{hm} 時間(整分後第幾秒):{_tt}")
                 # 2026-11-06 加速:規則重抓 / 名單重讀移到算完之後(原本在算之前,碰到的那一輪會晚幾秒)
                 # 規則每 30 分鐘重抓(稽核 #5)
                 if time.time() - RULES["at"] >= rules_every:

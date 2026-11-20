@@ -1701,6 +1701,25 @@ class Bridge:
             if m in self.sent:
                 self.push(day, m, self.book.take(m))
 
+    def nap(self, day, total=1.0):
+        """2026-11-20 使用者「改1,4」:主迴圈每圈睡 1 秒 → 引擎的進場通知平均晚 0.5 秒才被讀到。
+           改成睡的時候每 0.2 秒看 live_<日期>.jsonl 大小,變大了就馬上讀、交給 trader(主執行緒,和主迴圈同一條路);主迴圈其他每 N 秒的工作節奏不變"""
+        t_end = time.time() + total; step = float(CFG.get("SIG_LOCAL_SEC", "0.2") or 0.2)
+        f = Path(os.environ.get("ENGINE_DIR", HERE / "engine_data")) / f"live_{day}.jsonl"
+        while True:
+            left = t_end - time.time()
+            if left <= 0: return
+            time.sleep(min(step, left))
+            try:
+                t_ = self.trader
+                if t_ is None or not (t_.enabled and getattr(t_, "primed", False)): continue
+                st = getattr(self, "_loc", None)
+                if not st or st.get("day") != day or not f.exists() or f.stat().st_size == st.get("off"): continue
+                loc = self.local_signals(day)
+                if loc: self.trader.step(loc)
+            except Exception as e:
+                if time.time() - getattr(self, "_nap_err", 0) > 300: self._nap_err = time.time(); log("[交易] !! 本機通知快讀出錯(下一圈照常讀)", e)
+
     def local_signals(self, day):
         """2026-10-30 讀電腦引擎寫的本機通知檔 engine_data/live_<日期>.jsonl 新增的行(開工時從檔尾開始,之前的當舊的;換日換檔)"""
         f = Path(os.environ.get("ENGINE_DIR", HERE / "engine_data")) / f"live_{day}.jsonl"
@@ -1781,7 +1800,7 @@ class Bridge:
                     self.last_recon = time.time() - 50                       # 重連後 10 秒就對帳一次
                     if not resumed:
                         self.resume_positions(day); resumed = True          # 今天第一次連上:接回程式開的未平部位(斷線重連不用,部位一直在記憶體裡)
-                time.sleep(1); k += 1
+                self.nap(day); k += 1   # 2026-11-20 使用者「改1,4」:原 time.sleep(1);等的這 1 秒裡每 0.2 秒看一次電腦引擎的本機通知檔,有新的馬上交給 trader
                 try: self.fut_poll()   # ⑧ 備援 2:電腦直接問期交所台指期(每 10 秒,08:44~13:46)
                 except Exception: pass
                 try: self.ix_poll()   # 2026-11-18 21:05 加權指數直接問證交所(每 5 秒,09:00~13:31)
