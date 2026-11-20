@@ -1021,6 +1021,10 @@ class Trader:
             #   (張數加總、均價重算;停利 / 停損從新均價重算(判一~四照原本離進場價的 %,強三 / 元三照設定 %);平倉時全部一起平)
             tot = p["qty"] + lots; e0 = p["entry"]
             p["entry"] = (p["entry"] * p["qty"] + price * lots) / tot; p["qty"] = tot; self.amount_today += price * lots * 1000
+            # 2026-11-20 10:37 🔓→🔒 鐵律 ⑥ 修改(使用者「移平也要重算 改鐵律」):手動加碼 → 移平的最有利價重設成新均價(從加碼這刻重新記最高 / 最低),
+            #   原本沿用第一筆進場以來的最有利價(世紀 11/20 做空最低約 19.12,加碼後移平線還是 19.70 附近);3% 幅度不變
+            mt0 = p.get("mt_px"); p["mt_px"] = p["entry"]; p.pop("mt_a", None); self.prot_save(p)
+            self.log(f"[交易] {code} 手動加碼 → 移平重算:最有利價 {mt0 if mt0 is not None else '—'} → 新均價 {p['entry']:.2f}(鐵律 ⑥)")
             p["y3_lots"] = max(p.get("y3_lots") or 0, tot); p["y3_px"] = p["entry"]
             if p.get("judge") not in (MANUAL, FORCED):   # 2026-11-11 16:49 使用者「手動進場或加碼 … 都受判三管轄」:判別式部位被手動加碼 → 整個部位改由判三管(記「元三」,停利 / 停損照判三 % 從新均價算)
                 self.log(f"[交易] {code} {p.get('judge')} 部位被手動加碼 → 改由判三管(元三,停利 {self.y3_tp:g}% / 停損 {self.y3_sl:g}%)")

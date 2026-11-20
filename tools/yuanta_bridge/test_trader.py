@@ -1170,3 +1170,11 @@ vx_ = {q["code"]: q for q in tx_.positions_view()}["5314"]; ok(abs(vx_["xp"] - 1
 tx_.positions["5314"]["mt_px"] = None; ok(abs({q["code"]: q for q in tx_.positions_view()}["5314"]["xp"] - 19.35 * 1.03) < 1e-6)
 tx_.positions["5314"].update({"dir": 1, "sl": 18.9, "mt_px": 19.5}); ok(abs({q["code"]: q for q in tx_.positions_view()}["5314"]["xp"] - 19.5 * 0.97) < 1e-6)   # 做多:取最高(18.92 > 18.9)
 print("手機平倉價(最先碰到的反向價)OK")
+# 2026-11-20 10:37 鐵律 ⑥ 修改:手動加碼 → 移平最有利價重設成新均價
+tm_, gm_ = mk(); tm_.last_px["2603"] = 239.0
+tm_.positions["2603"] = {"code": "2603", "dir": -1, "qty": 1, "entry": 239.0, "judge": "判四", "state": HOLDING, "tp": 226.33, "sl": 249.08, "t0": "10:05", "mt_px": 236.0}
+tm_.on_other_fill("2603", "S", 1000, 240.5, "M901"); pm_ = tm_.positions["2603"]
+ok(pm_["qty"] == 2 and abs(pm_["mt_px"] - 239.75) < 1e-9 and abs(tm_.exit_px(pm_) - min(pm_["sl"], 239.75 * 1.03)) < 1e-6, pm_)
+tm_._mt_test = True; ok(not tm_.mt_px_hit(pm_, 245.0, -1, pm_["entry"]))   # 原本最有利 236 × 1.03 = 243.08 → 245 會平;重算後 239.75 × 1.03 = 246.94 不平
+ok(tm_.mt_px_hit(pm_, 247.0, -1, pm_["entry"]))
+print("鐵律 ⑥ 手動加碼移平重算 OK")
