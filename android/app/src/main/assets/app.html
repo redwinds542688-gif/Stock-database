@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-21 21:05(實際時間)全面檢查修正(使用者「全改」):雲端只讓沒鑰匙的人讀名單 / 紀錄 / 看盤頁等必要檔(簽章金鑰、設定檔一律不給);雲端故障時看盤鑰匙不能變成管理者;推播、錯誤紀錄、資金資料、幾個公開轉送加鑰匙或次數限制;下單程式重開接回不再當掉、平倉中的虧損算進上限、同檔再進場不沿用上一筆移平價、均價 / 對帳入帳 / IOC 晚到成交修正、跳檔價精確;電腦引擎預判不拖到下一分鐘、收盤確認先確認寬度、判一急彈空不被後面判別式搶走;強制進場滑桿寫實際送出的價格、送出中鎖住、逾時提示改成「單可能已送出,請到當沖確認」
   · 2026-11-21 20:11(實際時間)電腦引擎 / 中繼檢查修正(使用者「改 1 2b 3」):① 判一急彈空的平倉從雲端對帳時記對(原本記成判一,電腦以為還開著、擋這檔新進場、重複平倉);②b 寬度改成開算前等雲端最新一分鐘(最多 4 秒、不超過第 15 秒,全部判別式一起等;取代「先擋看寬度的判別式、事後重算」);③ 中繼讀電腦通知不會再漏讀到一半的中文字、出錯推手機、進場結果馬上寫
   · 2026-11-21 09:29(實際時間)電腦引擎寬度一致(使用者「B」):最新幾分鐘的大盤寬度 / 名單平均是電腦自己補的(雲端還沒到)時,看寬度的判別式(一 / 二 / 五 / 六 / 八 / 九 / 十)新進場先不發,每秒問雲端,最多等 15 秒,補齊後只重算那幾筆再發;等不到就下一輪判。雲端斷線時照舊用電腦算的(不會因此停止交易)
   · 2026-11-21 03:43(實際時間)電腦引擎檢查修正(使用者「跑程式確認程式邏輯無漏洞」):熱門股先算後,跨股票的新進場通知改回和以前同一順序(中繼總額度 / 同時檔數先到先拿);寬度等待設定防呆;雲端回空的寬度不蓋掉上一次;第一則通知秒數只記主程式;前段共用判定收緊。11/19(154 則)、11/20(20 則,含判一急彈空)整天回放新舊通知內容與進場順序相同
@@ -587,7 +588,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611212011">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611212105">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1987,6 +1988,10 @@ window.vTrade = vTrade;
 const vwOnly = () => !!window.VIEWER && !vTrade();
 window.vwOnly = vwOnly;
 const fmApi = () => liveOn() ? BASE.liveUrl.replace(/\/$/, '') + '/?trade=' : '';
+// 2026-11-21 使用者「全改」(檢查 d):手機等 12 秒、Worker 等電腦 8 秒;逾時時電腦可能已經下單 → 不說「沒有送出」,請使用者到當沖確認
+//   (Worker 逾時回 504 + timeout:true 和這句話;這裡是手機自己等到逾時 / 連不上的情形)
+const fmCmdErr = e => (e && (e.name === 'TimeoutError' || e.name === 'AbortError')) ? '電腦回應逾時,單可能已送出,請到當沖確認' : '連不上雲端,單可能沒有送出,請到當沖確認';
+window.fmCmdErr = fmCmdErr;
 
 /* 2026-10-28 12:21 當沖只列元大真的成交的部位:當沖開著、App 在前景時每 15 秒問電腦一次(?trade=pos,一次一個 Worker 請求;不開當沖不問) */
 function tposPoll(force){
@@ -2296,12 +2301,16 @@ function fmShow(o){
   const pxClamp = v => { if (LU > 0 && v > LU) v = LU; if (LD > 0 && v < LD) v = LD; return r2(v); };
   const pxStep = up => { if (!(px > 0)) return; const t = up ? tickOf(px + 1e-9) : tickOf(px - 1e-9); px = pxClamp(up ? Math.round((px + t) / t) * t : Math.round((px - t) / t) * t); pxSet = true; paint(); };
   const pxName = () => px === LU && LU > 0 ? '漲停' : px === LD && LD > 0 ? '跌停' : '';
+  // 2026-11-21 使用者「全改」(檢查 c):滑桿原本寫「漲停 / 跌停」,但做多選漲停、做空選跌停(或還沒拿到價格)時手機不帶價格,電腦實際送「現價讓 2 檔限價 ROD」(trader.py force_enter)
+  //   → 字照實際送出的寫;送單行為不變(pxSend 和下面送出時帶不帶 px 同一個條件)
+  const pxSend = () => o.act === 'enter' && o.pxOk && px > 0 && !((dir > 0 && px === LU) || (dir < 0 && px === LD));
+  const pxLabel = () => !o.pxOk ? '' : pxSend() ? (pxName() ? pxName() + ' ' : '') + '@' + px.toFixed(2) : '現價讓 2 檔限價';   // 電腦舊版(沒有 pxOk)照舊不寫價格
   const paint = () => {
     if (o.act === 'enter'){ const pv = w.querySelector('.fmpv'); if (pv){ pv.textContent = px > 0 ? px.toFixed(2) : '—'; pv.style.color = col(px); }
       const am = w.querySelector('.fmamt'); if (am && px > 0) am.textContent = n0(o.lots * px * 1000);
       const lu = w.querySelector('.fmlim .lu'), ld = w.querySelector('.fmlim .ld'); if (lu) lu.classList.toggle('on', LU > 0 && px === LU); if (ld) ld.classList.toggle('on', LD > 0 && px === LD); }
     sl.className = 'fmsl ' + (o.act === 'close' ? 'blue' : !dir ? 'off' : o.over ? 'red' : 'yel');
-    tx.textContent = o.act === 'close' ? (o.pos.state === '進場中' ? '滑到底 取消進場單(已成交的馬上平倉)' : `滑到底 全部平倉 ${o.pos.qty} 張`) : !dir ? '先選做多或做空' : `滑到底 強制${dir > 0 ? '做多' : '做空'} ${o.lots} 張 ${o.pxOk ? (pxName() || (px > 0 ? '@' + px.toFixed(2) : '')) : ''}`; };
+    tx.textContent = o.act === 'close' ? (o.pos.state === '進場中' ? '滑到底 取消進場單(已成交的馬上平倉)' : `滑到底 全部平倉 ${o.pos.qty} 張`) : !dir ? '先選做多或做空' : `滑到底 強制${dir > 0 ? '做多' : '做空'} ${o.lots} 張 ${pxLabel()}`; };
   if (o.act === 'enter'){
     const hold = (b, up) => { if (!b) return; let tm = 0, iv = 0; const stop = () => { clearTimeout(tm); clearInterval(iv); };
       b.addEventListener('pointerdown', ev => { ev.preventDefault(); pxStep(up); stop(); tm = setTimeout(() => { iv = setInterval(() => pxStep(up), 90); }, 400); });   // 按住連續跳
@@ -2321,21 +2330,21 @@ function fmShow(o){
   w.querySelector('.fmx').addEventListener('click', close);
   paint();
   // 滑到底才送出:手指按住 ▶▶ 往右拖,過 92% 放手 = 送出;沒到就彈回
-  let drag = null;
+  let drag = null, busy = false;   // 2026-11-21 使用者「全改」(檢查 d):送出中(等電腦回應)滑桿鎖住,不會連送兩次
   const W = () => sl.clientWidth - kn.offsetWidth - 6;
-  kn.addEventListener('touchstart', ev => { if (o.act === 'enter' && !dir){ er.textContent = '先選做多或做空'; return; } drag = {x0: ev.touches[0].clientX}; }, {passive: true});
+  kn.addEventListener('touchstart', ev => { if (busy) return; if (o.act === 'enter' && !dir){ er.textContent = '先選做多或做空'; return; } drag = {x0: ev.touches[0].clientX}; }, {passive: true});
   kn.addEventListener('touchmove', ev => { if (!drag) return; const dx = Math.max(0, Math.min(W(), ev.touches[0].clientX - drag.x0)); drag.dx = dx; kn.style.transform = `translateX(${dx}px)`; }, {passive: true});
-  const end = async () => { if (!drag) return; const done = (drag.dx || 0) >= W() * 0.92; drag = null; kn.style.transform = '';
+  const end = async () => { if (!drag || busy) return; const done = (drag.dx || 0) >= W() * 0.92; drag = null; kn.style.transform = '';
     if (!done) return;
     const pi = w.querySelector('.fmpin input'); const pinV = fmPin.get() || (pi ? pi.value.trim() : '');   // 2026-10-29 12:50(實際時間)不用密碼:手機有存(或電腦要求才出現的格子有填)就帶,沒有就不帶
     if (pi && !pinV){ er.textContent = '電腦有設交易密碼,請輸入'; return; }
     const cmd = o.act === 'close' ? {act: 'close', code: o.code} : {act: 'enter', code: o.code, dir, lots: o.lots, tpPct: (RULESETS['三'].sig || {}).takePct, slPct: (RULESETS['三'].sig || {}).stopPct};
-    if (o.act === 'enter' && o.pxOk && px > 0 && !((dir > 0 && px === LU) || (dir < 0 && px === LD))) cmd.px = px;   // 2026-11-03 指定價格才帶(漲停買 / 跌停賣照原本送法)
+    if (pxSend()) cmd.px = px;   // 2026-11-03 指定價格才帶(漲停買 / 跌停賣照原本送法)
     if (pinV) cmd.pin = pinV; cmd.id = o.code + '-' + Date.now(); if (o.y > 0) cmd.ref = o.y; cmd.name = o.name || '';   // 昨收:電腦這檔沒有昨收時 ±6.5% 用
-    sl.classList.add('sending'); tx.textContent = '送出中…';
+    sl.classList.add('sending'); tx.textContent = '送出中…'; busy = true;
     let r = null; try{ const q = await fetch(fmApi() + 'cmd', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cmd), signal: AbortSignal.timeout(12000)}); r = await q.json(); }
-    catch(e){ r = {ok: false, msg: '電腦沒有回應,這單沒有送出'}; }
-    sl.classList.remove('sending');
+    catch(e){ r = {ok: false, msg: fmCmdErr(e)}; }   // 2026-11-21 使用者「全改」(檢查 d):逾時不能說「沒有送出」(電腦可能已下單)
+    busy = false; sl.classList.remove('sending');
     if (r && r.badPin){ fmPin.set(''); }
     if (!r || !r.ok){ er.textContent = (r && r.msg) || '沒有送出'; paint(); if (r && r.badPin && !pi){ close(); fmShow(Object.assign({}, o, {askPin: true})); } return; }   // 電腦說要密碼 → 重開視窗、這次有密碼格
     if (pi && pinV) fmPin.set(pinV);   // 輸對了就存在手機,以後不再問
@@ -2512,16 +2521,16 @@ window.fmShow = fmShow;
         requestAnimationFrame(paintK); window.addEventListener('resize', paintK, {once: true});
       }catch(err){ cm.textContent = 'K 線載入失敗'; } })();
     // 向右滑到底 = 強制平倉(和長按的強制平倉送同一個指令)
-    const sl = w.querySelector('.dwsl'), kn = w.querySelector('.dwkn'), er = w.querySelector('.dwerr'); let drag = null;
+    const sl = w.querySelector('.dwsl'), kn = w.querySelector('.dwkn'), er = w.querySelector('.dwerr'); let drag = null, busy = false;   // 2026-11-21 使用者「全改」(檢查 d):送出中鎖住滑桿
     const Wd = () => sl.clientWidth - kn.offsetWidth - 8;
-    kn.addEventListener('touchstart', ev => { drag = {x0: ev.touches[0].clientX}; }, {passive: true});
+    kn.addEventListener('touchstart', ev => { if (busy) return; drag = {x0: ev.touches[0].clientX}; }, {passive: true});
     kn.addEventListener('touchmove', ev => { if (!drag) return; const dx = Math.max(0, Math.min(Wd(), ev.touches[0].clientX - drag.x0)); drag.dx = dx; kn.style.transform = `translateX(${dx}px)`; }, {passive: true});
-    const end = async () => { if (!drag) return; const done = (drag.dx || 0) >= Wd() * 0.92; drag = null; kn.style.transform = ''; if (!done) return;
+    const end = async () => { if (!drag || busy) return; const done = (drag.dx || 0) >= Wd() * 0.92; drag = null; kn.style.transform = ''; if (!done) return;
       const api = fmApi(); if (!api){ er.textContent = '沒有設定雲端網址,不能強制平倉'; return; }
       const cmd = {act: 'close', code, id: code + '-drag-' + Date.now(), name}; const pinV = fmPin.get(); if (pinV) cmd.pin = pinV; { const y = fmPx(code).y; if (y > 0) cmd.ref = y; }
-      sl.classList.add('sending'); w.querySelector('.dwtx').textContent = '送出中…';
-      let r = null; try{ const q = await fetch(api + 'cmd', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cmd), signal: AbortSignal.timeout(12000)}); r = await q.json(); }catch(e){ r = {ok: false, msg: '電腦沒有回應,這單沒有送出'}; }
-      sl.classList.remove('sending'); w.querySelector('.dwtx').textContent = '向右滑到底　強制平倉 ▶▶';
+      sl.classList.add('sending'); w.querySelector('.dwtx').textContent = '送出中…'; busy = true;
+      let r = null; try{ const q = await fetch(api + 'cmd', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cmd), signal: AbortSignal.timeout(12000)}); r = await q.json(); }catch(e){ r = {ok: false, msg: fmCmdErr(e)}; }
+      busy = false; sl.classList.remove('sending'); w.querySelector('.dwtx').textContent = '向右滑到底　強制平倉 ▶▶';
       if (!r || !r.ok){ er.textContent = (r && r.msg) || '沒有送出'; return; }
       fcAdd(code); close(); fmToast(name + ' ' + (r.msg || '已送出強制平倉'), 3500); };
     kn.addEventListener('touchend', end); kn.addEventListener('touchcancel', () => { drag = null; kn.style.transform = ''; });
