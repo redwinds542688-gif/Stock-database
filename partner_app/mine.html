@@ -494,7 +494,7 @@ function vDone(){
     + (ST.loading ? `<div class="dsep"><span>讀取更早的紀錄…</span></div>` : "")];
 }
 // 捲動時:標題列換成目前最上面那天
-function doneSync(force){ try{ if (S.tab !== "明細") return; if (force) S.day = null; const L = document.getElementById("list"), top = L.getBoundingClientRect().top + 2;
+function doneSync(force){ try{ if (S.tab !== "明細" || S.days) return;   /* 2026-11-21 使用者影片:每日畫面的總計被這裡換回最上面那天 → 每日畫面不換 */ if (force) S.day = null; const L = document.getElementById("list"), top = L.getBoundingClientRect().top + 2;
   let cur = null; for (const e of L.querySelectorAll(".dsep")){ if (e.getBoundingClientRect().top <= top) cur = e.dataset.sep; else break; }
   cur = cur || Object.keys(DAYS)[0]; if (cur === S.day) return; S.day = cur;
   const t = dayTot(cur), hd = document.getElementById("hd"); hd.querySelector(".date").textContent = cur; const a = hd.querySelector(".amt"); a.textContent = fmt(t); a.className = "amt " + cls(t); }catch(e){} }
