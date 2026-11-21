@@ -44,7 +44,8 @@ def mk():
 # ── R1 登入回應分永久 / 暫時 ──
 ok(Y.login_kind("0001", "成功") == "ok" and Y.login_kind("9999", "", 1) == "ok")
 ok(Y.login_kind("0016", "請勿連續進行系統登入作業") == "retry")
-ok(Y.login_kind("0000", "執行失敗") == "retry" and Y.login_kind("7777", "沒看過") == "retry")
+# 2026-11-21 使用者「改 A」(A5):0000 → 當天停;沒看過的碼 → unknown(最多再試 2 次)
+ok(Y.login_kind("0000", "執行失敗") == "fatal" and Y.login_kind("7777", "沒看過") == "unknown")
 ok(Y.login_kind("0102", "密碼凍結或未啟用") == "fatal" and Y.login_kind("0112", "無此權限使用功能") == "fatal")
 ok(Y.login_kind("0003", "密碼錯誤") == "fatal" and Y.login_kind("0004", "帳號不存在") == "fatal")
 bo = [Y.login_backoff(n) for n in range(1, 11)]
@@ -278,5 +279,127 @@ try:
 finally:
     Y.HERE, Y.gh_get, Y.restart_self, Y.upd_ref = _here, _gh, _rs, _ur
     os.environ.pop("MYSH_UPDATED", None)
+
+
+# ── 2026-11-21 使用者「改 A」──
+# A5:登入回應分類:帳密 / 憑證類當天停;明確暫時的才退避重試;沒看過的 → unknown
+ok(Y.login_kind("0000", "執行失敗") == "fatal" and Y.login_kind("0099", "憑證過期") == "fatal" and Y.login_kind("0098", "身分證字號錯誤") == "fatal")
+ok(Y.login_kind("0097", "帳號未啟用") == "fatal" and Y.login_kind("0096", "無權限") == "fatal")
+ok(Y.login_kind("0016", "請勿連續進行系統登入作業") == "retry" and Y.login_kind("0095", "系統忙碌,請稍後再試") == "retry" and Y.login_kind("0094", "連線逾時") == "retry")
+ok(Y.login_kind("0093", "") == "unknown" and Y.login_kind("abcd", "something") == "unknown")
+b = mk(); b.on_response(1, 0, "Login", None, L("0093", "看不懂"))
+ok(b.login_soft and b.login_soft_kind == "unknown" and not b.login_fail)
+b = mk(); b.on_response(1, 0, "Login", None, L("0000", "執行失敗")); ok(b.login_fail and not b.login_soft)
+
+# A2:同方向的可疑重複:程式記的部位等於哪一份就用哪一份(真的分筆成交 1+1 → 照原樣);都不是才取張數少的
+SS = {"code": "2330", "bs": "S", "lots": 1, "price": 100.0, "time": "09:30:01", "order_no": "A1"}
+safe, sus, amb = Y.fills_guard([SS, dict(SS)], {"2330": -2}); ok(sus and not amb and sum(t["lots"] for t in safe) == 2, safe)
+safe, sus, amb = Y.fills_guard([SS, dict(SS)], {"2330": -1}); ok(sum(t["lots"] for t in safe) == 1, safe)
+safe, sus, amb = Y.fills_guard([SS, dict(SS)], {"2330": -5}); ok(sum(t["lots"] for t in safe) == 1, safe)   # 都不是 → 照舊取少的
+safe, sus, amb = Y.fills_guard([SS, dict(SS)]); ok(sum(t["lots"] for t in safe) == 1, safe)
+# 13:20 因疑似重複少平 → 推手機;程式記的部位 = 照原樣 → 不推
+b = mk(); LOGS.clear(); b.guard_trades([SS, dict(SS)], "13:20"); ok(any("疑似重複成交而減少" in a for a in b.alerts), b.alerts)
+b = mk(); b.trader.positions = {"2330": {"qty": 2, "dir": -1}}; safe, amb = b.guard_trades([SS, dict(SS)], "13:20")
+ok(sum(t["lots"] for t in safe) == 2 and not any("減少" in a for a in b.alerts) and any("真的分筆成交" in x for x in LOGS), (b.alerts, LOGS[-3:]))
+b = mk(); b.guard_trades([SS, dict(SS)], "對帳"); ok(not any("減少" in a for a in b.alerts))   # 盤中對帳不推(收盤平倉才推)
+
+# A1 / A6:13:20 先照程式部位送平倉單,不等查詢;查詢有時間上限;確認掛單時不取消程式剛送的平倉單;沒登入 / 送不出去 → 之後每圈再做
+class T2(T):
+    def __init__(s):
+        T.__init__(s); s.fail_codes = set(); s.recheck_fail = set()
+    def close_now(s, at=None, codes=None):
+        s.calls.append(("close_now", None if codes is None else set(codes)))
+        want = {"2330", "2317"} if codes is None else set(codes)
+        f = want & s.fail_codes; return want - f, f
+    def recheck(s, trades, working=(), at=None):
+        s.calls.append(("recheck", list(trades), list(working), set(s.ignore))); s.recheck_fail = set()
+def mk2():
+    b = mk(); b.trader = T2(); b.logged_in.set(); return b
+b = mk2(); order = []; caps = []
+def q_slow(with_oco=True):
+    order.append("q"); caps.append(b.__dict__.get("_qcap")); return None
+b.query_today = q_slow; b.query_strategies = lambda types=(1, 2, 3, 4, 5): []
+b.prehang_pick = lambda at: (order.append("pick"), set())[1]
+_tc = b.trader.calls
+NOW[0] = dt.datetime(2026, 11, 23, 13, 20, 1, tzinfo=Y.TW)
+t0 = time.time(); r1 = b.close_all_step("13:20"); ok(r1 is False and time.time() - t0 < 5)
+ok([c[0] for c in _tc[:2]] == ["prep", "close_now"] and order[0] == "pick", (_tc, order))   # 平倉單在任何查詢之前
+ok(caps and all(c is not None and c <= 8 for c in caps), caps)   # 平倉路上的查詢最多等 8 秒
+ok(b._ca["fast"] == {"2330", "2317"} and b._ca["ph"] == "confirm")
+# 確認掛單:程式 13:20 之後送的平倉單(T1320…)、程式記著的平倉單不取消;手動 / 舊的取消
+ok(Y.Bridge._is_mine_close({"tag": "EwodrT132001002"}, "13:20") and Y.Bridge._is_mine_close({"tag": "R132005 2330"}, "13:20"))
+ok(not Y.Bridge._is_mine_close({"tag": "T131500001"}, "13:20") and not Y.Bridge._is_mine_close({"tag": ""}, "13:20") and Y.Bridge._is_mine_close({"tag": "T131500001"}, "13:20", {"T131500001"}))
+cancels = []
+b.cancel_order = lambda no, code, bs=None, typ=None: cancels.append(no)
+W = [{"no": "M1", "code": "2603", "bs": "S", "lots": 1, "typ": "0", "tag": ""}, {"no": "Z9", "code": "2330", "bs": "B", "lots": 1, "typ": "0", "tag": "EwodrT132001002"}]
+b.query_today = lambda with_oco=True: {"working": W, "trades": [], "tags": {}}
+b._ca["next"] = 0; _sl = Y.time.sleep; Y.time.sleep = lambda s_: None
+try:
+    ok(b.close_all_step("13:20") is False and cancels == ["M1"], cancels)
+    b.query_today = lambda with_oco=True: {"working": W[1:], "trades": [], "tags": {}}
+    b._ca["next"] = 0; ok(b.close_all_step("13:20") is True and b._ca["ph"] == "done")   # 只剩自己的平倉單 = 確認 → 複查 → 做完
+    rc = [c for c in _tc if c[0] == "recheck"][-1]; ok([w["no"] for w in rc[2]] == ["Z9"], rc[2])   # 自己的平倉單算「已掛著」,不重複下單
+    # A6:沒登入 → 什麼都不做、不算做完;登入後才送;送不出去的檔之後每圈重送,全部送出才算做完
+    b = mk2(); b.logged_in.clear(); b.trader.fail_codes = {"2317"}
+    b.query_today = lambda with_oco=True: {"working": [], "trades": [], "tags": {}}; b.query_strategies = lambda types=(1, 2, 3, 4, 5): []
+    b.prehang_pick = lambda at: set()
+    ok(b.close_all_step("13:20") is False and not b.trader.calls)
+    b.logged_in.set(); ok(b.close_all_step("13:20") is False and b._ca["fail"] == {"2317"} and any("送不出去" in a for a in b.alerts), b._ca)
+    n_ = 0
+    while b._ca["ph"] != "done" and n_ < 10:
+        b._ca["next"] = 0; n_ += 1
+        if n_ == 3: b.trader.fail_codes = set()
+        b.close_all_step("13:20")
+    ok(b._ca["ph"] == "done" and ("close_now", {"2317"}) in b.trader.calls, b.trader.calls)
+    ok(sum(1 for c in b.trader.calls if c[0] == "close_now" and c[1] is None) == 1)   # 第一次全部送,之後只重送失敗的
+    # 手動預掛到期:一次只確認一輪,還沒取消掉 → 回 False(主迴圈下一圈再做),確認後才複查
+    b = mk2(); b.trader.prehang = {"2603": ["P1"]}; b.trader.prehang_deadline = "13:25"; cancels = []
+    b.cancel_order = lambda no, code, bs=None, typ=None: cancels.append(no)
+    WP = [{"no": "P1", "code": "2603", "bs": "S", "lots": 1, "typ": "0", "tag": ""}]
+    b.query_today = lambda with_oco=True: {"working": WP, "trades": [], "tags": {}}
+    NOW[0] = dt.datetime(2026, 11, 23, 13, 25, 1, tzinfo=Y.TW)
+    ok(b.recheck_positions("13:25") is False and cancels == ["P1"] and not [c for c in b.trader.calls if c[0] == "recheck"])
+    b.query_today = lambda with_oco=True: {"working": [], "trades": [], "tags": {}}; b._phx["next"] = 0
+    ok(b.recheck_positions("13:25") is True and [c for c in b.trader.calls if c[0] == "recheck"])
+finally:
+    Y.time.sleep = _sl
+
+# A7:Worker 一直不收的那一分鐘試 3 次就丟,後面照推;前幾天的佇列換日清掉;佇列有上限
+b7 = mk(); Y.CFG["PUSH_KEY"] = "k"; Y.CFG["WORKER_URL"] = "http://127.0.0.1:9"; pushed = []
+def push7(d, m, bars, timeout=None):
+    pushed.append(m); return "perm" if m == "09:05" else True
+b7.push = push7
+for mm in ("09:05", "09:06", "09:07"): b7.push_async("2026-11-23", mm, {"2330": [1, 1, 1, 1, 1]})
+t_end = time.time() + 15
+while time.time() < t_end and len(b7._pq_st["ok"]) < 2:
+    b7._pq_st["next"] = 0; b7._pq_st["ev"].set(); time.sleep(0.1)
+ok(sorted(m for _, m in b7._pq_st["ok"]) == ["09:06", "09:07"] and pushed.count("09:05") == 3 and not b7._pq_st["pend"], (pushed, b7._pq_st))
+b7.push = lambda d, m, bars, timeout=None: False   # Worker 掛了:留在佇列
+for mm in ("13:00", "13:01"): b7.push_async("2026-11-20", mm, {"2330": [1, 1, 1, 1, 1]})
+b7.push_async("2026-11-23", "13:02", {"2330": [1, 1, 1, 1, 1]})
+NOW[0] = dt.datetime(2026, 11, 23, 8, 40, tzinfo=Y.TW); b7.day_reset()
+ok(set(b7._pq_st["pend"]) | ({b7._pq_st["busy"]} - {None}) == {("2026-11-23", "13:02")}, b7._pq_st["pend"])
+Y.CFG["PUSH_QMAX"] = "10"
+for i in range(15): b7.push_async("2026-11-23", f"10:{i:02d}", {"2330": [1, 1, 1, 1, 1]})
+ok(len(b7._pq_st["pend"]) <= 10 and ("2026-11-23", "10:14") in b7._pq_st["pend"], len(b7._pq_st["pend"]))
+for k_ in ("PUSH_QMAX", "PUSH_KEY", "WORKER_URL"): Y.CFG.pop(k_, None)
+
+# A4:即時成交回報的成交時間(不用委託時間)
+b = mk(); ok(b.rr_time(types.SimpleNamespace(TradeTime="09:45:10.123", OrderTime="09:30:00")) == "09:45:10.123")
+ok(b.rr_time(types.SimpleNamespace(OrderTime="09:30:00")) == "")
+Y.CFG["RR_TIME_FIELD"] = "MyTm"; ok(b.rr_time(types.SimpleNamespace(MyTm="101010")) == "101010"); Y.CFG.pop("RR_TIME_FIELD")
+
+# A9:雲端讀不到 → 等夠久 / 連續讀不到就用本機通知檔 prime
+class T9(T):
+    primed = False
+    def prime_local(s, items, why=""): s.calls.append(("prime_local", list(items))); s.primed = True; return True
+ED = TMP / "eng9"; ED.mkdir(); os.environ["ENGINE_DIR"] = str(ED)
+(ED / "live_2026-11-23.jsonl").write_text('{"_k": "a", "t": "09:20"}\n{"_k": "b", "t": "09:21"}\n', encoding="utf-8")
+b = mk(); b.trader = T9(); b._prime_t0 = time.time(); b._sf_bad = 0
+b.prime_local_maybe("2026-11-23"); ok(not b.trader.calls)                     # 還沒等夠、雲端也還沒明顯掛掉
+b._sf_bad = 5; b.prime_local_maybe("2026-11-23")
+ok(b.trader.calls and [x["_k"] for x in b.trader.calls[-1][1]] == ["a", "b"] and any("本機訊號" in a for a in b.alerts), b.trader.calls)
+b = mk(); b.trader = T9(); b._prime_t0 = time.time() - 200; b._sf_bad = 0; b.prime_local_maybe("2026-11-23"); ok(b.trader.calls)
+os.environ.pop("ENGINE_DIR", None)
 
 print(f"test_bridge 全部通過({N_OK[0]} 項)")

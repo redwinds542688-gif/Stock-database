@@ -1411,3 +1411,92 @@ _t10e.on_report(50, "A0001", 25, 0, 0, basket=_ioc10e)
 _t10e.on_report(51, "A0001", 0, 3000, 50.1, basket=_ioc10e, code="2603", bs="B"); _t10e.on_report(51, "A0001", 0, 3000, 50.1, basket=_ioc10e, code="2603", bs="B")
 ok(_t10e.positions["2603"]["pre_filled"] == 3000, _t10e.positions["2603"].get("pre_filled"))
 print("2026-11-21 全改(檢查 T7~T10)OK")
+
+# ── 2026-11-21 使用者「改 A」(A2 / A4 / A6 / A9)──
+# A2:同書號、同秒、同價、同量的兩筆(空 2 張分 1+1 成交),沒有成交序號 → 對帳不去重複,部位維持 2 張、不推「張數對不上」
+at(10, 0); _a2, _ = mk(TRADE_CAP="250000"); _a2.ref_of = lambda c: 50.0
+_k1(_a2, "2603", 50.0, "k1a2", 52.0, 49.0); _a2.on_report(51, "A0001", 0, 4000, 50.0)
+_R1 = {"code": "2603", "bs": "B", "lots": 2, "price": 50.0, "time": "2026/10/22 10:00:01", "order_no": "A0001"}
+_TRa2 = [_R1, dict(_R1)]
+_na2 = len(_a2.alerts); _a2.reconcile(_TRa2, []); _a2.reconcile(_TRa2, [])
+ok(_a2.positions["2603"]["qty"] == 4 and not any("張數對不上" in a for a in _a2.alerts[_na2:]), (_a2.positions["2603"]["qty"], _a2.alerts[_na2:]))
+# 有成交序號而且序號一樣 = 真的重複 → 去掉一筆(程式記 4、元大 2)
+_TRa2b = [dict(_R1, fill_id="9"), dict(_R1, fill_id="9")]
+_a2.reconcile(_TRa2b, []); _a2.reconcile(_TRa2b, []); ok(_a2.positions["2603"]["qty"] == 2, _a2.positions["2603"]["qty"])
+# 序號不同 = 兩筆都算
+ok(len(Trader.dedupe_trades([dict(_R1, fill_id="1"), dict(_R1, fill_id="2")])) == 2)
+
+# A4:對帳先接到手動限價單 MB 09:31 的 3 張;同一張單 09:45 同價又成交 2 張(新的成交)→ 不能被當成晚到的舊回報吞掉
+at(10, 0); _a4, _ = mk(TRADE_CAP="250000"); _a4.on_tick("1101", 40.5)
+_TRa4 = [{"code": "1101", "bs": "S", "lots": 3, "price": 40.0, "time": "2026/10/22 09:31:00", "order_no": "MB"}]
+_a4.reconcile(_TRa4, []); _a4.reconcile(_TRa4, []); ok(_a4.positions["1101"]["qty"] == 3)
+ok(not _a4.rc_skip("MB", 2, 40.0, "09:45:10"), "時間不同 = 新的成交")
+ok(_a4.rc_skip("MB", 3, 40.0, "093100"), "同一筆(格式不同)晚到 → 認得")
+_a4.reconcile(_TRa4, []); _a4.reconcile(_TRa4, [])
+_a4.on_other_fill("1101", "S", 2000, 40.0, "MB", tm="09:45:10")
+ok(_a4.positions["1101"]["qty"] == 5, (_a4.positions.get("1101", {}).get("qty"), logs[-5:]))
+# 回報沒有時間:對帳記下來 TRADE_RC_TTL_SEC(180 秒)內才算同一筆;過期 → 當新的成交
+at(10, 0); _a4b, _ = mk(TRADE_CAP="250000"); _a4b.on_tick("1101", 40.5)
+_a4b.reconcile(_TRa4, []); _a4b.reconcile(_TRa4, [])
+for _r in _a4b.rc_rows["MB"]: _r[3] -= 1000
+ok(not _a4b.rc_skip("MB", 2, 40.0), "過期了")
+for _r in _a4b.rc_rows["MB"]: _r[3] += 1000
+ok(_a4b.rc_skip("MB", 2, 40.0), "沒過期 → 同一筆")
+# 元大查詢把一筆拆成兩列(同秒同價各 1 張)、即時回報合成 2 張 → 加起來算同一筆
+at(10, 0); _a4c, _ = mk(TRADE_CAP="250000"); _a4c.on_tick("1101", 40.5)
+_TRa4c = [{"code": "1101", "bs": "S", "lots": 1, "price": 40.0, "time": "09:31:00.120", "order_no": "MC"}, {"code": "1101", "bs": "S", "lots": 1, "price": 40.0, "time": "09:31:00.120", "order_no": "MC"}]
+_a4c.reconcile(_TRa4c, []); _a4c.reconcile(_TRa4c, []); ok(_a4c.positions["1101"]["qty"] == 2, _a4c.positions["1101"]["qty"])
+ok(sum(r[0] for r in _a4c.rc_rows["MC"]) == 2, _a4c.rc_rows)   # 內容一樣的兩列各記一次
+ok(_a4c.rc_skip("MC", 2, 40.0, "2026/10/22 09:31:00") and not _a4c.rc_rows.get("MC"), _a4c.rc_rows)
+# 之後對帳看到同一張書號總張數變多 → 舊的「等晚到回報」紀錄拿掉
+at(10, 0); _a4d, _ = mk(TRADE_CAP="250000"); _a4d.on_tick("1101", 40.5)
+_a4d.reconcile(_TRa4, []); _a4d.reconcile(_TRa4, []); ok(_a4d.rc_rows.get("MB"))
+_a4d.rc_prune(_TRa4 + [{"code": "1101", "bs": "S", "lots": 1, "price": 40.0, "time": "09:50:00", "order_no": "MB"}]); ok(not _a4d.rc_rows.get("MB"), _a4d.rc_rows)
+_a4d.on_other_fill("1101", "S", 3000, 40.0, "MB"); ok(_a4d.positions["1101"]["qty"] == 6, _a4d.positions.get("1101"))
+
+# A6:送單失敗(元大沒登入)→ 部位退回持倉中(不卡在「平倉中、單還在送」),回傳失敗的檔;之後只重送那幾檔
+class GWF(GW):
+    bad = set()
+    def send(s, code, *a, **k):
+        if code in s.bad: raise ConnectionError("元大沒有登入")
+        return GW.send(s, code, *a, **k)
+at(10, 0); _a6, _g6 = mk(gw=GWF, TRADE_QTY="1")
+for _c6, _px6 in (("6269", 86.2), ("2317", 200.0)):
+    _a6.on_tick(_c6, _px6); _a6.step([ENTX(_c6, _px6, k="a6" + _c6)]); _a6.on_report(51, f"A{_g6.n:04d}", 0, 1000, _px6)
+ok(all(_a6.positions[c]["state"] == HOLDING for c in ("6269", "2317")), {c: p["state"] for c, p in _a6.positions.items()})
+at(13, 20); _a6.prepare_close_all(); _g6.bad = {"6269"}
+_s6, _f6 = _a6.close_now("13:20")
+ok(_s6 == {"2317"} and _f6 == {"6269"}, (_s6, _f6))
+ok(_a6.positions["6269"]["state"] == HOLDING and _a6.positions["6269"]["order"] is None and _a6.positions["2317"]["state"] == EXITING)
+_g6.bad = set(); _s6, _f6 = _a6.close_now("13:20", codes={"6269"}); ok(_s6 == {"6269"} and not _f6 and _a6.positions["6269"]["state"] == EXITING, (_s6, _f6))
+ok(sum(1 for x in _g6.sent if x[0] == "2317" and x[1] == "S") == 1, _g6.sent)   # 2317 沒有重送
+# recheck:手動部位兩檔,第一檔送單失敗 → 第二檔照送,失敗的記在 recheck_fail
+at(13, 20); _a6b, _g6b = mk(gw=GWF); _g6b.bad = {"1101"}
+_a6b.recheck([{"code": "1101", "bs": "B", "lots": 1, "price": 40.0, "time": "10:00", "order_no": "M1"}, {"code": "1102", "bs": "S", "lots": 1, "price": 30.0, "time": "10:00", "order_no": "M2"}], [], "13:20")
+ok(_a6b.recheck_fail == {"1101"} and any(x[0] == "1102" for x in _g6b.sent), (_a6b.recheck_fail, _g6b.sent))
+
+# A9:雲端讀不到 → 用本機通知 prime;之後雲端第一次讀到:本機 prime 那分鐘以前的進場通知不補,之後的照常
+at(9, 25); _a9, _g9x = mk(prime=False); ok(not _a9.primed)
+_old9 = ENTX("6269", 86.2, k="09:20:6269|old"); _old9["t"] = "09:20"
+ok(_a9.prime_local([_old9], "測試") and _a9.primed and "09:20:6269|old" in _a9.seen)
+_c1 = ENTX("2317", 200.0, k="09:10:2317|cloud"); _c1["t"] = "09:10"
+_c2 = ENTX("1101", 40.0, k="09:40:1101|cloud", kind="short"); _c2["t"] = "09:40"
+_m9 = _a9.merge_cloud([_old9, _c1, _c2]); ok([x["_k"] for x in _m9] == ["09:40:1101|cloud"] and "09:10:2317|cloud" in _a9.seen, _m9)
+at(9, 36); _l9 = ENTX("6269", 86.2, k="09:36:6269|loc"); _l9["t"] = "09:36"; _a9.on_tick("6269", 86.2); _a9.step([_l9])
+ok("6269" in _a9.positions and _g9x.sent, (_a9.positions, _g9x.sent))   # prime 之後本機的新訊號照常進場
+print("2026-11-21 改 A(A2 / A4 / A6 / A9)OK")
+# 2026-11-21 使用者「改 4」:雲端部位鍵「判一|…」和手機的「一|…」「一2|…」「十|…」兩種寫法都認;「改 1」心跳帶 caps
+_items4 = [{"t": "10:15", "kind": "loss", "title": "⚠⚠ 台玻 1802 停損", "body": "10:15 做空 09:32 進 59.80 → 現價 61.00 · 4張 · 判十", "pos": "十|1802|09:32"},
+           {"t": "10:20", "kind": "exit", "title": "緯創 3231 出場", "body": "10:20 做空 09:33 進 159.50 → 現價 158.00 · 1張 · 判一", "pos": "一2|3231|09:33"},
+           {"t": "10:25", "kind": "exit", "title": "長榮 2603 出場", "body": "10:25 做空 10:05 進 239.50 → 現價 236.00 · 1張 · 判四", "pos": "判四|2603|10:05"}]
+_ou4 = _eng.urllib.request.urlopen; _eng.urllib.request.urlopen = lambda *a, **k: _R(_js.dumps(_items4).encode())
+e7_ = _eng.Engine.__new__(_eng.Engine); e7_.dry = False; e7_.day = "d"; e7_.fclosed = set(); e7_.cloud_in = {}; e7_.cloud_out = set(); e7_.pos = {}
+for _a in ("j4", "j5", "j8", "j9", "j63", "j12"): setattr(e7_, _a, set())
+_cf4 = dict(_eng.CFG); _eng.CFG["WORKER_URL"] = "https://x"; _eng._CB["until"] = 0.0
+e7_.sync_cloud(); _eng.urllib.request.urlopen = _ou4; _eng.CFG.clear(); _eng.CFG.update(_cf4)
+ok(sorted(e7_.cloud_out) == [("一2", "3231", "09:33"), ("十", "1802", "09:32"), ("四", "2603", "10:05")], e7_.cloud_out)
+_sent4 = []; _oh4 = _eng.http; _eng.http = lambda url, data=None, **k: _sent4.append(data); _eng.CFG.update(PUSH_KEY="x", WORKER_URL="https://x")
+e7_.codes = ["2603"]; e7_.j4 = {"2603"}; e7_.j12 = {"3231"}; e7_.heartbeat(True, "10:30 3s 0 事件")
+_eng.http = _oh4; _eng.CFG.clear(); _eng.CFG.update(_cf4)
+ok(_sent4 and _sent4[0]["caps"]["四"] == ["2603"] and _sent4[0]["caps"]["一2"] == ["3231"], _sent4)
+print("部位鍵兩種寫法 / 心跳 caps OK")
