@@ -165,14 +165,24 @@ Register-ScheduledTask -TaskName '{t}' -Action $act -Trigger @($trg1, $trg2, $tr
     subprocess.run(["schtasks", "/Run", "/TN", t], capture_output=True)
 
 
+def name_ok(n):
+    """漏洞檢查 1(2026-11-21):名字會變成資料夾 C:\\Yuanta\\fam\\<名字>;擋「.」「..」、路徑符號、* 和 Windows 保留名"""
+    return bool(n) and len(n) <= 12 and not re.search(r'[\s|:/\\?#&<>"\'*]', n) and not re.fullmatch(r"\.+", n) and not n.endswith(".") \
+        and not re.fullmatch(r"(?i)(con|prn|aux|nul|com\d|lpt\d)(\..*)?", n)
+
+
 def add_partner(name, enc, key):
     import win_family as wf
+    if not name_ok(name): raise ValueError("名字不能用(不能是 . / .. / * 或電腦保留名)")
     info = json.loads(oaep_decrypt(key, enc).decode("utf-8"))
     acct = re.sub(r"[\s-]", "", str(info.get("acct", "")))
     acct = "S" + (acct[1:] if acct[:1] in ("S", "s") and len(acct) == 12 else acct)
     pwd = str(info.get("pass", ""))
     if not re.fullmatch(r"S[0-9A-Za-z]{11}", acct) or not pwd: raise ValueError("證券帳號或密碼格式不對")
     d = FAM / name
+    if d.resolve().parent != FAM.resolve(): raise ValueError("名字不能用(資料夾位置不對)")
+    t = f"YuantaBridge-{name}"   # 漏洞檢查 2:重送前先停掉舊的交易程式(不然新的開不起來,還會讀到舊的失敗紀錄)
+    subprocess.run(["schtasks", "/End", "/TN", t], capture_output=True)
     wf.copy_code(d)
     money = {k: dft for k, _, dft in wf.MONEY}   # 額度的底值;實際用雲端「夥伴加入」設的(夥伴交易程式每分鐘讀 ?acfg=get)
     wf.write_env(d, name, [f"YT_ACCOUNT={acct}", f"YT_PASS={pwd}"], money)
@@ -196,6 +206,9 @@ def login_state(name, since):
     if not f.exists(): return None, "", {}
     try: lines = f.read_text(encoding="utf-8", errors="ignore")[-40000:].splitlines()
     except Exception: return None, "", {}
+    # 漏洞檢查 2(2026-11-21):只看這次送出(since)以後的紀錄,早上那次失敗 / 成功不算
+    t0 = datetime.fromtimestamp(since - 5, TW).strftime("%m-%d %H:%M:%S") if since else ""
+    lines = [x for x in lines if not t0 or x[:14] >= t0]
     ok = None
     for line in lines:
         m = re.search(r"查詢回應 \[(\d+) ([^\]]*)\]", line)
@@ -222,6 +235,8 @@ def run():
         try:
             t = now_tw(); mkt = t.weekday() < 5 and "09:00" <= t.strftime("%H:%M") < "13:30"   # 2026-11-17 盤中不新增 / 不移除夥伴(13:30 後才處理)
             r = api("fam=jobs")
+            for wv in (r.get("watch", []) if isinstance(r, dict) else []):   # 漏洞檢查 3:重開後接著看還在「設定中」的夥伴
+                if wv.get("name") and wv["name"] not in watch: watch[wv["name"]] = {"t0": (wv.get("at") or 0) / 1000 or time.time()}
             for j in (r.get("jobs", []) if isinstance(r, dict) else []):
                 if mkt and j.get("op") != "add": continue   # 盤中只先做「新增」(使用者「暫時還是要允許盤中加入新夥伴 畢竟還是要測試」);移除等 13:30 後
                 n = j.get("name", "")
@@ -229,7 +244,7 @@ def run():
                     if j.get("op") == "add":
                         api("fam=status", {"name": n, "st": "pc", "msg": "電腦收到,建立中"})
                         add_partner(n, j.get("enc", ""), key)
-                        api("fam=status", {"name": n, "st": "pc", "msg": "電腦登入元大中", "chk": {"acct": "w", "cert": "w", "api": "w"}}); watch[n] = {"t0": time.time()}
+                        t0 = time.time(); api("fam=status", {"name": n, "st": "pc", "msg": "電腦登入元大中", "chk": {"acct": "w", "cert": "w", "api": "w"}, "since": int(t0 * 1000)}); watch[n] = {"t0": t0}
                     elif j.get("op") == "del":
                         del_partner(n); api("fam=status", {"name": n, "st": "gone"})
                 except Exception as e:

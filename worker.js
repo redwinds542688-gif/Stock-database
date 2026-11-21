@@ -880,6 +880,8 @@ function newKey(pre) {   // 2026-11-03 新鑰匙不會剛好含 5861(含 5861 = 
    只看得到自己帳號的部位 / 成交 / 輸贏(?acct=);現有的 owner 鑰匙(電腦版、兩支手機、平板)看得到全部人 */
 const FAM_PRE = "fa11";
 const isFamKey = k => String(k || "").startsWith(FAM_PRE);
+// 2026-11-21 漏洞檢查 1:夥伴名字會變成電腦資料夾 C:\Yuanta\fam\<名字> → 擋掉「.」「..」、* 和 Windows 保留名(CON、NUL、COM1…)、結尾是點
+const famNameOk = n => ACCT_RE.test(n || "") && !/^\.+$/.test(n) && !/[*.]$/.test(n) && !n.includes("*") && !/^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(n);
 const mktNow = () => { const t = twNow(), wd = t.getUTCDay(), m = t.getUTCHours() * 60 + t.getUTCMinutes(); return wd > 0 && wd < 6 && m >= 540 && m < 810; };   // 台股盤中 平日 09:00~13:29(夥伴設定 / 新增 / 移除 盤中不收)
 const ACCT_RE = /^[^\s|:\/\\?#&<>"']{1,12}$/;
 
@@ -1458,10 +1460,13 @@ export default {
       }
       if (famQ === "jobs" || famQ === "done" || famQ === "status") {
         if (!pushF) return J({ error: "要中繼金鑰" }, 403);
-        if (famQ === "jobs") { const L = await L0(), jobs = []; for (const n of Object.keys(L)) { const j = await hub.kvGet("famjob:" + n); if (j) jobs.push({ name: n, ...j }); } await hub.kvPut("famseen", Date.now()); return J({ ok: true, jobs }); }
+        if (famQ === "jobs") { const L = await L0(), jobs = []; for (const n of Object.keys(L)) { const j = await hub.kvGet("famjob:" + n); if (j) jobs.push({ name: n, ...j }); } await hub.kvPut("famseen", Date.now());
+          const watch = Object.entries(L).filter(([n, o]) => o.st === "pc").map(([n, o]) => ({ name: n, at: o.since || o.at || 0 }));   // 漏洞檢查 3:電腦夥伴服務重開 → 接著看還在「設定中」的夥伴
+          return J({ ok: true, jobs, watch }); }
         const b = await body(); const n = b && String(b.name || ""); if (!ACCT_RE.test(n || "")) return J({ error: "name 不對" }, 400);
         if (famQ === "done") { await hub.kvPut("famjob:" + n, null); return J({ ok: true }); }
-        const L = await L0(); const o = L[n] || {}; o.st = String(b.st || o.st || "").slice(0, 12); o.msg = String(b.msg || "").slice(0, 160); o.at = Date.now();
+        const L = await L0(); const o = L[n] || {}; const st0 = o.st; o.st = String(b.st || o.st || "").slice(0, 12); o.msg = String(b.msg || "").slice(0, 160); o.at = Date.now();
+        if (o.st === "pc" && b.since) o.since = +b.since || o.at; else if (o.st === "pc" && st0 !== "pc") o.since = o.at;
         if (b.chk && typeof b.chk === "object") { const c = {}; for (const k of ["acct", "cert", "api"]) if (["y", "n", "w"].includes(b.chk[k])) c[k] = b.chk[k]; o.chk = c; }   // 2026-11-18 電腦自動檢查:帳號密碼 / 憑證 / API
         if (o.st === "gone") { delete L[n]; await hub.kvPut("fams", L); return J({ ok: true }); }
         if (o.st === "run" && !o.key) {   // 登入成功 → 發看盤金鑰(和 ?keys=add {acct} 同一種)
@@ -1477,7 +1482,7 @@ export default {
         let seen = 0; try { seen = await hub.kvGet("famseen") || 0; } catch (e) {}
         return J({ ok: true, fams, agentAt: seen }); }
       if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
-      const b = await body(); const n = b && String(b.name || "").trim(); if (!ACCT_RE.test(n || "")) return J({ error: "名字最多 12 個字,不能有空白或符號" }, 400);
+      const b = await body(); const n = b && String(b.name || "").trim(); if (!famNameOk(n)) return J({ error: "名字最多 12 個字,不能有空白、符號,也不能是 . 或 CON 這類電腦保留名" }, 400);
       if (famQ === "del" && mktNow())   /* 2026-11-17 使用者「暫時還是要允許盤中加入新夥伴 畢竟還是要測試」:盤中新增暫時開放(只擋移除) */ return J({ error: famQ === "add" ? "盤中(09:00~13:30)不能新增夥伴,13:30 收盤後再新增" : "盤中(09:00~13:30)不能移除夥伴(他可能還有部位),13:30 收盤後再移除" }, 409);   // 2026-11-17「改 新增夥伴盤中也擋」
       if (famQ === "add") {
         if (typeof b.enc !== "string" || b.enc.length < 100 || b.enc.length > 4000) return J({ error: "加密資料不對" }, 400);

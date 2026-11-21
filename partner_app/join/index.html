@@ -228,7 +228,7 @@ function refreshTags(){ const p = P[S.cur]; if (!p || S.page !== "one") return; 
   t.m.forEach((k, i) => { const e = $("tgm" + i); if (e) e.innerHTML = stTag(k); }); [["tgon", t.on], ["tgj", t.j], ["tglot", t.lot]].forEach(([id, k]) => { const e = $(id); if (e) e.innerHTML = stTag(k); }); }
 const CH = p => { const c = p.chk || {}, b = v => v === "y" ? true : v === "n" ? false : "wait"; return [["雲端", p.ok.cloud, p.ok.cloudT], ["電腦", p.ok.pc, p.ok.pcT], ["元大", p.ok.yt, p.ok.ytT], ["憑證", b(c.cert || (p.st1 === "run" ? "y" : "")), ""], ["API 下單", b(c.api || (p.st1 === "run" ? "y" : "")), ""], ["看盤金鑰", !!p.k, ""]]; };
 const chips = p => CH(p).map(([t, ok]) => `<span class="ch ${ok === true ? "y" : ok === "wait" ? "w" : "n"}">${ok === true ? "✓" : ok === "wait" ? "⏳" : "✗"} ${t}</span>`).join("");
-const chCard = p => `<div class="card" id="chc"><b style="font-size:calc(var(--uf) * 1.2)">通道</b>${CH(p).map(([t, ok, d]) => `<div class="chl"><span class="ck2 ${ok === true ? "y" : ok === "wait" ? "w" : "n"}">${ok === true ? "✓" : ok === "wait" ? "⏳" : "✗"}</span><span><b>${t}</b><small>${d}</small></span></div>`).join("")}</div>`;
+const chCard = p => `<div class="card" id="chc"><b style="font-size:calc(var(--uf) * 1.2)">通道</b>${CH(p).map(([t, ok, d]) => `<div class="chl"><span class="ck2 ${ok === true ? "y" : ok === "wait" ? "w" : "n"}">${ok === true ? "✓" : ok === "wait" ? "⏳" : "✗"}</span><span><b>${t}</b><small>${esc(d)}</small></span></div>`).join("")}</div>`;   /* 漏洞檢查 4:元大訊息先過濾再顯示 */
 const stTag = k => k === "y" ? `<span class="tg2 y">✓ 已套用</span>` : k === "w" ? `<span class="tg2 w">⏳ 08:45 套用</span>` : k === "e" ? `<span class="tg2 e">✎ 還沒傳送</span>` : "";
 const esc = t => String(t || "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"})[c]);
 function vNew(){ return `
@@ -342,7 +342,7 @@ function render(){ const hb = $("hbk"); if (hb){ hb.hidden = !["new", "one", "wa
  main.innerHTML = S.page === "gate" ? vGate() : ({list: vList, new: vNew, wait: vWait, one: vOne})[S.page](); if (S.page === "one") lotTable(); lockUI(); if (S.page !== "one") main.scrollTop = 0; }
 /* 加密送到電腦:手機用電腦登記在雲端的公開鎖(RSA-OAEP / SHA-256)加密 {acct, pass},雲端解不開;電腦 fam_agent.py 用私鑰解 */
 async function sendNew(){ const e = $("nerr"), nm = ($("nm").value || "").trim(), ac = ($("ac").value || "").replace(/[\s-]/g, "").toUpperCase(), pw = $("pw").value || "";
-  if (!nm || /[\s|:\/\\?#&<>"']/.test(nm)) return e.textContent = "名字不能空白、不能有符號";
+  if (!nm || /[\s|:\/\\?#&<>"'*]/.test(nm) || /^\.+$/.test(nm) || /\.$/.test(nm) || /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(nm)) return e.textContent = "名字不能空白、不能有符號,也不能是 . 或 CON 這類電腦保留名";
   if (!/^S?[0-9A-Z]{11}$/.test(ac)) return e.textContent = "元大帳號要 11 碼(分公司 4 碼 + 帳號 7 碼)";
   if (!pw) return e.textContent = "請輸入元大密碼";
   const m = [...main.querySelectorAll(".wheel")].map(x => Math.round(+x.dataset.v * 10000));
