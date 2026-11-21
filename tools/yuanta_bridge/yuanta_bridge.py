@@ -1701,6 +1701,15 @@ class Bridge:
             if m in self.sent:
                 self.push(day, m, self.book.take(m))
 
+    def write_verdicts(self, day):
+        """2026-11-13 進場訊號的結果(有沒有進場)寫給電腦引擎,推雲端前標「未進場」(2026-11-21 抽出來:nap 裡處理的訊號也馬上寫,不等主迴圈)"""
+        try:
+            vs = self.trader.__dict__.pop("verdicts", None)
+            if vs and not FAMILY:   # 2026-11-15 家人帳號沒進場不代表主帳號沒進場,不寫
+                with open(Path(os.environ.get("ENGINE_DIR", HERE / "engine_data")) / f"verdict_{day}.jsonl", "a", encoding="utf-8") as f:
+                    for v in vs: f.write(json.dumps(v, ensure_ascii=False) + "\n")
+        except Exception as e: log("寫進場結果檔失敗", e)
+
     def nap(self, day, total=1.0):
         """2026-11-20 使用者「改1,4」:主迴圈每圈睡 1 秒 → 引擎的進場通知平均晚 0.5 秒才被讀到。
            改成睡的時候每 0.2 秒看 live_<日期>.jsonl 大小,變大了就馬上讀、交給 trader(主執行緒,和主迴圈同一條路);主迴圈其他每 N 秒的工作節奏不變"""
@@ -1716,27 +1725,33 @@ class Bridge:
                 st = getattr(self, "_loc", None)
                 if not st or st.get("day") != day or not f.exists() or f.stat().st_size == st.get("off"): continue
                 loc = self.local_signals(day)
-                if loc: self.trader.step(loc)
+                if loc: self.trader.step(loc); self.write_verdicts(day)
             except Exception as e:
-                if time.time() - getattr(self, "_nap_err", 0) > 300: self._nap_err = time.time(); log("[交易] !! 本機通知快讀出錯(下一圈照常讀)", e)
+                log("[交易] !! 本機通知快讀出錯(下一圈照常讀)", e)
+                if time.time() - getattr(self, "_step_err", 0) > 300:   # 2026-11-21 使用者「改 3」:和主迴圈 trader.step 出錯一樣推手機(5 分鐘一次)
+                    self._step_err = time.time()
+                    try: self.phone_alert("⚠ 電腦交易程式出錯", f"{e!r}"[:150] + ";程式照樣繼續跑,請看電腦紀錄")
+                    except Exception: pass
 
     def local_signals(self, day):
         """2026-10-30 讀電腦引擎寫的本機通知檔 engine_data/live_<日期>.jsonl 新增的行(開工時從檔尾開始,之前的當舊的;換日換檔)"""
         f = Path(os.environ.get("ENGINE_DIR", HERE / "engine_data")) / f"live_{day}.jsonl"
         st = getattr(self, "_loc", None)
         if not st or st["day"] != day:
-            st = self._loc = {"day": day, "off": f.stat().st_size if f.exists() else 0, "buf": ""}
+            st = self._loc = {"day": day, "off": f.stat().st_size if f.exists() else 0, "buf": b""}
         try:
             if not f.exists(): return []
             sz = f.stat().st_size
             if sz < st["off"]: st["off"] = 0
             if sz == st["off"]: return []
             with open(f, "rb") as fh: fh.seek(st["off"]); raw = fh.read()
-            st["off"] += len(raw); txt = st["buf"] + raw.decode("utf-8", "ignore"); lines = txt.split("\n"); st["buf"] = lines.pop()
+            # 2026-11-21 使用者「改 3」:沒讀完的那一行留「位元組」,不先解碼(原本切在中文字中間會被 ignore 丟掉,那則 JSON 解析失敗就漏了)
+            st["off"] += len(raw); lines = (st["buf"] + raw).split(b"\n"); st["buf"] = lines.pop()
             out = []
             for ln in lines:
-                try: out.append(json.loads(ln))
-                except Exception: pass
+                try: out.append(json.loads(ln.decode("utf-8")))
+                except Exception as e:
+                    if ln.strip(): log("本機通知有一行讀不懂(雲端那份會補)", repr(e)[:80], ln[:120])
             if out: log(f"[公式] 本機通知 {len(out)} 則:" + " / ".join(x.get("title", "") for x in out))
             return out
         except Exception as e:
@@ -1821,12 +1836,7 @@ class Bridge:
                 except Exception as e:
                     log("[交易] !! trader.step 出錯", e)
                     if time.time() - getattr(self, "_step_err", 0) > 300: self._step_err = time.time(); self.phone_alert("⚠ 電腦交易程式出錯", f"{e!r}"[:150] + ";程式照樣繼續跑,請看電腦紀錄")
-                try:
-                    vs = self.trader.__dict__.pop("verdicts", None)   # 2026-11-13 進場訊號的結果(有沒有進場)寫給電腦引擎,推雲端前標「未進場」
-                    if vs and not FAMILY:   # 2026-11-15 家人帳號沒進場不代表主帳號沒進場,不寫
-                        with open(Path(os.environ.get("ENGINE_DIR", HERE / "engine_data")) / f"verdict_{day}.jsonl", "a", encoding="utf-8") as f:
-                            for v in vs: f.write(json.dumps(v, ensure_ascii=False) + "\n")
-                except Exception as e: log("寫進場結果檔失敗", e)
+                self.write_verdicts(day)
                 _tw = time.gmtime(time.time() + 8 * 3600)   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:盤中重開 / 開盤前沒讀到 → 盤中也每分鐘讀,讀到為止(主導機盤中禁改,讀到一次就好)
                 if k % 60 == 1 and (time.strftime("%H:%M", _tw) < "09:00" or getattr(self, "cap_ok_day", "") != time.strftime("%Y-%m-%d", _tw)): threading.Thread(target=self.cap_sync, daemon=True).start()   # 2026-11-07 19:32「開盤中不用追蹤主導機設定」09:03 → 09:00 前;2026-11-02 跟 5861 主導機的多空上限:開盤前每分鐘讀,盤中設定禁改 → 09:03 後不讀
                 # 自動當沖夥伴版 §6.1:主導$ 的夥伴設定 —— 2026-11-17 使用者「盤中修改設定 電腦與雲端不可以接受 … 只需要在盤前8.45檢查一次 即可」→「改」:

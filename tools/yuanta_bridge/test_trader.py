@@ -1205,25 +1205,32 @@ import ast as _ast_t
 _u = _eng._ss_uses(_ast_t.parse("P = {'a': 1}\nQ = [1]\nR = 2\ndef f():\n    P = []\n    P.append(1)\n    return Q\ng = lambda: globals()['R']\n"))
 ok(_u["P"] == {0} and -1 in _u["Q"] and -1 in _u["R"], _u)
 print("名單資料共用判斷 OK")
-# 2026-11-21 使用者「B」:寬度最新分鐘是電腦補的 → 看寬度的判別式新進場先等雲端,雲端補齊只重算那幾筆
+# 2026-11-21 使用者「改 2b」:開算前等雲端寬度有 hm-1;背景那次沒有 → 換 since 再問;雲端斷線 / 收盤前不等
 import time as _tt
-_eng._BR_FILLED.clear(); _eng._BR_FILLED.update({"10:05", "10:06"}); _eng._BR_LAST.update(d="d", br={"10:04": 0.5}, av={"10:04": 0.1}, at=_tt.time())
-ok(_eng.br_wait_on("10:07") == "10:05")
-_eng._BR_LAST["at"] = _tt.time() - 300; ok(_eng.br_wait_on("10:07") == "")   # 雲端很久沒抓到(斷線)→ 不等,照電腦算的
-_eng._BR_LAST["at"] = _tt.time(); _eng._BR_FILLED.clear(); _eng._BR_FILLED.add("09:50"); ok(_eng.br_wait_on("10:07") == "")   # 很久以前的缺口不算
-_eng._BR_FILLED.clear(); _eng._BR_FILLED.update({"10:05", "10:06"})
-_calls = {"since": 0}
+_orig = (_eng.breadth_since, _eng._msec, _eng.cloud_up); _eng._msec = lambda: 3.0; _eng.cloud_up = lambda: True
+_calls = []
 def _bs(day, since):
-    _calls["since"] += 1
-    if _calls["since"] >= 2: _eng._BR_LAST["br"].update({"10:05": 0.4, "10:06": 0.4}); _eng._BR_LAST["av"].update({"10:05": 0.0, "10:06": 0.0})
+    _calls.append(since)
+    if len(_calls) >= 2: _eng._BR_LAST["br"]["10:06"] = 0.4
     return True
-_ba = []; _orig = (_eng.breadth_since, _eng.breadth_apply, _eng._msec)
-_eng.breadth_since = _bs; _eng.breadth_apply = lambda d, br, av: _ba.append(sorted(br)) or (True, len(br), max(br)); _eng._msec = lambda: 10.0
-e4_ = _eng.Engine.__new__(_eng.Engine); e4_.sent = []; e4_.br_wait = {("二", "2330")}
-_got = {}
-e4_.compute = lambda only=None, stream=False: (_got.setdefault("only", only), ([("2330", "二", "", "")], 0.1, 1))[1]
-e4_.apply = lambda res, hm, **kw: _got.setdefault("apply", (len(res), hm, kw.get("allow_phantom")))
-e4_.br_recheck("d", "10:07", {})
-ok(_got.get("only") == {("二", "2330")} and _got.get("apply") == (1, "10:07", False) and _ba and "10:06" in _ba[-1], (_got, _ba))
-_eng.breadth_since, _eng.breadth_apply, _eng._msec = _orig; _eng._BR_FILLED.clear()
-print("寬度電腦補 → 等雲端再發 OK")
+_eng.breadth_since = _bs; _eng._BR_LAST.update(d="d", br={"10:05": 0.5}, av={}, at=_tt.time())
+ok(_eng.breadth_wait("d", "10:07", "10:06", None, True) is True and _calls == ["10:06", "10:05"], _calls)   # 每次換沒用過的 since
+_calls.clear(); _eng._BR_LAST["br"].pop("10:06")
+ok(_eng.breadth_wait("d", "10:07", "10:06", None, False) is False and not _calls)   # 雲端這輪抓不到(斷線)→ 不等
+_eng.breadth_since = lambda d, s: True; _t0 = _tt.time(); _eng.CFG["ENGINE_BR_MAXWAIT"] = "1"
+ok(_eng.breadth_wait("d", "10:07", "10:06", None, True) is False and _tt.time() - _t0 < 2)   # 等不到 → 最多 ENGINE_BR_MAXWAIT 秒
+_eng.CFG.pop("ENGINE_BR_MAXWAIT"); _eng.breadth_since, _eng._msec, _eng.cloud_up = _orig
+print("寬度開算前等雲端(2b)OK")
+# 2026-11-21 使用者「改 1」:判一急彈空(一2)的平倉從雲端讀回來要記成 一2
+class _R:
+    def __init__(s, b): s.b = b
+    def read(s): return s.b
+_items = [{"t": "09:33", "kind": "short", "title": "緯創 3231 做空進場 159.50", "body": "09:32 空 · 停利 149.93 停損 162.69 · 1張 · 急彈空 寬度 3分 +0.057 / 30分 -0.384 量比 0.46 · 判一"},
+          {"t": "10:15", "kind": "loss", "title": "⚠⚠ 緯創 3231 停損 -2.0% 立即平倉", "body": "10:15 做空 09:32 進 159.50 → 現價 162.70 · 1張 · 判一", "pos": "判一|3231|09:32"}]
+_ou = _eng.urllib.request.urlopen; _eng.urllib.request.urlopen = lambda *a, **k: _R(_js.dumps(_items).encode())
+e5_ = _eng.Engine.__new__(_eng.Engine); e5_.dry = False; e5_.day = "d"; e5_.fclosed = set(); e5_.cloud_in = {}; e5_.cloud_out = set(); e5_.pos = {}
+for _a in ("j4", "j5", "j8", "j9", "j63", "j12"): setattr(e5_, _a, set())
+_cf = dict(_eng.CFG); _eng.CFG["WORKER_URL"] = "https://x"; _eng._CB["until"] = 0.0
+e5_.sync_cloud(); _eng.urllib.request.urlopen = _ou; _eng.CFG.clear(); _eng.CFG.update(_cf)
+ok(("一2", "3231", "09:32") in e5_.cloud_out and ("一2", "3231", "09:32") in e5_.cloud_in and "3231" in e5_.j12, (e5_.cloud_out, list(e5_.cloud_in)))
+print("判一急彈空平倉對帳 OK")

@@ -449,19 +449,27 @@ def breadth_apply(day, br, av):
     return False, 0, ""
 
 def breadth_since(day, since):
-    """2026-11-21 使用者「B」:只抓 since 之後幾分鐘的雲端寬度(Worker 邊緣快取 50 秒是照 since 分開存的,換 since 才拿得到新的),併進 _BR_LAST"""
+    """2026-11-21:只抓 since 之後幾分鐘的雲端寬度(Worker 邊緣快取 50 秒是照 since 分開存的,換沒用過的 since 才拿得到新的),併進 _BR_LAST"""
     j = http(worker_url(f"breadth={day}&since={since}"), timeout=10)
     if not isinstance(j, dict) or _BR_LAST.get("d") != day: return False
     if j.get("br"): _BR_LAST["br"] = {**_BR_LAST["br"], **j["br"]}
     if j.get("av"): _BR_LAST["av"] = {**_BR_LAST["av"], **j["av"]}
     return True
 
-def br_wait_on(hm):
-    """看寬度 / 名單平均的判別式,這筆新進場要不要先等雲端:最新幾分鐘(hm-3 以後)有電腦補的、而且雲端是好的(2 分鐘內抓到過、沒斷線)。
-       雲端斷線 / 很久沒抓到 → 不等,照電腦算的(和以前一樣,雲端掛了照樣能交易)"""
-    if not _BR_FILLED or not cloud_up() or time.time() - float(_BR_LAST.get("at") or 0) > 120: return ""
-    rec = sorted(x for x in _BR_FILLED if x >= hm_add(hm, -3))
-    return rec[0] if rec else ""
+def breadth_wait(day, hm, want, th, cloud_ok):
+    """2026-11-21 使用者「改 2b」:雲端正常時等雲端寬度有 want(hm-1)這分鐘;最多 ENGINE_BR_MAXWAIT(4)秒、不超過這分鐘第 15 秒。
+       背景那次(th)還在跑就先等它;回來了還沒有 → 換沒用過的 since(hm-1、hm-2…)再問,避開 Worker 50 秒邊緣快取。回傳 True = 雲端有這分鐘了"""
+    have = lambda: _BR_LAST.get("d") == day and want in (_BR_LAST.get("br") or {})
+    if have() or not cloud_ok or not cloud_up() or hm >= "13:26": return have()
+    t_end = min(time.time() + _f(CFG.get("ENGINE_BR_MAXWAIT"), 4), time.time() + max(0.0, 15 - _msec())); k = 0
+    while time.time() < t_end and not have():
+        if th is not None and th.is_alive(): th.join(min(0.3, max(0.0, t_end - time.time()))); continue
+        k += 1
+        if k > 15: break
+        try: breadth_since(day, hm_add(hm, -k))
+        except Exception as e: log("寬度等雲端:抓不到", repr(e)[:100]); break
+        if not have(): time.sleep(min(0.4, max(0.0, t_end - time.time())))
+    return have()
 
 def breadth_cached(day):
     """雲端這輪還沒回 / 抓不到:用上一次抓到的雲端寬度 + 新的分鐘電腦自己補(和雲端慢 1~2 分鐘時本來的做法一樣);今天還沒抓到過 = 全部電腦自己算"""
@@ -1336,6 +1344,9 @@ class Engine:
             elif it.get("pos"):
                 p = str(it["pos"]).split("|")
                 if len(p) == 3 and p[0] in RS_OF: self.cloud_out.add((rs if rs in ("六3", "一2") else RS_OF[p[0]], p[1], p[2]))   # B:判六做空的平倉記成 六3
+        # 2026-11-21 使用者「改 1」(檢查抓到):判一急彈空(一2)的平倉內容沒有「急彈空」,上面會記成 判一(一)→ 同一檔同一進場時間是 一2 的進場(雲端或本機部位)就也記成 一2
+        for (r_, c_, t_) in [x for x in self.cloud_out if x[0] == "一"]:
+            if ("一2", c_, t_) in self.cloud_in or (self.pos.get(("一2", c_)) or {}).get("t") == t_: self.cloud_out.add(("一2", c_, t_))
         return True
 
     def push_exit(self, rs, code, p, tm, ex, why, at, phantom=False):
@@ -1547,32 +1558,6 @@ class Engine:
         t0 = time.time(); res = self.pool.map(_sim_one, jobs, chunksize=4) if jobs else []
         return res, time.time() - t0, len(jobs)
 
-    def br_recheck(self, day, hm, rs_block):
-        """2026-11-21 使用者「B」:這輪有看寬度的新進場因為「最新寬度是電腦補的」先不發 → 最多 ENGINE_BR_RECHECK(15)秒(不超過這分鐘第 50 秒)
-           每秒換 since 問雲端;雲端補齊那幾分鐘 → 寫回寬度檔(全用雲端的)、只重算這幾筆、照常對帳發通知。等不到就下一輪(下一輪那幾分鐘雲端應該有了)"""
-        wait = self.__dict__.pop("br_wait", set())
-        if not wait: return
-        need = br_wait_on(hm)
-        if not need: return
-        t_end = min(time.time() + _f(CFG.get("ENGINE_BR_RECHECK"), 15), time.time() + max(0.0, 50 - _msec()))
-        k = 0
-        while time.time() < t_end:
-            k += 1
-            try: breadth_since(day, hm_add(hm, -1 - (k % 4)))
-            except Exception as e: log("寬度等雲端:抓不到", repr(e)[:100]); time.sleep(1); continue
-            have = set(_BR_LAST.get("br") or {}) & set(_BR_LAST.get("av") or {}) if _BR_LAST.get("av") else set(_BR_LAST.get("br") or {})
-            miss = [x for x in sorted(_BR_FILLED) if x >= need and x not in have]
-            if not miss: break
-            time.sleep(1)
-        else:
-            log(f"寬度等雲端:{hm} 這輪等不到雲端 {need} 起的寬度,{len(wait)} 筆下一輪再判 {sorted(JUDGE[r] + c for r, c in wait)}"); self.br_wait = set(); return
-        breadth_apply(day, dict(_BR_LAST.get("br") or {}), dict(_BR_LAST.get("av") or {}))
-        res_, dtm_, nj_ = self.compute(only=wait)
-        nb = len(self.sent)
-        self.apply(list(self.order12(res_, hm)), hm, allow_new=True, allow_phantom=False, rs_block=rs_block)
-        self.br_wait = set()
-        log(f"寬度等雲端:{hm} 雲端補齊 → 重算 {len(wait)} 筆,推出 {len(self.sent) - nb} 則(整分後 {_msec():.1f} 秒)")
-
     def order12(self, it, upto):
         """2026-11-21 判一急彈空(一2):同一輪會新進場的判一急彈空先留著,這輪其他結果交回完後,照(進場那根、量比大的先)交回(一天 5 檔名額給量比大的)"""
         buf = []
@@ -1734,8 +1719,6 @@ class Engine:
             self.emitted.add(ek); log(f"判六 {code} {open_tm} 這檔判六另一個方向的部位還開著 → 不發"); return n
         elif _f(self.envs.get(rs, {}).get("PXMIN"), 0) > 0 and float(d.get("px") or 0) < _f(self.envs.get(rs, {}).get("PXMIN"), 0) - 1e-9:   # 2026-11-17 10:45 模擬器 PXMIN 在 close_trade 才擋(引擎看進場那行就發)→ 引擎自己擋(判四 70、判五 15;11/17 國喬 11.60 判五漏擋)
             self.emitted.add(ek); log(f"{JUDGE[rs]} {code} {open_tm} 進場價 {float(d.get('px') or 0):.2f} 低於 {self.envs[rs]['PXMIN']} 元 → 不發"); return n
-        elif rs in getattr(self, "br_rs", ()) and br_wait_on(upto) and open_tm >= br_wait_on(upto):   # 2026-11-21 使用者「B」:進場那根以後的寬度有電腦補的 → 先不發(不記 emitted),等雲端這幾分鐘回來只重算這筆
-            why = f"寬度 {br_wait_on(upto)} 起是電腦補的,等雲端"; self.__dict__.setdefault("br_wait", set()).add((rs, code))
         elif getattr(self, "pre_mode", False) and self.pre_wait(rs, code, open_tm, d["side"]):   # 2026-11-18 16:43 使用者「定穎 改緩衝那個」:預判收盤確認時台指期這根還沒收、或台指期條件離門檻太近 → 先不發(不記 emitted),等整輪用收完的 K 再判
             why = self.pre_wait(rs, code, open_tm, d["side"])
         elif not self.tx_ok(rs, code, open_tm, d["side"]):   # 2026-11-13 22:30 ⑧ 台指期同步進場(23:32 改只看方向):台指期 60 分鐘往不利方向 → 這筆不做(記 emitted,不再發)
@@ -2122,12 +2105,12 @@ def live():
                 except Exception as e: log("昨收對照失敗", repr(e))
                 # 寬度每分鐘(稽核 #1)
                 # 2026-11-21 使用者「改」(3 寬度先用電腦算的):K 到齊後最多再等雲端寬度 ENGINE_BR_WAIT(0.5)秒;還沒回 → 先用上一次的雲端 + 新的分鐘電腦補(原本最多等 35 秒)
+                # 2026-11-21 使用者「改 2b」(取代「B 先擋、再等雲端」):雲端正常時,開算前等雲端寬度有 hm-1 這一分鐘,最多 ENGINE_BR_MAXWAIT(4)秒、不超過這分鐘第 15 秒
+                #   (背景那次沒有 → 換沒用過的 since 再問,避開 Worker 50 秒邊緣快取);全部判別式一起等,順序不變、不用事後重算。等不到 / 雲端斷線 → 新的分鐘電腦補(心跳旗標「寬度先補」)
                 _tm["整理K"] = _msec(); _ths[0].join(max(0.0, _f(CFG.get("ENGINE_BR_WAIT"), 0.5)))
                 try:
-                    if "j" in _bg: ok, nbr, blast = breadth_apply(day, _bg["j"].get("br") or {}, _bg["j"].get("av") or {})
-                    else:
-                        if "err" not in _bg: flags.append("寬度先補")
-                        ok, nbr, blast = breadth_cached(day)
+                    if not breadth_wait(day, hm, want, _ths[0], "err" not in _bg) and "err" not in _bg: flags.append("寬度先補")
+                    ok, nbr, blast = breadth_cached(day)   # 雲端拿到的(含這輪問到的)+ 雲端還沒有的分鐘電腦補
                 except Exception as e: ok, nbr, blast = False, 0, ""; log("寬度寫檔失敗", repr(e))
                 _tm["寬度"] = _msec()
                 if ok: br.update(ok_at=time.time(), last=blast)
@@ -2152,8 +2135,6 @@ def live():
                     ok = ok0 and not (njobs and errs / njobs > err_max)
                     n_ev += eng.apply_one(r, hm, cutoff, ok, ok, rs_block)
                 eng.save(); dtm = time.time() - t0c
-                try: eng.br_recheck(day, hm, rs_block)   # 2026-11-21 使用者「B」
-                except Exception as e: log("寬度等雲端重算出錯", repr(e))
                 eng.rounds.append(round(dtm, 1))
                 try: eng.drag_check(bars, hm)   # 2026-11-07 可能拖輸提示(中級)
                 except Exception as e: log("可能拖輸檢查出錯", repr(e))
