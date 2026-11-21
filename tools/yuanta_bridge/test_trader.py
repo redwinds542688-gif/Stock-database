@@ -1205,25 +1205,209 @@ import ast as _ast_t
 _u = _eng._ss_uses(_ast_t.parse("P = {'a': 1}\nQ = [1]\nR = 2\ndef f():\n    P = []\n    P.append(1)\n    return Q\ng = lambda: globals()['R']\n"))
 ok(_u["P"] == {0} and -1 in _u["Q"] and -1 in _u["R"], _u)
 print("名單資料共用判斷 OK")
-# 2026-11-21 使用者「B」:寬度最新分鐘是電腦補的 → 看寬度的判別式新進場先等雲端,雲端補齊只重算那幾筆
+# 2026-11-21 使用者「改 2b」:開算前等雲端寬度有 hm-1;背景那次沒有 → 換 since 再問;雲端斷線 / 收盤前不等
 import time as _tt
-_eng._BR_FILLED.clear(); _eng._BR_FILLED.update({"10:05", "10:06"}); _eng._BR_LAST.update(d="d", br={"10:04": 0.5}, av={"10:04": 0.1}, at=_tt.time())
-ok(_eng.br_wait_on("10:07") == "10:05")
-_eng._BR_LAST["at"] = _tt.time() - 300; ok(_eng.br_wait_on("10:07") == "")   # 雲端很久沒抓到(斷線)→ 不等,照電腦算的
-_eng._BR_LAST["at"] = _tt.time(); _eng._BR_FILLED.clear(); _eng._BR_FILLED.add("09:50"); ok(_eng.br_wait_on("10:07") == "")   # 很久以前的缺口不算
-_eng._BR_FILLED.clear(); _eng._BR_FILLED.update({"10:05", "10:06"})
-_calls = {"since": 0}
-def _bs(day, since):
-    _calls["since"] += 1
-    if _calls["since"] >= 2: _eng._BR_LAST["br"].update({"10:05": 0.4, "10:06": 0.4}); _eng._BR_LAST["av"].update({"10:05": 0.0, "10:06": 0.0})
+_orig = (_eng.breadth_since, _eng._msec, _eng.cloud_up); _eng._msec = lambda: 3.0; _eng.cloud_up = lambda: True
+_calls = []
+def _bs(day, since, timeout=10):
+    _calls.append(since)
+    if len(_calls) >= 2: _eng._BR_LAST["br"]["10:06"] = 0.4
     return True
-_ba = []; _orig = (_eng.breadth_since, _eng.breadth_apply, _eng._msec)
-_eng.breadth_since = _bs; _eng.breadth_apply = lambda d, br, av: _ba.append(sorted(br)) or (True, len(br), max(br)); _eng._msec = lambda: 10.0
-e4_ = _eng.Engine.__new__(_eng.Engine); e4_.sent = []; e4_.br_wait = {("二", "2330")}
-_got = {}
-e4_.compute = lambda only=None, stream=False: (_got.setdefault("only", only), ([("2330", "二", "", "")], 0.1, 1))[1]
-e4_.apply = lambda res, hm, **kw: _got.setdefault("apply", (len(res), hm, kw.get("allow_phantom")))
-e4_.br_recheck("d", "10:07", {})
-ok(_got.get("only") == {("二", "2330")} and _got.get("apply") == (1, "10:07", False) and _ba and "10:06" in _ba[-1], (_got, _ba))
-_eng.breadth_since, _eng.breadth_apply, _eng._msec = _orig; _eng._BR_FILLED.clear()
-print("寬度電腦補 → 等雲端再發 OK")
+_eng.breadth_since = _bs; _eng._BR_LAST.update(d="d", br={"10:05": 0.5}, av={}, at=_tt.time())
+ok(_eng.breadth_wait("d", "10:07", "10:06", None, True) is True and _calls == ["10:06", "10:05"], _calls)   # 每次換沒用過的 since
+_calls.clear(); _eng._BR_LAST["br"].pop("10:06")
+ok(_eng.breadth_wait("d", "10:07", "10:06", None, False) is False and not _calls)   # 雲端這輪抓不到(斷線)→ 不等
+_eng.breadth_since = lambda d, s, timeout=10: True; _t0 = _tt.time(); _eng.CFG["ENGINE_BR_MAXWAIT"] = "1"
+ok(_eng.breadth_wait("d", "10:07", "10:06", None, True) is False and _tt.time() - _t0 < 2)   # 等不到 → 最多 ENGINE_BR_MAXWAIT 秒
+_eng.CFG.pop("ENGINE_BR_MAXWAIT"); _eng.breadth_since, _eng._msec, _eng.cloud_up = _orig
+print("寬度開算前等雲端(2b)OK")
+# 2026-11-21 使用者「改 1」:判一急彈空(一2)的平倉從雲端讀回來要記成 一2
+class _R:
+    def __init__(s, b): s.b = b
+    def read(s): return s.b
+_items = [{"t": "09:33", "kind": "short", "title": "緯創 3231 做空進場 159.50", "body": "09:32 空 · 停利 149.93 停損 162.69 · 1張 · 急彈空 寬度 3分 +0.057 / 30分 -0.384 量比 0.46 · 判一"},
+          {"t": "10:15", "kind": "loss", "title": "⚠⚠ 緯創 3231 停損 -2.0% 立即平倉", "body": "10:15 做空 09:32 進 159.50 → 現價 162.70 · 1張 · 判一", "pos": "判一|3231|09:32"}]
+_ou = _eng.urllib.request.urlopen; _eng.urllib.request.urlopen = lambda *a, **k: _R(_js.dumps(_items).encode())
+e5_ = _eng.Engine.__new__(_eng.Engine); e5_.dry = False; e5_.day = "d"; e5_.fclosed = set(); e5_.cloud_in = {}; e5_.cloud_out = set(); e5_.pos = {}
+for _a in ("j4", "j5", "j8", "j9", "j63", "j12"): setattr(e5_, _a, set())
+_cf = dict(_eng.CFG); _eng.CFG["WORKER_URL"] = "https://x"; _eng._CB["until"] = 0.0
+e5_.sync_cloud(); _eng.urllib.request.urlopen = _ou; _eng.CFG.clear(); _eng.CFG.update(_cf)
+ok(("一2", "3231", "09:32") in e5_.cloud_out and ("一2", "3231", "09:32") in e5_.cloud_in and "3231" in e5_.j12, (e5_.cloud_out, list(e5_.cloud_in)))
+print("判一急彈空平倉對帳 OK")
+# ═══ 2026-11-21 使用者「全改」:trader.py 檢查修正(S3 / T2~T6 / 輕 a b c)的回歸測試(這一段自己獨立,不靠上面的變數)═══
+from decimal import Decimal as _D
+def _grid():   # 台股升降單位的合法價格表(1 ~ 1500 元)
+    out, v = [], _D("1.00")
+    while v < _D("1500"):
+        out.append(v); v += _D("0.01") if v < 10 else _D("0.05") if v < 50 else _D("0.1") if v < 100 else _D("0.5") if v < 500 else _D("1") if v < 1000 else _D("5")
+    return out
+_G = _grid(); _GI = {v: i for i, v in enumerate(_G)}
+# 輕 b:shift 跨升降單位邊界不能算出不合法的價格(原 shift(49.9, 3) → 50.05、shift(99.8, 3) → 100.1)
+ok(shift(49.9, 3) == 50.1 and shift(99.8, 3) == 100.5, (shift(49.9, 3), shift(99.8, 3)))
+for _a, _k, _b in ((9.99, 1, 10.0), (10.0, -1, 9.99), (49.95, 1, 50.0), (50.0, -1, 49.95), (99.9, 1, 100.0), (100.0, -1, 99.9), (100.0, 1, 100.5),
+                   (499.5, 1, 500.0), (500.0, -1, 499.5), (500.0, 1, 501.0), (999.0, 1, 1000.0), (1000.0, -1, 999.0), (1000.0, 1, 1005.0), (1005.0, -2, 999.0)):
+    ok(shift(_a, _k) == _b, (_a, _k, shift(_a, _k), _b))
+_bad = [(str(v), k) for v in _G for k in (-5, -3, -2, -1, 1, 2, 3, 5) if 0 <= _GI[v] + k < len(_G) and _D(str(shift(float(v), k))) != _G[_GI[v] + k]]
+ok(not _bad, _bad[:10])
+# S3:條件單查詢失敗(strategies = None)+ 有元三(手動)部位 → 原本 TypeError 整個接回中斷,程式開的部位沒接回
+at(10, 30); _s3, _gs3 = mk(TRADE_BROKER_STOP="1")
+_s3.last_px.update({"2603": 50.0, "2330": 100.0})
+_r = _s3.resume([{"code": "2603", "bs": "B", "lots": 2, "price": 50.0, "time": "09:40:00", "order_no": "M1"},
+                 {"code": "2330", "bs": "S", "lots": 1, "price": 100.0, "time": "09:45:00", "order_no": "P1"}], {"M1": "", "P1": "T094500001"}, None, [])
+ok(_r == ["2330"] and _s3.positions["2603"]["judge"] == "元三" and _s3.positions["2603"]["state"] == HOLDING and _s3.positions["2330"]["state"] == HOLDING, (_r, _s3.positions.keys()))
+ok(abs(_s3.amount_today - 200000) < 1e-6, _s3.amount_today)
+# S3:一檔接回出錯不影響其他檔,出錯那檔至少接成基本持倉
+_s3b, _ = mk(); _orig_sub = _s3b.sub
+def _boom(p, _o=_orig_sub):
+    if p["code"] == "2603": raise RuntimeError("測試出錯")
+    return _o(p)
+_s3b.sub = _boom
+_s3b.resume([{"code": "2603", "bs": "B", "lots": 1, "price": 50.0, "time": "09:40", "order_no": "A1"}, {"code": "2330", "bs": "B", "lots": 1, "price": 100.0, "time": "09:41", "order_no": "A2"}],
+            {"A1": "T094000001", "A2": "T094100002"}, [], [])
+ok(_s3b.positions.get("2330", {}).get("state") == HOLDING and _s3b.positions.get("2603", {}).get("qty") == 1 and _s3b.positions["2603"]["state"] == HOLDING, list(_s3b.positions))
+# T2:平倉中(鎖跌停排隊)的浮虧也算進當天虧損上限
+at(10, 0); _t2, _g2 = mk(TRADE_MAX_LOSS="20000", TRADE_KILL_LOSS="0", TRADE_CAP="250000"); _t2.ref_of = lambda c: 50.0
+_t2.on_tick("2603", 50.0); _t2.step([sig("k1t2", "long", "長榮 2603 做多進場 50.00", "10:00 多✓ · 停利 51.50 停損 49.00 · 判一")]); _t2.on_report(51, "A0001", 0, 4000, 50.1)
+_p2 = _t2.positions["2603"]; _t2.on_tick("2603", 46.7); ok(_p2["state"] == EXITING, _p2["state"])
+_t2.on_tick("2603", 45.0); ok(_t2.unreal_pnl() < -20000 and "已虧" in (_t2.can_enter("1101", "判一", "long") or ""), (_t2.unreal_pnl(), _t2.can_enter("1101", "判一", "long")))
+_t2.on_report(51, "A0002", 0, 1000, 45.0); ok(_t2.unreal_pnl() < -20000 and _t2.positions["2603"]["state"] == EXITING)   # 平倉單成交一部分(還沒入帳)也照算
+# T3:同一天同一檔再進場、均價一樣 → 不能接到上一筆的移平最有利價(原本一進場就被移平)
+at(10, 0); _t3, _g3 = mk(TRADE_CAP="250000"); _t3._mt_test = True; _t3.ref_of = lambda c: 50.0
+_t3.on_tick("2603", 50.0); _t3.step([sig("k1t3", "long", "長榮 2603 做多進場 50.00", "10:00 多✓ · 停利 53.00 停損 49.00 · 判一")]); _t3.on_report(51, "A0001", 0, 4000, 50.1)
+for _px in (50.5, 51.0, 51.8, 52.4): _t3.on_tick("2603", _px)
+_t3.step([sig("x1t3", "exit", "長榮 2603 出場 +4%:出", "… · 判一")]); _t3.on_report(51, f"A{_g3.n:04d}", 0, 4000, 52.3); ok("2603" not in _t3.positions)
+at(10, 30); _t3.on_tick("2603", 50.0); _t3.step([sig("k2t3", "long", "長榮 2603 做多進場 50.00", "10:30 多✓ · 停利 53.00 停損 49.00 · 判二")]); _t3.on_report(51, f"A{_g3.n:04d}", 0, 4000, 50.1)
+_p3 = _t3.positions["2603"]; _t3.on_tick("2603", 50.4); ok(_p3["state"] == HOLDING and _p3.get("mt_px") == 50.4, (_p3["state"], _p3.get("exit_why"), _p3.get("mt_px")))
+# T4:進場等確認、對帳轉持倉 → 均價只算這個部位的成交(不含今天更早已經來回平掉的同方向成交)
+at(10, 0); _t4, _g4 = mk(TRADE_CAP="250000", TRADE_FILL_WAIT="0"); _t4._mt_test = True; _t4.ref_of = lambda c: 50.0
+_t4.on_tick("2603", 50.0); _t4.step([sig("k1t4", "long", "長榮 2603 做多進場 50.00", "10:00 多✓ · 停利 52.00 停損 49.00 · 判一")]); _p4 = _t4.positions["2603"]
+time.sleep(0.01); _t4.step(); ok(_p4.get("wait_confirm") and _p4["state"] == ENTERING)
+_TR4 = [{"code": "2603", "bs": "B", "lots": 4, "price": 54.0, "time": "09:35:00", "order_no": "X1"}, {"code": "2603", "bs": "S", "lots": 4, "price": 54.5, "time": "09:40:00", "order_no": "X2"},
+        {"code": "2603", "bs": "B", "lots": 4, "price": 50.1, "time": "10:00:01", "order_no": "A0001"}]
+_t4.reconcile(_TR4, []); _t4.reconcile(_TR4, []); ok(_p4["state"] == HOLDING and abs(_p4["entry"] - 50.1) < 1e-9, _p4["entry"])
+_t4.on_tick("2603", 50.2); ok(_p4["state"] == HOLDING, _p4.get("exit_why"))
+ok(abs(Trader.fills_avg(Trader.pos_fills(_TR4, "2603", 1)[0]) - 50.1) < 1e-9 and Trader.pos_fills(_TR4, "2603", -1) == ([], []))
+_TRF = [{"code": "1101", "bs": "B", "lots": 2, "price": 40.0, "time": "09:31", "order_no": "B1"}, {"code": "1101", "bs": "S", "lots": 5, "price": 41.0, "time": "09:40", "order_no": "B2"}]   # 一筆翻成反向:多出來的 3 張是新的一段
+ok(Trader.pos_fills(_TRF, "1101", -1)[0][0][:2] == (3, 41.0) and Trader.pos_fills(_TRF, "1101", 1)[1][0][:2] == (2, 41.0))
+# T5:對帳發現元大已經沒有部位(條件單 / 手動平、回報漏了)→ 照平倉入帳(損益、成交金額)
+at(10, 0); _t5, _g5 = mk(TRADE_CAP="250000", TRADE_MAX_LOSS="20000"); _t5.ref_of = lambda c: 50.0
+_t5.on_tick("2603", 50.0); _t5.step([sig("k1t5", "long", "長榮 2603 做多進場 50.00", "10:00 多✓ · 停利 52.00 停損 49.00 · 判一")]); _t5.on_report(51, "A0001", 0, 4000, 50.2)
+_TR5 = [{"code": "2603", "bs": "B", "lots": 4, "price": 50.2, "time": "10:00:01", "order_no": "A0001"}, {"code": "2603", "bs": "S", "lots": 4, "price": 46.8, "time": "10:05:00", "order_no": "YA001"}]
+_t5.reconcile(_TR5, []); _t5.reconcile(_TR5, [])
+ok("2603" not in _t5.positions and _t5.pnl < -13600 and abs(_t5.amount_today - (50.2 + 46.8) * 4000) < 1e-3 and _t5.journal[-1]["exit"] == 46.8, (_t5.pnl, _t5.amount_today))
+ok("2603" not in _t5.flat_watch)   # 漏掉的平倉回報晚到不能當成多平去補回
+# T5:對帳張數變少(漏了部分平倉回報)也入帳
+at(10, 0); _t5b, _ = mk(TRADE_CAP="250000"); _t5b.ref_of = lambda c: 50.0
+_t5b.on_tick("2603", 50.0); _t5b.step([sig("k1t5b", "long", "長榮 2603 做多進場 50.00", "10:00 多✓ · 停利 52.00 停損 49.00 · 判一")]); _t5b.on_report(51, "A0001", 0, 4000, 50.2)
+_a0 = _t5b.amount_today; _TR5b = _TR5[:1] + [dict(_TR5[1], lots=1, price=49.5)]
+_t5b.reconcile(_TR5b, []); _t5b.reconcile(_TR5b, []); ok(_t5b.positions["2603"]["qty"] == 3 and _t5b.pnl < 0 and abs(_t5b.amount_today - _a0 - 49500) < 1e-3, (_t5b.pnl, _t5b.amount_today - _a0))
+# T5:程式平倉單成交比部位多(多平)→ 多出來的張數也算成交金額
+at(10, 0); _t5c, _g5c = mk(TRADE_CAP="250000"); _t5c.ref_of = lambda c: 50.0
+_t5c.on_tick("2603", 50.0); _t5c.step([sig("k1t5c", "long", "長榮 2603 做多進場 50.00", "10:00 多✓ · 停利 52.00 停損 49.00 · 判一")]); _t5c.on_report(51, "A0001", 0, 4000, 50.2)
+_t5c.on_tick("2603", 48.9); ok(_t5c.positions["2603"]["state"] == EXITING); _a0 = _t5c.amount_today; _t5c.on_report(51, f"A{_g5c.n:04d}", 0, 5000, 48.9)
+ok(abs(_t5c.amount_today - _a0 - 48.9 * 5000) < 1e-3, _t5c.amount_today - _a0)
+# T6:IOC 結束回報比成交先到 → 補單成交轉持倉後才到的 IOC 成交照樣併進部位(原本只記錄,元大多的張數沒人管)
+at(10, 0); _t6, _g6 = mk(TRADE_CAP="250000"); _t6.ref_of = lambda c: 50.0
+_t6.on_tick("2603", 50.0); _t6.step([sig("k1t6", "long", "長榮 2603 做多進場 50.00", "10:00 多✓ · 停利 52.00 停損 49.00 · 判一")]); _ioc6 = _g6.tags[-1]
+_t6.on_report(50, "A0001", 25, 0, 0, basket=_ioc6); _fb6 = _g6.tags[-1]; ok(_g6.sent[-1][2] == 4 and _g6.sent[-1][5] == "0", _g6.sent[-1])
+_t6.on_report(51, "A0002", 0, 2000, 50.3, basket=_fb6); _t6.on_report(50, "A0002", 2, 0, 0, basket=_fb6); _p6 = _t6.positions["2603"]; ok(_p6["state"] == HOLDING and _p6["qty"] == 2)
+_t6.on_report(51, "A0001", 0, 2000, 50.1, basket=_ioc6, code="2603", bs="B"); ok(_p6["qty"] == 4 and abs(_p6["entry"] - 50.2) < 1e-9, (_p6["qty"], _p6["entry"]))
+# T6:補單還掛著時 IOC 晚到成交 → IOC + 補單超過原本張數 → 取消補單剩下的
+at(10, 0); _t6b, _g6b = mk(TRADE_CAP="250000"); _t6b.ref_of = lambda c: 50.0
+_t6b.on_tick("2603", 50.0); _t6b.step([sig("k1t6b", "long", "長榮 2603 做多進場 50.00", "10:00 多✓ · 停利 52.00 停損 49.00 · 判一")]); _ioc6b = _g6b.tags[-1]
+_t6b.on_report(50, "A0001", 25, 0, 0, basket=_ioc6b); _t6b.on_report(51, "A0001", 0, 3000, 50.1, basket=_ioc6b, code="2603", bs="B")
+ok(("cancel", "A0002", "2603", "B") in _g6b.sent, _g6b.sent)
+_t6b.on_report(51, "A0002", 0, 1000, 50.3, basket=_g6b.tags[-1]); _t6b.on_report(50, "A0002", 2, 0, 0, basket=_g6b.tags[-1])
+ok(_t6b.positions["2603"]["qty"] == 4 and _t6b.positions["2603"]["state"] == HOLDING, _t6b.positions["2603"]["qty"])
+# 輕 a:補單價比 IOC 高 → 張數照補單價重算,一筆不超過多空上限 25 萬
+at(10, 0); _ta, _ga = mk(TRADE_CAP="250000"); _ta.ref_of = lambda c: 62.0
+_ta.on_tick("2603", 62.2); _ta.step([sig("k1ta", "long", "X 2603 做多進場 62.20", "10:00 多✓ · 停利 64.00 停損 61.00 · 判一")]); ok(_ga.sent[-1][2] == 4, _ga.sent)
+_ta.on_report(50, "A0001", 25, 0, 0); ok(_ga.sent[-1][2] * _ga.sent[-1][3] * 1000 <= 250000 and _ga.sent[-1][2] == 3, _ga.sent[-1])
+# 輕 c:進場中有手動「反方向」成交 → 不再悄悄丟掉:先抵手動同方向,剩下的轉持倉時當手動平倉扣掉
+at(10, 0); _tc, _gc = mk(TRADE_CAP="250000"); _tc.ref_of = lambda c: 50.0
+_tc.on_tick("2603", 50.0); _tc.step([sig("k1tc", "long", "長榮 2603 做多進場 50.00", "10:00 多✓ · 停利 52.00 停損 49.00 · 判一")]); _pc = _tc.positions["2603"]
+_tc.on_report(51, "M1", 0, 2000, 50.0, code="2603", bs="B"); ok(_pc.get("man_lots") == 2)
+_tc.on_report(51, "M2", 0, 3000, 50.5, code="2603", bs="S"); ok(not _pc.get("man_lots") and _pc.get("man_close") == 1 and _tc.pnl > 0, (_pc.get("man_lots"), _pc.get("man_close"), _tc.pnl))
+_tc.on_report(51, "A0001", 0, 4000, 50.2); ok(_pc["state"] == HOLDING and _pc["qty"] == 3, (_pc["state"], _pc["qty"]))
+print("2026-11-21 全改(S3 / T2~T6 / 輕 a b c)OK")
+# 2026-11-21 使用者「全改」(檢查 E3 / E4):判一急彈空不被排在後面的判別式搶走;雲端整份寬度合併不蓋掉新分鐘
+e6_ = _eng.Engine.__new__(_eng.Engine); e6_.pos = {}; e6_.rs_pri = ["一", "一2", "三", "八"]
+_L = lambda tm, vr: f"  {tm} 判一急彈空 回Kb 寬度 +0.06/-0.40 量比 {vr} → 進場空 50.00 ×3張 停利 47.00 停損 51.00\n"
+_E8 = "  10:05 判八 測試 → 進場空 50.00 ×3張,停損 52.00\n"
+_seq = [("A", "一2", _L("10:05", "0.30"), ""), ("B", "一2", _L("10:05", "0.90"), ""), ("A", "八", _E8, ""), ("C", "三", "", "")]
+_out = [(r[1], r[0]) for r in e6_.order12(iter(_seq), "10:07")]
+ok(_out == [("一2", "B"), ("一2", "A"), ("八", "A"), ("三", "C")], _out)   # 判八 A 要進場 → 先把留著的一2(量比大的先)交回
+_eng._BR_LAST.update(d="d", br={"10:05": 0.5, "10:06": 0.4}, av={}, at=0)
+_ohttp = _eng.http; _eng.http = lambda *a, **k: {"br": {"10:05": 0.5}, "av": {}}; _eng.CFG["WORKER_URL"] = "https://x"
+_eng.breadth_fetch("d"); _eng.http = _ohttp; _eng.CFG.pop("WORKER_URL")
+ok(_eng._BR_LAST["br"] == {"10:05": 0.5, "10:06": 0.4}, _eng._BR_LAST)
+print("判一急彈空排序 / 寬度合併 OK")
+# ═══ 2026-11-21 使用者「全改」(檢查 T7~T10):trader.py 對帳 / 成交金額 / 晚到回報的回歸測試(這一段自己獨立,不靠上面的變數)═══
+def _k1(t_, code, px, k, tp, sl):   # 判一做多進場 4 張(IOC 成交 A0001)
+    t_.on_tick(code, px); t_.step([sig(k, "long", f"X {code} 做多進場 {px:.2f}", f"10:00 多✓ · 停利 {tp:.2f} 停損 {sl:.2f} · 判一")])
+# T7:平倉中手動多平 2 張(即時回報已算成交金額)→ 之後對帳接成元三,不能再算一次
+at(10, 0); _t7, _g7 = mk(TRADE_CAP="250000"); _t7.ref_of = lambda c: 50.0
+_k1(_t7, "2603", 50.0, "k1t7", 52.0, 49.0); _t7.on_report(51, "A0001", 0, 4000, 50.0)
+_t7.on_tick("2603", 48.9); ok(_t7.positions["2603"]["state"] == EXITING)
+_t7.on_other_fill("2603", "S", 6000, 48.9, "M9"); _t7.on_report(50, f"A{_g7.n:04d}", 2, 0, 0)
+_TR7 = [{"code": "2603", "bs": "B", "lots": 4, "price": 50.0, "time": "10:00:01", "order_no": "A0001"}, {"code": "2603", "bs": "S", "lots": 6, "price": 48.9, "time": "10:01:00", "order_no": "M9"}]
+_a7 = _t7.amount_today; _t7.reconcile(_TR7, []); _t7.reconcile(_TR7, [])
+_q7 = _t7.positions.get("2603"); ok(_q7 and _q7["judge"] == "元三" and _q7["dir"] == -1 and _q7["qty"] == 2, _q7)
+ok(abs(_t7.amount_today - _a7) < 1e-6 and abs(_t7.amount_today - (50 * 4000 + 48.9 * 6000)) < 1e-6, (_a7, _t7.amount_today))
+# T7:對帳才看到的手動開倉 → 成交金額算一次;之後那筆回報才到 → 不再加碼、不再算
+at(10, 0); _t7b, _ = mk(TRADE_CAP="250000"); _t7b.on_tick("1101", 40.5)
+_TR7b = [{"code": "1101", "bs": "S", "lots": 3, "price": 40.0, "time": "09:31", "order_no": "MB"}]
+_t7b.reconcile(_TR7b, []); _t7b.reconcile(_TR7b, []); ok(_t7b.positions["1101"]["qty"] == 3 and abs(_t7b.amount_today - 120000) < 1e-6, _t7b.amount_today)
+_t7b.on_other_fill("1101", "S", 3000, 40.0, "MB"); ok(_t7b.positions["1101"]["qty"] == 3 and abs(_t7b.amount_today - 120000) < 1e-6, (_t7b.positions["1101"]["qty"], _t7b.amount_today))
+# T8:對帳接元三均價只算這一段的張數(買 2@40、賣 5@41、賣 2@40 → 空 5 張 40.6,原本 40.71)
+at(10, 0); _t8, _ = mk(TRADE_CAP="250000"); _t8.on_tick("1101", 40.5)
+_TR8 = [{"code": "1101", "bs": "B", "lots": 2, "price": 40.0, "time": "09:31", "order_no": "B1"}, {"code": "1101", "bs": "S", "lots": 5, "price": 41.0, "time": "09:40", "order_no": "B2"},
+        {"code": "1101", "bs": "S", "lots": 2, "price": 40.0, "time": "09:41", "order_no": "B3"}]
+_t8.reconcile(_TR8, []); _t8.reconcile(_TR8, []); _p8 = _t8.positions["1101"]
+ok(_p8["dir"] == -1 and _p8["qty"] == 5 and abs(_p8["entry"] - 40.6) < 1e-9, (_p8["dir"], _p8["qty"], _p8["entry"]))
+ok(abs(_t8.amount_today - (3 * 41 + 2 * 40) * 1000) < 1e-6, _t8.amount_today)   # 這一段開倉的 3 + 2 張各算一次(翻過來那筆前 2 張是平掉更早的部位,不在這一段)
+# T9:對帳先把條件單平倉入帳,條件單 YA001 的成交回報晚到 → 不開反向元三、不再入帳
+at(10, 0); _t9, _g9 = mk(TRADE_CAP="250000"); _t9.ref_of = lambda c: 50.0
+_k1(_t9, "2603", 50.0, "k1t9", 52.0, 49.0); _t9.on_report(51, "A0001", 0, 4000, 50.2)
+_TR9 = [{"code": "2603", "bs": "B", "lots": 4, "price": 50.2, "time": "10:00:01", "order_no": "A0001"}, {"code": "2603", "bs": "S", "lots": 4, "price": 46.8, "time": "10:05:00", "order_no": "YA001"}]
+_t9.reconcile(_TR9, []); _t9.reconcile(_TR9, []); _pn9, _am9 = _t9.pnl, _t9.amount_today
+ok("2603" not in _t9.positions and _pn9 < -13000 and abs(_am9 - (50.2 + 46.8) * 4000) < 1e-6, (_pn9, _am9))
+at(10, 8); _t9.on_tick("2603", 47.0); _t9.on_report(51, "YA001", 0, 4000, 46.8, basket="", code="2603", bs="S")
+ok("2603" not in _t9.positions and _t9.pnl == _pn9 and _t9.amount_today == _am9, (list(_t9.positions), _t9.pnl, _t9.amount_today))
+_t9.reconcile(_TR9, []); _t9.reconcile(_TR9, []); ok("2603" not in _t9.positions and _t9.pnl == _pn9, _t9.pnl)
+# T9:對帳補上漏掉的手動加碼 → 那筆回報晚到不再加一次
+at(10, 0); _t9b, _ = mk(TRADE_CAP="250000"); _t9b.ref_of = lambda c: 50.0
+_k1(_t9b, "2603", 50.0, "k1t9b", 52.0, 49.0); _t9b.on_report(51, "A0001", 0, 4000, 50.0)
+_TR9b = [{"code": "2603", "bs": "B", "lots": 4, "price": 50.0, "time": "10:00:01", "order_no": "A0001"}, {"code": "2603", "bs": "B", "lots": 1, "price": 50.5, "time": "10:02:00", "order_no": "MA"}]
+_t9b.reconcile(_TR9b, []); _t9b.reconcile(_TR9b, []); ok(_t9b.positions["2603"]["qty"] == 5, _t9b.positions["2603"]["qty"]); _am9b = _t9b.amount_today
+_t9b.on_other_fill("2603", "B", 1000, 50.5, "MA"); ok(_t9b.positions["2603"]["qty"] == 5 and _t9b.amount_today == _am9b, (_t9b.positions["2603"]["qty"], _t9b.amount_today))
+# T10:程式多記了(IOC 2 張的成交回報重複一次)→ 對帳張數變少,元大沒有平倉成交 → 不入帳,只改張數 + 推手機
+at(10, 0); _t10, _g10 = mk(TRADE_CAP="250000", TRADE_ENTRY_FALLBACK="0"); _t10.ref_of = lambda c: 50.0
+_k1(_t10, "2603", 50.0, "k1t10", 52.0, 49.0); _tg10 = _g10.tags[-1]
+_t10.on_report(51, "A0001", 0, 2000, 50.0, basket=_tg10); _t10.on_report(50, "A0001", 25, 0, 0, basket=_tg10); ok(_t10.positions["2603"]["qty"] == 2)
+_t10.on_report(51, "A0001", 0, 2000, 50.0, basket=_tg10, code="2603", bs="B"); ok(_t10.positions["2603"]["qty"] == 4)   # 沒超過下單張數,當下分不出是重複
+_TR10 = [{"code": "2603", "bs": "B", "lots": 2, "price": 50.0, "time": "10:00:01", "order_no": "A0001"}]
+_pn10, _am10, _na10 = _t10.pnl, _t10.amount_today, len(_t10.alerts)
+_t10.reconcile(_TR10, []); _t10.reconcile(_TR10, [])
+ok(_t10.positions["2603"]["qty"] == 2 and _t10.pnl == _pn10 and _t10.amount_today == _am10, (_t10.positions["2603"]["qty"], _t10.pnl, _t10.amount_today))
+ok(any("張數對不上" in a for a in _t10.alerts[_na10:]), _t10.alerts[_na10:])
+# T10:張數變少、元大真的有平倉成交(手動平 1 張回報漏了)→ 照那筆入帳 1 張
+_TR10b = _TR10 + [{"code": "2603", "bs": "S", "lots": 1, "price": 50.5, "time": "10:03:00", "order_no": "MS"}]
+_t10.reconcile(_TR10b, []); _t10.reconcile(_TR10b, [])
+ok(_t10.positions["2603"]["qty"] == 1 and _t10.journal[-1]["lots"] == 1 and _t10.journal[-1]["exit"] == 50.5 and _t10.pnl > _pn10, (_t10.positions["2603"]["qty"], _t10.journal[-1:]))
+# T10:元大已經 0 張、但今天沒有任何平倉成交(程式記的部位是重複回報)→ 不照現價入帳
+at(10, 0); _t10c, _ = mk(TRADE_CAP="250000"); _t10c.ref_of = lambda c: 50.0
+_k1(_t10c, "2603", 50.0, "k1t10c", 52.0, 49.0); _t10c.on_report(51, "A0001", 0, 4000, 50.0); _t10c.on_tick("2603", 49.5); _pn10c = _t10c.pnl
+_t10c.reconcile([], []); _t10c.reconcile([], []); ok("2603" not in _t10c.positions and _t10c.pnl == _pn10c and not _t10c.journal, (_t10c.pnl, _t10c.journal))
+# T10:進場單完全成交後,同書號同量同價的成交回報又來一次 → 超過下單張數 = 重複,不再併(冪等)
+at(10, 0); _t10d, _g10d = mk(TRADE_CAP="250000"); _t10d.ref_of = lambda c: 50.0
+_k1(_t10d, "2603", 50.0, "k1t10d", 52.0, 49.0); _tg10d = _g10d.tags[-1]; _t10d.on_report(51, "A0001", 0, 4000, 50.0, basket=_tg10d); _am10d = _t10d.amount_today
+_t10d.on_report(51, "A0001", 0, 4000, 50.0, basket=_tg10d, code="2603", bs="B")
+ok(_t10d.positions["2603"]["qty"] == 4 and _t10d.amount_today == _am10d, (_t10d.positions["2603"]["qty"], _t10d.amount_today))
+# T10:IOC 結束、補單掛著時 IOC 的成交回報重複 → 只算一次(補單照樣因超過原本張數取消)
+at(10, 0); _t10e, _g10e = mk(TRADE_CAP="250000"); _t10e.ref_of = lambda c: 50.0
+_k1(_t10e, "2603", 50.0, "k1t10e", 52.0, 49.0); _ioc10e = _g10e.tags[-1]
+_t10e.on_report(50, "A0001", 25, 0, 0, basket=_ioc10e)
+_t10e.on_report(51, "A0001", 0, 3000, 50.1, basket=_ioc10e, code="2603", bs="B"); _t10e.on_report(51, "A0001", 0, 3000, 50.1, basket=_ioc10e, code="2603", bs="B")
+ok(_t10e.positions["2603"]["pre_filled"] == 3000, _t10e.positions["2603"].get("pre_filled"))
+print("2026-11-21 全改(檢查 T7~T10)OK")

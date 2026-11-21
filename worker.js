@@ -75,6 +75,10 @@ const RAW = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_REF}`
 // ── 2026-10-29 16:16 repo 要改私人(使用者「開始 一步一步來」):Worker 用 GH_TOKEN 代讀 GitHub 的檔案(private 也讀得到),自己快取(有 Authorization 的請求 Cloudflare 不會自動快取)──
 //   ?gh=raw&path=<檔案>[&ref=<commit>]:X-Push-Key(中繼)/ owner 鑰匙 → 什麼都能讀;viewer / trial 鑰匙 → 只能讀 app/viewer.html 和 app/apk/viewer/*;沒鑰匙 → 403
 const GH_MIME = { html: "text/html; charset=utf-8", json: "application/json; charset=utf-8", csv: "text/plain; charset=utf-8", js: "text/javascript; charset=utf-8", apk: "application/vnd.android.package-archive", md: "text/plain; charset=utf-8", txt: "text/plain; charset=utf-8", py: "text/plain; charset=utf-8", png: "image/png" };
+// 2026-11-21 使用者「全改」(檢查 S1):?gh=raw 不用 owner 鑰匙能讀的檔(白名單)/ 誰都不給的檔(黑名單)
+//   GH_PUBLIC:pool.json、live_entries.json、app/ 的機率表 / 舊紀錄 / 回測補值 / 檢討重算 / 不監控名單、看盤版網頁和它的 APK 更新、夥伴兩個 App 的版本檔、K 線週檔(kline / kline_yuanta)
+const GH_PUBLIC = /^(pool\.json|live_entries\.json|app\/(prob_model|log_backfill|bt_fill|review_rebuilt|ignore_codes)\.json|app\/viewer\.html|app\/apk\/viewer\/[\w.\-]+|partner_app\/(apk|join_apk)\/version\.json|kline(_yuanta)?\/[0-9A-Za-z]{1,8}\/\d{4}-W\d{2}\.csv)$/;
+const GH_DENY = /(^|\/)(keystore|keys)(\/|$)|\.(jks|keystore|p12|pfx|pem|key)$|gradle|\.properties$|bridge\.env|github_pat|(^|\/)\.env/i;
 const GH_REPO_LOGIC = "Stock-logic";   // 2026-10-29 18:03 判一二三搬到的私人庫(使用者:「只要判別式改成私人」);只有 owner 鑰匙 / 中繼金鑰能讀
 async function ghRaw(env, path, ref = GH_REF, ttl = 1800, repo = GH_REPO) {
   path = String(path || "").replace(/^\/+/, "").split("?")[0];
@@ -350,7 +354,7 @@ async function dayBars(env, d, codes, since) {
 /** 2026-10-22 19:45 使用者(「第一次進去還是那麼久」):大盤寬度也是整天一分鐘一分鐘讀,手機要等它才畫 K 圖 → 寬度也一起放進同一份狀態
  *  寬度只看 bar: 鍵;st.bl = 每檔最後一筆 [z, v, y],st.br = 每分鐘上漲比例(和 dayBreadth 同一個算法) */
 const brLbl = hm => hm <= "09:00" ? "09:00" : addM(hm, -1);
-async function poolPrev(d) {
+async function poolPrev(env, d) {   // 2026-11-21 使用者「全改」(檢查 a):原本沒傳 env → ghRaw(env…) 一直丟例外被吃掉,整天的寬度拿不到 pool 的昨收
   const pp = {};
   try {
     const r = await ghRaw(env, "pool.json");
@@ -390,7 +394,7 @@ async function dayStateFull(env, ctx, origin, d) {
   const all = sortKeys([...minuteKeys(d, "bar", from), ...minuteKeys(d, "bas", from)]);
   if (!all.length) return st;
   const done = all.filter(k => k.slice(-5) <= safe), tail = all.filter(k => k.slice(-5) > safe);
-  const [vals, pp] = await Promise.all([kvGetMany(env, all), poolPrev(d)]);
+  const [vals, pp] = await Promise.all([kvGetMany(env, all), poolPrev(env, d)]);
   if (done.length) {
     const dv = vals.slice(0, done.length);
     feedBars(st, done, dv, "", null); feedBreadth(st, done, dv, pp);
@@ -473,7 +477,8 @@ export class Hub extends DurableObject {
     this.sql.exec("CREATE TABLE IF NOT EXISTS exited (d TEXT, pos TEXT, PRIMARY KEY (d, pos))");
     this.sql.exec("CREATE TABLE IF NOT EXISTS ybars (d TEXT, m TEXT, bars TEXT, PRIMARY KEY (d, m))");
     this.sql.exec("CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT)");   // 2026-10-29 小東西(當沖額度)
-    this.sql.exec("CREATE TABLE IF NOT EXISTS snaps (k TEXT PRIMARY KEY, v TEXT)");   // 2026-11-02 雲端 K 快照 bar: / bas:(原本 KV,KV 每日讀取額度被它用完)
+    this.sql.exec("CREATE TABLE IF NOT EXISTS snaps (k TEXT PRIMARY KEY, v TEXT)");
+    this.sql.exec("CREATE TABLE IF NOT EXISTS rl (k TEXT PRIMARY KEY, n INTEGER, t INTEGER)");   // 2026-11-21 使用者「全改」(檢查 W1/W2):限次數用(固定時間窗,一天後自動清掉)   // 2026-11-02 雲端 K 快照 bar: / bas:(原本 KV,KV 每日讀取額度被它用完)
     // 2026-11-12 21:00 使用者「都改」(Cloudflare 1 通知改推送):通知一有變動(新增 / 刪除)版本號 +1,
     //   推給連著的 WebSocket(手機 / 電腦版 App,只推「有新的」不推內容,內容照舊 ?log=get 讀、照舊分身分過濾),也叫醒中繼的長輪詢 ?log=wait
     this.lv = Math.random().toString(36).slice(2, 8) + ":"; this.ln = 0; this.waiters = [];
@@ -510,7 +515,13 @@ export class Hub extends DurableObject {
   bugTrim(keep) { const r = this.sql.exec("SELECT k FROM kv WHERE k LIKE 'bug:%' ORDER BY k DESC").toArray(); for (const x of r.slice(keep)) this.sql.exec("DELETE FROM kv WHERE k = ?", x.k); return { ok: true }; }
   kvSetIfAbsent(k, v) { const o = this.kvGet(k); if (o != null) return o; this.kvPut(k, v); return v; }   // 2026-11-01 VAPID 金鑰只產生一次(兩個請求同時產生也只留第一把)
   // 2026-11-01 iPhone 網頁版 App 的推播訂閱(使用者「先做A」):[{id, endpoint, k, dv, made}]
-  pushSubPut(rec) { const a = (this.kvGet("pushsubs") || []).filter(x => x.id !== rec.id); a.push(rec); this.kvPut("pushsubs", a.slice(-500)); return { ok: true, n: a.length }; }
+  // 2026-11-21 使用者「全改」(檢查 W1):同一把鑰匙最多留 3 筆、同一個免費手機識別碼只留 1 筆(新的取代舊的);滿 500 筆時先丟免費的舊訂閱,有鑰匙的留著
+  pushSubPut(rec) {
+    let a = (this.kvGet("pushsubs") || []).filter(x => x.id !== rec.id && !(rec.dv && x.dv === rec.dv));
+    if (rec.k) { const same = a.filter(x => x.k === rec.k); if (same.length >= 3) { const drop = new Set(same.slice(0, same.length - 2).map(x => x.id)); a = a.filter(x => !drop.has(x.id)); } }
+    a.push(rec);
+    if (a.length > 500) { const keyed = a.filter(x => x.k), free = a.filter(x => !x.k); a = keyed.length >= 500 ? keyed.slice(-500) : [...keyed, ...free.slice(-(500 - keyed.length))].sort((x, y) => (x.made || 0) - (y.made || 0)); }
+    this.kvPut("pushsubs", a); return { ok: true, n: a.length }; }
   pushSubDel(id) { const a = (this.kvGet("pushsubs") || []).filter(x => x.id !== id); this.kvPut("pushsubs", a); return { ok: true }; }
   pushSubs() { return this.kvGet("pushsubs") || []; }
   // 2026-10-29 安全修補:?keys=pick 取件碼嘗試次數(同步執行,一次一個請求,不會被並發繞過)。每 IP 10 分鐘 10 次、全體 10 分鐘 60 次
@@ -564,13 +575,19 @@ export class Hub extends DurableObject {
   snapPut(k, v) { this.sql.exec("INSERT OR REPLACE INTO snaps (k, v) VALUES (?, ?)", k, v);
     if (k.startsWith("bar:") && k.endsWith(":09:00")) this.sql.exec("DELETE FROM snaps WHERE substr(k, 5, 10) < ?", new Date(Date.parse(k.slice(4, 14) + "T00:00:00Z") - 14 * 86400e3).toISOString().slice(0, 10));   // 留 14 天
     return true; }
+  // 2026-11-21 使用者「全改」(檢查 W1/W2):通用限次數 —— bucket + id(IP 等)在 winMs 內最多 max 次;舊列一天後清掉(原本 pbug 每 10 分鐘每個 IP 一列 bugrate:… 永遠留著,順便清掉)
+  rateHit(bucket, id, max, winMs) {
+    const now = Date.now(), k = String(bucket).slice(0, 40) + ":" + String(id || "?").slice(0, 64);
+    const r = this.sql.exec("SELECT n, t FROM rl WHERE k = ?", k).toArray();
+    let n = 1, t = now; if (r.length && now - r[0].t < winMs) { n = r[0].n + 1; t = r[0].t; }
+    this.sql.exec("INSERT OR REPLACE INTO rl (k, n, t) VALUES (?, ?, ?)", k, n, t);
+    const lc = this.kvGet("rlclean") || 0;
+    if (now - lc > 3600e3) { this.sql.exec("DELETE FROM rl WHERE t < ?", now - 86400e3); this.sql.exec("DELETE FROM kv WHERE k LIKE 'bugrate:%'"); this.kvPut("rlclean", now); }
+    return { ok: n <= max, n };
+  }
   kvInc(k, d) { const o = this.kvGet(k) || {}; for (const x in d) o[x] = (o[x] || 0) + (d[x] || 0); this.kvPut(k, o); return o; }
   // 2026-11-21 漏洞檢查(夥伴版):在 Hub 裡一次做完「讀 → 改 → 寫」,兩個請求同時來也不會互相蓋掉
   listPush(k, v, max) { const a = this.kvGet(k); const L = Array.isArray(a) ? a : []; L.push(v); this.kvPut(k, L.length > max ? L.slice(-max) : L); return true; }
-  bugRate(ip, bk) {   // 錯誤回報的次數限制:同一個 IP 10 分鐘 30 筆、全部 10 分鐘 300 筆;舊的計數順手清掉
-    this.sql.exec("DELETE FROM kv WHERE k LIKE 'bugrate:%' AND k < ?", `bugrate:${bk - 1}:`);
-    const one = this.kvInc(`bugrate:${bk}:${ip}`, { n: 1 }).n, all = this.kvInc(`bugrate:${bk}:*`, { n: 1 }).n;
-    return one <= 30 && all <= 300; }
   famAdd(n, o) { const L = this.kvGet("fams") || {}; if (L[n] && L[n].st !== "fail") return false; L[n] = o; this.kvPut("fams", L); return true; }
   // 電腦回報夥伴狀態:沒有這個人 / 已經按移除(等電腦停掉)就不收,只收 gone(電腦停好了)
   famPatch(n, p, noKeyOnly) { const L = this.kvGet("fams") || {}; const o = L[n]; if (!o) return null;
@@ -788,12 +805,20 @@ async function pushTier(env, s) {
   if (s.dv) { let first = null; try { first = await hubOf(env).kvGet("free:" + s.dv); } catch (e) {} return !first || Date.now() - +first <= 7 * 86400e3 ? "free" : ""; }
   return "";
 }
+// 2026-11-21 使用者「全改」(檢查 b):電腦中繼的通知鍵是 yt|…;Hub 讀回來的列只有 _k = "HH:MM:yt|…"(沒有 key 欄),原本 startsWith("yt|") 永遠不中
+const isYt = x => /(^|:)yt\|/.test(String((x && (x._k || x.key)) || ""));
 const pushCanSee = (tier, x) => !!tier && !!x && (tier === "owner" ? (x.kind !== "sys" && x.kind !== "warn" && !/·\s*未進場/.test(String(x.body || "")))   // 2026-11-17 15:00 使用者「只有交易成功後 再顯示通知」:中繼沒進場的訊號(未進場:原因)不推給自己
-  : PUSH_KINDS.has(x.kind) && !REAL_RE.test(String(x.body || "")) && !String(x.key || x._k || "").startsWith("yt|"));
+  : PUSH_KINDS.has(x.kind) && !REAL_RE.test(String(x.body || "")) && !isYt(x));
 async function pushFanout(env, item) {
   let subs = []; try { subs = await hubOf(env).pushSubs(); } catch (e) { return; }
-  for (const s of subs.slice(0, 40)) {   // 一則訊號最多推 40 支(免費方案一次最多 50 個子請求)
-    try { const tier = await pushTier(env, s); if (!pushCanSee(tier, item)) continue;
+  // 2026-11-21 使用者「全改」(檢查 W1):原本推「最舊的 40 筆」,外人灌訂閱就把真的手機擠掉 → 有鑰匙的先(新到舊),再來免費的(新到舊);看不到這則的不算進 40 支
+  const ord = [...subs.filter(s => s.k).reverse(), ...subs.filter(s => !s.k).reverse()];
+  let sent = 0, checks = 0;
+  // 2026-11-21 使用者「全改」(檢查 f):原本每則訊號最多把 500 筆訂閱都查一次權限(pushTier 會讀 KV / Hub = 子請求)→ 最多只查 100 筆,湊滿 40 支能推的就停
+  for (const s of ord) {
+    if (sent >= 40 || checks >= 100) break;   // 一則訊號最多推 40 支(免費方案一次最多 50 個子請求)、最多查 100 筆權限
+    checks++;
+    try { const tier = await pushTier(env, s); if (!pushCanSee(tier, item)) continue; sent++;
       const r = await fetch(s.endpoint, { method: "POST", headers: { Authorization: await vapidAuth(env, s.endpoint), TTL: "3600", Urgency: "high" } });
       if (r.status === 404 || r.status === 410) await hubOf(env).pushSubDel(s.id); } catch (e) {}
   }
@@ -859,6 +884,11 @@ function reqCount(env, ctx, request, url) {
 }
 const kvDown = () => globalThis.__kvDown && Date.now() - globalThis.__kvDown < 10 * 60000;
 const SEENW = new Map();
+// 2026-11-21 使用者「全改」(檢查 W4):不用鑰匙的公開轉送(?twidx / ?taifex / ?codes)每個 IP 限次數(這個執行個體的記憶體,不吃 Hub / KV)
+const IPRL = new Map();
+function ipLimit(name, ip, max, winMs) { const k = name + "|" + ip, now = Date.now(); let q = IPRL.get(k); if (!q || now - q.t > winMs) q = { t: now, n: 0 }; q.n++; IPRL.set(k, q); if (IPRL.size > 5000) IPRL.clear(); return q.n <= max; }
+// 2026-11-21 使用者「全改」(檢查 a):pbug 和 bug=put 共用「看起來像鑰匙的字串先遮掉」(夥伴鑰匙 fa11…、16~64 碼十六進位、k= / dv= / key= / pass= / pwd= 的值)
+const scrubKeys = t => String(t == null ? "" : t).replace(/fa11[0-9a-f]{6,}/gi, "[鑰匙]").replace(/\b[0-9a-f]{16,64}\b/gi, "[鑰匙]").replace(/((?:^|[?&\s])(k|dv|key|pass|pwd)=)[^&\s"']+/gi, "$1*");
 const BUGIP = new Map();   // 2026-11-03 抓 bug 上傳不要鑰匙後,每個 IP 每分鐘最多 6 次   // 2026-11-03 鑰匙「最後使用時間」這個執行個體上次試著寫 KV 的時間
 // 2026-11-03 20:10 使用者「改」(KV 寫入一天上限 1,000 次,上午爆到 1.6 萬):鑰匙的「綁定手機 / 最後使用時間」改存 Hub(Durable Object,一天 10 萬筆寫入),KV 只留鑰匙本身的設定。
 //   讀:每個執行個體每把鑰匙 5 分鐘讀一次 Hub;寫:第一次綁手機馬上寫,最後使用時間每個執行個體每把鑰匙一小時最多一次。舊的 KV 裡已有的 dev 照樣認(Hub 沒有時)
@@ -877,12 +907,11 @@ async function keyInfo(env, k) {
   if (!ex || Date.now() - ex.at > (ex.v ? 3600e3 : 30e3)) {   // 2026-11-02 14:54 剛建的鑰匙 KV list 要幾十秒才看得到 → 「沒有這把」只記 30 秒(原本 1 小時,新鑰匙一直被說無效)
   let has = false; try { const r = await env.LOGS.list({ prefix: "key:" + k, limit: 5 }); has = r.keys.some(x => x.name === "key:" + k); } catch (e) {} ex = { v: has, at: Date.now() }; MC.set(ek, ex); }
   if (!ex.v) return null;
-  // 2026-11-02 11:35 使用者「第三把 扣除前二把 就是第三把啊」:第三支手機的鑰匙不知道是哪一把 → 用主程式(不是看盤版)才會問的 ?cap=get / ?trade=pos 認出來(記在 Hub),認到就當 owner
-  let emo = MC.get("emo:" + k);
-  if (!emo || Date.now() - emo.at > (emo.v ? 600e3 : 15e3)) {   // 2026-11-02 14:50 還不是 owner 的結果只記 15 秒(別的執行個體剛認出來時,這邊不會 10 分鐘都當看盤 → 一直跳鑰匙視窗)
-  let v = false; try { v = env.HUB ? !!(await hubOf(env).kvGet("emo:" + k)) : false; } catch (e) {} emo = { v, at: Date.now() }; MC.set("emo:" + k, emo); }
-  const own = !isFamKey(k) && (k.includes("5861") || EMER_OWN.some(s => k.endsWith(s)) || emo.v);   // 2026-11-15 家人鑰匙永遠不會變 owner
-  return { role: own ? "owner" : "viewer", on: true, name: "緊急(KV 額度用完)", emer: true, emoP: !!(emo.v && !(k.includes("5861") || EMER_OWN.some(s => k.endsWith(s)))) };   // 2026-11-11 22:42 使用者「全改」:緊急模式「認出來」的 owner(emoP)只能看、不能下單 / 寫通知
+  // 2026-11-21 使用者「全改」(檢查 S2):拿掉「主程式才會問的端點認出來就當 owner」(emo:,2026-11-02 11:35):看盤 / 外人的鑰匙只要在緊急模式問一次 ?cap=get 就永久變 owner(寫進 Hub),
+  //   還能管鑰匙、讀部位 / 私人庫 / D1 / R2。現在緊急模式(KV 和 Hub 備份都讀不到這把的設定)只有使用者定的規則當 owner:含 5861 或結尾在 EMER_OWN;其他一律看盤(viewer)。
+  //   停用 / 到期:KV 讀不到時 kvGetC 會改讀 Hub 備份(m:key:…,有 on / exp),走到這裡表示兩邊都沒有,只能靠 KV list 確認鑰匙存在
+  const own = !isFamKey(k) && (k.includes("5861") || EMER_OWN.some(s => k.endsWith(s)));   // 2026-11-15 家人鑰匙永遠不會變 owner
+  return { role: own ? "owner" : "viewer", on: true, name: "緊急(KV 額度用完)", emer: true, emoP: false };
 }
 function newKey(pre) {   // 2026-11-03 新鑰匙不會剛好含 5861(含 5861 = 主導機)或結尾是緊急模式的 owner 尾碼
   for (;;) { const a = new Uint8Array(12); crypto.getRandomValues(a); const k = (pre || "") + [...a].map(b => b.toString(16).padStart(2, "0")).join("").slice((pre || "").length);
@@ -932,12 +961,6 @@ export default {
 
     const url = new URL(request.url);
     reqCount(env, ctx, request, url);   // 2026-11-12 15:10 使用者「改」:每天 10 萬次請求額度 14:13 用完(error 1027)→ 記每種請求各幾次,?usage=get 看
-    if (url.searchParams.get("usage") === "get") {
-      const d = (url.searchParams.get("d") || ymdOf(twNow())).slice(0, 10);
-      let v = {}; try { v = (await hubOf(env).kvGet("reqcount:" + d)) || {}; } catch (e) { v = { err: String(e) }; }
-      const tot = Object.values(v).reduce((a, b) => a + (+b || 0), 0);
-      return new Response(JSON.stringify({ d, tot, top: Object.entries(v).sort((a, b) => b[1] - a[1]) }), { headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
-    }
     // 2026-11-01 iPhone 網頁版 App(看盤版):/app = 看盤版網頁,加上 manifest / sw.js / 圖示(公開庫的檔,不用鑰匙;內容和 Android 看盤版一樣)
     if (request.method === "GET" && PWA_FILES[url.pathname] && env && env.GH_TOKEN) {
       const r = await ghRaw(env, PWA_FILES[url.pathname], GH_REF, 60);
@@ -991,22 +1014,29 @@ export default {
         if (!KI.dev || Date.now() - sw > 86400e3) { SEENW.set(kq, Date.now()); try { if (!KI.dev) KI.dev = dv; KI.seen = Date.now(); await ksPut(env, kq, { dev: KI.dev, seen: KI.seen }); } catch (e) {} } } }   // 2026-11-03 20:10 改寫 Hub(不寫 KV)
     // 2026-10-29 安全修補:owner 鑰匙做「寫入 / 下單 / 管鑰匙」時,鑰匙已綁手機就一定要帶 dv(手機 App 的 fetch 包裝每次都帶;不帶 dv 不能繞過一人一機去下單)。
     //   讀的端點(gh=raw 更新等)照舊不要求 dv,避免 Page.kt 偏好裡沒有 dev 時更新失敗
-    if (KI && KI.emer && KI.role !== "owner" && !isFamKey(kq) && (url.searchParams.get("cap") === "get" || ["pos", "fills"].includes(url.searchParams.get("trade") || "") || url.searchParams.get("repo") === "logic" || (url.searchParams.get("gh") === "raw" && /^app\/app\.html/.test(url.searchParams.get("path") || ""))) && dv && env.HUB) {   // 主程式的手機 → 記成 owner(緊急模式才有)
-      try { await hubOf(env).kvPut("emo:" + kq, { dv, at: Date.now() }); } catch (e) {}
-      MC.set("emo:" + kq, { v: true, at: Date.now() }); KI = { ...KI, role: "owner", emoP: true };
-    }
-    const ownerKI = !!(KI && KI.role === "owner" && (!KI.dev || dv));
+    // 2026-11-21 使用者「全改」(檢查 S2):拿掉緊急模式「主程式的手機 → 記成 owner(emo:,emoP)」那段(見 keyInfo);KI.emoP 一律當不是 owner
+    if (KI && KI.emoP) KI = { ...KI, role: "viewer" };
+    const ownerKI = !!(KI && KI.role === "owner" && !KI.emoP && (!KI.dev || dv));
+    const ownerR = pushOk || ownerKI;   // 2026-11-21 讀私人帳戶資料(額度、引擎細節、通道網址、用量、bug 紀錄…):中繼金鑰或 owner 鑰匙
     const mgrKI = !!(KI && KI.role === "mgr" && !KI.emer && /^[a-f0-9]{16,40}$/.test(dv) && KI.dev === dv);   // 2026-11-17 夥伴加入的管理鑰匙:一定要帶手機識別碼,而且是綁定的那一支
     // 自動當沖夥伴版(2026-11-15 19:45 使用者「金鑰 只有下載 主程式時 名揚四海自動當沖 才需要一台設備對應一個金鑰 看盤版 掃描這個金鑰 就可以看盤監控 10台設備也沒有關係」):
     //   夥伴看盤(partner_app/mine.html)帶 pv=1、不帶 dv → 不綁設備、不受「一人一機」限制(上面 dv 是空的就不比對也不寫綁定),幾台都可以;
     //   但只准「看」:owner 鑰匙這樣來只開 ?trade=pos / ?trade=fills(讀),?trade=cmd 下單、寫通知、管鑰匙照舊要綁定的手機(ownerKI)。緊急模式認出來的(emoP)不算
     const pvOwner = !!(KI && KI.role === "owner" && !KI.emoP && url.searchParams.get("pv") === "1" && !dv);
+    if (url.searchParams.get("usage") === "get") {   // 2026-11-21 使用者「全改」(檢查 W3):用量統計只給中繼金鑰 / owner 鑰匙(原本在驗鑰匙之前,誰都能看)
+      if (!ownerR) return J({ error: "要中繼金鑰或 owner 鑰匙" }, 403);
+      const d = (url.searchParams.get("d") || ymdOf(twNow())).slice(0, 10);
+      let v = {}; try { v = (await hubOf(env).kvGet("reqcount:" + d)) || {}; } catch (e) { v = { err: String(e) }; }
+      const tot = Object.values(v).reduce((a, b) => a + (+b || 0), 0);
+      return new Response(JSON.stringify({ d, tot, top: Object.entries(v).sort((a, b) => b[1] - a[1]) }), { headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
+    }
     // 2026-11-12 21:00 使用者「都改」(Cloudflare 1 通知改推送):
     //   ?ws=log  → WebSocket 連到 Hub,通知有變動就收到 {v};App 收到馬上 ?log=get(內容、身分過濾照舊)。要鑰匙 / 中繼金鑰 / 手機識別碼
     //   ?log=wait&v= → 長輪詢(中繼用,中繼金鑰或 owner):版本跟 v 不同就馬上回,不然最多等 25 秒;回 {v}
     if (url.searchParams.get("ws") === "log") {
       if (!env || !env.HUB) return J({ error: "沒有 Hub" }, 503);
-      if (!(KI || pushOk || /^[a-f0-9]{16}$/.test(dv))) return J({ error: "要鑰匙", badKey: true }, 403);
+      // 2026-11-21 使用者「全改」(檢查 W4):原本任何 16 碼 dv 都能連(全部共用 400 條上限,外人可以佔滿)→ 要鑰匙或中繼金鑰(App / 夥伴看盤連線時都帶 k)
+      if (!(KI || pushOk)) return J({ error: "要鑰匙", badKey: true }, 403);
       if (request.headers.get("Upgrade") !== "websocket") return J({ error: "要 WebSocket" }, 426);
       return hubOf(env).fetch(request);
     }
@@ -1031,7 +1061,14 @@ export default {
     if (url.searchParams.get("taifex")) {   // 2026-11-13 20:00 使用者「台指期 略有參考價值 如何取得」:期交所「前 30 個交易日期貨每筆成交」zip 原封轉送(GitHub 機器直接連可能被擋時用)
       const d = String(url.searchParams.get("taifex")).replace(/-/g, "_").slice(0, 10);
       if (!/^\d{4}_\d{2}_\d{2}$/.test(d)) return J({ error: "taifex 要 YYYY_MM_DD" }, 400);
+      // 2026-11-21 使用者「全改」(檢查 W4):原本是誰都能用的轉送 → 抓到的檔放邊緣快取 6 小時(同一天的 zip 只向期交所要一次);沒鑰匙的每個 IP 10 分鐘最多 20 次(GitHub txf_1m.py 一天只要幾次)
+      if (!pushOk && !KI && !ipLimit("taifex", request.headers.get("CF-Connecting-IP") || "?", 20, 600e3)) return J({ error: "太頻繁,10 分鐘後再試" }, 429);
+      const tck = new Request(`https://twse-proxy.internal/__taifex/${d}`), tc = caches.default;
+      try { const hit = await tc.match(tck); if (hit) return new Response(hit.body, { status: 200, headers: { ...CORS, "Content-Type": hit.headers.get("Content-Type") || "application/zip", "Cache-Control": "no-store" } }); } catch (e) {}
       const r = await fetch(`https://www.taifex.com.tw/file/taifex/Dailydownload/DailydownloadCSV/Daily_${d}.zip`, { headers: { "User-Agent": "Mozilla/5.0" } });
+      if (r.ok && /zip|octet/i.test(r.headers.get("Content-Type") || "")) { const buf = await r.arrayBuffer(); const ct = r.headers.get("Content-Type") || "application/zip";
+        try { await tc.put(tck, new Response(buf, { headers: { "Content-Type": ct, "Cache-Control": "public, max-age=21600" } })); } catch (e) {}
+        return new Response(buf, { status: 200, headers: { ...CORS, "Content-Type": ct, "Cache-Control": "no-store" } }); }
       return new Response(r.body, { status: r.status, headers: { ...CORS, "Content-Type": r.headers.get("Content-Type") || "application/zip", "Cache-Control": "no-store" } });
     }
     if (url.searchParams.get("twidx")) {   // 2026-11-13 19:50 使用者「好」(每天存加權指數 1 分 K):證交所每 5 秒指數 → 1 分 K(GitHub 機器連證交所會被擋,改由這裡抓);公開資料,收盤後的日子存 Hub 不重抓
@@ -1039,6 +1076,9 @@ export default {
       if (!/^\d{8}$/.test(d)) return J({ error: "twidx 要 YYYYMMDD" }, 400);
       const hub = env.HUB ? hubOf(env) : null, ck = "twidx:" + d;
       if (hub){ const old = await hub.kvGet(ck); if (old) return J(old); }
+      // 2026-11-21 使用者「全改」(檢查 W4):Hub 沒存(盤中 / 很舊的日子)才去證交所 → 沒鑰匙的每個 IP 10 分鐘最多 20 次;同一天 60 秒內共用同一份(這個執行個體記憶體)
+      if (!pushOk && !KI && !ipLimit("twidx", request.headers.get("CF-Connecting-IP") || "?", 20, 600e3)) return J({ error: "太頻繁,10 分鐘後再試" }, 429);
+      { const c = MC.get("twidx:" + d); if (c && Date.now() - c.at < 60e3) return J(c.v); }
       let j = null;
       let bad = null;
       for (const pth of ["rwd/zh/TAIEX/MI_5MINS_INDEX", "exchangeReport/MI_5MINS_INDEX", "rwd/zh/afterTrading/MI_5MINS_INDEX"]) {   // 證交所改版過網址,依序試
@@ -1053,6 +1093,7 @@ export default {
       const out = { d, bars: Object.keys(B).sort().map(t => [t, ...B[t]]) };
       const nowD = ymdOf(twNow()).replace(/-/g, ""), hm = twNow().toISOString().slice(11, 16);
       if (hub && out.bars.length && (d < nowD || hm >= "14:00")) try { await hub.kvPut(ck, out); } catch (e) {}
+      MC.set("twidx:" + d, { v: out, at: Date.now() });
       return J(out);
     }
     if (url.searchParams.get("lat") === "day") {   // 2026-11-13 14:30 延遲紀錄:今天(盤中現算)或某天(收盤備份過的)每個進場訊號各段幾秒
@@ -1217,9 +1258,20 @@ export default {
       if (pq === "key") return J({ pub: (await vapidKeys(env)).pub });
       let b = {}; try { b = await request.json(); } catch (e) {}
       const ep = String((b.sub && b.sub.endpoint) || b.endpoint || "");
-      if (!/^https:\/\/[\w.-]+\.(push\.apple\.com|googleapis\.com|mozilla\.com|windows\.com)\//.test(ep)) return J({ error: "不是推播網址" }, 400);
+      // 2026-11-21 使用者「全改」(檢查 W1):原本 *.googleapis.com(含 storage.googleapis.com 等任何 Google 服務)都收 → 只收真的推播伺服器
+      if (ep.length > 1000 || !/^https:\/\/(fcm\.googleapis\.com\/(fcm\/send|wp)\/|web\.push\.apple\.com\/|updates\.push\.services\.mozilla\.com\/|[\w-]+\.notify\.windows\.com\/)/.test(ep)) return J({ error: "不是推播網址" }, 400);
       const id = b64u(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ep))).slice(0, 22);
       if (pq === "sub") { const fdv = /^[a-f0-9]{16}$/.test(String(b.dv || "")) ? String(b.dv) : "";
+        // 2026-11-21 使用者「全改」(檢查 W1):原本不用鑰匙就能訂(500 筆上限、只推前 40 筆 → 外人灌訂閱就把真的手機擠掉):
+        //   有鑰匙(看盤 / owner)照收;沒鑰匙只收「免費期 7 天內」的手機(dv 讀過通知、Hub 有 free:<dv>,和推播 pushTier 同一個條件),而且每個 IP 10 分鐘最多 5 次
+        if (!KI) {
+          if (!fdv) return J({ error: "要鑰匙或手機識別碼", badKey: true }, 403);
+          let first = null; try { first = await hubOf(env).kvGet("free:" + fdv); } catch (e) {}
+          if (!first || Date.now() - +first > 7 * 86400e3) return J({ error: "免費期的交易通知已結束(或還沒開始),要鑰匙才能收推播" }, 403);
+          // 2026-11-21 使用者「全改」(檢查 c):限次數出錯 → 放行(fail open,只記 log);免費期檢查照舊
+          let g = { ok: true }; try { g = await hubOf(env).rateHit("pushsub", request.headers.get("CF-Connecting-IP") || "?", 5, 600e3); } catch (e) { console.log("push=sub 限次數出錯,先放行 " + String(e && e.message || e).slice(0, 120)); }
+          if (!g.ok) return J({ error: "太頻繁,10 分鐘後再試" }, 429);
+        }
         return J(await hubOf(env).pushSubPut({ id, endpoint: ep, k: KI ? kq : "", dv: KI ? "" : fdv, made: Date.now() })); }
       if (pq === "unsub") return J(await hubOf(env).pushSubDel(id));
       if (pq === "last") {
@@ -1235,7 +1287,7 @@ export default {
     // 寫入 / 下單類:只有 owner 鑰匙或中繼金鑰可以用(看盤版 viewer 鑰匙不行)
     // 2026-10-29 安全修補:拿掉「KV 讀 keys:owners 失敗 / 沒有 keys:owners 就放行」—— KV 一出錯外人就能塞假訊號、下單。
     //   owner 鑰匙已上線(交接說明:兩支手機都輸入 owner 鑰匙;App 用 owner 鑰匙讀 judge.js),中繼 / engine 都帶 X-Push-Key,所以一律要鑰匙,不再讀 KV
-    const ownerOk = async () => pushOk || ownerKI;
+    const ownerOk = async () => ownerR;
     const ownerW = async () => pushOk || (ownerKI && !(KI && KI.emoP));   // 2026-11-11 22:42 使用者「全改」:下單 / 寫通知 / 刪通知要「真的」owner(緊急模式自動認出來的不行)
 
     // ── 第五條路:?bars=YYYY-MM-DD[&codes=…][&since=HH:MM] → 雲端 1 分K ──
@@ -1253,6 +1305,7 @@ export default {
     // 2026-10-22 09:10 檢查(友達 / 時碩缺 09:02、09:07 兩根):?barsraw=today&code=2409 → 每個快照 / 子快照裡這檔的原始 [z, v, y, t],只讀、查問題用
     const br = url.searchParams.get("barsraw");
     if (br) {
+      if (!ownerR) return J({ error: "要中繼金鑰或 owner 鑰匙" }, 403);   // 2026-11-21 使用者「全改」(檢查 W4):查問題用,一次最多 120 次讀取、沒快取 → 不給外人用
       if (!env || !env.LOGS) return J({ error: "Worker 還沒綁定 KV(LOGS)" }, 503);
       const d = br === "today" ? ymdOf(twNow()) : br, code = url.searchParams.get("code") || "";
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !code) return J({ error: "要 barsraw=YYYY-MM-DD|today&code=代碼" }, 400);
@@ -1332,14 +1385,15 @@ export default {
         await hubOf(env).kvPut("quota", { d: b.d, hm: String(b.hm || ""), fill: +b.fill || 0, work: +b.work || 0, hold: +b.hold || 0, total: +b.total || 0, at: Date.now() });   // 2026-11-02 hold = 還沒平倉部位 × 漲停價(元大先扣)
         return J({ ok: true });
       }
-      const v = await hubOf(env).kvGet("quota");
-      return new Response(JSON.stringify(v || {}), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=10" } });
+      // 2026-11-21 使用者「全改」(檢查 W3):當沖額度是你元大帳戶的錢 → 只給中繼金鑰 / owner 鑰匙;看盤版 / 免費回空的 {}(App 沒拿到就用自己算的,不跳鑰匙視窗)
+      const v = ownerR ? await hubOf(env).kvGet("quota") : null;
+      return new Response(JSON.stringify(v || {}), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "private, max-age=10" } });
     }
 
     // ── 2026-10-30 11:08(實際時間)電腦開盤前資格複檢(tools/yuanta_bridge/elig.py;使用者「該如何避免再次出現這問題」→「2道都做」):
     //    POST ?elig=push {d, hm, disposed, attention, nodt, noshort, …}(中繼金鑰)/ GET ?elig=get → 手機把這些股票從監控拿掉(不靠 GitHub 排程)
     if (url.searchParams.get("usmkt")) {   // 2026-11-06 美股四大指數(當沖通知欄;公開資料不用鑰匙)
-      const v = await usGet(env, url.searchParams.get("usmkt") === "force");
+      const v = await usGet(env, url.searchParams.get("usmkt") === "force" && ownerR);   // 2026-11-21 使用者「全改」(檢查 W4):force(不管快取重抓 6 個指數 × 2 次)只給 owner / 中繼,其他當 get
       return new Response(JSON.stringify(v || {}), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60" } });
     }
     // 2026-11-06 名單外手動成交的股票(中繼 extra_add 補好 K 後推上來):POST ?extra=push {d, codes:[{code,name,market,prev}]}(中繼金鑰)/ GET ?extra=get → 手機也加進名單
@@ -1413,8 +1467,11 @@ export default {
         await hubOf(env).kvPut("extra", { d: b.d, codes });
         return J({ ok: true, n: codes.length });
       }
+      // 2026-11-21 使用者「全改」(檢查 W3):名單外手動成交的股票 = 你的真實交易 → 沒鑰匙回空的 {};看盤鑰匙只給代號 / 名稱 / 市場 / 昨收(App 加進名單用),不給成交時間;owner / 中繼全部
+      // 2026-11-21 使用者「全改」(檢查 d):沒鑰匙回 {} → 免費 / iPhone 網頁版名單少了名單外成交的股票 → 沒鑰匙也給和看盤鑰匙一樣的精簡版(代號 / 名稱 / 市場 / 昨收,沒有成交時間)
       const v = await hubOf(env).kvGet("extra");
-      return new Response(JSON.stringify(v || {}), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=30" } });
+      const out = v && !ownerR ? { d: v.d, codes: (Array.isArray(v.codes) ? v.codes : []).map(x => ({ code: x.code, name: x.name, market: x.market, prev: x.prev })) } : v;
+      return new Response(JSON.stringify(out || {}), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "private, max-age=30" } });
     }
     const el = url.searchParams.get("elig");
     if (el) {
@@ -1445,8 +1502,10 @@ export default {
         await hubOf(env).kvPut("engine", { d: b.d, hm: String(b.hm || ""), on: b.on ? 1 : 0, n: +b.n || 0, msg: String(b.msg || "").slice(0, 120), ver: String(b.ver || "").slice(0, 16), stale: b.stale ? 1 : 0, at: Date.now() });   // 2026-10-29 23:50 多存規則版本 / 規則舊(手機警示用)
         return J({ ok: true });
       }
+      // 2026-11-21 使用者「全改」(檢查 W3):中繼金鑰 / owner 鑰匙 → 全部;其他(看盤版、免費、排程查心跳)不給規則版本(ver、msg 裡的「規則…」)
       const v = await hubOf(env).kvGet("engine");
-      return new Response(JSON.stringify(v || {}), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=20" } });
+      const out = v && !ownerR ? { d: v.d, hm: v.hm, on: v.on, at: v.at, stale: v.stale, n: v.n, msg: String(v.msg || "").replace(/\s*規則\S*/g, "") } : v;   // 2026-11-21 協調者:msg(每輪秒數 / 事件數 / ⏱ 各段秒數)和監控檔數照給(週一量測排程讀公開心跳;不是帳戶資料),只拿掉規則版本
+      return new Response(JSON.stringify(out || {}), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "private, max-age=20" } });
     }
 
     // ── 自動當沖夥伴版:「夥伴加入」真的接上電腦(2026-11-17 使用者「1 選 a,2 開始 先畫流程」→「改」)──
@@ -1467,13 +1526,16 @@ export default {
     if (bugQ === "put" || bugQ === "list") {
       if (!env || !env.HUB) return J({ error: "沒有 Hub" }, 503);
       const hub = hubOf(env);
-      const scrub = t => String(t == null ? "" : t).replace(/fa11[0-9a-f]{6,}/gi, "[鑰匙]").replace(/\b[0-9a-f]{16,64}\b/gi, "[鑰匙]").replace(/((?:^|[?&\s])(k|dv|key|pass|pwd)=)[^&\s"']+/gi, "$1*");
+      const scrub = scrubKeys;
       if (bugQ === "list") { let L = null; try { L = await hub.kvGet("bugs"); } catch (e) {} const n = Math.min(300, Math.max(1, +url.searchParams.get("n") || 50));
         return J({ ok: true, bugs: (Array.isArray(L) ? L : []).slice(-n).reverse() }); }
       if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
-      const ip = request.headers.get("CF-Connecting-IP") || "?", bk = Math.floor(Date.now() / 600000);
-      let okRate = true; try { okRate = await hub.bugRate(ip, bk); } catch (e) {}
-      if (!okRate) return J({ error: "太多了,10 分鐘後再送" }, 429);
+      // 2026-11-21 使用者「全改」(檢查 W2):原本每個請求寫一列 bugrate:<時段>:<IP> 永遠不刪 → 改用 Hub 的 rl 表(一天後自動清,也順便清掉舊的 bugrate 列);
+      //   夥伴看盤 / 夥伴加入出錯時常常還沒輸入鑰匙,所以照舊不要鑰匙,但同一個 IP 10 分鐘最多 30 筆、全部加起來 10 分鐘最多 200 筆
+      const ip = request.headers.get("CF-Connecting-IP") || "?";
+      // 2026-11-21 使用者「全改」(檢查 c):Hub 限次數本身出錯(例如改版中舊的 Durable Object 還沒有 rl 表)→ 放行(fail open,只記 log),不要整個擋掉;大小上限照舊
+      let c = { ok: true }, cg = { ok: true }; try { c = await hub.rateHit("pbug", ip, 30, 600e3); if (c.ok) cg = await hub.rateHit("pbug", "*", 200, 600e3); } catch (e) { console.log("pbug 限次數出錯,先放行 " + String(e && e.message || e).slice(0, 120)); }
+      if (!c.ok || !cg.ok) return J({ error: "太多了,10 分鐘後再送" }, 429);
       let b = null; try { b = await request.json(); } catch (e) {}
       if (!b || typeof b !== "object") return J({ error: "內容不對" }, 400);
       const cut = (x, n) => scrub(x).slice(0, n);
@@ -1704,6 +1766,7 @@ export default {
         MC.set("yquote:url", { v: b.url, at: Date.now() }); try { if (env.HUB) await hubOf(env).kvPut("m:yquote:url", b.url); } catch (e) {}
         return J({ ok: true, url: b.url });
       }
+      if (!ownerR) return J({ error: "要中繼金鑰或 owner 鑰匙" }, 403);   // 2026-11-21 使用者「全改」(檢查 W3):回的是電腦的通道網址,外人拿到可以直接打電腦
       const u = (await kvGetC(env, "yquote:url", 60000)) || (kvDown() ? EMER_QURL : null);
       let health = null;
       if (u) { try { health = await (await fetch(u + "/health", { signal: AbortSignal.timeout(3000) })).json(); } catch (e) { health = { error: String(e) }; } }
@@ -1719,10 +1782,19 @@ export default {
         // 2026-10-29 安全修補:上傳要 owner 鑰匙或中繼金鑰(外人狂傳會吃光 KV 一天 1,000 次寫入,分K 快照 / 寬度跟著停);手機 fetch 包裝會自動帶 k= / dv=
         //   大小上限照舊 1.5MB(snaps 異常前 10 秒完整紀錄大小不定,改小怕手機傳不上去)
         // 2026-11-03 12:56 使用者「上傳不需要 鑰匙」:不再要 owner 鑰匙(現在存 Hub、最多留 20 份,不吃 KV 額度);防亂傳:同一個 IP 每分鐘最多 6 次
-        { const ip = request.headers.get("CF-Connecting-IP") || "?", now = Date.now(), q = (BUGIP.get(ip) || []).filter(t => now - t < 60000);
+        // 2026-11-21 使用者「全改」(檢查 W2):要有效的鑰匙(主程式 App 的 fetch 包裝、開機早期上傳都會帶 k;看盤版不上傳)或中繼金鑰
+        // 2026-11-21 使用者「全改」(檢查 a):上面那條讓 iPhone 網頁版 / 免費看盤上傳被 403「上傳 bug 紀錄要鑰匙」→ 改回不用鑰匙也能傳,保護比照 pbug:
+        //   沒鑰匙:同一個 IP 10 分鐘最多 6 份、全部沒鑰匙的加起來 10 分鐘最多 40 份(Hub rl 表;Hub 出錯就放行 = fail open,只記 log);大小上限 1.5MB;內容先遮掉像鑰匙的字串。
+        //   讀(?bug=list / get)照舊只給中繼金鑰 / owner 鑰匙
+        const ip = request.headers.get("CF-Connecting-IP") || "?";
+        { const now = Date.now(), q = (BUGIP.get(ip) || []).filter(t => now - t < 60000);
           if (q.length >= 6) return J({ error: "上傳太頻繁,等一分鐘" }, 429); q.push(now); BUGIP.set(ip, q); if (BUGIP.size > 500) BUGIP.clear(); }
         const cl = +request.headers.get("Content-Length") || 0; if (cl > 1500000) return J({ error: "太大" }, 413);
-        const body = await request.text();
+        if (!KI && !pushOk && env.HUB) {
+          let c = { ok: true }, cg = { ok: true }; try { const h = hubOf(env); c = await h.rateHit("bugput", ip, 6, 600e3); if (c.ok) cg = await h.rateHit("bugput", "*", 40, 600e3); } catch (e) { console.log("bug=put 限次數出錯,先放行 " + String(e && e.message || e).slice(0, 120)); }
+          if (!c.ok || !cg.ok) return J({ error: "上傳太頻繁,10 分鐘後再試" }, 429);
+        }
+        const body = scrubKeys(await request.text());
         if (body.length > 1500000) return J({ error: "太大" }, 413);
         const k = "bug:" + new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 19).replace(/[-:T]/g, "");
         // 2026-11-03 11:56 使用者「抓bug也出現失敗」:改存 Hub(不吃 KV 每天 1,000 次寫入),最多留 20 份;沒有 Hub 才用 KV
@@ -1731,6 +1803,7 @@ export default {
         catch (e) { return J({ error: "雲端存不進去:" + String(e && e.message || e).slice(0, 80) }, 503); }   // 最新一份的鍵(讀的時候不用 list,不吃 KV list 額度)
         return J({ ok: true, key: k });
       }
+      if ((bq0 === "list" || bq0 === "get") && !ownerR) return J({ error: "讀 bug 紀錄要中繼金鑰或 owner 鑰匙(內容有帳戶資金資料)" }, 403);   // 2026-11-21 使用者「全改」(檢查 W2)
       if (bq0 === "list") { let out = []; try { if (env.HUB) out = await hubOf(env).bugList(); } catch (e) {} try { const l = await env.LOGS.list({ prefix: "bug:" }); out = out.concat(l.keys.map(x => ({ k: x.name, size: x.metadata && x.metadata.size }))); } catch (e) {} return J(out); }
       // 2026-10-29 安全修補:只准讀 bug: 開頭的鍵(原本 k 可指任何 KV 鍵,例如 pick:取件碼);k 不是 bug: 開頭就讀最新一份
       if (bq0 === "get") { const bk0 = url.searchParams.get("bk") || url.searchParams.get("k") || ""; let v = null;   // 2026-11-10 bk=:k= 跟鑰匙參數撞名(讀指定那份會被當成鑰匙擋掉)
@@ -1766,7 +1839,11 @@ export default {
           const pos = (Array.isArray(j.pos) ? j.pos : []).filter(p => +p.qty > 0).slice(0, 20).map(p => ({ code: String(p.code || ""), name: String(p.name || "").slice(0, 12), dir: +p.dir || 0, qty: +p.qty || 0 }));
           ctx.waitUntil(hubOf(env).kvPut("tposLast", { d: ymdOf(twNow()), at: Date.now(), pos }).catch(() => {})); }
         return J(j, r.ok ? 200 : r.status);
-      } catch (e) { return J({ ok: false, msg: "電腦沒有回應(可能關機、斷線或元大中繼沒在跑)" }, 504); }
+      } catch (e) {
+        // 2026-11-21 使用者「全改」(檢查 d):等電腦 8 秒逾時 ≠ 沒下單(電腦可能已經送單只是回得慢)→ 下單指令逾時回 timeout:true 和「可能已送出」,手機照這句顯示
+        const to = e && (e.name === "TimeoutError" || e.name === "AbortError");
+        if (tq === "cmd" && to) return J({ ok: false, timeout: true, msg: "電腦回應逾時,單可能已送出,請到當沖確認" }, 504);
+        return J({ ok: false, timeout: !!to, msg: tq === "cmd" ? "連不上電腦(可能關機、斷線或元大中繼沒在跑),請到當沖確認" : "電腦沒有回應(可能關機、斷線或元大中繼沒在跑)" }, 504); }
     }
 
     // ── ?breadth=today|YYYY-MM-DD → 大盤寬度(每分鐘上漲比例),邊緣快取 50 秒 ──
@@ -1792,14 +1869,16 @@ export default {
       const path = String(url.searchParams.get("path") || "").replace(/^\/+/, "").split("?")[0];
       if (!path || path.includes("..") || !/^[\w./\-\u4e00-\u9fff]+$/.test(path)) return J({ error: "path 不對" }, 400);
       const ref = /^[0-9a-f]{7,40}$/.test(url.searchParams.get("ref") || "") ? url.searchParams.get("ref") : GH_REF;
-      const full = pushOk || (KI && KI.role === "owner");
+      const full = pushOk || (KI && KI.role === "owner" && !KI.emoP);
       const logic = url.searchParams.get("repo") === "logic";   // 私人庫 Stock-logic:判一二三的程式、模擬器、說明
-      const viewerOk = !logic && (path === "app/viewer.html" || path.startsWith("app/apk/viewer/"));
-      // 2026-11-02 kvping 的「被拒」紀錄:沒鑰匙的手機(免費 / iPhone 網頁版)、看盤鑰匙讀 pool.json / prob_model.json / log_backfill.json 一直被 403(名單、機率表、舊紀錄出不來)。
-      //   這三個檔本來就放在公開庫(任何人都能從 GitHub 直接讀),不算機密 → 不用鑰匙也給讀
-      //   使用者「唯一機密的只有判一二三四」→ 公開庫的檔全部不用鑰匙(本來就是公開的);只有私人庫(repo=logic,判一二三四)要 owner 鑰匙 / 中繼金鑰
-      const publicOk = !logic;
-      if (!full && !publicOk && !(KI && viewerOk)) return J({ error: KI ? "這把鑰匙不能讀這個檔" : "要鑰匙", badKey: !KI }, 403);
+      // 2026-11-02 kvping 的「被拒」紀錄:沒鑰匙的手機(免費 / iPhone 網頁版)、看盤鑰匙讀 pool.json / prob_model.json / log_backfill.json 一直被 403(名單、機率表、舊紀錄出不來)→ 不用鑰匙也給讀
+      // 2026-11-21 使用者「全改」(檢查 S1):原本「公開庫的檔全部不用鑰匙」(publicOk = !logic),但 Stock-database 已經是私人庫 —— 沒鑰匙就能經 Worker 的 GH_TOKEN 讀整個庫,
+      //   包括 android/keystore/mysh.jks、*.gradle.kts / gradle.properties(簽章密碼)、partner_app/*、tools/yuanta_bridge/* → 改成白名單:
+      //   沒鑰匙 / 看盤 / 夥伴 / 管理鑰匙只能讀 GH_PUBLIC 這幾類(App、看盤版、iPhone 網頁版、夥伴 App 不帶鑰匙時真的會讀的);其他要 owner 鑰匙或中繼金鑰。
+      //   GH_DENY(簽章檔、gradle 設定、bridge.env、GitHub 金鑰、keys/)連 owner 鑰匙 / 中繼金鑰都不給(中繼自我更新只讀 tools/yuanta_bridge/*.py、FILES、VERSION,用不到)
+      if (GH_DENY.test(path)) return J({ error: "這個檔不經雲端提供" }, 403);
+      const viewerOk = !logic && GH_PUBLIC.test(path);
+      if (!full && !viewerOk) return J({ error: KI ? "這把鑰匙不能讀這個檔" : "要鑰匙", badKey: !KI }, 403);
       if (!env || !env.GH_TOKEN) return J({ error: "Worker 沒有 GH_TOKEN" }, 503);
       // 2026-10-30 10:34(實際時間)使用者「東台 今天是處置股 為何還會被挑選進來」:pool.json 早上 08:20 起每 15~20 分鐘會被資格複檢改寫(新處置股 / 不能當沖),
       //   這裡原本快取 30 分鐘,手機 08:15~09:50 每 5 分鐘來抓也可能拿到舊的 → pool.json 和 html / js 一樣只快取 60 秒
@@ -1827,15 +1906,18 @@ export default {
         if (!t.ok) return J({ error: "tree " + t.status }, 502);
         const tj = await t.json();
         return J({ repo: rp, commit: cj.sha, at: cj.commit && cj.commit.committer && cj.commit.committer.date, truncated: !!tj.truncated,
-                   files: (tj.tree || []).filter(x => x.type === "blob").map(x => [x.path, x.sha, x.size]) });
+                   files: (tj.tree || []).filter(x => x.type === "blob" && !GH_DENY.test(x.path)).map(x => [x.path, x.sha, x.size]) });   // 2026-11-21 使用者「全改」(檢查 e):GH_DENY 的檔不列(電腦同步就不會去抓)
       }
       const sha = url.searchParams.get("sha") || "";
       if (!/^[0-9a-f]{40}$/.test(sha)) return J({ error: "sha 不對" }, 400);
-      const cache = caches.default, ck = new Request(`https://twse-proxy.internal/__blob/${rp}/${sha}`);
-      const hit = await cache.match(ck); if (hit) return hit;
       // 用 raw.githubusercontent(不吃 GitHub API 每小時 5,000 次的額度;第一次同步約 6,000 個檔);要帶 path + ref(提交編號)
+      // 2026-11-21 使用者「全改」(檢查 e):?gh=raw 有 GH_DENY,這裡原本沒有 → 中繼金鑰也能經 tree / blob 拿到簽章檔、gradle、bridge.env…;
+      //   path 檢查搬到讀快取之前、GH_DENY 一律 403;快取鍵換成 __blob2(改版前快取過的被拒檔不會再從快取吐出來)
       const fp = String(url.searchParams.get("path") || ""), rf = url.searchParams.get("ref") || "";
       if (!fp || fp.includes("..") || !/^[0-9a-f]{40}$/.test(rf)) return J({ error: "path / ref 不對" }, 400);
+      if (GH_DENY.test(fp)) return J({ error: "這個檔不經雲端提供" }, 403);
+      const cache = caches.default, ck = new Request(`https://twse-proxy.internal/__blob2/${rp}/${sha}`);
+      const hit = await cache.match(ck); if (hit) return hit;
       const b = await fetch(`https://raw.githubusercontent.com/${GH_OWNER}/${rp}/${rf}/${fp.split("/").map(encodeURIComponent).join("/")}`, { headers: pub ? { "User-Agent": "twse-proxy" } : { Authorization: "token " + env.GH_TOKEN, "User-Agent": "twse-proxy" } });
       if (!b.ok) return J({ error: "blob " + b.status }, b.status === 404 ? 404 : 502);
       const res = new Response(b.body, { status: 200, headers: { "Content-Type": "application/octet-stream", "Cache-Control": "public, max-age=86400" } });
@@ -1925,7 +2007,7 @@ export default {
         const REAL = /·\s*元大中繼\s*$|·\s*(強三|元三)\s*$|·\s*(強平|元平)\s*·/;
         // 2026-11-04 強平過的部位,引擎照算的虛擬出場(內容有「· 已強平 ·」):看盤版 / 免費照常看(拿掉「已強平」這幾個字,一進一出),永久版 App 自己藏
         const FCV = /\s*·\s*已強平(?=\s*·)/;
-        const mine = pushOk || ownerKI, scrub0 = a => mine || !Array.isArray(a) ? a : a.filter(x => !REAL.test(String((x && x.body) || "")) && !String((x && x.key) || "").startsWith("yt|")).map(x => FCV.test(String(x.body || "")) ? { ...x, body: String(x.body).replace(FCV, "") } : x);
+        const mine = pushOk || ownerKI, scrub0 = a => mine || !Array.isArray(a) ? a : a.filter(x => !REAL.test(String((x && x.body) || "")) && !isYt(x)).map(x => FCV.test(String(x.body || "")) ? { ...x, body: String(x.body).replace(FCV, "") } : x);
         // 免費第 8~30 天:只留平倉的(kind loss / profit / exit)和配得上的進場(同代碼、同判別式、進場那根時間 = 平倉內容裡的「HH:MM 進」)
         const closedOnly = a => {
           if (!Array.isArray(a)) return a;
@@ -2006,6 +2088,16 @@ export default {
       return new Response(JSON.stringify({ error: "缺少 codes 參數" }), {
         status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
     }
+    // 2026-11-21 使用者「全改」(檢查 W4):代號只收英數字(t00 指數是小寫)、一次最多 300 檔;mkt 只認 tse / otc / any
+    //   (原本代號原封接進通道網址 → 外人可以夾帶其他參數打電腦)。沒鑰匙的(免費看盤、電腦引擎抓昨收 / 形成中的 K):每個 IP 每分鐘最多 300 次,同一組代號 2 秒內共用同一份結果(不再每次都打到電腦)
+    if (codes.length > 300 || !codes.every(c => /^[0-9A-Za-z]{1,8}$/.test(c)) || !mkts.every(m => m === "" || m === "tse" || m === "otc" || m === "any"))
+      return new Response(JSON.stringify({ error: "codes 只能是英數字代號(逗號分隔,最多 300 檔);mkt 只能是 tse / otc / any" }), { status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
+    const anon = !KI && !pushOk;
+    if (anon && !ipLimit("codes", request.headers.get("CF-Connecting-IP") || "?", 300, 60e3)) return new Response(JSON.stringify({ error: "太頻繁,稍後再試" }), { status: 429, headers: { ...CORS, "Content-Type": "application/json" } });
+    const qck = "q:" + codes.join(",") + "|" + mkts.join(",") + "|" + (url.searchParams.get("src") || "");
+    if (anon) { const c = MC.get(qck); if (c && Date.now() - c.at < 2000) return new Response(c.v, { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } }); }
+    const qOut = body => { if (anon) { MC.set(qck, { v: body, at: Date.now() }); if (MC.size > 3000) for (const k of [...MC.keys()].filter(k => k.startsWith("q:")).slice(0, 1500)) MC.delete(k); }
+      return new Response(body, { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } }); };
 
     // 組證交所要的格式:tse_2409.tw|otc_6147.tw|...
     // 2026-10-20 mkt=any:不知道上市上櫃(App 名單裡沒有的股票),兩邊都問,證交所只會回對的那一邊(錯的回空的,misFresh 會丟掉)
@@ -2016,12 +2108,12 @@ export default {
       try {
         const qu = (await kvGetC(env, "yquote:url", 60000)) || (kvDown() ? EMER_QURL : null);
         if (qu) {
-          const r = await fetch(`${qu}/quotes?codes=${codes.join(",")}`, { headers: { "X-Quote-Key": env.YT_PUSH_KEY }, signal: AbortSignal.timeout(1500) });
+          const r = await fetch(`${qu}/quotes?codes=${encodeURIComponent(codes.join(","))}`, { headers: { "X-Quote-Key": env.YT_PUSH_KEY }, signal: AbortSignal.timeout(1500) });
           if (r.ok) {
             const y = await r.json(), hm = hhmmOf(twNow());
             const live = hm >= "09:00" && hm <= "13:31";
             if (y && Array.isArray(y.msgArray) && !(y.missing || []).length && (!live || (y.age != null && y.age < 60)))
-              return new Response(JSON.stringify(y), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });
+              return qOut(JSON.stringify(y));
           }
         }
       } catch (e) { /* 元大通道不通 → 證交所 */ }
@@ -2030,10 +2122,7 @@ export default {
       // 2026-10-20:同時發 FRESH_N 個請求、每檔取最新的那筆(見 misFresh)
       const j = await misFresh(ex_ch);
       if (!j) return new Response(JSON.stringify({ error: "證交所接口沒有回應" }), { status: 502, headers: { ...CORS, "Content-Type": "application/json" } });
-      return new Response(JSON.stringify(j), {
-        status: 200,
-        headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" },
-      });
+      return qOut(JSON.stringify(j));
     } catch (e) {
       return new Response(JSON.stringify({ error: String(e) }), {
         status: 502, headers: { ...CORS, "Content-Type": "application/json" } });

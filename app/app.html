@@ -5,6 +5,9 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-21 21:38(實際時間)第三輪檢查修正(使用者「全改」):中繼 —— 登入暫時被拒(請勿連續登入等)會退避重試、只有帳密錯 / 凍結 / 沒權限才整天停;雲端掛時本機 K 照寫、推雲端改背景不卡主迴圈;Windows 寫 K 檔撞到引擎讀不會重登;成交回報疑似重複時不反向下單、推手機請人工確認;台指期 K 每天重置;自動更新全部檔案成功才算;接回失敗會重試;13:20 查詢失敗不當成沒掛單;休市日不登入。下單程式 —— 成交金額不重複算、晚到回報接回原本那筆、張數對不上以元大為準。雲端 —— 錯誤紀錄由 GitHub 排程存進私人庫、補抓指數 / 台指期帶金鑰會重試、免費版可上傳錯誤紀錄、推播訂閱失敗照實說
+  · 2026-11-21 21:05(實際時間)全面檢查修正(使用者「全改」):雲端只讓沒鑰匙的人讀名單 / 紀錄 / 看盤頁等必要檔(簽章金鑰、設定檔一律不給);雲端故障時看盤鑰匙不能變成管理者;推播、錯誤紀錄、資金資料、幾個公開轉送加鑰匙或次數限制;下單程式重開接回不再當掉、平倉中的虧損算進上限、同檔再進場不沿用上一筆移平價、均價 / 對帳入帳 / IOC 晚到成交修正、跳檔價精確;電腦引擎預判不拖到下一分鐘、收盤確認先確認寬度、判一急彈空不被後面判別式搶走;強制進場滑桿寫實際送出的價格、送出中鎖住、逾時提示改成「單可能已送出,請到當沖確認」
+  · 2026-11-21 20:11(實際時間)電腦引擎 / 中繼檢查修正(使用者「改 1 2b 3」):① 判一急彈空的平倉從雲端對帳時記對(原本記成判一,電腦以為還開著、擋這檔新進場、重複平倉);②b 寬度改成開算前等雲端最新一分鐘(最多 4 秒、不超過第 15 秒,全部判別式一起等;取代「先擋看寬度的判別式、事後重算」);③ 中繼讀電腦通知不會再漏讀到一半的中文字、出錯推手機、進場結果馬上寫
   · 2026-11-21 09:29(實際時間)電腦引擎寬度一致(使用者「B」):最新幾分鐘的大盤寬度 / 名單平均是電腦自己補的(雲端還沒到)時,看寬度的判別式(一 / 二 / 五 / 六 / 八 / 九 / 十)新進場先不發,每秒問雲端,最多等 15 秒,補齊後只重算那幾筆再發;等不到就下一輪判。雲端斷線時照舊用電腦算的(不會因此停止交易)
   · 2026-11-21 03:43(實際時間)電腦引擎檢查修正(使用者「跑程式確認程式邏輯無漏洞」):熱門股先算後,跨股票的新進場通知改回和以前同一順序(中繼總額度 / 同時檔數先到先拿);寬度等待設定防呆;雲端回空的寬度不蓋掉上一次;第一則通知秒數只記主程式;前段共用判定收緊。11/19(154 則)、11/20(20 則,含判一急彈空)整天回放新舊通知內容與進場順序相同
   · 2026-11-21 股票監控區千元以上股票成交價不顯示小數(1083.00 → 1083),不再被欄寬切掉
@@ -586,7 +589,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611210929">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611212327">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1986,6 +1989,10 @@ window.vTrade = vTrade;
 const vwOnly = () => !!window.VIEWER && !vTrade();
 window.vwOnly = vwOnly;
 const fmApi = () => liveOn() ? BASE.liveUrl.replace(/\/$/, '') + '/?trade=' : '';
+// 2026-11-21 使用者「全改」(檢查 d):手機等 12 秒、Worker 等電腦 8 秒;逾時時電腦可能已經下單 → 不說「沒有送出」,請使用者到當沖確認
+//   (Worker 逾時回 504 + timeout:true 和這句話;這裡是手機自己等到逾時 / 連不上的情形)
+const fmCmdErr = e => (e && (e.name === 'TimeoutError' || e.name === 'AbortError')) ? '電腦回應逾時,單可能已送出,請到當沖確認' : '連不上雲端,單可能沒有送出,請到當沖確認';
+window.fmCmdErr = fmCmdErr;
 
 /* 2026-10-28 12:21 當沖只列元大真的成交的部位:當沖開著、App 在前景時每 15 秒問電腦一次(?trade=pos,一次一個 Worker 請求;不開當沖不問) */
 function tposPoll(force){
@@ -2295,12 +2302,16 @@ function fmShow(o){
   const pxClamp = v => { if (LU > 0 && v > LU) v = LU; if (LD > 0 && v < LD) v = LD; return r2(v); };
   const pxStep = up => { if (!(px > 0)) return; const t = up ? tickOf(px + 1e-9) : tickOf(px - 1e-9); px = pxClamp(up ? Math.round((px + t) / t) * t : Math.round((px - t) / t) * t); pxSet = true; paint(); };
   const pxName = () => px === LU && LU > 0 ? '漲停' : px === LD && LD > 0 ? '跌停' : '';
+  // 2026-11-21 使用者「全改」(檢查 c):滑桿原本寫「漲停 / 跌停」,但做多選漲停、做空選跌停(或還沒拿到價格)時手機不帶價格,電腦實際送「現價讓 2 檔限價 ROD」(trader.py force_enter)
+  //   → 字照實際送出的寫;送單行為不變(pxSend 和下面送出時帶不帶 px 同一個條件)
+  const pxSend = () => o.act === 'enter' && o.pxOk && px > 0 && !((dir > 0 && px === LU) || (dir < 0 && px === LD));
+  const pxLabel = () => !o.pxOk ? '' : pxSend() ? (pxName() ? pxName() + ' ' : '') + '@' + px.toFixed(2) : '現價讓 2 檔限價';   // 電腦舊版(沒有 pxOk)照舊不寫價格
   const paint = () => {
     if (o.act === 'enter'){ const pv = w.querySelector('.fmpv'); if (pv){ pv.textContent = px > 0 ? px.toFixed(2) : '—'; pv.style.color = col(px); }
       const am = w.querySelector('.fmamt'); if (am && px > 0) am.textContent = n0(o.lots * px * 1000);
       const lu = w.querySelector('.fmlim .lu'), ld = w.querySelector('.fmlim .ld'); if (lu) lu.classList.toggle('on', LU > 0 && px === LU); if (ld) ld.classList.toggle('on', LD > 0 && px === LD); }
     sl.className = 'fmsl ' + (o.act === 'close' ? 'blue' : !dir ? 'off' : o.over ? 'red' : 'yel');
-    tx.textContent = o.act === 'close' ? (o.pos.state === '進場中' ? '滑到底 取消進場單(已成交的馬上平倉)' : `滑到底 全部平倉 ${o.pos.qty} 張`) : !dir ? '先選做多或做空' : `滑到底 強制${dir > 0 ? '做多' : '做空'} ${o.lots} 張 ${o.pxOk ? (pxName() || (px > 0 ? '@' + px.toFixed(2) : '')) : ''}`; };
+    tx.textContent = o.act === 'close' ? (o.pos.state === '進場中' ? '滑到底 取消進場單(已成交的馬上平倉)' : `滑到底 全部平倉 ${o.pos.qty} 張`) : !dir ? '先選做多或做空' : `滑到底 強制${dir > 0 ? '做多' : '做空'} ${o.lots} 張 ${pxLabel()}`; };
   if (o.act === 'enter'){
     const hold = (b, up) => { if (!b) return; let tm = 0, iv = 0; const stop = () => { clearTimeout(tm); clearInterval(iv); };
       b.addEventListener('pointerdown', ev => { ev.preventDefault(); pxStep(up); stop(); tm = setTimeout(() => { iv = setInterval(() => pxStep(up), 90); }, 400); });   // 按住連續跳
@@ -2320,21 +2331,21 @@ function fmShow(o){
   w.querySelector('.fmx').addEventListener('click', close);
   paint();
   // 滑到底才送出:手指按住 ▶▶ 往右拖,過 92% 放手 = 送出;沒到就彈回
-  let drag = null;
+  let drag = null, busy = false;   // 2026-11-21 使用者「全改」(檢查 d):送出中(等電腦回應)滑桿鎖住,不會連送兩次
   const W = () => sl.clientWidth - kn.offsetWidth - 6;
-  kn.addEventListener('touchstart', ev => { if (o.act === 'enter' && !dir){ er.textContent = '先選做多或做空'; return; } drag = {x0: ev.touches[0].clientX}; }, {passive: true});
+  kn.addEventListener('touchstart', ev => { if (busy) return; if (o.act === 'enter' && !dir){ er.textContent = '先選做多或做空'; return; } drag = {x0: ev.touches[0].clientX}; }, {passive: true});
   kn.addEventListener('touchmove', ev => { if (!drag) return; const dx = Math.max(0, Math.min(W(), ev.touches[0].clientX - drag.x0)); drag.dx = dx; kn.style.transform = `translateX(${dx}px)`; }, {passive: true});
-  const end = async () => { if (!drag) return; const done = (drag.dx || 0) >= W() * 0.92; drag = null; kn.style.transform = '';
+  const end = async () => { if (!drag || busy) return; const done = (drag.dx || 0) >= W() * 0.92; drag = null; kn.style.transform = '';
     if (!done) return;
     const pi = w.querySelector('.fmpin input'); const pinV = fmPin.get() || (pi ? pi.value.trim() : '');   // 2026-10-29 12:50(實際時間)不用密碼:手機有存(或電腦要求才出現的格子有填)就帶,沒有就不帶
     if (pi && !pinV){ er.textContent = '電腦有設交易密碼,請輸入'; return; }
     const cmd = o.act === 'close' ? {act: 'close', code: o.code} : {act: 'enter', code: o.code, dir, lots: o.lots, tpPct: (RULESETS['三'].sig || {}).takePct, slPct: (RULESETS['三'].sig || {}).stopPct};
-    if (o.act === 'enter' && o.pxOk && px > 0 && !((dir > 0 && px === LU) || (dir < 0 && px === LD))) cmd.px = px;   // 2026-11-03 指定價格才帶(漲停買 / 跌停賣照原本送法)
+    if (pxSend()) cmd.px = px;   // 2026-11-03 指定價格才帶(漲停買 / 跌停賣照原本送法)
     if (pinV) cmd.pin = pinV; cmd.id = o.code + '-' + Date.now(); if (o.y > 0) cmd.ref = o.y; cmd.name = o.name || '';   // 昨收:電腦這檔沒有昨收時 ±6.5% 用
-    sl.classList.add('sending'); tx.textContent = '送出中…';
+    sl.classList.add('sending'); tx.textContent = '送出中…'; busy = true;
     let r = null; try{ const q = await fetch(fmApi() + 'cmd', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cmd), signal: AbortSignal.timeout(12000)}); r = await q.json(); }
-    catch(e){ r = {ok: false, msg: '電腦沒有回應,這單沒有送出'}; }
-    sl.classList.remove('sending');
+    catch(e){ r = {ok: false, msg: fmCmdErr(e)}; }   // 2026-11-21 使用者「全改」(檢查 d):逾時不能說「沒有送出」(電腦可能已下單)
+    busy = false; sl.classList.remove('sending');
     if (r && r.badPin){ fmPin.set(''); }
     if (!r || !r.ok){ er.textContent = (r && r.msg) || '沒有送出'; paint(); if (r && r.badPin && !pi){ close(); fmShow(Object.assign({}, o, {askPin: true})); } return; }   // 電腦說要密碼 → 重開視窗、這次有密碼格
     if (pi && pinV) fmPin.set(pinV);   // 輸對了就存在手機,以後不再問
@@ -2511,16 +2522,16 @@ window.fmShow = fmShow;
         requestAnimationFrame(paintK); window.addEventListener('resize', paintK, {once: true});
       }catch(err){ cm.textContent = 'K 線載入失敗'; } })();
     // 向右滑到底 = 強制平倉(和長按的強制平倉送同一個指令)
-    const sl = w.querySelector('.dwsl'), kn = w.querySelector('.dwkn'), er = w.querySelector('.dwerr'); let drag = null;
+    const sl = w.querySelector('.dwsl'), kn = w.querySelector('.dwkn'), er = w.querySelector('.dwerr'); let drag = null, busy = false;   // 2026-11-21 使用者「全改」(檢查 d):送出中鎖住滑桿
     const Wd = () => sl.clientWidth - kn.offsetWidth - 8;
-    kn.addEventListener('touchstart', ev => { drag = {x0: ev.touches[0].clientX}; }, {passive: true});
+    kn.addEventListener('touchstart', ev => { if (busy) return; drag = {x0: ev.touches[0].clientX}; }, {passive: true});
     kn.addEventListener('touchmove', ev => { if (!drag) return; const dx = Math.max(0, Math.min(Wd(), ev.touches[0].clientX - drag.x0)); drag.dx = dx; kn.style.transform = `translateX(${dx}px)`; }, {passive: true});
-    const end = async () => { if (!drag) return; const done = (drag.dx || 0) >= Wd() * 0.92; drag = null; kn.style.transform = ''; if (!done) return;
+    const end = async () => { if (!drag || busy) return; const done = (drag.dx || 0) >= Wd() * 0.92; drag = null; kn.style.transform = ''; if (!done) return;
       const api = fmApi(); if (!api){ er.textContent = '沒有設定雲端網址,不能強制平倉'; return; }
       const cmd = {act: 'close', code, id: code + '-drag-' + Date.now(), name}; const pinV = fmPin.get(); if (pinV) cmd.pin = pinV; { const y = fmPx(code).y; if (y > 0) cmd.ref = y; }
-      sl.classList.add('sending'); w.querySelector('.dwtx').textContent = '送出中…';
-      let r = null; try{ const q = await fetch(api + 'cmd', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cmd), signal: AbortSignal.timeout(12000)}); r = await q.json(); }catch(e){ r = {ok: false, msg: '電腦沒有回應,這單沒有送出'}; }
-      sl.classList.remove('sending'); w.querySelector('.dwtx').textContent = '向右滑到底　強制平倉 ▶▶';
+      sl.classList.add('sending'); w.querySelector('.dwtx').textContent = '送出中…'; busy = true;
+      let r = null; try{ const q = await fetch(api + 'cmd', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cmd), signal: AbortSignal.timeout(12000)}); r = await q.json(); }catch(e){ r = {ok: false, msg: fmCmdErr(e)}; }
+      busy = false; sl.classList.remove('sending'); w.querySelector('.dwtx').textContent = '向右滑到底　強制平倉 ▶▶';
       if (!r || !r.ok){ er.textContent = (r && r.msg) || '沒有送出'; return; }
       fcAdd(code); close(); fmToast(name + ' ' + (r.msg || '已送出強制平倉'), 3500); };
     kn.addEventListener('touchend', end); kn.addEventListener('touchcancel', () => { drag = null; kn.style.transform = ''; });
@@ -3921,8 +3932,15 @@ function freeExpired(){   // 2026-11-01 免鑰匙滿 30 天:整個畫面蓋住,�
     w.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:4000;background:#1B2233;border-top:2px solid #4FC3F7;color:#E6EAF2;padding:12px 44px 14px 14px;font-size:16px;line-height:1.5;display:flex;align-items:center;gap:10px';
     w.innerHTML = '<span style="flex:1">' + txt + '</span>' + (btn ? '<button style="padding:8px 16px;font-size:16px;font-weight:700;border-radius:8px;border:0;background:#4FC3F7;color:#000">' + btn + '</button>' : '') + '<i style="position:absolute;right:12px;top:8px;font-style:normal;color:#8C96AB;font-size:20px">✕</i>';
     w.querySelector('i').onclick = hide; if (btn) w.querySelector('button').onclick = fn; document.body.appendChild(w); };
-  const sync = async reg => { const sb = await reg.pushManager.getSubscription(); if (!sb) return false;
-    await fetch(W() + '/?push=sub', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sub: sb.toJSON(), dv: (typeof freeDev === 'function' ? freeDev() : '')})}); return true; };
+  /* 2026-11-21 使用者「全改」(檢查 b):原本不管 ?push=sub 回什麼都說「已開啟交易通知」(被 403 / 429 擋掉也一樣)→ 回 2xx 才算成功;
+     沒成功:回狀態碼(連不上 = -1),10 分鐘後自動再送(最多 4 次;雲端限同一個 IP 10 分鐘 5 次)。沒有訂閱回 false */
+  let syncT = 0;
+  const sync = async (reg, n) => { const sb = await reg.pushManager.getSubscription(); if (!sb) return false;
+    let st = -1; try{ const r = await fetch(W() + '/?push=sub', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sub: sb.toJSON(), dv: (typeof freeDev === 'function' ? freeDev() : '')})}); st = r.status; }catch(e){}
+    if (st >= 200 && st < 300) return true;
+    const k = (n || 0) + 1; if (k <= 4 && !syncT) syncT = setTimeout(() => { syncT = 0; sync(reg, k).catch(() => {}); }, 10 * 60e3);
+    return st; };
+  const syncErr = st => st === 429 || st === 403 ? '訂閱沒成功,稍後會自動再試' : st === -1 ? '連不上雲端,訂閱沒成功,稍後會自動再試' : '訂閱沒成功(' + st + '),稍後會自動再試';
   window.addEventListener('load', () => setTimeout(() => {
     navigator.serviceWorker.register('/sw.js', {scope: '/'}).then(async reg => {
       if (ios && !standalone){ bar('要收到交易通知:按 Safari 下方的「分享」→「加入主畫面」,再從主畫面的「名揚四海」打開'); return; }   // iPhone 只有加入主畫面後才能收推播
@@ -3933,7 +3951,8 @@ function freeExpired(){   // 2026-11-01 免鑰匙滿 30 天:整個畫面蓋住,�
         try{ const pm = await Notification.requestPermission(); if (pm !== 'granted'){ bar('沒有開啟通知(可以到 iPhone「設定 → 通知 → 名揚四海」打開)'); return; }
           const k = await (await fetch(W() + '/?push=key')).json();
           await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: u8(k.pub)});
-          await sync(reg); hide(); try{ fmToast('已開啟交易通知', 3000); }catch(e){}
+          const st = await sync(reg); if (st !== true){ bar(syncErr(st)); return; }
+          hide(); try{ fmToast('已開啟交易通知', 3000); }catch(e){}
         }catch(e){ bar('開啟通知失敗:' + (e && e.message || e)); } });
     }).catch(() => {});
   }, 1500));
@@ -7990,7 +8009,8 @@ async function bgTickViewer(force){
 window.bgTickViewer = bgTickViewer;
 /* 2026-10-29 15:20(實際時間)公式在電腦(第 2 項):電腦 engine.py 每分鐘推心跳到 Worker(?engine);手機每 60 秒看一次,3 分鐘內有心跳 = 電腦在算 →
    手機自己算的訊號不發通知、不推雲端(只寫 BG.log),改成和看盤版一樣每 15 秒讀雲端通知、新的才發手機通知;心跳停了 3 分鐘就自動回到自己算 */
-const ENGINE = { on: false, at: 0, hm: '', chk: 0, msg: '' };
+const ENGINE = { on: false, at: 0, hm: '', chk: 0, msg: '', caps: null, capsD: '' };
+window.ENGINE = ENGINE;
 function engineOn(){ return !!(ENGINE.on && Date.now() - ENGINE.at < 3 * 60000); }
 window.engineOn = engineOn;
 function engPoll(force){
@@ -7999,6 +8019,7 @@ function engPoll(force){
     fetch(BASE.liveUrl.replace(/\/$/, '') + '/?engine=get&_=' + Math.floor(now / 20000), {signal: AbortSignal.timeout(8000)}).then(r => r.ok ? r.json() : null).then(j => {
       if (!j || typeof j !== 'object') return; const today = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
       const was = engineOn(); ENGINE.on = !!(j.on && j.d === today); ENGINE.at = +j.at || 0; ENGINE.hm = j.hm || ''; ENGINE.msg = j.msg || '';
+      if (j.caps && typeof j.caps === 'object' && j.d === today){ ENGINE.caps = j.caps; ENGINE.capsD = j.d; }   // 2026-11-21 使用者「改 1」:電腦今天各有上限的判別式已進的股票(四 五 六3 八 九 一2);手機的每天檔數上限照它合併(judge.js capRule)
       if (was !== engineOn()) bgLog('[公式] ' + (engineOn() ? '電腦在算(' + ENGINE.hm + '),手機只收雲端通知' : '電腦心跳停了,手機自己算')); 
       // 2026-10-29 23:50 使用者「現在做」:電腦引擎有狀況(規則抓不到 / 沒有大盤寬度 / K 晚到 / 錯誤太多交給手機)→ 交易時段跳提示,同一個狀況只跳一次
       try{ const fresh = j.d === today && Date.now() - (+j.at || 0) < 3 * 60000, warn = [];
@@ -8061,9 +8082,10 @@ async function entryReal(x){
       let g = null; try{ const r = await fetch(BASE.liveUrl.replace(/\/$/, '') + '/?trade=pos&_=' + Date.now(), {cache: 'no-store', signal: AbortSignal.timeout(6000)}); g = await r.json(); }catch(e){}
       if (!(g && g.ok && g.enabled && Array.isArray(g.pos))) return true;
       if (g.pos.some(p => String(p.code) === code)) return true;
+      const sk = Array.isArray(g.skipped) ? g.skipped.map(String) : [];   // 2026-11-21 21:15 使用者「改」(一2 問題 6):先看這一筆(同一根)有沒有被略過,再看 closed ——
+      if (bar && sk.includes(code + '|' + rs + '|' + bar)) return false;   //   closed 只記「代碼|判一」,早上原判一平掉、下午急彈空被略過時原本會誤跳進場卡
       if (Array.isArray(g.closed) && g.closed.map(String).includes(code + '|' + rs)) return true;
-      const sk = Array.isArray(g.skipped) ? g.skipped.map(String) : [];
-      if (bar ? sk.includes(code + '|' + rs + '|' + bar) : sk.some(k => k.startsWith(code + '|' + rs + '|'))) return false;
+      if (!bar && sk.some(k => k.startsWith(code + '|' + rs + '|'))) return false;
     }
     return false;
   }catch(e){ return true; }

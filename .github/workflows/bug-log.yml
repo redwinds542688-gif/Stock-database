@@ -1,0 +1,86 @@
+name: 抓 bug 紀錄 / 用量存檔
+
+# 2026-11-21 使用者「全改」(檢查 W5):?bug=list / ?bug=get / ?usage=get 改成要中繼金鑰或 owner 鑰匙後,雲端的 Claude 沒有鑰匙讀不到 →
+#   每個交易日收盤後(和手動按 Run workflow)用 GitHub Secrets 的 YT_PUSH_KEY(只放環境變數,不印出來、不寫進檔案)讀回來,存到這個私人庫的 bugs/:
+#     bugs/list.json        ?bug=list(全部的鍵和大小)
+#     bugs/bug_<時間>.json  最新 N 份 ?bug=get 的內容(舊的刪掉,只留 N 份;內容裡像鑰匙的字串先遮掉)
+#     bugs/pbug.json        ?pbug=list(夥伴看盤 / 夥伴加入的錯誤,最近 300 筆)
+#     bugs/usage.json       ?usage=get 今天和前一天的請求次數
+#   bugs/ 不在 Worker 的 GH_PUBLIC 白名單,不用鑰匙讀不到
+on:
+  workflow_dispatch:
+    inputs:
+      n: { description: 留幾份 bug 紀錄(最新的), required: false, default: '8' }
+  schedule:
+    - cron: '47 6 * * 1-5'   # UTC 06:47 = 台北 14:47(週一 ~ 五,收盤後)
+
+permissions:
+  contents: write
+
+concurrency: { group: bug-log, cancel-in-progress: false }
+
+jobs:
+  save:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: 讀 bug 紀錄 / 用量
+        env:
+          K: ${{ secrets.YT_PUSH_KEY }}
+          N: ${{ inputs.n }}
+        run: |
+          python3 - <<'PY'
+          import os, re, sys, json, datetime, urllib.request, urllib.error
+          from pathlib import Path
+          K = os.environ.get("K", "")
+          if not K: print("GitHub Secrets 沒有 YT_PUSH_KEY"); sys.exit(1)
+          B = "https://twse-proxy.redwinds542688.workers.dev/"
+          H = {"X-Push-Key": K, "User-Agent": "bug-log/1"}
+          N = max(1, min(30, int(os.environ.get("N") or 8)))
+          def scrub(t):   # 和 Worker 的 scrubKeys 一樣,再加上金鑰本身
+              t = t.replace(K, "[鑰匙]")
+              t = re.sub(r"fa11[0-9a-f]{6,}", "[鑰匙]", t, flags=re.I)
+              t = re.sub(r"\b[0-9a-f]{16,64}\b", "[鑰匙]", t, flags=re.I)
+              return re.sub(r"((?:^|[?&\s])(k|dv|key|pass|pwd)=)[^&\s\"']+", r"\1*", t, flags=re.I)
+          def get(q, key=True):
+              try:
+                  r = urllib.request.urlopen(urllib.request.Request(B + q, headers=H if key else {"User-Agent": "bug-log/1"}), timeout=60)
+                  return r.status, r.read().decode("utf-8", "replace")
+              except urllib.error.HTTPError as e:
+                  return e.code, e.read().decode("utf-8", "replace")[:200]
+          D = Path("bugs"); D.mkdir(exist_ok=True); bad = 0
+          s, t = get("?bug=list")
+          if s != 200: print("bug=list", s, scrub(t)); sys.exit(1)
+          L = json.loads(t); (D / "list.json").write_text(scrub(json.dumps(L, ensure_ascii=False, indent=1)), encoding="utf-8")
+          keys = sorted({x["k"] for x in L if str(x.get("k", "")).startswith("bug:")}, reverse=True)[:N]
+          keep = set()
+          for k in keys:
+              f = D / ("bug_" + re.sub(r"[^\w]", "_", k[4:]) + ".json"); keep.add(f.name)
+              s, t = get("?bug=get&bk=" + urllib.request.quote(k))
+              if s != 200: print("bug=get", k, s, scrub(t)); bad += 1; continue
+              f.write_text(scrub(t), encoding="utf-8"); print("bug", k, len(t), "字")
+          for f in D.glob("bug_*.json"):
+              if f.name not in keep: f.unlink()
+          s, t = get("?pbug=list&n=300", key=False)
+          if s == 200: (D / "pbug.json").write_text(scrub(t), encoding="utf-8")
+          else: print("pbug=list", s, scrub(t)); bad += 1
+          tw = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))); U = {}
+          for d in (tw.date(), tw.date() - datetime.timedelta(days=1)):
+              s, t = get("?usage=get&d=" + d.isoformat())
+              if s == 200: U[d.isoformat()] = json.loads(t)
+              else: print("usage=get", d, s, scrub(t)); bad += 1
+          (D / "usage.json").write_text(scrub(json.dumps(U, ensure_ascii=False, indent=1)), encoding="utf-8")
+          print("完成:bug 紀錄", len(keep), "份" + (f"(有 {bad} 項失敗)" if bad else ""))
+          sys.exit(1 if bad else 0)
+          PY
+      - name: 存檔
+        if: ${{ !cancelled() }}
+        run: |
+          git config user.name "github-actions[bot]"; git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          [ -d bugs ] || exit 0
+          git add -A bugs
+          git diff --cached --quiet && { echo "沒有變動"; exit 0; }
+          git commit -q -m "抓 bug 紀錄 / 用量存檔 $(TZ=Asia/Taipei date '+%Y-%m-%d %H:%M')"
+          for i in 1 2 3; do git pull --rebase -q && git push -q && exit 0; sleep 5; done
+          exit 1

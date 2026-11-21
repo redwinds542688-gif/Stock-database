@@ -20,11 +20,24 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      # 2026-11-21 使用者「全改」(檢查 W6):帶中繼金鑰(GitHub Secrets 的 YT_PUSH_KEY,只放環境變數、不印出來)→ Worker 的 ?twidx / ?taifex 不受「沒鑰匙每個 IP 10 分鐘 20 次」限制;
+      #   程式遇到 429 / 5xx 會等一下再試,還是有哪天失敗就結束碼 1(這個工作變紅)。兩個抓的步驟有一個失敗,另一個和「存檔」照樣跑(抓到的先存)
+      #   起訖日改用環境變數傳(不直接塞進指令)
       - name: 抓證交所每 5 秒指數 → 1 分 K
-        run: python3 tools/taiex_1m.py "${{ inputs.from }}" "${{ inputs.to }}"
+        env:
+          YT_PUSH_KEY: ${{ secrets.YT_PUSH_KEY }}
+          FROM: ${{ inputs.from }}
+          TO: ${{ inputs.to }}
+        run: python3 tools/taiex_1m.py "$FROM" "$TO"
       - name: 台指期每筆成交 → 1 分 K(2026-11-13 20:00 使用者「台指期 略有參考價值 如何取得」;期交所 14:30 後公布)
-        run: python3 tools/txf_1m.py "${{ inputs.from }}" "${{ inputs.to }}"
+        if: ${{ !cancelled() }}
+        env:
+          YT_PUSH_KEY: ${{ secrets.YT_PUSH_KEY }}
+          FROM: ${{ inputs.from }}
+          TO: ${{ inputs.to }}
+        run: python3 tools/txf_1m.py "$FROM" "$TO"
       - name: 存檔
+        if: ${{ !cancelled() }}
         run: |
           git config user.name "github-actions[bot]"; git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
           for d in kline_index kline_futures; do [ -d $d ] && git add $d; done

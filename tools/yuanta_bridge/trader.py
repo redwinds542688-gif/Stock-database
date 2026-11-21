@@ -16,6 +16,7 @@
 這個檔不依賴元大元件:下單 / 取消透過 gateway(bridge 提供),測試時可以換成假的。
 """
 import json, math, os, re, time, threading, urllib.request
+from decimal import Decimal
 from pathlib import Path
 
 
@@ -47,10 +48,14 @@ def close_side(d):
     return "B" if d < 0 else "S"
 
 def shift(p, ticks):
-    """價格往上(+)/ 往下(−)移 ticks 檔"""
+    """價格往上(+)/ 往下(−)移 ticks 檔
+    2026-11-21 使用者「全改」(檢查 輕b):原本用浮點數一檔一檔加,跨過升降單位邊界時累積誤差會算出不合法的價格
+      (shift(49.9, 3) → 50.05、shift(99.8, 3) → 100.1,元大會拒單)→ 改用 Decimal 精確算(每一檔照當下價位的升降單位)"""
+    v = Decimal(str(round(float(p), 2)))
     for _ in range(abs(ticks)):
-        p = p + tick_size(p) if ticks > 0 else p - tick_size(p - 1e-9)
-    return round(p, 2)
+        if ticks > 0: v += Decimal(str(tick_size(v)))
+        else: v -= Decimal(str(tick_size(v - Decimal("0.001"))))   # 往下:用「下面那一檔」的升降單位(50.00 往下是 49.95)
+    return float(v)
 
 
 IDLE, ENTERING, HOLDING, EXITING, HALT = "空閒", "進場中", "持倉中", "平倉中", "停止"
@@ -282,6 +287,7 @@ class Trader:
         self.seen = set()          # 已處理的通知 _k
         self.n_trades, self.pnl, self.last_px = 0, 0.0, {}
         self.amount_today = 0.0
+        self.fill_rt, self.fill_rc, self.rc_rows, self.rc_ids = {}, {}, {}, set()   # 2026-11-21 使用者「全改」(檢查 T7 / T9):每筆成交算過幾張的帳本(見 rt_mark / rc_pick)
         self.mkt_of = {}
         self.journal = []
         self.flat_watch = {}       # code → 剛平倉的部位 {dir, typ, mkt, until}:這段時間又有同方向平倉成交(手動 / 條件單同時觸發)= 多平了,要補回來
@@ -351,7 +357,7 @@ class Trader:
             js["noshort"] = {**(old.get("noshort") or {}), **getattr(self, "noshort", {})}   # 2026-11-06 元大 21352 無券
             js["brk_block"] = {**(old.get("brk_block") or {}), **getattr(self, "brk_block", {})}   # 2026-10-31 元大拒絕(資格)的股票
             js["traded"] = sorted(getattr(self, "traded_keys", set()))
-            js["prot"] = {**(old.get("prot") or {}), **(getattr(self, "_prot0", None) or {})}   # ③ 2026-11-11 20:25 總停損 / 移動停損利的起點   # 2026-11-09 判二大盤分級檔數
+            js["prot"] = {k_: v_ for k_, v_ in {**(old.get("prot") or {}), **(getattr(self, "_prot0", None) or {})}.items() if v_}   # 2026-11-21(檢查 T3):值是 None = 部位結束清掉的,不寫回檔   # ③ 2026-11-11 20:25 總停損 / 移動停損利的起點   # 2026-11-09 判二大盤分級檔數
             self.state_file.write_text(json.dumps(js, ensure_ascii=False), encoding="utf-8")
         except Exception as e:
             self.log(f"[交易] 存狀態檔失敗 {e}")
@@ -386,6 +392,18 @@ class Trader:
             self.on_signal(it)
 
     def resume(self, trades, order_tags, strategies, signals, working=(), order_types=None):
+        """見 _resume。2026-11-21 使用者「全改」(檢查 T3):接回完,移平 / 總停損存檔裡有、但沒接回成部位的股票(程式沒在跑時已經平掉)→ 清掉,
+           之後同一檔新進場不會接到舊的最有利價"""
+        try:
+            return self._resume(trades, order_tags, strategies, signals, working, order_types)
+        finally:
+            try:
+                with self.lock:
+                    for c_ in list((self.load_state().get("prot") or {}).keys()) + list((self._prot0 or {}).keys()):
+                        if c_ not in self.positions: self.prot_clear(c_)
+            except Exception as e_: self.log(f"[交易] 接回:清移平存檔失敗 {e_!r}")
+
+    def _resume(self, trades, order_tags, strategies, signals, working=(), order_types=None):
         """2026-10-22 使用者:「加 啟動時接回部位」:程式重開時,從元大今天的成交回報算出還沒平的部位,是這支程式開的就接回來管理。
         trades:[{code, bs 'B'/'S', lots, price, time, order_no}](時間舊到新);order_tags:{委託書號: BasketNo};
         strategies:[{no, code, status}](有效的條件單);signals:手機今天的通知(找停利 / 停損價)。
@@ -407,28 +425,39 @@ class Trader:
                 if k_ in _seen: self.log(f"[交易] 接回:重複的成交回報不算 {t.get('code')} {t.get('bs')} {t.get('lots')} 張 @ {t.get('price')}(書號 {t.get('order_no')} {t.get('time')})"); continue
                 _seen.add(k_); _tr.append(t)
             trades = _tr
+            # 2026-11-21 使用者「全改」(檢查 T7):接回時今天的成交金額照全部成交重算了 → 帳本也從頭記(每一筆都算過),之後對帳不會再算一次
+            self.fill_rt, self.fill_rc, self.rc_rows, self.rc_ids = {}, {}, {}, set()
+            for t in trades: self.rt_mark(t.get("order_no"), int(t.get("lots") or 0))
             for t in sorted(trades, key=lambda x: x.get("time", "")):
-                c, q = t["code"], t["lots"] * (1 if t["bs"] == "B" else -1)
-                n0 = net.get(c, 0); n1 = n0 + q
-                if n0 == 0 and n1 != 0:                                     # 開新部位
-                    cost[c] = [abs(n1), t["price"] * abs(n1)]
-                    tag = str(order_tags.get(t["order_no"], ""))
-                    by[c] = "F" if tag.startswith("F") else "T" if tag.startswith("T") else ""
-                    otyp[c] = str(order_types.get(t["order_no"], "") or "").strip()   # 開倉那張單的委託種類(元三平倉用同一種;判斷是不是賣庫存)
-                    t_open[c] = t.get("time", "")                    # 2026-10-29 稽核 #4:開倉成交時間(找最接近的進場通知)
-                    ofl[c] = [(t.get("time", ""), t["price"])]
-                    if by[c]: self.n_trades += 1
-                    self.amount_today += t["price"] * abs(q) * 1000
-                elif n0 != 0 and (n0 > 0) == (q > 0):                       # 同方向加碼
-                    cost[c][0] += abs(q); cost[c][1] += t["price"] * abs(q); self.amount_today += t["price"] * abs(q) * 1000
-                    ofl.setdefault(c, []).append((t.get("time", ""), t["price"]))
-                    if not str(order_tags.get(t["order_no"], "") or "").strip(): oman.setdefault(c, []).append((t.get("time", ""), t["price"]))   # 2026-11-11 22:44 使用者「全改」 7:程式部位裡的手動加碼
-                elif n0 != 0:                                               # 平倉
-                    self.amount_today += t["price"] * min(abs(q), abs(n0)) * 1000
-                    if by.get(c):
-                        lots = min(abs(q), abs(n0)); avg = cost[c][1] / cost[c][0]; d = 1 if n0 > 0 else -1
-                        self.pnl += (t["price"] - avg) * lots * 1000 * d - self.cost_amt(avg if d > 0 else t["price"], t["price"] if d > 0 else avg, lots)
-                net[c] = n1
+              try:   # 2026-11-21 使用者「全改」(檢查 S3):一筆成交資料壞掉不能讓整個接回中斷(跳過那筆、記錄)
+                  c, q = t["code"], t["lots"] * (1 if t["bs"] == "B" else -1)
+                  n0 = net.get(c, 0); n1 = n0 + q
+                  if n0 == 0 and n1 != 0:                                     # 開新部位
+                      cost[c] = [abs(n1), t["price"] * abs(n1)]
+                      tag = str(order_tags.get(t["order_no"], ""))
+                      by[c] = "F" if tag.startswith("F") else "T" if tag.startswith("T") else ""
+                      otyp[c] = str(order_types.get(t["order_no"], "") or "").strip()   # 開倉那張單的委託種類(元三平倉用同一種;判斷是不是賣庫存)
+                      t_open[c] = t.get("time", "")                    # 2026-10-29 稽核 #4:開倉成交時間(找最接近的進場通知)
+                      ofl[c] = [(t.get("time", ""), t["price"])]
+                      if by[c]: self.n_trades += 1
+                      self.amount_today += t["price"] * abs(q) * 1000
+                  elif n0 != 0 and (n0 > 0) == (q > 0):                       # 同方向加碼
+                      cost[c][0] += abs(q); cost[c][1] += t["price"] * abs(q); self.amount_today += t["price"] * abs(q) * 1000
+                      ofl.setdefault(c, []).append((t.get("time", ""), t["price"]))
+                      if not str(order_tags.get(t["order_no"], "") or "").strip(): oman.setdefault(c, []).append((t.get("time", ""), t["price"]))   # 2026-11-11 22:44 使用者「全改」 7:程式部位裡的手動加碼
+                  elif n0 != 0:                                               # 平倉
+                      self.amount_today += t["price"] * min(abs(q), abs(n0)) * 1000
+                      if by.get(c):
+                          lots = min(abs(q), abs(n0)); avg = cost[c][1] / cost[c][0]; d = 1 if n0 > 0 else -1
+                          self.pnl += (t["price"] - avg) * lots * 1000 * d - self.cost_amt(avg if d > 0 else t["price"], t["price"] if d > 0 else avg, lots)
+                      if n1 != 0 and (n1 > 0) != (n0 > 0):                  # 2026-11-21(檢查 S3):一筆平倉多出來翻成反向部位 → 多出來的當新部位(成本 / 開倉單 / 成交金額照這筆重算)
+                          cost[c] = [abs(n1), t["price"] * abs(n1)]; self.amount_today += t["price"] * abs(n1) * 1000
+                          tag = str(order_tags.get(t["order_no"], "")); by[c] = "F" if tag.startswith("F") else "T" if tag.startswith("T") else ""
+                          otyp[c] = str(order_types.get(t["order_no"], "") or "").strip(); t_open[c] = t.get("time", ""); ofl[c] = [(t.get("time", ""), t["price"])]; oman.pop(c, None)
+                          if by[c]: self.n_trades += 1
+                  net[c] = n1
+              except Exception as e_:
+                self.log(f"[交易] !! 接回:成交資料看不懂,跳過 {t!r}({e_!r})")
             open_mine = [c for c, n in net.items() if n != 0 and by.get(c)]
             if self.hm() < self.force_exit:   # 2026-11-08 01:00 盤中重開:元大上還掛著的手動平倉單 = 預掛(程式讓位、不掛條件單)
                 for w in working:
@@ -452,6 +481,7 @@ class Trader:
             manual = [c for c, n in net.items() if n != 0 and not by.get(c)]
             if manual and self.y3 and self.enabled:                 # 2026-10-28 元三:今天手動開、還沒平的也接回來(判三管)
                 for c in manual:
+                  try:   # 2026-11-21 使用者「全改」(檢查 S3):一檔接回出錯不能讓其他檔(和程式開的部位)整個沒接回
                     n = net[c]; d = 1 if n > 0 else -1; avg = cost[c][1] / cost[c][0]
                     why = self.y3_skip(d, otyp.get(c, ""), c)
                     if why:
@@ -462,17 +492,20 @@ class Trader:
                     self.resume_exiting(p, working)
                     self.sub(p); p["y3_posted"] = True
                     if p["state"] == HOLDING:
-                        mo = [x for x in strategies if x.get("code") == c]
+                        mo = self._resume_oco(c, strategies)   # 2026-11-21(檢查 S3):條件單查詢失敗(None)原本這裡 `for x in None` 當掉 → 整個接回中斷、程式開的部位沒接回(沒停損)
                         if mo: p["oco_no"] = mo[-1]["no"]; p["oco_live"] = True
                         self.oco_refresh(p, "接回元三")   # 2026-11-08 01:00 元三接回也照規則掛 / 刪條件單
                     self.log(f"[交易] 接回元三 {c} {'多' if d > 0 else '空'} {abs(n)} 張 均價 {avg:.2f}(停利 {p['tp']} 停損 {p['sl']})")
                     if p["state"] == HOLDING: p["_iron_pending"] = {"px": avg, "lots": abs(n), "what": "手動單(重開接回)", "fills": ofl.get(c) or []}
+                  except Exception as e_:
+                    self._resume_err(c, net.get(c, 0), cost, MANUAL, e_)
             elif manual:
                 self.log(f"[交易] 接回:{', '.join(manual)} 有未平部位但不是程式開的(手動),不管")
             if not open_mine:
                 self.log(f"[交易] 接回:沒有程式開的未平部位;今天已做 {self.n_trades} 筆、已實現 {self.pnl:+,.0f}")
                 return [c for c in manual if c in self.positions] or None
             for c in open_mine:
+              try:   # 2026-11-21 使用者「全改」(檢查 S3):一檔接回出錯不能讓其他檔整個沒接回
                 n = net[c]; d = 1 if n > 0 else -1; avg = cost[c][1] / cost[c][0]
                 if by[c] == "F":
                     m = (st.get("forced") or {}).get(c) or {}
@@ -508,12 +541,7 @@ class Trader:
                 self.sub(p)
                 if oman.get(c) and p["state"] == HOLDING:   # 2026-11-11 22:44 使用者「全改」 7:重開接回的程式部位裡有手動加碼 → 照鐵律檢查
                     p["_iron_pending"] = {"px": oman[c][-1][1], "lots": len(oman[c]), "what": "手動加碼(重開接回)", "fills": oman[c]}
-                if strategies is None:   # 2026-11-10 15:16 元大條件單查詢失敗 → 用狀態檔存下的編號(重開前程式掛的那張),不再當作沒有、重掛一張(兩張同時在,碰停損會平兩次)
-                    sv = self._oco_saved.get(c)
-                    oco = [{"code": c, "no": str(sv)}] if sv else []
-                    self.log(f"[交易] 接回:{c} 元大條件單查不到 → " + (f"用存下的編號 {sv}" if sv else "狀態檔也沒有,當作沒有條件單"))
-                else:
-                    oco = [x for x in strategies if x.get("code") == c]
+                oco = self._resume_oco(c, strategies)
                 if oco:
                     p["oco_no"] = oco[-1]["no"]; p["oco_live"] = True
                 self.log(f"[交易] 接回部位 {c} {p['judge']} {'多' if d > 0 else '空'} {abs(n)} 張 均價 {avg:.2f} 停利 {p['tp'] or '?'} 停損 {p['sl'] or '?'};"
@@ -525,8 +553,32 @@ class Trader:
                     self.gw.place_oco(c, p["mkt"], d, self.oco_lots(c), p["tp"], p["sl"])
                 elif not (p["tp"] and p["sl"]):
                     self.log(f"[交易] !! {c} 找不到停利 / 停損價,只剩 ±{self.max_move}%、手機平倉通知、強平和 13:20 會出場")
+              except Exception as e_:
+                self._resume_err(c, net.get(c, 0), cost, FORCED if by.get(c) == "F" else "接回", e_)
             self.log(f"[交易] 接回 {len(open_mine)} 檔;今天已做 {self.n_trades} 筆、已實現 {self.pnl:+,.0f}")
             return open_mine
+
+    def _resume_oco(self, c, strategies):
+        """2026-11-21 使用者「全改」(檢查 S3):接回時這檔在元大的條件單;strategies = None(查詢失敗)→ 用狀態檔存下的編號(2026-11-10 15:16 同一套,元三接回也一樣)"""
+        if strategies is None:   # 2026-11-10 15:16 元大條件單查詢失敗 → 用狀態檔存下的編號(重開前程式掛的那張),不再當作沒有、重掛一張(兩張同時在,碰停損會平兩次)
+            sv = (getattr(self, "_oco_saved", None) or {}).get(c)
+            self.log(f"[交易] 接回:{c} 元大條件單查不到 → " + (f"用存下的編號 {sv}" if sv else "狀態檔也沒有,當作沒有條件單"))
+            return [{"code": c, "no": str(sv)}] if sv else []
+        return [x for x in strategies if isinstance(x, dict) and x.get("code") == c]
+
+    def _resume_err(self, c, n, cost, judge, e):
+        """2026-11-21 使用者「全改」(檢查 S3):接回某一檔出錯 → 記錄、推手機;部位至少接成最基本的持倉(±6.5% / 13:20 / 強平照管),不要變成沒人管"""
+        self.log(f"[交易] !! 接回 {c} 出錯 {e!r} → 先接成最基本的持倉(±{self.max_move:g}% / {self.force_exit} / 強平照管),其他檔照常接回")
+        try:
+            q = self.positions.get(c)
+            if n and (not q or not q.get("qty") or q.get("state") not in (HOLDING, EXITING)):
+                d = 1 if n > 0 else -1; avg = cost[c][1] / cost[c][0] if cost.get(c) and cost[c][0] else (self.last_px.get(c) or 0.0)
+                q = self.new_pos(c, d, judge, "接回部位(出錯,基本管理)", forced=judge in (MANUAL, FORCED))
+                q.update({"qty": abs(n), "entry": avg, "state": HOLDING, "t0": ""})
+                if judge in (MANUAL, FORCED): q.update({"tp_pct": self.y3_tp, "sl_pct": self.y3_sl, "y3_posted": True}); self.set_forced_tpsl(q, avg)
+        except Exception as e2: self.log(f"[交易] !! 接回 {c} 基本持倉也失敗 {e2!r}")
+        try: self.alert(f"⚠ 接回 {c} 出錯", f"{e!r}"[:120] + ";已先接成基本持倉(±6.5% / 13:20 照管),請在投資先生確認")
+        except Exception: pass
 
     def resume_exiting(self, p, working):
         """2026-10-28 獨立檢查 #4 / 平倉檢查 #3:接回時,程式送的平倉方向委託還掛著(例如鎖跌停)→ 接成「平倉中」,不再送第二張(元三也適用)"""
@@ -556,6 +608,111 @@ class Trader:
             return "在 TRADE_IGNORE_CODES(不管的股票)"
         return None
 
+    @staticmethod
+    def pos_fills(trades, c, d):
+        """2026-11-21 使用者「全改」(檢查 T4):元大今天這檔的成交,只取「最後一段方向 = d 的部位」(淨部位從 0 開出去起算;一筆翻成反向的,多出來的算新的一段)。
+        回 (開倉 / 加碼 [(張, 價, 成交)], 平倉 [(張, 價, 成交)]);更早已經來回平掉的那幾筆不算(原本同方向全部平均,均價會被上一筆拉走)"""
+        net = 0; cur = None; last = ([], [])
+        for t in sorted((t for t in trades if t.get("code") == c), key=lambda x: x.get("time", "")):
+            q = int(t["lots"]) * (1 if t["bs"] == "B" else -1); px = float(t["price"]); n1 = net + q
+            if not q: continue
+            if net == 0:
+                cur = ([(abs(q), px, t)], [], 1 if q > 0 else -1)
+            elif (net > 0) == (q > 0):
+                cur[0].append((abs(q), px, t))
+            else:
+                cur[1].append((min(abs(q), abs(net)), px, t))
+                if n1 != 0 and (n1 > 0) != (net > 0): cur = ([(abs(n1), px, t)], [], 1 if n1 > 0 else -1)
+            if cur and cur[2] == d: last = (cur[0], cur[1])
+            net = n1
+        return last
+
+    @staticmethod
+    def fills_avg(fs, default=0.0, last_lots=None):
+        """(張, 價, …) 的加權均價;last_lots = 只取最後那幾張(平倉價用最近的成交)"""
+        if last_lots:
+            out, need = [], int(last_lots)
+            for x in reversed(fs):
+                if need <= 0: break
+                k = min(int(x[0]), need); out.append((k, x[1])); need -= k
+            fs = out
+        q = sum(int(x[0]) for x in fs)
+        return (sum(int(x[0]) * float(x[1]) for x in fs) / q) if q else default
+
+    # ── 2026-11-21 使用者「全改」(檢查 T7 / T9 / T10):元大每一筆成交「已經算過」的帳本(每一張的成交金額只算一次;對帳先入帳、晚到的回報不再算第二次)──
+    #   fill_rt[書號] = 即時回報(on_other_fill / 程式自己的單 / 接回)已經處理過的張數;fill_rc[書號] = 對帳(reconcile)處理過的張數;
+    #   rc_rows[書號] = 對帳處理過、還沒等到即時回報的那幾筆 [剩幾張, 價]:之後同書號、同價的回報來了 = 晚到的同一筆 → 不再處理
+    @staticmethod
+    def _no(no):
+        return str(no or "").strip()
+
+    def rt_mark(self, no, lots):
+        """2026-11-21 使用者「全改」(檢查 T7):即時回報已經處理(成交金額已算)的張數記下來;手動多平接元三遞迴用的「書號+x」記在原書號"""
+        no = self._no(no)
+        if no.endswith("+x"): no = no[:-2]
+        if no and lots > 0:
+            d_ = self.__dict__.setdefault("fill_rt", {}); d_[no] = d_.get(no, 0) + int(lots)
+
+    def rc_pick(self, trades, fs, lots):
+        """2026-11-21 使用者「全改」(檢查 T7 / T10):從部位的成交 fs [(張, 價, 成交)] 由新到舊挑出還沒被「即時回報 / 對帳」算過的張數(最多 lots 張);
+           回 [(張, 價, 成交)]。挑不到 = 那幾張早就算過了(不能再算一次成交金額 / 不能再入帳一次)"""
+        rt = self.__dict__.setdefault("fill_rt", {}); rc = self.__dict__.setdefault("fill_rc", {})
+        tot = {}
+        for t in trades:
+            k = self._no(t.get("order_no"))
+            if k: tot[k] = tot.get(k, 0) + int(t.get("lots") or 0)
+        left = {k: max(0, v - rt.get(k, 0) - rc.get(k, 0)) for k, v in tot.items()}
+        out, need = [], int(lots)
+        for k_, px, t in reversed(fs):
+            if need <= 0: break
+            no = self._no(t.get("order_no"))
+            a = min(int(k_), need, left.get(no, 0)) if no else min(int(k_), need)
+            if a > 0:
+                out.append((a, px, t)); need -= a
+                if no: left[no] -= a
+        return out
+
+    def rc_use(self, picks):
+        """2026-11-21 使用者「全改」(檢查 T9):對帳用掉的成交記下來(之後那筆的即時回報晚到 → rc_skip 認得,不再開新部位 / 加碼 / 入帳)"""
+        rc = self.__dict__.setdefault("fill_rc", {}); rows = self.__dict__.setdefault("rc_rows", {}); ids = self.__dict__.setdefault("rc_ids", set())
+        for a, px, t in picks:
+            no = self._no(t.get("order_no"))
+            if not no: continue
+            rc[no] = rc.get(no, 0) + int(a)
+            rid = (no, str(t.get("time", "")), float(t.get("price") or 0), int(t.get("lots") or 0), str(t.get("bs", "")))
+            if rid not in ids:   # 同一筆成交(例如一筆多平:前幾張平倉、後幾張接元三)只記一次整筆
+                ids.add(rid); rows.setdefault(no, []).append([int(t.get("lots") or 0), float(t.get("price") or 0)])
+
+    def rc_skip(self, no, lots, price):
+        """2026-11-21 使用者「全改」(檢查 T9):這筆即時成交回報是不是對帳已經處理過的同一筆(同書號、同價、張數沒超過)→ True = 不要再處理"""
+        rows = self.__dict__.get("rc_rows", {}).get(self._no(no))
+        if not rows or lots <= 0: return False
+        for r in rows:
+            if r[0] >= lots and abs(r[1] - float(price)) < 1e-6:
+                r[0] -= lots
+                if r[0] <= 0: rows.remove(r)
+                return True
+        return False
+
+    def dup_fill(self, p, k, order_no, qty, price):
+        """2026-11-21 使用者「全改」(檢查 T10):程式進場單(k = "ioc" / "entry")晚到的成交是不是重複的回報:
+           這張單的成交加起來會超過下單張數(不可能)而且同書號、同股數、同價的成交已經收過 → True(不再併);不是重複 → 記下來,回 False"""
+        sig = [self._no(order_no), int(qty), round(float(price), 4)]; sigs = p.setdefault(k + "_sigs", [])
+        if p.get(k + "_want") and p.get(k + "_got", 0) + qty > p[k + "_want"] and sig[0] and sig in sigs:
+            return True
+        p[k + "_got"] = p.get(k + "_got", 0) + qty; sigs.append(sig)
+        return False
+
+    @staticmethod
+    def dedupe_trades(trades):
+        """2026-11-21 使用者「全改」(檢查 T10):元大成交查詢同一筆回兩次(書號 + 時間 + 價 + 量 + 買賣 + 代碼都一樣)只算一次(接回已經這樣做,對帳也要)"""
+        seen, out = set(), []
+        for t in trades or []:
+            k_ = (str(t.get("order_no", "")), str(t.get("time", "")), float(t.get("price") or 0), int(t.get("lots") or 0), str(t.get("bs", "")), str(t.get("code", "")))
+            if k_ in seen: continue
+            seen.add(k_); out.append(t)
+        return out
+
     def reconcile(self, trades, working, tags=None, types=None):
         """2026-10-28 模擬測試(幾百個隨機交易日)找到:斷線 / 重開時漏掉的回報 → 元大有部位、程式不知道(或張數不對),要到 13:20 才會被平。
         盤中每分鐘(和每次重連後)拿元大今天的成交對一次帳;同一個差異連續兩次都在(排除回報還在路上)才處理:
@@ -563,6 +720,7 @@ class Trader:
           · 元大有、程式沒有,開倉那筆是程式的單(晚到的成交 / 多平反向)→ 馬上漲停 / 跌停平掉
           · 程式有、張數跟元大不一樣(沒有單在跑)→ 以元大為準;元大已經 0 → 結束這個部位"""
         tags = tags or {}; types = types or {}
+        trades = self.dedupe_trades(trades)   # 2026-11-21 使用者「全改」(檢查 T10):元大同一筆成交回兩次只算一次(接回本來就這樣做)
         with self.lock:
             net, opener, otyp = {}, {}, {}
             for t in sorted(trades, key=lambda x: x.get("time", "")):
@@ -604,10 +762,12 @@ class Trader:
                             self.log(f"[交易] 對帳:{c} 進場單等確認中,元大連續兩次都沒有這檔部位 → 確定 IOC 沒成交,已改掛補單"); continue
                         if self.man_only(p, "對帳:進場單確定沒成交"): continue
                         self.log(f"[交易] 對帳:{c} 進場單等確認中,元大連續兩次都沒有這檔部位 → 確定沒成交,拿掉"); p["order"] = None; self.positions.pop(c, None); self.mark_skip(p); continue
-                    side = "B" if p["dir"] > 0 else "S"; ts = [t for t in trades if t["code"] == c and t["bs"] == side]
-                    q = sum(t["lots"] for t in ts); avg = (sum(t["lots"] * t["price"] for t in ts) / q) if q else (self.last_px.get(c) or p["entry"])
+                    # 2026-11-21 使用者「全改」(檢查 T4):均價只算這個部位的成交(原本今天同方向全部平均,先前來回做過同一檔 → 均價被拉走、一轉持倉就移平)
+                    avg = self.fills_avg(self.pos_fills(trades, c, p["dir"])[0], self.last_px.get(c) or p["entry"])
                     np_ = abs(n) - ml; pc = avg * abs(n) * 1000 - mc; avg_p = pc / (np_ * 1000) if np_ > 0 and pc > 0 else avg
                     self.log(f"[交易] 對帳:{c} 進場單等確認中,元大有 {abs(n)} 張(手動 {ml})→ 程式這張當成成交 {np_} 張(均價 {avg_p:.2f}),轉持倉")
+                    # 2026-11-21 使用者「全改」(檢查 T9):這幾張是對帳才看到的 → 記下來,IOC 的成交回報之後才到不會再併一次
+                    self.rc_use(self.rc_pick(trades, self.pos_fills(trades, c, p["dir"])[0], np_)); o["_rc"] = True
                     o["filled"] = np_ * 1000; o["cost"] = avg_p * np_ * 1000; o["dead"] = True; self.after_report(p); continue
                 if p and (p.get("order") or p["state"] != HOLDING):
                     continue                                              # 程式自己的單還在跑,以它為準
@@ -619,13 +779,52 @@ class Trader:
                     self.recon_seen[c] = key; continue                    # 第一次看到:可能回報還在路上,下一分鐘再確認
                 if p:
                     if n == 0 or (n > 0) != (p["dir"] > 0):
-                        self.log(f"[交易] 對帳:{c} 元大已經沒有這個部位(程式記 {mine})→ 結束"); p["order"] = None; self.positions.pop(c, None)
+                        # 2026-11-21 使用者「全改」(檢查 T5):原本只拿掉部位 → 今天損益 / 成交金額都少算(當天虧損上限、500 萬額度看不到)。
+                        #   改:照一般平倉入帳(平倉價 = 元大今天這個部位最近的平倉成交均價,沒有就用現價),走 finish_pos(平倉卡、預掛清掉)
+                        cl = self.pos_fills(trades, c, p["dir"])[1]
+                        # 2026-11-21 使用者「全改」(檢查 T10):只入帳元大真的有、還沒被即時回報算過的平倉成交(rc_pick);沒有平倉成交的那幾張 = 程式自己多記了
+                        #   (進場回報重複 / IOC 晚到併兩次)→ 不入帳(原本照現價當成平倉 → 假損益算進當天虧損上限),只改成元大的張數、推手機
+                        pk = [] if p.get("carry") else self.rc_pick(trades, cl, max(p["qty"], 0)); bk = sum(x[0] for x in pk)
+                        xp = self.fills_avg(pk, self.last_px.get(c) or p["entry"])
+                        self.log(f"[交易] 對帳:{c} 元大已經沒有這個部位(程式記 {mine})→ " + ("結束(留倉部位照舊不入帳)" if p.get("carry") else f"照元大的平倉成交入帳 {bk} 張 @ {xp:.2f}(元大條件單 / 手動 / 回報漏了)後結束")); p["order"] = None
                         if p.get("oco_live"): self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False; self.log(f"[交易] 對帳:{c} 部位沒了 → 刪除元大條件單 {p['oco_no']}")
+                        if p.get("carry"):   # 留倉部位的對帳規則等使用者決定,照舊只拿掉(不入帳)
+                            self.positions.pop(c, None)
+                        else:
+                            p["exit_why"] = p.get("exit_why") or "元大條件單 / 手動"
+                            try:
+                                if bk: self.book_close(p, bk, xp); self.rc_use(pk)   # 2026-11-21(檢查 T9):用掉的平倉成交記下來,那筆回報晚到(例如條件單 YA…)不會再開反向元三
+                            except Exception as e_: self.log(f"[交易] !! 對帳:{c} 平倉入帳失敗 {e_!r}")
+                            if p["qty"] > 0:
+                                self.log(f"[交易] !! 對帳:{c} 程式多記了 {p['qty']} 張(元大今天沒有這幾張的平倉成交:回報重複 / 晚到併兩次)→ 不入帳,張數以元大為準")
+                                self.alert(f"⚠ {self.name_of(c)} {c} 張數對不上,以元大為準", f"程式記 {abs(mine)} 張、元大 {abs(n) if (n > 0) == (p['dir'] > 0) else 0} 張;多記的 {p['qty']} 張元大沒有平倉成交,不算損益")
+                                p["qty"] = 0
+                            self.finish_pos(p); self.flat_watch.pop(c, None)   # 漏掉的平倉回報晚到不能當成「多平」去補回
                         if n == 0: continue
                     else:
-                        self.log(f"[交易] 對帳:{c} 程式記 {abs(mine)} 張、元大 {abs(n)} 張 → 以元大為準"); more = abs(n) > abs(mine); p["qty"] = abs(n); self.oco_refresh(p, "對帳張數以元大為準")
+                        self.log(f"[交易] 對帳:{c} 程式記 {abs(mine)} 張、元大 {abs(n)} 張 → 以元大為準"); more = abs(n) > abs(mine)
+                        # 2026-11-21 使用者「全改」(檢查 T5):張數變了也要入帳:變少 = 漏了平倉回報 → 照平倉入帳(損益 / 成交金額);變多 = 漏了加碼回報 → 成交金額、均價照元大成交算
+                        op_, cl_ = self.pos_fills(trades, c, p["dir"]); dq = abs(abs(n) - abs(mine))
+                        if p.get("carry"): pass   # 留倉部位的對帳規則等使用者決定,照舊只改張數
+                        elif not more:
+                            # 2026-11-21 使用者「全改」(檢查 T10):張數變少 → 先看元大今天有沒有這幾張「還沒算過」的平倉成交:有才照平倉入帳;
+                            #   沒有 = 程式自己多記了(進場回報重複 / IOC 晚到併兩次)→ 只改張數、推手機,不當成現價平倉(假損益)
+                            pk = self.rc_pick(trades, cl_, dq); bk = sum(x[0] for x in pk)
+                            if bk:
+                                xp = self.fills_avg(pk, self.last_px.get(c) or p["entry"]); w0 = p.get("exit_why")
+                                p["exit_why"] = "元大條件單 / 手動"; self.book_close(p, bk, xp); p["exit_why"] = w0; self.rc_use(pk)
+                            if bk < dq:
+                                self.log(f"[交易] !! 對帳:{c} 程式多記了 {dq - bk} 張(元大今天沒有這幾張的平倉成交:回報重複 / 晚到併兩次)→ 不入帳,張數以元大為準")
+                                self.alert(f"⚠ {self.name_of(c)} {c} 張數對不上,以元大為準", f"程式記 {abs(mine)} 張、元大 {abs(n)} 張;多記的 {dq - bk} 張元大沒有平倉成交,不算損益")
+                        else:
+                            # 2026-11-21 使用者「全改」(檢查 T7 / T9):成交金額只算還沒算過的那幾張;用掉的成交記下來(手動加碼的回報晚到不會再併一次)
+                            pk = self.rc_pick(trades, op_, dq)
+                            ap = self.fills_avg(op_, self.last_px.get(c) or p["entry"], last_lots=dq)
+                            p["entry"] = (p["entry"] * abs(mine) + ap * dq) / abs(n); self.amount_today += sum(x[0] * float(x[1]) for x in pk) * 1000; self.rc_use(pk)
+                            if p.get("judge") in (MANUAL, FORCED) and (p.get("tp_pct") or p.get("sl_pct")): self.set_forced_tpsl(p, p["entry"])
+                        p["qty"] = abs(n); self.oco_refresh(p, "對帳張數以元大為準")
                         if more:   # 2026-11-11 22:44 使用者「全改」 6:張數變多 = 漏了回報的手動加碼 → 照鐵律檢查(手動那幾筆的成交時間 / 價,整個部位張數)
-                            mf = [(t.get("time", ""), t["price"]) for t in trades if t["code"] == c and t["bs"] == ("B" if p["dir"] > 0 else "S") and not str(tags.get(t.get("order_no"), "") or "").strip()]
+                            mf = [(x[2].get("time", ""), x[1]) for x in op_ if not str(tags.get(x[2].get("order_no"), "") or "").strip()]   # 2026-11-21(檢查 T4):只看這個部位的成交
                             p["_iron_pending"] = {"px": mf[-1][1] if mf else (self.last_px.get(c) or p["entry"]), "lots": abs(n) - abs(mine), "what": "手動加碼(對帳才看到)", "fills": mf or None}
                         continue
                 d = 1 if n > 0 else -1; px = self.last_px.get(c) or 0
@@ -633,20 +832,31 @@ class Trader:
                     self.log(f"[交易] !! 對帳:{c} 元大有 {abs(n)} 張{'多' if d > 0 else '空'}單、程式不知道(程式的單晚到 / 多平)→ 馬上平掉")
                     self.alert(f"⚠ {c} 對帳發現 {abs(n)} 張沒管到", f"程式的單晚到成交 / 多平,已{'跌停賣出' if d > 0 else '漲停買回'}")
                     self.recon_card(c, d, abs(n), trades, px)
+                    pk = self.rc_pick(trades, self.pos_fills(trades, c, d)[0], abs(n)); self.rc_use(pk)   # 2026-11-21 使用者「全改」(檢查 T7):只算還沒算過的張數
+                    self.amount_today += sum(x[0] * float(x[1]) for x in pk) * 1000   # 2026-11-21(檢查 T5):漏掉回報的開倉成交也算成交金額
                     self.rebuy(c, d, abs(n), px or 0, None, otyp.get(c) or None)
                 elif any(t.get("order_no") in self.ph_cancel for t in trades if t["code"] == c and t["bs"] == ("B" if d > 0 else "S")):
                     # 2026-11-07 23:38 使用者「再補」:漏了回報、對帳才看到的部位,其實是強平時程式取消掉的預掛(取消前成交)→ 不接成元三,馬上再強平
                     self.log(f"[交易] !! 對帳:{c} 元大有 {abs(n)} 張{'多' if d > 0 else '空'}單,是強平時取消掉的手動預掛成交的 → 馬上再強平")
                     self.alert(f"⚠ {self.name_of(c)} {c} 預掛取消前成交了", f"對帳才發現多出 {abs(n)} 張{'多' if d > 0 else '空'}單,程式已再強平({'跌停賣出' if d > 0 else '漲停買回'})")
                     self.recon_card(c, d, abs(n), trades, px)
+                    pk = self.rc_pick(trades, self.pos_fills(trades, c, d)[0], abs(n)); self.rc_use(pk)   # 2026-11-21 使用者「全改」(檢查 T7 / T9):只算還沒算過的;取消的預掛回報晚到不會再強平一次
+                    self.amount_today += sum(x[0] * float(x[1]) for x in pk) * 1000   # 2026-11-21(檢查 T5):同上
                     self.rebuy(c, d, abs(n), px or 0, None, otyp.get(c) or None)
                 elif self.y3 and self.enabled:
-                    p = self.new_pos(c, d, MANUAL, "元大手動(對帳接回)", forced=True)
+                    p = self.new_pos(c, d, MANUAL, "元大手動(對帳接回)", forced=True); self.prot_clear(c)   # 2026-11-21(檢查 T3):新部位,清掉上一筆的移平存檔
                     if otyp.get(c): p["typ"] = otyp[c]
                     avg = px
                     p.update({"qty": abs(n), "entry": avg, "state": HOLDING, "t0": self.hm(), "tp_pct": self.y3_tp, "sl_pct": self.y3_sl})
-                    cs = [t for t in trades if t["code"] == c and t["bs"] == ("B" if d > 0 else "S")]
-                    if cs: p["entry"] = sum(t["price"] * t["lots"] for t in cs) / sum(t["lots"] for t in cs)
+                    # 2026-11-21 使用者「全改」(檢查 T4):均價只算這個部位的成交(不含今天更早已經來回平掉的同方向成交)
+                    # 2026-11-21 使用者「全改」(檢查 T8):均價用這一段的張數(pos_fills 的 x[0]),不是整筆成交的張數(翻成反向那筆只有多出來的幾張算開倉;
+                    #   原本 買 2@40、賣 5@41、賣 2@40 → 40.71,應該 40.6)
+                    op = self.pos_fills(trades, c, d)[0]; cs = [x[2] for x in op]
+                    if op: p["entry"] = self.fills_avg(op, avg or p["entry"])
+                    # 2026-11-21 使用者「全改」(檢查 T7):成交金額只算還沒被即時回報算過的張數(手動多平那筆即時回報已經把多出來的張數算進去了,原本這裡又算一次);
+                    #   用掉的成交記下來(T9:那筆的回報晚到不會再加碼一次)
+                    pk = self.rc_pick(trades, op, abs(n)); self.rc_use(pk)
+                    self.amount_today += sum(x[0] * float(x[1]) for x in pk) * 1000   # 2026-11-21(檢查 T5):對帳才接回的元三,開倉成交也算進今天成交金額
                     self.set_forced_tpsl(p, p["entry"]); self.sub(p); p["y3_posted"] = True; self.oco_refresh(p, "對帳接回元三")
                     self.log(f"[交易] 對帳:{c} 元大有手動 {abs(n)} 張{'多' if d > 0 else '空'}單、程式沒收到回報 → 接成元三(均價 {p['entry']:.2f})")
                     self.alert(f"⚠ {c} 對帳接回元三 {abs(n)} 張", "斷線時漏了回報,程式已接手(停利 / 停損照判三)")
@@ -738,8 +948,19 @@ class Trader:
         """持倉帳面損益(現價、扣手續費 / 稅)"""
         unreal = 0.0
         for p in self.positions.values():
-            if p["state"] != HOLDING: continue
+            # 2026-11-21 使用者「全改」(檢查 T2):原本只算持倉中;平倉中(例如鎖跌停、平倉單排隊)的部位浮虧不算 → 當天虧損上限 / 全部平倉保險看不到最大的虧損。
+            #   平倉中也算:平倉單已成交的張數(還沒入帳)用成交均價、還沒成交的張數用現價
+            if p["state"] not in (HOLDING, EXITING) or not p.get("entry"): continue
             px = self.last_px.get(p["code"]) or p["entry"]; lots = p["qty"]
+            o = p.get("order") if p["state"] == EXITING else None
+            fl = 0
+            if o and o.get("purpose") == "平倉" and o.get("filled"):
+                fl = min(lots, o["filled"] // 1000)
+                if fl > 0:
+                    fx = o["cost"] / o["filled"]; b_, s_ = (p["entry"], fx) if p["dir"] > 0 else (fx, p["entry"])
+                    unreal += (fx - p["entry"]) * p["dir"] * fl * 1000 - self.cost_amt(b_, s_, fl)
+            lots = max(0, lots - fl)
+            if lots <= 0: continue
             buy, sell = (p["entry"], px) if p["dir"] > 0 else (px, p["entry"])
             unreal += (px - p["entry"]) * p["dir"] * lots * 1000 - self.cost_amt(buy, sell, lots)
         return unreal
@@ -886,16 +1107,37 @@ class Trader:
             if not p:
                 if rpt_type == 51 and qty_shares > 0 and code:
                     if str(basket or "").strip()[:1] in ("T", "F", "R"):   # 2026-10-28 獨立檢查 #5 #6:程式自己的舊單(已結束 / 已取消)晚到的成交 → 只記錄,不當成別人的平倉
+                        if self.rc_skip(order_no, qty_shares // 1000, price):   # 2026-11-21 使用者「全改」(檢查 T9):對帳已經照元大把這筆算進去了
+                            self.log(f"[交易] {code} 程式舊委託({str(basket).strip()} / {order_no})晚到的成交 {qty_shares // 1000} 張 @ {price}:對帳已經處理過 → 不重複算"); return
                         p2 = self.positions.get(str(code).strip())
                         if p2 and p2.get("ioc_tag") and p2["ioc_tag"] == str(basket).strip() and p2["state"] == ENTERING and p2.get("pre_filled") is not None:
                             # 2026-10-31 改 C:IOC 已結束、補單掛著時,IOC 晚到的成交 → 算進補單前的張數(補單成交後一起合併)
+                            # 2026-11-21 使用者「全改」(檢查 T10):同一張 IOC 的成交加起來不可能超過它的張數 → 超過 = 重複的回報,不再併(冪等)
+                            if self.dup_fill(p2, "ioc", order_no, qty_shares, price):
+                                self.log(f"[交易] !! {p2['code']} IOC({str(basket).strip()})晚到的成交 {qty_shares // 1000} 張 @ {price}:這張 IOC 已經算了 {p2.get('ioc_got', 0) // 1000} 張,再加會超過下單的 {p2['ioc_want'] // 1000} 張,而且同書號同量同價的成交已經收過 = 重複的回報 → 不再併"); return
+                            self.rt_mark(order_no, qty_shares // 1000)   # 2026-11-21(檢查 T7):補單結束合併時算成交金額,這裡先記成已處理
                             p2["pre_filled"] += qty_shares; p2["pre_cost"] = p2.get("pre_cost", 0.0) + qty_shares * price
-                            self.log(f"[交易] {p2['code']} IOC 晚到的成交 {qty_shares // 1000} 張 @ {price} → 算進部位(補單還掛著)"); return
-                        if p2 and p2.get("entry_tag") and p2["entry_tag"] == str(basket).strip() and p2["state"] in (HOLDING, EXITING):
+                            self.log(f"[交易] {p2['code']} IOC 晚到的成交 {qty_shares // 1000} 張 @ {price} → 算進部位(補單還掛著)")
+                            # 2026-11-21 使用者「全改」(檢查 T6):IOC 結束回報比成交先到 → 補單是照「IOC 0 張成交」掛的;晚到的 IOC 成交 + 補單張數超過原本要買的張數(鐵律 ⑤)→ 取消補單剩下的
+                            fo = p2.get("order"); iw = p2.get("ioc_want") or 0
+                            if fo and fo.get("fallback") and not fo.get("dead") and iw and p2["pre_filled"] + fo["want"] > iw:
+                                if fo.get("no") and not fo.get("cancel_sent"): fo["cancel_sent"] = True; self.gw.cancel(fo["no"], p2["code"], fo["side"], fo["typ"])
+                                else: fo["cancel_after"] = True
+                                self.log(f"[交易] {p2['code']} IOC 晚到成交 {p2['pre_filled'] // 1000} 張 + 補單 {fo['want'] // 1000} 張 > 原本 {iw // 1000} 張 → 取消補單剩下的(鐵律 ⑤ 不超過張數 / 額度)")
+                            return
+                        if p2 and str(basket).strip() in (p2.get("entry_tag"), p2.get("ioc_tag")) and p2["state"] in (HOLDING, EXITING):   # 2026-11-21(檢查 T6):補單已轉持倉後才到的 IOC 成交(ioc_tag)也併進部位(原本只認 entry_tag = 補單,IOC 的只記錄 → 元大多出來的張數沒人管)
                             # 2026-10-29 稽核 #5:IOC 進場已部分成交轉持倉後,同一張進場單剩下的晚到成交 → 併進部位(張數、均價)
+                            # 2026-11-21 使用者「全改」(檢查 T10):併之前先看這張單的成交加起來有沒有超過它下單的張數 → 超過 = 重複的回報(同一筆回兩次),不再併(冪等)
+                            k_ = "ioc" if str(basket).strip() == p2.get("ioc_tag") else "entry"
+                            if self.dup_fill(p2, k_, order_no, qty_shares, price):
+                                self.log(f"[交易] !! {p2['code']} 進場單({str(basket).strip()})晚到的成交 {qty_shares // 1000} 張 @ {price}:這張單已經算了 {p2.get(k_ + '_got', 0) // 1000} 張,再加會超過下單的 {p2[k_ + '_want'] // 1000} 張,而且同書號同量同價的成交已經收過 = 重複的回報 → 不再併")
+                                return
+                            self.rt_mark(order_no, qty_shares // 1000)
                             lots = qty_shares // 1000; tot = p2["qty"] + lots
                             p2["entry"] = (p2["entry"] * p2["qty"] + price * lots) / tot if tot else p2["entry"]; p2["qty"] = tot; self.amount_today += price * lots * 1000
-                            self.log(f"[交易] {p2['code']} 進場單({p2['entry_tag']})晚到的成交 {lots} 張 @ {price} → 併進部位,共 {tot} 張 均價 {p2['entry']:.2f}")
+                            self.log(f"[交易] {p2['code']} 進場單({str(basket).strip()})晚到的成交 {lots} 張 @ {price} → 併進部位,共 {tot} 張 均價 {p2['entry']:.2f}")
+                            if p2.get("ioc_want") and tot * 1000 > p2["ioc_want"]:   # 2026-11-21(檢查 T6):補單已經成交完才到 → 只能併進來管,推手機
+                                self.alert(f"⚠ {self.name_of(p2['code'])} {p2['code']} 進場多了 {tot - p2['ioc_want'] // 1000} 張", f"IOC 成交回報晚到(補單已成交),部位 {tot} 張 > 原本 {p2['ioc_want'] // 1000} 張;已併進程式一起管(停損 / 13:20 照常)")
                             if p2["state"] == HOLDING: self.oco_refresh(p2, "進場晚到成交併入")
                             if p2["state"] == EXITING:
                                 self.resize_exit(p2, "平倉中又收到進場單晚到的成交")
@@ -921,6 +1163,7 @@ class Trader:
             self.pending_cancel(p)
             if rpt_type == 51 and qty_shares > 0:
                 o["filled"] += qty_shares; o["cost"] += qty_shares * price
+                o.setdefault("sigs", []).append([self._no(order_no), int(qty_shares), round(float(price), 4)])   # 2026-11-21 使用者「全改」(檢查 T10):認重複的晚到回報用
                 o.setdefault("ff", time.time())   # 2026-11-13 14:30 使用者「開始」(Cloudflare 第二輪 1 延遲紀錄):第一筆成交的時間
                 self.log(f"[交易] 成交 {p['code']} {o['purpose']} {o['side']} {qty_shares // 1000} 張 @ {price}(累計 {o['filled'] // 1000}/{o['want'] // 1000})")
             elif rpt_type == 50 and status in (1, 2, 24, 25):
@@ -1008,19 +1251,24 @@ class Trader:
         lots = qty_shares // 1000
         mc = self.man_cards.get(order_no) if order_no else None
         if mc is not None: mc["fl"] = mc.get("fl", 0) + lots   # 2026-11-08 16:00 預掛扣額度:手動預掛(新進場 / 加碼)成交的張數不再算掛著
+        if order_no and lots > 0 and self.rc_skip(order_no, lots, price):
+            # 2026-11-21 使用者「全改」(檢查 T9):對帳已經照元大的成交把這筆處理掉了(例如部位已經對帳入帳平掉、條件單 YA… 的回報才到)→
+            #   不再當成新的成交(原本找不到部位就開一個反向元三,下一次對帳又照現價平倉入帳 = 假損益算進當天虧損上限)
+            self.log(f"[交易] {code} 成交回報 {'買' if bs == 'B' else '賣'} {lots} 張 @ {price}(書號 {order_no})晚到:對帳已經照元大處理過 → 不重複處理"); return
         # 2026-11-07 23:34 使用者「如果真的出現這樣情況 電腦需要再次出手強平」:強平時程式取消的手動預掛,取消前還是成交了 →
         #   不接成元三,多出來的部位馬上再強平(做多跌停賣、做空漲停買)
         if order_no and order_no in self.ph_cancel and lots > 0 and not (p and p["state"] in (HOLDING, EXITING) and bs == close_side(p["dir"])):
             d = 1 if bs == "B" else -1
             self.log(f"[交易] !! {code} 強平時取消的手動委託 {order_no} 還是成交了 {lots} 張 @ {price} → 多出 {lots} 張{'多' if d > 0 else '空'}單,馬上再強平")
             self.alert(f"⚠ {self.name_of(code)} {code} 預掛取消前成交了", f"多出 {lots} 張{'多' if d > 0 else '空'}單,程式已再強平({'跌停賣出' if d > 0 else '漲停買回'})")
+            self.amount_today += price * lots * 1000; self.rt_mark(order_no, lots)   # 2026-11-21 使用者「全改」(檢查 T7):這幾張也是元大的成交(再強平那筆另外算)
             self.flatten_later(code, d, lots, price, typ or None); return
         if p and bs != close_side(p["dir"]) and p["state"] in (HOLDING, EXITING) and lots > 0:
             # 平倉檢查 #5:元三同方向再成交(同一張分批成交,或另外下一張加碼)→ 併進去、成本平均,停利 / 停損照新均價
             # 2026-11-02 11:43 使用者「新做空的股票我需要程式一併接手可以嗎」:判一~四 / 強三的部位,元大手動同方向加碼也併進去一起管
             #   (張數加總、均價重算;停利 / 停損從新均價重算(判一~四照原本離進場價的 %,強三 / 元三照設定 %);平倉時全部一起平)
             tot = p["qty"] + lots; e0 = p["entry"]
-            p["entry"] = (p["entry"] * p["qty"] + price * lots) / tot; p["qty"] = tot; self.amount_today += price * lots * 1000
+            p["entry"] = (p["entry"] * p["qty"] + price * lots) / tot; p["qty"] = tot; self.amount_today += price * lots * 1000; self.rt_mark(order_no, lots)   # 2026-11-21(檢查 T7):記下已算過
             # 2026-11-20 10:37 🔓→🔒 鐵律 ⑥ 修改(使用者「移平也要重算 改鐵律」):手動加碼 → 移平的最有利價重設成新均價(從加碼這刻重新記最高 / 最低),
             #   原本沿用第一筆進場以來的最有利價(世紀 11/20 做空最低約 19.12,加碼後移平線還是 19.70 附近);3% 幅度不變
             mt0 = p.get("mt_px"); p["mt_px"] = p["entry"]; p.pop("mt_a", None); self.prot_save(p)
@@ -1078,7 +1326,27 @@ class Trader:
             #   (程式的進場單沒成交也照樣把手動這幾張接成部位,停利 / 停損照訊號的 % 從手動均價算)
             p["man_lots"] = p.get("man_lots", 0) + lots; p["man_cost"] = p.get("man_cost", 0.0) + price * lots * 1000
             p.setdefault("man_fills", []).append((self.hm(), price))   # 2026-11-11 22:20 併進去後檢查鐵律
+            self.rt_mark(order_no, lots)   # 2026-11-21 使用者「全改」(檢查 T7):成交金額在併進部位(after_report / man_only)時算,這裡先記成「即時回報處理過」
             self.log(f"[交易] {p['judge']} {code} 進場中又有手動同方向成交 {lots} 張 @ {price}(委託 {order_no})→ 進場單結束時一起併進程式部位")
+            return
+        if p and bs == close_side(p["dir"]) and p["state"] == ENTERING and lots > 0:
+            # 2026-11-21 使用者「全改」(檢查 輕c):程式的進場單還在送時,元大有一筆不是程式下的「反方向」成交(手動平 / 手動反向)→ 原本完全沒處理(悄悄丟掉)。
+            #   改:先抵掉進場中記著的手動同方向張數(那幾張等於手動自己來回,損益 / 成交金額入帳);剩下的記著,進場單成交轉持倉時當成手動平倉先平掉那幾張
+            ml = p.get("man_lots", 0); use = min(ml, lots)
+            if use:
+                am = p.get("man_cost", 0.0) / (ml * 1000); d0 = p["dir"]
+                self.pnl += (price - am) * use * 1000 * d0 - (self.cost_amt(am, price, use) if d0 > 0 else self.cost_amt(price, am, use))
+                # 2026-11-21 使用者「全改」(檢查 T7):手動同方向那幾張被抵掉後就不會再併進部位 → 它們開倉的成交金額在這裡算(原本只算了這筆反方向的)
+                self.amount_today += price * use * 1000 + am * use * 1000; self.rt_mark(order_no, use)
+                p["man_lots"] = ml - use; p["man_cost"] = am * (ml - use) * 1000
+                if not p["man_lots"]: p.pop("man_lots", None); p.pop("man_cost", None); p.pop("man_fills", None)
+            rest = lots - use
+            if rest:
+                p["man_close"] = p.get("man_close", 0) + rest; p["man_close_cost"] = p.get("man_close_cost", 0.0) + price * rest
+                p.setdefault("man_close_nos", []).append((order_no, rest))   # 2026-11-21(檢查 T7):轉持倉入帳時(man_close_apply)才記成「已算過」
+            self.log(f"[交易] !! {p['judge']} {code} 進場中有不是程式下的反方向成交 {lots} 張 @ {price}(委託 {order_no})→ 抵掉手動同方向 {use} 張"
+                     + (f",剩 {rest} 張等進場單成交後當成手動平倉" if rest else ""))
+            self.alert(f"⚠ {self.name_of(code)} {code} 進場中有手動反方向成交 {lots} 張", f"@ {price};程式會照元大扣掉(進場單成交後先平掉這幾張,對帳 / 13:22 複查以元大為準)")
             return
         if p and bs != close_side(p["dir"]):
             self.log(f"[交易] !! {code} 程式已有部位({p['judge']}),又有一筆不是程式下的同方向成交 {lots} 張 @ {price} → 不合併,請自己處理")
@@ -1093,7 +1361,7 @@ class Trader:
                 if why:
                     self.log(f"[交易] {code} 手動{'買' if d > 0 else '賣'} {lots} 張 @ {price}:{why},不接成元三")
                     return
-                p = self.new_pos(code, d, MANUAL, f"元大手動{'做多' if d > 0 else '做空'} {code}", forced=True)
+                p = self.new_pos(code, d, MANUAL, f"元大手動{'做多' if d > 0 else '做空'} {code}", forced=True); self.prot_clear(code)   # 2026-11-21(檢查 T3):新部位,清掉上一筆的移平存檔
                 if str(typ or "").strip(): p["typ"] = str(typ).strip()      # 平倉用跟開倉同一種委託種類
                 p.update({"qty": lots, "entry": price, "state": HOLDING, "t0": self.hm(), "tp_pct": self.y3_tp, "sl_pct": self.y3_sl, "y3_no": order_no})
                 # 2026-11-03 13:03 使用者(群創跌超過 6.5% 才手動做多,程式一接手就被 ±6.5% 平掉)選 1:手動單進場時已經超過 ±6.5%(做多跌超過、做空漲超過)→ 這筆不套 ±6.5%,只用停利 / 停損管
@@ -1102,7 +1370,7 @@ class Trader:
                 mv0 = self.max_move - self.y3_near
                 if False and ref0 > 0 and self.max_move > 0 and ((price <= ref0 * (1 - mv0 / 100)) if d > 0 else (price >= ref0 * (1 + mv0 / 100))):   # 2026-11-11 15:36 沒有例外:元三一律套 ±6.5%
                     p["no_max_move"] = True; self.log(f"[交易] 元三 {code} 進場時已經離昨收 {(price / ref0 - 1) * 100:+.1f}%(超過 ±{mv0:g}%)→ 這筆不套 ±{self.max_move:g}%,只用停利 / 停損")
-                self.set_forced_tpsl(p, price); self.amount_today += price * lots * 1000; self.save_state()
+                self.set_forced_tpsl(p, price); self.amount_today += price * lots * 1000; self.rt_mark(order_no, lots); self.save_state()   # 2026-11-21(檢查 T7):記下已算過
                 self.sub(p)
                 if self.hm() >= self.force_exit:   # 2026-11-17 14:52 使用者「13.20手動入場 立即平倉」:13:20 以後的手動新進場接起來馬上平(不等下一輪)
                     self.log(f"[交易] 元三 {code} {self.hm()} 手動進場(已過 {self.force_exit})→ 立即平倉")
@@ -1142,7 +1410,7 @@ class Trader:
             # 2026-11-08 使用者「元三強三 變成 元平強平 條件單呢會自己消失嗎」→「改」:不是條件單自己觸發的平倉(元平:手動平倉 / 預掛成交)→
             #   元大的條件單不會自己消失 → 程式刪掉;只平一部分 → 照剩下張數重掛。價格到了停利 / 停損 = 條件單自己在平,不動它
             oco_hit = p.get("oco_live") and p.get("tp") and p.get("sl") and ((price >= p["tp"] or price <= p["sl"]) if p["dir"] > 0 else (price <= p["tp"] or price >= p["sl"]))
-            self.book_close(p, take, price)
+            self.book_close(p, take, price); self.rt_mark(order_no, take)   # 2026-11-21 使用者「全改」(檢查 T7):記下這幾張已算過(之後對帳不再算)
             if ph_done and p["state"] == HOLDING and p["qty"] > 0:
                 self.log(f"[交易] {code} 手動預掛成交完,還剩 {p['qty']} 張 → 程式恢復盯停利 {p['tp']} / 停損 {p['sl']}")
                 self.alert(f"↩ {self.name_of(code)} {code} 預掛成交完,還剩 {p['qty']} 張", f"程式恢復盯停利 {p['tp']} / 停損 {p['sl']}")
@@ -1156,9 +1424,11 @@ class Trader:
             if extra > 0 and (p.get("forced_close") or (order_no and order_no in self.ph_cancel)):
                 # 2026-11-07 23:34 強平中(預掛取消前成交 / 程式平倉單也成交)多出來的反向部位 → 程式自己再強平
                 self.alert(f"⚠ {self.name_of(code)} {code} 平倉多了 {extra} 張", f"強平時預掛也成交,多出 {extra} 張反向部位,程式已再強平")
+                self.amount_today += price * extra * 1000; self.rt_mark(order_no, extra)   # 2026-11-21 使用者「全改」(檢查 T5):多出來的張數也是成交,算進今天成交金額;(檢查 T7)記下已算過
                 self.flatten_later(code, 1 if bs == "B" else -1, extra, price, typ or None)
             elif extra > 0 and p["state"] == EXITING and p.get("order") and not p["order"].get("dead"):
                 self.alert(f"⚠ {code} 手動平倉多了 {extra} 張", f"程式記 {take} 張,手動平了 {lots} 張,多出來的 {extra} 張變反向部位,請自己處理")
+                self.amount_today += price * extra * 1000; self.rt_mark(order_no, extra)   # 2026-11-21(檢查 T5):同上;(檢查 T7)記下已算過,之後對帳接成元三不再算一次
             o = p.get("order")
             if p["state"] == EXITING and o and not o.get("dead"):
                 # 平倉檢查 #1:程式自己的平倉單也還在 → 取消;取消回來後照剩下的張數重送(剩 0 就結束);它若先成交,多出來的會自動反向補回
@@ -1214,15 +1484,14 @@ class Trader:
     def recon_card(self, c, d, lots, trades, px):
         """2026-11-13 10:37 使用者「改」(還沒補上的 4):對帳發現元大有、程式沒管到的部位被自動平掉 → 進場欄也發一張平倉卡"""
         try:
-            cs = [t for t in trades if t["code"] == c and t["bs"] == ("B" if d > 0 else "S")]
-            ent = sum(t["price"] * t["lots"] for t in cs) / sum(t["lots"] for t in cs) if cs else (px or 0)
+            ent = self.fills_avg(self.pos_fills(trades, c, d)[0], px or 0)   # 2026-11-21(檢查 T4):只算這個部位的成交
             self.post(f"⚠ {self.name_of(c)} {c} 出場:對帳平倉",
                       f"{self.hm()} {'做多' if d > 0 else '做空'} {self.hm()} 進 {ent:.2f} → 現價 {float(px or ent):.2f} · {lots}張 · 對帳({'跌停賣出' if d > 0 else '漲停買回'})", "exit")
         except Exception as e: self.log(f"[交易] 對帳平倉發卡失敗 {e!r}")
 
     def rebuy(self, code, d, lots, price, mkt=None, typ=None):
         """多平了 → 反向的張數馬上用漲停 / 跌停平掉(補回)"""
-        p = self.new_pos(code, d, "補回", "多平補回", forced=True)
+        p = self.new_pos(code, d, "補回", "多平補回", forced=True); self.prot_clear(code)   # 2026-11-21(檢查 T3):新部位,清掉上一筆的移平存檔
         p.update({"qty": lots, "entry": price, "state": HOLDING, "t0": self.hm()})
         if mkt: p["mkt"] = mkt
         if typ: p["typ"] = typ
@@ -1256,6 +1525,7 @@ class Trader:
         c = p["code"]
         self.flat_watch[c] = {"mkt": p["mkt"], "dir": p["dir"], "typ": p["typ"], "until": time.time() + 120}
         self.positions.pop(c, None)
+        self.prot_clear(c)   # 2026-11-21 使用者「全改」(檢查 T3):部位結束 → 這筆的移平最有利價 / 進場寬度存檔清掉(下一筆同一檔不會接到)
         for no in self.prehang.pop(c, []) if self.hm() < "13:20" else []:
             # 2026-11-08 00:55 部位已經結束(條件單 / 程式平掉)還掛著的手動預掛 → 取消;取消前成交的照「強平取消的預掛」再強平,不接成元三
             m = self.man_meta.pop(no, {}) or {}
@@ -1788,9 +2058,8 @@ class Trader:
                 if cmd_id: self.cmd_seen[cmd_id] = r
                 return r
             d = 1 if n > 0 else -1
-            cs = [t for t in trades if t["code"] == code and t["bs"] == ("B" if d > 0 else "S")]
-            avg = (sum(t["price"] * t["lots"] for t in cs) / sum(t["lots"] for t in cs)) if cs else (self.last_px.get(code) or 0.0)
-            p = self.new_pos(code, d, MANUAL, "元大手動(強平接回)", forced=True)
+            avg = self.fills_avg(self.pos_fills(trades, code, d)[0], self.last_px.get(code) or 0.0)   # 2026-11-21 使用者「全改」(檢查 T4):只算這個部位的成交(不含今天更早已經來回平掉的)
+            p = self.new_pos(code, d, MANUAL, "元大手動(強平接回)", forced=True); self.prot_clear(code)   # 2026-11-21(檢查 T3):新部位,清掉上一筆的移平存檔
             if otyp: p["typ"] = otyp
             p.update({"qty": abs(n), "entry": avg, "state": HOLDING, "t0": self.hm(), "tp_pct": self.y3_tp, "sl_pct": self.y3_sl})
             self.set_forced_tpsl(p, avg); self.sub(p)
@@ -2151,17 +2420,28 @@ class Trader:
         except Exception: return False
 
     def prot_get(self, p, k):
-        """③ 2026-11-11 20:25:總停損的進場寬度 a(br0)/ 移動停損利的 a(mt_a)存檔,重開接回同一筆(代碼 + 均價一樣)才用"""
+        """③ 2026-11-11 20:25:總停損的進場寬度 a(br0)/ 移動停損利的 a(mt_a)存檔,重開接回同一筆(代碼 + 均價一樣)才用
+        2026-11-21 使用者「全改」(檢查 T3):原本只比代碼 + 均價,部位結束也沒清 → 同一天再進同一檔、均價一樣就接到上一筆的最有利價。
+          改:部位結束(finish_pos)/ 新開部位(new_pos,不是接回)就清掉這檔的存檔;另外方向也要一樣(有存方向的才比)"""
         try:
             m = (self._prot0 if self._prot0 is not None else self.load_state().get("prot") or {}).get(p["code"]) or {}
             if self._prot0 is None: self._prot0 = self.load_state().get("prot") or {}
+            if m and m.get("d") is not None and p.get("dir") is not None and int(m["d"]) != int(p["dir"]): return None
             return m.get(k) if m and abs(float(m.get("e") or 0) - float(p.get("entry") or 0)) < 1e-6 else None
         except Exception: return None
+
+    def prot_clear(self, code):
+        """2026-11-21 使用者「全改」(檢查 T3):這檔的移平 / 總停損存檔清掉(記 None,存檔時連狀態檔裡的一起拿掉)"""
+        try:
+            if self._prot0 is None: self._prot0 = self.load_state().get("prot") or {}
+            if self._prot0.get(code) is not None or code in (self.load_state().get("prot") or {}):
+                self._prot0[code] = None; self.save_state()
+        except Exception: pass
 
     def prot_save(self, p):
         try:
             if self._prot0 is None: self._prot0 = self.load_state().get("prot") or {}
-            self._prot0[p["code"]] = {"e": p.get("entry"), "br0": p.get("br0"), "mt_a": p.get("mt_a"), "mt_px": p.get("mt_px")}
+            self._prot0[p["code"]] = {"e": p.get("entry"), "d": p.get("dir"), "br0": p.get("br0"), "mt_a": p.get("mt_a"), "mt_px": p.get("mt_px")}   # 2026-11-21(檢查 T3)加方向 d
             if time.time() - self._prot_t > 20: self._prot_t = time.time(); self.save_state()
         except Exception: pass
 
@@ -2425,8 +2705,6 @@ class Trader:
         left = self.entry_fallback_lots(p, (o["want"] - o["filled"]) // 1000)
         if left <= 0:
             return False
-        p["pre_filled"] = p.get("pre_filled", 0) + o["filled"]; p["pre_cost"] = p.get("pre_cost", 0.0) + o["cost"]
-        p.pop("wait_confirm", None)
         side = "B" if p["dir"] > 0 else "S"
         sig = p.get("px_sig") or p["entry"] or self.last_px.get(p["code"])
         px = fb_price(sig, p["dir"], self.ref_of(p["code"]) or 0, self.fb_pct)
@@ -2435,11 +2713,43 @@ class Trader:
             v_ = rf * (1 + p["dir"] * self.ent_pct / 100); t_ = tick_size(v_)
             e_ = round(math.floor(v_ / t_ + 1e-6) * t_ if p["dir"] > 0 else math.ceil(v_ / t_ - 1e-6) * t_, 2)
             if (p["dir"] > 0 and px > e_) or (p["dir"] < 0 and px < e_): self.log(f"[交易] {p['code']} 補單限價 {px} 超過昨收 ±{self.ent_pct:g}% → 改 {e_}"); px = e_   # 2026-11-08 16:09 使用者「改」:補單不再掛漲停 / 跌停(買方 / 賣方很少時會一路吃下去),改掛訊號價 ±1% 限價
+        # 2026-11-21 使用者「全改」(檢查 輕a / T6):補單價比 IOC 高(做多往上 1%)→ 張數照補單價重算:IOC 已成交的金額 + 補單 ≤ 多空上限(鐵律 ⑤,最多 25 萬),
+        #   一筆不超過上限;IOC 已成交 + 補單也不超過原本要的張數
+        lim = self.cap_lim() if (self.cap > 0 or Trader.IRON_LOTS) else 0
+        if lim > 0 and px > 0:
+            used = p.get("pre_cost", 0.0) + o["cost"]; f_l = (p.get("pre_filled", 0) + o["filled"]) // 1000
+            fit = min(int((lim - used + 1e-6) // (px * 1000)), max(0, self.lots_for(px) - f_l) if self.cap > 0 else left)
+            if fit < left:
+                self.log(f"[交易] {p['code']} 補單價 {px}:IOC 已成交 {f_l} 張({used:,.0f})+ 補 {left} 張會超過多空上限 {lim:,.0f} → 改補 {max(fit, 0)} 張(鐵律 ⑤)")
+                left = max(fit, 0)
+            if left <= 0:
+                return False
+        p["pre_filled"] = p.get("pre_filled", 0) + o["filled"]; p["pre_cost"] = p.get("pre_cost", 0.0) + o["cost"]
+        p.pop("wait_confirm", None)
+        p["ioc_want"] = p.get("ioc_want") or o["want"]
+        p["ioc_got"] = p.get("ioc_got", 0) + o["filled"]; p.setdefault("ioc_sigs", []).extend(o.get("sigs") or [])   # 2026-11-21 使用者「全改」(檢查 T10):這張 IOC 已經算進來的成交(晚到的回報認重複用)
         self.log(f"[交易] {p['code']} 進場 IOC 成交 {o['filled'] // 1000}/{o['want'] // 1000} 張 → 剩 {left} 張改掛{'買' if side == 'B' else '賣'} {px}(訊號 {sig} {'+' if side == 'B' else '−'}{self.fb_pct:g}%,ROD,{self.fill_wait:.0f} 秒沒成交完取消)補進場")
         p["ioc_tag"] = o["tag"]
         self.send(p, "進場", side, left, px, p["typ"], " ", "0")
         p["order"]["fallback"] = True
         return True
+
+    def man_close_apply(self, p):
+        """2026-11-21 使用者「全改」(檢查 輕c):進場中記著的手動反方向成交(man_close)→ 轉持倉當下照手動平倉入帳(損益 / 成交金額);
+           全部抵完 → 部位結束回 True;多出來的(元大變反向部位)推手機,交給對帳 / 13:22 複查"""
+        mcl = p.pop("man_close", 0); mcc = p.pop("man_close_cost", 0.0); nos = p.pop("man_close_nos", [])
+        if not mcl or p["state"] != HOLDING: return False
+        for no_, k_ in nos: self.rt_mark(no_, k_)   # 2026-11-21 使用者「全改」(檢查 T7):這幾張(平倉 + 多出來的)下面都算進成交金額了 → 記下已算過,之後對帳不再算
+        xp = mcc / mcl; take = min(mcl, max(p["qty"], 0)); extra = mcl - take; w0 = p.get("exit_why")
+        p["exit_why"] = "元大條件單 / 手動"; self.book_close(p, take, xp)
+        self.log(f"[交易] {p['code']} 進場中的手動反方向成交 {mcl} 張 @ {xp:.2f} → 先平掉部位 {take} 張,剩 {p['qty']} 張")
+        if extra > 0:
+            self.amount_today += xp * extra * 1000
+            self.alert(f"⚠ {self.name_of(p['code'])} {p['code']} 手動反方向多了 {extra} 張", "元大變成反向部位,對帳 / 13:22 複查會以元大為準處理")
+        if p["qty"] <= 0:
+            self.n_trades += 1; p["order"] = None; self.finish_pos(p); self.flat_watch.pop(p["code"], None); return True
+        p["exit_why"] = w0
+        return False
 
     def man_only(self, p, why):
         """2026-11-02 程式的進場單確定沒成交,但進場中有手動同方向成交 → 只用手動那幾張接成部位(不拿掉);沒有手動成交回 False"""
@@ -2452,7 +2762,9 @@ class Trader:
         elif base:
             if p.get("tp"): p["tp"] = round(avg * p["tp"] / base, 2)
             if p.get("sl"): p["sl"] = self.cap_sl(p["code"], p["dir"], p["judge"], round(avg * p["sl"] / base, 2))
+        self.prot_clear(p["code"])   # 2026-11-21(檢查 T3):新部位,清掉上一筆的移平存檔
         p.update({"qty": ml, "entry": avg, "state": HOLDING, "t0": self.hm()}); self.amount_today += mc; self.n_trades += 1; self.save_state()
+        if self.man_close_apply(p): return True              # 2026-11-21(檢查 輕c)
         p["_iron_pending"] = {"px": avg, "lots": ml, "what": "手動進場", "fills": p.pop("man_fills", None)}   # 2026-11-11 22:20 使用者「手動依舊受程式管束」
         self.log(f"[交易] {p['code']} {why},但有手動同方向成交 {ml} 張 → 接成程式部位 {p['judge']} 均價 {avg:.2f} 停利 {p['tp']} 停損 {p['sl']}")
         self.alert(f"✅ {self.name_of(p['code'])} {p['code']} 手動 {ml} 張已交給程式", f"均價 {avg:.2f}(停利 {p['tp']} / 停損 {p['sl']})")
@@ -2465,6 +2777,9 @@ class Trader:
         done = o["filled"] >= o["want"] or o.get("dead")
         if not done:
             return
+        own = o["filled"]   # 2026-11-21 使用者「全改」(檢查 T7 / T10):這張單自己的成交股數(下面補單會併進 IOC 的)
+        if not o.get("_rt_done") and not o.get("_rc"):   # 對帳轉的(_rc)已經記在對帳帳本
+            o["_rt_done"] = True; self.rt_mark(o.get("no"), own // 1000)
         # 2026-10-31 改 C:進場 IOC 確定結束(元大回報取消 / 失效 / 價穩失效,不是程式自己等逾時)還有沒成交的 → 剩下的改掛漲停 / 跌停 ROD 補一次
         if (o["purpose"] == "進場" and self.entry_fallback and o.get("dead") and not o.get("timeout") and not o.get("fallback") and o.get("tif") != "0"
                 and o.get("end_status") in (2, 24, 25) and not p.get("forced") and not p.get("close_after_entry") and o["filled"] < o["want"]):
@@ -2500,8 +2815,11 @@ class Trader:
             if p.pop("wait_confirm", None):
                 self.log(f"[交易] {p['code']} 等確認中收到晚到的進場成交 {lots} 張 @ {avg:.2f} → 轉持倉")
             p["qty"], p["entry"], p["state"], p["t0"] = lots, avg, HOLDING, self.hm()
+            if not p.get("mt_px"): self.prot_clear(p["code"])   # 2026-11-21 使用者「全改」(檢查 T3):新進場成交 → 這檔存的移平 / 進場寬度一定是上一筆的,清掉(強制進場中已成交那段自己記的 mt_px 不動)
             p["entry_tag"] = o["tag"]                           # 2026-10-29 稽核 #5:同一張進場單之後晚到的成交(on_report)認得、併進來
+            p["entry_got"], p["entry_want"], p["entry_sigs"] = own, o["want"], list(o.get("sigs") or [])   # 2026-11-21 使用者「全改」(檢查 T10):晚到的成交超過下單張數 + 同一筆收過 = 重複回報,不再併
             self.amount_today += o["cost"]                      # 2026-10-27 今天成交金額(買 + 賣)
+            if self.man_close_apply(p): return                  # 2026-11-21(檢查 輕c):進場中的手動反方向成交先扣掉;扣完沒部位了就結束
             if p.get("close_after_entry"):                      # 平倉檢查:進場中就按了強平 → 成交多少馬上全部平掉
                 self.n_trades += 1; self.log(f"[交易] {p['code']} 進場成交 {lots} 張,之前已按強平 → 馬上平倉")
                 self.exit_pos(p, "強平", avg, force_limit=True); return
@@ -2530,6 +2848,7 @@ class Trader:
         # 平倉
         take = min(lots, max(p["qty"], 0)); extra = lots - take
         self.book_close(p, take, avg)
+        if extra > 0: self.amount_today += avg * extra * 1000   # 2026-11-21 使用者「全改」(檢查 T5):多平的那幾張也是元大的成交,算進今天成交金額(book_close 只算部位那幾張)
         if extra > 0:
             # 平倉檢查 #1 #2:程式的平倉單成交得比部位多(手動先平了 / 重送重複)= 多平了 → 反向的張數馬上補回
             self.log(f"[交易] !! {p['code']} 平倉成交 {lots} 張,部位只剩 {take} 張 → 多平 {extra} 張,馬上反向補回")

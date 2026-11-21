@@ -429,7 +429,10 @@ _BR_LAST = {"d": "", "br": {}, "av": {}, "at": 0.0}   # 2026-11-21 使用者「�
 def breadth_fetch(day):
     """只抓雲端 ?breadth(不寫檔),記進 _BR_LAST"""
     j = http(worker_url(f"breadth={day}"), timeout=30)
-    if isinstance(j, dict) and j.get("br"): _BR_LAST.update(d=day, br=j.get("br") or {}, av=j.get("av") or {}, at=time.time())   # 雲端回空的 / 錯誤內容:不蓋掉上一次好的
+    if isinstance(j, dict) and j.get("br"):   # 雲端回空的 / 錯誤內容:不蓋掉上一次好的
+        # 2026-11-21 使用者「全改」(檢查 E4):合併不整份取代 —— 邊緣快取的舊整份 / 上一輪晚回來的背景抓取,不會把剛用 since 問到的新分鐘蓋掉
+        same = _BR_LAST.get("d") == day
+        _BR_LAST.update(d=day, br={**(_BR_LAST["br"] if same else {}), **(j.get("br") or {})}, av={**(_BR_LAST["av"] if same else {}), **(j.get("av") or {})}, at=time.time())
     return j if isinstance(j, dict) else {}
 
 _BR_FILLED = set()   # 2026-11-21 使用者「B」:最近一次寫的寬度 / 名單平均裡,哪幾分鐘是電腦自己補的(雲端還沒有)
@@ -448,20 +451,29 @@ def breadth_apply(day, br, av):
     if not f.exists(): write_atomic(f, "{}")
     return False, 0, ""
 
-def breadth_since(day, since):
-    """2026-11-21 使用者「B」:只抓 since 之後幾分鐘的雲端寬度(Worker 邊緣快取 50 秒是照 since 分開存的,換 since 才拿得到新的),併進 _BR_LAST"""
-    j = http(worker_url(f"breadth={day}&since={since}"), timeout=10)
-    if not isinstance(j, dict) or _BR_LAST.get("d") != day: return False
+def breadth_since(day, since, timeout=10):
+    """2026-11-21:只抓 since 之後幾分鐘的雲端寬度(Worker 邊緣快取 50 秒是照 since 分開存的,換沒用過的 since 才拿得到新的),併進 _BR_LAST"""
+    j = http(worker_url(f"breadth={day}&since={since}"), timeout=timeout)
+    if not isinstance(j, dict): return False
+    if _BR_LAST.get("d") != day: _BR_LAST.update(d=day, br={}, av={}, at=0.0)   # 2026-11-21(檢查):今天整份還沒抓到過也收(原本直接丟掉,每輪白等)
     if j.get("br"): _BR_LAST["br"] = {**_BR_LAST["br"], **j["br"]}
     if j.get("av"): _BR_LAST["av"] = {**_BR_LAST["av"], **j["av"]}
     return True
 
-def br_wait_on(hm):
-    """看寬度 / 名單平均的判別式,這筆新進場要不要先等雲端:最新幾分鐘(hm-3 以後)有電腦補的、而且雲端是好的(2 分鐘內抓到過、沒斷線)。
-       雲端斷線 / 很久沒抓到 → 不等,照電腦算的(和以前一樣,雲端掛了照樣能交易)"""
-    if not _BR_FILLED or not cloud_up() or time.time() - float(_BR_LAST.get("at") or 0) > 120: return ""
-    rec = sorted(x for x in _BR_FILLED if x >= hm_add(hm, -3))
-    return rec[0] if rec else ""
+def breadth_wait(day, hm, want, th, cloud_ok):
+    """2026-11-21 使用者「改 2b」:雲端正常時等雲端寬度有 want(hm-1)這分鐘;最多 ENGINE_BR_MAXWAIT(4)秒、不超過這分鐘第 15 秒。
+       背景那次(th)還在跑就先等它;回來了還沒有 → 換沒用過的 since(hm-1、hm-2…)再問,避開 Worker 50 秒邊緣快取。回傳 True = 雲端有這分鐘了"""
+    have = lambda: _BR_LAST.get("d") == day and want in (_BR_LAST.get("br") or {})
+    if have() or not cloud_ok or not cloud_up() or hm >= "13:26": return have()
+    t_end = min(time.time() + _f(CFG.get("ENGINE_BR_MAXWAIT"), 4), time.time() + max(0.0, 15 - _msec())); k = 0
+    while time.time() < t_end and not have():
+        if th is not None and th.is_alive(): th.join(min(0.3, max(0.0, t_end - time.time()))); continue
+        k += 1
+        if k > 15: break
+        try: breadth_since(day, hm_add(hm, -k), timeout=max(0.5, min(3.0, t_end - time.time())))   # 2026-11-21(檢查):單次查詢不超過剩下的等待時間
+        except Exception as e: log("寬度等雲端:抓不到", repr(e)[:100]); break
+        if not have(): time.sleep(min(0.4, max(0.0, t_end - time.time())))
+    return have()
 
 def breadth_cached(day):
     """雲端這輪還沒回 / 抓不到:用上一次抓到的雲端寬度 + 新的分鐘電腦自己補(和雲端慢 1~2 分鐘時本來的做法一樣);今天還沒抓到過 = 全部電腦自己算"""
@@ -1336,6 +1348,9 @@ class Engine:
             elif it.get("pos"):
                 p = str(it["pos"]).split("|")
                 if len(p) == 3 and p[0] in RS_OF: self.cloud_out.add((rs if rs in ("六3", "一2") else RS_OF[p[0]], p[1], p[2]))   # B:判六做空的平倉記成 六3
+        # 2026-11-21 使用者「改 1」(檢查抓到):判一急彈空(一2)的平倉內容沒有「急彈空」,上面會記成 判一(一)→ 同一檔同一進場時間是 一2 的進場(雲端或本機部位)就也記成 一2
+        for (r_, c_, t_) in [x for x in self.cloud_out if x[0] == "一"]:
+            if ("一2", c_, t_) in self.cloud_in or (self.pos.get(("一2", c_)) or {}).get("t") == t_: self.cloud_out.add(("一2", c_, t_))
         return True
 
     def push_exit(self, rs, code, p, tm, ex, why, at, phantom=False):
@@ -1478,6 +1493,13 @@ class Engine:
                 _lim = round(_m.floor(_v / _t + 1e-6) * _t if d["side"] < 0 else _m.ceil(_v / _t - 1e-6) * _t, 2)
                 sl = min(sl, _lim) if d["side"] < 0 else max(sl, _lim)
         except Exception: pass
+        try:   # 2026-11-21 18:56 使用者「漏洞 全修 解鎖改」:通知上的停利 / 停損價取到升降單位(比進場高往上取、低往下取;模擬器 close_trade / 手機同一套)
+            import math as _m2
+            def _tk(v):
+                t_ = 0.01 if v < 10 else 0.05 if v < 50 else 0.1 if v < 100 else 0.5 if v < 500 else 1 if v < 1000 else 5
+                return v if abs(v / t_ - round(v / t_)) < 1e-6 else round(_m2.ceil(v / t_ - 1e-9) * t_ if v > px else _m2.floor(v / t_ + 1e-9) * t_, 2)
+            tp, sl = _tk(float(tp)), _tk(float(sl))
+        except Exception: pass
         qty = lot_tier_qty(px, self.cap)   # 2026-11-17 23:45 照多空上限算張數   # 鐵律 ⑤(2026-11-11 19:29):張數分級關不掉   # 2026-11-11 14:49 張數分級(和中繼一樣):≤ 70 元 3 張、≤ 150 元 2 張、其他 1 張;一張超過多空上限照舊「超額」
         # 2026-10-30 01:55 使用者「超過限額的股票 也要出現在訊息通知欄裡 只是註記“超額”不交易 給強制進場提供一個發揮的平台」:一張就超過多空上限 → 照推、張數改寫「超額」(中繼看到不自動進場)
         over = px * 1000 > self.cap
@@ -1540,41 +1562,25 @@ class Engine:
         t0 = time.time(); res = self.pool.map(_sim_one, jobs, chunksize=4) if jobs else []
         return res, time.time() - t0, len(jobs)
 
-    def br_recheck(self, day, hm, rs_block):
-        """2026-11-21 使用者「B」:這輪有看寬度的新進場因為「最新寬度是電腦補的」先不發 → 最多 ENGINE_BR_RECHECK(15)秒(不超過這分鐘第 50 秒)
-           每秒換 since 問雲端;雲端補齊那幾分鐘 → 寫回寬度檔(全用雲端的)、只重算這幾筆、照常對帳發通知。等不到就下一輪(下一輪那幾分鐘雲端應該有了)"""
-        wait = self.__dict__.pop("br_wait", set())
-        if not wait: return
-        need = br_wait_on(hm)
-        if not need: return
-        t_end = min(time.time() + _f(CFG.get("ENGINE_BR_RECHECK"), 15), time.time() + max(0.0, 50 - _msec()))
-        k = 0
-        while time.time() < t_end:
-            k += 1
-            try: breadth_since(day, hm_add(hm, -1 - (k % 4)))
-            except Exception as e: log("寬度等雲端:抓不到", repr(e)[:100]); time.sleep(1); continue
-            have = set(_BR_LAST.get("br") or {}) & set(_BR_LAST.get("av") or {}) if _BR_LAST.get("av") else set(_BR_LAST.get("br") or {})
-            miss = [x for x in sorted(_BR_FILLED) if x >= need and x not in have]
-            if not miss: break
-            time.sleep(1)
-        else:
-            log(f"寬度等雲端:{hm} 這輪等不到雲端 {need} 起的寬度,{len(wait)} 筆下一輪再判 {sorted(JUDGE[r] + c for r, c in wait)}"); self.br_wait = set(); return
-        breadth_apply(day, dict(_BR_LAST.get("br") or {}), dict(_BR_LAST.get("av") or {}))
-        res_, dtm_, nj_ = self.compute(only=wait)
-        nb = len(self.sent)
-        self.apply(list(self.order12(res_, hm)), hm, allow_new=True, allow_phantom=False, rs_block=rs_block)
-        self.br_wait = set()
-        log(f"寬度等雲端:{hm} 雲端補齊 → 重算 {len(wait)} 筆,推出 {len(self.sent) - nb} 則(整分後 {_msec():.1f} 秒)")
-
     def order12(self, it, upto):
         """2026-11-21 判一急彈空(一2):同一輪會新進場的判一急彈空先留著,這輪其他結果交回完後,照(進場那根、量比大的先)交回(一天 5 檔名額給量比大的)"""
+        # 2026-11-21 使用者「全改」(檢查 E3):原本整個留到這輪最後 → 同一檔同一分鐘排在一2 後面的判別式(三 四 二 八 九 十…)反而先發、搶走這檔。
+        #   改成:交回結果裡碰到「排在一2 後面的判別式的新進場」時,先把留著的一2 照量比排好交回(新進場本來就照原本順序交回,見 _compute_group blocked)
+        pri = list(getattr(self, "rs_pri", None) or RS_PRIORITY); k12 = pri.index("一2") if "一2" in pri else len(pri)
+        rank = lambda rs: pri.index(rs) if rs in pri else len(pri) + 1
         buf = []
+        def is_new(r):
+            if r[3] or (r[1], r[0]) in self.pos: return None
+            try:
+                tr, ot = sim_trades(parse_events(r[2]), upto); return (tr, ot) if ot is not None else None
+            except Exception: return None
         for r in it:
-            if r[1] == "一2" and not r[3] and ("一2", r[0]) not in self.pos:
-                try:
-                    tr, ot = sim_trades(parse_events(r[2]), upto)
-                    if ot is not None: buf.append((ot, -float((tr[ot][0] or {}).get("vr") or 0), r)); continue
-                except Exception: pass
+            if r[1] == "一2":
+                x = is_new(r)
+                if x: buf.append((x[1], -float((x[0][x[1]][0] or {}).get("vr") or 0), r)); continue
+            elif buf and rank(r[1]) > k12 and is_new(r):
+                for _, _, b in sorted(buf, key=lambda x: (x[0], x[1])): yield b
+                buf = []
             yield r
         for _, _, r in sorted(buf, key=lambda x: (x[0], x[1])): yield r
 
@@ -1727,8 +1733,8 @@ class Engine:
             self.emitted.add(ek); log(f"判六 {code} {open_tm} 這檔判六另一個方向的部位還開著 → 不發"); return n
         elif _f(self.envs.get(rs, {}).get("PXMIN"), 0) > 0 and float(d.get("px") or 0) < _f(self.envs.get(rs, {}).get("PXMIN"), 0) - 1e-9:   # 2026-11-17 10:45 模擬器 PXMIN 在 close_trade 才擋(引擎看進場那行就發)→ 引擎自己擋(判四 70、判五 15;11/17 國喬 11.60 判五漏擋)
             self.emitted.add(ek); log(f"{JUDGE[rs]} {code} {open_tm} 進場價 {float(d.get('px') or 0):.2f} 低於 {self.envs[rs]['PXMIN']} 元 → 不發"); return n
-        elif rs in getattr(self, "br_rs", ()) and br_wait_on(upto) and open_tm >= br_wait_on(upto):   # 2026-11-21 使用者「B」:進場那根以後的寬度有電腦補的 → 先不發(不記 emitted),等雲端這幾分鐘回來只重算這筆
-            why = f"寬度 {br_wait_on(upto)} 起是電腦補的,等雲端"; self.__dict__.setdefault("br_wait", set()).add((rs, code))
+        elif getattr(self, "pre_mode", False) and rs in getattr(self, "br_rs", ()) and not getattr(self, "pre_br_ok", True):   # 2026-11-21(檢查 E1)
+            why = "預判確認:這分鐘雲端寬度還沒到,等整輪"
         elif getattr(self, "pre_mode", False) and self.pre_wait(rs, code, open_tm, d["side"]):   # 2026-11-18 16:43 使用者「定穎 改緩衝那個」:預判收盤確認時台指期這根還沒收、或台指期條件離門檻太近 → 先不發(不記 emitted),等整輪用收完的 K 再判
             why = self.pre_wait(rs, code, open_tm, d["side"])
         elif not self.tx_ok(rs, code, open_tm, d["side"]):   # 2026-11-13 22:30 ⑧ 台指期同步進場(23:32 改只看方向):台指期 60 分鐘往不利方向 → 這筆不做(記 emitted,不再發)
@@ -1842,18 +1848,23 @@ class Engine:
            這天完全沒有台指期 → 先不看(照舊進場)+ 推一次警告;其他算不出來 / 不合 → 不做"""
         c = self.envs.get(rs, {}).get("TXSYNC"); fn = getattr(self, "txsync_fn", None)
         if not c and side > 0 and self.envs.get(rs, {}).get("TXDROP") and getattr(self, "txdrop_fn", None):   # 2026-11-18 17:12 🔒 ⑧ 急殺不做多 判七也套
-            try:
-                ok, why = self.txdrop_fn(side, tm, self.txf_map(), self.envs[rs]["TXDROP"])
+            try:   # 2026-11-21 18:56 使用者「漏洞 全修 解鎖改」:判七沒台指期改用加權指數,兩個都沒有 / 出錯 → 不發(原本放行)
+                _m = self.txf_map() or self.ix_map()
+                if not _m: log(f"{JUDGE[rs]} {code} {tm} 沒有台指期 / 加權指數資料 → ⑧ 不發"); return False
+                ok, why = self.txdrop_fn(side, tm, _m, self.envs[rs]["TXDROP"])
                 if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
                 return ok
-            except Exception as e: log("⑧ 急殺檢查失敗(照舊)", e); return True
+            except Exception as e: log("⑧ 急殺檢查失敗 → 不發", e); return False
         if not c and side < 0 and self.envs.get(rs, {}).get("TXBOUNCE") and getattr(self, "txbounce_fn", None):   # 2026-11-18 11:49 🔒 ⑧ 急彈不做空 判七也套用(使用者「解鎖 改」;判七沒有 TXSYNC,單獨檢查)
-            try:
-                ok, why = self.txbounce_fn(side, tm, self.txf_map(), self.envs[rs]["TXBOUNCE"])
+            try:   # 2026-11-21 18:56 同上
+                _m = self.txf_map() or self.ix_map()
+                if not _m: log(f"{JUDGE[rs]} {code} {tm} 沒有台指期 / 加權指數資料 → ⑧ 不發"); return False
+                ok, why = self.txbounce_fn(side, tm, _m, self.envs[rs]["TXBOUNCE"])
                 if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
                 return ok
-            except Exception as e: log("⑧ 急彈檢查失敗(照舊)", e); return True
-        if not c or not fn: return True
+            except Exception as e: log("⑧ 急彈檢查失敗 → 不發", e); return False
+        if c and not fn: log(f"{JUDGE[rs]} {code} {tm} ⑧ 判斷程式沒載入(私人庫 rs_env)→ 不發"); return False   # 2026-11-21 18:56 原本放行
+        if not c: return True
         try:
             txf = self.txf_map(); frm = None
             _cov = getattr(self, "txcover_fn", None)
@@ -1868,11 +1879,10 @@ class Engine:
                 txf = self.ix_map(); frm = "09:00" if txf else None
             if not txf:
                 if not self.__dict__.get("_txf_warn") and now_tw().strftime("%H:%M") >= "09:05":
-                    self._txf_warn = True; log("!! ⑧ 今天沒有台指期 1 分 K(中繼沒收到)→ 台指期同步進場先不看")
-                    try: http(worker_url("log=add"), {"d": self.day, "t": now_tw().strftime("%H:%M"), "title": "⚠ 沒有台指期資料,鐵律 ⑧ 暫停", "body": "中繼沒收到台指期逐筆,台指期同步進場今天先不看(照舊進場);判八 / 判九不進場 · 元大中繼", "kind": "pc", "key": "txf|missing"}, key=True)
+                    self._txf_warn = True; log("!! ⑧ 今天沒有台指期 1 分 K(中繼沒收到)、加權指數也沒有 → 全部判別式不進場")
+                    try: http(worker_url("log=add"), {"d": self.day, "t": now_tw().strftime("%H:%M"), "title": "⚠ 沒有台指期 / 加權資料,暫停進場", "body": "中繼沒收到台指期逐筆、加權指數也沒有,鐵律 ⑧ 沒辦法檢查 → 全部判別式先不進場(資料回來自動恢復) · 元大中繼", "kind": "pc", "key": "txf|missing"}, key=True)
                     except Exception: pass
-                if rs in getattr(self, "tx_req", ("八", "九")): log(f"{JUDGE[rs]} {code} {tm} 沒有台指期 / 加權指數資料 → {JUDGE[rs]}不進場"); return False   # 2026-11-14 18:35 使用者「改」
-                return True
+                log(f"{JUDGE[rs]} {code} {tm} 沒有台指期 / 加權指數資料 → 不進場"); return False   # 2026-11-21 18:56 使用者「漏洞 全修 解鎖改」:原本只有判八 / 九不進、其他照進
             _p = c.split(":"); n_ = int(float(_p[0])); r_ = float(_p[1]) if len(_p) > 1 and _p[1] else None   # 「60」= 只看台指期方向(2026-11-13 23:32 使用者「只看台指期方向 解鎖改」)
             mvs = float(self.envs.get(rs, {}).get("TXMVS") or 0) or None   # 2026-11-14 12:56 判二(使用者「解鎖 改 0.25%」):做空時台指期 60 分要跌 ≥ TXMVS%(rs_env J2 TXMVS=0.25)
             m15 = float(self.envs.get(rs, {}).get("TX15") or 0) or None   # 2026-11-14 18:35 判九(使用者「改」):做空時台指期最近 15 分要跌 ≥ TX15%(加權指數備援時也照樣檢查)
@@ -1887,35 +1897,34 @@ class Engine:
                 try:
                     _tp, _ip = self.txrel_prev(); ok, why = _rf(side, tm, self.txf_map(), self.ix_map(), _tp, _ip, _th)
                     if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
-                except Exception as e: log("⑧ 強弱檢查失敗(照舊)", e); ok = True
+                except Exception as e: log("⑧ 強弱檢查失敗 → 不發", e); ok = False   # 2026-11-21 18:56 原本放行
             _dh = self.envs.get(rs, {}).get("TXDROP"); _df = getattr(self, "txdrop_fn", None)
             if ok and _dh and _df and side > 0:   # 🔒 ⑧ 急殺不做多 2026-11-18 17:12 使用者「解鎖 改」:台指期 15 分鐘內從高點急殺 > 0.8% 不做多
                 try:
                     ok, why = _df(side, tm, self.txf_map(), _dh)
                     if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
-                except Exception as e: log("⑧ 急殺檢查失敗(照舊)", e); ok = True
+                except Exception as e: log("⑧ 急殺檢查失敗 → 不發", e); ok = False
             _bh = self.envs.get(rs, {}).get("TXBOUNCE"); _bf = getattr(self, "txbounce_fn", None)
             if ok and _bh and _bf and side < 0:   # 🔒 ⑧ 急彈不做空 2026-11-18 11:31 使用者「解鎖 改」:台指期 15 分鐘內從低點急彈 > 0.8% 不做空
                 try:
                     ok, why = _bf(side, tm, self.txf_map(), _bh)
                     if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
-                except Exception as e: log("⑧ 急彈檢查失敗(照舊)", e); ok = True
+                except Exception as e: log("⑧ 急彈檢查失敗 → 不發", e); ok = False
             _oh = self.envs.get(rs, {}).get("TXOFFHI"); _of = getattr(self, "txoffhi_fn", None)
             if ok and _oh and _of and side < 0:   # 判九 2026-11-17 20:28 使用者「改」:台指期離今高已跌 > 2% 不追空
                 try:
                     ok, why = _of(side, tm, self.txf_map(), _oh)
                     if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
-                except Exception as e: log("判九離今高檢查失敗(照舊)", e); ok = True
+                except Exception as e: log("判九離今高檢查失敗 → 不發", e); ok = False
             _lh = self.envs.get(rs, {}).get("TXLONGHI"); _lf = getattr(self, "txlonghi_fn", None)
             if ok and _lh and _lf and side > 0:   # 判一 / 二 / 六做多 2026-11-17 21:47 使用者「解鎖 都改」:台指期離今高已跌 > 1.5% 不做多
                 try:
                     ok, why = _lf(side, tm, self.txf_map(), _lh)
                     if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
-                except Exception as e: log("做多離今高檢查失敗(照舊)", e); ok = True
+                except Exception as e: log("做多離今高檢查失敗 → 不發", e); ok = False
             return ok
         except Exception as e:
-            if rs in getattr(self, "tx_req", ("八", "九")): log(f"⑧ 檢查失敗 → {JUDGE[rs]}不進場", e); return False   # 2026-11-14 18:35 使用者「改」
-            log(f"⑧ 檢查失敗(照舊進場)", e); return True
+            log(f"⑧ 檢查失敗 → {JUDGE[rs]}不進場", e); return False   # 2026-11-21 18:56 使用者「漏洞 全修 解鎖改」:原本只有判八 / 九不進、其他照進
 
     RE_BLK = re.compile(r"^\s*(\d\d:\d\d) .*(不在 Ka~Kb|沒回 Ka~Kb|Ka~Kb 沒回|大盤寬度|不做多|延遲進場取消|等回 Ka~Kb|回到 Ka~Kb)")
     def note_blocked(self, rs, code, out, upto):
@@ -2029,13 +2038,21 @@ def live():
             pre_fast = len(eng.rounds) >= 3 and max(eng.rounds[-3:]) <= pre_max and not pre.get("off")
             if pre_on and pre_fast and "09:00" <= hm < "13:24" and n.second >= pre_sec and hm not in pre["done"] and pre["ok"]:
                 pre["done"].add(hm); t0 = time.time()
+                # 2026-11-21 使用者「全改」(檢查 E2):預判要在下一分鐘第 2 秒前算完才有用 —— 照上次花的時間,這分鐘剩的時間不夠就不做(不拖到下一輪)
+                if n.second + n.microsecond / 1e6 + float(pre.get("dur") or 0) * 1.1 > 61.5:
+                    log(f"預判 {hm} 跳過:現在第 {n.second} 秒,上次預判 {float(pre.get('dur') or 0):.1f} 秒,來不及在下一分鐘第 2 秒前算完"); continue
                 try:
                     lb_ = local_bars()
                     if lb_:
                         nxt = hm_add(hm, 1); bs, fm = pre_frame(lb_, nxt, set(eng.codes), pre.get("base"))
                         write_today(day, bs, upto=nxt, forming=fm)
                         res_, dtm_, nj_ = eng.compute()
-                        pre["for"], pre["cand"] = nxt, eng.candidates(res_, nxt)
+                        pre["for"], pre["cand"] = nxt, eng.candidates(res_, nxt); pre["dur"] = time.time() - t0
+                        _nw = now_tw()
+                        if _nw.strftime("%H:%M") > hm and _nw.second >= 3:   # 2026-11-21(檢查 E2):算完已經過了下一分鐘第 3 秒 → 收盤確認來不及,這次作廢;連 2 次今天不再預判
+                            pre["cand"] = set(); pre["late"] = pre.get("late", 0) + 1; log(f"!! 預判 {hm} 算完已經 {_nw.strftime('%H:%M:%S')},作廢(第 {pre['late']} 次)")
+                            if pre["late"] >= 2: pre["off"] = True; log("!! 預判連續來不及 → 今天不再預判,照一般整輪跑")
+                        else: pre["late"] = 0
                         log(f"預判 {hm} 這根(假設現價收):{len(pre['cand'])} 個候選 {sorted(JUDGE[r] + c for r, c in pre['cand'])},{time.time() - t0:.1f} 秒")
                         if time.time() - t0 > pre_max:   # 2026-11-08 20:30 使用者「改」:預判自己超過 15 秒 → 今天不再預判(不讓它拖到下一分鐘的整輪)
                             pre["off"] = True; pre["cand"] = set(); log(f"!! 預判 {time.time() - t0:.1f} 秒超過 {pre_max:.0f} 秒 → 今天不再預判,照一般整輪跑")
@@ -2048,7 +2065,15 @@ def live():
                     if lb_:
                         bs, fm = pre_frame(lb_, hm, {c for _, c in cand}, pre.get("base"))
                         write_today(day, bs, upto=hm, forming=fm)
-                        if any(r == "二" for r, _ in cand): write_breadth(day)
+                        # 2026-11-21 使用者「全改」(檢查 E1):原本只有候選有判二才更新寬度 → 一 / 一2 / 五 / 六 / 八 / 九 / 十 拿上一分鐘的寬度確認、先發後消失。
+                        #   改成:有看寬度的候選就快問一次雲端這分鐘(最多 1 秒);雲端還沒有 → 這些候選先不發,等整輪(apply_one 看 pre_br_ok)
+                        eng.pre_br_ok = True
+                        if any(r in getattr(eng, "br_rs", ()) for r, _ in cand):
+                            try: breadth_since(day, hm_add(hm, -2), timeout=1.0)
+                            except Exception as e: log("預判確認:寬度抓不到", repr(e)[:80])
+                            eng.pre_br_ok = _BR_LAST.get("d") == day and hm_add(hm, -1) in (_BR_LAST.get("br") or {})
+                            try: breadth_cached(day)
+                            except Exception as e: log("預判確認:寬度寫檔失敗", repr(e)[:80])
                         res_, dtm_, nj_ = eng.compute(only=cand)
                         nb = len(eng.sent); eng.pre_mode = True; eng.t_first = None   # 2026-11-18 16:43 預判緩衝
                         try: eng.apply(res_, hm, allow_new=True, allow_phantom=False, rs_block=pre["rs_block"])
@@ -2112,12 +2137,12 @@ def live():
                 except Exception as e: log("昨收對照失敗", repr(e))
                 # 寬度每分鐘(稽核 #1)
                 # 2026-11-21 使用者「改」(3 寬度先用電腦算的):K 到齊後最多再等雲端寬度 ENGINE_BR_WAIT(0.5)秒;還沒回 → 先用上一次的雲端 + 新的分鐘電腦補(原本最多等 35 秒)
+                # 2026-11-21 使用者「改 2b」(取代「B 先擋、再等雲端」):雲端正常時,開算前等雲端寬度有 hm-1 這一分鐘,最多 ENGINE_BR_MAXWAIT(4)秒、不超過這分鐘第 15 秒
+                #   (背景那次沒有 → 換沒用過的 since 再問,避開 Worker 50 秒邊緣快取);全部判別式一起等,順序不變、不用事後重算。等不到 / 雲端斷線 → 新的分鐘電腦補(心跳旗標「寬度先補」)
                 _tm["整理K"] = _msec(); _ths[0].join(max(0.0, _f(CFG.get("ENGINE_BR_WAIT"), 0.5)))
                 try:
-                    if "j" in _bg: ok, nbr, blast = breadth_apply(day, _bg["j"].get("br") or {}, _bg["j"].get("av") or {})
-                    else:
-                        if "err" not in _bg: flags.append("寬度先補")
-                        ok, nbr, blast = breadth_cached(day)
+                    if not breadth_wait(day, hm, want, _ths[0], "err" not in _bg) and "err" not in _bg: flags.append("寬度先補")
+                    ok, nbr, blast = breadth_cached(day)   # 雲端拿到的(含這輪問到的)+ 雲端還沒有的分鐘電腦補
                 except Exception as e: ok, nbr, blast = False, 0, ""; log("寬度寫檔失敗", repr(e))
                 _tm["寬度"] = _msec()
                 if ok: br.update(ok_at=time.time(), last=blast)
@@ -2142,8 +2167,6 @@ def live():
                     ok = ok0 and not (njobs and errs / njobs > err_max)
                     n_ev += eng.apply_one(r, hm, cutoff, ok, ok, rs_block)
                 eng.save(); dtm = time.time() - t0c
-                try: eng.br_recheck(day, hm, rs_block)   # 2026-11-21 使用者「B」
-                except Exception as e: log("寬度等雲端重算出錯", repr(e))
                 eng.rounds.append(round(dtm, 1))
                 try: eng.drag_check(bars, hm)   # 2026-11-07 可能拖輸提示(中級)
                 except Exception as e: log("可能拖輸檢查出錯", repr(e))
