@@ -1205,3 +1205,25 @@ import ast as _ast_t
 _u = _eng._ss_uses(_ast_t.parse("P = {'a': 1}\nQ = [1]\nR = 2\ndef f():\n    P = []\n    P.append(1)\n    return Q\ng = lambda: globals()['R']\n"))
 ok(_u["P"] == {0} and -1 in _u["Q"] and -1 in _u["R"], _u)
 print("名單資料共用判斷 OK")
+# 2026-11-21 使用者「B」:寬度最新分鐘是電腦補的 → 看寬度的判別式新進場先等雲端,雲端補齊只重算那幾筆
+import time as _tt
+_eng._BR_FILLED.clear(); _eng._BR_FILLED.update({"10:05", "10:06"}); _eng._BR_LAST.update(d="d", br={"10:04": 0.5}, av={"10:04": 0.1}, at=_tt.time())
+ok(_eng.br_wait_on("10:07") == "10:05")
+_eng._BR_LAST["at"] = _tt.time() - 300; ok(_eng.br_wait_on("10:07") == "")   # 雲端很久沒抓到(斷線)→ 不等,照電腦算的
+_eng._BR_LAST["at"] = _tt.time(); _eng._BR_FILLED.clear(); _eng._BR_FILLED.add("09:50"); ok(_eng.br_wait_on("10:07") == "")   # 很久以前的缺口不算
+_eng._BR_FILLED.clear(); _eng._BR_FILLED.update({"10:05", "10:06"})
+_calls = {"since": 0}
+def _bs(day, since):
+    _calls["since"] += 1
+    if _calls["since"] >= 2: _eng._BR_LAST["br"].update({"10:05": 0.4, "10:06": 0.4}); _eng._BR_LAST["av"].update({"10:05": 0.0, "10:06": 0.0})
+    return True
+_ba = []; _orig = (_eng.breadth_since, _eng.breadth_apply, _eng._msec)
+_eng.breadth_since = _bs; _eng.breadth_apply = lambda d, br, av: _ba.append(sorted(br)) or (True, len(br), max(br)); _eng._msec = lambda: 10.0
+e4_ = _eng.Engine.__new__(_eng.Engine); e4_.sent = []; e4_.br_wait = {("二", "2330")}
+_got = {}
+e4_.compute = lambda only=None, stream=False: (_got.setdefault("only", only), ([("2330", "二", "", "")], 0.1, 1))[1]
+e4_.apply = lambda res, hm, **kw: _got.setdefault("apply", (len(res), hm, kw.get("allow_phantom")))
+e4_.br_recheck("d", "10:07", {})
+ok(_got.get("only") == {("二", "2330")} and _got.get("apply") == (1, "10:07", False) and _ba and "10:06" in _ba[-1], (_got, _ba))
+_eng.breadth_since, _eng.breadth_apply, _eng._msec = _orig; _eng._BR_FILLED.clear()
+print("寬度電腦補 → 等雲端再發 OK")
