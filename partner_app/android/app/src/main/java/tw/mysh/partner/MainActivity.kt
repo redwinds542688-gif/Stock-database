@@ -90,7 +90,7 @@ class MainActivity : Activity() {
         if (savedInstanceState != null) web.restoreState(savedInstanceState)
         else web.loadUrl("https://appassets.androidplatform.net/assets/mine.html")
         if (crashF.exists()) { val t = try { crashF.readText() } catch (e: Exception) { "" }; crashF.delete()
-            if (t.isNotBlank()) AlertDialog.Builder(this).setTitle("上次夥伴看盤意外關閉").setMessage("請截圖這個畫面給 Claude:\n\n" + t.take(1200)).setPositiveButton("好", null).show() }
+            if (t.isNotBlank()) { sendBug("crash", t); AlertDialog.Builder(this).setTitle("上次夥伴看盤意外關閉").setMessage("已自動回報給 Claude 查原因。").setPositiveButton("好", null).show() } }
         Updater.check(this)   // 打開 App 時檢查一次版本,有新版才問
         UpdateAlarm.schedule(this)   // 每個平日 08:30(開盤前 30 分鐘)再檢查一次
         if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTI)   // 08:30 有新版時要能跳通知
@@ -107,6 +107,20 @@ class MainActivity : Activity() {
     override fun onActivityResult(code: Int, result: Int, data: Intent?) {
         if (code == REQ_FILE) { val u = data?.data; fileCb?.onReceiveValue(if (result == RESULT_OK && u != null) arrayOf(u) else null); fileCb = null }
         else super.onActivityResult(code, result, data)
+    }
+
+
+    /** 2026-11-21 使用者「有問題 你讓程式自己報告」:當機原因送雲端 ?bug=put(Claude 讀 ?bug=list) */
+    private fun sendBug(kind: String, text: String) {
+        kotlin.concurrent.thread {
+            try {
+                val body = org.json.JSONObject().put("app", APPNAME).put("ver", BuildConfig.VERSION_NAME).put("kind", kind).put("msg", text.take(500)).put("stack", text.take(2000))
+                    .put("dev", "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} Android ${android.os.Build.VERSION.RELEASE} (SDK ${android.os.Build.VERSION.SDK_INT})").toString()
+                val c = java.net.URL("https://twse-proxy.redwinds542688.workers.dev/?bug=put").openConnection() as java.net.HttpURLConnection
+                c.requestMethod = "POST"; c.doOutput = true; c.connectTimeout = 10000; c.readTimeout = 10000; c.setRequestProperty("Content-Type", "application/json")
+                c.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }; c.responseCode
+            } catch (e: Exception) {}
+        }
     }
 
     private var cloudOk = false
@@ -144,5 +158,5 @@ class MainActivity : Activity() {
         @JavascriptInterface fun cloud(): Boolean = cloudOk   // 畫面是雲端最新的(true)還是 App 內建的(false,沒網路)
     }
 
-    companion object { const val REQ_CAM = 11; const val REQ_FILE = 12; const val REQ_NOTI = 13 }
+    companion object { const val REQ_CAM = 11; const val REQ_FILE = 12; const val REQ_NOTI = 13; const val APPNAME = "夥伴看盤" }
 }

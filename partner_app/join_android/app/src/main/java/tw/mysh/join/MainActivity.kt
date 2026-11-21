@@ -42,6 +42,11 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 2026-11-21 使用者「有問題 你讓程式自己報告」:當機原因記下來,下次打開自動送雲端
+        val crashF = File(filesDir, "crash.txt")
+        val prev = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e -> try { crashF.writeText(android.util.Log.getStackTraceString(e).take(3000)) } catch (x: Exception) {}; prev?.uncaughtException(t, e) }
+        if (crashF.exists()) { val t = try { crashF.readText() } catch (e: Exception) { "" }; crashF.delete(); if (t.isNotBlank()) sendBug("crash", t) }
         val loader = WebViewAssetLoader.Builder().addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this)).build()
         web = WebView(this)
         web.setBackgroundColor(0xFF0B0E14.toInt())
@@ -54,6 +59,11 @@ class MainActivity : Activity() {
             allowContentAccess = true
         }
         web.webViewClient = object : WebViewClient() {
+            override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {   // 畫面元件當掉:不讓 App 跟著關,回報後重開
+                sendBug("render", "畫面元件當掉(didCrash=${detail.didCrash()})")
+                try { (view.parent as? android.view.ViewGroup)?.removeView(view); view.destroy() } catch (x: Exception) {}
+                recreate(); return true
+            }
             override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? = loader.shouldInterceptRequest(req.url)
             override fun onReceivedError(view: WebView, req: WebResourceRequest, err: WebResourceError) {
                 if (req.isForMainFrame && !offline) { offline = true; view.loadUrl(LOCAL) }   // 沒網路:開內建那份
@@ -101,6 +111,20 @@ class MainActivity : Activity() {
         else super.onActivityResult(code, result, data)
     }
 
+
+    /** 2026-11-21 使用者「有問題 你讓程式自己報告」:當機原因送雲端 ?bug=put(Claude 讀 ?bug=list) */
+    private fun sendBug(kind: String, text: String) {
+        kotlin.concurrent.thread {
+            try {
+                val body = org.json.JSONObject().put("app", APPNAME).put("ver", BuildConfig.VERSION_NAME).put("kind", kind).put("msg", text.take(500)).put("stack", text.take(2000))
+                    .put("dev", "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} Android ${android.os.Build.VERSION.RELEASE} (SDK ${android.os.Build.VERSION.SDK_INT})").toString()
+                val c = java.net.URL("https://twse-proxy.redwinds542688.workers.dev/?bug=put").openConnection() as java.net.HttpURLConnection
+                c.requestMethod = "POST"; c.doOutput = true; c.connectTimeout = 10000; c.readTimeout = 10000; c.setRequestProperty("Content-Type", "application/json")
+                c.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }; c.responseCode
+            } catch (e: Exception) {}
+        }
+    }
+
     override fun onSaveInstanceState(out: Bundle) { super.onSaveInstanceState(out); web.saveState(out) }
     override fun onPause() { pausedAt = SystemClock.elapsedRealtime(); web.onPause(); super.onPause() }
     override fun onResume() {
@@ -145,6 +169,6 @@ class MainActivity : Activity() {
         const val HOST = "twse-proxy.redwinds542688.workers.dev"
         const val REMOTE = "https://$HOST/partner/join/"
         const val LOCAL = "https://appassets.androidplatform.net/assets/join.html"
-        const val REQ_CAM = 11; const val REQ_FILE = 12
+        const val REQ_CAM = 11; const val REQ_FILE = 12; const val APPNAME = "夥伴加入"
     }
 }

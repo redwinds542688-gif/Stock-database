@@ -157,6 +157,18 @@ nav button{height:calc(var(--uf) * 4.1);font-size:calc(var(--uf) * 1.75);border-
 <div id="toastL"></div>   <!-- 通知另外一層:不會把金鑰入口蓋掉 / 清掉(2026-11-15 線上測到的問題) -->
 
 <script>
+/* 2026-11-21 使用者「你先在程式裡 安排抓BUG程式」「有問題 你讓程式自己報告」:畫面程式出錯 / 載入失敗 / 相機打不開 → 自動送雲端 ?bug=put(Claude 讀 ?bug=list);不送金鑰、帳密、交易資料 */
+(function(){ const W = "https://twse-proxy.redwinds542688.workers.dev"; let n = 0;
+  window.__bug = function(kind, msg, stack){ if (n++ >= 10) return; try{
+    const ver = (function(){ try{ return (window.PartnerHost && PartnerHost.version) ? "v" + PartnerHost.version() : "網頁版"; }catch(e){ return "?"; } })();
+    fetch(W + "/?bug=put", {method: "POST", headers: {"Content-Type": "application/json"}, keepalive: true,
+      body: JSON.stringify({app: "夥伴看盤", ver: ver, kind: kind, msg: String(msg || "").slice(0, 500), stack: String(stack || "").slice(0, 2000), dev: navigator.userAgent, page: location.pathname + (window.S && S.page ? "#" + S.page : window.S && S.tab ? "#" + S.tab : "")})}).catch(function(){});
+  }catch(e){} };
+  window.addEventListener("error", function(e){ if (e.target && e.target !== window && (e.target.src || e.target.href)) __bug("load", "載入失敗:" + (e.target.src || e.target.href), ""); else __bug("js", e.message, (e.error && e.error.stack) || (e.filename + ":" + e.lineno + ":" + e.colno)); }, true);
+  window.addEventListener("unhandledrejection", function(e){ const r = e.reason; __bug("promise", (r && r.message) || String(r), r && r.stack); });
+})();
+</script>
+<script>
 // 2026-11-15 18:00 使用者「我發現 根本不需要進場」→ 只剩 當沖 / 明細 兩頁(預設當沖)
 // 夥伴看盤(2026-11-15 使用者「簡單的看盤版 就是 進場 當沖 明細 三個就好 所有提醒震動聲音 都依照主導程式 只是簡易看盤也要有聲音跟靜音鍵」)
 // 和名揚四海完全分開的程式(名揚四海一行不改);聲音 / 震動 / 靜音照主導版(app.html webSnd、sndMuted;Android Alert.kt 的震動節奏)抄一份過來,不共用程式。
@@ -270,7 +282,7 @@ function qrScan(onText, onErr){
   w.querySelector("button").onclick = stop;
   (async () => {
     try{ if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw {name: "這個開啟方式不支援相機"}; stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: "environment", width: {ideal: 1280}, height: {ideal: 720}}, audio: false});   /* 2026-11-21「掃描 崩潰」:不要用相機最大解析度 */ }
-    catch(e){ msg.textContent = "打不開相機(" + (e && e.name || e) + "):請允許使用相機,或按取消改用「從相簿選 QR Code 圖片」"; return; }
+    catch(e){ try{ window.__bug && __bug("camera", "打不開相機:" + (e && e.name || e), e && e.message); }catch(x){} msg.textContent = "打不開相機(" + (e && e.name || e) + "):請允許使用相機,或按取消改用「從相簿選 QR Code 圖片」"; return; }
     v.srcObject = stream; try{ await v.play(); }catch(e){}
     const det = await qrDetector(); if (!det){ try{ await loadJsQR(); }catch(e){ msg.textContent = "載入掃描元件失敗(請確認網路)"; return; } }
     const cv = document.createElement("canvas"), g = cv.getContext("2d", {willReadFrequently: true});

@@ -1446,6 +1446,30 @@ export default {
     //   POST ?fam=status {name, st, msg}(中繼金鑰)→ 名冊更新;st = "run" 且還沒有看盤金鑰 → 發一把 fa11(acct = name,只看得到自己)
     //   GET  ?fam=list             (管理鑰匙)→ {fams:[{name, st, msg, at, key, cfg}]}(key = 看盤金鑰,手機只畫成 QR、不顯示)
     //   POST ?fam=del {name}        (管理鑰匙)→ 待辦 del(電腦停掉他的交易程式)、看盤金鑰停用、名冊標「移除中」
+    // ── 2026-11-21 使用者「你先在程式裡 安排抓BUG程式」:夥伴看盤 / 夥伴加入 出錯或當掉 → 自動送到這裡記下來(Claude 直接讀,不用截圖)
+    //   POST ?bug=put {app, ver, kind, msg, stack, dev, page}(不用鑰匙;同一個 IP 10 分鐘最多 30 筆;每筆最多 2,000 字;看起來像鑰匙的字串先遮掉)
+    //   GET  ?bug=list[&n=50]  → 最近的錯誤(新的在前,最多 300 筆;內容已遮鑰匙,不含帳密 / 交易資料)
+    const bugQ = url.searchParams.get("bug");
+    if (bugQ === "put" || bugQ === "list") {
+      if (!env || !env.HUB) return J({ error: "沒有 Hub" }, 503);
+      const hub = hubOf(env);
+      const scrub = t => String(t == null ? "" : t).replace(/fa11[0-9a-f]{6,}/gi, "[鑰匙]").replace(/\b[0-9a-f]{16,64}\b/gi, "[鑰匙]").replace(/([?&](k|dv|key)=)[^&\s"']+/gi, "$1*");
+      if (bugQ === "list") { let L = null; try { L = await hub.kvGet("bugs"); } catch (e) {} const n = Math.min(300, Math.max(1, +url.searchParams.get("n") || 50));
+        return J({ ok: true, bugs: (Array.isArray(L) ? L : []).slice(-n).reverse() }); }
+      if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
+      const ip = request.headers.get("CF-Connecting-IP") || "?", bk = Math.floor(Date.now() / 600000);
+      let c = null; try { c = await hub.kvInc(`bugrate:${bk}:${ip}`, { n: 1 }); } catch (e) {}
+      if (c && c.n > 30) return J({ error: "太多了,10 分鐘後再送" }, 429);
+      let b = null; try { b = await request.json(); } catch (e) {}
+      if (!b || typeof b !== "object") return J({ error: "內容不對" }, 400);
+      const cut = (x, n) => scrub(x).slice(0, n);
+      const rec = { t: new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 19).replace("T", " "), app: cut(b.app, 20), ver: cut(b.ver, 20), kind: cut(b.kind, 20),
+        msg: cut(b.msg, 500), stack: cut(b.stack, 2000), dev: cut(b.dev, 120), page: cut(b.page, 120) };
+      let L = null; try { L = await hub.kvGet("bugs"); } catch (e) {}
+      L = Array.isArray(L) ? L : []; L.push(rec); if (L.length > 300) L = L.slice(-300); await hub.kvPut("bugs", L);
+      return J({ ok: true });
+    }
+
     const famQ = url.searchParams.get("fam");
     if (famQ) {
       if (!env || !env.HUB || !env.LOGS) return J({ error: "Worker 還沒綁定 Hub / KV" }, 503);

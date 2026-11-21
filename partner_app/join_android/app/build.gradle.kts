@@ -10,8 +10,8 @@ android {
         applicationId = "tw.mysh.join"   // 和名揚四海、名揚四海看盤、夥伴看盤都不同 → 可以同時裝
         minSdk = 26
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.0.2"
+        versionCode = 4
+        versionName = "1.0.3"
     }
     signingConfigs {
         create("release") {
