@@ -10,8 +10,8 @@ android {
         applicationId = "tw.mysh.partner"   // 和名揚四海(tw.mysh.monitor)、名揚四海看盤(tw.mysh.monitor.viewer)不同 → 三個可以同時裝
         minSdk = 26
         targetSdk = 34
-        versionCode = 20
-        versionName = "1.0.19"
+        versionCode = 21
+        versionName = "1.0.20"
     }
     signingConfigs {
         create("release") {

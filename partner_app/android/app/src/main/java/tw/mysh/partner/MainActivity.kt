@@ -110,13 +110,13 @@ class MainActivity : Activity() {
     }
 
 
-    /** 2026-11-21 使用者「有問題 你讓程式自己報告」:當機原因送雲端 ?bug=put(Claude 讀 ?bug=list) */
+    /** 2026-11-21 使用者「有問題 你讓程式自己報告」:當機原因送雲端 ?pbug=put(Claude 讀 ?pbug=list) */
     private fun sendBug(kind: String, text: String) {
         kotlin.concurrent.thread {
             try {
                 val body = org.json.JSONObject().put("app", APPNAME).put("ver", BuildConfig.VERSION_NAME).put("kind", kind).put("msg", text.take(500)).put("stack", text.take(2000))
                     .put("dev", "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} Android ${android.os.Build.VERSION.RELEASE} (SDK ${android.os.Build.VERSION.SDK_INT})").toString()
-                val c = java.net.URL("https://twse-proxy.redwinds542688.workers.dev/?bug=put").openConnection() as java.net.HttpURLConnection
+                val c = java.net.URL("https://twse-proxy.redwinds542688.workers.dev/?pbug=put").openConnection() as java.net.HttpURLConnection
                 c.requestMethod = "POST"; c.doOutput = true; c.connectTimeout = 10000; c.readTimeout = 10000; c.setRequestProperty("Content-Type", "application/json")
                 c.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }; c.responseCode
             } catch (e: Exception) {}

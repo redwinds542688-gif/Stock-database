@@ -1447,9 +1447,10 @@ export default {
     //   GET  ?fam=list             (管理鑰匙)→ {fams:[{name, st, msg, at, key, cfg}]}(key = 看盤金鑰,手機只畫成 QR、不顯示)
     //   POST ?fam=del {name}        (管理鑰匙)→ 待辦 del(電腦停掉他的交易程式)、看盤金鑰停用、名冊標「移除中」
     // ── 2026-11-21 使用者「你先在程式裡 安排抓BUG程式」:夥伴看盤 / 夥伴加入 出錯或當掉 → 自動送到這裡記下來(Claude 直接讀,不用截圖)
-    //   POST ?bug=put {app, ver, kind, msg, stack, dev, page}(不用鑰匙;同一個 IP 10 分鐘最多 30 筆;每筆最多 2,000 字;看起來像鑰匙的字串先遮掉)
-    //   GET  ?bug=list[&n=50]  → 最近的錯誤(新的在前,最多 300 筆;內容已遮鑰匙,不含帳密 / 交易資料)
-    const bugQ = url.searchParams.get("bug");
+    //   POST ?pbug=put {app, ver, kind, msg, stack, dev, page}(不用鑰匙;同一個 IP 10 分鐘最多 30 筆;每筆最多 2,000 字;看起來像鑰匙的字串先遮掉)
+    //   GET  ?pbug=list[&n=50]  → 最近的錯誤(新的在前,最多 300 筆;內容已遮鑰匙,不含帳密 / 交易資料)
+    //   ⚠ 用 pbug(partner bug):?bug= 是名揚四海主程式原本的「長按燈上傳紀錄」(在下面),不能搶
+    const bugQ = url.searchParams.get("pbug");
     if (bugQ === "put" || bugQ === "list") {
       if (!env || !env.HUB) return J({ error: "沒有 Hub" }, 503);
       const hub = hubOf(env);

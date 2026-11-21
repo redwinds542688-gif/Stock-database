@@ -122,11 +122,11 @@ main.locked .wheel, main.locked .opt, main.locked .seg button, main.locked .jg b
 </div>
 <div id="toastL"></div>
 <script>
-/* 2026-11-21 使用者「你先在程式裡 安排抓BUG程式」「有問題 你讓程式自己報告」:畫面程式出錯 / 載入失敗 / 相機打不開 → 自動送雲端 ?bug=put(Claude 讀 ?bug=list);不送金鑰、帳密、交易資料 */
+/* 2026-11-21 使用者「你先在程式裡 安排抓BUG程式」「有問題 你讓程式自己報告」:畫面程式出錯 / 載入失敗 / 相機打不開 → 自動送雲端 ?pbug=put(Claude 讀 ?pbug=list);不送金鑰、帳密、交易資料 */
 (function(){ const W = "https://twse-proxy.redwinds542688.workers.dev"; let n = 0;
   window.__bug = function(kind, msg, stack){ if (n++ >= 10) return; try{
     const ver = (function(){ try{ return (window.JoinHost && JoinHost.version) ? "App " + JoinHost.version() : "網頁版"; }catch(e){ return "?"; } })();
-    fetch(W + "/?bug=put", {method: "POST", headers: {"Content-Type": "application/json"}, keepalive: true,
+    fetch(W + "/?pbug=put", {method: "POST", headers: {"Content-Type": "application/json"}, keepalive: true,
       body: JSON.stringify({app: "夥伴加入", ver: ver, kind: kind, msg: String(msg || "").slice(0, 500), stack: String(stack || "").slice(0, 2000), dev: navigator.userAgent, page: location.pathname + (window.S && S.page ? "#" + S.page : window.S && S.tab ? "#" + S.tab : "")})}).catch(function(){});
   }catch(e){} };
   window.addEventListener("error", function(e){ if (e.target && e.target !== window && (e.target.src || e.target.href)) __bug("load", "載入失敗:" + (e.target.src || e.target.href), ""); else __bug("js", e.message, (e.error && e.error.stack) || (e.filename + ":" + e.lineno + ":" + e.colno)); }, true);
