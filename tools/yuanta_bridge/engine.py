@@ -862,9 +862,10 @@ RE_DSIG = re.compile(r"^\s*(\d\d:\d\d) (強)?(多|空)(✓)?[✓✕]* 價 ([\d.]
 RE_DLY = re.compile(r"^\s*(\d\d:\d\d) 延遲進場 ([\d.]+) ×(\d+)張")
 
 
-def parse_events(out):
-    """模擬器輸出 → [(tm, 'entry'|'exit', dict)] 依時間順序"""
-    ev = []; dsig = None
+CUSTOM_EXIT_RS = {"四", "五", "六", "六3", "七", "八", "九", "十", "一2"}   # 2026-11-22 自訂模式:出場行 = 上一根收盤判斷、這根開盤出(見 _now_ok)
+def parse_events(out, rs=None):
+    """模擬器輸出 → [(tm, 'entry'|'exit', dict)] 依時間順序;rs = 判別式(自訂模式的出場行標 custom,盤中形成中那根也算,見 _now_ok)"""
+    ev = []; dsig = None; cx = rs in CUSTOM_EXIT_RS
     for line in out.splitlines():
         m = RE_DSIG.match(line)
         if m: dsig = {"side": 1 if m.group(3) == "多" else -1, "strong": bool(m.group(2)), "sig": float(m.group(5))}; continue
@@ -903,18 +904,31 @@ def parse_events(out):
             ev.append((m.group(1), "entry", {"side": -1, "strong": False, "sig": float(m.group(2)), "px": float(m.group(2)), "lots": int(m.group(3)), "text": "空", "sl": float(m.group(4))})); continue
         m = RE_REV.match(line)
         if m:
-            ev.append((m.group(1), "exit", {"why": m.group(2), "px": float(m.group(3))})); continue
+            ev.append((m.group(1), "exit", {"why": m.group(2), "px": float(m.group(3)), "custom": cx})); continue
         m = RE_EXIT.match(line)
         if m and not line.startswith("  [") and "進場" not in line:
-            ev.append((m.group(1), "exit", {"why": m.group(2), "px": float(m.group(3))}))
+            ev.append((m.group(1), "exit", {"why": m.group(2), "px": float(m.group(3)), "custom": cx}))
     return ev
+
+
+def _now_ok(tm, kind, d, upto):
+    """2026-11-22 隔壁檢查轉達、使用者「確實存在、對我們不利的你就解決」:出場晚 1 分鐘。
+    自訂模式(判四 五 六 六3 七 八 九 十 一2)的出場行 = 用上一根(已收完)收盤判斷、這一根開盤出場,寫在「這一根」的時間;
+    盤中這一根就是正在形成那根(時間 = upto),原本 tm >= upto 一律丟掉 → 晚整整 1 分鐘才推。
+    → 這種出場行在 tm == upto 也算(這根的開盤價已知;同一根盤中碰到停損 / 停利價 = 真的碰到了,也照算;判斷用的都是收完的上一根,下一輪重算不會消失)。
+    一般流程(判一 / 二 / 三)的出場是用這根自己的收盤判斷,形成中那根的收盤還不算數 → 照舊等收完。
+    判一 / 二的延遲進場行照舊等收完:做多前要看「這一分鐘」的大盤寬度(LONGBRMAX),形成中那分鐘的寬度還沒到,先發的話下一輪可能變成取消 → 會被當成訊號消失平倉。
+    回測不受影響(模擬器算法沒變)"""
+    if tm < upto: return True
+    if tm > upto: return False
+    return kind == "exit" and bool(d.get("custom"))
 
 
 def sim_trades(ev, upto):
     """2026-10-29 事件 → 模擬器現在的交易清單 {進場 K 時間: (進場 dict, 出場 (tm, dict) 或 None)} + 最後還開著的那筆的進場時間"""
     trades = {}; cur = None
     for tm, kind, d in ev:
-        if tm >= upto: continue
+        if not _now_ok(tm, kind, d, upto): continue
         if kind == "entry":
             if cur is None: cur = tm; trades[tm] = (d, None)
         elif cur is not None:
@@ -1710,7 +1724,7 @@ class Engine:
         def is_new(r):
             if r[3] or (r[1], r[0]) in self.pos: return None
             try:
-                tr, ot = sim_trades(parse_events(r[2]), upto); return (tr, ot) if ot is not None else None
+                tr, ot = sim_trades(parse_events(r[2], r[1]), upto); return (tr, ot) if ot is not None else None
             except Exception: return None
         for r in it:
             if r[1] == "一2":
@@ -1759,7 +1773,7 @@ class Engine:
                 if r[3] or (rs, code) in self.pos: return False
                 i = idx[(rs, code)]
                 if not pend or min(pend) >= i: return False
-                try: return sim_trades(parse_events(r[2]), upto)[1] is not None   # 會是新進場才要等
+                try: return sim_trades(parse_events(r[2], rs), upto)[1] is not None   # 會是新進場才要等
                 except Exception: return True
             def drain():
                 moved = True
@@ -1793,7 +1807,7 @@ class Engine:
         """2026-11-06 拆出來:一檔一判的對帳(apply 的迴圈內容原封不動;continue → return),好讓算完一檔就先對帳發通知"""
         code, rs, out, err = r; n = 0
         if err: log(f"模擬器錯誤 {JUDGE[rs]} {code}: {err[:160]}"); return n
-        ev = parse_events(out); n = sum(1 for tm, _, _ in ev if tm < upto)
+        ev = parse_events(out, rs); n = sum(1 for tm, _, _ in ev if tm < upto)
         trades, open_tm = sim_trades(ev, upto); k = (rs, code)
         try:   # 2026-11-20 ② 最近 10 分鐘有進出場訊號的股票 → 下一輪先算
             _lim = hm_add(upto, -10)
@@ -2098,7 +2112,7 @@ class Engine:
         sig = hm_add(upto, -1); out = set()
         for code, rs, out_, err in res:
             if err: continue
-            trades, open_tm = sim_trades(parse_events(out_), upto)
+            trades, open_tm = sim_trades(parse_events(out_, rs), upto)
             if open_tm == sig and (rs, code) not in self.pos and (rs, code, sig) not in self.emitted: out.add((rs, code))
         return out
 
