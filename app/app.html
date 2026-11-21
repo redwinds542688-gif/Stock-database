@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-22 開盤中長按「進場」= 停止所有進場 / 解除進場限制(往右滑到底才生效;判一~判十不進場,當沖中照常平倉,手動 / 強制照常;停止中進場鍵壓紅色禁止標誌;電腦隔天開工自動解除);收盤後長按照舊重新讀取
   · 2026-11-22 贏% 平倉選單改成長按下排「當沖」鍵打開(開盤中),一出來就選好贏1%、清單直接列出;不在名單的部位改顯示名字不只代號
   · 2026-11-22 00:33(實際時間)中繼剩餘兩項(使用者「改」):額度 / 盤中對帳 / 30 秒成交檢查每次最多等 4 秒,元大沒回這輪跳過、沿用上次資料(元大慢時主迴圈最多卡 30 秒 → 4 秒),晚到的舊回應不再混進下一次查詢;盤中重開接回先比對重開前存的部位和即時成交紀錄,真的分筆成交不再少接,判斷不了推手機;額度沒有證據不去重(寧可多算)
   · 2026-11-22 修:公式開著按設定 / 進場 / 當沖 / 明細,手指按下時不再先收公式露出底下明細(閃一下),放開才直接換過去
@@ -593,7 +594,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611220044">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611220058">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -899,6 +900,7 @@
   #notifLog .usk .usl{display:flex;flex-direction:column;justify-content:center;min-width:0}
   #notifLog .card .ln.sub .xpv,#notifLog .card .ln.sub .xpd{font-size:.62em;font-weight:700;font-style:normal;line-height:1.1;color:#C9D1E0;letter-spacing:0;white-space:nowrap}
   #notifLog .card .ln.sub .xpd{color:#8C96AB;font-weight:600}
+  #refreshBtn{position:relative} #refreshBtn .haltX{position:absolute;left:50%;top:50%;width:auto;height:100%;aspect-ratio:1;transform:translate(-50%,-50%);pointer-events:none;z-index:2}   /* 2026-11-22 停止所有進場中:進場鍵上的禁止標誌 */
   #notifLog .card .ln.sub .xpv > .pxl{color:#1DD75B}   /* 2026-11-20 10:52 使用者「損 改綠色」:「損」字綠色(價照舊白 / 黃 / 紅閃) */
   #notifLog .card .ln.sub .xpv,#notifLog .card .ln.sub .xpd{display:inline-flex;justify-content:space-between;align-items:baseline;width:6.3em;vertical-align:baseline}   /* 2026-11-20 10:33 使用者「平 在固定位置 上下卡片的 平 要對齊」:固定寬,「平」靠左、價靠右 */
   #notifLog .card .ln.sub .xpv.xy{color:#FFD54F} #notifLog .card .ln.sub .xpv.xr{color:#FF3B3B;animation:xpBlink .8s steps(2, start) infinite}
@@ -2064,7 +2066,11 @@ window.redoAsk = redoAsk;
    長按標題 0.8 秒 → 確認 → 電腦建立 / 刪除緊急停止檔(?trade=cmd act=halt / resume)。緊急停止中:電腦不再自動進場,已有部位照常停利 / 停損 / 13:20 平倉,強制進場照常。
    標題顏色照電腦回的狀態(?trade=pos 的 halted;App 在前景時每 60 秒問一次,當沖開著時 15 秒),上次的狀態存手機,開 App 先照它畫 */
 const HALT = { on: (() => { try{ return localStorage.getItem('mysh.halted') === '1'; }catch(e){ return false; } })() };
-function haltPaint(){ const s = document.querySelector('h1 .rainbow'); if (s) s.classList.toggle('halted', !!HALT.on && !vwOnly()); }
+function haltPaint(){ const s = document.querySelector('h1 .rainbow'); if (s) s.classList.toggle('halted', !!HALT.on && !vwOnly());
+  /* 2026-11-22 00:56 使用者「長按 進場 … 停止所有進場 … 在進場文字上面出現 圖一 壓著文字顯示」:緊急停止中(不自動進場)→ 進場鍵壓一個紅色禁止標誌 */
+  try{ const b = document.getElementById('refreshBtn'); if (b){ let x = b.querySelector('.haltX'); const on = !!HALT.on && !vwOnly();
+    if (on && !x){ x = document.createElement('span'); x.className = 'haltX'; x.innerHTML = '<svg viewBox="0 0 100 100" width="100%" height="100%"><circle cx="50" cy="50" r="43" fill="none" stroke="#FF1A1A" stroke-width="9"/><line x1="20" y1="20" x2="80" y2="80" stroke="#FF1A1A" stroke-width="9"/></svg>'; b.appendChild(x); }
+    else if (!on && x) x.remove(); } }catch(e){} }
 function haltSet(on){ HALT.on = !!on; try{ localStorage.setItem('mysh.halted', HALT.on ? '1' : '0'); }catch(e){} haltPaint(); }
 window.haltSet = haltSet;
 function haltAsk(){
@@ -2108,6 +2114,42 @@ function haltAsk(){
       if (act === 'halt_close' || act === 'close_only') try{ tposPoll(true); }catch(e){}
     }; });
 }
+/* 2026-11-22 00:56 使用者「增加開盤中 長按 進場 出現一個 停止所有進場的畫面 一樣做滑到右啟動 … 再長按一次 則是解除進場限制」→ 四點照建議 →「改」:
+   開盤中長按下排「進場」→ 紅框「停止所有進場」/ 綠框「解除進場限制」,往右滑到底才送(和標題長按的「只停止進場」同一個電腦停止檔,act=halt / resume,src=entry);
+   停止中:判一~判十不再自動進場,當沖中的照常停利 / 停損 / 移平 / 13:20 平倉,手動 / 強制進場照常;電腦隔天開工自動解除(只解除從進場鍵設的) */
+function entryHaltPanel(){
+  if (!vTrade()) return; const old = el('haltP'); if (old){ old.remove(); }
+  const stop = !HALT.on, c = stop ? '#FF3B3B' : '#1DD75B', box = el('notifLog'); if (!box) return;
+  const B = box.getBoundingClientRect(), hd = box.querySelector('.hd'), top = hd ? hd.getBoundingClientRect().bottom + 4 : B.top + 4;
+  let nPos = 0; try{ nPos = ((window.__tpos || {}).pos || []).filter(p => +p.qty > 0).length; }catch(e){}
+  const p = document.createElement('div'); p.id = 'haltP';
+  p.style.cssText = `position:fixed;left:${B.left + 6}px;top:${top}px;width:${B.width - 12}px;height:${Math.max(150, B.bottom - top - 6)}px;box-sizing:border-box;z-index:901;border:3px solid ${c};border-radius:12px;background:#000;padding:8px 10px;box-shadow:0 0 0 2px #000,0 0 0 4px #8C96AB;display:flex;flex-direction:column;color:#E6EAF2;font-family:inherit`;
+  const icon = stop ? '<svg viewBox="0 0 100 100" width="34" height="34"><circle cx="50" cy="50" r="41" fill="none" stroke="#FF1A1A" stroke-width="10"/><line x1="21" y1="21" x2="79" y2="79" stroke="#FF1A1A" stroke-width="10"/></svg>'
+                    : '<svg viewBox="0 0 100 100" width="34" height="34"><circle cx="50" cy="50" r="41" fill="none" stroke="#1DD75B" stroke-width="10"/><path d="M30 52 L45 66 L72 36" fill="none" stroke="#1DD75B" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  p.innerHTML = `<div style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;color:${c}">${icon}${stop ? '停止所有進場' : '解除進場限制'}</div>
+    <div style="margin:8px 2px 0;font-size:14.5px;line-height:1.55;color:#C9D1E0">${stop ? `啟動後:<br>• 判一~判十 <b style="color:#FF3B3B">全部不再進場</b>(新訊號不下單)<br>• 當沖中 ${nPos} 檔照舊顧到底:停利 / 停損 / 移平 / 13:20 平倉<br>• 手動、強制進場不受影響;明天開盤自動解除` : '解除後:<br>• 判一~判十 恢復正常進場<br>• 解除前錯過的訊號不補進'}</div>
+    <div class="hmsg" style="color:#FF4D5E;font-size:13px;min-height:16px;margin-top:4px"></div>
+    <div class="hs" style="position:relative;margin-top:auto;height:44px;border:2px solid #555;border-radius:22px;box-sizing:border-box;display:flex;align-items:center;color:#aab;font-weight:700;font-size:17px;touch-action:none;user-select:none;-webkit-user-select:none"><span class="hk" style="position:absolute;left:3px;top:3px;bottom:3px;width:70px;border-radius:18px;background:${c};display:flex;align-items:center;justify-content:center;color:#000;font-size:20px;font-weight:900;touch-action:none">▶▶</span><span style="margin-left:auto;margin-right:22px">往右滑 ${stop ? '停止進場' : '恢復進場'}</span></div>`;
+  document.body.appendChild(p);
+  const close = () => { p.remove(); document.removeEventListener('pointerdown', outside, true); };
+  const outside = ev => { if (!p.contains(ev.target)) close(); };
+  setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
+  const hs = p.querySelector('.hs'), hk = p.querySelector('.hk'), msg = p.querySelector('.hmsg'); let sx = null, dx = 0, busy = false; const max = () => hs.clientWidth - hk.offsetWidth - 6;
+  const send = async () => { if (busy) return; busy = true; hk.textContent = '…';
+    const api = fmApi(); if (!api){ msg.textContent = '沒有設定雲端網址,不能送到電腦'; busy = false; hk.textContent = '▶▶'; hk.style.transform = ''; return; }
+    const cmd = {act: stop ? 'halt' : 'resume', src: 'entry', id: 'ehalt-' + Date.now()}; const pin = fmPin.get(); if (pin) cmd.pin = pin;
+    let r = null; try{ const q = await fetch(api + 'cmd', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cmd), signal: AbortSignal.timeout(12000)}); r = await q.json(); }
+    catch(e){ r = {ok: false, msg: '電腦沒有回應(電腦關機、斷線或元大中繼沒在跑),沒有設定成功'}; }
+    busy = false;
+    if (!r || !r.ok){ msg.textContent = (r && r.msg) || '沒有設定成功'; hk.textContent = '▶▶'; hk.style.transform = ''; return; }
+    haltSet(typeof r.halted === 'boolean' ? r.halted : stop); close();
+    fmToast(stop ? '已停止所有進場:判一~判十不再進場,當沖中的照常平倉' : '已解除進場限制,恢復正常進場', 4000); try{ tposPoll(true); }catch(e){} };
+  hk.addEventListener('pointerdown', ev => { ev.stopPropagation(); if (busy) return; sx = ev.clientX; dx = 0; try{ hk.setPointerCapture(ev.pointerId); }catch(e){} });
+  hk.addEventListener('pointermove', ev => { if (sx == null) return; dx = Math.max(0, Math.min(max(), ev.clientX - sx)); hk.style.transform = `translateX(${dx}px)`; });
+  const up = () => { if (sx == null) return; sx = null; if (dx >= max() - 6){ send(); return; } hk.style.transform = ''; dx = 0; };
+  hk.addEventListener('pointerup', up); hk.addEventListener('pointercancel', up);
+}
+window.entryHaltPanel = entryHaltPanel;
 (function haltInit(){
   const go = () => {
     haltPaint();
@@ -2778,8 +2820,10 @@ window.fitBands = fitBands;
   };
   let hold, held = false, lastTap = 0;
   const showMsg = e => { if (held){ held = false; return; } e.preventDefault(); if (window.closeRsMenu) closeRsMenu(); if (window.LOG_RS || (window.NL_VIEW && window.NL_VIEW !== 'msg')){ window.LOG_RS = ''; window.NL_VIEW = 'msg'; window.__nlTouch = 0; if (window.nlRender) nlRender(); } const pnl = document.querySelector('.panel'); if (pnl) pnl.classList.remove('open'); if (window.hideInfo) hideInfo(); if (window.refreshToolbar) refreshToolbar(); };
-  btn.addEventListener('touchstart', () => { hold = setTimeout(() => { held = true; btn.style.opacity = '.3'; setTimeout(() => { btn.style.opacity = ''; }, 200); reload(); }, 700); }, {passive:true});
-  btn.dataset.nomt = 1; btn.addEventListener('mousedown', () => { hold = setTimeout(() => { held = true; reload(); }, 700); });
+  /* 2026-11-22 開盤中長按進場 = 停止所有進場 / 解除進場限制(滑動確認);收盤後長按照舊 = 重新讀取雲端資料 */
+  const longAct = () => { let s_ = false; try{ s_ = inSession() && vTrade(); }catch(e){} if (s_){ try{ navigator.vibrate && navigator.vibrate(30); }catch(e){} entryHaltPanel(); } else reload(); };
+  btn.addEventListener('touchstart', () => { hold = setTimeout(() => { held = true; btn.style.opacity = '.3'; setTimeout(() => { btn.style.opacity = ''; }, 200); longAct(); }, 700); }, {passive:true});
+  btn.dataset.nomt = 1; btn.addEventListener('mousedown', () => { hold = setTimeout(() => { held = true; longAct(); }, 700); });
   ['touchend','touchmove','touchcancel','mouseup','mouseleave'].forEach(ev => btn.addEventListener(ev, () => clearTimeout(hold), {passive:true}));
   // 中間三顆:更新 / 狀態 / 規則。狀態、規則顯示在同一個框裡(infoView),「訊息」切回監控紀錄
   const info = document.getElementById('infoView'), nl = document.getElementById('notifLog');

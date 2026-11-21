@@ -1129,7 +1129,7 @@ class Bridge:
             sp = t.stop_file if t else stop_path(CFG)
             try:
                 if act in ("halt", "halt_close"):
-                    sp.parent.mkdir(parents=True, exist_ok=True); sp.write_text(now_tw().strftime("%Y-%m-%d %H:%M:%S") + " 手機長按標題", encoding="utf-8")
+                    sp.parent.mkdir(parents=True, exist_ok=True); sp.write_text(now_tw().strftime("%Y-%m-%d %H:%M:%S") + (" 手機長按進場(停止所有進場,隔天開工自動解除)" if cmd.get("src") == "entry" and act == "halt" else " 手機長按標題"), encoding="utf-8")   # 2026-11-22 src=entry = 下排進場鍵長按
                 else:
                     sp.unlink(missing_ok=True)
             except Exception as e:

@@ -279,6 +279,15 @@ class Trader:
         self.type_long = cfg.get("TRADE_TYPE_LONG", "0")           # 委託種類:0 現股
         self.type_short = cfg.get("TRADE_TYPE_SHORT", "9")         # 9 現股當沖委託控管(先賣後買)
         self.stop_file = stop_path(cfg)
+        # 2026-11-22 00:56 使用者「開盤中 長按 進場 … 停止所有進場」→ 建議「隔天開盤自動解除」→「改」:從手機進場鍵設的停止檔(內容有「長按進場」),
+        #   不是今天建的 → 開工時自動刪掉(標題長按設的緊急停止照舊要手動解除)
+        try:
+            if self.stop_file.exists():
+                txt = self.stop_file.read_text(encoding="utf-8", errors="ignore")
+                if "長按進場" in txt and txt[:10] != self.now().strftime("%Y-%m-%d"):
+                    self.stop_file.unlink(missing_ok=True); log(f"[交易] 昨天(或更早)從手機進場鍵設的「停止所有進場」自動解除({txt.strip()[:40]})")
+        except Exception as e:
+            log(f"[交易] 檢查停止檔失敗 {e!r}")
         sf = cfg.get("TRADE_STATE_FILE", "")
         self.state_file = Path(sf) if sf else None                 # 強三的停利 / 停損 % 和今天強平過的股票(程式重開接回用)
         self.lock = threading.RLock()

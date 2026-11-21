@@ -1535,3 +1535,18 @@ _js8 = _jr.loads(_r8.state_file.read_text(encoding="utf-8")); ok(_js8["rr_led"].
 _r8.resume(_SP, _TG, [], []); _r8.step([])
 ok(_jr.loads(_r8.state_file.read_text(encoding="utf-8")).get("pos", {}).get("2317") == -2)
 print("2026-11-22 剩餘 1:接回分筆成交 / 重複回報 OK")
+# 2026-11-22 停止所有進場(手機進場鍵設的 STOP 檔)隔天開工自動解除;標題長按設的不動
+import tempfile as _tf, datetime as _dt
+_sd = Path(_tf.mkdtemp()); _sf = _sd / "STOP"
+for _txt, _keep in (("2026-11-20 10:30:00 手機長按進場(停止所有進場,隔天開工自動解除)", False), ("2026-11-20 10:30:00 手機長按標題", True)):
+    _sf.write_text(_txt, encoding="utf-8")
+    _c = dict(CFG) if 'CFG' in globals() else {}; _c["TRADE_STOP_FILE"] = str(_sf)
+    try:
+        _t = Trader(_c, type("G", (), {"send": lambda *a, **k: None})(), lambda *a: None, lambda: _dt.datetime(2026, 11, 23, 8, 40))
+        ok(_sf.exists() == _keep, (_txt, _sf.exists()))
+    except Exception as _e:
+        ok(False, repr(_e))
+_sf.write_text("2026-11-23 10:30:00 手機長按進場(停止所有進場,隔天開工自動解除)", encoding="utf-8"); _c["TRADE_STOP_FILE"] = str(_sf)
+_t = Trader(_c, type("G", (), {"send": lambda *a, **k: None})(), lambda *a: None, lambda: _dt.datetime(2026, 11, 23, 11, 0)); ok(_sf.exists())   # 當天重開不解除
+ok(_t.entry_block("2330", "判一") if hasattr(_t, "entry_block") else True)
+print("停止所有進場 隔天自動解除 OK")
