@@ -1454,7 +1454,7 @@ export default {
     if (bugQ === "put" || bugQ === "list") {
       if (!env || !env.HUB) return J({ error: "沒有 Hub" }, 503);
       const hub = hubOf(env);
-      const scrub = t => String(t == null ? "" : t).replace(/fa11[0-9a-f]{6,}/gi, "[鑰匙]").replace(/\b[0-9a-f]{16,64}\b/gi, "[鑰匙]").replace(/([?&](k|dv|key)=)[^&\s"']+/gi, "$1*");
+      const scrub = t => String(t == null ? "" : t).replace(/fa11[0-9a-f]{6,}/gi, "[鑰匙]").replace(/\b[0-9a-f]{16,64}\b/gi, "[鑰匙]").replace(/((?:^|[?&\s])(k|dv|key|pass|pwd)=)[^&\s"']+/gi, "$1*");
       if (bugQ === "list") { let L = null; try { L = await hub.kvGet("bugs"); } catch (e) {} const n = Math.min(300, Math.max(1, +url.searchParams.get("n") || 50));
         return J({ ok: true, bugs: (Array.isArray(L) ? L : []).slice(-n).reverse() }); }
       if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
