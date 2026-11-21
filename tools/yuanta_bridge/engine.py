@@ -1478,6 +1478,13 @@ class Engine:
                 _lim = round(_m.floor(_v / _t + 1e-6) * _t if d["side"] < 0 else _m.ceil(_v / _t - 1e-6) * _t, 2)
                 sl = min(sl, _lim) if d["side"] < 0 else max(sl, _lim)
         except Exception: pass
+        try:   # 2026-11-21 18:56 使用者「漏洞 全修 解鎖改」:通知上的停利 / 停損價取到升降單位(比進場高往上取、低往下取;模擬器 close_trade / 手機同一套)
+            import math as _m2
+            def _tk(v):
+                t_ = 0.01 if v < 10 else 0.05 if v < 50 else 0.1 if v < 100 else 0.5 if v < 500 else 1 if v < 1000 else 5
+                return v if abs(v / t_ - round(v / t_)) < 1e-6 else round(_m2.ceil(v / t_ - 1e-9) * t_ if v > px else _m2.floor(v / t_ + 1e-9) * t_, 2)
+            tp, sl = _tk(float(tp)), _tk(float(sl))
+        except Exception: pass
         qty = lot_tier_qty(px, self.cap)   # 2026-11-17 23:45 照多空上限算張數   # 鐵律 ⑤(2026-11-11 19:29):張數分級關不掉   # 2026-11-11 14:49 張數分級(和中繼一樣):≤ 70 元 3 張、≤ 150 元 2 張、其他 1 張;一張超過多空上限照舊「超額」
         # 2026-10-30 01:55 使用者「超過限額的股票 也要出現在訊息通知欄裡 只是註記“超額”不交易 給強制進場提供一個發揮的平台」:一張就超過多空上限 → 照推、張數改寫「超額」(中繼看到不自動進場)
         over = px * 1000 > self.cap
@@ -1842,18 +1849,23 @@ class Engine:
            這天完全沒有台指期 → 先不看(照舊進場)+ 推一次警告;其他算不出來 / 不合 → 不做"""
         c = self.envs.get(rs, {}).get("TXSYNC"); fn = getattr(self, "txsync_fn", None)
         if not c and side > 0 and self.envs.get(rs, {}).get("TXDROP") and getattr(self, "txdrop_fn", None):   # 2026-11-18 17:12 🔒 ⑧ 急殺不做多 判七也套
-            try:
-                ok, why = self.txdrop_fn(side, tm, self.txf_map(), self.envs[rs]["TXDROP"])
+            try:   # 2026-11-21 18:56 使用者「漏洞 全修 解鎖改」:判七沒台指期改用加權指數,兩個都沒有 / 出錯 → 不發(原本放行)
+                _m = self.txf_map() or self.ix_map()
+                if not _m: log(f"{JUDGE[rs]} {code} {tm} 沒有台指期 / 加權指數資料 → ⑧ 不發"); return False
+                ok, why = self.txdrop_fn(side, tm, _m, self.envs[rs]["TXDROP"])
                 if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
                 return ok
-            except Exception as e: log("⑧ 急殺檢查失敗(照舊)", e); return True
+            except Exception as e: log("⑧ 急殺檢查失敗 → 不發", e); return False
         if not c and side < 0 and self.envs.get(rs, {}).get("TXBOUNCE") and getattr(self, "txbounce_fn", None):   # 2026-11-18 11:49 🔒 ⑧ 急彈不做空 判七也套用(使用者「解鎖 改」;判七沒有 TXSYNC,單獨檢查)
-            try:
-                ok, why = self.txbounce_fn(side, tm, self.txf_map(), self.envs[rs]["TXBOUNCE"])
+            try:   # 2026-11-21 18:56 同上
+                _m = self.txf_map() or self.ix_map()
+                if not _m: log(f"{JUDGE[rs]} {code} {tm} 沒有台指期 / 加權指數資料 → ⑧ 不發"); return False
+                ok, why = self.txbounce_fn(side, tm, _m, self.envs[rs]["TXBOUNCE"])
                 if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
                 return ok
-            except Exception as e: log("⑧ 急彈檢查失敗(照舊)", e); return True
-        if not c or not fn: return True
+            except Exception as e: log("⑧ 急彈檢查失敗 → 不發", e); return False
+        if c and not fn: log(f"{JUDGE[rs]} {code} {tm} ⑧ 判斷程式沒載入(私人庫 rs_env)→ 不發"); return False   # 2026-11-21 18:56 原本放行
+        if not c: return True
         try:
             txf = self.txf_map(); frm = None
             _cov = getattr(self, "txcover_fn", None)
@@ -1868,11 +1880,10 @@ class Engine:
                 txf = self.ix_map(); frm = "09:00" if txf else None
             if not txf:
                 if not self.__dict__.get("_txf_warn") and now_tw().strftime("%H:%M") >= "09:05":
-                    self._txf_warn = True; log("!! ⑧ 今天沒有台指期 1 分 K(中繼沒收到)→ 台指期同步進場先不看")
-                    try: http(worker_url("log=add"), {"d": self.day, "t": now_tw().strftime("%H:%M"), "title": "⚠ 沒有台指期資料,鐵律 ⑧ 暫停", "body": "中繼沒收到台指期逐筆,台指期同步進場今天先不看(照舊進場);判八 / 判九不進場 · 元大中繼", "kind": "pc", "key": "txf|missing"}, key=True)
+                    self._txf_warn = True; log("!! ⑧ 今天沒有台指期 1 分 K(中繼沒收到)、加權指數也沒有 → 全部判別式不進場")
+                    try: http(worker_url("log=add"), {"d": self.day, "t": now_tw().strftime("%H:%M"), "title": "⚠ 沒有台指期 / 加權資料,暫停進場", "body": "中繼沒收到台指期逐筆、加權指數也沒有,鐵律 ⑧ 沒辦法檢查 → 全部判別式先不進場(資料回來自動恢復) · 元大中繼", "kind": "pc", "key": "txf|missing"}, key=True)
                     except Exception: pass
-                if rs in getattr(self, "tx_req", ("八", "九")): log(f"{JUDGE[rs]} {code} {tm} 沒有台指期 / 加權指數資料 → {JUDGE[rs]}不進場"); return False   # 2026-11-14 18:35 使用者「改」
-                return True
+                log(f"{JUDGE[rs]} {code} {tm} 沒有台指期 / 加權指數資料 → 不進場"); return False   # 2026-11-21 18:56 使用者「漏洞 全修 解鎖改」:原本只有判八 / 九不進、其他照進
             _p = c.split(":"); n_ = int(float(_p[0])); r_ = float(_p[1]) if len(_p) > 1 and _p[1] else None   # 「60」= 只看台指期方向(2026-11-13 23:32 使用者「只看台指期方向 解鎖改」)
             mvs = float(self.envs.get(rs, {}).get("TXMVS") or 0) or None   # 2026-11-14 12:56 判二(使用者「解鎖 改 0.25%」):做空時台指期 60 分要跌 ≥ TXMVS%(rs_env J2 TXMVS=0.25)
             m15 = float(self.envs.get(rs, {}).get("TX15") or 0) or None   # 2026-11-14 18:35 判九(使用者「改」):做空時台指期最近 15 分要跌 ≥ TX15%(加權指數備援時也照樣檢查)
@@ -1887,35 +1898,34 @@ class Engine:
                 try:
                     _tp, _ip = self.txrel_prev(); ok, why = _rf(side, tm, self.txf_map(), self.ix_map(), _tp, _ip, _th)
                     if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
-                except Exception as e: log("⑧ 強弱檢查失敗(照舊)", e); ok = True
+                except Exception as e: log("⑧ 強弱檢查失敗 → 不發", e); ok = False   # 2026-11-21 18:56 原本放行
             _dh = self.envs.get(rs, {}).get("TXDROP"); _df = getattr(self, "txdrop_fn", None)
             if ok and _dh and _df and side > 0:   # 🔒 ⑧ 急殺不做多 2026-11-18 17:12 使用者「解鎖 改」:台指期 15 分鐘內從高點急殺 > 0.8% 不做多
                 try:
                     ok, why = _df(side, tm, self.txf_map(), _dh)
                     if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
-                except Exception as e: log("⑧ 急殺檢查失敗(照舊)", e); ok = True
+                except Exception as e: log("⑧ 急殺檢查失敗 → 不發", e); ok = False
             _bh = self.envs.get(rs, {}).get("TXBOUNCE"); _bf = getattr(self, "txbounce_fn", None)
             if ok and _bh and _bf and side < 0:   # 🔒 ⑧ 急彈不做空 2026-11-18 11:31 使用者「解鎖 改」:台指期 15 分鐘內從低點急彈 > 0.8% 不做空
                 try:
                     ok, why = _bf(side, tm, self.txf_map(), _bh)
                     if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
-                except Exception as e: log("⑧ 急彈檢查失敗(照舊)", e); ok = True
+                except Exception as e: log("⑧ 急彈檢查失敗 → 不發", e); ok = False
             _oh = self.envs.get(rs, {}).get("TXOFFHI"); _of = getattr(self, "txoffhi_fn", None)
             if ok and _oh and _of and side < 0:   # 判九 2026-11-17 20:28 使用者「改」:台指期離今高已跌 > 2% 不追空
                 try:
                     ok, why = _of(side, tm, self.txf_map(), _oh)
                     if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
-                except Exception as e: log("判九離今高檢查失敗(照舊)", e); ok = True
+                except Exception as e: log("判九離今高檢查失敗 → 不發", e); ok = False
             _lh = self.envs.get(rs, {}).get("TXLONGHI"); _lf = getattr(self, "txlonghi_fn", None)
             if ok and _lh and _lf and side > 0:   # 判一 / 二 / 六做多 2026-11-17 21:47 使用者「解鎖 都改」:台指期離今高已跌 > 1.5% 不做多
                 try:
                     ok, why = _lf(side, tm, self.txf_map(), _lh)
                     if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發")
-                except Exception as e: log("做多離今高檢查失敗(照舊)", e); ok = True
+                except Exception as e: log("做多離今高檢查失敗 → 不發", e); ok = False
             return ok
         except Exception as e:
-            if rs in getattr(self, "tx_req", ("八", "九")): log(f"⑧ 檢查失敗 → {JUDGE[rs]}不進場", e); return False   # 2026-11-14 18:35 使用者「改」
-            log(f"⑧ 檢查失敗(照舊進場)", e); return True
+            log(f"⑧ 檢查失敗 → {JUDGE[rs]}不進場", e); return False   # 2026-11-21 18:56 使用者「漏洞 全修 解鎖改」:原本只有判八 / 九不進、其他照進
 
     RE_BLK = re.compile(r"^\s*(\d\d:\d\d) .*(不在 Ka~Kb|沒回 Ka~Kb|Ka~Kb 沒回|大盤寬度|不做多|延遲進場取消|等回 Ka~Kb|回到 Ka~Kb)")
     def note_blocked(self, rs, code, out, upto):
