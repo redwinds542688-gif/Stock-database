@@ -42,6 +42,10 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .key{cursor:default !important;border-color:transparent !important;background:transparent !important;display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 10px;border-radius:8px;border:1px solid var(--line2);background:#0E121A;color:var(--soft);font:500 14px var(--f);cursor:pointer;white-space:nowrap}
 .ver{font-size:12px;color:var(--sub);margin-left:auto}   /* 版本號:App 版顯示 App 版本,網址版顯示「網頁版」(2026-11-15 使用者截圖還是舊版才跳列,看不出版本) */
 .key.none{border-color:var(--gold);color:var(--gold);font-weight:700}
+/* 2026-11-21 使用者「蘋果如果可以推播也需要」→「改」:iPhone 網頁版標題列的通知鈴鐺(🔕 還沒開 / 🔔 已開,綠框) */
+.bell{flex:none;height:calc(var(--uf) * 2.5);min-width:calc(var(--uf) * 2.5);border-radius:calc(var(--uf) * .6);border:1px solid var(--line2);background:#0E121A;color:var(--fg);font-size:calc(var(--uf) * 1.3);display:inline-flex;align-items:center;justify-content:center;padding:0 calc(var(--uf) * .5);cursor:pointer}
+.bell.on{border-color:#3DDC84}
+.bell[hidden]{display:none}
 .mask{position:fixed;inset:0;background:rgba(3,5,9,.75);display:flex;align-items:center;justify-content:center;padding:20px;z-index:40}
 .dlg{width:100%;max-width:380px;background:#151B28;border:2px solid var(--gold);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:12px}
 .dlg h3{margin:0;font-size:20px;font-weight:900;color:var(--gold)}
@@ -149,7 +153,7 @@ nav button{height:calc(var(--uf) * 4.1);font-size:calc(var(--uf) * 1.75);border-
 <body>
 
 <div class="wrap">
-  <div class="ttl"><h1>自動當沖 · 夥伴看盤</h1><div class="kv"><button type="button" class="key" id="keyBtn"></button><span class="ver" id="ver"></span></div></div>
+  <div class="ttl"><h1>自動當沖 · 夥伴看盤</h1><button type="button" class="bell" id="bell" hidden aria-label="開啟通知">🔕</button><div class="kv"><button type="button" class="key" id="keyBtn"></button><span class="ver" id="ver"></span></div></div>
   <section class="panel"><div class="hd" id="hd"></div><div id="pre"></div><div class="list" id="list"></div></section>
   <nav id="nav"></nav>
 </div>
@@ -241,7 +245,7 @@ const keyGet = () => { if (KEY_MEM != null) return KEY_MEM; try{ return localSto
 const keySet = v => { KEY_MEM = v; try{ v ? localStorage.setItem(KEY_K, v) : localStorage.removeItem(KEY_K); }catch(e){} };
 function keyPaint(){ const b = document.getElementById("keyBtn"), k = keyGet();
   b.className = "key" + (k ? "" : " none"); b.innerHTML = k ? esc(keyWho(k)) : "🔑 金鑰";   /* 11/16 21:25 使用者「金鑰地方 改顯示 主導$ 下面顯示版本」:只顯示身分(主導$ / 夥伴名字),不顯示金鑰尾碼 */
-  b.setAttribute("aria-label", k ? "金鑰主人:" + keyWho(k) : "輸入金鑰"); }
+  b.setAttribute("aria-label", k ? "金鑰主人:" + keyWho(k) : "輸入金鑰"); try{ bellPaint(); }catch(e){} }
 /* 20:20 使用者「看盤版 改成App … 一進入就必須輸入金鑰 否則無法進入」:沒有金鑰 → 整個畫面蓋住的入口(不能取消、看不到任何資料),輸入 / 掃描 / 相簿選 QR 存好才進得去;
    雲端說鑰匙無效或停用 → 清掉、回到入口 */
 function keyOpen(gate, why){
@@ -546,6 +550,40 @@ try{ const H = window.PartnerHost; document.getElementById("ver").textContent = 
 // 字型(Noto Sans TC)下載完數字會變寬 → 再縮一次字;畫面大小變了也再算
 try{ document.fonts && document.fonts.ready.then(() => { fit(); fitText(); }); document.fonts && document.fonts.addEventListener && document.fonts.addEventListener("loadingdone", () => fitText()); }catch(e){}
 // 網址版(/partner/,iPhone / iPad / 電腦加到主畫面)才註冊;App(APK)裡不用
+/* 2026-11-21 使用者「蘋果如果可以推播也需要」→「改」:iPhone(iOS 16.4 以上)加入主畫面後可以收背景推播:進場、平倉、浮贏 / 浮輸每 1 萬(只有自己的)。
+   只在 iPhone / iPad 的網址版、夥伴金鑰時出現;Android 用 App(本來就會響)。雲端:?ppush=sub / unsub;手機 /partner/sw.js 收到推播後問 ?ppush=last 拿內容 */
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const STANDALONE = () => navigator.standalone === true || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
+const BELL = { on: false };
+function bellPaint(){ const b = document.getElementById("bell"); if (!b) return;
+  b.hidden = !(IOS && !window.PartnerHost && /^\/partner/.test(location.pathname) && isFam(keyGet()));
+  b.className = "bell" + (BELL.on ? " on" : ""); b.textContent = BELL.on ? "🔔" : "🔕"; b.setAttribute("aria-label", BELL.on ? "通知已開(按一下關閉)" : "開啟通知"); }
+const b64ToU8 = t => { const s = atob(t.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((t.length + 3) % 4)); return Uint8Array.from(s, c => c.charCodeAt(0)); };
+const ppost = (q, body) => fetch(`${WORKER}/?${q}&k=${encodeURIComponent(keyGet())}&_=${Date.now()}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body), cache: "no-store"}).then(r => r.json());
+function bellHelp(old){ const L = document.getElementById("layer");
+  L.innerHTML = `<div class="mask"><div class="dlg"><h3>開啟通知(iPhone)</h3>${old ? `<p>這支 iPhone 的系統太舊,要更新到 iOS 16.4 以上才能收通知。</p>` :
+    `<p style="font-size:17px;color:var(--fg);line-height:1.8">1. 按 Safari 下面的 <b>分享 ⬆</b><br>2. 選「加入主畫面」<br>3. 從主畫面的「夥伴看盤」圖示打開<br>4. 再按一次 🔕 → 允許通知</p>`}<button type="button" class="qrb" id="bellOk" style="width:100%">知道了</button></div></div>`;
+  document.getElementById("bellOk").onclick = () => L.innerHTML = ""; }
+async function bellSub(ask){
+  const reg = await navigator.serviceWorker.ready; let sub = await reg.pushManager.getSubscription();
+  if (!sub){ if (!ask) return false; const k = await fetch(`${WORKER}/?push=key&_=${Date.now()}`, {cache: "no-store"}).then(r => r.json()); sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: b64ToU8(k.pub)}); }
+  const j = await ppost("ppush=sub", {sub: sub.toJSON ? sub.toJSON() : sub}); if (!j || !j.ok) throw (j && j.error) || "雲端沒有回應"; return true; }
+async function bellClick(){
+  if (!STANDALONE()) return bellHelp(false);
+  if (!("PushManager" in window) || !("Notification" in window) || !("serviceWorker" in navigator)) return bellHelp(true);
+  try{
+    if (BELL.on){ if (!confirm("關閉通知?之後進場、平倉、浮贏浮輸都不會跳通知。")) return;
+      const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+      if (sub){ try{ await ppost("ppush=unsub", {endpoint: sub.endpoint}); }catch(e){} await sub.unsubscribe(); }
+      BELL.on = false; bellPaint(); return notify("🔕 通知已關閉", "", "info"); }
+    const p = await Notification.requestPermission(); if (p !== "granted") return notify("沒有開通知", "到 iPhone 設定 → 通知 → 夥伴看盤 打開允許", "info");
+    BELL.on = await bellSub(true); bellPaint(); notify("🔔 通知已開啟", "進場、平倉、浮贏浮輸會跳通知(鎖螢幕也會)", "info");
+  }catch(e){ notify("開通知失敗", String(e && e.message || e).slice(0, 60), "info"); try{ window.__bug && __bug("bell", String(e && e.message || e)); }catch(x){} }
+}
+document.getElementById("bell").addEventListener("click", bellClick);
+/* 已經開過通知:每次打開順便再登記一次(換金鑰、雲端清掉都會補回來) */
+setTimeout(async () => { try{ if (!IOS || !STANDALONE() || !isFam(keyGet()) || !("PushManager" in window) || Notification.permission !== "granted") return;
+  BELL.on = await bellSub(false); bellPaint(); }catch(e){} }, 1500);
 try{ if (/^\/partner/.test(location.pathname) && "serviceWorker" in navigator) navigator.serviceWorker.register("/partner/sw.js", {scope: "/partner/"}).catch(() => {}); }catch(e){}
 document.getElementById("list").addEventListener("scroll", () => { doneSync(); const L = document.getElementById("list"); if (S.tab === "明細" && L.scrollTop + L.clientHeight > L.scrollHeight - 3 * L.clientHeight / 8) loadMore(); }, {passive: true});
 </script>

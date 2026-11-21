@@ -801,6 +801,7 @@ async function dailyArchive(env, d, force) {
 }
 
 async function pushTier(env, s) {
+  if (s.k && isFamKey(s.k)) return "";   // 2026-11-21 夥伴推播:夥伴金鑰只收自己的(?ppush),不收名揚四海的訊號
   if (s.k) { const KI = await keyInfo(env, s.k); if (!KI || !KI.on || (KI.exp && ymdOf(twNow()) > KI.exp)) return ""; return KI.role === "owner" ? "owner" : "viewer"; }
   if (s.dv) { let first = null; try { first = await hubOf(env).kvGet("free:" + s.dv); } catch (e) {} return !first || Date.now() - +first <= 7 * 86400e3 ? "free" : ""; }
   return "";
@@ -822,6 +823,53 @@ async function pushFanout(env, item) {
       const r = await fetch(s.endpoint, { method: "POST", headers: { Authorization: await vapidAuth(env, s.endpoint), TTL: "3600", Urgency: "high" } });
       if (r.status === 404 || r.status === 410) await hubOf(env).pushSubDel(s.id); } catch (e) {}
   }
+}
+/* 2026-11-21 自動當沖夥伴版 使用者「蘋果如果可以推播也需要」→「改」:夥伴看盤 iPhone 網頁版(加入主畫面)的背景推播。
+   夥伴的交易程式每分鐘 ?pcbk=put 備份部位 / 成交 → 這裡和上一次比:新進場、新平倉、浮贏 / 浮輸每跨 1 萬(和 Android 夥伴看盤同一套)
+   → 存 ppq:<名字>(最近 20 則)→ 送「空的」推播給這位夥伴訂閱的 iPhone(ppsubs:<名字>,最多 3 支);手機的 /partner/sw.js 再問 ?ppush=last 拿內容。
+   只推給這位夥伴自己,看不到別人的;和名揚四海的推播(pushsubs)分開 */
+const PFEE = 0.001425 * 0.25, PTAX = 0.0015;
+const pNet = (lg, ent, ex, q) => { const d = lg ? 1 : -1, a = ent * q * 1000, b = ex * q * 1000, buy = d > 0 ? a : b, sell = d > 0 ? b : a, f = x => Math.max(20, Math.floor(x * PFEE + 1e-6));
+  return Math.round((ex - ent) * d * q * 1000 - f(buy) - f(sell) - Math.floor(sell * PTAX + 1e-6)); };
+const pFmt = n => (n > 0 ? "+" : n < 0 ? "−" : "") + Math.abs(Math.round(n)).toLocaleString("en-US");
+const pLegs = v => { if (!v || typeof v !== "object") return [];
+  const L = Array.isArray(v.legs) && (v.legs.length || !(v.rows || []).some(r => r.lots > 0)) ? v.legs : null;
+  if (L) return L.filter(r => +r.lots > 0).map(r => ({ nm: r.name || r.code, code: String(r.code), lg: r.dir === "做多", ent: +r.ent, ex: +r.ex, q: +r.lots, p: Math.round(+r.net || 0), t: String(r.t || "") }));
+  return (v.rows || []).filter(r => +r.lots > 0).map(r => { const lg = r.dir === "做多"; return { nm: r.name || r.code, code: String(r.code), lg, ent: lg ? +r.buy : +r.sell, ex: lg ? +r.sell : +r.buy, q: +r.lots, p: Math.round(+r.net || 0), t: "" }; }); };
+async function famPush(env, a, d, items) {
+  const hub = hubOf(env); let subs = null; try { subs = await hub.kvGet("ppsubs:" + a); } catch (e) { return; }
+  if (!Array.isArray(subs) || !subs.length) return;   // 這位夥伴沒有 iPhone 訂閱:什麼都不做
+  const sk = `ppst:${a}:${d}`; let st = null; try { st = await hub.kvGet(sk); } catch (e) {}
+  st = st && typeof st === "object" ? st : { pos: null, legs: null, hi: 0, lo: 0 };
+  const out = [], names = (items.info && items.info.names) || {};
+  if (Array.isArray(items.pos)) {
+    const list = items.pos.filter(p => p && +p.qty > 0 && +p.entry > 0 && (!p.state || p.state === "持倉中" || p.state === "平倉中"));
+    if (Array.isArray(st.pos)) for (const p of list) if (!st.pos.includes(String(p.code))) {
+      const lg = +p.dir > 0; out.push({ title: `進場 ${names[p.code] || ""} ${p.code} ${lg ? "做多" : "做空"} ${+p.qty}張`.replace("  ", " "), body: `${String(p.t0 || "").slice(0, 8)} ${+p.entry}`.trim(), key: "in" + p.code + (p.t0 || "") }); }
+    st.pos = list.map(p => String(p.code));
+    if (list.length && mktNow()) {   // 浮贏 / 浮輸:用證交所即時價算帳面(和看盤畫面同一套扣手續費 / 稅)
+      try { const ms = await misFetch(list.flatMap(p => [{ mkt: "tse", code: String(p.code) }, { mkt: "otc", code: String(p.code) }]), 1), z = {};
+        for (const m of ms) { let v = parseFloat(m.z); if (!isFinite(v) && m.trade) v = parseFloat(m.trade.z); if (!isFinite(v)) v = parseFloat(m.pz); if (m.c && isFinite(v) && v > 0) z[m.c] = v; }
+        if (list.every(p => z[String(p.code)])) {
+          const fl = list.reduce((s0, p) => s0 + pNet(+p.dir > 0, +p.entry, z[String(p.code)], +p.qty), 0), lv = Math.max(-5, Math.min(5, Math.trunc(fl / 10000)));
+          if (lv > (st.hi || 0)) { st.hi = lv; out.push({ title: `🎉 當沖浮贏 ${lv} 萬`, body: `持倉 ${list.length} 檔帳面 ${pFmt(fl)}`, key: "win" + lv }); }
+          if (lv < (st.lo || 0)) { st.lo = lv; out.push({ title: `${"⚠".repeat(Math.min(3, -lv))} 當沖浮輸 ${-lv} 萬`, body: `持倉 ${list.length} 檔帳面 ${pFmt(fl)}`, key: "lv" + (-lv) }); }
+        } } catch (e) {}
+    }
+  }
+  if (items.fills) {
+    const legs = pLegs(items.fills), id = r => [r.code, r.t, r.ent, r.ex, r.q, r.lg ? 1 : 0].join("|");
+    if (Array.isArray(st.legs)) for (const r of legs) if (!st.legs.includes(id(r)))
+      out.push({ title: `${r.p > 0 ? "✅" : "⚠⚠"} ${r.nm} ${r.code} 平倉 ${pFmt(r.p)}`, body: `${r.t ? r.t.slice(0, 5) + " " : ""}${r.lg ? "做多" : "做空"} ${r.q}張 ${r.ent}→${r.ex}`, key: "out" + id(r) });
+    st.legs = legs.map(id).slice(-300);
+  }
+  try { await hub.kvPut(sk, st); } catch (e) {}
+  if (!out.length) return;
+  const at = Date.now(); for (const x of out.slice(0, 5)) { try { await hub.listPush("ppq:" + a, { ...x, at }, 20); } catch (e) {} }
+  for (const s0 of subs.slice(-3)) { try {
+    const r = await fetch(s0.endpoint, { method: "POST", headers: { Authorization: await vapidAuth(env, s0.endpoint), TTL: "3600", Urgency: "high" } });
+    if (r.status === 404 || r.status === 410) { const L = (await hub.kvGet("ppsubs:" + a) || []).filter(x => x.id !== s0.id); await hub.kvPut("ppsubs:" + a, L); await hub.kvPut("ppsubid:" + s0.id, null); }
+  } catch (e) {} }
 }
 const PWA_FILES = { "/app": "app/viewer.html", "/app/": "app/viewer.html", "/pool.js": "pool.js", "/sw.js": "app/pwa/sw.js", "/manifest.webmanifest": "app/pwa/manifest.webmanifest",
   "/icon-180.png": "app/pwa/icon-180.png", "/icon-192.png": "app/pwa/icon-192.png", "/icon-512.png": "app/pwa/icon-512.png",
@@ -1253,6 +1301,30 @@ export default {
       return J({ error: "keys=list / add / off / on / del / unbind / me / stash / pick" }, 400);
     }
     // 2026-11-01 iPhone 網頁版 App 推播:?push=key(公鑰)/ sub(訂閱:帶 k 就記鑰匙,免費記 dv)/ unsub / last(sw.js 收到推播後拿這支手機看得到的最新訊號)
+    // 2026-11-21 夥伴看盤 iPhone 推播:POST ?ppush=sub {sub}&k=<夥伴金鑰> / ?ppush=unsub {endpoint} / ?ppush=last {endpoint}(手機 sw.js 收到推播後問內容)
+    const ppq = url.searchParams.get("ppush");
+    if (ppq && env && env.HUB) {
+      if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
+      const hub = hubOf(env); let b = {}; try { b = await request.json(); } catch (e) {}
+      const ep = String((b && b.sub && b.sub.endpoint) || (b && b.endpoint) || "");
+      if (ep.length > 1000 || !/^https:\/\/(fcm\.googleapis\.com\/(fcm\/send|wp)\/|web\.push\.apple\.com\/|updates\.push\.services\.mozilla\.com\/|[\w-]+\.notify\.windows\.com\/)/.test(ep)) return J({ error: "不是推播網址" }, 400);
+      const id = b64u(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ep))).slice(0, 22);
+      if (ppq === "sub") {
+        const a = KI && isFamKey(kq) && KI.on !== false && KI.acct && ACCT_RE.test(KI.acct) ? KI.acct : "";
+        if (!a) return J({ error: "要夥伴的看盤金鑰", badKey: true }, 403);
+        let L = await hub.kvGet("ppsubs:" + a); L = (Array.isArray(L) ? L : []).filter(x => x.id !== id); L.push({ id, endpoint: ep, made: Date.now() });
+        for (const x of L.slice(0, -3)) await hub.kvPut("ppsubid:" + x.id, null);
+        L = L.slice(-3); await hub.kvPut("ppsubs:" + a, L); await hub.kvPut("ppsubid:" + id, { a }); return J({ ok: true, n: L.length });
+      }
+      const m = await hub.kvGet("ppsubid:" + id), a = m && m.a;
+      if (ppq === "unsub") { if (a) { const L = (await hub.kvGet("ppsubs:" + a) || []).filter(x => x.id !== id); await hub.kvPut("ppsubs:" + a, L); } await hub.kvPut("ppsubid:" + id, null); return J({ ok: true }); }
+      if (ppq === "last") {
+        if (!a) return J({ items: [] });
+        const Q = await hub.kvGet("ppq:" + a), all = (Array.isArray(Q) ? Q : []).slice().reverse(), recent = all.filter(x => Date.now() - (x.at || 0) < 3 * 60e3).slice(0, 3);
+        return J({ items: (recent.length ? recent : all.slice(0, 1)).map(x => ({ title: x.title, body: x.body, key: x.key })) });
+      }
+      return J({ error: "ppush=sub / unsub / last" }, 400);
+    }
     const pq = url.searchParams.get("push");
     if (pq && env && env.HUB) {
       if (pq === "key") return J({ pub: (await vapidKeys(env)).pub });
@@ -1710,6 +1782,7 @@ export default {
           }
           let L = null; try { L = await hub.kvGet("accts"); } catch (e) {}
           L = L && typeof L === "object" ? L : {}; L[a] = { at, d: b.d }; await hub.kvPut("accts", L);
+          { const job = famPush(env, a, b.d, b.items).catch(e => console.log("夥伴推播 " + String(e && e.message || e).slice(0, 120))); if (ctx && ctx.waitUntil) ctx.waitUntil(job); else await job; }   // 2026-11-21 iPhone 背景推播(不擋電腦的備份)
           return J({ ok: true, acct: a, names });
         }
         const hub = hubOf(env), at = Date.now(), names = [];
