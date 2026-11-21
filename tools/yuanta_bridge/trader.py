@@ -25,6 +25,22 @@ def tick_size(p):
     return 0.01 if p < 10 else 0.05 if p < 50 else 0.1 if p < 100 else 0.5 if p < 500 else 1 if p < 1000 else 5
 
 
+def px_tick(v, ref):
+    """2026-11-22 使用者「手動加碼之後 價格也可能出現這樣 也照合理價位寫」:停利 / 停損價取到升降單位(和模擬器 _pxr / 引擎通知 / 手機 pxTk 同一套):
+       比進場(均價)高 → 往上取、比進場低 → 往下取(價格碰到那個價位才算到);一樣高就取最近的。0 / None 照回"""
+    if not v: return v
+    t = tick_size(v)
+    if v > ref + 1e-9:
+        r = math.ceil(v / t - 1e-6) * t
+        if tick_size(r) != t: r = math.ceil(v / tick_size(r) - 1e-6) * tick_size(r)
+    elif v < ref - 1e-9:
+        r = math.floor(v / t + 1e-6) * t
+        if tick_size(r) != t: r = math.floor(v / tick_size(r) + 1e-6) * tick_size(r)
+    else:
+        r = round(v / t) * t
+    return round(r, 2)
+
+
 def limit_up(ref):
     """2026-11-02 漲停價 = 昨收 × 1.1 往下取到升降單位;沒昨收回 0"""
     if not ref or ref <= 0: return 0.0
@@ -1518,8 +1534,8 @@ class Trader:
                           "y3_posted": True})   # 2026-11-18 11:46 寶成:判二被手動加碼改元三後沒標 y3_posted → oco_refresh 一直當成「元三開倉還沒發卡」不掛新條件單(11 張沒有元大條件單)
             if p.get("judge") in (MANUAL, FORCED) and (p.get("tp_pct") or p.get("sl_pct")): self.set_forced_tpsl(p, p["entry"])
             elif e0 > 0:   # 2026-11-02 11:45 使用者「這邊需要重新再算過停利跟停損」:判一~四照原本停利 / 停損離進場價的 % 不變,從新均價重算
-                if p.get("tp"): p["tp"] = round(p["entry"] * p["tp"] / e0, 2)
-                if p.get("sl"): p["sl"] = self.cap_sl(p["code"], p["dir"], p["judge"], round(p["entry"] * p["sl"] / e0, 2))
+                if p.get("tp"): p["tp"] = px_tick(p["entry"] * p["tp"] / e0, p["entry"])   # 2026-11-22 取到升降單位
+                if p.get("sl"): p["sl"] = self.cap_sl(p["code"], p["dir"], p["judge"], px_tick(p["entry"] * p["sl"] / e0, p["entry"]))
             self.log(f"[交易] {p['judge']} {code} 元大手動同方向成交 {lots} 張(委託 {order_no})→ 併進程式部位,共 {tot} 張 均價 {p['entry']:.2f} 停利 {p['tp']} 停損 {p['sl']}")
             if p.get("y3_card") and p.get("judge") == MANUAL:
                 # 2026-11-10 13:37(實際時間)使用者「改」:元三進場卡發出後同一張 / 另一張同方向又成交(友達 10:22 卡寫 2 張、實際 8 張)
@@ -2144,8 +2160,8 @@ class Trader:
     # ── 手機的強制指令 ──
     def set_forced_tpsl(self, p, avg):
         d = p["dir"]; tpp, slp = p.get("tp_pct"), p.get("sl_pct")
-        p["tp"] = round(avg * (1 + float(tpp) / 100 * d), 2) if tpp else 0.0
-        p["sl"] = round(avg * (1 - float(slp) / 100 * d), 2) if slp else 0.0
+        p["tp"] = px_tick(avg * (1 + float(tpp) / 100 * d), avg) if tpp else 0.0   # 2026-11-22 取到升降單位(做多停利往上、停損往下;做空相反)
+        p["sl"] = px_tick(avg * (1 - float(slp) / 100 * d), avg) if slp else 0.0
         if p["sl"]: p["sl"] = self.cap_sl(p["code"], d, p.get("judge"), p["sl"])   # 2026-11-11 15:36 元三 / 強三停損也收到 ±6.5% 線
 
     def force_enter(self, code, d, lots, tp_pct=None, sl_pct=None, mkt=None, cmd_id=None, ref=None, px=None):
@@ -3004,8 +3020,8 @@ class Trader:
         p["order"] = None; p.pop("wait_confirm", None)
         if p.get("forced"): self.set_forced_tpsl(p, avg)
         elif base:
-            if p.get("tp"): p["tp"] = round(avg * p["tp"] / base, 2)
-            if p.get("sl"): p["sl"] = self.cap_sl(p["code"], p["dir"], p["judge"], round(avg * p["sl"] / base, 2))
+            if p.get("tp"): p["tp"] = px_tick(avg * p["tp"] / base, avg)   # 2026-11-22 取到升降單位
+            if p.get("sl"): p["sl"] = self.cap_sl(p["code"], p["dir"], p["judge"], px_tick(avg * p["sl"] / base, avg))
         self.prot_clear(p["code"])   # 2026-11-21(檢查 T3):新部位,清掉上一筆的移平存檔
         p.update({"qty": ml, "entry": avg, "state": HOLDING, "t0": self.hm()}); self.amount_today += mc; self.n_trades += 1; self.save_state()
         if self.man_close_apply(p): return True              # 2026-11-21(檢查 輕c)
@@ -3037,8 +3053,8 @@ class Trader:
             ml, mc = p.pop("man_lots"), p.pop("man_cost", 0.0); base = avg
             o["cost"] += mc; lots += ml; avg = o["cost"] / (lots * 1000)
             if not p.get("forced") and base:
-                if p.get("tp"): p["tp"] = round(avg * p["tp"] / base, 2)
-                if p.get("sl"): p["sl"] = self.cap_sl(p["code"], p["dir"], p["judge"], round(avg * p["sl"] / base, 2))
+                if p.get("tp"): p["tp"] = px_tick(avg * p["tp"] / base, avg)   # 2026-11-22 取到升降單位
+                if p.get("sl"): p["sl"] = self.cap_sl(p["code"], p["dir"], p["judge"], px_tick(avg * p["sl"] / base, avg))
             self.log(f"[交易] {p['code']} 進場單成交 {lots - ml} 張 + 手動 {ml} 張 → 併成 {lots} 張 均價 {avg:.2f}")
             p["_iron_pending"] = {"px": mc / (ml * 1000), "lots": ml, "what": "手動加碼(進場中)", "fills": p.pop("man_fills", None)}   # 2026-11-11 22:20 整個部位(程式 + 手動)照鐵律檢查
             self.alert(f"✅ {self.name_of(p['code'])} {p['code']} 手動 {ml} 張已交給程式", f"共 {lots} 張 均價 {avg:.2f}")

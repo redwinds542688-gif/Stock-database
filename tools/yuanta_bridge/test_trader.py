@@ -116,7 +116,7 @@ tr = [{"code": "6269", "bs": "S", "lots": 1, "price": 86.1, "time": "10:37:02", 
 r = t15.resume(tr, {"A1": "T103701001", "A2": "F103800002", "M1": "", "A3": "T092100003"}, [], [ENT])
 ok(sorted(r) == ["2330", "6269"] and t15.positions["6269"]["judge"] == "判二" and t15.positions["6269"]["tp"] == 84.05, r, t15.positions)
 ok(t15.positions["2330"]["judge"] == "強三" and t15.positions["2330"]["tp"] == 615.0 and t15.positions["2330"]["sl"] == 591.0, t15.positions["2330"])
-ok(t15.positions["2409"]["judge"] == "元三" and t15.positions["2409"]["tp"] == round(37.3 * 1.025, 2) and t15.n_trades == 3 and t15.pnl < -3000 and "2002" in t15.locked and not [x for x in g15.sent if x[0] == "oco"])
+ok(t15.positions["2409"]["judge"] == "元三" and t15.positions["2409"]["tp"] == 38.25 and t15.n_trades == 3 and t15.pnl < -3000 and "2002" in t15.locked and not [x for x in g15.sent if x[0] == "oco"])
 # 16) 沒有未平部位 → 回 None
 t16, g16 = mk(); ok(t16.resume([{"code": "6269", "bs": "S", "lots": 1, "price": 86.1, "time": "1", "order_no": "A1"}, {"code": "6269", "bs": "B", "lots": 1, "price": 85.0, "time": "2", "order_no": "A2"}], {"A1": "T1"}, [], []) is None and t16.n_trades == 1 and t16.pnl > 0)
 # 17) 讓檔 + IOC 模式:13:25 一律漲停 / 跌停 ROD;失效再送也是
@@ -166,7 +166,7 @@ r = tf.force_enter("2330", 1, 1, 2.5, 1.5, cmd_id="c1"); p = tf.positions["2330"
 ok(r[0] and gf.sent[-1] == ("2330", "B", 1, 602.0, "0", "0", " ") and gf.tags[-1].startswith("F") and p["judge"] == "強三", gf.sent[-1], gf.tags[-1])
 ok(tf.force_enter("2330", 1, 1, 2.5, 1.5, cmd_id="c1") == r and len(gf.sent) == 1)          # 同一個指令編號不重送
 ok(not tf.force_enter("2330", 1, 1, 2.5, 1.5, cmd_id="c2")[0])                              # 這檔已有部位
-tf.on_report(51, "A0001", 0, 1000, 602.0); ok(p["state"] == HOLDING and p["tp"] == 617.05 and p["sl"] == 592.97, p)
+tf.on_report(51, "A0001", 0, 1000, 602.0); ok(p["state"] == HOLDING and p["tp"] == 618 and p["sl"] == 592, p)
 ok(tf.posts[-1][0] == "台積電 2330 做多進場 602.00" and tf.posts[-1][1].endswith("· 1張 · 強三") and tf.posts[-1][2] == "long", tf.posts)
 # F2) 強三碰判三的停損 → 掛跌停全部賣出;平倉後寫一則出場訊息(強三)
 tf.on_tick("2330", 592.0); ok(p["state"] == EXITING and gf.sent[-1] == ("2330", "S", 1, 0, "0", "0", "L"))
@@ -252,18 +252,18 @@ ty.on_report(51, "A0001", 0, 3000, 38.0); ok("2409" not in ty.positions and ty.p
 # Y1b) 2026-11-02 判二部位(程式進場 1 張 @86.1)→ 元大手動再做空 2 張 @86.4 → 併進程式部位:3 張、均價 86.3、停利停損照原本 % 從新均價重算(84.25 / 88.91);碰停利全部 3 張一起買回
 tm, gm = mk(); tm.name_of = lambda c: "台郡"; tm.on_tick("6269", 86.2); tm.step([ENT]); tm.on_report(51, "A0001", 0, 1000, 86.1); pm = tm.positions["6269"]
 tm.on_report(51, "M900", 0, 2000, 86.4, basket="", code="6269", bs="S")
-ok(pm["qty"] == 3 and abs(pm["entry"] - 86.3) < 1e-9 and pm["tp"] == round(86.3 * (1 - tm.y3_tp / 100), 2) and pm["sl"] == round(86.3 * (1 + tm.y3_sl / 100), 2) and pm["judge"] == "元三" and pm["judge0"] == "判二" and "手動加碼" in tm.alerts[-1], pm, tm.alerts)   # 2026-11-11 16:49 被手動加碼 → 改由判三管(停利 3% / 停損 4.5% 從新均價)
+ok(pm["qty"] == 3 and abs(pm["entry"] - 86.3) < 1e-9 and pm["tp"] == __import__("trader").px_tick(86.3 * (1 - tm.y3_tp / 100), 86.3) and pm["sl"] == __import__("trader").px_tick(86.3 * (1 + tm.y3_sl / 100), 86.3) and pm["judge"] == "元三" and pm["judge0"] == "判二" and "手動加碼" in tm.alerts[-1], pm, tm.alerts)   # 2026-11-11 16:49 被手動加碼 → 改由判三管(停利 3% / 停損 4.5% 從新均價)
 import time as _tt; _tt.sleep(0.05 + max(0.0, tm.y3_post_delay)); ok(any("· 加碼 · 共 3 張 均價 86.30 · 2張 · 元三" in b and t.startswith("台郡 6269 做空進場 86.40") for t, b, k in tm.posts), tm.posts)   # 2026-11-05 手動加碼也發進場卡
 tm.on_tick("6269", 84.0); ok(pm["state"] == EXITING and gm.sent[-1][:3] == ("6269", "B", 3), gm.sent[-1])
 tm.on_report(51, "A0002", 0, 3000, 84.1); ok("6269" not in tm.positions)
 # Y1c) 2026-11-02 程式進場單還在送(ENTERING)時手動同方向成交 2 張 @86.4 → 進場單成交 1 張 @86.1 → 併成 3 張 均價 86.3,停利停損照 % 重算
 tn, gn = mk(); tn.name_of = lambda c: "台郡"; tn.on_tick("6269", 86.2); tn.step([ENT]); pn = tn.positions["6269"]
 tn.on_report(51, "M901", 0, 2000, 86.4, basket="", code="6269", bs="S"); ok(pn["state"] == ENTERING and pn["man_lots"] == 2, pn)
-tn.on_report(51, "A0001", 0, 1000, 86.1); ok(pn["state"] == HOLDING and pn["qty"] == 3 and abs(pn["entry"] - 86.3) < 1e-9 and pn["tp"] == round(86.3 * 84.05 / 86.1, 2), pn)
+tn.on_report(51, "A0001", 0, 1000, 86.1); ok(pn["state"] == HOLDING and pn["qty"] == 3 and abs(pn["entry"] - 86.3) < 1e-9 and pn["tp"] == __import__("trader").px_tick(86.3 * 84.05 / 86.1, 86.3), pn)
 # Y1d) 程式進場單沒成交(IOC 結束、不補單)但進場中有手動 2 張 @86.4 → 只用手動 2 張接成判二部位(停利停損照訊號 % 從 86.4 算)
 to_, go_ = mk(TRADE_ENTRY_FALLBACK="0"); to_.name_of = lambda c: "台郡"; to_.on_tick("6269", 86.2); to_.step([ENT]); po_ = to_.positions["6269"]
 to_.on_report(51, "M902", 0, 2000, 86.4, basket="", code="6269", bs="S"); to_.on_report(50, "A0001", 25, 0, 0)
-ok("6269" in to_.positions and po_["state"] == HOLDING and po_["qty"] == 2 and po_["entry"] == 86.4 and po_["tp"] == round(86.4 * 84.05 / 86.2, 2), po_)
+ok("6269" in to_.positions and po_["state"] == HOLDING and po_["qty"] == 2 and po_["entry"] == 86.4 and po_["tp"] == __import__("trader").px_tick(86.4 * 84.05 / 86.2, 86.4), po_)
 # Y1e) 2026-11-02 未交易標記:超額 / 已有部位 / 進場沒成交 → skipped;有進場的同一訊號重送不算
 ts_, gs_ = mk(TRADE_ENTRY_FALLBACK="0"); ts_.on_tick("6269", 86.2); ts_.step([ENT]); ts_.on_report(51, "A0001", 0, 1000, 86.1)
 ts_.step([dict(ENT, _k="dup")]); ok(not ts_.skipped, ts_.skipped)                                         # 同一個訊號再來一次(雲端)→ 不算未交易
@@ -271,7 +271,7 @@ ts_.step([sig("10:05:6269|台郡|判三", "short", "台郡 6269 做空進場 86.
 ts_.step([sig("10:06:2330|台積|判一", "long", "台積 2330 做多進場 600", "10:06 多 · 停利 615 停損 590 · 超額 · 判一")]); ok("2330|判一|10:06" in ts_.skipped)
 ts2_, gs2_ = mk(TRADE_ENTRY_FALLBACK="0"); ts2_.on_tick("6269", 86.2); ts2_.step([ENT]); ts2_.on_report(50, "A0001", 25, 0, 0); ok("6269|判二|10:00" in ts2_.skipped, ts2_.skipped)   # 送了單沒成交
 # Y2) 元三你自己在元大平掉 → 程式結束這個部位;判三的平倉通知也會讓元三出場;元三不佔 5 檔名額
-tz2, gz2 = mk(); tz2.on_report(51, "M1", 0, 1000, 50.0, basket="", code="3001", bs="S"); ok(tz2.positions["3001"]["dir"] == -1 and tz2.positions["3001"]["sl"] == 52.25)
+tz2, gz2 = mk(); tz2.on_report(51, "M1", 0, 1000, 50.0, basket="", code="3001", bs="S"); ok(tz2.positions["3001"]["dir"] == -1 and tz2.positions["3001"]["sl"] == 52.3)   # 2026-11-22 取到升降單位(52.25 不是合法價)
 tz2.on_report(51, "M2", 0, 1000, 49.0, basket="", code="3001", bs="B"); ok("3001" not in tz2.positions and not gz2.sent)
 tz2.on_report(51, "M3", 0, 1000, 50.0, basket="", code="3002", bs="B"); tz2.step([sig("e1", "exit", "股 3002 出場:出", "… · 判三")]); ok(tz2.positions["3002"]["state"] == EXITING)
 ok(tz2.auto_count() == 0)
@@ -549,7 +549,7 @@ s25.on_tick("3006", 249.0); s25.step([]); r = s25.over_confirm("3006", "c1")
 ok(r[0] and "3006" in s25.positions and s25.positions["3006"]["tp"] == 234.3 and s25.positions["3006"]["sl"] == 266.44 and "3006" not in s25.over_wait, (r, s25.positions.get("3006")))
 ok(s25.over_confirm("3006", "c1") == r and sum(1 for x in g25.sent if x[0] == "3006") == 1)          # 重送同一個確認不會再下
 s25.on_report(51, "A0001", 0, 1000, 249.0); p25 = s25.positions["3006"]   # 2026-11-11 16:49 超額補進場改由判三管:記強三、停利 / 停損照判三 % 從成交價算
-ok(p25["judge"] == "強三" and p25["judge0"] and p25["tp"] == round(249.0 * (1 - s25.y3_tp / 100), 2) and p25["sl"] == round(249.0 * (1 + s25.y3_sl / 100), 2), p25)
+ok(p25["judge"] == "強三" and p25["judge0"] and p25["tp"] == __import__("trader").px_tick(249.0 * (1 - s25.y3_tp / 100), 249.0) and p25["sl"] == __import__("trader").px_tick(249.0 * (1 + s25.y3_sl / 100), 249.0), p25)
 s25b, g25b = mk(TRADE_CAP="250000", TRADE_MAX_MOVE_PCT="99"); s25b.on_tick("3006", 257.5); s25b.step([OV("k25b")])
 s25b.step([sig("x25b", "exit", "晶豪科 3006 停利 +5% 立即平倉", "11:00 · 判四")]); ok("3006" not in s25b.over_wait)   # 判四先平倉 → 取消
 s25c, _ = mk(TRADE_CAP="250000", TRADE_MAX_MOVE_PCT="99"); s25c.on_tick("3006", 257.5); s25c.step([OV("k25c")]); s25c.on_tick("3006", 233.0); s25c.step([]); ok("3006" not in s25c.over_wait)   # 已過停利取消
@@ -1550,3 +1550,12 @@ _sf.write_text("2026-11-23 10:30:00 手機長按進場(停止所有進場,隔天
 _t = Trader(_c, type("G", (), {"send": lambda *a, **k: None})(), lambda *a: None, lambda: _dt.datetime(2026, 11, 23, 11, 0)); ok(_sf.exists())   # 當天重開不解除
 ok(_t.entry_block("2330", "判一") if hasattr(_t, "entry_block") else True)
 print("停止所有進場 隔天自動解除 OK")
+# 2026-11-22 使用者「手動加碼之後 價格也可能出現這樣 也照合理價位寫」:停利 / 停損取到升降單位(高於均價往上、低於往下)
+import trader as _trm
+ok(_trm.px_tick(24.2655, 23.45) == 24.3 and _trm.px_tick(22.6, 23.45) == 22.6 and _trm.px_tick(22.62, 23.45) == 22.6, (_trm.px_tick(24.2655, 23.45), _trm.px_tick(22.62, 23.45)))
+ok(_trm.px_tick(49.97, 48) == 50.0 and _trm.px_tick(100.04, 99) == 100.5 and _trm.px_tick(99.97, 101) == 99.9 and _trm.px_tick(500.2, 480) == 501.0, (_trm.px_tick(100.04, 99), _trm.px_tick(99.97, 101)))
+t8_, g8_ = mk(); t8_.ref_of = lambda c: 240.0
+p8_ = {"code": "2603", "dir": -1, "qty": 2, "entry": 239.75, "judge": "元三", "state": HOLDING, "tp_pct": 2.5, "sl_pct": 1.5}
+t8_.set_forced_tpsl(p8_, 239.75)
+ok(all(abs(x / _trm.tick_size(x) - round(x / _trm.tick_size(x))) < 1e-6 for x in (p8_["tp"], p8_["sl"]) if x) and p8_["tp"] < 239.75 < p8_["sl"], p8_)
+print("停利 / 停損取到升降單位 OK")
