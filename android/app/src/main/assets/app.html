@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-22 贏% 平倉選單改成長按下排「當沖」鍵打開(開盤中),一出來就選好贏1%、清單直接列出;不在名單的部位改顯示名字不只代號
   · 2026-11-22 00:33(實際時間)中繼剩餘兩項(使用者「改」):額度 / 盤中對帳 / 30 秒成交檢查每次最多等 4 秒,元大沒回這輪跳過、沿用上次資料(元大慢時主迴圈最多卡 30 秒 → 4 秒),晚到的舊回應不再混進下一次查詢;盤中重開接回先比對重開前存的部位和即時成交紀錄,真的分筆成交不再少接,判斷不了推手機;額度沒有證據不去重(寧可多算)
   · 2026-11-22 修:公式開著按設定 / 進場 / 當沖 / 明細,手指按下時不再先收公式露出底下明細(閃一下),放開才直接換過去
   · 2026-11-21 23:39(實際時間)第四輪檢查修正(使用者「改 A 改回」「改 1 2 4」):13:20 先照程式部位送平倉再確認(元大查詢不回應也 13:20:00 平倉);真的分筆成交不被當重複;晚到回報加時間判斷;0000 / 帳密 / 凍結 / 權限登入錯誤當天停;13:20 單檔送失敗不中止整批;推雲端佇列換日清掉;雲端整天讀不到時本機訊號照常下單;電腦心跳帶各判別式今天已進的股票(caps,給手機);電腦認手機的部位鍵寫法;錯誤紀錄不再被遮壞;iPhone 推播永久失敗照實說;名單外手動成交股票改回只給有鑰匙的人
@@ -592,7 +593,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611220033">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611220044">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2619,8 +2620,12 @@ window.fmShow = fmShow;
     [[3, '贏3%', '#FF4D5E'], [2, '贏2%', '#FF4D5E'], [1, '贏1%', '#FF4D5E'], [0, '全平倉', '#FFD54F']].forEach(([th, t, c]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.dataset.th = th; b.dataset.c = c;
       b.style.cssText = `height:${ih}px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:7px;border:2px solid ${c};box-shadow:0 0 0 2px #000,0 0 0 3.5px #8C96AB;background:#000;color:${c};font-weight:700;font-size:${Math.min(24, Math.max(13, ih * 0.42))}px;white-space:nowrap;padding:0;font-family:inherit`;
       b.addEventListener('click', ev => { ev.stopPropagation(); choose(th, m); }); m.appendChild(b); });
-    document.body.appendChild(m); setTimeout(() => document.addEventListener('pointerdown', outside, true), 0); };
-  const isLb = t => t && t.closest && (t.closest('#notifLog .hd .dlb') || (window.NL_VIEW === 'pos' && t.closest('#notifLog .hd .dstat')));   /* 2026-11-19 04:18 當沖框拿掉後,長按日期格開 贏% 平倉選單 */
+    document.body.appendChild(m); setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
+    choose(1, m);   /* 2026-11-22 00:43 使用者「初始直接設在1% 一出來就是圖二的畫面」:一打開就選好贏1%、右邊清單直接出來 */ };
+  /* 2026-11-22 00:36 使用者「本來當沖裡 左上角當沖長按會出現 贏全平 贏1%,2%,3% 現在那個按鍵已經被取消 改在五顆按鍵那個當沖 一樣長按觸發」:
+     觸發點搬到下排「當沖」鍵長按(見 btnState);通知欄裡的日期格不再當觸發點 */
+  const isLb = t => t && t.closest && t.closest('#notifLog .hd .dlb:not(.ghost)');
+  window.winMenuOpen = () => { if (window.NL_VIEW !== 'pos' && window.nlSetView) nlSetView('pos'); setTimeout(openM, 60); };
   box.addEventListener('pointerdown', ev => { if (!isLb(ev.target)) return; x0 = ev.clientX; y0 = ev.clientY; clearTimeout(tm); tm = setTimeout(() => { tm = null; openM(); }, 600); }, true);
   box.addEventListener('pointermove', ev => { if (tm && (Math.abs(ev.clientX - x0) > 10 || Math.abs(ev.clientY - y0) > 10)){ clearTimeout(tm); tm = null; } }, true);
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => box.addEventListener(t, () => { clearTimeout(tm); tm = null; }, true));
@@ -2924,7 +2929,16 @@ window.fitBands = fitBands;
   // 2026-11-03 22:16 使用者「按公式 再按明細 結果會跳到 進場」:原本「已經在明細再按一次 = 回進場」,但公式 / 設定蓋在上面時畫面上看到的不是明細,還是照「在明細」算 → 跳到進場。
   //   改成:公式 / 設定開著時按當沖 / 明細,一律打開那一頁;只有畫面上真的正在看那一頁才切回進場
   const shownView = () => { const pnl = document.querySelector('.panel'); if (Date.now() - (window.__menuShutAt || 0) < 800){ window.__menuShutAt = 0; return ''; } if (menuOpen() || (pnl && pnl.classList.contains('open'))) return '';   /* 手指按下時公式剛被收起來,也算公式開著 */ return window.NL_VIEW; };
-  tapOn(document.getElementById('btnState'), () => setView('pos'));   /* 2026-11-19 05:49 使用者「所有按鍵都一樣 按哪個就在哪個 再按一次同樣的 也是停留在原來按鍵位置」:原本再按一次切回進場 → 一律停在當沖 */
+  tapOn(document.getElementById('btnState'), () => { if (window.__bsHeld){ window.__bsHeld = 0; return; } setView('pos'); });
+  /* 2026-11-22 下排「當沖」長按 0.6 秒 = 贏3% / 贏2% / 贏1% / 全平倉 選單(原本當沖頁左上角的當沖框;開盤中、連得上電腦才開,規則照舊) */
+  { const bs = document.getElementById('btnState'); let ht = null, hx = 0, hy = 0;
+    const start = (x, y) => { hx = x; hy = y; clearTimeout(ht); ht = setTimeout(() => { ht = null; let s_ = false; try{ s_ = inSession(); }catch(e){} if (!s_) return; window.__bsHeld = 1; if (window.winMenuOpen) winMenuOpen(); }, 600); };
+    const stop = () => { clearTimeout(ht); ht = null; };
+    if (bs){ bs.addEventListener('touchstart', ev => { const t = ev.touches[0]; start(t.clientX, t.clientY); }, {passive: true});
+      bs.addEventListener('touchmove', ev => { const t = ev.touches[0]; if (Math.abs(t.clientX - hx) > 10 || Math.abs(t.clientY - hy) > 10) stop(); }, {passive: true});
+      bs.addEventListener('touchcancel', stop, {passive: true}); bs.addEventListener('touchend', stop, {passive: true});
+      bs.dataset.nomt = 1; bs.addEventListener('mousedown', ev => { if (ev.button === 0) start(ev.clientX, ev.clientY); }); bs.addEventListener('mouseup', stop); bs.addEventListener('mouseleave', stop);
+      bs.addEventListener('contextmenu', ev => ev.preventDefault()); } }   /* 2026-11-19 05:49 使用者「所有按鍵都一樣 按哪個就在哪個 再按一次同樣的 也是停留在原來按鍵位置」:原本再按一次切回進場 → 一律停在當沖 */
   tapOn(document.getElementById('btnRules'), () => setView('done'));   /* 同上:一律停在明細 */
   /* 2026-11-22 00:26 使用者影片「有看到問題在哪裡嗎」:公式開著按設定(或其他下排按鍵),手指一按下公式就先收起來 → 放開前露出底下的明細(閃一下)才換設定。
      下排按鍵自己放開時會收公式(setView / 設定的 toggle 都會收),所以按在下排按鍵上時這裡不先收 */
@@ -8586,10 +8600,10 @@ window.bgTick = bgTick; window.BG = BG;
         const TP = TP0 && TP0.ok && TP0.enabled && Date.now() - (TP0.at || 0) < 2 * 60000 ? TP0 : null;
         const TPL = (() => { if (TP) return TP; try{ const n = new Date(Date.now() + 8 * 3600000), hm = n.getUTCHours() * 60 + n.getUTCMinutes(); if (hm < 13 * 60 + 20) return null;
           const L = JSON.parse(localStorage.getItem('mysh.tpos.last') || 'null'); return L && L.d === today && Array.isArray(L.pos) ? {ok: true, pos: L.pos} : null; }catch(e){ return null; } })();   // 2026-11-04 13:20 後電腦沒在交易 → 用今天最後一次的元大部位   // 2026-10-30 13:21 使用者「如果沒有連線主機 這裡跟明細一樣 顯示程式自己做的模擬交易」:2 分鐘沒問到電腦也算連不上 → 列模擬(標「當沖 系統」)
-        const nmOf = c => SIG_NAMES.get(c) || ((SRC || []).find(x => x.code === c) || {}).name || ((cards.find(o => o.code === c) || {}).name) || c;
+        const nmOf = (c, n2) => SIG_NAMES.get(c) || ((SRC || []).find(x => x.code === c) || {}).name || ((cards.find(o => o.code === c) || {}).name) || n2 || ((LIVE.get(String(c)) || {}).n) || c;   /* 2026-11-22 不在監控名單、也還沒卡片的部位:用電腦給的名字 / 報價名字,不再只顯示代號 */
         // 12:37 使用者「電腦那邊沒辦法連線也不要影響這邊的顯示」:電腦連不上(或還沒問到)→ 照原本用手機通知列(和改之前一樣)
         const open = over ? [] : (!TPL || !TPL.ok || window.DONE_VIRT) ? cards.filter(o => o.type === 'entry' && !o.over && !o.notrade && !o.madd && !o._hide && !o.phNew && o._alert !== 'exit' && o.entP > 0 && !cards.some(x => x.fc && x.code === o.code && x.t >= o.t)) : (TPL.pos || []).filter(p => p.qty > 0 && p.entry > 0 && (p.state === '持倉中' || p.state === '平倉中'))
-          .map(p => ({code: p.code, name: nmOf(p.code), side: p.dir > 0 ? 'long' : 'short', entP: +p.entry, lots: +p.qty, rs: p.judge, exiting: p.state === '平倉中', t: String(p.t0 || '')}));
+          .map(p => ({code: p.code, name: nmOf(p.code, p.name), side: p.dir > 0 ? 'long' : 'short', entP: +p.entry, lots: +p.qty, rs: p.judge, exiting: p.state === '平倉中', t: String(p.t0 || '')}));
         // 2026-10-29 12:25(實際時間)使用者「既然真實接通 … 顯示元大裡的真實的交易」:元大帳號裡手動進場、還沒沖掉的張數(成交回報 open ≠ 0)也列進當沖(程式的部位已在上面,不重複)
         if (TP && !over && !window.DONE_VIRT){ tfillsPoll(); try{ const F = window.__tfills; const IG_ = ignSet(); if (F && F.ok && F.d === today && Array.isArray(F.rows)) for (const r of F.rows){ const q = +r.open || 0; if (!q || IG_.has(String(r.code)) || open.some(o => o.code === r.code)) continue;   /* 2026-11-17 09:46 使用者「庫存的和益是借卷 空 我已經贖回 這邊不用顯示和益做多」:不管名單(電腦 ignore_codes.txt,?trade=pos 的 ignore)不列 */
               open.push({code: r.code, name: r.name || nmOf(r.code), side: q > 0 ? 'long' : 'short', entP: q > 0 ? +r.buy : +r.sell, lots: Math.abs(q), manual: true, t: String(r.t || r.time || '99:99')}); } }catch(e){} }
