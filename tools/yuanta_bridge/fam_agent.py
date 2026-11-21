@@ -151,29 +151,30 @@ def task_create(name, d):
     t = f"YuantaBridge-{name}"
     ps = f"""
 $ErrorActionPreference = 'Stop'
-$act = New-ScheduledTaskAction -Execute '{sys.executable}' -Argument 'yuanta_bridge.py run' -WorkingDirectory '{d}'
+$act = New-ScheduledTaskAction -Execute $env:FA_PY -Argument 'yuanta_bridge.py run' -WorkingDirectory $env:FA_DIR
 $trg1 = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At 08:41
 $trg2 = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\\$env:USERNAME"; $trg2.Delay = 'PT2M'
 $trg3 = New-ScheduledTaskTrigger -Once -At 08:01 -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration (New-TimeSpan -Days 3650)
 $set = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 5)
 $pr = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\\$env:USERNAME" -LogonType Interactive -RunLevel Limited
-Register-ScheduledTask -TaskName '{t}' -Action $act -Trigger @($trg1, $trg2, $trg3) -Settings $set -Principal $pr -Force | Out-Null
+Register-ScheduledTask -TaskName $env:FA_TASK -Action $act -Trigger @($trg1, $trg2, $trg3) -Settings $set -Principal $pr -Force | Out-Null
 """
+    # 2026-11-21 漏洞檢查 1:名字、路徑用環境變數交給 PowerShell,不直接拼進指令(名字裡有引號也不會變成指令)
+    env = dict(os.environ, FA_PY=str(sys.executable), FA_DIR=str(d), FA_TASK=t)
     with tempfile.NamedTemporaryFile("w", suffix=".ps1", delete=False, encoding="utf-8-sig") as f: f.write(ps)
-    r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", f.name], capture_output=True, text=True); os.unlink(f.name)
+    r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", f.name], capture_output=True, text=True, env=env); os.unlink(f.name)
     if r.returncode != 0: raise RuntimeError("建工作排程失敗:" + (r.stderr or r.stdout)[-200:])
     subprocess.run(["schtasks", "/Run", "/TN", t], capture_output=True)
 
 
 def name_ok(n):
-    """漏洞檢查 1(2026-11-21):名字會變成資料夾 C:\\Yuanta\\fam\\<名字>;擋「.」「..」、路徑符號、* 和 Windows 保留名"""
-    return bool(n) and len(n) <= 12 and not re.search(r'[\s|:/\\?#&<>"\'*]', n) and not re.fullmatch(r"\.+", n) and not n.endswith(".") \
-        and not re.fullmatch(r"(?i)(con|prn|aux|nul|com\d|lpt\d)(\..*)?", n)
+    """漏洞檢查 1(2026-11-21):名字會變成資料夾 C:\\Yuanta\\fam\\<名字> 和工作排程名;只收中英文字、數字、_ -(和雲端、夥伴加入同一套),擋 Windows 保留名"""
+    return isinstance(n, str) and bool(re.fullmatch(r"[\w-]{1,12}", n)) and not re.fullmatch(r"(?i)(con|prn|aux|nul|com\d|lpt\d)", n)
 
 
 def add_partner(name, enc, key):
     import win_family as wf
-    if not name_ok(name): raise ValueError("名字不能用(不能是 . / .. / * 或電腦保留名)")
+    if not name_ok(name): raise ValueError("名字不能用(只能中英文字、數字、_ -,也不能是 CON 這類電腦保留名)")
     info = json.loads(oaep_decrypt(key, enc).decode("utf-8"))
     acct = re.sub(r"[\s-]", "", str(info.get("acct", "")))
     acct = "S" + (acct[1:] if acct[:1] in ("S", "s") and len(acct) == 12 else acct)
@@ -209,7 +210,7 @@ def login_state(name, since):
     # 漏洞檢查 2(2026-11-21):只看這次送出(since)以後的紀錄,早上那次失敗 / 成功不算
     t0 = datetime.fromtimestamp(since - 5, TW).strftime("%m-%d %H:%M:%S") if since else ""
     lines = [x for x in lines if not t0 or x[:14] >= t0]
-    ok = None
+    ok = None; net = ""
     for line in lines:
         m = re.search(r"查詢回應 \[(\d+) ([^\]]*)\]", line)
         if m and m.group(1) in ("4", "5", "9", "11"):
@@ -222,9 +223,9 @@ def login_state(name, since):
             if m.group(1) == "0112" or "權限" in m.group(2): return False, f"元大回:{m.group(1)} {m.group(2)}", {"acct": "y", "cert": "w", "api": "n"}
             return False, f"元大回:{m.group(1)} {m.group(2)}", {"acct": "n", "cert": "w", "api": "w"}
         if "30 秒還沒連上元大交易主機" in line or "登入逾時" in line:
-            return False, "連不上元大(網路 / 固定 IP?)", {}
+            net = "連不上元大(網路 / 固定 IP?)"   # 2026-11-21 漏洞檢查 2:一時連不上不算失敗,交易程式會自己重連;一直連不上才算
     if ok: return True, "元大登入成功", {"acct": "y", "cert": "w", "api": "y"}
-    return None, "", {}
+    return None, net, {}
 
 
 def run():
@@ -236,7 +237,7 @@ def run():
             t = now_tw(); mkt = t.weekday() < 5 and "09:00" <= t.strftime("%H:%M") < "13:30"   # 2026-11-17 盤中不新增 / 不移除夥伴(13:30 後才處理)
             r = api("fam=jobs")
             for wv in (r.get("watch", []) if isinstance(r, dict) else []):   # 漏洞檢查 3:重開後接著看還在「設定中」的夥伴
-                if wv.get("name") and wv["name"] not in watch: watch[wv["name"]] = {"t0": (wv.get("at") or 0) / 1000 or time.time()}
+                if wv.get("name") and wv["name"] not in watch: t0 = (wv.get("at") or 0) / 1000 or time.time(); watch[wv["name"]] = {"t0": t0, "w0": t0}
             for j in (r.get("jobs", []) if isinstance(r, dict) else []):
                 if mkt and j.get("op") != "add": continue   # 盤中只先做「新增」(使用者「暫時還是要允許盤中加入新夥伴 畢竟還是要測試」);移除等 13:30 後
                 n = j.get("name", "")
@@ -244,23 +245,30 @@ def run():
                     if j.get("op") == "add":
                         api("fam=status", {"name": n, "st": "pc", "msg": "電腦收到,建立中"})
                         add_partner(n, j.get("enc", ""), key)
-                        t0 = time.time(); api("fam=status", {"name": n, "st": "pc", "msg": "電腦登入元大中", "chk": {"acct": "w", "cert": "w", "api": "w"}, "since": int(t0 * 1000)}); watch[n] = {"t0": t0}
+                        t0 = time.time(); api("fam=status", {"name": n, "st": "pc", "msg": "電腦登入元大中", "chk": {"acct": "w", "cert": "w", "api": "w"}, "since": int(t0 * 1000)}); watch[n] = {"t0": t0, "w0": t0}
                     elif j.get("op") == "del":
-                        del_partner(n); api("fam=status", {"name": n, "st": "gone"})
-                except Exception as e:
+                        watch.pop(n, None); del_partner(n); api("fam=status", {"name": n, "st": "gone"})   # 漏洞檢查 3:移除了就不再看他的登入
+                except (Exception, SystemExit) as e:   # 漏洞檢查 4:win_family 出錯是用 sys.exit,也要接住,不然整個服務會停
+                    if j.get("op") == "add": watch.pop(n, None)
                     log(f"!! 【{n}】處理失敗:", e); api("fam=status", {"name": n, "st": "fail", "msg": str(e)[:150]})
                 api("fam=done", {"name": n})
+            # 2026-11-21 漏洞檢查 2:夥伴交易程式只在平日開盤前(08:41)起來登入;晚上 / 假日送的,等到那時候才開始算 30 分鐘
+            inwin = t.weekday() < 5 and "08:25" <= t.strftime("%H:%M") < "23:00"
             for n, w in list(watch.items()):
                 ok, msg, chk = login_state(n, w["t0"])
+                if ok is None and not inwin:
+                    if not w.get("off"): w["off"] = 1; api("fam=status", {"name": n, "st": "pc", "msg": "等開盤前(平日 08:41)登入元大", "chk": {"acct": "w", "cert": "w", "api": "w"}, "since": int(w["t0"] * 1000)})
+                    w["w0"] = time.time(); continue
+                w["off"] = 0
                 if ok is False:
                     api("fam=status", {"name": n, "st": "fail", "msg": msg, "chk": chk}); log(f"!! 【{n}】", msg); watch.pop(n)
                 elif ok is True and not w.get("ok_at"):
                     w["ok_at"] = time.time(); api("fam=status", {"name": n, "st": "pc", "msg": "元大登入成功,檢查憑證中", "chk": chk}); log(f"【{n}】元大登入成功,等 3 分鐘看憑證")
                 elif ok is True and time.time() - w["ok_at"] > 180:   # 登入後 3 分鐘查成交都沒有「加簽失敗 / 憑證異常」→ 憑證也打勾
                     api("fam=status", {"name": n, "st": "run", "msg": "元大已登入", "chk": {"acct": "y", "cert": "y", "api": "y"}}); log(f"【{n}】三項檢查都通過"); watch.pop(n)
-                elif ok is None and time.time() - w["t0"] > 600:
-                    api("fam=status", {"name": n, "st": "fail", "msg": f"10 分鐘還沒登入元大(看 {FAM / n / 'log'})", "chk": {}}); watch.pop(n)
-        except Exception as e:
+                elif ok is None and time.time() - w["w0"] > 1800:
+                    api("fam=status", {"name": n, "st": "fail", "msg": ((msg + ",") if msg else "") + f"30 分鐘還沒登入元大(看 {FAM / n / 'log'})", "chk": {}}); watch.pop(n)
+        except (Exception, SystemExit) as e:
             log("!! 夥伴服務這一輪出錯:", e)
         time.sleep(30)
 
@@ -271,15 +279,16 @@ def install():
     py = Path(sys.executable); pyw = py.with_name("pythonw.exe") if py.with_name("pythonw.exe").exists() else py
     ps = f"""
 $ErrorActionPreference = 'Stop'
-$act = New-ScheduledTaskAction -Execute '{pyw}' -Argument '"{HERE / "fam_agent.py"}" run' -WorkingDirectory '{HERE}'
+$act = New-ScheduledTaskAction -Execute $env:FA_PY -Argument ('"' + $env:FA_SCRIPT + '" run') -WorkingDirectory $env:FA_DIR
 $trg1 = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\\$env:USERNAME"; $trg1.Delay = 'PT1M'
 $trg2 = New-ScheduledTaskTrigger -Once -At 00:00 -RepetitionInterval (New-TimeSpan -Minutes 10) -RepetitionDuration (New-TimeSpan -Days 3650)
 $set = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 $pr = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\\$env:USERNAME" -LogonType Interactive -RunLevel Limited
-Register-ScheduledTask -TaskName '{TASK}' -Action $act -Trigger @($trg1, $trg2) -Settings $set -Principal $pr -Force | Out-Null
+Register-ScheduledTask -TaskName $env:FA_TASK -Action $act -Trigger @($trg1, $trg2) -Settings $set -Principal $pr -Force | Out-Null
 """
+    env = dict(os.environ, FA_PY=str(pyw), FA_SCRIPT=str(HERE / "fam_agent.py"), FA_DIR=str(HERE), FA_TASK=TASK)
     with tempfile.NamedTemporaryFile("w", suffix=".ps1", delete=False, encoding="utf-8-sig") as f: f.write(ps)
-    r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", f.name], capture_output=True, text=True); os.unlink(f.name)
+    r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", f.name], capture_output=True, text=True, env=env); os.unlink(f.name)
     if r.returncode != 0: sys.exit("!! 建工作排程失敗:" + (r.stderr or r.stdout)[-300:])
     subprocess.run(["schtasks", "/Run", "/TN", TASK], capture_output=True)
     print(f"\n完成:夥伴服務已安裝並啟動(工作排程 {TASK},登入 Windows 自動跑)。紀錄在 {LOGF}")

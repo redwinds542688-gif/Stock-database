@@ -55,7 +55,7 @@ class MainActivity : Activity() {
         web.webViewClient = object : WebViewClient() {
             // 網頁元件(畫面)當掉:不讓整個 App 跟著關掉,記下原因、重開畫面
             override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
-                try { crashF.writeText("畫面元件當掉(didCrash=${detail.didCrash()})") } catch (x: Exception) {}
+                try { crashF.writeText("畫面元件當掉(didCrash=${detail.didCrash()})") } catch (x: Exception) {}; renderDead = true
                 try { (view.parent as? android.view.ViewGroup)?.removeView(view); view.destroy() } catch (x: Exception) {}
                 recreate(); return true
             }
@@ -78,6 +78,7 @@ class MainActivity : Activity() {
                     } catch (e: Exception) { try { crashF.writeText("相機權限:" + android.util.Log.getStackTraceString(e).take(2000)) } catch (x: Exception) {}; try { request.deny() } catch (x: Exception) {} }
                 }
             }
+            override fun onPermissionRequestCanceled(request: PermissionRequest) { if (pendingPerm === request) pendingPerm = null }
             // 「從相簿選 QR Code 圖片」
             override fun onShowFileChooser(view: WebView, cb: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
                 fileCb?.onReceiveValue(null); fileCb = cb
@@ -87,8 +88,8 @@ class MainActivity : Activity() {
         }
         web.addJavascriptInterface(Host(), "PartnerHost")   // 網頁問:這支手機有沒有裝名揚四海
         setContentView(web)
-        if (savedInstanceState != null) web.restoreState(savedInstanceState)
-        else web.loadUrl("https://appassets.androidplatform.net/assets/mine.html")
+        // 2026-11-21 漏洞檢查 5:還原不了(例如畫面元件當掉後重開)就重新載入,不會空白
+        if (savedInstanceState == null || renderDead || web.restoreState(savedInstanceState) == null) web.loadUrl("https://appassets.androidplatform.net/assets/mine.html")
         if (crashF.exists()) { val t = try { crashF.readText() } catch (e: Exception) { "" }; crashF.delete()
             if (t.isNotBlank()) { sendBug("crash", t); AlertDialog.Builder(this).setTitle("上次夥伴看盤意外關閉").setMessage("已自動回報給 Claude 查原因。").setPositiveButton("好", null).show() } }
         Updater.check(this)   // 打開 App 時檢查一次版本,有新版才問
@@ -124,6 +125,7 @@ class MainActivity : Activity() {
     }
 
     private var cloudOk = false
+    private var renderDead = false
     /** 讀雲端最新的畫面;內容不像夥伴看盤(例如雲端回錯誤頁)就不用 */
     private fun cloudPage(): WebResourceResponse? = try {
         val c = URL("https://twse-proxy.redwinds542688.workers.dev/partner/?app=1&_=" + System.currentTimeMillis()).openConnection() as HttpURLConnection
@@ -136,7 +138,7 @@ class MainActivity : Activity() {
     } catch (e: Exception) { cloudOk = false; null }
 
     private var pausedAt = 0L
-    override fun onSaveInstanceState(out: Bundle) { super.onSaveInstanceState(out); web.saveState(out) }
+    override fun onSaveInstanceState(out: Bundle) { super.onSaveInstanceState(out); if (!renderDead) try { web.saveState(out) } catch (e: Exception) {} }
     override fun onResume() {
         super.onResume(); web.onResume()
         // 離開超過 10 分鐘再回來 → 重新載入(拿到雲端最新的畫面);上次是用內建那份(沒網路)回來也再試一次雲端

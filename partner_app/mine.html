@@ -367,7 +367,7 @@ async function loadQuotes(){
 const FK = d => "pv.fills." + keyGet().slice(-6) + "." + d;
 const fcGet = d => { try{ const x = localStorage.getItem(FK(d)); return x ? JSON.parse(x) : null; }catch(e){ return null; } };
 const fcPut = (d, rows) => { try{ localStorage.setItem(FK(d), JSON.stringify(rows)); }catch(e){} };
-async function cloudFills(d){ try{ const j = await api(`pcbk=get&d=${d}&name=fills`), v = j && j.v; return v && (!v.d || v.d === d) ? v : null; }catch(e){ return null; } }   // 半夜推的可能是前一天的那份:日期對才用
+async function cloudFills(d, strict){ try{ const j = await api(`pcbk=get&d=${d}&name=fills`), v = j && j.v; return v && (!v.d || v.d === d) ? v : null; }catch(e){ if (strict) throw e; return null; } }   /* strict:網路斷了要丟錯(不能當成「那天沒成交」) */   // 半夜推的可能是前一天的那份:日期對才用
 const sortT = rows => rows.sort((a, b) => b.t.localeCompare(a.t));
 async function loadFills(d){
   if (isFam(keyGet())){
@@ -377,7 +377,7 @@ async function loadFills(d){
   }
   if (d !== ST.day){
     const c = fcGet(d); if (c) return c;
-    const cv = await cloudFills(d); let rows = legsOf(cv);
+    const cv = await cloudFills(d, true); let rows = legsOf(cv);
     /* 雲端有那天的備份(就算 0 筆)就以雲端為準;沒有備份(11/12 以前)才問電腦 */
     if (!cv && !ST.pcDown){ try{ const j = await api(`trade=fills&d=${d}`); if (j && j.ok !== false) rows = legsOf(j); else if (!/沒有 .* 的成交紀錄/.test((j && j.msg) || "")) ST.pcDown = true; }catch(e){ ST.pcDown = true; } }
     rows = sortT(rows); if (rows.length) fcPut(d, rows); return rows;
@@ -406,11 +406,15 @@ async function loadMore(){   // 明細往上滑到底:再往前讀(週末不問;
   // 00:55「明細讀取速度很慢」:一次同時問 8 個平日(原本一天一天排隊問),照日期由新到舊接上
   let got = 0, asked = 0;
   while (ST.more && asked < 24 && got < 3){
-    const ds = []; while (ds.length < 8){ ST.back++; const d = twDate(ST.back), w = new Date(d + "T00:00:00Z").getUTCDay(); if (w !== 0 && w !== 6) ds.push(d); }
+    const ds = [], bk = []; while (ds.length < 8){ ST.back++; const d = twDate(ST.back), w = new Date(d + "T00:00:00Z").getUTCDay(); if (w !== 0 && w !== 6){ ds.push(d); bk.push(ST.back); } }
     asked += ds.length;
-    const ps = ds.map(d => loadFills(d).catch(() => []));   // 同時發出去
-    for (let i = 0; i < ds.length; i++){ const rows = await ps[i]; if (!ST.more) continue;   // 照日期順序接,讀到一天就先秀一天(不等整批)
+    const ps = ds.map(d => loadFills(d).catch(() => null));   // 同時發出去
+    let bad = false;
+    for (let i = 0; i < ds.length; i++){ const rows = await ps[i]; if (!ST.more || bad) continue;   // 照日期順序接,讀到一天就先秀一天(不等整批)
+      // 2026-11-21 漏洞檢查 10:網路斷了不能當成「那天沒成交」(不然會提早停、漏掉日子)→ 從讀失敗那天起,下次往上滑再讀
+      if (rows === null){ bad = true; ST.back = bk[i] - 1; continue; }
       if (rows.length){ ST.fills[ds[i]] = {rows}; ST.order.push(ds[i]); got++; ST.empty = 0; rebuild(); } else if (++ST.empty >= 30) ST.more = false; }
+    if (bad) break;
   }
   ST.loading = false; rebuild();
 }
@@ -423,7 +427,7 @@ function rebuild(){
   if (lv > ST.hi){ ST.hi = lv; notify(`🎉 當沖浮贏 ${lv} 萬`, `持倉 ${ENTRY.length} 檔帳面 ${fmt(fl)}`, "win" + lv); }
   if (lv < ST.lo){ ST.lo = lv; notify(`${"⚠".repeat(Math.min(3, -lv))} 當沖浮輸 ${-lv} 萬`, `持倉 ${ENTRY.length} 檔帳面 ${fmt(fl)}`, "lv" + (-lv)); }
   DAYS = {}; for (const d of ST.order){ const f = ST.fills[d]; if (!f) continue;
-    DAYS[md(d)] = f.rows.map(r => ({nm: r.nm, code: r.code, pct: d === ST.day ? pctOf(r.ex, (ST.q.get(r.code) || {}).y) : "", s: r.s, a: fp(r.ent), b: fp(r.ex), q: r.q, p: r.p})); }
+    DAYS[d] = f.rows.map(r => ({nm: r.nm, code: r.code, pct: d === ST.day ? pctOf(r.ex, (ST.q.get(r.code) || {}).y) : "", s: r.s, a: fp(r.ent), b: fp(r.ex), q: r.q, p: r.p})); }
   repaint();
 }
 function repaint(){ const L = document.getElementById("list"); if (!L) return; const st = L.scrollTop; render(); if (L.scrollTop !== st) L.scrollTop = st; doneSync(true); }
@@ -483,7 +487,7 @@ function vPos(){
    每天開頭一列日期分隔(佔一格,一頁仍是 8 格不切半列);標題列的日期和金額跟著目前最上面那天變 */
 const WD = "日一二三四五六";
 const dayTot = d => DAYS[d].reduce((a,o)=>a+o.p,0);
-const dayLabel = d => { const [m, dd] = d.split("/").map(Number); return `${d}(${WD[new Date(2026, m - 1, dd).getDay()]})`; };
+const dayLabel = d => `${md(d)}(${WD[new Date(d + "T00:00:00Z").getUTCDay()]})`;   /* 2026-11-21 漏洞檢查 9:DAYS 用完整日期 YYYY-MM-DD(跨年星期不會錯、排序不會亂) */
 const fillRow = o => `<div class="prow2"><div class="nm"><b>${esc(o.nm)}</b><div class="cd"><i>${esc(o.code)}</i>${o.pct ? `<em class="${o.pct.startsWith("+")?"up":"dn"}">${esc(o.pct)}%</em>` : ""}</div></div>
       <div class="n${o.b.length > 6 ? " sm" : ""}">${esc(o.b)}</div><div class="n${o.a.length > 6 ? " sm" : ""}">${esc(o.a)}</div><div class="pl ${cls(o.p)}${fmt(o.p).length > 7 ? " sm" : ""}">${fmt(o.p)}</div>
       <div class="now">出場價</div><div class="sub">${sd(o.s)}<span>${o.q}張</span></div><div class="tg">元大成交</div></div>`;
@@ -501,7 +505,7 @@ document.addEventListener("click", e => { if (S.tab === "明細" && !S.days && e
 function vDone(){
   const ks = Object.keys(DAYS), d0 = S.day && DAYS[S.day] ? S.day : ks[0], tot = d0 ? dayTot(d0) : 0;
   if (!ks.length) return [head("明細", md(ST.day || twDate()), fmt(0), "mut"), `<div class="empty">${!keyGet() ? "輸入金鑰後,這裡會列出你元大帳號的成交明細" : ST.loading || !ST.todayTried ? "讀取中…" : esc(ST.pcDown ? "電腦沒開或沒連線,雲端備份也還沒有成交紀錄(11/12 以後的才有雲端備份)" : (ST.posErr || "還沒有成交紀錄"))}</div>`];
-  return [head("明細", d0, fmt(tot), cls(tot)),
+  return [head("明細", d0 ? md(d0) : "", fmt(tot), cls(tot)),
     ks.map(d => `<div class="dsep" data-sep="${d}"><b>${dayLabel(d)}</b><span>${DAYS[d].length} 筆</span><em class="${cls(dayTot(d))}">${fmt(dayTot(d))}</em></div>` + DAYS[d].map(fillRow).join("")).join("")
     + (ST.loading ? `<div class="dsep"><span>讀取更早的紀錄…</span></div>` : "")];
 }
@@ -509,7 +513,7 @@ function vDone(){
 function doneSync(force){ try{ if (S.tab !== "明細" || S.days) return;   /* 2026-11-21 使用者影片:每日畫面的總計被這裡換回最上面那天 → 每日畫面不換 */ if (force) S.day = null; const L = document.getElementById("list"), top = L.getBoundingClientRect().top + 2;
   let cur = null; for (const e of L.querySelectorAll(".dsep")){ if (e.getBoundingClientRect().top <= top) cur = e.dataset.sep; else break; }
   cur = cur || Object.keys(DAYS)[0]; if (cur === S.day) return; S.day = cur;
-  const t = dayTot(cur), hd = document.getElementById("hd"); hd.querySelector(".date").textContent = cur; const a = hd.querySelector(".amt"); a.textContent = fmt(t); a.className = "amt " + cls(t); }catch(e){} }
+  const t = dayTot(cur), hd = document.getElementById("hd"); hd.querySelector(".date").textContent = md(cur); const a = hd.querySelector(".amt"); a.textContent = fmt(t); a.className = "amt " + cls(t); }catch(e){} }
 const PER_PAGE = 8;
 const minRow = () => 3.2 * Math.min(window.innerWidth / 30, window.innerHeight * 0.62 / 30);   /* 最矮列高跟著 --uf(主程式同一套適配) */
 /* 19:10 使用者「資料 滑到底 怎麼有彈性」:列高取整數、清單高度剛好 = 列高 × 檔數(滑到底不會因為零點幾 px 對不齊而彈回);拿掉滑到頭 / 底的拉伸效果 */
