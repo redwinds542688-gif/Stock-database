@@ -168,10 +168,8 @@ class MainActivity : AppCompatActivity() {
         // 2026-11-02 使用者(強制平倉視窗開著又跳「離開程式?」):先讓網頁關最上面那層(appBack:強制交易 / 鑰匙視窗、公式小視窗、設定、K 圖),都沒開才問
         web.evaluateJavascript("(function(){ try{ if (window.appBack){ var r = window.appBack(); if (r) return 'closed'; } var s = document.getElementById('sheet'); if (s && s.classList.contains('open')){ closeChart(); return 'closed'; } }catch(e){} return ''; })()") { r ->
             if (r != null && r.contains("closed")) return@evaluateJavascript
-            AlertDialog.Builder(this).setTitle("離開程式?")
-                .setMessage("確認:回到桌面,背景監控繼續跑、通知照發。")
-                .setPositiveButton("確認") { _, _ -> moveTaskToBack(true) }
-                .setNegativeButton("取消", null).show()
+            // 2026-11-19 16:33 使用者「這個提示不用顯示 如果在主畫面按返回鍵就直接離開畫面 程式後台監控」:不再問「離開程式?」,直接回桌面(背景監控照跑、通知照發)
+            moveTaskToBack(true)
         }
     }
 }

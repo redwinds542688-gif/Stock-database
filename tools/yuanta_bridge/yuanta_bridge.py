@@ -121,12 +121,19 @@ def fills_legs(trades, names=None, disc=0.25, broker=0.001425, tpex=0.0, tax=0.0
 def gh_get(path, ref="main", timeout=30, repo=""):
     """2026-10-29 16:16 repo 改私人:GitHub 的檔案經 Worker 代讀(?gh=raw,帶中繼金鑰);沒設 PUSH_KEY 就直接抓 raw(repo 還公開時能用)
        18:05 repo="logic" = 私人庫 Stock-logic(判一二三、模擬器),一定要經 Worker"""
+    raw = urllib.request.Request(f"https://raw.githubusercontent.com/redwinds542688-gif/Stock-database/{ref}/{path}?t={int(time.time())}", headers={"User-Agent": "yuanta-bridge/1"})
     if CFG.get("PUSH_KEY") and CFG.get("WORKER_URL"):
         url = CFG["WORKER_URL"].rstrip("/") + "/?gh=raw&path=" + path + ("&ref=" + ref if ref != "main" else "") + ("&repo=" + repo if repo else "") + f"&_={int(time.time())}"
         req = urllib.request.Request(url, headers={"X-Push-Key": CFG["PUSH_KEY"], "User-Agent": "yuanta-bridge/1"})
-    else:
-        req = urllib.request.Request(f"https://raw.githubusercontent.com/redwinds542688-gif/Stock-database/{ref}/{path}?t={int(time.time())}", headers={"User-Agent": "yuanta-bridge/1"})
-    return urllib.request.urlopen(req, timeout=timeout).read()
+        try: return urllib.request.urlopen(req, timeout=timeout).read()
+        except urllib.error.HTTPError as e:
+            if e.code == 404 or repo: raise
+            log(f"雲端讀不到 {path}(HTTP {e.code})→ 改直接從 GitHub 讀")
+        except Exception as e:
+            if repo: raise   # 私人庫只能經雲端
+            log(f"雲端讀不到 {path}({str(e)[:60]})→ 改直接從 GitHub 讀")   # 2026-11-20 使用者「改1234」 1:公開庫的檔(名單、版本、程式更新)
+        return urllib.request.urlopen(raw, timeout=timeout).read()
+    return urllib.request.urlopen(raw, timeout=timeout).read()
 
 
 def load_env():
@@ -889,7 +896,7 @@ class Bridge:
         halted = (t.stop_file if t else stop_path(CFG)).exists()   # 2026-10-31 緊急停止狀態(手機標題變灰色)
         if not t:
             return {"ok": False, "msg": "電腦的交易程式還沒啟動(盤前 / 收盤後)", "halted": halted}
-        return {"ok": True, "enabled": t.enabled, "pos": t.positions_view(), "locked": sorted(t.locked), "skipped": sorted(getattr(t, "skipped", set()))[-300:], "closed": sorted(getattr(t, "closed_ok", set()))[-300:], "at": now_tw().strftime("%H:%M:%S"), "halted": halted, "pxOk": True, "redo": t.over_list() if hasattr(t, "over_list") else [], "ignore": sorted(c for c in getattr(t, "ignore", set()) if c != "YY0070")}   # ignore:2026-11-17 09:46 使用者「庫存的和益是借卷 空 我已經贖回 這邊不用顯示和益做多」→ 手機監控區 / 當沖不列不管名單的成交   # redo:2026-11-03 超額訊號回到上限內、等手機確認補進場的   # pxOk:2026-11-03 起強制進場可指定委託價(舊版電腦沒有這個 → 手機不顯示調價格)
+        return {"ok": True, "enabled": t.enabled, "pos": t.positions_view(), "locked": sorted(t.locked), "skipped": sorted(getattr(t, "skipped", set()))[-300:], "closed": sorted(getattr(t, "closed_ok", set()))[-300:], "at": now_tw().strftime("%H:%M:%S"), "halted": halted, "pxOk": True, "orders": t.live_orders() if hasattr(t, "live_orders") else None, "redo": t.over_list() if hasattr(t, "over_list") else [], "ignore": sorted(c for c in getattr(t, "ignore", set()) if c != "YY0070")}   # ignore:2026-11-17 09:46 使用者「庫存的和益是借卷 空 我已經贖回 這邊不用顯示和益做多」→ 手機監控區 / 當沖不列不管名單的成交   # redo:2026-11-03 超額訊號回到上限內、等手機確認補進場的   # pxOk:2026-11-03 起強制進場可指定委託價(舊版電腦沒有這個 → 手機不顯示調價格)
 
     def trade_cmd(self, cmd):
         pin = CFG.get("TRADE_CMD_PIN", "")
@@ -1386,7 +1393,11 @@ class Bridge:
         if FAMILY: return   # 2026-11-15 家人帳號:多空上限照自己的 bridge.env,不跟 5861 主導機
         v = fetch_cap(CFG["WORKER_URL"], CFG.get("PUSH_KEY", ""))
         if v: v = min(v, 250000)   # 2026-11-11 22:46 使用者「最多上限改25萬」
-        if v: self.trader.master_cap = v; self.cap_ok_day = time.strftime("%Y-%m-%d", time.gmtime(time.time() + 8 * 3600))   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:讀到了(今天)
+        try: import trader as _trc; _cached = bool(getattr(_trc, "CAP_FROM_CACHE", False))
+        except Exception: _cached = False
+        if v and _cached: log(f"多空上限:雲端讀不到,用電腦存的最後一次 {v:,}(雲端恢復會再讀)")
+        if v: self.trader.master_cap = v
+        if v and not _cached: self.cap_ok_day = time.strftime("%Y-%m-%d", time.gmtime(time.time() + 8 * 3600))   # 2026-11-20:用電腦存的不算「今天讀到了」,雲端恢復還會再讀   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:讀到了(今天)
         if self.trader.cap <= 0: return
         if v and v != self.trader.cap:
             log(f"多空上限 {self.trader.cap:,} → {v:,}(5861 主導機)"); self.trader.cap = v
@@ -1690,6 +1701,25 @@ class Bridge:
             if m in self.sent:
                 self.push(day, m, self.book.take(m))
 
+    def nap(self, day, total=1.0):
+        """2026-11-20 使用者「改1,4」:主迴圈每圈睡 1 秒 → 引擎的進場通知平均晚 0.5 秒才被讀到。
+           改成睡的時候每 0.2 秒看 live_<日期>.jsonl 大小,變大了就馬上讀、交給 trader(主執行緒,和主迴圈同一條路);主迴圈其他每 N 秒的工作節奏不變"""
+        t_end = time.time() + total; step = float(CFG.get("SIG_LOCAL_SEC", "0.2") or 0.2)
+        f = Path(os.environ.get("ENGINE_DIR", HERE / "engine_data")) / f"live_{day}.jsonl"
+        while True:
+            left = t_end - time.time()
+            if left <= 0: return
+            time.sleep(min(step, left))
+            try:
+                t_ = self.trader
+                if t_ is None or not (t_.enabled and getattr(t_, "primed", False)): continue
+                st = getattr(self, "_loc", None)
+                if not st or st.get("day") != day or not f.exists() or f.stat().st_size == st.get("off"): continue
+                loc = self.local_signals(day)
+                if loc: self.trader.step(loc)
+            except Exception as e:
+                if time.time() - getattr(self, "_nap_err", 0) > 300: self._nap_err = time.time(); log("[交易] !! 本機通知快讀出錯(下一圈照常讀)", e)
+
     def local_signals(self, day):
         """2026-10-30 讀電腦引擎寫的本機通知檔 engine_data/live_<日期>.jsonl 新增的行(開工時從檔尾開始,之前的當舊的;換日換檔)"""
         f = Path(os.environ.get("ENGINE_DIR", HERE / "engine_data")) / f"live_{day}.jsonl"
@@ -1770,7 +1800,7 @@ class Bridge:
                     self.last_recon = time.time() - 50                       # 重連後 10 秒就對帳一次
                     if not resumed:
                         self.resume_positions(day); resumed = True          # 今天第一次連上:接回程式開的未平部位(斷線重連不用,部位一直在記憶體裡)
-                time.sleep(1); k += 1
+                self.nap(day); k += 1   # 2026-11-20 使用者「改1,4」:原 time.sleep(1);等的這 1 秒裡每 0.2 秒看一次電腦引擎的本機通知檔,有新的馬上交給 trader
                 try: self.fut_poll()   # ⑧ 備援 2:電腦直接問期交所台指期(每 10 秒,08:44~13:46)
                 except Exception: pass
                 try: self.ix_poll()   # 2026-11-18 21:05 加權指數直接問證交所(每 5 秒,09:00~13:31)
@@ -2031,6 +2061,17 @@ def main():
     if CFG.get("QUOTE_ENABLE", "0") == "1":        # 預設關閉:要使用者自己決定要不要讓手機即時價走元大(會透過 Cloudflare Tunnel 對外開一個要金鑰的服務;2026-10-28 起也接手機的強制交易指令,要 TRADE_CMD_PIN)
         b.serve_quotes()
     hist_done = set()
+    # 2026-11-19 19:30 使用者「雲端更新,電腦也有跟著更新」→「現在馬上做」:另開一條執行緒,每 10 分鐘把 GitHub 三個庫同步到 C:\Yuanta\雲端備份\<庫名>(win_sync.py);
+    #   盤中一次最多 200 個檔(不影響行情 / 下單),盤後不限;bridge.env 設 CLOUD_SYNC=0 可關掉
+    if CFG.get("CLOUD_SYNC", "1") == "1" and not FAMILY:
+        def _sync_loop():
+            time.sleep(60)
+            while True:
+                try:
+                    import importlib, win_sync; importlib.reload(win_sync); win_sync.run(log)
+                except Exception as e: log("雲端同步失敗", e)
+                time.sleep(600)
+        threading.Thread(target=_sync_loop, daemon=True, name="cloud_sync").start()
     while True:
         n = now_tw(); hm = n.strftime("%H:%M")
         # 2026-10-29 13:38 使用者「明細沒了」:收盤後(或重開程式時)今天還沒存到元大成交 → 登入一次查完存起來就登出(一天只試一次,手機明細才有今天的真實成交)

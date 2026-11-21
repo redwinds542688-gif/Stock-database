@@ -979,7 +979,8 @@ at(12, 29); tz2, gz2 = mk(); tz2.on_tick("6269", 87.0); tz2.step([LTX("lz2")]); 
 # 2026-11-11 改13:設定檔開關不能關掉鐵律保護
 at(10, 0); tk_, gk_ = mk(TRADE_Y3="0", TRADE_FORCE_EXIT="13:28", TRADE_JUDGES="", TRADE_CAP="250000"); ok(tk_.y3 and tk_.force_exit == "13:20" and "判七" in tk_.judges, (tk_.y3, tk_.force_exit, tk_.judges))
 tk_.ref_of = lambda c: 50.0; tk_.on_tick("2330", 50.0); tk_.on_report(51, "M1", 0, 1000, 50.0, basket="", code="2330", bs="B"); ok(tk_.positions["2330"]["judge"] == "元三")   # TRADE_Y3=0 也接手
-tk2, gk2 = mk(TRADE_CAP="250000"); tk2.ref_of = lambda c: 50.0; tk2.on_tick("2331", 50.0); tk2.step([sig("kk2", "long", "股 2331 做多進場 50.00", "10:00 多 · 停利 51.50 停損 49.00 · 判十")]); ok("2331" not in tk2.positions)   # 找不到判一~九不進(2026-11-14 判八 / 判九上線,改用判十當不存在的例子)
+tk2, gk2 = mk(TRADE_CAP="250000"); tk2.ref_of = lambda c: 50.0; tk2.on_tick("2331", 50.0); tk2.step([sig("kk2", "long", "股 2331 做多進場 50.00", "10:00 多 · 停利 51.50 停損 49.00 · 判甲")]); ok("2331" not in tk2.positions)   # 2026-11-19 判十 11/18 已上線(使用者「判十 已經是正式判別式」)→ 找不到的判別式改用「判甲」
+tk10, gk10 = mk(TRADE_CAP="250000"); tk10.ref_of = lambda c: 50.0; tk10.on_tick("2333", 50.0); tk10.step([sig("kk10", "long", "股 2333 做多進場 50.00", "10:00 多 · 停利 51.50 停損 49.00 · 判十")]); ok("2333" in tk10.positions)   # 判十正式下單   # 找不到判一~九不進(2026-11-14 判八 / 判九上線,改用判十當不存在的例子)
 tk8, gk8 = mk(TRADE_CAP="250000"); tk8.ref_of = lambda c: 50.0; tk8.on_tick("2332", 50.0); tk8.step([sig("kk8", "short", "股 2332 做空進場 50.00", "10:00 空 · 停利 48.50 停損 50.75 · 判八")]); ok("2332" in tk8.positions)   # 2026-11-14 判八上線:照通知下單
 tk9, gk9 = mk(TRADE_CAP="250000"); tk9.ref_of = lambda c: 80.0; tk9.on_tick("2333", 80.0); tk9.step([sig("kk9", "short", "股 2333 做空進場 80.00", "10:00 空 · 停利 77.60 停損 81.20 · 判九")]); ok("2333" in tk9.positions)   # 2026-11-14 判九上線:照通知下單
 igk = tmp / "ign2.txt"; igk.write_text("1709\n", encoding="utf-8"); at(8, 31); tk3, gk3 = mk(TRADE_IGNORE_FILE=str(igk)); tk3.step([]); ok(any("不受程式管" in a and "1709" in a for a in tk3.alerts), tk3.alerts); at(10, 0)
@@ -1096,6 +1097,14 @@ igz = tmp / "ign9.txt"; igz.write_text("1709\n", encoding="utf-8"); at(11, 0); t
 _np, _na = len(tz9.posts), len(getattr(tz9, "_alerts", []) or [])
 tz9.on_report(50, "M90", 0, 1000, 49.0, "", "1709", "B", "3"); tz9.on_report(51, "M90", 0, 1000, 49.0, "", "1709", "B", "3")
 ok("1709" not in tz9.positions and len(tz9.posts) == _np and "M90" not in tz9.man_cards, (tz9.positions.get("1709"), tz9.posts[_np:]))
+# 2026-11-20 使用者「改1234」 4:雲端讀不到多空上限 → 用電腦存的最後一次(不算「今天讀到了」)
+import trader as _trc4, os as _os4
+_cf4 = _os4.path.join(_os4.path.dirname(_os4.path.abspath(_trc4.__file__)), "cloud_cap_last.json"); _bk4 = open(_cf4, encoding="utf-8").read() if _os4.path.exists(_cf4) else None
+open(_cf4, "w", encoding="utf-8").write('{"cap": 180000, "set": {"lot_mode": 2}, "at": "t"}')
+ok(_trc4.fetch_cap("http://127.0.0.1:9", "x") == 180000 and _trc4.CAP_FROM_CACHE and _trc4.CLOUD_SET.get("lot_mode") == 2, (_trc4.CAP_FROM_CACHE, _trc4.CLOUD_SET))
+_os4.remove(_cf4)
+ok(_trc4.fetch_cap("http://127.0.0.1:9", "x") is None)   # 雲端讀不到、電腦也沒存過 → 維持原值
+if _bk4 is not None: open(_cf4, "w", encoding="utf-8").write(_bk4)
 print("trader.py 測試通過(延遲紀錄 3 + 32 + 17 + 3 + 2 + 平倉檢查 18 + 對帳 3 + 稽核修正 13 種情況 + 等確認對帳 2 + 超額 1 + 張數 1 + 判四 1 + 持倉上限 1 + 虧損全平 1 + 進場補單 3 + 元大拒單停做 1 + 虧損級距通知 1 + 賺錢慶祝 1 + 緊急全平 1 + 手動加碼併入 3 + 未交易標記 1 + 強制進場指定價 4 + 只全部平倉 2 + 超額確認補進場 9 + 元三分批成交卡 2 + 元三強三改±8.5% 9 + 強制進場±6.5%擋 3 + 太晚補進場 6 + 盤中預掛讓位 5 + 手動預掛卡 1 + 無券不空 1 + 長按強平接手動單 4 + 預掛取消前成交再強平 2 + 元大條件單跟部位 6 + 預掛條件單互斥 6 + 再檢查 4 + 條件單回應對代碼 1 + 條件單保險 2 + 進場補單逾時取消 2 + 現價過停損不進 1 + 預掛扣額度 6 + 進場中先扣額度 2 + 補單限價 1 + 部分預掛只平沒預掛的 5 + 預掛取消條件單改回全部張數 5 + 部分預掛中強平全平 6 + 等確認刪除才掛條件單 7 + 判七上線 2 + 判六上線 4 + 判七 +8% 強平 2 + 判二大盤分級檔數 7 + 判二寬度範圍 11 + 條件單編號存檔 3 + 沒昨收不進 3 + 預掛鐵律 9 + 主導機上限 4 + 手動受管束 13 + 超額補進 10 分鐘 6 + 太晚補進 10 分鐘 3 + 設定關不掉保護 4 + 第二輪 1~5 9 + 全改 9 + 第三輪 9 + 超額補進鐵律平倉 2)")
 
 # 2026-11-17 14:52 使用者「多出來二張 程式就照反向監管」:預掛比部位多,全部成交 → 多出來的當下接成元三(反向)
@@ -1154,3 +1163,67 @@ nb_ = len(gb_.sent); tb_.on_other_fill("6269", "S", 1000, 86.5, "M301"); ok(pb_[
 tb_.on_strategy_reply("K0002", True, ""); tb_.on_other_fill("6269", "S", 1000, 86.6, "M302"); ok(("oco", "6269", "TWSE", -1, 3) == gb_.sent[-1][:5], gb_.sent[-3:])
 adds = [b for a, b, k in tb_.posts if "加碼" in b]; ok(adds and "· 2張 ·" in adds[-1] and "共 3 張" in adds[-1], adds)
 print("判別式被手動加碼改元三後重掛條件單、同分鐘加碼卡累計 OK")
+# 2026-11-20 10:25 手機平倉價(顯示用):停損 / 移平 / 離昨收 ±x% 取反向最先碰到的
+tx_, gx_ = mk(); tx_.last_px["5314"] = 19.0
+tx_.positions["5314"] = {"code": "5314", "dir": -1, "qty": 6, "entry": 19.35, "judge": "元三", "state": HOLDING, "tp": 18.77, "sl": 20.22, "t0": "09:59", "mt_px": 19.12}
+vx_ = {q["code"]: q for q in tx_.positions_view()}["5314"]; ok(abs(vx_["xp"] - 19.12 * 1.03) < 1e-6, vx_)   # 移平 19.69 比停損 20.22 近
+tx_.positions["5314"]["mt_px"] = None; ok(abs({q["code"]: q for q in tx_.positions_view()}["5314"]["xp"] - 19.35 * 1.03) < 1e-6)
+tx_.positions["5314"].update({"dir": 1, "sl": 18.9, "mt_px": 19.5}); ok(abs({q["code"]: q for q in tx_.positions_view()}["5314"]["xp"] - 19.5 * 0.97) < 1e-6)   # 做多:取最高(18.92 > 18.9)
+print("手機平倉價(最先碰到的反向價)OK")
+# 2026-11-20 10:37 鐵律 ⑥ 修改:手動加碼 → 移平最有利價重設成新均價
+tm_, gm_ = mk(); tm_.last_px["2603"] = 239.0
+tm_.positions["2603"] = {"code": "2603", "dir": -1, "qty": 1, "entry": 239.0, "judge": "判四", "state": HOLDING, "tp": 226.33, "sl": 249.08, "t0": "10:05", "mt_px": 236.0}
+tm_.on_other_fill("2603", "S", 1000, 240.5, "M901"); pm_ = tm_.positions["2603"]
+ok(pm_["qty"] == 2 and abs(pm_["mt_px"] - 239.75) < 1e-9 and abs(tm_.exit_px(pm_) - min(pm_["sl"], 239.75 * 1.03)) < 1e-6, pm_)
+tm_._mt_test = True; ok(not tm_.mt_px_hit(pm_, 245.0, -1, pm_["entry"]))   # 原本最有利 236 × 1.03 = 243.08 → 245 會平;重算後 239.75 × 1.03 = 246.94 不平
+ok(tm_.mt_px_hit(pm_, 247.0, -1, pm_["entry"]))
+print("鐵律 ⑥ 手動加碼移平重算 OK")
+# 2026-11-20 使用者「改1,2」② 熱門股先算:分組算完的交回順序 —— 有上限的判別式會是新進場時,等原本排前面的同判別式先對帳
+class _FP:
+    def __init__(self, order): self.order = order
+    def imap_unordered(self, fn, args, chunksize=1):
+        m = {a[0]: a for a in args}; seen = [a[0] for a in args]
+        for c in self.order: yield [(c, rs, OUT_[(rs, c)], "") for rs, _ in m[c][2]]
+_ENTRY4 = "  10:05 判四 測試 → 進場空 50.00 ×3張,停損 52.00\n"
+def _mkeng(order, hot=()):
+    e_ = _eng.Engine.__new__(_eng.Engine); e_.pos = {}; e_.upto_hm = "10:07"; e_.hot = {c: "10:06" for c in hot}; e_.pool = _FP(order); return e_
+_jobs = [("A", "A", "四", {}, "d"), ("B", "B", "四", {}, "d"), ("A", "A", "一", {}, "d"), ("B", "B", "一", {}, "d")]
+OUT_ = {("四", "A"): _ENTRY4, ("四", "B"): _ENTRY4, ("一", "A"): "", ("一", "B"): ""}
+e1_ = _mkeng(["B", "A"], hot=["B"]); g1_, n1_ = e1_._compute_group(_jobs, True); r1_ = [(r[1], r[0]) for r in g1_]
+ok(r1_ == [("四", "A"), ("一", "A"), ("四", "B"), ("一", "B")], r1_)   # B 先算完,但判四 B 會進場、A 排前面 → 等 A
+OUT_[("四", "B")] = ""; e2_ = _mkeng(["B", "A"], hot=["B"]); r2_ = [(r[1], r[0]) for r in e2_._compute_group(_jobs, True)[0]]
+ok(r2_ == [("四", "B"), ("一", "B"), ("四", "A"), ("一", "A")], r2_)   # B 沒訊號 → 算完就交回
+ok(e2_._hot_codes() == {"B"})
+# 2026-11-21 沒有上限的判別式也一樣:中繼總額度先到先拿 → 判一 B 會進場、A 排前面 → 等 A
+_jobs1 = [("A", "A", "一", {}, "d"), ("B", "B", "一", {}, "d")]; _E1 = "  10:05 強多 價 50.00 → 進場 50.00 ×3張\n"
+OUT_.update({("一", "A"): "", ("一", "B"): _E1}); e3_ = _mkeng(["B", "A"], hot=["B"]); r3_ = [(r[1], r[0]) for r in e3_._compute_group(_jobs1, True)[0]]
+ok(r3_ == [("一", "A"), ("一", "B")], r3_)
+ok(_eng.sim_trades(_eng.parse_events(_E1), "10:07")[1] is not None)   # 測試用的進場行真的會被當成新進場
+print("熱門股先算 / 交回順序 OK")
+# 2026-11-20 使用者「改B」:名單這類資料只在前段用到才共用;函式裡 / 後段 / globals()['名字'] 用到就不共用;函式自己的區域變數同名不算
+import ast as _ast_t
+_u = _eng._ss_uses(_ast_t.parse("P = {'a': 1}\nQ = [1]\nR = 2\ndef f():\n    P = []\n    P.append(1)\n    return Q\ng = lambda: globals()['R']\n"))
+ok(_u["P"] == {0} and -1 in _u["Q"] and -1 in _u["R"], _u)
+print("名單資料共用判斷 OK")
+# 2026-11-21 使用者「B」:寬度最新分鐘是電腦補的 → 看寬度的判別式新進場先等雲端,雲端補齊只重算那幾筆
+import time as _tt
+_eng._BR_FILLED.clear(); _eng._BR_FILLED.update({"10:05", "10:06"}); _eng._BR_LAST.update(d="d", br={"10:04": 0.5}, av={"10:04": 0.1}, at=_tt.time())
+ok(_eng.br_wait_on("10:07") == "10:05")
+_eng._BR_LAST["at"] = _tt.time() - 300; ok(_eng.br_wait_on("10:07") == "")   # 雲端很久沒抓到(斷線)→ 不等,照電腦算的
+_eng._BR_LAST["at"] = _tt.time(); _eng._BR_FILLED.clear(); _eng._BR_FILLED.add("09:50"); ok(_eng.br_wait_on("10:07") == "")   # 很久以前的缺口不算
+_eng._BR_FILLED.clear(); _eng._BR_FILLED.update({"10:05", "10:06"})
+_calls = {"since": 0}
+def _bs(day, since):
+    _calls["since"] += 1
+    if _calls["since"] >= 2: _eng._BR_LAST["br"].update({"10:05": 0.4, "10:06": 0.4}); _eng._BR_LAST["av"].update({"10:05": 0.0, "10:06": 0.0})
+    return True
+_ba = []; _orig = (_eng.breadth_since, _eng.breadth_apply, _eng._msec)
+_eng.breadth_since = _bs; _eng.breadth_apply = lambda d, br, av: _ba.append(sorted(br)) or (True, len(br), max(br)); _eng._msec = lambda: 10.0
+e4_ = _eng.Engine.__new__(_eng.Engine); e4_.sent = []; e4_.br_wait = {("二", "2330")}
+_got = {}
+e4_.compute = lambda only=None, stream=False: (_got.setdefault("only", only), ([("2330", "二", "", "")], 0.1, 1))[1]
+e4_.apply = lambda res, hm, **kw: _got.setdefault("apply", (len(res), hm, kw.get("allow_phantom")))
+e4_.br_recheck("d", "10:07", {})
+ok(_got.get("only") == {("二", "2330")} and _got.get("apply") == (1, "10:07", False) and _ba and "10:06" in _ba[-1], (_got, _ba))
+_eng.breadth_since, _eng.breadth_apply, _eng._msec = _orig; _eng._BR_FILLED.clear()
+print("寬度電腦補 → 等雲端再發 OK")

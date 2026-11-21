@@ -15,7 +15,7 @@
 
 這個檔不依賴元大元件:下單 / 取消透過 gateway(bridge 提供),測試時可以換成假的。
 """
-import json, math, re, time, threading, urllib.request
+import json, math, os, re, time, threading, urllib.request
 from pathlib import Path
 
 
@@ -1021,6 +1021,10 @@ class Trader:
             #   (張數加總、均價重算;停利 / 停損從新均價重算(判一~四照原本離進場價的 %,強三 / 元三照設定 %);平倉時全部一起平)
             tot = p["qty"] + lots; e0 = p["entry"]
             p["entry"] = (p["entry"] * p["qty"] + price * lots) / tot; p["qty"] = tot; self.amount_today += price * lots * 1000
+            # 2026-11-20 10:37 🔓→🔒 鐵律 ⑥ 修改(使用者「移平也要重算 改鐵律」):手動加碼 → 移平的最有利價重設成新均價(從加碼這刻重新記最高 / 最低),
+            #   原本沿用第一筆進場以來的最有利價(世紀 11/20 做空最低約 19.12,加碼後移平線還是 19.70 附近);3% 幅度不變
+            mt0 = p.get("mt_px"); p["mt_px"] = p["entry"]; p.pop("mt_a", None); self.prot_save(p)
+            self.log(f"[交易] {code} 手動加碼 → 移平重算:最有利價 {mt0 if mt0 is not None else '—'} → 新均價 {p['entry']:.2f}(鐵律 ⑥)")
             p["y3_lots"] = max(p.get("y3_lots") or 0, tot); p["y3_px"] = p["entry"]
             if p.get("judge") not in (MANUAL, FORCED):   # 2026-11-11 16:49 使用者「手動進場或加碼 … 都受判三管轄」:判別式部位被手動加碼 → 整個部位改由判三管(記「元三」,停利 / 停損照判三 % 從新均價算)
                 self.log(f"[交易] {code} {p.get('judge')} 部位被手動加碼 → 改由判三管(元三,停利 {self.y3_tp:g}% / 停損 {self.y3_sl:g}%)")
@@ -1793,10 +1797,41 @@ class Trader:
             self.log(f"[交易] {code} 長按強平:元大有手動 {abs(n)} 張{'多' if d > 0 else '空'}單、程式還沒接手 → 接成元三(均價 {avg:.2f})馬上強平")
             return self.force_close(code, cmd_id)
 
+    def live_orders(self):
+        """2026-11-19 13:42 使用者「改」(友達 12:10 預掛掛了又取消,手機一直顯示預掛中):元大現在還掛著的手動預掛委託,給手機直接對
+        kind = new(新進場 / 加碼預掛)/ close(平倉預掛);成交完 / 取消 / 失效的不列"""
+        out = []
+        with self.lock:
+            for no, mc in list(self.man_cards.items()):
+                if mc.get("end") or (mc.get("lots") and mc.get("fl", 0) >= mc["lots"]): continue
+                out.append({"code": mc.get("code", ""), "no": no, "kind": "new", "side": "long" if mc.get("d", 0) > 0 else "short", "px": mc.get("px") or 0, "lots": mc.get("lots", 0) - mc.get("fl", 0)})
+            for code, lst in list(self.prehang.items()):
+                for no in lst or []:
+                    m = self.man_meta.get(no) or {}
+                    out.append({"code": code, "no": no, "kind": "close", "bs": m.get("bs", ""), "px": m.get("px") or 0, "lots": (m.get("lots") or 0) - (m.get("fl") or 0)})
+        return out
+
     def positions_view(self):
         with self.lock:
             return [{"code": p["code"], "dir": p["dir"], "qty": p["qty"], "entry": round(p["entry"], 2), "judge": p["judge"], "state": p["state"],
-                     "tp": p["tp"], "sl": p["sl"], "t0": p.get("t0", "")} for p in self.positions.values()]
+                     "tp": p["tp"], "sl": p["sl"], "t0": p.get("t0", ""), "xp": self.exit_px(p)} for p in self.positions.values()]
+
+    def exit_px(self, p):
+        """2026-11-20 10:25 使用者「每張卡片 在最右下面 輸 的前面 顯示一個 平倉價 進場時 就加上 接近時 變色提示」→ 選「最先會碰到的反向價」:
+           只給手機顯示用(不改任何平倉判斷):停損、移平(⑥ 最有利價 × (1 ∓ 3%))、離昨收 ±x% 三個裡,做空取最低、做多取最高 = 股價往反方向走最先碰到的那個價"""
+        try:
+            d = p["dir"]; c = []
+            if p.get("sl"): c.append(float(p["sl"]))
+            if self.mtsl > 0 and p.get("entry"):
+                th = max(self.mtsl, IRON_MTSL_EX.get(p.get("judge"), 0)) if p.get("judge") in IRON_MTSL_EX else self.mtsl
+                a = float(p.get("mt_px") or p["entry"]); c.append(a * (1 - th / 100) if d > 0 else a * (1 + th / 100))
+            ref = self.ref_of(p["code"]) or p.get("ref") or 0
+            man = p.get("judge") in (MANUAL, FORCED) and self.man_move > 0
+            mm = self.man_move if man else self.j7_move if p.get("judge") in ("判七", "判四", "判五") and self.j7_move > 0 else self.max_move
+            if (man or not p.get("no_max_move")) and ref > 0 and mm > 0: c.append(ref * (1 - mm / 100) if d > 0 else ref * (1 + mm / 100))
+            c = [x for x in c if x > 0]
+            return round(max(c) if d > 0 else min(c), 4) if c else 0
+        except Exception: return 0
 
     # ── 訊號 ──
     def exit_match(self, p, judge):
@@ -2566,14 +2601,25 @@ CLOUD_SET = {}   # 2026-11-07 主導機的整組設定(手續費估算用);fetch
 
 def fetch_cap(worker_url, push_key=""):
     """2026-11-02 多空上限主控(使用者:「金鑰裡面有5861的為主導機」):讀 5861 主導機設定的每筆上限(元);讀不到 / 沒設過 / 超出 5萬~50萬 → None(維持原值)"""
+    global CAP_FROM_CACHE
+    f = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cloud_cap_last.json")   # 2026-11-20 使用者「改1234」 4:讀到就存一份,雲端讀不到用最後一次的
     try:
         r = urllib.request.urlopen(urllib.request.Request(f"{worker_url.rstrip('/')}/?cap=get&_={int(time.time())}", headers={"X-Push-Key": push_key or "", "User-Agent": "yuanta-bridge/1"}), timeout=8)
-        j = json.loads(r.read().decode("utf-8"))
-        if isinstance(j.get("set"), dict): CLOUD_SET.clear(); CLOUD_SET.update(j["set"])
-        v = int(j.get("cap") or 0)
-        return v if 50000 <= v <= 500000 else None
+        j = json.loads(r.read().decode("utf-8")); CAP_FROM_CACHE = False
+        try:
+            with open(f + ".tmp", "w", encoding="utf-8") as fh: json.dump({"cap": j.get("cap"), "set": j.get("set"), "at": time.strftime("%Y-%m-%d %H:%M", time.gmtime(time.time() + 8 * 3600))}, fh, ensure_ascii=False)
+            os.replace(f + ".tmp", f)
+        except Exception: pass
     except Exception:
-        return None
+        try:
+            with open(f, encoding="utf-8") as fh: j = json.load(fh)
+            CAP_FROM_CACHE = True
+        except Exception: return None
+    if isinstance(j.get("set"), dict): CLOUD_SET.clear(); CLOUD_SET.update(j["set"])
+    try: v = int(j.get("cap") or 0)
+    except Exception: return None
+    return v if 50000 <= v <= 500000 else None
+CAP_FROM_CACHE = False   # fetch_cap 這次是不是用電腦存的(雲端讀不到)
 
 
 def fetch_signals(worker_url, day, push_key=""):
