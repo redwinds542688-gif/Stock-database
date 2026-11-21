@@ -13,8 +13,8 @@
 2026-10-28 手機強制進場 / 強制平倉:手機 → Worker(?trade=cmd / ?trade=pos)→ Cloudflare 通道 → 這支程式的 /trade/cmd、/trade/pos;
   要 QUOTE_ENABLE=1(通道);TRADE_CMD_PIN 可不設(2026-10-29 使用者決定不用密碼),有設手機就要帶同一組。
 """
-import math
-import json, os, re, sys, time, threading, urllib.request, urllib.error, datetime as dt
+import contextlib, math
+import hmac, json, os, re, sys, time, threading, urllib.request, urllib.error, datetime as dt
 from pathlib import Path
 from bars import BarBook
 from trader import Trader, fetch_signals, fetch_cap
@@ -205,6 +205,82 @@ class LoginRejected(Exception):
     """元大明確拒絕登入(帳密錯、密碼凍結、沒權限):不能一直重試,錯的密碼連續試會把帳號鎖住"""
 
 
+class LoginRetry(Exception):
+    """2026-11-21 使用者「全改」(檢查 R1):元大暫時不給登入(0016 請勿連續登入、沒看過的碼)→ 退避後再試,不停一整天"""
+
+
+# 2026-11-21 使用者「全改」(檢查 R1):原本登入回應只要不是成功就整天停(LoginRejected),連中繼自己重連造成的「0016 請勿連續進行系統登入作業」也停 →
+#   13:20 全部平倉都不做。改成分兩種:
+#   永久(帳密錯、0102 密碼凍結 / 未啟用、0112 無此權限、帳號 / 憑證有問題)→ 當天停(錯的密碼連續試會被鎖);
+#   其他(0016、0000 執行失敗、沒看過的碼)→ 暫時:30 / 60 / 120 / 240 / 300 秒退避再登入,當天最多 LOGIN_RETRY_MAX(預設 10)次,手機只提醒一次
+LOGIN_OK = ("0001", "00001")
+LOGIN_FATAL = {"0102", "0112"}   # 元大文件「登入」:0102 密碼凍結或未啟用、0112 無此權限使用功能(0000 執行失敗 = 原因不明,當暫時)
+LOGIN_FATAL_RE = re.compile(r"密碼.{0,6}(錯|誤|不符|凍結|鎖)|帳號.{0,6}(錯|誤|不存在|不符|凍結|停用|鎖)|凍結|未啟用|無此權限|權限不足|憑證.{0,6}(錯|誤|失效|過期|異常)")
+
+
+def login_kind(code, msg="", count=0):
+    """登入回應 → "ok" / "fatal"(當天不再試)/ "retry"(退避後再試)"""
+    code = str(code or "").strip(); msg = str(msg or "")
+    try: cnt = int(count or 0)
+    except Exception: cnt = 0
+    if code in LOGIN_OK or cnt > 0: return "ok"
+    if code in LOGIN_FATAL or LOGIN_FATAL_RE.search(msg): return "fatal"
+    return "retry"
+
+
+def login_backoff(n):
+    """第 n 次暫時被拒後要等幾秒:30、60、120、240、300…(元大規定登入每 4 秒最多 1 次,這裡遠大於 4 秒)"""
+    return max(30, min(300, 30 * 2 ** max(0, int(n) - 1)))
+
+
+# 2026-11-21 使用者「全改」(輕微項):台灣股市休市日(和 app/app.html 的 TW_HOLIDAYS 同一份;週六日另外判斷)。休市日不登入元大
+#   (原本整天每分鐘「沒有逐筆 → 斷線重登」);bridge.env 可用 MARKET_HOLIDAYS=YYYY-MM-DD,… 追加(例如颱風停止交易),HOLIDAY_SKIP=0 關掉
+TW_HOLIDAYS = {"2026-01-01", "2026-02-12", "2026-02-13", "2026-02-16", "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20", "2026-02-27",
+               "2026-04-03", "2026-04-06", "2026-05-01", "2026-06-19", "2026-09-25", "2026-09-28", "2026-10-09", "2026-10-23", "2026-10-26", "2026-12-25"}
+
+
+def is_holiday(day):
+    if CFG.get("HOLIDAY_SKIP", "1") != "1": return False
+    extra = {x.strip() for x in CFG.get("MARKET_HOLIDAYS", "").split(",") if x.strip()}
+    return str(day) in TW_HOLIDAYS or str(day) in extra
+
+
+def fill_key(t):
+    """成交回報的「完全相同」鍵(和 trader.resume、quota_from_report 去重複用的同一組:書號 + 時間 + 價 + 量 + 買賣 + 代碼;有成交序號時加上序號)"""
+    return (str(t.get("order_no", "")), str(t.get("time", "")), float(t.get("price") or 0), int(t.get("lots") or 0), str(t.get("bs", "")), str(t.get("code", "")), str(t.get("fill_id", "")))
+
+
+def fills_guard(trades, mine=None):
+    """2026-11-21 使用者「全改」(檢查 R4):元大成交回報可能同一筆回兩次,但回報裡沒有確定的「每筆成交序號」(只有書號、DateTime、價、量),
+       同一張委託同一時間、同價、同量成交兩筆也是真的有可能 → 不能直接刪。這裡只「看出可疑」:
+         每檔算兩個淨部位:原樣(raw)和完全相同的只算一次(dd)。
+         · 一樣 → 照原樣;兩個同方向、張數不同 → 用張數少的那份(平少的那份一定不會反向開新倉);
+         · 方向不同 / 一個是 0 → 有 mine(程式自己記的部位 {code: 有號張數})且等於其中一個 → 用那一個(不是只靠可疑的差額);
+           否則 = 判斷不了 → 這檔列進 amb(呼叫的人跳過這檔、不送單,推手機請人工確認)。
+       回傳 (safe_trades, suspects{code: [重複的成交]}, amb{code: (raw, dd)});沒有可疑的檔,safe_trades 就是原樣"""
+    mine = mine or {}
+    by = {}
+    for t in trades or []: by.setdefault(t.get("code"), []).append(t)
+    out, sus, amb = [], {}, {}
+    sgn = lambda x: (x > 0) - (x < 0)
+    for c, ts in by.items():
+        seen = set(); dd = []; dup = []
+        for t in ts:
+            k = fill_key(t)
+            if k in seen: dup.append(t); continue
+            seen.add(k); dd.append(t)
+        if not dup:
+            out += ts; continue
+        sus[c] = dup
+        net = lambda xs: sum(int(x.get("lots") or 0) * (1 if str(x.get("bs", "")).upper().startswith("B") else -1) for x in xs)
+        nr, nd = net(ts), net(dd)
+        if nr == nd: out += ts
+        elif sgn(nr) == sgn(nd) and nr and nd: out += (ts if abs(nr) < abs(nd) else dd)
+        elif c in mine and mine[c] in (nr, nd): out += (ts if mine[c] == nr else dd)
+        else: amb[c] = (nr, nd); out += dd
+    return out, sus, amb
+
+
 def _bn(x):
     """2026-11-06 查「華新 1605 重開後被當成元三接回」:元大回報 / 查詢裡的自訂編號前面會多「Ewodr」(送出 T104310001 → 回報 EwodrT104310001),
        程式靠第一個字 T / F / R 認自己的單 → 認不得,重開時把程式的部位當成手動(元三)接回。統一拿掉前綴,只留程式送出的那段"""
@@ -248,6 +324,8 @@ class Bridge:
         # 2026-10-30 16:50 使用者(找領先指標 →「開始收內外盤和五檔」→「要做」):每一筆逐筆成交原樣存一份(時間到毫秒、序號、價、量、內外盤旗標、當下買價 / 賣價),
         #   存在 TICK_DIR\日期.csv,之後拿來研究主動買賣力道是不是領先。TICK_LOG=0 關掉
         self.tick_buf = []; self.tick_lock = threading.Lock()
+        self.login_soft = None   # 2026-11-21 使用者「全改」(檢查 R1):暫時被拒(0016 等)的原因 → 退避後再登入
+        self.feat_off = {}       # 2026-11-21(檢查 R1):查詢權限不足等 → 只停這個功能(功能名 → 原因),不停交易
 
     # 回應事件(元大的執行緒呼叫,不能在這裡做耗時的事)
     def on_response(self, intMark, dwIndex, strIndex, objHandle, objValue):
@@ -267,11 +345,14 @@ class Bridge:
                 if strIndex == "Login":
                     st = objValue.LoginStatus
                     log(f"登入 {st.MsgCode} {st.MsgContent} 帳號數 {st.Count}")
-                    if st.MsgCode in ("0001", "00001") or st.Count > 0:
+                    kind = login_kind(st.MsgCode, st.MsgContent, st.Count)
+                    if kind == "ok":
                         self.logged_in.set()
-                    else:
+                    elif kind == "fatal":
                         # 元大文件「登入」:0000 執行失敗、0102 密碼凍結或未啟用、0112 無此權限使用功能
                         self.login_fail = f"{st.MsgCode} {st.MsgContent}"
+                    else:   # 2026-11-21 使用者「全改」(檢查 R1):0016 請勿連續登入 / 0000 / 沒看過的碼 = 暫時,退避後再登入(不停一整天)
+                        self.login_soft = f"{st.MsgCode} {st.MsgContent}"
                     return
                 if strIndex == "SendStockOrder":
                     r = objValue; st = r.ResultCount
@@ -314,10 +395,23 @@ class Bridge:
                             self.resume_buf["working"].append({"code": str(o.CompanyNo).strip(), "bs": str(o.BS).strip(), "lots": lots_of(rest),
                                                                "no": str(o.OrderNo).strip(), "typ": str(o.OrderType).strip(), "tag": _bn(o.BasketNo),
                                                                "px": float(o.Price or 0)})
+                    fid_f = CFG.get("FILL_ID_FIELD", "").strip(); _fseen = set()
                     for i in range(r.StkTradeList.Count):
                         x = r.StkTradeList[i]; q = int(x.OkQty)
-                        self.resume_buf["trades"].append({"code": str(x.CompanyNo).strip(), "bs": str(x.BS).strip(), "lots": q // 1000 if q >= 1000 else q,   # 成交量單位文件沒寫:股(≥1000)或張都能處理;使用者只做整張、不做零股(2026-10-22),不會混淆
-                                                          "price": float(x.SPrice), "time": str(x.DateTime), "order_no": str(x.OrderNo).strip()})
+                        if i == 0: self.trade_fields_note(x)   # 2026-11-21(檢查 R4):成交明細有哪些欄位記一次(找每筆成交的序號用)
+                        t_ = {"code": str(x.CompanyNo).strip(), "bs": str(x.BS).strip(), "lots": q // 1000 if q >= 1000 else q,   # 成交量單位文件沒寫:股(≥1000)或張都能處理;使用者只做整張、不做零股(2026-10-22),不會混淆
+                              "price": float(x.SPrice), "time": str(x.DateTime), "order_no": str(x.OrderNo).strip()}
+                        # 2026-11-21 使用者「全改」(檢查 R4):bridge.env 設了 FILL_ID_FIELD(看過 log 確定是「每筆成交唯一的序號」欄位)→ 帶上它,
+                        #   書號 + 序號一樣的才是同一筆重送,這裡直接去掉(之後所有用到成交的地方都乾淨);沒設 → 不刪,交給 fills_guard 看可疑
+                        if fid_f:
+                            try: fv = str(getattr(x, fid_f, "") or "").strip()
+                            except Exception: fv = ""
+                            if fv:
+                                t_["fill_id"] = fv
+                                if (t_["order_no"], fv) in _fseen:
+                                    log(f"成交回報重複(書號 {t_['order_no']} 序號 {fv})→ 只算一次"); continue
+                                _fseen.add((t_["order_no"], fv))
+                        self.resume_buf["trades"].append(t_)
                     self.resume_buf["got_rpt"] = True
                     log(f"接回查詢:今天委託 {r.StkOrderList.Count} 筆、成交 {r.StkTradeList.Count} 筆")
                     try: self.quota_from_report(r)
@@ -349,7 +443,12 @@ class Bridge:
                     d = int(dwIndex)
                     log(f"查詢回應 [{d} {QRY_MSG.get(d, '')}] {strIndex or ''} {objValue}")
                     if d in QRY_FATAL:
-                        self.login_fail = f"{d} {QRY_MSG[d]} {objValue}"
+                        # 2026-11-21 使用者「全改」(檢查 R1):原本任何查詢回 4 / 5 / 9 / 11 都整天停(條件單、K 線查詢權限不足也會停掉交易和 13:20 平倉)→
+                        #   只有「還沒登入成功、沒有功能名」(登入階段)才當帳號問題整天停;其他只停那個功能、記紀錄、推手機一次
+                        if not strIndex and not self.logged_in.is_set():
+                            self.login_fail = f"{d} {QRY_MSG[d]} {objValue}"
+                        else:
+                            self.feature_off(strIndex or "?", f"{d} {QRY_MSG[d]} {objValue}")
                     elif d in QRY_RELOGIN:
                         self.logged_in.clear(); self.disconnected.set()
                     return
@@ -445,23 +544,64 @@ class Bridge:
             raise RuntimeError("30 秒還沒連上元大交易主機(網路?)")
         time.sleep(1)
         acc, pw = CFG["YT_ACCOUNT"], CFG["YT_PASS"]
-        self.login_fail = None
+        self.login_fail = None; self.login_soft = None
         if sys.platform == "win32":
             self.api.Login(acc, pw)
         else:
             self.api.Login(CFG["YT_PFX"], CFG["YT_PFX_PASS"], acc, pw)   # Linux / Mac 要憑證絕對路徑 + 憑證密碼
         for _ in range(40):
-            if self.logged_in.wait(0.5): return
+            if self.logged_in.wait(0.5):
+                self.login_soft_n = 0   # 2026-11-21(檢查 R1):登入成功 → 暫時被拒的次數歸零
+                return
             if self.login_fail: raise LoginRejected(self.login_fail)
+            if self.login_soft: raise LoginRetry(self.login_soft)   # 2026-11-21(檢查 R1):暫時被拒 → 退避後再試
         raise RuntimeError("登入逾時(網路、憑證、API 權限、固定 IP 是否開通?)")
 
     def close(self):
+        """2026-11-21 使用者「全改」(輕微項):LogOut / Close / Dispose 各自 try(原本 LogOut 出錯後面就不做,舊連線沒關乾淨),
+           並拿掉 OnResponse(舊連線的事件不會再進來改登入狀態)"""
+        api = self.api; self.api = None
+        self.logged_in.clear()
+        if not api: return
+        for nm, fn in (("LogOut", lambda: api.LogOut()), ("解除事件", lambda: self._unhook(api)),
+                       ("Close", lambda: api.Close()), ("Dispose", lambda: api.Dispose())):
+            try: fn()
+            except Exception as e: log(f"關閉例外({nm})", e)
+
+    def _unhook(self, api):
+        api.OnResponse -= self.on_response
+
+    def feature_off(self, name, why):
+        """2026-11-21 使用者「全改」(檢查 R1):某個查詢功能元大回「權限不足 / 帳號資訊異常」→ 今天只停這個功能(條件單查詢、K 線查詢…),
+           交易、13:20 平倉照常;記紀錄、推手機一次(在元大的事件執行緒呼叫 → 推手機走背景)"""
+        fo = self.__dict__.setdefault("feat_off", {})
+        first = name not in fo
+        fo[name] = why
+        buf = self.resume_buf
+        if buf is not None:   # 正在等這個查詢的回應:不用等到逾時
+            if name == "GetConditionStrategy": buf["got_oco"] = True; buf["oco_failed"] = True
+            if name == "GetOrderTradeReport": buf["rpt_fail"] = True
+        if first:
+            log(f"!! 元大查詢 {name} 回 {why} → 今天停用這個功能(交易、13:20 平倉照常)")
+            self.phone_alert(f"⚠ 元大 {name} 沒有權限", f"{why[:120]};今天停用這個功能,交易和 13:20 平倉照常")
+
+    def trade_fields_note(self, x):
+        """2026-11-21(檢查 R4):元大成交明細(StkTradeList)每筆有哪些欄位 → 一個行程記一次(只記欄位名,和序號 / 時間類欄位的值;帳號類不記),
+           找到「每筆成交唯一的序號」欄位後在 bridge.env 設 FILL_ID_FIELD=<欄位名>,成交重複回報就能確定去掉"""
+        if getattr(self, "_tf_noted", False): return
+        self._tf_noted = True
         try:
-            if self.api:
-                self.api.LogOut(); self.api.Close(); self.api.Dispose()
-        except Exception as e:
-            log("關閉例外", e)
-        self.api = None
+            names = [k for k in dir(x) if not k.startswith("_")]
+            vals = {}
+            for k in names:
+                if re.search(r"acc|acct|id$|pass|cert", k, re.I): continue
+                if re.search(r"seq|serial|no$|num|time|date|match|deal", k, re.I):
+                    try:
+                        v = getattr(x, k)
+                        if not callable(v): vals[k] = str(v)[:40]
+                    except Exception: pass
+            log("[成交明細欄位] " + ", ".join(names)[:600] + " | 值:" + json.dumps(vals, ensure_ascii=False)[:400])
+        except Exception as e: log("[成交明細欄位] 讀不到", e)
 
     def flush_ticks(self, day):
         """2026-10-30 逐筆記錄寫檔:TICK_DIR(預設 ticks_yuanta)\日期.csv,欄位 code,time,sn,price,vol,flag,bid,ask(flag = 元大 InOutFlag 內外盤)"""
@@ -754,13 +894,27 @@ class Bridge:
         o.OrderNo = ""; o.TradeDate = now_tw().strftime("%Y/%m/%d"); o.BasketNo = tag; o.Time_in_force = str(tif)
         lst = self.List[self.Y.StockOrder](); lst.Add(o)
         self._last_order = {"code": code, "side": side, "lots": lots, "price": price, "typ": typ}
+        self._send_raw(lst, tag, f"{code} {side} {lots} 張")
+        return None   # 委託書號從回應事件來(trader 用 BasketNo 對)
+
+    def _send_raw(self, lst, tag, what=""):
+        """2026-11-21 使用者「全改」(檢查 R7):送單 + 記編號。沒登入 / 元件不在 → 不送、丟出清楚的錯誤;SendStockOrder 丟例外或回傳失敗 →
+           把剛記的編號拿掉(原本例外時編號留在 sent_tags,之後每一筆下單回應都對到前一筆的編號 → 回報對錯單)"""
+        api = self.api
+        if api is None or not self.logged_in.is_set():
+            log(f"!! 元大沒有登入(重連中),不送單 {what}")
+            raise ConnectionError(f"元大沒有登入(重連中),沒有送出 {what}")
         with self.tag_lock:                                                 # 記編號和送出是同一步,別的執行緒插不進來
             self.sent_tags.append(tag)
-            ok = self.api.SendStockOrder(CFG["YT_ACCOUNT"], lst)
+            try:
+                ok = api.SendStockOrder(CFG["YT_ACCOUNT"], lst)
+            except BaseException:
+                if self.sent_tags and self.sent_tags[-1] == tag: self.sent_tags.pop()
+                raise
             if not ok:
-                log("!! SendStockOrder 回傳失敗")
+                log(f"!! SendStockOrder 回傳失敗 {what}")
                 if self.sent_tags and self.sent_tags[-1] == tag: self.sent_tags.pop()   # 沒送出去就不會有回應
-        return None   # 委託書號從回應事件來(trader 用 BasketNo 對)
+        return ok
 
     def cancel_order(self, order_no, code, bs=None, typ=None):
         lo = getattr(self, "_last_order", None) or {}
@@ -769,10 +923,7 @@ class Bridge:
         o.StkCode = code or lo.get("code", ""); o.PriceFlag = " "; o.Price = 0; o.OrderQty = 0; o.BuySell = bs or lo.get("side", "B")
         o.OrderNo = order_no; o.TradeDate = now_tw().strftime("%Y/%m/%d"); o.BasketNo = ""; o.Time_in_force = "0"
         lst = self.List[self.Y.StockOrder](); lst.Add(o)
-        with self.tag_lock:                                                 # 取消單的回應不給 trader
-            self.sent_tags.append("")
-            if not self.api.SendStockOrder(CFG["YT_ACCOUNT"], lst):
-                if self.sent_tags and self.sent_tags[-1] == "": self.sent_tags.pop()
+        self._send_raw(lst, "", f"取消 {order_no}")                          # 取消單的回應不給 trader(編號空字串)
 
     def place_oco(self, code, mkt, d, lots, tp, sl):
         """元大二擇一條件單(元大文件「新增條件單」OCOStrategy):停損、停利兩個成交價條件,觸發就停;
@@ -804,6 +955,8 @@ class Bridge:
     def get_cond(self, typ):
         """2026-11-10 15:31(實際時間)使用者「如何解決」:GetConditionStrategy 用 (帳號, StrategyType, 代碼) 一直「No method matches given arguments」→
            失敗時用 .NET 反射把元大元件真正的參數(型別 / 名稱)記進 log,並照型別自動組參數試每一種寫法(查詢,不會下單);試成功的記住,下次直接用"""
+        if "GetConditionStrategy" in getattr(self, "feat_off", {}):   # 2026-11-21(檢查 R1):條件單查詢今天沒權限 → 當作查詢失敗(呼叫的人照舊處理)
+            raise RuntimeError("條件單查詢今天停用(元大回權限不足)")
         if getattr(self, "_cond_how", None) is not None:
             m, mk = self._cond_how; return m.Invoke(self.api, mk(typ))
         try:   # 2026-11-10 16:07 使用者在電腦跑 win_cond_sig.py 讀出元件真正的寫法:GetConditionStrategy(String 帳號, Int32 類別, String 代碼, enumLangType 語言);語言 NORMAL=0 / UTF8=1 / SC=2
@@ -839,13 +992,16 @@ class Bridge:
     # ── 手機即時價:本機小服務 + Cloudflare Tunnel(Worker 的 ?codes 先問這裡,不通才問證交所)──
     def serve_quotes(self):
         bridge = self
+        def key_ok(k):
+            want = CFG.get("PUSH_KEY") or ""
+            return bool(want) and bool(k) and hmac.compare_digest(str(k).encode("utf-8"), want.encode("utf-8"))
         class H(BaseHTTPRequestHandler):
             def log_message(self, *a): pass
             def do_GET(self):
                 u = urlparse(self.path)
                 if u.path == "/health":
                     return self.reply({"ok": True, "age": bridge.quotes.mis([])["age"]})
-                if self.headers.get("X-Quote-Key") != CFG.get("PUSH_KEY"):
+                if not key_ok(self.headers.get("X-Quote-Key")):   # 2026-11-21 使用者「全改」(輕微項):沒設 PUSH_KEY 時原本 None == None 會放行 → 一律拒絕
                     return self.reply({"error": "not found"}, 404)
                 if u.path == "/trade/pos":                               # 2026-10-28 手機長按股票:先問電腦這檔有沒有部位
                     return self.reply(bridge.trade_pos())
@@ -862,7 +1018,7 @@ class Bridge:
                 self.reply(bridge.quotes.mis(codes))
             def do_POST(self):
                 u = urlparse(self.path)
-                if u.path != "/trade/cmd" or self.headers.get("X-Quote-Key") != CFG.get("PUSH_KEY"):
+                if u.path != "/trade/cmd" or not key_ok(self.headers.get("X-Quote-Key")):
                     return self.reply({"error": "not found"}, 404)
                 try:
                     n = int(self.headers.get("Content-Length") or 0); cmd = json.loads(self.rfile.read(min(n, 4096)).decode("utf-8") or "{}")
@@ -905,6 +1061,11 @@ class Bridge:
             log("[交易] 強制指令:交易密碼不對"); return {"ok": False, "msg": "交易密碼不對", "badPin": True}
         t = self.trader
         act = cmd.get("act")
+        # 2026-11-21 使用者「全改」(檢查 R7):要送單的指令(強制進場 / 強平 / 全部平倉 / 補進場)在元大沒登入(重連中)時直接回清楚的原因,不送到一半丟例外
+        broker_up = self.api is not None and self.logged_in.is_set()
+        if act in ("close_only", "close", "enter", "redo") and t and not broker_up:
+            log(f"[交易] 手機指令 {act}:元大沒有登入(重連中),不執行")
+            return {"ok": False, "msg": "電腦目前沒有登入元大(重連中),指令沒有執行,請稍後再試或到投資先生操作"}
         if act == "close_only":
             # 2026-11-03 11:39 使用者「加一個只全部平倉 訊息正常」:所有未平倉部位馬上漲停買回 / 跌停賣出,但不建緊急停止檔(自動進場、通知照常,標題不變灰);平掉的那幾檔今天不再自動進
             from trader import stop_path
@@ -927,6 +1088,9 @@ class Bridge:
             on = sp.exists()
             if act == "halt_close":
                 # 2026-10-31 使用者「改」(緊急停止多一個「停止進場 + 全部平倉」):所有未平倉部位馬上漲停買回 / 跌停賣出(和虧到 5 萬同一個做法)
+                if t and not broker_up:   # 2026-11-21(檢查 R7):停止檔照建,平倉要等登入
+                    log("[交易] 手機緊急停止 + 全部平倉:元大沒有登入(重連中),只建停止檔、沒有平倉")
+                    return {"ok": False, "halted": on, "closed": 0, "msg": "已啟動緊急停止,但電腦目前沒有登入元大(重連中),全部平倉沒有執行,請到投資先生平倉"}
                 n = t.close_all("手機緊急停止 + 全部平倉") if t else 0
                 log(f"[交易] 手機啟動緊急停止 + 全部平倉:{n} 檔({sp})")
                 threading.Thread(target=self.phone_alert, daemon=True, args=("⛔ 已啟動緊急停止 + 全部平倉",
@@ -1051,6 +1215,7 @@ class Bridge:
 
     def kline_query(self, code, mkt, day):
         """用中繼這條已登入的連線查元大 1 分 K(day = YYYY-MM-DD);回傳 [(YYYY-MM-DD, HH:MM, o, h, l, c, 股數)]"""
+        if "GetKLine" in getattr(self, "feat_off", {}): return []   # 2026-11-21(檢查 R1):K 線查詢今天沒權限 → 不查
         with self.kline_lock:
             self.kline_out = []
             try:
@@ -1260,16 +1425,20 @@ class Bridge:
                     self.resume_buf["got_oco"] = True; self.resume_buf["oco_failed"] = True; log("查二擇一條件單失敗(改用狀態檔存的編號):", e)
             for _ in range(30):
                 if self.resume_buf["got_rpt"] and self.resume_buf["got_oco"]: break
+                if self.resume_buf.get("rpt_fail"): break   # 2026-11-21(檢查 R1):元大回這個查詢沒權限 → 不用等逾時
                 time.sleep(0.5)
             return dict(self.resume_buf) if self.resume_buf["got_rpt"] else None
         finally:
             self.resume_buf = None; self.qlock.release()
 
     def query_strategies(self, types=(1, 2, 3, 4, 5)):
-        """查全部有效條件單(1 停損利、2 移動鎖利、3 二擇一、4 母子單、5 多條件)"""
+        """查全部有效條件單(1 停損利、2 移動鎖利、3 二擇一、4 母子單、5 多條件)
+           2026-11-21 使用者「全改」(檢查 R11):查不到(排隊逾時 / 元大沒回)回 None,不再回 [](原本 13:20 會被當成「確認沒有條件單」);
+           沒開條件單 / 今天條件單查詢沒權限 → [](本來就不會有程式掛的條件單)"""
         if not self.broker_stop_on(): return []   # 2026-10-29 16:43 不掛條件單就不查(同 query_today)
+        if "GetConditionStrategy" in getattr(self, "feat_off", {}): return []
         if not self.qlock.acquire(timeout=40):
-            log("!! 查詢排隊超過 40 秒,這次不查條件單"); return []
+            log("!! 查詢排隊超過 40 秒,這次不查條件單"); return None
         self.resume_buf = {"trades": [], "tags": {}, "oco": [], "working": [], "got_rpt": True, "got_oco": False, "want_oco": len(types), "n_oco": 0}
         try:
             for t in types:
@@ -1279,6 +1448,8 @@ class Bridge:
             for _ in range(20):
                 if self.resume_buf["got_oco"]: break
                 time.sleep(0.5)
+            if not self.resume_buf["got_oco"]:
+                log("!! 條件單查詢元大沒回應(這次當作查不到)"); return None
             return list(self.resume_buf["oco"])
         finally:
             self.resume_buf = None; self.qlock.release()
@@ -1286,31 +1457,86 @@ class Bridge:
     def close_all(self, at):
         """2026-10-22 使用者:「13:20 就要先取消所有掛單 再進行贖回動作」:
            1. 程式自己的條件單 / 委託先取消 2. 查元大全部還掛著的委託 + 全部有效條件單,通通取消(含手動的) 3. 再查確認(最多 3 次)
-           4. 用最新的成交回報算還沒沖銷的部位 → 漲停買回 / 跌停賣出 ROD(trader.recheck)"""
+           4. 用最新的成交回報算還沒沖銷的部位 → 漲停買回 / 跌停賣出 ROD(trader.recheck)
+           2026-11-21 使用者「全改」(檢查 R11):查詢失敗(None / 逾時)原本被當成「沒有掛著的委託」→ 印「確認:沒有掛著的委託和條件單」就去平倉,
+             其實可能還有手動單掛著。改成:查不到不算確認,重查(最多 CLOSE_CONFIRM_TRIES 輪,預設 6),要一次「委託 + 條件單都查成功而且都沒有」才算確認"""
         log(f"[交易] {at} 取消全部掛單 → 再平倉")
         self.trader.prepare_close_all()
         keep = self.prehang_pick(at)   # 2026-11-05 使用者「程式要檢查 我是否預掛」→「改」:手動預掛、剛好平掉未沖銷張數的平倉單保留(書號)
-        for k in range(3):
-            r = self.query_today(with_oco=False) or {"working": [], "trades": []}
+        tries = max(3, int(CFG.get("CLOSE_CONFIRM_TRIES", "6") or 6)); confirmed = False
+        for k in range(tries):
+            r = self.query_today(with_oco=False)
             st = self.query_strategies()
-            wk = [w for w in r["working"] if w.get("no") not in keep]
-            if not wk and not st:
+            if r is None or st is None:
+                log(f"[交易] {at} 確認掛單:{'委託' if r is None else '條件單'}查不到(第 {k + 1} 次)→ 不算確認,重查")
+                if r is None and st is None: time.sleep(2); continue   # 兩個都查不到;查到的那一半下面照樣先取消
+            wk = [w for w in (r or {}).get("working", []) if w.get("no") not in keep]
+            if r is not None and st is not None and not wk and not st:
+                confirmed = True
                 log(f"[交易] {at} 確認:沒有掛著的委託和條件單" + (f"(保留手動預掛 {len(keep)} 張委託)" if keep else "")); break
             for w in wk:
                 log(f"[交易] {at} 取消委託 {w['code']} {w['bs']} {w['lots']} 張 書號 {w['no']}")
                 self.cancel_order(w["no"], w["code"], w["bs"], w["typ"]); time.sleep(0.15)   # 交易類一秒最多 10 次
-            for x in st:
+            for x in st or []:
                 log(f"[交易] {at} 刪除條件單 {x['code']} 類別 {x['type']} 編號 {x['no']}")
                 self.delete_strategy(x["type"], x["no"]); time.sleep(0.15)
             time.sleep(2)
-        else:
-            self.phone_alert(f"⚠ {at} 還有取消不掉的掛單", "請在投資先生確認委託 / 條件單")
+        if not confirmed:
+            self.phone_alert(f"⚠ {at} 還有取消不掉 / 查不到的掛單", "元大委託或條件單沒有查到確認,請在投資先生確認委託 / 條件單")
         r = self.query_today(with_oco=False)
         if not r:
             log(f"!! {at} 查不到成交回報,改用程式記的部位平倉")
             with self.trader.lock:
                 r = {"trades": [{"code": p["code"], "bs": "B" if p["dir"] > 0 else "S", "lots": p["qty"]} for p in list(self.trader.positions.values()) if p["qty"]], "working": []}
-        self.trader.recheck(r["trades"], [w for w in r["working"] if w.get("no") in keep], at)
+            self.trader.recheck(r["trades"], [], at); return
+        safe, amb = self.guard_trades(r["trades"], at)   # 2026-11-21(檢查 R4):可疑的重複成交回報不能讓平倉單反向開新倉
+        with self.skip_codes(amb):
+            self.trader.recheck(safe, [w for w in r["working"] if w.get("no") in keep], at)
+
+    def _mine_net(self):
+        """程式自己記的部位 {code: 有號張數}(fills_guard 判斷可疑重複時當第二個證據)"""
+        out = {}; t = self.trader
+        try:
+            with t.lock:
+                for c, p in t.positions.items():
+                    if p.get("qty"): out[c] = int(p["qty"]) * (1 if p["dir"] > 0 else -1)
+        except Exception: pass
+        return out
+
+    def guard_trades(self, trades, at=""):
+        """2026-11-21 使用者「全改」(檢查 R4):成交回報先過 fills_guard(見上)。回傳 (安全的成交清單, 判斷不了的股票集合);
+           有可疑重複 → 記紀錄、推手機(同一檔同一組重複一天只推一次);判斷不了的檔呼叫的人用 skip_codes 跳過(不送單、不結束部位)"""
+        safe, sus, amb = fills_guard(trades, self._mine_net())
+        if sus:
+            noted = self.__dict__.setdefault("_dup_noted", set()); day = now_tw().strftime("%Y-%m-%d")
+            for c, dup in sus.items():
+                key = (day, c, len(dup), c in amb)
+                if key in noted: continue
+                noted.add(key)
+                d0 = dup[0]; what = f"{c} {d0.get('bs')} {d0.get('lots')} 張 @ {d0.get('price')}(書號 {d0.get('order_no')} {d0.get('time')})"
+                if c in amb:
+                    nr, nd = amb[c]
+                    log(f"!! {at} 成交回報疑似重複 {len(dup)} 筆:{what};照原樣淨 {nr:+d}、去重複淨 {nd:+d} 方向不同 → 這檔程式不自動補單 / 平倉,請人工確認")
+                    self.phone_alert(f"⚠ {self.name_of_safe(c)} {c} 成交回報疑似重複", f"{what};照原樣未沖銷 {nr:+d} 張、去掉重複 {nd:+d} 張,程式判斷不了 → 這檔不自動補單,請到投資先生確認部位")
+                else:
+                    log(f"[交易] {at} 成交回報疑似重複 {len(dup)} 筆:{what}(不影響平倉方向,照較少的張數處理)")
+        return safe, set(amb)
+
+    def name_of_safe(self, c):
+        """只查記憶體裡的名稱(不連網,13:20 平倉路上不能等)"""
+        try: return (self.quotes.meta.get(c) or {}).get("n") or c
+        except Exception: return c
+
+    @contextlib.contextmanager
+    def skip_codes(self, codes):
+        """暫時把這幾檔放進 trader.ignore(不管名單):recheck / reconcile 跳過它們(不送單、不結束部位),離開時拿掉(原本就在不管名單的不動)"""
+        t = self.trader; codes = set(codes or ())
+        if not codes or t is None:
+            yield; return
+        with t.lock:
+            add = codes - set(t.ignore); t.ignore |= add
+            try: yield
+            finally: t.ignore -= add
 
     def prehang_pick(self, at):
         """13:20 查元大還掛著的委託:手動下的(沒有程式的自訂編號)、方向是平倉、同一檔加起來不超過未沖銷張數 → 保留,回傳書號集合;
@@ -1319,11 +1545,12 @@ class Bridge:
         if t.prehang_deadline in ("", "0") or t.prehang_deadline <= t.force_exit: return set()   # 2026-11-08 01:08 期限 ≤ 13:20 = 13:20 全部取消(預設)
         r = self.query_today(with_oco=False)
         if not r: return set()
+        trs, amb = self.guard_trades(r["trades"], at)   # 2026-11-21(檢查 R4):可疑重複成交的檔判斷不了未沖銷張數 → 不保留預掛(照舊取消),複查也跳過、推手機請人工確認
         net = {}
-        for x in r["trades"]: net[x["code"]] = net.get(x["code"], 0) + x["lots"] * (1 if x["bs"] == "B" else -1)
+        for x in trs: net[x["code"]] = net.get(x["code"], 0) + x["lots"] * (1 if x["bs"] == "B" else -1)
         keep = set()
         for c, n in net.items():
-            if n == 0: continue
+            if n == 0 or c in amb: continue
             cs = "S" if n > 0 else "B"
             man = [w for w in r["working"] if w["code"] == c and w["bs"] == cs and not str(w.get("tag") or "").strip()]
             q = sum(w["lots"] for w in man)
@@ -1345,8 +1572,10 @@ class Bridge:
         nos = {n for v in t.prehang.values() for n in v}; t.prehang = {}
         # 2026-11-05 13:33 使用者「13.24還沒成交 程式需要先幫我取消預掛 再啟動平倉」:先取消、再查到確定取消掉(最多 3 次),之後的複查才用最新成交回報平倉
         #   (取消前剛好成交的,成交回報會算進去,不會多平)
-        for k in range(3):
-            r = self.query_today(with_oco=False) or {"working": []}
+        for k in range(max(3, int(CFG.get("CLOSE_CONFIRM_TRIES", "6") or 6))):
+            r = self.query_today(with_oco=False)
+            if r is None:   # 2026-11-21 使用者「全改」(檢查 R11):查不到不能當成「已取消」,重查
+                log(f"[交易] {at} 手動預掛確認:查不到元大委託(第 {k + 1} 次)→ 重查"); time.sleep(2); continue
             left = [w for w in r["working"] if w.get("no") in nos]
             if not left:
                 log(f"[交易] {at} 手動預掛已確認取消 / 成交,開始平倉"); break
@@ -1466,19 +1695,29 @@ class Bridge:
         self._acfg_at = c.get("at") or 0   # 2026-11-17 回報「套用的是雲端哪一次設定」(夥伴加入打勾用)
 
     def resume_positions(self, day):
-        """2026-10-22 使用者:「加 啟動時接回部位」:查元大今天的委託成交回報 + 有效的二擇一條件單,交給 trader 接回程式開的未平部位"""
+        """2026-10-22 使用者:「加 啟動時接回部位」:查元大今天的委託成交回報 + 有效的二擇一條件單,交給 trader 接回程式開的未平部位
+           2026-11-21 使用者「全改」(檢查 R9):回傳 True = 這件事做完了(接回成功 / 不用接回);False = 查不到成交回報,主迴圈每分鐘再試到成功
+           (原本查不到也當作接回過 → 盤中重開那天程式的部位整天沒人管,對帳還可能把程式自己的部位當成「晚到的成交」平掉)"""
         if not self.trader or not self.trader.enabled:
-            return
+            return True
         try:
             r = self.query_today()
-            if not r:
-                log("!! 接回:查不到今天的成交回報,不接回(有部位請用投資先生手動處理)"); return
+        except Exception as e:
+            log("接回:查詢失敗(下一分鐘再試)", e); return False
+        if not r:
+            n = getattr(self, "_resume_fail", 0) + 1; self._resume_fail = n
+            log(f"!! 接回:查不到今天的成交回報(第 {n} 次),一分鐘後再試")
+            if n == 3: self.phone_alert("⚠ 接回部位查不到元大成交回報", "中繼每分鐘再試;接回前程式不對帳,有部位請留意")
+            return False
+        try:
             self.trader.resume(r["trades"], r["tags"], None if r.get("oco_failed") else r["oco"], fetch_signals(CFG["WORKER_URL"], day, CFG.get("PUSH_KEY", "")), r.get("working", []), r.get("types"))
             if "09:00" <= now_tw().strftime("%H:%M") < "13:25":   # 2026-11-11 22:44 使用者「全改」 11:盤中重開 → 接回的部位補今天的 1 分 K(移動停損利不用等 10 分鐘)
                 cs = list(self.trader.positions)
                 if cs: threading.Thread(target=self.seed_ka, args=(cs, day), daemon=True).start()
-        except Exception as e:
-            log("接回失敗", e)
+        except Exception as e:   # trader.resume 做到一半出錯:不重做(可能已經接回一部分,重做會重複接),推手機
+            log("接回失敗", e); self.phone_alert("⚠ 接回部位出錯", f"{e!r}"[:150] + ";請在投資先生確認部位")
+        self._resume_fail = 0
+        return True
 
     def seed_ka(self, codes, day):
         for c in codes:
@@ -1497,7 +1736,9 @@ class Bridge:
             r = self.query_today(with_oco=False)
             if not r:
                 log(f"!! {at} 複查:查不到成交回報"); self.trader.alert(f"⚠ {at} 複查失敗", "查不到元大成交回報,請在投資先生確認有沒有未沖銷的股票"); return
-            self.trader.recheck(r["trades"], [w for w in r["working"] if w.get("no") not in gone], at)   # 剛取消的手動預掛不算掛著(取消回報可能還沒到)
+            safe, amb = self.guard_trades(r["trades"], at)   # 2026-11-21(檢查 R4)
+            with self.skip_codes(amb):
+                self.trader.recheck(safe, [w for w in r["working"] if w.get("no") not in gone], at)   # 剛取消的手動預掛不算掛著(取消回報可能還沒到)
         except Exception as e:
             log("複查失敗", e)
 
@@ -1562,10 +1803,28 @@ class Bridge:
     def phone_alert(self, title, body="", kind="pc"):
         """發一則提醒到手機的「今日監控紀錄」(Worker ?log=add)
            2026-10-31 kind 原本是 warn:手機只把 warn 當股票的「注意 / 反彈」狀態、不跳通知 → 電腦的提醒手機都沒跳出來。改成 pc(一般提醒,會跳通知);
-           虧損分級 lv1~lv5(手機一級比一級強的顏色、聲音、震動)"""
+           虧損分級 lv1~lv5(手機一級比一級強的顏色、聲音、震動)
+           2026-11-21 使用者「全改」(檢查 R2):改成排進背景執行緒依序送(原本在主迴圈 / 13:20 平倉路上同步送,Worker 慢就卡 10 秒);時間照叫的那一刻"""
+        import queue
+        q = self.__dict__.get("_alert_q")
+        if q is None:
+            with LOG_LOCK:
+                q = self.__dict__.get("_alert_q")
+                if q is None:
+                    q = self._alert_q = queue.Queue(maxsize=500)
+                    def run():
+                        while True:
+                            a = q.get()
+                            try: self._phone_alert_now(*a)
+                            except Exception as e: log("發手機提醒失敗", e)
+                    threading.Thread(target=run, daemon=True, name="phone_alert").start()
+        try: q.put_nowait((title, body, kind, now_tw()))
+        except Exception as e: log("手機提醒佇列滿了,這則沒送", title, e)
+
+    def _phone_alert_now(self, title, body="", kind="pc", n=None):
         try:
             if FAMILY: title = f"【{ACCT}】{title}"   # 2026-11-15 家人帳號:提醒標題標名字
-            n = now_tw(); it = {"d": n.strftime("%Y-%m-%d"), "t": n.strftime("%H:%M"), "title": title, "body": body + " · 元大中繼", "kind": kind or "pc", "key": "yt|" + title}
+            n = n or now_tw(); it = {"d": n.strftime("%Y-%m-%d"), "t": n.strftime("%H:%M"), "title": title, "body": body + " · 元大中繼", "kind": kind or "pc", "key": "yt|" + title}
             req = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?log=add", data=json.dumps(it).encode(), method="POST", headers={"Content-Type": "application/json", "X-Push-Key": CFG.get("PUSH_KEY", "")})   # 2026-10-29 鑰匙
             urllib.request.urlopen(req, timeout=10)
         except Exception as e:
@@ -1641,65 +1900,140 @@ class Bridge:
         return nm or c
 
     # ── 推到 Worker ──
-    def push(self, day, minute, bars):
-        if not bars:
-            return True
-        self.save_local(day, minute, bars)          # 2026-10-25 有 PUSH_KEY 也照樣存本機一份(比對 / 備份用)
-        if FAMILY or not CFG.get("PUSH_KEY"):      # 2026-11-15 家人帳號:1 分 K 由主帳號推
+    # 2026-11-21 使用者「全改」(檢查 R2 / R3 / R6):
+    #   R2 原本本機 CSV 是在 push 裡面寫、flush 遇到第一分鐘推不上去就整輪停 → Worker 掛掉時本機 1 分 K 也停寫(引擎雲端讀不到時就是改讀這份),
+    #      而且主迴圈每一輪最多卡 3 次 × 15 秒。改成:每一分鐘收完就先寫本機(和推雲端無關);推雲端放到背景執行緒排隊(每次一筆、逾時 PUSH_TIMEOUT 秒),
+    #      推不上去的分鐘留在佇列,退避後從最舊的再推,主迴圈完全不等
+    #   R3 Windows 上引擎剛好開著 bars_yuanta/<日>.csv 時 os.replace 會 PermissionError → 原本一路丟到主迴圈變成斷線重登;改成短暫重試幾次,不行就這次不寫、下一輪再寫,絕不往外丟
+    #   R6 原本 flush 先 take、推完(很慢)才標 sent,推的期間晚到的成交不會標「要重送」→ 永遠不重送;改成 take 之前就先標(已取走),之後晚到的成交都會標 dirty 重寫本機 + 重推
+    def push(self, day, minute, bars, timeout=None):
+        """推一分鐘到 Worker(背景執行緒呼叫,只試一次):True 成功 / False 失敗(之後再推)/ "auth" 金鑰被拒(401 / 403,隔久一點再試)"""
+        if not bars or FAMILY or not CFG.get("PUSH_KEY"):      # 2026-11-15 家人帳號:1 分 K 由主帳號推
             return True
         body = json.dumps({"d": day, "m": minute, "bars": bars}).encode()
         req = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?ybars=push", data=body, method="POST",
                                      headers={"Content-Type": "application/json", "X-Push-Key": CFG["PUSH_KEY"]})
-        for k in range(3):
-            try:
-                r = json.loads(urllib.request.urlopen(req, timeout=15).read().decode())
-                if r.get("ok"):
-                    return True
-                log("推送被拒", r)
-                return False
-            except urllib.error.HTTPError as e:
-                # 2026-10-27 12:40 被拒時把 Worker 回的原因寫進紀錄:{"error":"金鑰不對"} = bridge.env 的 PUSH_KEY 和 Worker 的 YT_PUSH_KEY 不一樣;
-                #   HTML / error code 1010 = Cloudflare 擋連線身分。403 / 401 重試也沒用,直接停
-                try: why = e.read().decode("utf-8", "replace")[:200].replace("\n", " ")
-                except Exception: why = ""
-                log(f"推送失敗 {minute} 第 {k + 1} 次 HTTP {e.code}:{why}")
-                if e.code in (401, 403):
-                    return False
-                time.sleep(2)
-            except Exception as e:
-                log(f"推送失敗 {minute} 第 {k + 1} 次", e); time.sleep(2)
+        nf = getattr(self, "_push_fail_n", 0); loud = nf < 3 or nf % 30 == 0   # 一直推不上去時紀錄不要每次都寫
+        try:
+            r = json.loads(urllib.request.urlopen(req, timeout=timeout or float(CFG.get("PUSH_TIMEOUT", "8") or 8)).read().decode())
+            if r.get("ok"):
+                self._push_fail_n = 0; return True
+            self._push_fail_n = nf + 1
+            if loud: log("推送被拒", r)
+            return False
+        except urllib.error.HTTPError as e:
+            # 2026-10-27 12:40 被拒時把 Worker 回的原因寫進紀錄:{"error":"金鑰不對"} = bridge.env 的 PUSH_KEY 和 Worker 的 YT_PUSH_KEY 不一樣;
+            #   HTML / error code 1010 = Cloudflare 擋連線身分。403 / 401 馬上重試也沒用
+            try: why = e.read().decode("utf-8", "replace")[:200].replace("\n", " ")
+            except Exception: why = ""
+            self._push_fail_n = nf + 1
+            if loud: log(f"推送失敗 {minute} HTTP {e.code}:{why}(第 {nf + 1} 次)")
+            return "auth" if e.code in (401, 403) else False
+        except Exception as e:
+            self._push_fail_n = nf + 1
+            if loud: log(f"推送失敗 {minute}(第 {nf + 1} 次)", e)
+            return False
+
+    def _pq(self):
+        st = self.__dict__.get("_pq_st")
+        if st is None:
+            st = self._pq_st = {"lock": threading.Lock(), "pend": {}, "ev": threading.Event(), "ok": set(), "fail": 0, "next": 0.0, "busy": None}
+            threading.Thread(target=self._push_loop, args=(st,), daemon=True, name="ybars_push").start()
+        return st
+
+    def push_async(self, day, minute, bars):
+        """排進背景推送佇列(同一分鐘有新的就換成新的那份)"""
+        if not bars or FAMILY or not CFG.get("PUSH_KEY"): return
+        st = self._pq()
+        with st["lock"]: st["pend"][(day, minute)] = bars
+        st["ev"].set()
+
+    def _push_loop(self, st):
+        """背景推送:從最舊的分鐘推起;失敗就放回佇列、退避(2、4…最多 30 秒;金鑰被拒 60 秒)再從最舊的推(和原本「一分鐘推不上去,後面先不推」一樣,不白打 Worker)"""
+        while True:
+            st["ev"].wait(2); st["ev"].clear()
+            while time.time() >= st["next"]:
+                with st["lock"]:
+                    if not st["pend"]: break
+                    key = min(st["pend"]); bars = st["pend"].pop(key)
+                st["busy"] = key
+                try: r = self.push(key[0], key[1], bars)
+                except Exception as e: r = False; log("推送例外", e)
+                st["busy"] = None
+                if r is True:
+                    st["fail"] = 0; st["ok"].add(key); continue
+                with st["lock"]: st["pend"].setdefault(key, bars)   # 失敗:放回(這段期間有更新的那份就用新的)
+                st["fail"] += 1; st["next"] = time.time() + (60 if r == "auth" else min(30, 2 * st["fail"]))
+                break
+
+    def push_drain(self, timeout=30):
+        """收工:最多等 timeout 秒讓佇列推完"""
+        st = self.__dict__.get("_pq_st")
+        if not st: return True
+        t_end = time.time() + timeout
+        while time.time() < t_end:
+            with st["lock"]: left = len(st["pend"])
+            if not left and st["busy"] is None: return True
+            st["ev"].set(); time.sleep(0.5)
+        log(f"收工時還有 {len(st['pend'])} 分鐘 1 分 K 沒推上 Worker(本機 CSV 已存)")
         return False
 
     def save_local(self, day, minute, bars):
         """2026-10-24 第一階段:Cloudflare KV 一天只能寫 1,000 次(雲端 K 已用約 880),元大 1 分 K 先存在本機 CSV 比對,不推 Worker。
         BARS_DIR/日期.csv:code,date,time,open,high,low,close,volume(量 = 股,和 kline/ 一樣);每次整檔重寫(晚到的成交會改到舊分鐘)"""
+        self.local_put(day, minute, bars)
+        return self.local_write(day)
+
+    def local_put(self, day, minute, bars):
         loc = getattr(self, "local", None)
         if loc is None or loc.get("_d") != day:
             loc = self.local = {"_d": day}
         loc[minute] = bars
-        d = Path(CFG.get("BARS_DIR", HERE / "bars_yuanta")); d.mkdir(parents=True, exist_ok=True)
-        tmp = d / f"{day}.csv.tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            f.write("code,date,time,open,high,low,close,volume\n")
-            for m in sorted(k for k in loc if k != "_d"):
-                for c, (o, h, l, cl, v) in sorted(loc[m].items()):
-                    f.write(f"{c},{day},{m},{o},{h},{l},{cl},{int(v)}\n")
-        os.replace(tmp, d / f"{day}.csv")
-        return True
+        self._local_dirty = True
+
+    def local_write(self, day):
+        """整檔重寫本機 1 分 K;絕不丟例外(2026-11-21 檢查 R3)。寫不進去 → 回 False、留著 _local_dirty,下一輪 flush 再寫"""
+        loc = getattr(self, "local", None)
+        if not loc or loc.get("_d") != day: return True
+        try:
+            d = Path(CFG.get("BARS_DIR", HERE / "bars_yuanta")); d.mkdir(parents=True, exist_ok=True)
+            tmp = d / f"{day}.csv.tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write("code,date,time,open,high,low,close,volume\n")
+                for m in sorted(k for k in loc if k != "_d"):
+                    for c, (o, h, l, cl, v) in sorted(loc[m].items()):
+                        f.write(f"{c},{day},{m},{o},{h},{l},{cl},{int(v)}\n")
+            err = None
+            for i in range(4):   # Windows:引擎正在讀這個檔 → os.replace 拒絕(PermissionError / WinError 5、32),等一下下再試(合計約 0.5 秒)
+                try:
+                    os.replace(tmp, d / f"{day}.csv"); self._local_dirty = False; return True
+                except OSError as e:
+                    err = e; time.sleep(0.05 * (i + 1))
+            raise err
+        except Exception as e:
+            hm = now_tw().strftime("%H:%M")
+            if getattr(self, "_local_err_hm", None) != hm:   # 一分鐘只記一次
+                self._local_err_hm = hm; log("本機 1 分 K 這次寫不進去(引擎正在讀?),下一輪再寫", e)
+            return False
 
     def flush(self, day, final=False):
-        """推送已經走完的分鐘(現在分鐘之前);收盤後 final=True 全推"""
+        """已經走完的分鐘(現在分鐘之前;收盤後 final=True 全部):先標「已取走」→ 取資料 → 寫本機 → 排進背景推送;晚到的成交(dirty)整分鐘重寫 + 重推"""
         cur = now_tw().strftime("%H:%M")
+        out = []
         for m in self.book.minutes():
             if m in self.sent or (not final and m >= cur):
                 continue
-            if self.push(day, m, self.book.take(m)):
-                self.sent.add(m)
-            else:
-                break        # 2026-10-27 12:40 一分鐘推不上去,這一輪後面的分鐘先不推(原本每一輪把所有沒送成功的分鐘各試 3 次,今天落後 2.5 小時、白打 Worker 5 千多次);下一輪從最舊的再試
-        for m in self.book.take_dirty():          # 晚到的成交 → 整分鐘重送
-            if m in self.sent:
-                self.push(day, m, self.book.take(m))
+            self.sent.add(m)                       # R6:take 之前先標,之後晚到的成交 add_tick 會標 dirty
+            out.append(m)
+        for m in self.book.take_dirty():          # 晚到的成交 → 整分鐘重寫 / 重推
+            if m in self.sent and m not in out: out.append(m)
+        for m in out:
+            bars = self.book.take(m)
+            if not bars: continue
+            self.local_put(day, m, bars)           # R2:本機每分鐘都寫,和推雲端成不成功無關(2026-10-25 有 PUSH_KEY 也照樣存本機一份)
+            self.push_async(day, m, bars)
+        if out or getattr(self, "_local_dirty", False):
+            self.local_write(day)
 
     def write_verdicts(self, day):
         """2026-11-13 進場訊號的結果(有沒有進場)寫給電腦引擎,推雲端前標「未進場」(2026-11-21 抽出來:nap 裡處理的訊號也馬上寫,不等主迴圈)"""
@@ -1757,15 +2091,84 @@ class Bridge:
         except Exception as e:
             log("本機通知檔讀取失敗", e); return []
 
+    def sig_inflight(self):
+        th = (self.__dict__.get("_sf") or {}).get("th")
+        return th is not None
+
+    def signals_fetch(self, day, due=True):
+        """2026-11-21 使用者「全改」(檢查 R2):雲端通知(fetch_signals,逾時 10 秒)改在背景抓;主迴圈最多等 SIG_WAIT_SEC(預設 1.5)秒,
+           還沒回來就這一輪先不用、下一輪拿(不會漏:回來的結果留著給下一輪);同一時間只抓一個"""
+        st = self.__dict__.setdefault("_sf", {"th": None})
+        th = st["th"]
+        if th is None:
+            if not due: return None
+            box = {}
+            def run():
+                try: box["r"] = fetch_signals(CFG["WORKER_URL"], day, CFG.get("PUSH_KEY", ""))
+                except Exception as e: box["e"] = e
+            th = threading.Thread(target=run, daemon=True, name="sig_fetch"); th.box = box; th.start(); st["th"] = th
+        th.join(float(CFG.get("SIG_WAIT_SEC", "1.5") or 1.5) if due else 0)
+        if th.is_alive(): return None
+        st["th"] = None
+        if "e" in th.box: log("讀雲端通知失敗", th.box["e"])
+        return th.box.get("r")
+
+    def day_reset(self):
+        """2026-11-21 使用者「全改」(檢查 R5 / R10 / R1):中繼可能好幾天不重開,掛在 Bridge 物件上的「當天」資料換日要清掉:
+           R5 台指期元大逐筆 1 分 K(fut_bars / fut_sn / fut_n)、期交所那份(fut_tf)原本一直留著 → 隔天 08:45 的 K 會混到前一天同時間的那根、
+              逐筆序號隔天從 1 開始會被當成重複丟掉;R10 引擎重開次數(一天最多 5 次)原本永不歸零;R1 今天停用的查詢功能、登入退避次數"""
+        self.fut_bars, self.fut_sn, self.fut_n, self.fut_tf = {}, {}, {}, {}
+        for k in ("_fut_hm", "_fut_pushed", "_fut_src", "_tf_ok", "_tf_bad"): self.__dict__.pop(k, None)
+        self.eng_restarts = 0; self._eng_lock_wait = 0
+        self.feat_off = {}; self.login_soft_n = 0; self.login_soft = None; self._relogin_at = 0.0
+        self._resume_fail = 0; self._no_tick_day = False; self.__dict__.pop("_conn_at", None)
+
+    def engine_stop_old(self):
+        old = getattr(self, "engine", None)
+        if old is None: return
+        try:
+            if old.poll() is None:
+                log(f"[公式] 上一個 engine.py(pid {old.pid})還在跑 → 先關掉"); old.terminate()
+                try: old.wait(timeout=10)
+                except Exception:
+                    try: old.kill(); old.wait(timeout=5)
+                    except Exception: pass
+        except Exception as e: log("[公式] 關舊引擎失敗", e)
+
+    def engine_watch(self):
+        """2026-10-30 引擎看門狗:盤中引擎行程結束了(當掉 / 被關)→ 重新開(一天最多 5 次)。
+           2026-11-21 使用者「全改」(檢查 R10):結束碼 2 = engine.lock 被別的引擎拿著(舊的還沒放開)→ 不算重開次數,2 分鐘後再試;不然一直被鎖會把 5 次額度用光"""
+        eng = getattr(self, "engine", None)
+        if eng is None or eng.poll() is None: return
+        import subprocess
+        rc = eng.returncode
+        if rc == 2:
+            if time.time() < getattr(self, "_eng_lock_wait", 0): return
+            self._eng_lock_wait = time.time() + 120
+            log("!! [公式] engine.py 拿不到 engine.lock(另一個引擎還在跑?)→ 不算重開次數,2 分鐘後再試")
+            try: self.engine = subprocess.Popen([sys.executable, str(HERE / "engine.py")], cwd=str(HERE))
+            except Exception as e: log("[公式] engine.py 重新啟動失敗", e)
+            return
+        self.eng_restarts = getattr(self, "eng_restarts", 0) + 1
+        if self.eng_restarts <= 5:
+            try:
+                log(f"!! [公式] engine.py 不見了(結束碼 {rc}),第 {self.eng_restarts} 次重新啟動")
+                self.engine = subprocess.Popen([sys.executable, str(HERE / "engine.py")], cwd=str(HERE))
+            except Exception as e: log("[公式] engine.py 重新啟動失敗", e)
+        elif self.eng_restarts == 6:
+            log("!! [公式] engine.py 今天已重開 5 次,不再重開"); self.phone_alert("⚠ 電腦公式引擎一直結束", "今天已重開 5 次,不再重開;請看電腦紀錄")
+
     def run_day(self):
         day = now_tw().strftime("%Y-%m-%d")
         self.book = BarBook(vol_mult=int(CFG.get("VOL_MULT", "1000"))); self.sent = set(); self.n_ticks = 0
+        self.day_reset()                 # 2026-11-21 使用者「全改」(檢查 R5 / R10 / R1):台指期 K、引擎重開次數、停用的查詢功能、登入退避次數每天重來
         self.quotes.q.clear()            # 新的一天:即時價從頭累計
         for m in self.quotes.meta.values(): m["y"] = None; m["yref"] = None   # 2026-10-28 平倉檢查 #10:昨收每天重抓(不在今天名單的股票不會留著前幾天的)
         self.codes = self.load_codes_safe()
         self.trader = self.make_trader()
         self.trader.prime(fetch_signals(CFG["WORKER_URL"], day, CFG.get("PUSH_KEY", "")))
         self._loc = None; self.local_signals(day)   # 2026-10-30 本機通知檔從現在的檔尾開始讀(之前的是舊的)
+        self.engine_stop_old()   # 2026-11-21(檢查 R10):前一天的引擎還沒結束(收工時等 120 秒逾時那種)→ 先關掉,不然新的拿不到 engine.lock
         self.engine = None   # 2026-10-29 公式在電腦(使用者「先做1.2.3」第 2 項):ENGINE=1 → 另開一個 engine.py 行程,每分鐘用模擬器算判一二三推雲端;收工時關掉
         if CFG.get("ENGINE", "0") == "1" and FAMILY: log(f"[家人 {ACCT}] 只下單模式:不開公式引擎(訊號讀主帳號的雲端 / 本機通知)")
         if CFG.get("ENGINE", "0") == "1" and not FAMILY:
@@ -1773,7 +2176,7 @@ class Bridge:
                 import subprocess
                 self.engine = subprocess.Popen([sys.executable, str(HERE / "engine.py")], cwd=str(HERE)); log(f"[公式] engine.py 已啟動(pid {self.engine.pid}),判一二三由電腦算、手機只收雲端通知")
             except Exception as e: log("[公式] engine.py 啟動失敗", e)
-        fails = 0; k = 0; resumed = False; rechecked = set(); closed_all = False
+        fails = 0; k = 0; resumed = False; rechecked = set(); closed_all = False; resume_try = 0.0
         self.last_tick = time.time(); self.last_kick = 0.0; self.n_kick = 0; self.last_recon = time.time()
         # 2026-10-30 11:08(實際時間)使用者「該如何避免再次出現這問題」→「2道都做」第 1 道:電腦自己做開盤前資格複檢(elig.py),
         #   啟動時先做一次(08:45 前),08:30、08:44 再各做一次(證交所 / 櫃買早上才換今天的名單);結果存本機 + 推 Worker,手機、引擎、trader 都照它排除
@@ -1800,7 +2203,15 @@ class Bridge:
                 hm_w = now_tw().strftime("%H:%M")
                 if "09:00" <= hm_w <= "13:36" and time.time() - getattr(self, '_bk_at', 0) >= 60:   # 2026-11-12 20:22 使用者「改」:每分鐘把電腦關鍵資料備份到雲端(背景,不卡主迴圈)
                     self._bk_at = time.time(); threading.Thread(target=self.pc_backup, args=(day,), daemon=True).start()
-                if self.api is not None and not self.disconnected.is_set() and "09:01" <= hm_w < "13:25":
+                # 2026-11-21 使用者「全改」(輕微項,休市日):連上 10 分鐘以上、09:10 了還一筆逐筆都沒有 → 多半是休市(颱風假、清單沒列到的休市日)或訂閱整個沒成功,
+                #   今天不再「沒逐筆 → 斷線重登」(原本整天每幾分鐘重登一次,可能被元大鎖),推手機一次;之後真的有逐筆進來就恢復看門狗
+                if self.n_ticks == 0 and hm_w >= "09:10" and not self._no_tick_day and time.time() - getattr(self, "_conn_at", time.time()) >= 600:
+                    self._no_tick_day = True
+                    log("!! 09:10 了今天還沒有任何逐筆成交(休市?訂閱沒成功?)→ 今天停用「沒逐筆就重登」")
+                    self.phone_alert("⚠ 今天到 09:10 都沒有元大逐筆", "可能休市或訂閱沒成功;中繼不再自動重登,部位管理 / 13:20 平倉照常,請確認元大連線")
+                elif self._no_tick_day and self.n_ticks > 0:
+                    self._no_tick_day = False; log("逐筆開始進來了 → 恢復「沒逐筆就重登」看門狗")
+                if self.api is not None and not self.disconnected.is_set() and "09:01" <= hm_w < "13:25" and not self._no_tick_day:
                     quiet = time.time() - self.last_tick; gap = min(300, int(CFG.get("TICK_WATCH", "60")) * (2 ** min(self.n_kick, 3)))
                     if quiet > int(CFG.get("TICK_WATCH", "60")) and time.time() - self.last_kick > gap:
                         self.last_kick = time.time(); self.n_kick += 1
@@ -1811,10 +2222,14 @@ class Bridge:
                     elif quiet <= 5 and self.n_kick:
                         log(f"逐筆恢復(重連 {self.n_kick} 次)"); self.n_kick = 0
                 if self.api is None or self.disconnected.is_set():
+                    if time.time() < self._relogin_at:                       # 2026-11-21(檢查 R1):元大暫時不給登入 → 退避時間還沒到,先不登入(也不讀訊號:沒登入送不出單)
+                        time.sleep(1); continue
                     self.close(); self.connect(); self.subscribe(self.codes); self.fut_sub(); fails = 0; self.last_tick = time.time()   # 重連後重新計時
+                    self.__dict__.setdefault("_conn_at", time.time())
                     self.last_recon = time.time() - 50                       # 重連後 10 秒就對帳一次
-                    if not resumed:
-                        self.resume_positions(day); resumed = True          # 今天第一次連上:接回程式開的未平部位(斷線重連不用,部位一直在記憶體裡)
+                # 今天第一次連上:接回程式開的未平部位(斷線重連不用,部位一直在記憶體裡)。2026-11-21 使用者「全改」(檢查 R9):查不到成交回報不算接回過,每分鐘再試到成功
+                if not resumed and self.api is not None and self.logged_in.is_set() and time.time() - resume_try >= 60:
+                    resume_try = time.time(); resumed = self.resume_positions(day)
                 self.nap(day); k += 1   # 2026-11-20 使用者「改1,4」:原 time.sleep(1);等的這 1 秒裡每 0.2 秒看一次電腦引擎的本機通知檔,有新的馬上交給 trader
                 try: self.fut_poll()   # ⑧ 備援 2:電腦直接問期交所台指期(每 10 秒,08:44~13:46)
                 except Exception: pass
@@ -1827,7 +2242,7 @@ class Bridge:
                 _lp = self.sig_waiter(day)   # 2026-11-12 21:00 使用者「都改」(Cloudflare 1):雲端有新通知才讀(長輪詢,手機下單 0.x 秒到);長輪詢不通就照舊每 SIG_POLL_SEC 秒讀
                 _due = (k % max(1, int(CFG.get("SIG_POLL_SEC", "1") or 1)) == 0) if not _lp else (self._sig_kick.is_set() or k % 15 == 0)
                 if _lp and _due: self._sig_kick.clear()
-                sig = fetch_signals(CFG["WORKER_URL"], day, CFG.get("PUSH_KEY", "")) if (self.trader.enabled and _due) else None   # 手機通知每 SIG_POLL_SEC 秒看一次(2026-11-12 20:22 使用者「改」:升級 Workers Paid 後 3 → 1 秒,手機強制進場 / 強平 1 秒內收到;約 +12,000 次 / 天)
+                sig = self.signals_fetch(day, due=_due) if (self.trader.enabled and (_due or self.sig_inflight())) else None   # 2026-11-21(檢查 R2):改背景抓、主迴圈最多等 SIG_WAIT_SEC 秒; 手機通知每 SIG_POLL_SEC 秒看一次(2026-11-12 20:22 使用者「改」:升級 Workers Paid 後 3 → 1 秒,手機強制進場 / 強平 1 秒內收到;約 +12,000 次 / 天)
                 # 2026-10-30 01:32 使用者「先做A」:電腦引擎寫在本機的通知每秒讀一次,不用等 Worker / 3 秒輪詢(訊號算出來 1 秒內送單);還沒 prime 好不讀(避免舊訊號)
                 if self.trader.enabled and getattr(self.trader, "primed", False):
                     loc = self.local_signals(day)
@@ -1849,14 +2264,18 @@ class Bridge:
                     except Exception as e: log("額度查詢失敗", e)
                 if self.trader.enabled and self.trader.need_verify():   # 2026-10-28 漲停 / 跌停單 30 秒沒成交完 → 查元大:還掛著就等、沒有就重送
                     r = self.query_today(with_oco=False)
-                    if r: self.trader.verify(r["working"], r["trades"], r.get("tags"))   # 平倉檢查 #2:委託書號沒回來也能用自訂編號對
+                    if r: self.trader.verify(r["working"], self.guard_trades(r["trades"], "30 秒檢查")[0], r.get("tags"))   # 平倉檢查 #2:委託書號沒回來也能用自訂編號對;2026-11-21(檢查 R4)可疑重複照較少張數算
                     else: log("[交易] 30 秒檢查:查不到元大委託回報,下一輪再查")
                 hm_now = now_tw().strftime("%H:%M")
                 # 2026-10-28 模擬測試:斷線 / 重開漏掉回報 → 每分鐘(重連後馬上)跟元大對一次帳,程式不知道的部位接回來 / 平掉
-                if self.trader.enabled and "09:01" <= hm_now < self.trader.force_exit and time.time() - self.last_recon > 60:
+                # 2026-11-21 使用者「全改」(檢查 R9):還沒接回成功前不對帳(對帳會把程式自己開的部位當成「晚到的成交」平掉);(檢查 R4)可疑重複成交判斷不了的檔跳過
+                if self.trader.enabled and resumed and "09:01" <= hm_now < self.trader.force_exit and time.time() - self.last_recon > 60:
                     self.last_recon = time.time()
                     r = self.query_today(with_oco=False)
-                    if r: self.trader.reconcile(r["trades"], r["working"], r.get("tags"), r.get("types"))
+                    if r:
+                        safe, amb = self.guard_trades(r["trades"], "對帳")
+                        with self.skip_codes(amb):
+                            self.trader.reconcile(safe, r["working"], r.get("tags"), r.get("types"))
                 if self.trader.enabled and self.trader.cancel_all and not closed_all and hm_now >= self.trader.force_exit:
                     closed_all = True
                     try: self.close_all(self.trader.force_exit)
@@ -1884,19 +2303,29 @@ class Bridge:
                         _rf2 = {c: m["yref"] for c, m in list(self.quotes.meta.items()) if m.get("yref")}
                         if _rf2 and _rf2 != getattr(self, "_ref_pushed", None) and time.time() - getattr(self, "_ref_push_t", 0) > 300 and CFG.get("PUSH_KEY") and CFG.get("WORKER_URL"):
                             self._ref_push_t = time.time()
-                            _rq = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?yref=push", data=json.dumps({"d": day, "ref": _rf2}).encode(), method="POST",
-                                                         headers={"Content-Type": "application/json", "X-Push-Key": CFG["PUSH_KEY"], "User-Agent": "yuanta-bridge"})
-                            if json.loads(urllib.request.urlopen(_rq, timeout=15).read().decode()).get("ok"): self._ref_pushed = dict(_rf2)
+                            def _ref_go(rf=_rf2):   # 2026-11-21(檢查 R2):背景推,不卡主迴圈
+                                try:
+                                    _rq = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?yref=push", data=json.dumps({"d": day, "ref": rf}).encode(), method="POST",
+                                                                 headers={"Content-Type": "application/json", "X-Push-Key": CFG["PUSH_KEY"], "User-Agent": "yuanta-bridge"})
+                                    if json.loads(urllib.request.urlopen(_rq, timeout=15).read().decode()).get("ok"): self._ref_pushed = dict(rf)
+                                except Exception as e: log("參考價推 Worker 失敗", e)
+                            threading.Thread(target=_ref_go, daemon=True).start()
                     except Exception as e: log("參考價推 Worker 失敗", e)
                 # 2026-10-30 引擎看門狗:盤中引擎行程結束了(當掉 / 被關)→ 重新開(一天最多 5 次);13:30 後不管
-                if CFG.get("ENGINE", "0") == "1" and k % 30 == 0 and "08:45" <= hm_now < "13:30" and getattr(self, "engine", None) is not None and self.engine.poll() is not None:
-                    self.eng_restarts = getattr(self, "eng_restarts", 0) + 1
-                    if self.eng_restarts <= 5:
-                        try:
-                            import subprocess
-                            log(f"!! [公式] engine.py 不見了(結束碼 {self.engine.returncode}),第 {self.eng_restarts} 次重新啟動")
-                            self.engine = subprocess.Popen([sys.executable, str(HERE / "engine.py")], cwd=str(HERE))
-                        except Exception as e: log("[公式] engine.py 重新啟動失敗", e)
+                if CFG.get("ENGINE", "0") == "1" and k % 30 == 0 and "08:45" <= hm_now < "13:30" and getattr(self, "engine", None) is not None:
+                    self.engine_watch()
+            except LoginRetry as e:
+                # 2026-11-21 使用者「全改」(檢查 R1):暫時被拒(0016 請勿連續登入等)→ 退避 30 / 60 / 120 / 240 / 300 秒再登入,當天最多 LOGIN_RETRY_MAX 次;手機只提醒第一次
+                self.close()
+                self.login_soft_n = getattr(self, "login_soft_n", 0) + 1; n = self.login_soft_n
+                mx = int(CFG.get("LOGIN_RETRY_MAX", "10") or 10)
+                if n > mx:
+                    log(f"!! 元大暫時拒絕登入已經 {n - 1} 次({e}),今天不再重試")
+                    self.phone_alert("⚠⚠ 元大一直不給登入", f"{e} · 已試 {n - 1} 次,今天不再重試;有部位請用元大 App 手動平倉")
+                    break
+                w = login_backoff(n); self._relogin_at = time.time() + w
+                log(f"!! 元大暫時不給登入:{e}(第 {n} 次)→ {w} 秒後再登入")
+                if n == 1: self.phone_alert("⚠ 元大暫時不給登入", f"{e} · 中繼 {w} 秒後自動再登入(最多 {mx} 次),13:20 平倉照常")
             except LoginRejected as e:
                 log(f"!! 元大拒絕登入:{e}。今天不再重試,請檢查 bridge.env 的帳號 / 密碼 / 權限後重啟服務")
                 self.phone_alert("⚠⚠ 元大拒絕登入", f"{e} · 今天程式不會管部位,有部位請用元大 App 手動平倉")
@@ -1905,13 +2334,15 @@ class Bridge:
                 fails += 1; log("錯誤", e, f"(第 {fails} 次)")
                 self.close(); time.sleep(min(60, 10 * fails))   # 登入失敗不能太頻繁(每 4 秒最多 1 次,一天 1000 次)
         self.flush(day, final=True); self.flush_ticks(day)   # 2026-10-30 收工前把剩下的逐筆寫完
+        self.push_drain(30)   # 2026-11-21(檢查 R2):背景佇列裡還沒推上去的分鐘,最多等 30 秒
         try:   # 2026-10-29 13:38 收工登出前最後查一次今天成交存起來(手機明細登出後照樣看得到)
             if self.api and self.logged_in.is_set():
                 self._fills_cache = None; fj = self.trade_fills(); log(f"收工前存今天成交:{'好' if fj.get('ok') else fj.get('msg')}")
         except Exception as e: log("收工前存成交失敗", e)
         try: self.pc_backup(day)   # 2026-11-12 21:00 使用者「都改」(Cloudflare 2/3/5):收工最後一份備份(含今天完整成交),雲端 14:05 存 R2 / D1、寫 AI 檢討
         except Exception as e: log("收工備份失敗", e)
-        log(f"收工:逐筆 {self.n_ticks} 筆,推送 {len(self.sent)} 分鐘;交易 {self.trader.n_trades} 筆 淨 {self.trader.pnl:+,.0f} {self.trader.journal}")
+        _ok = len([x for x in (self.__dict__.get("_pq_st") or {}).get("ok", ()) if x[0] == day])
+        log(f"收工:逐筆 {self.n_ticks} 筆,1 分 K {len(self.sent)} 分鐘(推上 Worker {_ok});交易 {self.trader.n_trades} 筆 淨 {self.trader.pnl:+,.0f} {self.trader.journal}")
         if getattr(self, "engine", None):
             try:
                 self.engine.wait(timeout=120)   # engine.py 13:32 自己收工;沒結束就關掉
@@ -1981,31 +2412,71 @@ def self_update():
     except Exception: pass
     if not re.fullmatch(r"[\w.\-]{1,40}", want) or want == cur: return
     log(f"自動更新:VERSION {cur or '無'} → {want},下載中")
+    # 2026-11-21 使用者「全改」(檢查 R8):原本一個檔一個檔下載就換掉、只要有 1 個成功就寫 VERSION → 部分新、部分舊的程式也算「已更新」,之後不會再補;
+    #   main 在下載途中又被推新版,也可能拿到兩個版本混在一起。改成:
+    #   1. 主帳號先問 Worker main 現在的提交編號(?gh=tree 回的 commit),全部檔案都用 ref=<那個編號> 抓(同一版);問不到就照舊抓 main,最後再讀一次 VERSION 要和開始時一樣
+    #   2. 全部先下載到暫存資料夾、每個都編譯檢查;有任何一個失敗 → 全部不換、不寫 VERSION(下次再試)
+    #   3. 全部換上(舊檔留 .bak);換到一半失敗 → 已換的還原,不寫 VERSION;全部成功才寫 VERSION
+    pin = ref
+    if ref == "main" and CFG.get("PUSH_KEY") and CFG.get("WORKER_URL"):
+        try:
+            rq = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?gh=tree&repo=db", headers={"X-Push-Key": CFG["PUSH_KEY"], "User-Agent": "yuanta-bridge/1"})
+            sha = str(json.loads(urllib.request.urlopen(rq, timeout=60).read().decode("utf-8")).get("commit") or "")
+            if re.fullmatch(r"[0-9a-f]{40}", sha):
+                w2 = gh_get("tools/yuanta_bridge/VERSION", ref=sha, timeout=20).decode("utf-8").strip().split()[0]
+                if w2 == want: pin = sha; log(f"自動更新:固定抓提交 {sha[:10]}")
+                else: log(f"自動更新:提交 {sha[:10]} 的 VERSION 是 {w2}(剛好又推了新版)→ 這次不換,下次再試"); return
+        except Exception as e: log("自動更新:問不到 main 的提交編號,照舊抓 main(最後再對一次 VERSION)", e)
     files = ["yuanta_bridge.py", "bars.py", "trader.py", "quotes.py", "win_pnl.py", "engine.py", "win_keys.py", "win_update.py", "hist_kline.py", "win_install.py", "elig.py"]
     try:   # 2026-10-30 11:10(實際時間)檔案清單改讀 repo 的 tools/yuanta_bridge/FILES(新增檔案時舊版程式也抓得到;抓不到就用上面寫死的)
-        lst = [x.strip() for x in gh_get("tools/yuanta_bridge/FILES", ref=ref, timeout=30).decode("utf-8").splitlines() if x.strip().endswith(".py")]
+        lst = [x.strip() for x in gh_get("tools/yuanta_bridge/FILES", ref=pin, timeout=30).decode("utf-8").splitlines() if x.strip().endswith(".py")]
         if lst: files = lst
     except Exception: pass
+    files = [f for f in files if re.fullmatch(r"[\w.\-]+\.py", f)]   # 只收同一資料夾的 .py
     import py_compile, shutil
-    ok = 0
-    for f in files:
-        try:
-            b = gh_get(f"tools/yuanta_bridge/{f}", ref=ref, timeout=60)   # main 最新(夥伴版:UPDATE_REF 指定的 commit)
-            tmp = HERE / (f + ".new"); tmp.write_bytes(b); py_compile.compile(str(tmp), doraise=True)
-            if (HERE / f).exists(): shutil.copyfile(HERE / f, HERE / (f + ".bak"))
-            os.replace(tmp, HERE / f); ok += 1
-        except Exception as e:
-            log(f"自動更新:{f} 失敗(保留舊檔)", e)
-            try: (HERE / (f + ".new")).unlink()
-            except Exception: pass
-    if ok == 0: return
+    stage = HERE / f".upd_{want}"
+    try:
+        shutil.rmtree(stage, ignore_errors=True); stage.mkdir(parents=True, exist_ok=True)
+        for f in files:   # 2:全部先下載 + 編譯
+            b_ = gh_get(f"tools/yuanta_bridge/{f}", ref=pin, timeout=60)
+            (stage / f).write_bytes(b_); py_compile.compile(str(stage / f), cfile=str(stage / (f + ".pyc_chk")), doraise=True)
+        if pin == ref:   # 沒固定提交:下載完再對一次 VERSION(途中被推新版 → 檔案可能混到兩版,這次不換)
+            w3 = gh_get("tools/yuanta_bridge/VERSION", ref=ref, timeout=20).decode("utf-8").strip().split()[0]
+            if w3 != want:
+                log(f"自動更新:下載途中 VERSION 變成 {w3} → 這次不換,下次再試"); shutil.rmtree(stage, ignore_errors=True); return
+    except Exception as e:
+        log("自動更新:下載 / 編譯檢查沒有全部成功 → 一個都不換、不寫 VERSION(下次再試)", e); shutil.rmtree(stage, ignore_errors=True); return
+    done = []   # 3:換上;失敗就還原
+    try:
+        for f in files:
+            dst = HERE / f; had = dst.exists()
+            if had: shutil.copyfile(dst, HERE / (f + ".bak"))
+            os.replace(stage / f, dst); done.append((f, had))
+    except Exception as e:
+        log("自動更新:換檔到一半失敗 → 還原已換的檔,不寫 VERSION", e)
+        for f, had in reversed(done):
+            try:
+                if had: shutil.copyfile(HERE / (f + ".bak"), HERE / f)
+                else: (HERE / f).unlink()
+            except Exception as e2: log(f"自動更新:還原 {f} 失敗!", e2)
+        shutil.rmtree(stage, ignore_errors=True); return
+    shutil.rmtree(stage, ignore_errors=True)
     (HERE / "VERSION").write_text(want + "\n", encoding="utf-8")
-    log(f"自動更新:{ok}/{len(files)} 個檔換成 {want},重新啟動")
+    log(f"自動更新:{len(files)} 個檔全部換成 {want},重新啟動")
     os.environ["MYSH_UPDATED"] = "1"
     try:
         if _BRIDGE_LOCK: _BRIDGE_LOCK.close()   # 2026-10-30 放開單一執行個體鎖,新行程才拿得到
     except Exception: pass
-    os.execv(sys.executable, [sys.executable] + sys.argv)
+    restart_self()
+
+
+def restart_self():
+    """2026-11-21 使用者「全改」(輕微項):原本 os.execv(sys.executable, [sys.executable] + sys.argv) 在 Windows 參數不會加引號,
+       路徑有空白(例如 C:/Program Files/Python…)會被拆開 → 新行程起不來。改成 subprocess.Popen(清單參數,Windows 會正確加引號)開新行程後自己結束"""
+    import subprocess
+    args = [sys.executable, os.path.abspath(sys.argv[0])] + sys.argv[1:]
+    subprocess.Popen(args, cwd=str(HERE), env=dict(os.environ), close_fds=True)
+    os._exit(0)
 
 
 def main():
@@ -2028,7 +2499,7 @@ def main():
         b.connect(); time.sleep(2)
         r = b.query_today(with_oco=True) or {}
         log(f"[條件單測試] 接回查詢:條件單 {len(r.get('oco') or [])} 張{'(查詢失敗)' if r.get('oco_failed') else ''} {r.get('oco')}")
-        st = b.query_strategies()
+        st = b.query_strategies() or []
         log(f"[條件單測試] 全部類別有效條件單 {len(st)} 張 {st}")
         b.close(); return
     if cmd == "kline":
@@ -2086,7 +2557,10 @@ def main():
         n = now_tw(); hm = n.strftime("%H:%M")
         # 2026-10-29 13:38 使用者「明細沒了」:收盤後(或重開程式時)今天還沒存到元大成交 → 登入一次查完存起來就登出(一天只試一次,手機明細才有今天的真實成交)
         fk = n.strftime("%Y-%m-%d")
-        if n.weekday() < 5 and "13:36" <= hm < "23:00" and fk not in hist_done and not (HERE / "fills" / f"{fk}.json").exists():
+        hol = is_holiday(fk)   # 2026-11-21 使用者「全改」(輕微項):休市日不登入元大
+        if hol and fk + "hol" not in hist_done and n.weekday() < 5:
+            hist_done.add(fk + "hol"); log(f"今天 {fk} 是休市日,不登入元大(bridge.env HOLIDAY_SKIP=0 可關掉)")
+        if n.weekday() < 5 and not hol and "13:36" <= hm < "23:00" and fk not in hist_done and not (HERE / "fills" / f"{fk}.json").exists():
             hist_done.add(fk)
             try:
                 b.connect(); fj = b.trade_fills(); log(f"收盤後補查今天成交:{'好,' + str(fj.get('n', '')) + ' 筆' if fj.get('ok') else fj.get('msg')}")
@@ -2096,7 +2570,7 @@ def main():
                 except Exception: pass
         # 2026-10-25 使用者「符合條件一律收進來…預先抓好抓滿」:收工後把今天「前一天收盤符合選股條件的全部股票」的元大 1 分 K 抓回本機 kline_yuanta\
         #   14:05 一次、17:05 再補一次(已抓過的跳過);同一支程式依序登入,不會兩支同時登入。bridge.env 設 HIST_AFTER=0 可關掉
-        if n.weekday() < 5 and CFG.get("HIST_AFTER", "0" if FAMILY else "1") == "1" and "14:05" <= hm < "20:00":   # 2026-11-15 家人帳號預設不抓(主帳號抓一份就好)
+        if n.weekday() < 5 and not hol and CFG.get("HIST_AFTER", "0" if FAMILY else "1") == "1" and "14:05" <= hm < "20:00":   # 2026-11-15 家人帳號預設不抓(主帳號抓一份就好)
             for at, until in (("14:05", "17:05"), ("17:05", "20:00")):
                 key = n.strftime("%Y-%m-%d") + at
                 if at <= hm < until and key not in hist_done:
@@ -2116,7 +2590,7 @@ def main():
                 if want and want != cur:
                     log(f"有新版 {cur} → {want}:結束自己,讓工作排程重開時更新"); os._exit(0)
             except Exception as e: log("檢查新版失敗", e)
-        if n.weekday() < 5 and CFG.get("DAY_START", "08:30") <= hm < "13:36":   # ⑧ 2026-11-11 20:25 使用者「123478改」:08:45 → 08:30 連線訂閱,收得到元大開盤前的清盤參考價(昨收,除權息已扣;原本 08:45 才訂閱就錯過了,ref 檔一直寫不出來)
+        if n.weekday() < 5 and not hol and CFG.get("DAY_START", "08:30") <= hm < "13:36":   # ⑧ 2026-11-11 20:25 使用者「123478改」:08:45 → 08:30 連線訂閱,收得到元大開盤前的清盤參考價(昨收,除權息已扣;原本 08:45 才訂閱就錯過了,ref 檔一直寫不出來)
             try:
                 b.run_day()
             except Exception as e:

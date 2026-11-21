@@ -804,9 +804,11 @@ async function pushFanout(env, item) {
   let subs = []; try { subs = await hubOf(env).pushSubs(); } catch (e) { return; }
   // 2026-11-21 使用者「全改」(檢查 W1):原本推「最舊的 40 筆」,外人灌訂閱就把真的手機擠掉 → 有鑰匙的先(新到舊),再來免費的(新到舊);看不到這則的不算進 40 支
   const ord = [...subs.filter(s => s.k).reverse(), ...subs.filter(s => !s.k).reverse()];
-  let sent = 0;
+  let sent = 0, checks = 0;
+  // 2026-11-21 使用者「全改」(檢查 f):原本每則訊號最多把 500 筆訂閱都查一次權限(pushTier 會讀 KV / Hub = 子請求)→ 最多只查 100 筆,湊滿 40 支能推的就停
   for (const s of ord) {
-    if (sent >= 40) break;   // 一則訊號最多推 40 支(免費方案一次最多 50 個子請求)
+    if (sent >= 40 || checks >= 100) break;   // 一則訊號最多推 40 支(免費方案一次最多 50 個子請求)、最多查 100 筆權限
+    checks++;
     try { const tier = await pushTier(env, s); if (!pushCanSee(tier, item)) continue; sent++;
       const r = await fetch(s.endpoint, { method: "POST", headers: { Authorization: await vapidAuth(env, s.endpoint), TTL: "3600", Urgency: "high" } });
       if (r.status === 404 || r.status === 410) await hubOf(env).pushSubDel(s.id); } catch (e) {}
@@ -876,6 +878,8 @@ const SEENW = new Map();
 // 2026-11-21 使用者「全改」(檢查 W4):不用鑰匙的公開轉送(?twidx / ?taifex / ?codes)每個 IP 限次數(這個執行個體的記憶體,不吃 Hub / KV)
 const IPRL = new Map();
 function ipLimit(name, ip, max, winMs) { const k = name + "|" + ip, now = Date.now(); let q = IPRL.get(k); if (!q || now - q.t > winMs) q = { t: now, n: 0 }; q.n++; IPRL.set(k, q); if (IPRL.size > 5000) IPRL.clear(); return q.n <= max; }
+// 2026-11-21 使用者「全改」(檢查 a):pbug 和 bug=put 共用「看起來像鑰匙的字串先遮掉」(夥伴鑰匙 fa11…、16~64 碼十六進位、k= / dv= / key= / pass= / pwd= 的值)
+const scrubKeys = t => String(t == null ? "" : t).replace(/fa11[0-9a-f]{6,}/gi, "[鑰匙]").replace(/\b[0-9a-f]{16,64}\b/gi, "[鑰匙]").replace(/((?:^|[?&\s])(k|dv|key|pass|pwd)=)[^&\s"']+/gi, "$1*");
 const BUGIP = new Map();   // 2026-11-03 抓 bug 上傳不要鑰匙後,每個 IP 每分鐘最多 6 次   // 2026-11-03 鑰匙「最後使用時間」這個執行個體上次試著寫 KV 的時間
 // 2026-11-03 20:10 使用者「改」(KV 寫入一天上限 1,000 次,上午爆到 1.6 萬):鑰匙的「綁定手機 / 最後使用時間」改存 Hub(Durable Object,一天 10 萬筆寫入),KV 只留鑰匙本身的設定。
 //   讀:每個執行個體每把鑰匙 5 分鐘讀一次 Hub;寫:第一次綁手機馬上寫,最後使用時間每個執行個體每把鑰匙一小時最多一次。舊的 KV 裡已有的 dev 照樣認(Hub 沒有時)
@@ -1255,8 +1259,9 @@ export default {
           if (!fdv) return J({ error: "要鑰匙或手機識別碼", badKey: true }, 403);
           let first = null; try { first = await hubOf(env).kvGet("free:" + fdv); } catch (e) {}
           if (!first || Date.now() - +first > 7 * 86400e3) return J({ error: "免費期的交易通知已結束(或還沒開始),要鑰匙才能收推播" }, 403);
-          let g = null; try { g = await hubOf(env).rateHit("pushsub", request.headers.get("CF-Connecting-IP") || "?", 5, 600e3); } catch (e) {}
-          if (!g || !g.ok) return J({ error: "太頻繁,10 分鐘後再試" }, 429);
+          // 2026-11-21 使用者「全改」(檢查 c):限次數出錯 → 放行(fail open,只記 log);免費期檢查照舊
+          let g = { ok: true }; try { g = await hubOf(env).rateHit("pushsub", request.headers.get("CF-Connecting-IP") || "?", 5, 600e3); } catch (e) { console.log("push=sub 限次數出錯,先放行 " + String(e && e.message || e).slice(0, 120)); }
+          if (!g.ok) return J({ error: "太頻繁,10 分鐘後再試" }, 429);
         }
         return J(await hubOf(env).pushSubPut({ id, endpoint: ep, k: KI ? kq : "", dv: KI ? "" : fdv, made: Date.now() })); }
       if (pq === "unsub") return J(await hubOf(env).pushSubDel(id));
@@ -1454,7 +1459,8 @@ export default {
         return J({ ok: true, n: codes.length });
       }
       // 2026-11-21 使用者「全改」(檢查 W3):名單外手動成交的股票 = 你的真實交易 → 沒鑰匙回空的 {};看盤鑰匙只給代號 / 名稱 / 市場 / 昨收(App 加進名單用),不給成交時間;owner / 中繼全部
-      const v = KI || pushOk ? await hubOf(env).kvGet("extra") : null;
+      // 2026-11-21 使用者「全改」(檢查 d):沒鑰匙回 {} → 免費 / iPhone 網頁版名單少了名單外成交的股票 → 沒鑰匙也給和看盤鑰匙一樣的精簡版(代號 / 名稱 / 市場 / 昨收,沒有成交時間)
+      const v = await hubOf(env).kvGet("extra");
       const out = v && !ownerR ? { d: v.d, codes: (Array.isArray(v.codes) ? v.codes : []).map(x => ({ code: x.code, name: x.name, market: x.market, prev: x.prev })) } : v;
       return new Response(JSON.stringify(out || {}), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "private, max-age=30" } });
     }
@@ -1511,15 +1517,16 @@ export default {
     if (bugQ === "put" || bugQ === "list") {
       if (!env || !env.HUB) return J({ error: "沒有 Hub" }, 503);
       const hub = hubOf(env);
-      const scrub = t => String(t == null ? "" : t).replace(/fa11[0-9a-f]{6,}/gi, "[鑰匙]").replace(/\b[0-9a-f]{16,64}\b/gi, "[鑰匙]").replace(/((?:^|[?&\s])(k|dv|key|pass|pwd)=)[^&\s"']+/gi, "$1*");
+      const scrub = scrubKeys;
       if (bugQ === "list") { let L = null; try { L = await hub.kvGet("bugs"); } catch (e) {} const n = Math.min(300, Math.max(1, +url.searchParams.get("n") || 50));
         return J({ ok: true, bugs: (Array.isArray(L) ? L : []).slice(-n).reverse() }); }
       if (request.method !== "POST") return J({ error: "要用 POST" }, 405);
       // 2026-11-21 使用者「全改」(檢查 W2):原本每個請求寫一列 bugrate:<時段>:<IP> 永遠不刪 → 改用 Hub 的 rl 表(一天後自動清,也順便清掉舊的 bugrate 列);
       //   夥伴看盤 / 夥伴加入出錯時常常還沒輸入鑰匙,所以照舊不要鑰匙,但同一個 IP 10 分鐘最多 30 筆、全部加起來 10 分鐘最多 200 筆
       const ip = request.headers.get("CF-Connecting-IP") || "?";
-      let c = null, cg = null; try { c = await hub.rateHit("pbug", ip, 30, 600e3); cg = c.ok ? await hub.rateHit("pbug", "*", 200, 600e3) : null; } catch (e) {}
-      if (!c || !c.ok || !cg || !cg.ok) return J({ error: "太多了,10 分鐘後再送" }, 429);
+      // 2026-11-21 使用者「全改」(檢查 c):Hub 限次數本身出錯(例如改版中舊的 Durable Object 還沒有 rl 表)→ 放行(fail open,只記 log),不要整個擋掉;大小上限照舊
+      let c = { ok: true }, cg = { ok: true }; try { c = await hub.rateHit("pbug", ip, 30, 600e3); if (c.ok) cg = await hub.rateHit("pbug", "*", 200, 600e3); } catch (e) { console.log("pbug 限次數出錯,先放行 " + String(e && e.message || e).slice(0, 120)); }
+      if (!c.ok || !cg.ok) return J({ error: "太多了,10 分鐘後再送" }, 429);
       let b = null; try { b = await request.json(); } catch (e) {}
       if (!b || typeof b !== "object") return J({ error: "內容不對" }, 400);
       const cut = (x, n) => scrub(x).slice(0, n);
@@ -1762,11 +1769,18 @@ export default {
         //   大小上限照舊 1.5MB(snaps 異常前 10 秒完整紀錄大小不定,改小怕手機傳不上去)
         // 2026-11-03 12:56 使用者「上傳不需要 鑰匙」:不再要 owner 鑰匙(現在存 Hub、最多留 20 份,不吃 KV 額度);防亂傳:同一個 IP 每分鐘最多 6 次
         // 2026-11-21 使用者「全改」(檢查 W2):要有效的鑰匙(主程式 App 的 fetch 包裝、開機早期上傳都會帶 k;看盤版不上傳)或中繼金鑰
-        if (!KI && !pushOk) return J({ error: "上傳 bug 紀錄要鑰匙", badKey: true }, 403);
-        { const ip = request.headers.get("CF-Connecting-IP") || "?", now = Date.now(), q = (BUGIP.get(ip) || []).filter(t => now - t < 60000);
+        // 2026-11-21 使用者「全改」(檢查 a):上面那條讓 iPhone 網頁版 / 免費看盤上傳被 403「上傳 bug 紀錄要鑰匙」→ 改回不用鑰匙也能傳,保護比照 pbug:
+        //   沒鑰匙:同一個 IP 10 分鐘最多 6 份、全部沒鑰匙的加起來 10 分鐘最多 40 份(Hub rl 表;Hub 出錯就放行 = fail open,只記 log);大小上限 1.5MB;內容先遮掉像鑰匙的字串。
+        //   讀(?bug=list / get)照舊只給中繼金鑰 / owner 鑰匙
+        const ip = request.headers.get("CF-Connecting-IP") || "?";
+        { const now = Date.now(), q = (BUGIP.get(ip) || []).filter(t => now - t < 60000);
           if (q.length >= 6) return J({ error: "上傳太頻繁,等一分鐘" }, 429); q.push(now); BUGIP.set(ip, q); if (BUGIP.size > 500) BUGIP.clear(); }
         const cl = +request.headers.get("Content-Length") || 0; if (cl > 1500000) return J({ error: "太大" }, 413);
-        const body = await request.text();
+        if (!KI && !pushOk && env.HUB) {
+          let c = { ok: true }, cg = { ok: true }; try { const h = hubOf(env); c = await h.rateHit("bugput", ip, 6, 600e3); if (c.ok) cg = await h.rateHit("bugput", "*", 40, 600e3); } catch (e) { console.log("bug=put 限次數出錯,先放行 " + String(e && e.message || e).slice(0, 120)); }
+          if (!c.ok || !cg.ok) return J({ error: "上傳太頻繁,10 分鐘後再試" }, 429);
+        }
+        const body = scrubKeys(await request.text());
         if (body.length > 1500000) return J({ error: "太大" }, 413);
         const k = "bug:" + new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 19).replace(/[-:T]/g, "");
         // 2026-11-03 11:56 使用者「抓bug也出現失敗」:改存 Hub(不吃 KV 每天 1,000 次寫入),最多留 20 份;沒有 Hub 才用 KV
@@ -1878,15 +1892,18 @@ export default {
         if (!t.ok) return J({ error: "tree " + t.status }, 502);
         const tj = await t.json();
         return J({ repo: rp, commit: cj.sha, at: cj.commit && cj.commit.committer && cj.commit.committer.date, truncated: !!tj.truncated,
-                   files: (tj.tree || []).filter(x => x.type === "blob").map(x => [x.path, x.sha, x.size]) });
+                   files: (tj.tree || []).filter(x => x.type === "blob" && !GH_DENY.test(x.path)).map(x => [x.path, x.sha, x.size]) });   // 2026-11-21 使用者「全改」(檢查 e):GH_DENY 的檔不列(電腦同步就不會去抓)
       }
       const sha = url.searchParams.get("sha") || "";
       if (!/^[0-9a-f]{40}$/.test(sha)) return J({ error: "sha 不對" }, 400);
-      const cache = caches.default, ck = new Request(`https://twse-proxy.internal/__blob/${rp}/${sha}`);
-      const hit = await cache.match(ck); if (hit) return hit;
       // 用 raw.githubusercontent(不吃 GitHub API 每小時 5,000 次的額度;第一次同步約 6,000 個檔);要帶 path + ref(提交編號)
+      // 2026-11-21 使用者「全改」(檢查 e):?gh=raw 有 GH_DENY,這裡原本沒有 → 中繼金鑰也能經 tree / blob 拿到簽章檔、gradle、bridge.env…;
+      //   path 檢查搬到讀快取之前、GH_DENY 一律 403;快取鍵換成 __blob2(改版前快取過的被拒檔不會再從快取吐出來)
       const fp = String(url.searchParams.get("path") || ""), rf = url.searchParams.get("ref") || "";
       if (!fp || fp.includes("..") || !/^[0-9a-f]{40}$/.test(rf)) return J({ error: "path / ref 不對" }, 400);
+      if (GH_DENY.test(fp)) return J({ error: "這個檔不經雲端提供" }, 403);
+      const cache = caches.default, ck = new Request(`https://twse-proxy.internal/__blob2/${rp}/${sha}`);
+      const hit = await cache.match(ck); if (hit) return hit;
       const b = await fetch(`https://raw.githubusercontent.com/${GH_OWNER}/${rp}/${rf}/${fp.split("/").map(encodeURIComponent).join("/")}`, { headers: pub ? { "User-Agent": "twse-proxy" } : { Authorization: "token " + env.GH_TOKEN, "User-Agent": "twse-proxy" } });
       if (!b.ok) return J({ error: "blob " + b.status }, b.status === 404 ? 404 : 502);
       const res = new Response(b.body, { status: 200, headers: { "Content-Type": "application/octet-stream", "Cache-Control": "public, max-age=86400" } });

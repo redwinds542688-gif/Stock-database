@@ -1,21 +1,42 @@
 """2026-11-13 20:00 使用者「台指期 略有參考價值 如何取得」:期交所「前 30 個交易日期貨每筆成交資料」(Daily_YYYY_MM_DD.zip,每天收盤後公布,只留 30 個交易日)
 → 台指期(商品代號 TX)當天成交量最大的月份(近月)日盤 08:45~13:45 合成 1 分 K(這分鐘第一筆 = 開、最後一筆 = 收、量 = 口數)
 → kline_futures/TXF/<年-W週>.csv(欄位 date,time,open,high,low,close,volume)。先直接連期交所,不行再走自己的 Worker ?taifex= 轉送。
-用法:python3 tools/txf_1m.py [起日 YYYY-MM-DD] [迄日](不給 = 今天)"""
-import csv, datetime as dt, io, sys, time, urllib.request, zipfile, collections
+用法:python3 tools/txf_1m.py [起日 YYYY-MM-DD] [迄日](不給 = 今天)
+2026-11-21 使用者「全改」(檢查 W6):走 Worker ?taifex 時不帶金鑰每個 IP 10 分鐘最多 20 次 → 有環境變數 YT_PUSH_KEY 就帶 X-Push-Key(只送給自己的 Worker,不送期交所;不印出來);
+  Worker 回 429 / 5xx / 連不上就等一下再試;最後還有哪天抓不到(不是休市)就結束碼 1(GitHub Actions 變紅)"""
+import csv, datetime as dt, io, os, sys, time, urllib.error, urllib.request, zipfile, collections
 from pathlib import Path
 TW = dt.timezone(dt.timedelta(hours=8)); OUT = Path("kline_futures/TXF")
+WK = "https://twse-proxy.redwinds542688.workers.dev/"
+class Fail(Exception): pass   # 2026-11-21(檢查 W6):真的抓不到(429 / 5xx / 連不上重試完)≠ 休市
 def get(u):
-    return urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=180).read()
+    h = {"User-Agent": "Mozilla/5.0"}
+    if u.startswith(WK) and os.environ.get("YT_PUSH_KEY"): h["X-Push-Key"] = os.environ["YT_PUSH_KEY"]   # 只送給自己的 Worker
+    return urllib.request.urlopen(urllib.request.Request(u, headers=h), timeout=180).read()
+def get_retry(u, d):
+    for i in range(5):   # 429 / 5xx / 連不上 → 等 30、60、120、240 秒再試
+        try: return get(u)
+        except urllib.error.HTTPError as e:
+            if e.code != 429 and e.code < 500: raise
+            if i == 4: raise Fail(f"HTTP {e.code}")
+            print(d, "Worker", f"HTTP {e.code},{30 * 2 ** i} 秒後再試")
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            if i == 4: raise Fail(f"連不上 {e}")
+            print(d, "Worker 連不上", f"{30 * 2 ** i} 秒後再試")
+        time.sleep(30 * 2 ** i)
 def fetch(d):
     raw = None
-    for u in (f"https://www.taifex.com.tw/file/taifex/Dailydownload/DailydownloadCSV/Daily_{d:%Y_%m_%d}.zip",
-              f"https://twse-proxy.redwinds542688.workers.dev/?taifex={d:%Y_%m_%d}"):
+    try:
+        b = get(f"https://www.taifex.com.tw/file/taifex/Dailydownload/DailydownloadCSV/Daily_{d:%Y_%m_%d}.zip")
+        if b[:2] == b"PK": raw = b
+        else: print(d, "不是 zip:", "www.taifex.com.tw", b[:80])
+    except Exception as e: print(d, "抓不到", "www.taifex.com.tw", e)
+    if raw is None:
         try:
-            b = get(u)
-            if b[:2] == b"PK": raw = b; break
-            print(d, "不是 zip:", u.split("/")[2], b[:80])
-        except Exception as e: print(d, "抓不到", u.split("/")[2], e)
+            b = get_retry(f"{WK}?taifex={d:%Y_%m_%d}", d)
+            if b[:2] == b"PK": raw = b
+            else: print(d, "不是 zip:", "Worker", b[:80])
+        except urllib.error.HTTPError as e: print(d, "抓不到", "Worker", f"HTTP {e.code}")   # 404 等 = 期交所沒有這天(休市 / 超過 30 個交易日)
     if raw is None: return None
     z = zipfile.ZipFile(io.BytesIO(raw)); txt = z.read(z.namelist()[0]).decode("big5", "ignore")
     ticks = collections.defaultdict(list); vol = collections.Counter()
@@ -55,14 +76,15 @@ if __name__ == "__main__":
     today = dt.datetime.now(TW).date()
     a = dt.date.fromisoformat(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1] else today
     b = dt.date.fromisoformat(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] else a if len(sys.argv) > 1 and sys.argv[1] else today
-    d = a; n = 0
+    d = a; n = 0; bad = []
     while d <= b:
         if d.weekday() < 5:
             try:
                 x = fetch(d)
                 if x: print(d, "近月", x[0], len(x[1]), "根 →", save(d, x[1])); n += 1
                 else: print(d, "沒有資料(休市 / 超過 30 個交易日?)")
-            except Exception as e: print(d, "失敗", e)
+            except Exception as e: print(d, "失敗", e); bad.append(str(d))
             time.sleep(3)
         d += dt.timedelta(days=1)
     print("完成", n, "天")
+    if bad: print("失敗", len(bad), "天:", " ".join(bad)); sys.exit(1)   # 2026-11-21(檢查 W6):有失敗的日子 → 結束碼 1
