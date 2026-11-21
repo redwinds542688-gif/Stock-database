@@ -1590,3 +1590,64 @@ finally: _tr5.os.replace = _or5
 u5b.prot_save({"code": "2330", "entry": 100.0, "dir": 1}); ok("2330" not in (u5b.load_state().get("prot") or {}))   # 5 秒內不重存
 u5b._prot_t -= 6; u5b.prot_save({"code": "2330", "entry": 100.0, "dir": 1}); ok(time.time() - u5b._prot_t < 5 and "2330" in (u5b.load_state().get("prot") or {}))
 print("2026-11-22 全部做 U5 OK")
+
+# ── 2026-11-22 使用者選 B(留倉對帳):淨部位 = 留倉期初張數 + 今天成交;留倉沒在不管名單也不會被對帳結束 ──
+import json as _jcb
+def _cb_mk(items, **kw):
+    NMK[0] += 1; cf = tmp / f"carry_cb{NMK[0]}.json"; cf.write_text(_jcb.dumps(items), encoding="utf-8")
+    t_, g_ = _u_mk(TRADE_CARRY_FILE=str(cf), TRADE_IGNORE_FILE=str(tmp / "no_ignore.txt"), **kw); return t_, g_
+_CB1 = [{"code": "1709", "dir": -1, "lots": 1, "entry": 30.0, "typ": "0", "date": "2026-10-22"}]
+_CB2 = [{"code": "1709", "dir": -1, "lots": 2, "entry": 30.0, "typ": "0", "date": "2026-10-22"}]
+_fill = lambda bs, n, px, tm="09:40:00", no="M001": {"code": "1709", "bs": bs, "lots": n, "price": px, "time": tm, "order_no": no}
+# B1:留倉空 1 張、今天沒成交 → 對帳兩次照樣留著;漲到停損 → 程式平倉
+at(9, 5); cb1, gcb1 = _cb_mk(_CB1); cb1.on_tick("1709", 30.0); cb1.step()
+ok(cb1.positions.get("1709", {}).get("carry") and cb1.positions["1709"]["qty"] == 1, cb1.positions)
+ok(cb1.carry_base() == {"1709": -1}, cb1.carry_base())
+cb1.reconcile([], []); cb1.reconcile([], []); ok("1709" in cb1.positions and cb1.positions["1709"]["state"] == HOLDING, "留倉被對帳結束了")
+at(10, 0); cb1.on_tick("1709", cb1.positions["1709"]["sl"] + 0.05); cb1.step()
+ok(cb1.positions["1709"]["state"] == EXITING and gcb1.sent and gcb1.sent[-1][:3] == ("1709", "B", 1), gcb1.sent)
+# B2:留倉空 1 張、13:20 照程式部位平(close_now)
+at(9, 5); cb2, gcb2 = _cb_mk(_CB1); cb2.on_tick("1709", 30.0); cb2.step(); cb2.reconcile([], []); cb2.reconcile([], [])
+at(13, 20); s_, f_ = cb2.close_now("13:20"); ok(s_ == {"1709"} and gcb2.sent[-1][:3] == ("1709", "B", 1), (s_, gcb2.sent))
+# B3:今天手動回補 1 張(回報漏了)→ 對帳兩次 → 照留倉均價入帳後結束;之後複查不會把回補那筆當成多單賣掉
+at(9, 5); cb3, gcb3 = _cb_mk(_CB1); cb3.on_tick("1709", 29.0); cb3.step()
+tr3 = [_fill("B", 1, 29.0)]; cb3.reconcile(tr3, []); ok("1709" in cb3.positions); cb3.reconcile(tr3, [])
+ok("1709" not in cb3.positions and cb3.journal and cb3.journal[-1]["code"] == "1709" and cb3.journal[-1]["exit"] == 29.0 and cb3.journal[-1]["entry"] == 30.0 and cb3.pnl > 0, (cb3.positions, cb3.journal))
+cb3.reconcile(tr3, []); cb3.reconcile(tr3, []); ok("1709" not in cb3.positions and len(cb3.journal) == 1)   # 結束後不會接成元三
+at(13, 22); n3 = len(gcb3.sent); left3 = cb3.recheck(tr3, [], "13:22"); ok(not left3 and len(gcb3.sent) == n3, (left3, gcb3.sent[n3:]))
+# B4:留倉空 2 張、今天回補 1 張 → 剩 1 張(回補那張入帳),照樣管
+at(9, 5); cb4, gcb4 = _cb_mk(_CB2); cb4.on_tick("1709", 29.5); cb4.step()
+tr4 = [_fill("B", 1, 29.5)]; cb4.reconcile(tr4, []); cb4.reconcile(tr4, [])
+ok(cb4.positions.get("1709", {}).get("qty") == 1 and cb4.positions["1709"]["state"] == HOLDING and len(cb4.journal) == 1 and cb4.journal[0]["lots"] == 1, (cb4.positions, cb4.journal))
+cb4.reconcile(tr4, []); cb4.reconcile(tr4, []); ok(cb4.positions["1709"]["qty"] == 1 and len(cb4.journal) == 1)
+# 13:22 複查:元大剩 1 張(留倉 2 − 回補 1)→ 只平 1 張
+at(13, 22); cb4.recheck(tr4, [], "13:22"); ok(gcb4.sent and gcb4.sent[-1][:3] == ("1709", "B", 1), gcb4.sent)
+# B5:不在不管名單、沒有留倉檔的股票照舊(期初 0)
+at(9, 5); cb5, _ = _cb_mk([]); ok(cb5.carry_base() == {} and cb5.with_carry([_fill("B", 1, 29.0)])[0]["order_no"] == "M001")
+# 別天的留倉 / 沒日期但 done 的不算;今天 done 的算(今天的回補還在明細裡)
+cb6, _ = _cb_mk([{"code": "1709", "dir": -1, "lots": 1, "entry": 30.0, "date": "2026-10-21"}, {"code": "2330", "dir": 1, "lots": 1, "entry": 500.0, "done": True},
+                 {"code": "2317", "dir": -1, "lots": 3, "entry": 100.0, "date": "2026-10-22", "done": True}, {"code": "2454", "dir": 1, "lots": 1, "entry": 900.0, "date": "2026-10-22", "nofill": True}])
+ok(cb6.carry_base() == {"2317": -3}, cb6.carry_base())
+# B6:重開接回:留倉空 1 張今天已回補 → 不接成元三 / 不平,load_carry 也不再接;損益照留倉均價算回來
+at(10, 0); cb7, gcb7 = _cb_mk(_CB1); cb7.on_tick("1709", 29.0)
+cb7.resume([_fill("B", 1, 29.0)], {}, [], [], [], {}); ok("1709" not in cb7.positions and cb7.carry_rem == {"1709": 0} and cb7.pnl > 0, (cb7.positions, cb7.pnl))
+cb7.step(); ok("1709" not in cb7.positions and not [x for x in gcb7.sent if x[0] == "1709"], (cb7.positions, gcb7.sent))
+cb7.reconcile([_fill("B", 1, 29.0)], []); cb7.reconcile([_fill("B", 1, 29.0)], []); ok("1709" not in cb7.positions)
+# B7:重開接回:留倉空 2 張、今天回補 1 張 → load_carry 只接剩下的 1 張
+at(10, 0); cb8, _ = _cb_mk(_CB2); cb8.on_tick("1709", 29.5)
+cb8.resume([_fill("B", 1, 29.5)], {}, [], [], [], {}); ok("1709" not in cb8.positions and cb8.carry_rem == {"1709": -1}, (cb8.positions, cb8.carry_rem))
+cb8.step(); ok(cb8.positions.get("1709", {}).get("qty") == 1 and cb8.positions["1709"]["carry"], cb8.positions)
+cb8.reconcile([_fill("B", 1, 29.5)], []); cb8.reconcile([_fill("B", 1, 29.5)], []); ok(cb8.positions["1709"]["qty"] == 1)
+# B8:重開接回:留倉還沒回補 → 不接成元三,load_carry 照原張數接
+at(10, 0); cb9, _ = _cb_mk(_CB1); cb9.on_tick("1709", 30.0)
+cb9.resume([], {}, [], [], [], {}); ok("1709" not in cb9.positions and cb9.carry_rem == {"1709": -1})
+cb9.step(); ok(cb9.positions.get("1709", {}).get("qty") == 1 and cb9.positions["1709"]["judge"] != "元三")
+at(10, 0)
+print("2026-11-22 留倉對帳 OK")
+# B9:留倉回補的即時回報收到了(部位結束)→ 之後對帳不會把今天的回補那筆當成「手動多單」接成元三
+at(9, 5); cb10, gcb10 = _cb_mk(_CB1); cb10.on_tick("1709", 29.0); cb10.step()
+cb10.on_other_fill("1709", "B", 1000, 29.0, "M001", "0", "09:40:00"); ok("1709" not in cb10.positions and len(cb10.journal) == 1, cb10.positions)
+for _ in range(3): cb10.reconcile([_fill("B", 1, 29.0)], [])
+ok("1709" not in cb10.positions and len(cb10.journal) == 1 and not [x for x in gcb10.sent if x[0] == "1709"], (cb10.positions, gcb10.sent))
+at(10, 0)
+print("2026-11-22 留倉對帳 B9 OK")

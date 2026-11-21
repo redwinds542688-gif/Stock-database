@@ -1660,7 +1660,11 @@ class Bridge:
                 if not r:
                     log(f"!! {at} 查不到成交回報,改用程式記的部位平倉")
                     with t.lock:
-                        r = {"trades": [{"code": p["code"], "bs": "B" if p["dir"] > 0 else "S", "lots": p["qty"]} for p in list(t.positions.values()) if p["qty"]], "working": []}
+                        # 2026-11-22 使用者選 B(留倉對帳):trader.recheck 會自己加上留倉期初張數(with_carry)→ 這裡照程式部位扣掉留倉期初,才不會算兩次
+                        cb = t.carry_base() if hasattr(t, "carry_base") else {}
+                        sq = {p["code"]: p["qty"] * (1 if p["dir"] > 0 else -1) for p in list(t.positions.values()) if p["qty"]}
+                        sq = {c: sq.get(c, 0) - cb.get(c, 0) for c in set(sq) | set(cb)}
+                        r = {"trades": [{"code": c, "bs": "B" if n > 0 else "S", "lots": abs(n)} for c, n in sq.items() if n], "working": []}
                     t.recheck(r["trades"], [], at)
                 else:
                     safe, amb = self.guard_trades(r["trades"], at)   # 2026-11-21(檢查 R4):可疑的重複成交回報不能讓平倉單反向開新倉
@@ -1700,8 +1704,10 @@ class Bridge:
         out = {}; t = self.trader
         try:
             with t.lock:
+                cb = t.carry_base() if hasattr(t, "carry_base") else {}
                 for c, p in t.positions.items():
-                    if p.get("qty"): out[c] = int(p["qty"]) * (1 if p["dir"] > 0 else -1)
+                    # 2026-11-22 使用者選 B(留倉對帳):元大成交回報只有今天的 → 留倉部位要扣掉留倉期初張數才是「今天成交應該有的淨張數」
+                    if p.get("qty"): out[c] = int(p["qty"]) * (1 if p["dir"] > 0 else -1) - (cb.get(c, 0) if p.get("carry") else 0)
         except Exception: pass
         return out
 
@@ -1763,7 +1769,7 @@ class Bridge:
         ph = {}
         trs, amb = self.guard_trades(r["trades"], at)   # 2026-11-21(檢查 R4):可疑重複成交的檔判斷不了未沖銷張數 → 不保留預掛(照舊取消),複查也跳過、推手機請人工確認
         net = {}
-        for x in trs: net[x["code"]] = net.get(x["code"], 0) + x["lots"] * (1 if x["bs"] == "B" else -1)
+        for x in (t.with_carry(trs) if hasattr(t, "with_carry") else trs): net[x["code"]] = net.get(x["code"], 0) + x["lots"] * (1 if x["bs"] == "B" else -1)   # 2026-11-22 使用者選 B(留倉對帳):加上留倉期初張數
         keep = set()
         fast = (self.__dict__.get("_ca") or {}).get("fast") or set()
         for c, n in net.items():
