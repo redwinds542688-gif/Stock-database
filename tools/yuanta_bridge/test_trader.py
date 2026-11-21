@@ -1501,40 +1501,6 @@ _eng.http = _oh4; _eng.CFG.clear(); _eng.CFG.update(_cf4)
 ok(_sent4 and _sent4[0]["caps"]["四"] == ["2603"] and _sent4[0]["caps"]["一2"] == ["3231"], _sent4)
 print("部位鍵兩種寫法 / 心跳 caps OK")
 
-# 2026-11-22 使用者「改」(剩餘 1):盤中重開接回時,同書號同秒同價同量的兩筆不再一律去重複 → 看狀態檔存的部位 / 即時成交帳本
-import json as _jr
-at(10, 0)
-_SP = [{"code": "2317", "bs": "S", "lots": 1, "price": 200.0, "time": "09:35:00", "order_no": "Z1"}, {"code": "2317", "bs": "S", "lots": 1, "price": 200.0, "time": "09:35:00", "order_no": "Z1"}]
-_TG = {"Z1": "T093500001"}
-def _mkst(**js):
-    t_, g_ = mk(); t_.state_file.write_text(_jr.dumps(dict(day=NOW[0].strftime("%Y-%m-%d"), **js)), encoding="utf-8"); return mk(TRADE_STATE_FILE=str(t_.state_file))
-# ① 真的分筆成交(空 2 張 1+1),重開前程式記 −2 → 接回 2 張、金額照 2 張算
-_r1, _ = _mkst(pos={"2317": -2}); _r1.resume(_SP, _TG, [], [])
-ok(_r1.positions["2317"]["qty"] == 2 and _r1.positions["2317"]["dir"] == -1 and abs(_r1.amount_today - 400000) < 1, _r1.positions.get("2317"), _r1.amount_today)
-# ② 11/16 那種查詢重複(只成交 1 張),重開前程式記 −1 → 接回 1 張
-_r2, _ = _mkst(pos={"2317": -1}); _r2.resume(_SP, _TG, [], [])
-ok(_r2.positions["2317"]["qty"] == 1 and abs(_r2.amount_today - 200000) < 1, _r2.positions.get("2317"), _r2.amount_today)
-ok(_r2.dup_nos == {"Z1": 1} and _r1.dup_nos == {}, _r2.dup_nos, _r1.dup_nos)   # 確定是重複的書號記下來(額度也照這個算)
-# ③ 狀態檔沒有部位,但即時成交帳本(重開前收到的成交回報)這張書號 2 張 → 照帳本接 2 張
-_r3, _ = _mkst(rr_led={"Z1": 2}); ok(_r3.rr_led == {"Z1": 2}); _r3.resume(_SP, _TG, [], [])
-ok(_r3.positions["2317"]["qty"] == 2, _r3.positions.get("2317"))
-# ④ 帳本說 1 張 → 1 張;都沒有證據 → 少接不多接(1 張)+ 推手機
-_r4, _ = _mkst(rr_led={"Z1": 1}); _r4.resume(_SP, _TG, [], []); ok(_r4.positions["2317"]["qty"] == 1, _r4.positions.get("2317"))
-_r5, _ = _mkst(); _r5.resume(_SP, _TG, [], [])
-ok(_r5.positions["2317"]["qty"] == 1 and any("疑似重複" in a for a in _r5.alerts), _r5.positions.get("2317"), _r5.alerts)
-# ⑤ 狀態檔的部位 0(重開前已經平掉)、照原樣淨 0、去重複淨 −1 → 照原樣(不接回假的部位)
-_SPC = _SP + [{"code": "2317", "bs": "B", "lots": 2, "price": 199.0, "time": "09:50:00", "order_no": "Z2"}]
-_r6, _ = _mkst(pos={}); _r6.resume(_SPC, dict(_TG, Z2="T095000002"), [], []); ok("2317" not in _r6.positions, _r6.positions.get("2317"))
-# ⑥ 有成交序號:照序號(序號不同 = 兩筆)
-_r7, _ = _mkst(); _r7.resume([dict(_SP[0], fill_id="1"), dict(_SP[1], fill_id="2")], _TG, [], []); ok(_r7.positions["2317"]["qty"] == 2)
-# ⑦ 即時成交帳本:成交回報 51 記張數;接回前 step 存檔不蓋掉狀態檔裡重開前的部位,接回後才存現在的部位
-_r8, _ = _mkst(pos={"2317": -2}); _r8.step([])
-ok(_jr.loads(_r8.state_file.read_text(encoding="utf-8")).get("pos") == {"2317": -2})
-_r8.on_report(51, "Z9", 0, 2000, 50.0, "", "2603", "B", "0"); _r8.step([])
-_js8 = _jr.loads(_r8.state_file.read_text(encoding="utf-8")); ok(_js8["rr_led"].get("Z9") == 2 and _js8.get("pos") == {"2317": -2}, _js8)
-_r8.resume(_SP, _TG, [], []); _r8.step([])
-ok(_jr.loads(_r8.state_file.read_text(encoding="utf-8")).get("pos", {}).get("2317") == -2)
-print("2026-11-22 剩餘 1:接回分筆成交 / 重複回報 OK")
 # 2026-11-22 停止所有進場(手機進場鍵設的 STOP 檔)隔天開工自動解除;標題長按設的不動
 import tempfile as _tf, datetime as _dt
 _sd = Path(_tf.mkdtemp()); _sf = _sd / "STOP"

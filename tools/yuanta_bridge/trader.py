@@ -316,12 +316,6 @@ class Trader:
         self.amount_today = 0.0
         self.fill_rt, self.fill_rc, self.rc_rows, self.rc_ids = {}, {}, {}, set()   # 2026-11-21 使用者「全改」(檢查 T7 / T9):每筆成交算過幾張的帳本(見 rt_mark / rc_pick)
         self.rc_tot = {}   # 2026-11-21 使用者「改 A」(A4):記 rc_rows 時那張書號的成交總張數(之後又成交 → 拿掉舊紀錄)
-        # 2026-11-22 使用者「改」(剩餘 1):即時成交回報帳本 rr_led[委託書號] = 收到的成交張數(元大即時回報 51,一筆算一次);存進狀態檔,
-        #   中繼盤中重開時拿來判斷「查詢裡同書號同秒同價同量的兩筆」是真的分筆成交還是重複回報(見 resume_pick、bridge 的 quota_from_report)
-        try: self.rr_led = {str(k): int(v) for k, v in (self.load_state().get("rr_led") or {}).items()}
-        except Exception: self.rr_led = {}
-        self._resumed = False; self._st_snap = None
-        self.dup_nos = {}   # 2026-11-22(剩餘 1):接回時有證據確定是「查詢重複」的書號 → 去掉一樣的之後的張數(額度計算也用)
         self.mkt_of = {}
         self.journal = []
         self.flat_watch = {}       # code → 剛平倉的部位 {dir, typ, mkt, until}:這段時間又有同方向平倉成交(手動 / 條件單同時觸發)= 多平了,要補回來
@@ -391,31 +385,10 @@ class Trader:
             js["noshort"] = {**(old.get("noshort") or {}), **getattr(self, "noshort", {})}   # 2026-11-06 元大 21352 無券
             js["brk_block"] = {**(old.get("brk_block") or {}), **getattr(self, "brk_block", {})}   # 2026-10-31 元大拒絕(資格)的股票
             js["traded"] = sorted(getattr(self, "traded_keys", set()))
-            # 2026-11-22 使用者「改」(剩餘 1):程式自己記的部位(有號張數,多 + 空 −)和即時成交回報帳本也存檔 → 盤中重開接回時判斷可疑的重複成交用;
-            #   接回(resume)做完之前不覆蓋檔案裡上一次存的部位(重開後還沒接回,記憶體裡是空的)
-            js["pos"] = self.pos_signed() if self._resumed else (old.get("pos") if isinstance(old.get("pos"), dict) else None)
-            if js["pos"] is None: js.pop("pos")
-            js["rr_led"] = {**{str(k_): int(v_) for k_, v_ in (old.get("rr_led") or {}).items()}, **self.rr_led}
             js["prot"] = {k_: v_ for k_, v_ in {**(old.get("prot") or {}), **(getattr(self, "_prot0", None) or {})}.items() if v_}   # 2026-11-21(檢查 T3):值是 None = 部位結束清掉的,不寫回檔   # ③ 2026-11-11 20:25 總停損 / 移動停損利的起點   # 2026-11-09 判二大盤分級檔數
             self.state_file.write_text(json.dumps(js, ensure_ascii=False), encoding="utf-8")
         except Exception as e:
             self.log(f"[交易] 存狀態檔失敗 {e}")
-
-    def pos_signed(self):
-        """2026-11-22 使用者「改」(剩餘 1):程式自己記的部位 {代碼: 有號張數}(多 +、空 −;0 張的不列)"""
-        out = {}
-        for c, p in self.positions.items():
-            try:
-                if int(p.get("qty") or 0): out[c] = int(p["qty"]) * (1 if p["dir"] > 0 else -1)
-            except Exception: pass
-        return out
-
-    def state_sync(self):
-        """2026-11-22 使用者「改」(剩餘 1):部位張數或即時成交帳本變了 → 存一次狀態檔(主迴圈每圈呼叫;沒變不寫)"""
-        try:
-            snap = (tuple(sorted(self.pos_signed().items())) if self._resumed else None, tuple(sorted(self.rr_led.items())))
-            if snap != self._st_snap: self._st_snap = snap; self.save_state()
-        except Exception as e: self.log(f"[交易] 存部位快照失敗 {e!r}")
 
     def load_state(self):
         try:
@@ -481,7 +454,6 @@ class Trader:
         try:
             return self._resume(trades, order_tags, strategies, signals, working, order_types)
         finally:
-            self._resumed = True   # 2026-11-22 使用者「改」(剩餘 1):接回做完 → 之後狀態檔存的才是現在的部位
             try:
                 with self.lock:
                     for c_ in list((self.load_state().get("prot") or {}).keys()) + list((self._prot0 or {}).keys()):
@@ -504,10 +476,12 @@ class Trader:
             signals = signals or []                                  # 2026-10-29 稽核 #1:讀通知失敗(None)當作沒有
             # 2026-11-16 12:06 使用者「接回時先把今天的成交金額歸零再重算,並用成交序號去掉重複的成交」:11/16 斷線重開接回後程式算 5,784,900、元大總價金約 340 萬
             #   → 先歸零;同一筆成交(委託書號 + 成交時間 + 價 + 量 + 買賣)回報兩次只算一次
-            # 2026-11-22 使用者「改」(剩餘 1):原本一律去掉「完全一樣」的成交 → 真的分筆成交(空 2 張 1+1 同一秒成交)那天盤中重開,部位 / 金額少算。
-            #   改成和對帳 / 13:20 一樣的規則:有成交序號才照序號去重複;沒有序號 → resume_pick 看證據(狀態檔存的部位、即時成交帳本)決定每檔用哪一份
-            self.amount_today = 0.0
-            trades = self.resume_pick(trades, st)
+            self.amount_today = 0.0; _seen = set(); _tr = []
+            for t in trades:
+                k_ = (str(t.get("order_no", "")), str(t.get("time", "")), float(t.get("price") or 0), int(t.get("lots") or 0), str(t.get("bs", "")), str(t.get("code", "")))
+                if k_ in _seen: self.log(f"[交易] 接回:重複的成交回報不算 {t.get('code')} {t.get('bs')} {t.get('lots')} 張 @ {t.get('price')}(書號 {t.get('order_no')} {t.get('time')})"); continue
+                _seen.add(k_); _tr.append(t)
+            trades = _tr
             # 2026-11-21 使用者「全改」(檢查 T7):接回時今天的成交金額照全部成交重算了 → 帳本也從頭記(每一筆都算過),之後對帳不會再算一次
             self.fill_rt, self.fill_rc, self.rc_rows, self.rc_ids = {}, {}, {}, set()
             self.rc_tot = {}
@@ -641,75 +615,6 @@ class Trader:
                 self._resume_err(c, net.get(c, 0), cost, FORCED if by.get(c) == "F" else "接回", e_)
             self.log(f"[交易] 接回 {len(open_mine)} 檔;今天已做 {self.n_trades} 筆、已實現 {self.pnl:+,.0f}")
             return open_mine
-
-    @staticmethod
-    def _fkey(t):
-        return (str(t.get("order_no", "")), str(t.get("time", "")), float(t.get("price") or 0), int(t.get("lots") or 0), str(t.get("bs", "")), str(t.get("code", "")))
-
-    def resume_pick(self, trades, st=None):
-        """2026-11-22 使用者「改」(剩餘 1):接回時元大查詢裡「同書號、同秒、同價、同量、同買賣」的兩筆 —— 可能是重複回報(11/16 真的發生過),
-           也可能是真的分筆成交(2 張成交 1+1)。原本一律去掉一筆 → 分筆那天重開,部位少接 1 張(13:20 少平)、金額少算。每一檔照證據決定:
-             1. 成交帶序號(bridge.env FILL_ID_FIELD)→ 照序號去重複(和對帳一樣),最準;
-             2. 沒有序號,只有有可疑重複的檔才看:狀態檔裡重開前程式自己記的部位(有號張數)等於「照原樣」或「去重複」其中一份 → 用那一份;
-             3. 再看即時成交帳本(rr_led,重開前收到的即時成交回報張數,存在狀態檔):每張可疑的書號都對得上其中一份 → 照帳本;
-             4. 都判斷不了 → 用淨部位比較小的那份(一樣大用去重複的;寧可少接、不多接 —— 多接的話 13:20 / 停損平倉會多平、反向開新倉),
-                推手機請人工確認;之後對帳 / 13:20(fills_guard)會參考程式記的部位,張數有出入時同樣推手機
-           元大的「庫存 / 部位查詢」程式目前沒有用(只有委託成交查詢),所以沒有第 3 種來源可以比。回傳要拿去接回的成交清單"""
-        trades = list(trades or [])
-        if any(str(t.get("fill_id") or "").strip() for t in trades): return self.dedupe_trades(trades)
-        st = st if st is not None else self.load_state()
-        spos = st.get("pos") if isinstance(st.get("pos"), dict) else None
-        led = dict(self.rr_led or {})
-        sgn = lambda t: int(t.get("lots") or 0) * (1 if str(t.get("bs", "")).upper().startswith("B") else -1)
-        by, order = {}, []
-        for t in trades:
-            c = str(t.get("code", ""))
-            if c not in by: by[c] = []; order.append(c)
-            by[c].append(t)
-        out = []
-        for c in order:
-            ts = by[c]; seen = set(); dd = []
-            for t in ts:
-                k_ = self._fkey(t)
-                if k_ in seen: continue
-                seen.add(k_); dd.append(t)
-            if len(dd) == len(ts): out += ts; continue
-            nr, nd = sum(map(sgn, ts)), sum(map(sgn, dd))
-            what = f"{c} 照原樣淨 {nr:+d} 張、去掉一樣的淨 {nd:+d} 張"
-            sv = int(spos.get(c, 0) or 0) if spos is not None else None
-            if sv is not None and nr != nd and sv in (nr, nd):
-                pick = ts if sv == nr else dd
-                if pick is dd:   # 確定是重複回報 → 記下這幾張書號「去掉一樣的」張數,額度(bridge.quota_from_report)也照這個算,不會整天多算擋進場(11/16)
-                    for no in {self._no(x.get("order_no")) for x in ts}:
-                        lr = sum(int(x.get("lots") or 0) for x in ts if self._no(x.get("order_no")) == no)
-                        ld = sum(int(x.get("lots") or 0) for x in dd if self._no(x.get("order_no")) == no)
-                        if no and ld < lr: self.dup_nos[no] = ld
-                self.log(f"[交易] 接回:{what};重開前程式記的部位 {sv:+d} → 用{'照原樣(真的分筆成交)' if sv == nr else '去掉一樣的(重複回報)'}")
-                out += pick; continue
-            # 每張有一樣成交的書號,看即時成交帳本
-            rows = {}
-            for t in ts: rows.setdefault(self._no(t.get("order_no")), []).append(t)
-            pick, ok_ = [], True
-            for no, rs in rows.items():
-                s_, d_ = set(), []
-                for t in rs:
-                    k_ = self._fkey(t)
-                    if k_ not in s_: s_.add(k_); d_.append(t)
-                if len(d_) == len(rs): pick += rs; continue
-                lr, ld = sum(int(t.get("lots") or 0) for t in rs), sum(int(t.get("lots") or 0) for t in d_)
-                lg = led.get(no)
-                if no and lg == lr: pick += rs
-                elif no and lg == ld: pick += d_; self.dup_nos[no] = ld
-                else: ok_ = False; break
-            if ok_:
-                self.log(f"[交易] 接回:{what};照重開前收到的即時成交回報張數 → 淨 {sum(map(sgn, pick)):+d} 張")
-                out += pick; continue
-            use = dd if abs(nd) <= abs(nr) else ts
-            self.log(f"[交易] !! 接回:{what},狀態檔 / 即時成交帳本都判斷不了 → 先用淨 {sum(map(sgn, use)):+d} 張(少接不多接),請人工確認")
-            try: self.alert(f"⚠ 接回 {c} 成交回報疑似重複", f"照原樣 {nr:+d} 張、去掉一樣的 {nd:+d} 張,程式先接 {sum(map(sgn, use)):+d} 張;請到投資先生確認實際部位(張數不對請手動處理)")
-            except Exception: pass
-            out += use
-        return out
 
     def _resume_oco(self, c, strategies):
         """2026-11-21 使用者「全改」(檢查 S3):接回時這檔在元大的條件單;strategies = None(查詢失敗)→ 用狀態檔存下的編號(2026-11-10 15:16 同一套,元三接回也一樣)"""
@@ -1355,8 +1260,6 @@ class Trader:
         """元大即時回報:rpt_type 50 委託、51 成交;status 見文件(1 失敗、2 取消成功、24 失效、25 價穩失效…)
            用自訂編號 basket(下單時帶的 BasketNo)或委託書號對;委託書號可能比回報晚到,所以以 basket 為主"""
         with self.lock:
-            if rpt_type == 51 and qty_shares > 0 and self._no(order_no):   # 2026-11-22 使用者「改」(剩餘 1):即時成交回報帳本(張;和查詢一樣 ≥1000 當股數)
-                _k = self._no(order_no); self.rr_led[_k] = self.rr_led.get(_k, 0) + (qty_shares // 1000 if qty_shares >= 1000 else qty_shares)
             p = self.find_order(order_no, basket)
             if not p:
                 if rpt_type == 51 and qty_shares > 0 and code:
@@ -1942,7 +1845,6 @@ class Trader:
     def step(self, signals=None):
         self.check_kill()
         with self.lock:
-            self.state_sync()   # 2026-11-22 使用者「改」(剩餘 1):部位 / 即時成交帳本有變就存檔(盤中重開接回用)
             hm = self.hm()
             if not getattr(self, "_carry_done", False) and "09:00" <= hm < self.force_exit: self._carry_done = True; self.load_carry()
             if not getattr(self, "_ign_noted", False) and "08:30" <= hm < self.force_exit:   # 2026-11-11 22:25 使用者「改13」:設定檔的開關不能關掉鐵律保護:不管名單(留倉 / 借券)每天開盤前提醒一次,不會悄悄關掉保護
