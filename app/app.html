@@ -8017,7 +8017,8 @@ async function bgTickViewer(force){
 window.bgTickViewer = bgTickViewer;
 /* 2026-10-29 15:20(實際時間)公式在電腦(第 2 項):電腦 engine.py 每分鐘推心跳到 Worker(?engine);手機每 60 秒看一次,3 分鐘內有心跳 = 電腦在算 →
    手機自己算的訊號不發通知、不推雲端(只寫 BG.log),改成和看盤版一樣每 15 秒讀雲端通知、新的才發手機通知;心跳停了 3 分鐘就自動回到自己算 */
-const ENGINE = { on: false, at: 0, hm: '', chk: 0, msg: '' };
+const ENGINE = { on: false, at: 0, hm: '', chk: 0, msg: '', caps: null, capsD: '' };
+window.ENGINE = ENGINE;
 function engineOn(){ return !!(ENGINE.on && Date.now() - ENGINE.at < 3 * 60000); }
 window.engineOn = engineOn;
 function engPoll(force){
@@ -8026,6 +8027,7 @@ function engPoll(force){
     fetch(BASE.liveUrl.replace(/\/$/, '') + '/?engine=get&_=' + Math.floor(now / 20000), {signal: AbortSignal.timeout(8000)}).then(r => r.ok ? r.json() : null).then(j => {
       if (!j || typeof j !== 'object') return; const today = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
       const was = engineOn(); ENGINE.on = !!(j.on && j.d === today); ENGINE.at = +j.at || 0; ENGINE.hm = j.hm || ''; ENGINE.msg = j.msg || '';
+      if (j.caps && typeof j.caps === 'object' && j.d === today){ ENGINE.caps = j.caps; ENGINE.capsD = j.d; }   // 2026-11-21 使用者「改 1」:電腦今天各有上限的判別式已進的股票(四 五 六3 八 九 一2);手機的每天檔數上限照它合併(judge.js capRule)
       if (was !== engineOn()) bgLog('[公式] ' + (engineOn() ? '電腦在算(' + ENGINE.hm + '),手機只收雲端通知' : '電腦心跳停了,手機自己算')); 
       // 2026-10-29 23:50 使用者「現在做」:電腦引擎有狀況(規則抓不到 / 沒有大盤寬度 / K 晚到 / 錯誤太多交給手機)→ 交易時段跳提示,同一個狀況只跳一次
       try{ const fresh = j.d === today && Date.now() - (+j.at || 0) < 3 * 60000, warn = [];

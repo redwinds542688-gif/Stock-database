@@ -28,6 +28,8 @@ import androidx.webkit.WebViewAssetLoader
 /**
  * 自動當沖 · 夥伴加入 App(2026-11-15 使用者「做成一個app 我在這修改 雲端改版 手機自動改版 這樣比較方便」)
  * 只是一個全螢幕的網頁殼:每次打開都讀雲端最新的畫面(Worker /partner/join/ = GitHub main 的 partner_app/join/index.html),
+ * 2026-11-21 漏洞檢查 6:網址固定用 App 內建那份(appassets/join.html),內容換成雲端最新的(和夥伴看盤同一套)
+ *   → 有網路、沒網路都是同一個網址,管理鑰匙、這支手機的代號(localStorage)不會因為換網址而不見
  * 所以改畫面只要推上去,手機下次打開(或離開 10 分鐘再回來)就是新版,不用重裝。
  * 沒網路時改開 App 裡內建的那份(編 APK 當時的畫面)。殼本身改了才會跳「有新版」(Updater)。
  * 這個 App 不下單;夥伴的元大帳密由網頁在手機上先加密才送出(接真資料後)。
@@ -38,6 +40,8 @@ class MainActivity : Activity() {
     private var fileCb: ValueCallback<Array<Uri>>? = null
     private var pausedAt = 0L
     private var offline = false
+    private var cloudOk = false
+    private var renderDead = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,13 +64,13 @@ class MainActivity : Activity() {
         }
         web.webViewClient = object : WebViewClient() {
             override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {   // 畫面元件當掉:不讓 App 跟著關,回報後重開
-                sendBug("render", "畫面元件當掉(didCrash=${detail.didCrash()})")
+                sendBug("render", "畫面元件當掉(didCrash=${detail.didCrash()})"); renderDead = true
                 try { (view.parent as? android.view.ViewGroup)?.removeView(view); view.destroy() } catch (x: Exception) {}
                 recreate(); return true
             }
-            override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? = loader.shouldInterceptRequest(req.url)
-            override fun onReceivedError(view: WebView, req: WebResourceRequest, err: WebResourceError) {
-                if (req.isForMainFrame && !offline) { offline = true; view.loadUrl(LOCAL) }   // 沒網路:開內建那份
+            override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? {
+                if (req.isForMainFrame && req.url.path == "/assets/join.html") { val c = cloudPage(); offline = c == null; if (c != null) return c }   // 雲端讀不到才用內建那份
+                return loader.shouldInterceptRequest(req.url)
             }
             override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean {
                 val u = req.url
@@ -77,12 +81,15 @@ class MainActivity : Activity() {
         web.webChromeClient = object : WebChromeClient() {
             override fun onPermissionRequest(request: PermissionRequest) {
                 runOnUiThread {
-                    if (request.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) {
-                        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
-                        else { pendingPerm = request; requestPermissions(arrayOf(Manifest.permission.CAMERA), REQ_CAM) }
-                    } else request.deny()
+                    try {   // 2026-11-21 漏洞檢查 7:相機權限出錯不讓 App 關掉,回報後拒絕
+                        if (request.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) {
+                            if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
+                            else { pendingPerm = request; requestPermissions(arrayOf(Manifest.permission.CAMERA), REQ_CAM) }
+                        } else request.deny()
+                    } catch (e: Exception) { sendBug("camera", android.util.Log.getStackTraceString(e)); try { request.deny() } catch (x: Exception) {} }
                 }
             }
+            override fun onPermissionRequestCanceled(request: PermissionRequest) { if (pendingPerm === request) pendingPerm = null }
             // 選檔案:憑證檔(.pfx)、QR Code 圖片
             override fun onShowFileChooser(view: WebView, cb: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
                 fileCb?.onReceiveValue(null); fileCb = cb
@@ -93,7 +100,8 @@ class MainActivity : Activity() {
         }
         web.addJavascriptInterface(Host(), "JoinHost")
         setContentView(web)
-        if (savedInstanceState != null) web.restoreState(savedInstanceState) else web.loadUrl(REMOTE)
+        // 2026-11-21 漏洞檢查 5:還原不了(例如畫面元件當掉後重開)就重新載入,不會空白
+        if (savedInstanceState == null || renderDead || web.restoreState(savedInstanceState) == null) web.loadUrl(LOCAL)
         Updater.check(this)   // 打開 App 時檢查殼有沒有新版
         if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 13)   // 自動更新好了要能跳通知
     }
@@ -101,7 +109,7 @@ class MainActivity : Activity() {
     override fun onRequestPermissionsResult(code: Int, perms: Array<out String>, res: IntArray) {
         if (code == REQ_CAM) {
             val p = pendingPerm; pendingPerm = null
-            if (p != null) { if (res.isNotEmpty() && res[0] == PackageManager.PERMISSION_GRANTED) p.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) else p.deny() }
+            if (p != null) try { if (res.isNotEmpty() && res[0] == PackageManager.PERMISSION_GRANTED) p.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) else p.deny() } catch (e: Exception) {}
         }
     }
 
@@ -125,12 +133,22 @@ class MainActivity : Activity() {
         }
     }
 
-    override fun onSaveInstanceState(out: Bundle) { super.onSaveInstanceState(out); web.saveState(out) }
+    /** 讀雲端最新的畫面;內容不像夥伴加入(例如雲端回錯誤頁)就不用 */
+    private fun cloudPage(): WebResourceResponse? = try {
+        val c = java.net.URL("$REMOTE?app=1&_=" + System.currentTimeMillis()).openConnection() as java.net.HttpURLConnection
+        c.connectTimeout = 4000; c.readTimeout = 6000; c.useCaches = false
+        if (c.responseCode != 200) null else {
+            val b = c.inputStream.use { it.readBytes() }; val t = String(b, Charsets.UTF_8)
+            if (t.contains("夥伴加入") && t.contains("</html>")) { cloudOk = true; WebResourceResponse("text/html", "utf-8", java.io.ByteArrayInputStream(b)) } else null
+        }
+    } catch (e: Exception) { cloudOk = false; null }
+
+    override fun onSaveInstanceState(out: Bundle) { super.onSaveInstanceState(out); if (!renderDead) try { web.saveState(out) } catch (e: Exception) {} }
     override fun onPause() { pausedAt = SystemClock.elapsedRealtime(); web.onPause(); super.onPause() }
     override fun onResume() {
         super.onResume(); web.onResume()
         // 離開超過 10 分鐘再回來 → 重新讀雲端(拿到最新畫面);沒網路時開的是內建那份,回來也再試一次雲端
-        if (pausedAt > 0 && (offline || SystemClock.elapsedRealtime() - pausedAt > 10 * 60_000L)) { offline = false; web.loadUrl(REMOTE) }
+        if (pausedAt > 0 && (offline || SystemClock.elapsedRealtime() - pausedAt > 10 * 60_000L)) web.reload()
     }
 
     @Deprecated("Deprecated in Java")

@@ -140,7 +140,7 @@ main.locked .wheel, main.locked .opt, main.locked .seg button, main.locked .jg b
 const $ = id => document.getElementById(id), main = $("main");
 const JN = ["判一","判二","判三","判四","判五","判六","判七","判八","判九"];
 const S = {page:"gate", cur:0, step:0};
-function toast(t){ $("toastL").innerHTML = `<div class="toast">${t}</div>`; clearTimeout(toast.t); toast.t = setTimeout(() => $("toastL").innerHTML = "", 2200); }
+function toast(t){ $("toastL").innerHTML = `<div class="toast">${esc(t)}</div>`; clearTimeout(toast.t); toast.t = setTimeout(() => $("toastL").innerHTML = "", 2200); }
 function qrSvg(t){ const q = qrcode(0, "M"); q.addData(t); q.make(); return q.createSvgTag({cellSize: 4, margin: 2, scalable: true}); }
 /* 2026-11-17 使用者「設定金額都改成滾輪式的調整 上滑減少下滑增加 多空限額變動 最下面張數的計算也要跟著變動」:
    滾輪:手指往上滑 = 減少、往下滑 = 增加(電腦滑鼠滾輪往下 = 增加);中間那格是目前的值,上面一格大一級、下面一格小一級 */
@@ -205,7 +205,7 @@ function vList(){
       <div class="step todo"><i>2</i>按「新增夥伴」,輸入他的元大帳號、密碼、額度</div>
       <div class="step todo"><i>3</i>電腦登入成功,自動產生他的看盤金鑰 QR Code,傳給他</div></div></div>
     <button type="button" class="btn gold" id="add">＋ 新增第一位夥伴</button>`;
-  return `<h2>夥伴(${P.length} 位)</h2>${warn}${P.map((p, i) => `<div class="prow" data-i="${i}" role="button" tabindex="0"><b>${esc(p.n)}</b><span class="st ${p.st}">${p.t}</span><small>${esc(p.d)}</small><div class="chs">${chips(p)}</div></div>`).join("")}
+  return `<h2>夥伴(${P.length} 位)</h2>${warn}${P.map((p, i) => `<div class="prow" data-i="${i}" role="button" tabindex="0"><b>${esc(p.n)}</b><span class="st ${esc(p.st)}">${esc(p.t)}</span><small>${esc(p.d)}</small><div class="chs">${chips(p)}</div></div>`).join("")}
     <button type="button" class="btn gold" id="add">＋ 新增夥伴</button>`;
 }
 /* 2026-11-17 使用者「盤中修改設定 電腦與雲端不可以接受 只有盤後或盤前才能接受 … 盤前8.45檢查一次」→「改 新增夥伴盤中也擋」:
@@ -335,7 +335,7 @@ function showPoster(name, key){   /* 存到相簿:App(1.0.2 起)直接存進相�
   const u = poster(name, key).toDataURL("image/png"), fn = `夥伴金鑰-${name}.png`, H = window.JoinHost;
   if (H && H.saveImage){ if (H.saveImage(u, fn)) return toast("✓ 已存到相簿(夥伴加入 資料夾)"); }
   else { const a = document.createElement("a"); a.href = u; a.download = fn; document.body.appendChild(a); a.click(); a.remove(); }
-  $("toastL").innerHTML = `<div class="pmask"><div class="pbox"><b>長按圖片 → 儲存圖片</b><img src="${u}" alt="${name} 的金鑰圖"><button type="button" class="btn" id="pmx">關閉</button></div></div>`;
+  $("toastL").innerHTML = `<div class="pmask"><div class="pbox"><b>長按圖片 → 儲存圖片</b><img src="${u}" alt="${esc(name)} 的金鑰圖"><button type="button" class="btn" id="pmx">關閉</button></div></div>`;
   $("pmx").onclick = () => $("toastL").innerHTML = ""; }
 async function sharePoster(name, key){   /* 傳給夥伴:App 打開手機分享(LINE 等);網頁用瀏覽器分享,不支援就改存圖 */
   const c = poster(name, key), u = c.toDataURL("image/png"), fn = `夥伴金鑰-${name}.png`, txt = `${name} 的金鑰:打開「夥伴看盤」→ 從相簿選這張圖`, H = window.JoinHost;
@@ -354,7 +354,7 @@ function render(){ const hb = $("hbk"); if (hb){ hb.hidden = !["new", "one", "wa
  main.innerHTML = S.page === "gate" ? vGate() : ({list: vList, new: vNew, wait: vWait, one: vOne})[S.page](); if (S.page === "one") lotTable(); lockUI(); if (S.page !== "one") main.scrollTop = 0; }
 /* 加密送到電腦:手機用電腦登記在雲端的公開鎖(RSA-OAEP / SHA-256)加密 {acct, pass},雲端解不開;電腦 fam_agent.py 用私鑰解 */
 async function sendNew(){ const e = $("nerr"), nm = ($("nm").value || "").trim(), ac = ($("ac").value || "").replace(/[\s-]/g, "").toUpperCase(), pw = $("pw").value || "";
-  if (!nm || /[\s|:\/\\?#&<>"'*]/.test(nm) || /^\.+$/.test(nm) || /\.$/.test(nm) || /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(nm)) return e.textContent = "名字不能空白、不能有符號,也不能是 . 或 CON 這類電腦保留名";
+  if (!/^[\p{L}\p{N}_-]{1,12}$/u.test(nm) || /^(con|prn|aux|nul|com\d|lpt\d)$/i.test(nm)) return e.textContent = "名字只能用中英文字、數字、_ -(最多 12 個字),也不能是 CON 這類電腦保留名";   /* 2026-11-21 漏洞檢查 1:和雲端、電腦同一套 */
   if (!/^S?[0-9A-Z]{11}$/.test(ac)) return e.textContent = "元大帳號要 11 碼(分公司 4 碼 + 帳號 7 碼)";
   if (!pw) return e.textContent = "請輸入元大密碼";
   const m = [...main.querySelectorAll(".wheel")].map(x => Math.round(+x.dataset.v * 10000));

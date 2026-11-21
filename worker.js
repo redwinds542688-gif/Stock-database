@@ -586,6 +586,15 @@ export class Hub extends DurableObject {
     return { ok: n <= max, n };
   }
   kvInc(k, d) { const o = this.kvGet(k) || {}; for (const x in d) o[x] = (o[x] || 0) + (d[x] || 0); this.kvPut(k, o); return o; }
+  // 2026-11-21 漏洞檢查(夥伴版):在 Hub 裡一次做完「讀 → 改 → 寫」,兩個請求同時來也不會互相蓋掉
+  listPush(k, v, max) { const a = this.kvGet(k); const L = Array.isArray(a) ? a : []; L.push(v); this.kvPut(k, L.length > max ? L.slice(-max) : L); return true; }
+  famAdd(n, o) { const L = this.kvGet("fams") || {}; if (L[n] && L[n].st !== "fail") return false; L[n] = o; this.kvPut("fams", L); return true; }
+  // 電腦回報夥伴狀態:沒有這個人 / 已經按移除(等電腦停掉)就不收,只收 gone(電腦停好了)
+  famPatch(n, p, noKeyOnly) { const L = this.kvGet("fams") || {}; const o = L[n]; if (!o) return null;
+    if (p.st === "gone") { delete L[n]; this.kvPut("fams", L); return { ...o, st: "gone" }; }
+    if (o.st === "del" && p.st !== "del") return { ...o, skip: true };
+    if (noKeyOnly && o.key) return { ...o, skip: true };
+    Object.assign(o, p); L[n] = o; this.kvPut("fams", L); return o; }
   badLog(rec) { const a = (this.kvGet("badlog") || []); a.push(rec); this.kvPut("badlog", a.slice(-40)); return true; }
   snapHas(k) { return this.sql.exec("SELECT 1 FROM snaps WHERE k = ?", k).toArray().length > 0; }
   snapGet(keys) {
@@ -937,7 +946,7 @@ function newKey(pre) {   // 2026-11-03 新鑰匙不會剛好含 5861(含 5861 = 
 const FAM_PRE = "fa11";
 const isFamKey = k => String(k || "").startsWith(FAM_PRE);
 // 2026-11-21 漏洞檢查 1:夥伴名字會變成電腦資料夾 C:\Yuanta\fam\<名字> → 擋掉「.」「..」、* 和 Windows 保留名(CON、NUL、COM1…)、結尾是點
-const famNameOk = n => ACCT_RE.test(n || "") && !/^\.+$/.test(n) && !/[*.]$/.test(n) && !n.includes("*") && !/^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(n);
+const famNameOk = n => /^[\p{L}\p{N}_-]{1,12}$/u.test(n || "") && ACCT_RE.test(n) && !/^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(n);
 const mktNow = () => { const t = twNow(), wd = t.getUTCDay(), m = t.getUTCHours() * 60 + t.getUTCMinutes(); return wd > 0 && wd < 6 && m >= 540 && m < 810; };   // 台股盤中 平日 09:00~13:29(夥伴設定 / 新增 / 移除 盤中不收)
 const ACCT_RE = /^[^\s|:\/\\?#&<>"']{1,12}$/;
 
@@ -1564,8 +1573,7 @@ export default {
       const cut = (x, n) => scrub(x).slice(0, n);
       const rec = { t: new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 19).replace("T", " "), app: cut(b.app, 20), ver: cut(b.ver, 20), kind: cut(b.kind, 20),
         msg: cut(b.msg, 500), stack: cut(b.stack, 2000), dev: cut(b.dev, 120), page: cut(b.page, 120) };
-      let L = null; try { L = await hub.kvGet("bugs"); } catch (e) {}
-      L = Array.isArray(L) ? L : []; L.push(rec); if (L.length > 300) L = L.slice(-300); await hub.kvPut("bugs", L);
+      await hub.listPush("bugs", rec, 300);
       return J({ ok: true });
     }
 
@@ -1588,13 +1596,19 @@ export default {
           return J({ ok: true, jobs, watch }); }
         const b = await body(); const n = b && String(b.name || ""); if (!ACCT_RE.test(n || "")) return J({ error: "name 不對" }, 400);
         if (famQ === "done") { await hub.kvPut("famjob:" + n, null); return J({ ok: true }); }
-        const L = await L0(); const o = L[n] || {}; const st0 = o.st; o.st = String(b.st || o.st || "").slice(0, 12); o.msg = String(b.msg || "").slice(0, 160); o.at = Date.now();
-        if (o.st === "pc" && b.since) o.since = +b.since || o.at; else if (o.st === "pc" && st0 !== "pc") o.since = o.at;
-        if (b.chk && typeof b.chk === "object") { const c = {}; for (const k of ["acct", "cert", "api"]) if (["y", "n", "w"].includes(b.chk[k])) c[k] = b.chk[k]; o.chk = c; }   // 2026-11-18 電腦自動檢查:帳號密碼 / 憑證 / API
-        if (o.st === "gone") { delete L[n]; await hub.kvPut("fams", L); return J({ ok: true }); }
+        const L = await L0(); const o0 = L[n]; if (!o0) return J({ ok: true, skip: "沒有這個夥伴" });   // 2026-11-21 漏洞檢查 3:不認得的名字不收
+        const p = { st: String(b.st || o0.st || "").slice(0, 12), msg: String(b.msg || "").slice(0, 160), at: Date.now() };
+        if (p.st === "pc" && b.since) p.since = +b.since || p.at; else if (p.st === "pc" && o0.st !== "pc") p.since = p.at;
+        if (b.chk && typeof b.chk === "object") { const c = {}; for (const k of ["acct", "cert", "api"]) if (["y", "n", "w"].includes(b.chk[k])) c[k] = b.chk[k]; p.chk = c; }   // 2026-11-18 電腦自動檢查:帳號密碼 / 憑證 / API
+        const offKey = async k => { if (!k) return; try { const r = await keyInfo(env, k); if (r) { r.on = false; await env.LOGS.put("key:" + k, JSON.stringify(r)); MC.delete("key:" + k); } } catch (e) {} };
+        const o = await hub.famPatch(n, p, false);
+        if (!o) return J({ ok: true, skip: "沒有這個夥伴" });
+        if (o.st === "gone") { await offKey(o.key); return J({ ok: true }); }   // 電腦停好了:名單拿掉,金鑰(如果還有)也停用
+        if (o.skip) return J({ ok: true, skip: "已按移除", st: o.st });
         if (o.st === "run" && !o.key) {   // 登入成功 → 發看盤金鑰(和 ?keys=add {acct} 同一種)
-          const k = newKey(FAM_PRE); await env.LOGS.put("key:" + k, JSON.stringify({ name: n, role: "viewer", on: true, made: ymdOf(twNow()), acct: n, by: "夥伴加入" })); o.key = k; }
-        L[n] = o; await hub.kvPut("fams", L); return J({ ok: true, st: o.st });
+          const k = newKey(FAM_PRE); await env.LOGS.put("key:" + k, JSON.stringify({ name: n, role: "viewer", on: true, made: ymdOf(twNow()), acct: n, by: "夥伴加入" }));
+          const o2 = await hub.famPatch(n, { key: k }, true); if (!o2 || o2.skip) await offKey(k); }   // 同時有兩次回報:只留第一把,這把作廢
+        return J({ ok: true, st: o.st });
       }
       if (!mgrKI) return J({ error: KI && KI.role === "mgr" ? "這把管理鑰匙已綁在另一支手機" : "要夥伴加入的管理鑰匙", badKey: true }, 403);
       if (famQ === "list") { const L = await L0(), fams = []; let AC = null; try { AC = await hub.kvGet("accts"); } catch (e) {}
@@ -1617,12 +1631,12 @@ export default {
         if (bad.length) return J({ error: "設定超出範圍:" + bad.join(",") }, 400);
         o.enabled = c.enabled !== false; o.at = Date.now(); o.by = "夥伴加入";   /* 2026-11-18 新增頁就能設自動交易開關 */
         await hub.kvPut("acfg:" + n, o); await hub.kvPut("famjob:" + n, { op: "add", enc: b.enc, at: Date.now() });
-        L[n] = { st: "wait", msg: "等電腦來拿", at: Date.now() }; await hub.kvPut("fams", L); return J({ ok: true });
+        if (!await hub.famAdd(n, { st: "wait", msg: "等電腦來拿", at: Date.now() })) return J({ error: `已經有【${n}】` }, 409); return J({ ok: true });
       }
       if (famQ === "del") {
         const L = await L0(); const o = L[n]; if (!o) return J({ error: `沒有【${n}】` }, 404);
         if (o.key) { try { const r = await keyInfo(env, o.key); if (r) { r.on = false; await env.LOGS.put("key:" + o.key, JSON.stringify(r)); MC.delete("key:" + o.key); } } catch (e) {} }
-        await hub.kvPut("famjob:" + n, { op: "del", at: Date.now() }); o.st = "del"; o.msg = "等電腦停掉"; o.at = Date.now(); o.key = ""; L[n] = o; await hub.kvPut("fams", L); return J({ ok: true });
+        await hub.kvPut("famjob:" + n, { op: "del", at: Date.now() }); await hub.famPatch(n, { st: "del", msg: "等電腦停掉", at: Date.now(), key: "" }, false); return J({ ok: true });
       }
       return J({ error: "fam 不對" }, 400);
     }
