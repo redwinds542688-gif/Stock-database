@@ -1347,7 +1347,9 @@ class Engine:
                 if mc and rs == "六3" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j63.add(mc.group(1))   # A:判六做空一天上限也從雲端接回   # 2026-10-31 手機 / 上一個 engine 發過的判四也算進一天上限
             elif it.get("pos"):
                 p = str(it["pos"]).split("|")
-                if len(p) == 3 and p[0] in RS_OF: self.cloud_out.add((rs if rs in ("六3", "一2") else RS_OF[p[0]], p[1], p[2]))   # B:判六做空的平倉記成 六3
+                # 2026-11-21 使用者「改 4」:手機推的部位鍵是「一|代碼|時間」「一2|…」「六3|…」(不是「判一|…」)→ 兩種寫法都認
+                r0 = RS_OF.get(p[0]) or (p[0] if p[0] in RS_ALL else None) if len(p) == 3 else None
+                if r0: self.cloud_out.add((rs if rs in ("六3", "一2") else r0, p[1], p[2]))   # B:判六做空的平倉記成 六3
         # 2026-11-21 使用者「改 1」(檢查抓到):判一急彈空(一2)的平倉內容沒有「急彈空」,上面會記成 判一(一)→ 同一檔同一進場時間是 一2 的進場(雲端或本機部位)就也記成 一2
         for (r_, c_, t_) in [x for x in self.cloud_out if x[0] == "一"]:
             if ("一2", c_, t_) in self.cloud_in or (self.pos.get(("一2", c_)) or {}).get("t") == t_: self.cloud_out.add(("一2", c_, t_))
@@ -1983,7 +1985,9 @@ class Engine:
         if self.dry or not CFG.get("PUSH_KEY"): return
         fl = "".join(flags)
         try: http(worker_url("engine=push"), {"d": self.day, "hm": now_tw().strftime("%H:%M"), "on": 1 if on else 0, "n": len(self.codes),
-                                               "msg": (fl + " " if fl else "") + msg + f" 規則{RULES['ver']}", "ver": RULES["ver"], "stale": 1 if RULES["stale"] else 0}, key=True, timeout=10)
+                                               "msg": (fl + " " if fl else "") + msg + f" 規則{RULES['ver']}", "ver": RULES["ver"], "stale": 1 if RULES["stale"] else 0,
+                                               # 2026-11-21 使用者「改 1」:今天各有上限的判別式已進的股票(超額不算),手機在電腦在線 / 剛離線時以這份為準(Worker ?engine=get 的 caps)
+                                               "caps": {k: sorted(v) for k, v in (("四", self.j4), ("五", self.j5), ("六3", self.j63), ("八", getattr(self, "j8", set())), ("九", getattr(self, "j9", set())), ("一2", getattr(self, "j12", set())))}}, key=True, timeout=10)
         except Exception as e: log("心跳推不上", e)
 
 

@@ -936,7 +936,30 @@ const SEENW = new Map();
 const IPRL = new Map();
 function ipLimit(name, ip, max, winMs) { const k = name + "|" + ip, now = Date.now(); let q = IPRL.get(k); if (!q || now - q.t > winMs) q = { t: now, n: 0 }; q.n++; IPRL.set(k, q); if (IPRL.size > 5000) IPRL.clear(); return q.n <= max; }
 // 2026-11-21 使用者「全改」(檢查 a):pbug 和 bug=put 共用「看起來像鑰匙的字串先遮掉」(夥伴鑰匙 fa11…、16~64 碼十六進位、k= / dv= / key= / pass= / pwd= 的值)
-const scrubKeys = t => String(t == null ? "" : t).replace(/fa11[0-9a-f]{6,}/gi, "[鑰匙]").replace(/\b[0-9a-f]{16,64}\b/gi, "[鑰匙]").replace(/((?:^|[?&\s])(k|dv|key|pass|pwd)=)[^&\s"']+/gi, "$1*");
+// 2026-11-21 使用者「改 A」(A3):原本直接對整段原始文字套規則 → 「16~64 碼十六進位」把純數字也吃掉(0.6666666666666666、16 位數時間戳變 [鑰匙]),
+//   k= 規則又會吃掉巢狀 JSON 字串裡 \" 前面的反斜線 → 存下來的 bug 紀錄不是合法 JSON、數字也壞了。改成:
+//   scrubText:只遮「真的像鑰匙」的:夥伴鑰匙 fa11…;20~64 碼十六進位而且同時有 a-f 字母和數字(本專案鑰匙 = 24 碼十六進位;純數字 / 純字母不算);
+//     github_pat_ / ghp_ 等 GitHub 權杖;Bearer 後面的權杖;X-Push-Key 的值;k= / dv= / key= / pass= / pwd= / token= 的值(遇到引號、反斜線、&、空白就停)
+//   scrubKeys:整段是 JSON → 解析後只遮「字串值」(欄位名稱不動;pass / pwd / password / token / secret / authorization / x-push-key 欄位的值整個遮),再轉回 JSON(一定是合法 JSON);
+//     不是 JSON → 用 scrubText 保守地遮文字。pbug 照舊對每個欄位值用 scrubText
+const scrubText = t => String(t == null ? "" : t)
+  .replace(/fa11[0-9a-f]{6,}/gi, "[鑰匙]")
+  .replace(/(?<![0-9a-z])(?=[0-9a-f]*[a-f])(?=[0-9a-f]*[0-9])[0-9a-f]{20,64}(?![0-9a-z])/gi, "[鑰匙]")
+  .replace(/\b(github_pat_|gh[pousr]_)[A-Za-z0-9_]{20,}/g, "$1[鑰匙]")
+  .replace(/\b(Bearer\s+)[A-Za-z0-9._~+\/=-]{16,}/gi, "$1[鑰匙]")
+  .replace(/(X-Push-Key["']?\s*[:=]\s*["']?)[^\s"'\\,&;}]+/gi, "$1*")
+  .replace(/((?:^|[?&\s;,(])(k|dv|key|pass|pwd|token)=)[^&\s"'\\<>#]+/gi, "$1*");
+const SCRUB_FIELD = /^(pass|pwd|password|token|secret|authorization|x-push-key)$/i;
+function scrubVal(v) {
+  if (typeof v === "string") return scrubText(v);
+  if (!v || typeof v !== "object") return v;
+  if (Array.isArray(v)) return v.map(scrubVal);
+  const o = Object.create(null);   // 沒有原型:欄位名稱是 "__proto__" 也照樣當一般欄位存回去
+  for (const [k, x] of Object.entries(v)) o[k] = SCRUB_FIELD.test(k) && typeof x === "string" && x ? "*" : scrubVal(x);
+  return o;
+}
+const scrubKeys = t => { const s = String(t == null ? "" : t); let j; try { j = JSON.parse(s); } catch (e) { return scrubText(s); }
+  try { return JSON.stringify(scrubVal(j)); } catch (e) { return scrubText(s); } };   // 巢狀太深(堆疊不夠)→ 退回文字版
 const BUGIP = new Map();   // 2026-11-03 抓 bug 上傳不要鑰匙後,每個 IP 每分鐘最多 6 次   // 2026-11-03 鑰匙「最後使用時間」這個執行個體上次試著寫 KV 的時間
 // 2026-11-03 20:10 使用者「改」(KV 寫入一天上限 1,000 次,上午爆到 1.6 萬):鑰匙的「綁定手機 / 最後使用時間」改存 Hub(Durable Object,一天 10 萬筆寫入),KV 只留鑰匙本身的設定。
 //   讀:每個執行個體每把鑰匙 5 分鐘讀一次 Hub;寫:第一次綁手機馬上寫,最後使用時間每個執行個體每把鑰匙一小時最多一次。舊的 KV 裡已有的 dev 照樣認(Hub 沒有時)
@@ -1541,6 +1564,8 @@ export default {
       }
       // 2026-11-21 使用者「全改」(檢查 W3):名單外手動成交的股票 = 你的真實交易 → 沒鑰匙回空的 {};看盤鑰匙只給代號 / 名稱 / 市場 / 昨收(App 加進名單用),不給成交時間;owner / 中繼全部
       // 2026-11-21 使用者「全改」(檢查 d):沒鑰匙回 {} → 免費 / iPhone 網頁版名單少了名單外成交的股票 → 沒鑰匙也給和看盤鑰匙一樣的精簡版(代號 / 名稱 / 市場 / 昨收,沒有成交時間)
+      // 2026-11-21 使用者「改回」:上面「檢查 d」改回 → 沒鑰匙照「檢查 W3」回 {}(不給資料);看盤鑰匙照舊精簡版(代號 / 名稱 / 市場 / 昨收,沒有成交時間 / 金額);owner / 中繼全部
+      if (!KI && !pushOk) return new Response("{}", { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "private, max-age=30" } });
       const v = await hubOf(env).kvGet("extra");
       const out = v && !ownerR ? { d: v.d, codes: (Array.isArray(v.codes) ? v.codes : []).map(x => ({ code: x.code, name: x.name, market: x.market, prev: x.prev })) } : v;
       return new Response(JSON.stringify(out || {}), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "private, max-age=30" } });
@@ -1571,12 +1596,19 @@ export default {
         if (!env.YT_PUSH_KEY || request.headers.get("X-Push-Key") !== env.YT_PUSH_KEY) return J({ error: "金鑰不對" }, 403);
         let b; try { b = await request.json(); } catch (e) { return J({ error: "JSON 格式錯誤" }, 400); }
         if (!b || !/^\d{4}-\d{2}-\d{2}$/.test(b.d || "")) return J({ error: "要有 d(YYYY-MM-DD)" }, 400);
-        await hubOf(env).kvPut("engine", { d: b.d, hm: String(b.hm || ""), on: b.on ? 1 : 0, n: +b.n || 0, msg: String(b.msg || "").slice(0, 120), ver: String(b.ver || "").slice(0, 16), stale: b.stale ? 1 : 0, at: Date.now() });   // 2026-10-29 23:50 多存規則版本 / 規則舊(手機警示用)
+        // 2026-11-21 使用者「改 1」:心跳多帶 caps = {"四":[代碼…],"五","六3","八","九","一2"}(今天各有上限的判別式已進的股票,超額不算)→ 一起存。
+        //   只收這 6 個判別式;值要是陣列,代碼符合 ^[0-9A-Z]{4,6}$、每個最多 30 檔;不合格的丟掉(不讓整個心跳失敗);沒帶 caps 的舊心跳照舊(不存 caps)
+        let caps = null;
+        if (b.caps && typeof b.caps === "object" && !Array.isArray(b.caps)) { caps = {};
+          for (const rk of ["四", "五", "六3", "八", "九", "一2"]) { const a = b.caps[rk]; if (!Array.isArray(a)) continue;
+            caps[rk] = [...new Set(a.map(x => typeof x === "number" ? String(x) : x).filter(x => typeof x === "string" && /^[0-9A-Z]{4,6}$/.test(x)))].slice(0, 30); } }
+        await hubOf(env).kvPut("engine", { d: b.d, hm: String(b.hm || ""), on: b.on ? 1 : 0, n: +b.n || 0, msg: String(b.msg || "").slice(0, 120), ver: String(b.ver || "").slice(0, 16), stale: b.stale ? 1 : 0, at: Date.now(), ...(caps ? { caps } : {}) });   // 2026-10-29 23:50 多存規則版本 / 規則舊(手機警示用)
         return J({ ok: true });
       }
       // 2026-11-21 使用者「全改」(檢查 W3):中繼金鑰 / owner 鑰匙 → 全部;其他(看盤版、免費、排程查心跳)不給規則版本(ver、msg 裡的「規則…」)
       const v = await hubOf(env).kvGet("engine");
-      const out = v && !ownerR ? { d: v.d, hm: v.hm, on: v.on, at: v.at, stale: v.stale, n: v.n, msg: String(v.msg || "").replace(/\s*規則\S*/g, "") } : v;   // 2026-11-21 協調者:msg(每輪秒數 / 事件數 / ⏱ 各段秒數)和監控檔數照給(週一量測排程讀公開心跳;不是帳戶資料),只拿掉規則版本
+      // 2026-11-21 使用者「改 1」:caps(各上限判別式今天已進的股票)→ owner / 中繼照舊全部;有鑰匙的(看盤 / 夥伴 / 管理)也給(手機背景要用);沒鑰匙的不給
+      const out = v && !ownerR ? { d: v.d, hm: v.hm, on: v.on, at: v.at, stale: v.stale, n: v.n, msg: String(v.msg || "").replace(/\s*規則\S*/g, ""), ...(KI && v.caps ? { caps: v.caps } : {}) } : v;   // 2026-11-21 協調者:msg(每輪秒數 / 事件數 / ⏱ 各段秒數)和監控檔數照給(週一量測排程讀公開心跳;不是帳戶資料),只拿掉規則版本
       return new Response(JSON.stringify(out || {}), { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "private, max-age=20" } });
     }
 
@@ -1598,7 +1630,7 @@ export default {
     if (bugQ === "put" || bugQ === "list") {
       if (!env || !env.HUB) return J({ error: "沒有 Hub" }, 503);
       const hub = hubOf(env);
-      const scrub = scrubKeys;
+      const scrub = scrubText;   // 2026-11-21 使用者「改 A」(A3):pbug 照舊遮「已解析的欄位值」→ 用文字版 scrubText(scrubKeys 現在會先試著當 JSON 解析)
       if (bugQ === "list") { let L = null; try { L = await hub.kvGet("bugs"); } catch (e) {} const n = Math.min(300, Math.max(1, +url.searchParams.get("n") || 50));
         return J({ ok: true, bugs: (Array.isArray(L) ? L : []).slice(-n).reverse() }); }
       if (request.method !== "POST") return J({ error: "要用 POST" }, 405);

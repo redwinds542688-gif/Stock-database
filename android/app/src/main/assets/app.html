@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-21 23:39(實際時間)第四輪檢查修正(使用者「改 A 改回」「改 1 2 4」):13:20 先照程式部位送平倉再確認(元大查詢不回應也 13:20:00 平倉);真的分筆成交不被當重複;晚到回報加時間判斷;0000 / 帳密 / 凍結 / 權限登入錯誤當天停;13:20 單檔送失敗不中止整批;推雲端佇列換日清掉;雲端整天讀不到時本機訊號照常下單;電腦心跳帶各判別式今天已進的股票(caps,給手機);電腦認手機的部位鍵寫法;錯誤紀錄不再被遮壞;iPhone 推播永久失敗照實說;名單外手動成交股票改回只給有鑰匙的人
   · 2026-11-21 21:38(實際時間)第三輪檢查修正(使用者「全改」):中繼 —— 登入暫時被拒(請勿連續登入等)會退避重試、只有帳密錯 / 凍結 / 沒權限才整天停;雲端掛時本機 K 照寫、推雲端改背景不卡主迴圈;Windows 寫 K 檔撞到引擎讀不會重登;成交回報疑似重複時不反向下單、推手機請人工確認;台指期 K 每天重置;自動更新全部檔案成功才算;接回失敗會重試;13:20 查詢失敗不當成沒掛單;休市日不登入。下單程式 —— 成交金額不重複算、晚到回報接回原本那筆、張數對不上以元大為準。雲端 —— 錯誤紀錄由 GitHub 排程存進私人庫、補抓指數 / 台指期帶金鑰會重試、免費版可上傳錯誤紀錄、推播訂閱失敗照實說
   · 2026-11-21 21:05(實際時間)全面檢查修正(使用者「全改」):雲端只讓沒鑰匙的人讀名單 / 紀錄 / 看盤頁等必要檔(簽章金鑰、設定檔一律不給);雲端故障時看盤鑰匙不能變成管理者;推播、錯誤紀錄、資金資料、幾個公開轉送加鑰匙或次數限制;下單程式重開接回不再當掉、平倉中的虧損算進上限、同檔再進場不沿用上一筆移平價、均價 / 對帳入帳 / IOC 晚到成交修正、跳檔價精確;電腦引擎預判不拖到下一分鐘、收盤確認先確認寬度、判一急彈空不被後面判別式搶走;強制進場滑桿寫實際送出的價格、送出中鎖住、逾時提示改成「單可能已送出,請到當沖確認」
   · 2026-11-21 20:11(實際時間)電腦引擎 / 中繼檢查修正(使用者「改 1 2b 3」):① 判一急彈空的平倉從雲端對帳時記對(原本記成判一,電腦以為還開著、擋這檔新進場、重複平倉);②b 寬度改成開算前等雲端最新一分鐘(最多 4 秒、不超過第 15 秒,全部判別式一起等;取代「先擋看寬度的判別式、事後重算」);③ 中繼讀電腦通知不會再漏讀到一半的中文字、出錯推手機、進場結果馬上寫
@@ -589,7 +590,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611212327">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611212339">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3934,18 +3935,25 @@ function freeExpired(){   // 2026-11-01 免鑰匙滿 30 天:整個畫面蓋住,�
     w.querySelector('i').onclick = hide; if (btn) w.querySelector('button').onclick = fn; document.body.appendChild(w); };
   /* 2026-11-21 使用者「全改」(檢查 b):原本不管 ?push=sub 回什麼都說「已開啟交易通知」(被 403 / 429 擋掉也一樣)→ 回 2xx 才算成功;
      沒成功:回狀態碼(連不上 = -1),10 分鐘後自動再送(最多 4 次;雲端限同一個 IP 10 分鐘 5 次)。沒有訂閱回 false */
-  let syncT = 0;
+  /* 2026-11-21 使用者「改 A」(A8):403(免費期的交易通知已結束 / 沒鑰匙沒識別碼 / 鑰匙無效)和 400(不是推播網址)再送幾次結果都一樣 → 永久失敗:不再自動重試,
+     直接說清楚原因(要鑰匙);429 / 5xx / 連不上(-1)/ 其他 = 暫時失敗 → 照舊 10 分鐘後再送、最多 4 次。雲端的錯誤訊息記在 syncMsg 給 syncErr 用 */
+  let syncT = 0, syncMsg = '';
+  const syncPerm = st => st === 403 || st === 400;
   const sync = async (reg, n) => { const sb = await reg.pushManager.getSubscription(); if (!sb) return false;
-    let st = -1; try{ const r = await fetch(W() + '/?push=sub', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sub: sb.toJSON(), dv: (typeof freeDev === 'function' ? freeDev() : '')})}); st = r.status; }catch(e){}
+    let st = -1; syncMsg = ''; try{ const r = await fetch(W() + '/?push=sub', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sub: sb.toJSON(), dv: (typeof freeDev === 'function' ? freeDev() : '')})}); st = r.status;
+      if (!r.ok){ try{ const j = await r.json(); syncMsg = String((j && j.error) || '').slice(0, 80); }catch(e){} } }catch(e){}
     if (st >= 200 && st < 300) return true;
-    const k = (n || 0) + 1; if (k <= 4 && !syncT) syncT = setTimeout(() => { syncT = 0; sync(reg, k).catch(() => {}); }, 10 * 60e3);
+    const k = (n || 0) + 1; if (!syncPerm(st) && k <= 4 && !syncT) syncT = setTimeout(() => { syncT = 0; sync(reg, k).catch(() => {}); }, 10 * 60e3);
     return st; };
-  const syncErr = st => st === 429 || st === 403 ? '訂閱沒成功,稍後會自動再試' : st === -1 ? '連不上雲端,訂閱沒成功,稍後會自動再試' : '訂閱沒成功(' + st + '),稍後會自動再試';
+  const syncErr = st => syncPerm(st) ? '收不到交易通知:' + (syncMsg || (st === 403 ? '要鑰匙才能收推播' : '訂閱資料不對')) + (st === 403 ? '(輸入鑰匙後重新打開就會再訂閱)' : '')
+    : st === -1 ? '連不上雲端,訂閱沒成功,稍後會自動再試' : '訂閱沒成功(' + st + '),稍後會自動再試';
   window.addEventListener('load', () => setTimeout(() => {
     navigator.serviceWorker.register('/sw.js', {scope: '/'}).then(async reg => {
       if (ios && !standalone){ bar('要收到交易通知:按 Safari 下方的「分享」→「加入主畫面」,再從主畫面的「名揚四海」打開'); return; }   // iPhone 只有加入主畫面後才能收推播
       if (!('PushManager' in window) || !('Notification' in window)) return;
-      try{ if (await sync(reg)) return; }catch(e){}
+      // 2026-11-21 使用者「改 A」(A8):原本 if (await sync(reg)) return; → 失敗的狀態碼(403 / 429 / -1…)也是「真」,沒成功也悄悄結束 → 改成明確判斷:
+      //   true = 成功(結束);false = 還沒訂閱(往下問要不要開);數字 = 已訂閱但雲端沒收 → 顯示原因(暫時的會自動再試,永久的不再試)
+      try{ const st0 = await sync(reg); if (st0 === true) return; if (st0 !== false){ bar(syncErr(st0)); return; } }catch(e){}
       if (Notification.permission === 'denied') return;
       bar('要收到交易通知嗎?', '開啟通知', async () => {
         try{ const pm = await Notification.requestPermission(); if (pm !== 'granted'){ bar('沒有開啟通知(可以到 iPhone「設定 → 通知 → 名揚四海」打開)'); return; }

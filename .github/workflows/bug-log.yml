@@ -38,11 +38,30 @@ jobs:
           B = "https://twse-proxy.redwinds542688.workers.dev/"
           H = {"X-Push-Key": K, "User-Agent": "bug-log/1"}
           N = max(1, min(30, int(os.environ.get("N") or 8)))
-          def scrub(t):   # 和 Worker 的 scrubKeys 一樣,再加上金鑰本身
-              t = t.replace(K, "[鑰匙]")
+          # 2026-11-21 使用者「改 A」(A3):原本對整段原始文字套規則 → 純數字(0.6666666666666666、時間戳)被當鑰匙、巢狀 JSON 的 \" 反斜線被吃掉 → 存下來的檔不是合法 JSON。
+          #   改成和 Worker 的 scrubText / scrubKeys 一樣:scrub_text 只遮真的像鑰匙的(fa11…;20~64 碼十六進位且同時有 a-f 字母和數字;github_pat_ / ghp_;Bearer;X-Push-Key;
+          #   k= / dv= / key= / pass= / pwd= / token= 的值遇到引號、反斜線、&、空白就停);scrub_json:解析成 JSON 後只遮字串值(欄位名稱不動)再存回去,不是 JSON 才用文字版
+          def scrub_text(t):   # 和 Worker 的 scrubText 一樣,再加上金鑰本身
+              t = str(t).replace(K, "[鑰匙]")
               t = re.sub(r"fa11[0-9a-f]{6,}", "[鑰匙]", t, flags=re.I)
-              t = re.sub(r"\b[0-9a-f]{16,64}\b", "[鑰匙]", t, flags=re.I)
-              return re.sub(r"((?:^|[?&\s])(k|dv|key|pass|pwd)=)[^&\s\"']+", r"\1*", t, flags=re.I)
+              t = re.sub(r"(?<![0-9a-z])(?=[0-9a-f]*[a-f])(?=[0-9a-f]*[0-9])[0-9a-f]{20,64}(?![0-9a-z])", "[鑰匙]", t, flags=re.I)
+              t = re.sub(r"\b(github_pat_|gh[pousr]_)[A-Za-z0-9_]{20,}", r"\1[鑰匙]", t)
+              t = re.sub(r"\b(Bearer\s+)[A-Za-z0-9._~+/=-]{16,}", r"\1[鑰匙]", t, flags=re.I)
+              t = re.sub(r"(X-Push-Key[\"']?\s*[:=]\s*[\"']?)[^\s\"'\\,&;}]+", r"\1*", t, flags=re.I)
+              return re.sub(r"((?:^|[?&\s;,(])(k|dv|key|pass|pwd|token)=)[^&\s\"'\\<>#]+", r"\1*", t, flags=re.I)
+          SCRUB_FIELD = re.compile(r"^(pass|pwd|password|token|secret|authorization|x-push-key)$", re.I)
+          def scrub_val(v):
+              if isinstance(v, str): return scrub_text(v)
+              if isinstance(v, list): return [scrub_val(x) for x in v]
+              if isinstance(v, dict): return {k: ("*" if SCRUB_FIELD.match(k) and isinstance(x, str) and x else scrub_val(x)) for k, x in v.items()}
+              return v
+          def scrub_json(v, indent=None):   # v = 已解析的物件,或原始文字(能解析就當 JSON)
+              if isinstance(v, str):
+                  try: v = json.loads(v)
+                  except Exception: return scrub_text(v)
+              try: return json.dumps(scrub_val(v), ensure_ascii=False, indent=indent)
+              except RecursionError: return scrub_text(json.dumps(v, ensure_ascii=False))
+          scrub = scrub_text
           def get(q, key=True):
               try:
                   r = urllib.request.urlopen(urllib.request.Request(B + q, headers=H if key else {"User-Agent": "bug-log/1"}), timeout=60)
@@ -52,25 +71,25 @@ jobs:
           D = Path("bugs"); D.mkdir(exist_ok=True); bad = 0
           s, t = get("?bug=list")
           if s != 200: print("bug=list", s, scrub(t)); sys.exit(1)
-          L = json.loads(t); (D / "list.json").write_text(scrub(json.dumps(L, ensure_ascii=False, indent=1)), encoding="utf-8")
+          L = json.loads(t); (D / "list.json").write_text(scrub_json(L, 1), encoding="utf-8")
           keys = sorted({x["k"] for x in L if str(x.get("k", "")).startswith("bug:")}, reverse=True)[:N]
           keep = set()
           for k in keys:
               f = D / ("bug_" + re.sub(r"[^\w]", "_", k[4:]) + ".json"); keep.add(f.name)
               s, t = get("?bug=get&bk=" + urllib.request.quote(k))
               if s != 200: print("bug=get", k, s, scrub(t)); bad += 1; continue
-              f.write_text(scrub(t), encoding="utf-8"); print("bug", k, len(t), "字")
+              f.write_text(scrub_json(t), encoding="utf-8"); print("bug", k, len(t), "字")
           for f in D.glob("bug_*.json"):
               if f.name not in keep: f.unlink()
           s, t = get("?pbug=list&n=300", key=False)
-          if s == 200: (D / "pbug.json").write_text(scrub(t), encoding="utf-8")
+          if s == 200: (D / "pbug.json").write_text(scrub_json(t), encoding="utf-8")
           else: print("pbug=list", s, scrub(t)); bad += 1
           tw = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))); U = {}
           for d in (tw.date(), tw.date() - datetime.timedelta(days=1)):
               s, t = get("?usage=get&d=" + d.isoformat())
               if s == 200: U[d.isoformat()] = json.loads(t)
               else: print("usage=get", d, s, scrub(t)); bad += 1
-          (D / "usage.json").write_text(scrub(json.dumps(U, ensure_ascii=False, indent=1)), encoding="utf-8")
+          (D / "usage.json").write_text(scrub_json(U, 1), encoding="utf-8")
           print("完成:bug 紀錄", len(keep), "份" + (f"(有 {bad} 項失敗)" if bad else ""))
           sys.exit(1 if bad else 0)
           PY
