@@ -402,4 +402,74 @@ ok(b.trader.calls and [x["_k"] for x in b.trader.calls[-1][1]] == ["a", "b"] and
 b = mk(); b.trader = T9(); b._prime_t0 = time.time() - 200; b._sf_bad = 0; b.prime_local_maybe("2026-11-23"); ok(b.trader.calls)
 os.environ.pop("ENGINE_DIR", None)
 
+# ── 2026-11-22 使用者「全部做」(U2 / U4 / D7)──
+_sl22 = Y.time.sleep; Y.time.sleep = lambda s: None
+try:
+    S17 = {"code": "2317", "bs": "S", "lots": 1, "price": 200.0, "time": "09:35:00", "order_no": "Z1"}
+    W17 = {"no": "M1", "code": "2317", "bs": "B", "lots": 1, "typ": "0", "tag": "", "price": 199.0}
+    def mk22():
+        b = mk(); b.logged_in.set(); b.trader.prehang_deadline = "13:25"; b.trader.prehang = {"2317": ["M1"]}
+        b.cancels = []; b.cancel_order = lambda no, code, bs, typ: b.cancels.append(no)
+        b.query_strategies = lambda types=(1, 2, 3, 4, 5): []
+        return b
+    NOW[0] = dt.datetime(2026, 11, 23, 13, 20, 1, tzinfo=Y.TW)
+    # U2-1:查詢失敗 → 回 None、盤中記的預掛不動;查成功才換
+    b = mk22(); b.query_today = lambda with_oco=True: None
+    ok(b.prehang_pick("13:20") is None and b.trader.prehang == {"2317": ["M1"]}, b.trader.prehang)
+    b.query_today = lambda with_oco=True: {"working": [W17], "trades": [S17], "tags": {}}
+    ok(b.prehang_pick("13:20") == {"M1"} and b.trader.prehang == {"2317": ["M1"]})
+    b.query_today = lambda with_oco=True: {"working": [], "trades": [S17], "tags": {}}
+    ok(b.prehang_pick("13:20") == set() and b.trader.prehang == {})   # 查成功、預掛不在了 → 清掉
+    # U2-2:13:20 流程查預掛前 2 次查不到 → 重查,第 3 次查到 → 保留預掛、不取消
+    b = mk22(); qn22 = [0]
+    def q22(with_oco=True):
+        qn22[0] += 1
+        return None if qn22[0] <= 2 else {"working": [W17], "trades": [S17], "tags": {}}
+    b.query_today = q22; LOGS.clear(); b.close_all("13:20")
+    ok(b._ca["keep"] == {"M1"} and not b.cancels and b.trader.prehang == {"2317": ["M1"]}, b._ca, b.cancels, LOGS)
+    ok(sum("查手動預掛:元大委託查不到" in x for x in LOGS) == 2, LOGS)
+    rc = [c for c in b.trader.calls if c[0] == "recheck"][-1]; ok([w["no"] for w in rc[2]] == ["M1"], rc)
+    # U2-3:一直查不到(超過 CLOSE_CONFIRM_TRIES)→ 保留盤中看到的預掛、推手機,確認時不取消它
+    b = mk22(); qn22[0] = 0
+    def q22b(with_oco=True):
+        qn22[0] += 1
+        return None if qn22[0] <= 6 else {"working": [W17, dict(W17, no="X9", tag="", code="2330", bs="S")], "trades": [S17], "tags": {}}
+    b.query_today = q22b; b.close_all("13:20")
+    ok(b._ca["keep"] == {"M1"} and set(b.cancels) == {"X9"} and any("查不到元大委託" in a for a in b.alerts), b._ca["keep"], b.cancels, b.alerts)
+    # U4:複查查不到 → 回 "fail";同一分鐘內不推手機,過了這分鐘才推
+    b = mk22(); b.trader.prehang = {}; b.trader.alerts = []; b.trader.alert = lambda a, body="": b.trader.alerts.append(a)
+    b.query_today = lambda with_oco=True: None
+    NOW[0] = dt.datetime(2026, 11, 23, 13, 22, 5, tzinfo=Y.TW)
+    ok(b.recheck_positions("13:22") == "fail" and not b.trader.alerts)
+    NOW[0] = dt.datetime(2026, 11, 23, 13, 23, 0, tzinfo=Y.TW)
+    ok(b.recheck_positions("13:22") == "fail" and b.trader.alerts == ["⚠ 13:22 複查失敗"], b.trader.alerts)
+    b.query_today = lambda with_oco=True: {"working": [], "trades": [S17], "tags": {}}
+    ok(b.recheck_positions("13:23") is True and b.trader.calls[-1][0] == "recheck")
+finally:
+    Y.time.sleep = _sl22
+
+# D7:名單外股票的可當沖 / 可先賣
+import elig as _el
+_gj, _lt, _here = _el.get_json, _el.load_today, Y.HERE
+try:
+    NOW[0] = dt.datetime(2026, 11, 23, 10, 0, tzinfo=Y.TW)
+    def _fake_lists(url, params=None, timeout=40, tries=2):
+        if url == _el.TWSE_DT: return [{"Code": "2330", "Suspension": ""}, {"Code": "2317", "Suspension": "Y"}]
+        if url == _el.TPEX_DT: return [{"SecuritiesCompanyCode": "6269"}, {"SecuritiesCompanyCode": "3105"}]
+        if url == _el.TPEX_DT_PAUSE: return [{"SecuritiesCompanyCode": "6269"}]
+        raise RuntimeError("x")
+    _el.get_json = _fake_lists; _el.load_today = lambda: {"noshort": ["3105"]}
+    b = mk()
+    ok(b.extra_dt("2330")[:2] == (1, 1) and b.extra_dt("2317")[:2] == (1, 0), b.extra_dt("2317"))
+    ok(b.extra_dt("6269", True)[:2] == (1, 0) and b.extra_dt("3105", True)[:2] == (1, 0) and b.extra_dt("1101")[:2] == (0, 0))
+    b.trader.noshort = {"2330": "無券"}; ok(b.extra_dt("2330")[:2] == (1, 0))
+    # 官方名單抓不到 → 本機最近的名單檔;也沒有 → 保守不可先賣
+    _el.get_json = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("斷網")); _el.load_today = lambda: None
+    Y.HERE = TMP; (TMP / "pool_2026-11-21.json").write_text('{"pool": [{"code": "3008", "daytrade": 1, "short_first": 1}, {"code": "2603", "daytrade": 1, "short_first": 0}]}', encoding="utf-8")
+    (TMP / "pool_2026-10-01.json").write_text('{"pool": [{"code": "2002", "daytrade": 1, "short_first": 1}]}', encoding="utf-8")   # 太舊不用
+    b = mk()
+    ok(b.extra_dt("3008")[:2] == (1, 1) and b.extra_dt("2603")[:2] == (1, 0) and b.extra_dt("2002")[:2] == (1, 0) and b.extra_dt("9999")[:2] == (1, 0), b.extra_dt("2002"))
+finally:
+    _el.get_json, _el.load_today, Y.HERE = _gj, _lt, _here
+
 print(f"test_bridge 全部通過({N_OK[0]} 項)")

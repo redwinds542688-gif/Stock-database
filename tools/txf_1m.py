@@ -1,5 +1,6 @@
 """2026-11-13 20:00 使用者「台指期 略有參考價值 如何取得」:期交所「前 30 個交易日期貨每筆成交資料」(Daily_YYYY_MM_DD.zip,每天收盤後公布,只留 30 個交易日)
-→ 台指期(商品代號 TX)當天成交量最大的月份(近月)日盤 08:45~13:45 合成 1 分 K(這分鐘第一筆 = 開、最後一筆 = 收、量 = 口數)
+→ 台指期(商品代號 TX)當天成交量最大的月份(近月)日盤 08:45~13:45 合成 1 分 K(這分鐘第一筆 = 開、最後一筆 = 收、量 = 口數;
+  2026-11-22(L1)起量 = 單邊口數 = 檔案的「成交數量(B+S)」÷ 2)
 → kline_futures/TXF/<年-W週>.csv(欄位 date,time,open,high,low,close,volume)。先直接連期交所,不行再走自己的 Worker ?taifex= 轉送。
 用法:python3 tools/txf_1m.py [起日 YYYY-MM-DD] [迄日](不給 = 今天)
 2026-11-21 使用者「全改」(檢查 W6):走 Worker ?taifex 時不帶金鑰每個 IP 10 分鐘最多 20 次 → 有環境變數 YT_PUSH_KEY 就帶 X-Push-Key(只送給自己的 Worker,不送期交所;不印出來);
@@ -63,6 +64,10 @@ def fetch(d):
         b = bars.get(t)
         if b is None: bars[t] = [p, p, p, p, q]
         else: b[1] = max(b[1], p); b[2] = min(b[2], p); b[3] = p; b[4] += q
+    # 2026-11-22 使用者「全部做」(L1):期交所每筆成交檔的「成交數量(B+S)」是買賣雙邊合計(每筆 = 2 × 口數),
+    #   原本直接加總 → 量是實際口數的 2 倍,和中繼推的元大台指期 K(save_cloud_bars.save_fbars,單邊口數)對不起來。
+    #   改成除以 2(單邊口數)。每筆都是偶數,合計除 2 一定整除;萬一出現奇數就四捨五入。
+    for b in bars.values(): b[4] = int(round(b[4] / 2))
     return m, bars
 def save(d, bars):
     y, w, _ = d.isocalendar(); f = OUT / f"{y}-W{w:02d}.csv"; OUT.mkdir(parents=True, exist_ok=True)

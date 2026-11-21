@@ -82,6 +82,9 @@ def load_env():
 CFG = load_env()
 LOGF = None
 RULES = {"ver": "", "stale": False, "at": 0.0, "why": ""}   # 2026-10-29 模擬器 / 參數的版本(兩個檔內容的 sha256 前 8 碼)、是不是抓不到最新的
+# 2026-11-22 使用者「全部做」(E10):背景執行緒(可能拖輸提示、進場結果等待)和主程式會同時寫 live_<日>.jsonl / log 檔 → Windows 上兩行可能交錯成一行壞掉;寫檔一律先拿鎖
+_LIVE_LOCK = threading.Lock()
+_LOG_LOCK = threading.Lock()
 
 
 def log(*a):
@@ -90,7 +93,7 @@ def log(*a):
     try:
         global LOGF
         d = Path(CFG.get("LOG_DIR", HERE / "log")); d.mkdir(parents=True, exist_ok=True)
-        with open(d / f"engine_{now_tw():%Y-%m-%d}.log", "a", encoding="utf-8") as f: f.write(s + "\n")
+        with _LOG_LOCK, open(d / f"engine_{now_tw():%Y-%m-%d}.log", "a", encoding="utf-8") as f: f.write(s + "\n")   # 2026-11-22 使用者「全部做」(E10):多執行緒寫同一個 log 檔先拿鎖
     except Exception: pass
 
 
@@ -287,12 +290,16 @@ def prep_day(day, codes):
     log(f"開工:{len(codes)} 檔,抓了 {n} 個 K 檔(前 3 週),模擬器 {SIMD},規則 {RULES['ver']}{' ⚠舊' if RULES['stale'] else ''}")
 
 
-def today_bars(day, since=""):
+def today_bars(day, since="", timeout=None):
     """Worker ?ybars=<day> → {code: [[hm, o, h, l, c, v], …]}(量 = 股)
        2026-11-20 使用者「改1234」(雲端掛了電腦還能跑):雲端讀不到 / 斷路器開著 → 改讀中繼每分鐘存在本機的 bars_yuanta/<日>.csv(中繼推雲端之前先存的,同一份)"""
+    # 2026-11-22 使用者「全部做」(E11):原本一律等 40 秒 → 雲端第一次逾時整輪卡 40 秒才改讀本機 K。
+    #   每分鐘的增量(since)只等 ENGINE_BARS_TO(7)秒;整天重抓(盤中每 10 分鐘一次,today_bars_fast 傳 ENGINE_BARS_FULL_TO 20 秒)才等久一點;回放整天照舊 40 秒。
+    #   逾時一次斷路器就開(_cb_fail:timed out = 太慢),之後 60 秒內直接讀本機,不再每輪等
+    if timeout is None: timeout = _f(CFG.get("ENGINE_BARS_TO"), 7) if since else 40
     if cloud_up():
         try:
-            j = http(worker_url(f"ybars={day}" + (f"&since={since}" if since else "")), timeout=40)
+            j = http(worker_url(f"ybars={day}" + (f"&since={since}" if since else "")), timeout=timeout)
             if getattr(today_bars, "_local", False): today_bars._local = False; log("雲端 K 恢復,改回讀雲端")
             return j.get("bars", {}), j.get("last", "")
         except Exception as e:
@@ -323,7 +330,7 @@ def today_bars_fast(day):
     full = _TB["d"] != day or not _TB["last"] or time.time() - _TB["full_at"] > 600 or CFG.get("ENGINE_BARS_INC", "1") != "1"
     try:
         if full:
-            bars, last = today_bars(day); _TB.update(d=day, rows={c: {r[0]: r for r in rows} for c, rows in bars.items()}, last=last or latest_bar(bars), full_at=time.time())
+            bars, last = today_bars(day, timeout=_f(CFG.get("ENGINE_BARS_FULL_TO"), 20)); _TB.update(d=day, rows={c: {r[0]: r for r in rows} for c, rows in bars.items()}, last=last or latest_bar(bars), full_at=time.time())
         else:
             bars, last = today_bars(day, since=hm_add(_TB["last"], -3))
             for c, rows in bars.items():
@@ -493,14 +500,38 @@ def write_breadth(day):
 
 
 _BR_PREV = {}
+_BR_POOL = {}   # 2026-11-22 使用者「全部做」(檢查):整份名單(pool.json)每檔的昨收 —— 雲端寬度 / 名單平均是整份名單算的,電腦補的也照整份名單
+
+def br_pool_prev(j, day):
+    """名單(pool.json)每檔的昨收,和 Worker poolPrev 同一套:名單日期 = 今天用 prev、比今天早用 close"""
+    out = {}
+    pool = (j.get("pool") if isinstance(j, dict) else j) or []
+    jd = str(j.get("date", "")) if isinstance(j, dict) else ""
+    for s_ in pool:
+        try:
+            sd = str(s_.get("date") or jd); y = _f(s_.get("prev") if sd == day else s_.get("close") if sd < day else 0, 0)
+            if y > 0: out[str(s_["code"])] = y
+        except Exception: continue
+    return out
+
+def _br_ser(day):
+    """寬度 / 名單平均電腦自己算用的股票:{代碼: (昨收, 今天的 K)}。
+       2026-11-22 使用者「全部做」(檢查):原本只用監控的股票(_BR_PREV = 監控名單的昨收,~90 檔),雲端是整份名單(108~145 檔)→ 補的那幾分鐘和雲端差很多。
+       改成整份名單(_BR_POOL)裡今天有 K 的股票;昨收有元大參考價的(監控股,_BR_PREV)用參考價(和雲端快照的 y 同一個);名單讀不到才照舊只用監控股。ENGINE_BR_POOL=0 照舊"""
+    if _TB.get("d") != day or not _TB.get("rows"): return {}
+    allp = _BR_POOL if (_BR_POOL and CFG.get("ENGINE_BR_POOL", "1") == "1") else None
+    if not allp and not _BR_PREV: return {}
+    ser = {}
+    for c, dc in _TB["rows"].items():
+        if allp is not None and c not in allp: continue   # 雲端只算名單上的股票(名單外手動加的不算)
+        y = float(_BR_PREV.get(c) or (allp or {}).get(c) or 0)
+        if y > 0 and dc: ser[c] = (y, sorted(dc.items()))
+    return ser
+
 def br_local(day):
     """2026-11-13 12:15 使用者「改」(雲端寬度 12:05 少一分鐘 → 「電腦資料停住」、總停損那幾分鐘判斷不到):
        用電腦手上的元大 1 分 K(_TB,Worker ?ybars 每分鐘併進來的)+ 昨收(元大參考價)自己算每分鐘的寬度(收盤價 > 昨收 的比例,和 Worker 同一套)"""
-    if _TB.get("d") != day or not _TB.get("rows") or not _BR_PREV: return {}
-    ser = {}
-    for c, dc in _TB["rows"].items():
-        y = float(_BR_PREV.get(c) or 0)
-        if y > 0 and dc: ser[c] = (y, sorted(dc.items()))
+    ser = _br_ser(day)
     if not ser: return {}
     last = _TB.get("last") or ""
     out = {}; idx = {c: 0 for c in ser}; cur = {}
@@ -522,11 +553,7 @@ def br_local(day):
 
 def av_local(day):
     """2026-11-20 使用者「改1234」 3:判五的名單平均(每檔對昨收漲跌 % 的平均,和 Worker ?breadth 的 av 同一套)用電腦的元大 1 分 K 自己算(和 br_local 同一批資料)"""
-    if _TB.get("d") != day or not _TB.get("rows") or not _BR_PREV: return {}
-    ser = {}
-    for c, dc in _TB["rows"].items():
-        y = float(_BR_PREV.get(c) or 0)
-        if y > 0 and dc: ser[c] = (y, sorted(dc.items()))
+    ser = _br_ser(day)   # 2026-11-22 使用者「全部做」(檢查):和 br_local 同一批股票(整份名單)
     if not ser: return {}
     last = _TB.get("last") or ""
     out = {}; idx = {c: 0 for c in ser}; cur = {}
@@ -599,8 +626,26 @@ def _sim_code():
         _SIM_CO["co"] = compile(f.read_bytes(), str(f), "exec"); _SIM_CO["key"] = key
     return _SIM_CO["co"]
 
+_SIMD_MODS = {"key": None}
+def _simd_fresh():
+    """2026-11-22 使用者「全部做」(E5):工作行程的 sys.modules 會留著第一次 import 的 rs_env(sim_day.py 裡 import rs_env 拿到的是快取的舊模組)→
+       盤中重抓規則(fetch_rules)後,主程式 reload_envs 用新的 rs_env(tx_ok / txsync…),工作行程裡的模擬器卻還用舊的,要重開才一致。
+       每次跑模擬器前看 SIMD 裡 .py 檔(rs_env.py…)的修改時間 / 大小;和上次不同(含這個工作行程第一次跑)→ 把從 SIMD 載入的模組從 sys.modules 拿掉,
+       模擬器下次 import 就讀新的。sim_day.py 本身的快取(_sim_code / _ss_split)本來就照檔案修改時間 / 大小重編;read_csv 快取也照檔案修改時間"""
+    try: key = tuple(sorted((p.name, p.stat().st_mtime_ns, p.stat().st_size) for p in SIMD.glob("*.py")))
+    except Exception: key = None
+    if key == _SIMD_MODS["key"]: return False
+    first = _SIMD_MODS["key"] is None; _SIMD_MODS["key"] = key; d = str(SIMD.resolve()) if SIMD.exists() else str(SIMD)
+    for nm, m in list(sys.modules.items()):
+        f = getattr(m, "__file__", None) or ""
+        try:
+            if f and os.path.dirname(os.path.abspath(f)) in (d, str(SIMD)): sys.modules.pop(nm, None)
+        except Exception: pass
+    return not first
+
 def _sim_one(args):
     code, name, rs, env, day = args
+    _simd_fresh()   # 2026-11-22 使用者「全部做」(E5)
     sys.path.insert(0, str(SIMD))
     os.environ.clear(); os.environ.update(BASE_ENV)
     os.environ.update(env); os.environ["DAY"] = day; os.environ["REPO_DIR"] = str(DATA); os.environ["SIM_DIR"] = str(SIMD)
@@ -744,6 +789,7 @@ def _sim_group(args):
     """一檔股票、多個判別式(照傳進來的順序)→ [(代碼, 判別式, 輸出, 錯誤)]"""
     code, name, envs, day = args
     if CFG.get("ENGINE_PREFIX_SHARE", "1") != "1": return [_sim_one((code, name, rs, env, day)) for rs, env in envs]
+    _simd_fresh()   # 2026-11-22 使用者「全部做」(E5):規則檔換了 → 工作行程丟掉舊的 rs_env
     sys.path.insert(0, str(SIMD)); out = []
     try:
         C = _ss_split(); stm = C["pre"]
@@ -1115,6 +1161,7 @@ class Engine:
         self.drag = set()     # 2026-11-07 已發過「可能拖輸」提示的部位(判別式|代碼|進場時間)
         self.no_bar_note = set()   # 2026-11-10 今天還沒成交、先不算的股票(log 只寫一次)
         self.sent = []; self.px = {}; self.last_hm = {}; self.held_note = set()   # px / last_hm:每檔最新價、今天 K 到哪一分鐘(判定「訊號消失」前要確認這檔的 K 有到)
+        self.last_done = {}   # 2026-11-22 使用者「全部做」(E8):每檔最後一根「收完」的 K 時間(不含形成中那根;判定「訊號消失」前要到 upto-1)
         self.state_f = DATA / f"engine_state_{day}.json" if state else None
         if self.state_f:
             try:
@@ -1128,6 +1175,9 @@ class Engine:
                 if self.pos or self.emitted: log(f"接回狀態:開著 {len(self.pos)} 筆、處理過的進場 {len(self.emitted)} 個")
             except FileNotFoundError: pass
             except Exception as e: log("!! 狀態檔讀不懂(當作沒有;雲端通知會再對一次)", e)
+        if self.state_f and not dry:
+            try: self.load_local_sent()   # 2026-11-22 使用者「全部做」(E9)
+            except Exception as e: log("讀本機通知檔失敗", repr(e))
         self.cap = min(int(CFG.get("ENGINE_CAP", "250000")) if dry else cloud_cap(int(CFG.get("ENGINE_CAP", "250000"))), 250000)   # 2026-11-11 使用者「最多上限改25萬」   # 2026-11-02 跟 5861 主導機(回放 --dry 不讀雲端);手機的多空上限(通知裡的張數);2026-10-29 手機設 25 萬
         self.set_universe(uni)
         self.upto_hm = ""   # 2026-11-06 這輪算到幾點(compute 用來判斷判別式是不是已過進場時段)
@@ -1137,6 +1187,9 @@ class Engine:
     def set_universe(self, uni):
         self.uni = uni; self.codes = uni["codes"]; self.names = uni["names"]; self.prev = uni["prev"]; self.mkts = uni["mkts"]
         global _BR_PREV; _BR_PREV = self.prev   # 2026-11-13 寬度自己算用(同一份,元大參考價更新也跟著)
+        try:   # 2026-11-22 使用者「全部做」(檢查):寬度自己算改用整份名單(和雲端同一批股票)
+            global _BR_POOL; _BR_POOL = br_pool_prev(uni.get("j") or {}, self.day)
+        except Exception as e: log("整份名單昨收失敗(寬度自己算照舊只用監控股)", repr(e))
         self.canshort = uni["canshort"]; self.no_new = uni["no_new"]
         try: write_atomic(DATA / f"codes_{self.day}.json", json.dumps({"codes": list(self.codes), "names": {c: self.names.get(c, "") for c in self.codes}, "stamp": uni.get("stamp", ""), "R": uni.get("R")}, ensure_ascii=False, default=str))   # 2026-11-12 20:22 引擎實際監控的股票(中繼備份到雲端;11/12 回測名單對不上)
         except Exception as e: log("監控名單寫檔失敗", repr(e))
@@ -1199,6 +1252,7 @@ class Engine:
         if "rs_env" in sys.modules: rs_env = importlib.reload(sys.modules["rs_env"])
         else: rs_env = importlib.import_module("rs_env")
         self.rs_pri = getattr(rs_env, "RS_PRIORITY", None)   # 2026-11-10 同一分鐘同一檔的判別式優先順序(勝率);私人庫沒設就用 engine 的 RS_PRIORITY
+        _prev_envs = dict(getattr(self, "envs", None) or {})   # 2026-11-22 使用者「全部做」(E7):重載前的參數(盤中判別式被拿掉時,還開著的部位照舊參數算到平倉)
         self.envs = {}
         self.tx_req = tuple(getattr(rs_env, "IRON_TX_REQUIRE", ("八", "九")))   # 2026-11-14 18:35 使用者「改」:判八 / 判九拿不到台指期 / 加權指數 → 不進場
         self.txsync_fn = getattr(rs_env, "txsync", None)   # 2026-11-13 22:30 ⑧ 台指期同步進場(使用者「解鎖 改 全部套用」):判斷寫在私人庫 rs_env.txsync(模擬器同一份)
@@ -1229,6 +1283,11 @@ class Engine:
         if self.envs.get("五", {}).get("MODE") != "fail5":   # 私人庫的 rs_env.py 還是舊版(沒有 J5)→ 判五先不跑(不然會拿判二的參數亂算)
             self.envs.pop("五", None); log("!! 私人庫 rs_env.py 還沒有判五(J5),判五今天先不跑")
         self.envs["二"]["BRMISSING"] = "block"   # 2026-10-29 稽核 #1:今天沒有寬度資料 → 判二不進(sim_day.py 已支援)
+        # 2026-11-22 使用者「全部做」(E7):盤中重抓規則後某個判別式不見了(私人庫拿掉 / 改壞)→ 原本 compute 直接跳過它,還開著的部位永遠等不到平倉通知。
+        #   每個判別式記最後一份參數(_env_last);被拿掉的判別式只算「還開著部位」的股票、用最後那份參數算到平倉,不發新進場(apply_one 擋)
+        self._env_last = {**(getattr(self, "_env_last", None) or {}), **_prev_envs, **self.envs}
+        _gone = sorted(r for r in _prev_envs if r not in self.envs and any(k_[0] == r for k_ in self.pos))
+        if _gone: log(f"!! 規則重載後 {'、'.join(JUDGE.get(r, r) for r in _gone)} 不見了 → 還開著的部位照舊參數算到平倉,不發新進場")
 
     def save(self):
         if not self.state_f: return
@@ -1247,22 +1306,19 @@ class Engine:
         kk = None
         try:
             kk = it["t"] + ":" + re.sub(r"[^A-Za-z0-9_\u4e00-\u9fff|:.\-]", "", str(it.get("key") or it["title"]))[:120]
-            with open(DATA / f"live_{it.get('d') or self.day}.jsonl", "a", encoding="utf-8") as f:
-                f.write(json.dumps({**it, "_k": kk}, ensure_ascii=False) + "\n"); f.flush(); os.fsync(f.fileno())
+            ln = json.dumps({**it, "_k": kk}, ensure_ascii=False) + "\n"
+            with _LIVE_LOCK, open(DATA / f"live_{it.get('d') or self.day}.jsonl", "a", encoding="utf-8") as f:   # 2026-11-22 使用者「全部做」(E10):背景執行緒也會寫 → 先拿鎖,整行一次寫完
+                f.write(ln); f.flush(); os.fsync(f.fileno())
         except Exception as e: log("!! 本機通知檔寫不進去(中繼改等 Worker)", e); kk = None
-        if kk and it.get("kind") in ("long", "short"): it = self.verdict(it, kk)
+        if kk and it.get("kind") in ("long", "short"):
+            # 2026-11-22 使用者「全部做」(E12):原本在主程式裡每則進場等中繼回報最多 3 秒(一個一個等),同一分鐘好幾檔進場、中繼沒回 → 主程式累積卡好幾秒,後面的通知 / 平倉都晚。
+            #   本機通知檔已經寫好(中繼照它下單),等結果 + 推雲端改交給背景一條執行緒照順序做:每則的等待期限從寫好本機檔那一刻算(同一輪幾則一起等,總共最多等一次),
+            #   推雲端的順序和以前一樣。ENGINE_VERDICT_ASYNC=0 照舊在主程式等
+            if CFG.get("ENGINE_VERDICT_ASYNC", "1") == "1" and self._verdict_wait() > 0:
+                self._vq_put(it, kk); return True
+            it = self.verdict(it, kk)
         # 2026-11-20 使用者「改1234」 2:本機通知檔已經寫好(中繼照常下單)→ 雲端連不上 / 太慢就排隊,不在這裡重試卡住整輪;本機沒寫成才照舊重試 3 次
-        if kk and not cloud_up(): self.cq_add(it); return True
-        for k in range(1 if kk else 3):
-            try:
-                r = http(worker_url("log=add"), it, key=True)
-                if r.get("ok"): return True
-                log("推通知被拒", r); return False
-            except Exception as e:
-                log(f"推通知失敗 第 {k + 1} 次", e)
-                if kk: self.cq_add(it); return True
-                time.sleep(2)
-        return False
+        return self._cloud_send(it, kk)
 
     def cq_add(self, it):
         """雲端排隊:先存本機 cloud_queue_<日>.jsonl,背景每 15 秒試補送(雲端恢復才送;送出或被拒就移掉)"""
@@ -1292,13 +1348,56 @@ class Engine:
                     if self._cq and self._cq[0] is it: self._cq.pop(0); self._cq_save()
                 log(f"[雲端補送] {it.get('t', '')} {it.get('title', '')} → {'OK' if r.get('ok') else r}")
 
-    def verdict(self, it, kk):
+    def _cloud_send(self, it, kk):
+        """推雲端(push 的後半段):本機檔寫好了(kk)→ 雲端連不上 / 太慢就排隊;本機沒寫成才重試 3 次。回傳 True = 推上 / 排隊了"""
+        if kk and not cloud_up(): self.cq_add(it); return True
+        for k in range(1 if kk else 3):
+            try:
+                r = http(worker_url("log=add"), it, key=True)
+                if r.get("ok"): return True
+                log("推通知被拒", r); return False
+            except Exception as e:
+                log(f"推通知失敗 第 {k + 1} 次", e)
+                if kk: self.cq_add(it); return True
+                time.sleep(2)
+        return False
+
+    def _verdict_wait(self):
+        try: return float(CFG.get("ENGINE_VERDICT_WAIT", "3") or 0)
+        except Exception: return 3.0
+
+    def _vq_put(self, it, kk):
+        """2026-11-22 使用者「全部做」(E12):進場通知交給背景執行緒(等中繼結果 → 推雲端,照放進來的順序);期限 = 現在 + 等待秒數(同一輪的幾則一起倒數)"""
+        import queue
+        with self.__dict__.setdefault("_vq_lock", threading.Lock()):
+            if self.__dict__.get("_vq") is None: self._vq = queue.Queue()
+            self._vq.put((it, kk, time.time() + min(self._verdict_wait(), 8)))
+            th = self.__dict__.get("_vq_th")
+            if th is None or not th.is_alive():
+                self._vq_th = threading.Thread(target=self._vq_run, daemon=True); self._vq_th.start()
+
+    def _vq_run(self):
+        while True:
+            it, kk, end = self._vq.get()
+            try:
+                try: it2 = self.verdict(it, kk, end=end)
+                except Exception as e: log("等中繼進場結果出錯(照原樣推)", repr(e)); it2 = it
+                if not self._cloud_send(it2, kk): log(f"[通知] 進場通知推雲端沒成功(本機檔已寫,中繼照常):{it.get('title', '')}")
+            except Exception as e: log("背景推進場通知出錯", repr(e))
+            finally: self._vq.task_done()
+
+    def vq_join(self, timeout=12.0):
+        """收工前等背景的進場通知推完(最多 timeout 秒)"""
+        q = self.__dict__.get("_vq"); t_end = time.time() + timeout
+        while q is not None and q.unfinished_tasks and time.time() < t_end: time.sleep(0.1)
+
+    def verdict(self, it, kk, end=None):
         """2026-11-13 11:20 使用者選 A(和益在不管名單沒進場,手機卻跳「進場」):進場通知推雲端前,等中繼回報有沒有進場(engine_data/verdict_<日期>.jsonl,
-           最多 ENGINE_VERDICT_WAIT 秒,預設 3);沒進場 → 標題「進場」改「未進場」、內容判別式前面加「未進場:原因」;等不到就照原樣推"""
-        try: w = float(CFG.get("ENGINE_VERDICT_WAIT", "3") or 0)
-        except Exception: w = 3.0
+           最多 ENGINE_VERDICT_WAIT 秒,預設 3);沒進場 → 標題「進場」改「未進場」、內容判別式前面加「未進場:原因」;等不到就照原樣推
+           2026-11-22(E12):end = 期限(背景執行緒用;從寫好本機檔那一刻算)"""
+        w = self._verdict_wait()
         if w <= 0: return it
-        f = DATA / f"verdict_{it.get('d') or self.day}.jsonl"; end = time.time() + min(w, 8)
+        f = DATA / f"verdict_{it.get('d') or self.day}.jsonl"; end = end if end is not None else time.time() + min(w, 8)
         while True:
             try:
                 if f.exists():
@@ -1328,7 +1427,13 @@ class Engine:
             arr = json.loads(r.read().decode("utf-8"))
         except Exception as e:
             _cb_fail(e); log("讀雲端通知失敗(這輪只靠本機狀態去重)", e); return False
-        for it in arr if isinstance(arr, list) else []:
+        self._ingest(arr if isinstance(arr, list) else [])
+        return True
+
+    def _ingest(self, arr):
+        """通知清單(雲端 ?log=get,或本機 live_<日>.jsonl / cloud_queue_<日>.jsonl)→ cloud_in / cloud_out / 一天上限 / 強平過的股票(原 sync_cloud 的迴圈,2026-11-22 拆出來共用)"""
+        for it in arr:
+            if not isinstance(it, dict): continue
             if re.search(r"·\s*強平\s*·", it.get("body", "")):   # 2026-11-02 10:23 使用者「這檔已經平倉者 就不用再通知顯示停利或其他了」
                 mf = re.search(r"\b(\d{4,6})\b", it.get("title", ""))
                 if mf and mf.group(1) not in self.fclosed: self.fclosed.add(mf.group(1)); log(f"{mf.group(1)} 手機強平過 → 今天這檔不再發通知")
@@ -1353,7 +1458,24 @@ class Engine:
         # 2026-11-21 使用者「改 1」(檢查抓到):判一急彈空(一2)的平倉內容沒有「急彈空」,上面會記成 判一(一)→ 同一檔同一進場時間是 一2 的進場(雲端或本機部位)就也記成 一2
         for (r_, c_, t_) in [x for x in self.cloud_out if x[0] == "一"]:
             if ("一2", c_, t_) in self.cloud_in or (self.pos.get(("一2", c_)) or {}).get("t") == t_: self.cloud_out.add(("一2", c_, t_))
-        return True
+
+    def load_local_sent(self):
+        """2026-11-22 使用者「全部做」(E9):開工時把本機已寫出的通知(live_<日>.jsonl = 中繼照它下單的那份、cloud_queue_<日>.jsonl = 還沒送上雲端的)也當成「雲端已有」:
+           推了進場、還沒存狀態就當機,重開時雲端又連不上 → 原本會再發一次(中繼看 _k 一樣不會重下,但手機 / 檢討會多一筆、部位也接不回來)。
+           進場 → cloud_in(apply_one 照「雲端已有這筆進場 → 接回、不重發」);平倉 → cloud_out(部位結束、不重推)"""
+        arr = []
+        for f in (DATA / f"live_{self.day}.jsonl", DATA / f"cloud_queue_{self.day}.jsonl"):
+            try:
+                for ln in f.read_text(encoding="utf-8").splitlines():
+                    try:
+                        x = json.loads(ln)
+                        if isinstance(x, dict) and (not x.get("d") or x.get("d") == self.day): arr.append(x)
+                    except Exception: continue
+            except FileNotFoundError: pass
+            except Exception as e: log("讀本機通知檔失敗", f.name, repr(e))
+        if arr:
+            n0, m0 = len(self.cloud_in), len(self.cloud_out); self._ingest(arr)
+            log(f"本機通知檔:{len(arr)} 則,進場 {len(self.cloud_in) - n0} 筆、平倉 {len(self.cloud_out) - m0} 筆記為已發(不重發)")
 
     def push_exit(self, rs, code, p, tm, ex, why, at, phantom=False):
         nm = self.names.get(code, code); j = JUDGE[rs]
@@ -1535,25 +1657,39 @@ class Engine:
         full = {"四": len(self.j4) >= int(_f(self.envs.get("四", {}).get("T4MAX"), T4MAX)), "五": len(self.j5) >= getattr(self, "j5max", J5MAX), "六3": len(self.j63) >= getattr(self, "j63max", J63MAX), "一2": len(getattr(self, "j12", set())) >= getattr(self, "j12max", J12MAX), "八": len(getattr(self, "j8", set())) >= getattr(self, "j8max", J8MAX), "九": len(getattr(self, "j9", set())) >= getattr(self, "j9max", J9MAX)}
         pri = list(getattr(self, "rs_pri", None) or RS_PRIORITY)
         for rs in sorted(RS_ALL, key=lambda x: pri.index(x) if x in pri else 99):   # 2026-11-10 同一分鐘同一檔:勝率高的判別式先算、先發
-            if rs not in self.envs: continue   # 2026-11-05 判五規則還沒到
+            e_ = self.envs.get(rs); gone = e_ is None
+            if gone:   # 2026-11-05 判五規則還沒到
+                # 2026-11-22 使用者「全部做」(E7):盤中重載規則後被拿掉的判別式,還開著部位的照最後一份參數算到平倉
+                e_ = (getattr(self, "_env_last", None) or {}).get(rs)
+                if not e_ or not any(k_[0] == rs for k_ in self.pos): continue
+                _nt = self.__dict__.setdefault("_gone_note", set())
+                if rs not in _nt: _nt.add(rs); log(f"!! {JUDGE.get(rs, rs)} 規則已拿掉,還開著的部位 {sorted(c_ for r_, c_ in self.pos if r_ == rs)} 照舊參數算到平倉")
             # 2026-11-06 加速:過了這個判別式最後進場時間 + 11 分鐘(10 分鐘內的進場還會補發),只算還開著虛擬部位的股票
             # 2026-11-20 使用者「改 B D」 D:還沒到這個判別式最早能進場的時間(判六做多 T6KFROM 10:50、判七 T7FROM 10:00、判六做空 T63FROM 10:30、鐵律 ③ ENTRYFROM 09:30,取最晚的)
             #   前一分鐘以前、又沒開部位 → 不算(原本只有判六做空 10:29 前不算;這段時間本來就不可能進場,每分鐘重算整天、不影響之後)
-            _e0 = self.envs.get(rs, {}); _fr = [x for x in (_e0.get("T6KFROM"), _e0.get("T7FROM"), _e0.get("T63FROM"), _e0.get("T5FROM"), _e0.get("ENTRYFROM")) if x and re.match(r"^\d\d:\d\d$", str(x))]
+            _e0 = e_; _fr = [x for x in (_e0.get("T6KFROM"), _e0.get("T7FROM"), _e0.get("T63FROM"), _e0.get("T5FROM"), _e0.get("ENTRYFROM")) if x and re.match(r"^\d\d:\d\d$", str(x))]
             if _fr and hm_now and hm_now < hm_add(max(_fr), -1) and not any(k_[0] == rs for k_ in self.pos): continue
-            e_ = self.envs[rs]; _lt = [x for x in (e_.get("NOENTRYAFTER"), e_.get("T5TO"), e_.get("T4NOENTRY"), e_.get("T8TO"), e_.get("ENTRYTO")) if x and re.match(r"^\d\d:\d\d$", str(x))]
-            last_ = min(_lt) if _lt else ""   # 2026-11-19 使用者「改A」:加鐵律 ③ ENTRYTO(12:30,每個判別式都有)—— 原本判一 / 三 / 六 / 七 / 九 / 十沒有自己的最後進場時間,整個下午照算;取最早的
+            _hm_ok = lambda x: bool(x) and bool(re.match(r"^\d\d:\d\d$", str(x)))
+            _lt = [x for x in (e_.get("NOENTRYAFTER"), e_.get("T5TO"), e_.get("T4NOENTRY"), e_.get("T8TO")) if _hm_ok(x)]
+            _to = e_.get("ENTRYTO") if _hm_ok(e_.get("ENTRYTO")) else ""
+            # 2026-11-19 使用者「改A」:加鐵律 ③ ENTRYTO(12:30,每個判別式都有)—— 原本判一 / 三 / 六 / 七 / 九 / 十沒有自己的最後進場時間,整個下午照算;取最早的
+            # 2026-11-22 使用者「全部做」(E6):上面那幾個是「訊號那根」的最後時間;有 KZONE(鐵律 ⑦ 等回 Ka~Kb,最多 KZONE 分鐘、不超過 ENTRYTO)/ ENTRYDELAY(晚幾根進)時,
+            #   真正進場可以晚到 訊號 + 等待(判一 NOENTRYAFTER 12:00 + KZONE 15 → 12:15 還能進;原本 12:11 就不算了,會漏)→ 最後進場時間 = min(訊號最後時間 + 等待, ENTRYTO + ENTRYDELAY)
+            try: _wait = int(_f(e_.get("KZONE"), 0)); _dly = int(_f(e_.get("ENTRYDELAY"), 0))
+            except Exception: _wait = _dly = 0
+            _cand = ([hm_add(min(_lt), _wait + _dly)] if _lt else []) + ([hm_add(_to, _dly)] if _to else [])
+            last_ = min(_cand) if _cand else ""
             idle = bool(last_) and bool(hm_now) and hm_now > hm_add(last_, 11) and CFG.get("ENGINE_SKIP_IDLE", "1") == "1"
             for c in self.codes:
                 if only is not None and (rs, c) not in only: continue
-                if idle and (rs, c) not in self.pos: continue
+                if (idle or gone) and (rs, c) not in self.pos: continue
                 if skip_on and only is None and (rs, c) not in self.pos and (c in self.fclosed or (full.get(rs) and c not in (self.j4 if rs == "四" else self.j63 if rs == "六3" else self.j12 if rs == "一2" else self.j8 if rs == "八" else self.j9 if rs == "九" else self.j5))): continue
                 # 2026-11-10 13:35(實際時間)使用者「修」:今天還沒有任何成交(元大第一根 K 還沒出來,例:11/10 中華電 2412、3605 09:02 才第一筆)的股票先不算 ——
                 #   原本模擬器找不到今天的 K 會退到 Yahoo 備用檔(引擎沒有)→ FileNotFoundError,log 出現假的「錯誤 14/462」;沒成交本來就不會有訊號
                 if self.last_hm and c not in self.last_hm and (rs, c) not in self.pos:
                     if c not in self.no_bar_note: self.no_bar_note.add(c); log(f"{c} 今天還沒有成交(沒有 K)→ 先不算,有 K 了再算")
                     continue
-                env = dict(self.envs[rs])
+                env = dict(e_)
                 if not self.canshort.get(c, False): env["CANSHORT"] = "0"   # 2026-10-29 稽核 #3:不能先賣 → 空單只記錄
                 jobs.append((c, self.names.get(c, c), rs, env, self.day))
         if skip_on: jobs.sort(key=lambda x: 0 if (x[2], x[0]) in self.pos else 1)   # 2026-11-07 開著的部位先算(停損 / 停利早一點發);其他照原本順序(新進場的先後不變)
@@ -1680,7 +1816,11 @@ class Engine:
         if p:
             tr = trades.get(p["t"])
             if tr is None or tr[0]["side"] != p["side"]:
-                have = self.last_hm.get(code, "") >= hm_add(p["t"], 1) and p["t"] < upto and "無資料" not in out   # 這檔今天的 K 沒到 / 不夠 → 不是訊號消失,是資料缺
+                # 2026-11-22 使用者「全部做」(E8):原本看 last_hm(形成中那根每輪都把它推到現在這分鐘)→ 幾乎永遠成立,這檔 Worker K 卡住時也會被判「訊號消失」。
+                #   改看這檔最後一根「收完」的 K(last_done,只算 Worker / 本機 K,不含形成中那根)要到 upto-1;沒有 last_done(舊呼叫方式)才照舊
+                _ld = self.__dict__.get("last_done")
+                if _ld: have = _ld.get(code, "") >= hm_add(upto, -1) and p["t"] < upto and "無資料" not in out
+                else: have = self.last_hm.get(code, "") >= hm_add(p["t"], 1) and p["t"] < upto and "無資料" not in out   # 這檔今天的 K 沒到 / 不夠 → 不是訊號消失,是資料缺
                 # 2026-11-10 12:55(實際時間)使用者「要改善修正」→ 選「不平倉,照停利停損走」(富喬 11:30 判四:進場價離 VWAP −4.06% 剛好過門檻,
                 #   下一分鐘元大 K 補了幾筆成交、VWAP 變 −4.09% → 訊號消失被平倉 −287):規則沒改版(進場時和現在同一版)= 資料微調 → 不推平倉,
                 #   部位續抱,照進場時的停利 / 停損 / 13:20 出場(這裡用最新價判斷、推平倉通知;中繼本來也自己盯停利停損、條件單)。
@@ -1690,14 +1830,14 @@ class Engine:
                     if not p.get("orphan"): p["orphan"] = 1; log(f"!! {JUDGE[rs]} {code} {p['t']} 已推的進場在重算裡不見了,但規則沒改版(資料微調)→ 不平倉,照停利 {p['tp']} / 停損 {p['sl']} / 13:20 續抱")
                     px_ = self.px.get(code, p["px"]); sd = p["side"]
                     hit = "停損" if (px_ - p["sl"]) * sd <= 0 else "停利" if (px_ - p["tp"]) * sd >= 0 else ("13:20 強制平倉" if upto >= "13:20" else "")
-                    if hit and self.push_exit(rs, code, p, upto, px_, hit, upto): self.pos.pop(k)
+                    if hit and self.push_exit(rs, code, p, upto, px_, hit, upto): self.pos.pop(k); self.save()   # 2026-11-22 使用者「全部做」(E9):推完馬上存狀態
                 elif allow_phantom and have:
                     log(f"!! {JUDGE[rs]} {code} {p['t']} 已推的進場在重算裡不見了 → 推平倉")
-                    if self.push_exit(rs, code, p, upto, self.px.get(code, p["px"]), "", upto, phantom=True): self.pos.pop(k)
+                    if self.push_exit(rs, code, p, upto, self.px.get(code, p["px"]), "", upto, phantom=True): self.pos.pop(k); self.save()   # E9
                 elif (k, p["t"]) not in self.held_note:
                     self.held_note.add((k, p["t"])); log(f"{JUDGE[rs]} {code} {p['t']} 這輪重算看不到它,但 K 不完整 → 先不判定")
             elif tr[1] is not None:   # 2026-10-29 已推的部位不管多舊都要推平倉(原本出場時間早於 10 分鐘就默默丟掉,中繼的部位沒人平)
-                if self.push_exit(rs, code, p, tr[1][0], tr[1][1]["px"], tr[1][1]["why"], upto): self.pos.pop(k)
+                if self.push_exit(rs, code, p, tr[1][0], tr[1][1]["px"], tr[1][1]["why"], upto): self.pos.pop(k); self.save()   # E9
         if fc:   # 強平過的股票不發新進場(和原本一樣)
             if open_tm and k not in self.pos: self.emitted.add((rs, code, open_tm))
             return n
@@ -1714,6 +1854,8 @@ class Engine:
             self.emitted.add(ek); log(f"{JUDGE[rs]} {code} {open_tm} 雲端已有這筆進場 → 接回、不重發"); return n
         if open_tm < cutoff:
             self.emitted.add(ek); log(f"{JUDGE[rs]} {code} {open_tm} 進場已超過 10 分鐘 → 不發"); return n
+        if rs not in self.envs:   # 2026-11-22 使用者「全部做」(E7):規則重載後被拿掉的判別式只算到平倉,不發新進場
+            self.emitted.add(ek); log(f"{JUDGE.get(rs, rs)} {code} {open_tm} 這個判別式的規則已拿掉 → 不發新進場"); return n
         if code in self.no_new: why = "今天已不合格(只算平倉)"
         elif not allow_new: why = "這輪資料不完整"
         elif rs in rs_block: why = rs_block[rs]
@@ -1744,7 +1886,7 @@ class Engine:
         else: why = None
         if why:
             log(f"{JUDGE[rs]} {code} {open_tm} 進場先不發:{why}"); return n   # 不記 emitted:10 分鐘內恢復就照發
-        if self.push_entry(rs, code, open_tm, d, upto): self.emitted.add(ek)
+        if self.push_entry(rs, code, open_tm, d, upto): self.emitted.add(ek); self.save()   # 2026-11-22 使用者「全部做」(E9):推完馬上存(原本整輪結束才存,中間當機 + 雲端連不上 → 重開後重發)
         return n
 
     PRE_BUF = 0.15   # 預判緩衝(百分點)
@@ -2133,9 +2275,11 @@ def live():
                 _tm["K到齊"] = _msec()
                 forming = live_forming(eng.codes, eng.mkts, hm, bars)
                 write_today(day, bars, upto=hm, forming=forming)
-                eng.last_hm = {}
+                eng.last_hm = {}; eng.last_done = {}
                 for c, rows in bars.items():
                     if rows: r = max(rows); eng.px[c] = r[4]; eng.last_hm[c] = r[0]
+                    _dn = [x[0] for x in rows if x[0] < hm]   # 2026-11-22 使用者「全部做」(E8):這檔最後一根收完的 K(不含形成中那根)
+                    if _dn: eng.last_done[c] = max(_dn)
                 for c, r in forming.items(): eng.px[c] = r[4]; eng.last_hm[c] = max(eng.last_hm.get(c, ""), r[0])
                 try: eng.apply_refs()   # 2026-11-10 每分鐘對一次昨收(中繼的元大參考價檔有新的就套上)
                 except Exception as e: log("昨收對照失敗", repr(e))
@@ -2213,6 +2357,8 @@ def live():
     except KeyboardInterrupt:
         log("手動中斷")
     finally:
+        try: eng.vq_join()   # 2026-11-22 使用者「全部做」(E12):背景還沒推完的進場通知先推完
+        except Exception: pass
         eng.heartbeat(False, "收工"); eng.pool.terminate(); log("收工")
         try: lockf.close()
         except Exception: pass
@@ -2236,6 +2382,7 @@ def replay(day, only=None, dry=True):
     log(f"回放 {day}:{len(eng.codes)} 檔,K 到 {last},規則 {RULES['ver']}")
     mins = sorted({hm for rows in bars.values() for hm, *_ in rows})
     by = {c: {r[0]: r for r in rows} for c, rows in bars.items()}
+    import bisect; tl = {c: sorted(d) for c, d in by.items()}   # 2026-11-22 使用者「全部做」(E8):回放也照盤中記每檔最後一根收完的 K
     try:
       for hm0 in mins:
           hm = hm_add(hm0, 1)   # 這根走完的下一分鐘
@@ -2244,10 +2391,12 @@ def replay(day, only=None, dry=True):
           for c in eng.codes:
               if c in forming: eng.px[c] = forming[c][4]; eng.last_hm[c] = hm
               elif c in by and hm0 in by[c]: eng.px[c] = by[c][hm0][4]; eng.last_hm[c] = hm0
+              _i = bisect.bisect_left(tl.get(c, []), hm)
+              if _i: eng.last_done[c] = tl[c][_i - 1]
           dtm, errs, n_ev = eng.step(hm)
     except KeyboardInterrupt:   # 2026-10-29 使用者「怎麼 CTRL+C 無法中斷」:Windows 的工作行程會卡住,接住後直接把它們殺掉
         print("\n中斷"); eng.pool.terminate(); eng.pool.join(); return
-    eng.pool.terminate()
+    eng.vq_join(); eng.pool.terminate()   # 2026-11-22(E12)非 --dry 回放:背景的進場通知先推完
     print(); print(f"共發 {len(eng.sent)} 則")
     for it in eng.sent: print(f"{it['t']} {it['kind']:6} {it['title']} | {it['body']}")
 

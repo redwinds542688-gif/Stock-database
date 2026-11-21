@@ -40,4 +40,10 @@ jobs:
           git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/apk/MyshMonitor.apk app/apk/version.json app/apk/viewer/MyshViewer.apk app/apk/viewer/version.json
           git commit -m "APK $name ($code) 自動編譯" || exit 0
-          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done
+          # 2026-11-22 使用者「全部做」(D6):衝突先 abort 再以這次為準(-X theirs)重新 rebase;都失敗結束碼 1(原本失敗也綠燈)
+          for i in $(seq 1 5); do
+            git push -q origin HEAD:main && exit 0
+            sleep $((i * 10)); git fetch -q origin main || continue
+            git rebase -q origin/main || { git rebase --abort; git rebase -q -X theirs origin/main || git rebase --abort; }
+          done
+          echo "推送 5 次都失敗"; exit 1

@@ -1145,11 +1145,12 @@ export default {
     if (url.searchParams.get("twidx")) {   // 2026-11-13 19:50 使用者「好」(每天存加權指數 1 分 K):證交所每 5 秒指數 → 1 分 K(GitHub 機器連證交所會被擋,改由這裡抓);公開資料,收盤後的日子存 Hub 不重抓
       const d = String(url.searchParams.get("twidx")).replace(/-/g, "").slice(0, 8);
       if (!/^\d{8}$/.test(d)) return J({ error: "twidx 要 YYYYMMDD" }, 400);
-      const hub = env.HUB ? hubOf(env) : null, ck = "twidx:" + d;
+      // 2026-11-22 使用者「全部做」(L4):分鐘歸屬改了(見下面)→ Hub 快取鍵換成 twidx2:,舊的(錯的)那份不再讀,過去的日子第一次讀時重算
+      const hub = env.HUB ? hubOf(env) : null, ck = "twidx2:" + d;
       if (hub){ const old = await hub.kvGet(ck); if (old) return J(old); }
       // 2026-11-21 使用者「全改」(檢查 W4):Hub 沒存(盤中 / 很舊的日子)才去證交所 → 沒鑰匙的每個 IP 10 分鐘最多 20 次;同一天 60 秒內共用同一份(這個執行個體記憶體)
       if (!pushOk && !KI && !ipLimit("twidx", request.headers.get("CF-Connecting-IP") || "?", 20, 600e3)) return J({ error: "太頻繁,10 分鐘後再試" }, 429);
-      { const c = MC.get("twidx:" + d); if (c && Date.now() - c.at < 60e3) return J(c.v); }
+      { const c = MC.get("twidx2:" + d); if (c && Date.now() - c.at < 60e3) return J(c.v); }
       let j = null;
       let bad = null;
       for (const pth of ["rwd/zh/TAIEX/MI_5MINS_INDEX", "exchangeReport/MI_5MINS_INDEX", "rwd/zh/afterTrading/MI_5MINS_INDEX"]) {   // 證交所改版過網址,依序試
@@ -1159,7 +1160,13 @@ export default {
       if (!j) return J(bad || { error: "抓不到" }, 502);
       if (!j || j.stat !== "OK" || !Array.isArray(j.data) || !j.data.length) return J({ d, bars: [], stat: j && j.stat });
       const f = j.fields || [], i = Math.max(1, f.findIndex(x => /加權/.test(x) && !/未含/.test(x))), B = {};
-      for (const r of j.data){ const t = String(r[0]).slice(0, 5), p = parseFloat(String(r[i]).replace(/,/g, "")); if (!(t >= "09:00" && t <= "13:30") || !(p > 0)) continue;
+      // 2026-11-22 使用者「全部做」(L4):1 分 K 標「開始時間」(和元大 K 一樣),HH:MM:00 那筆是「上一分鐘」的收盤,不是這分鐘的開盤
+      //   (原本 09:01:00 算進 09:01 那根當開盤)→ 秒數 00 的歸到前一分鐘。
+      //   09:00:00 那筆是「昨天收盤」(還沒撮合;2026-11-20 實測 09:00:00 = 38,426.89 = 11/19 收盤),不能當 09:00 的開盤 → 不收;
+      //   09:00 那根從 09:00:05(開盤撮合後第一筆)開始。13:30:00 是收盤集合競價結果 → 自成 13:30 那根(和個股 K 一樣)
+      const mmOf = t => { const hh = +t.slice(0, 2), mi = +t.slice(3, 5), ss = +t.slice(6, 8) || 0; let m = hh * 60 + mi - (ss === 0 ? 1 : 0); return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
+      for (const r of j.data){ const ts = String(r[0]).trim(), p = parseFloat(String(r[i]).replace(/,/g, "")); if (!(ts > "09:00:00" && ts <= "13:30:00") || !(p > 0)) continue;
+        const t = ts.slice(0, 8) === "13:30:00" ? "13:30" : mmOf(ts);
         const b = B[t]; if (!b) B[t] = [p, p, p, p]; else { b[1] = Math.max(b[1], p); b[2] = Math.min(b[2], p); b[3] = p; } }
       const out = { d, bars: Object.keys(B).sort().map(t => [t, ...B[t]]) };
       const nowD = ymdOf(twNow()).replace(/-/g, ""), hm = twNow().toISOString().slice(11, 16);

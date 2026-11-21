@@ -368,8 +368,9 @@ class Trader:
         return p
 
     def save_state(self):
+        """回傳 True = 寫成功(2026-11-22 U5:定期存檔要知道有沒有存成功,失敗下次再存)"""
         if not self.state_file:
-            return
+            return False
         try:
             js = {"day": self.now().strftime("%Y-%m-%d"), "locked": sorted(self.locked),
                   "oco": {c: p["oco_no"] for c, p in self.positions.items() if p.get("oco_live") and p.get("oco_no")},   # 2026-11-10 15:16 使用者「改」:元大條件單查詢一直失敗(簽章不合)→ 掛著的條件單編號存檔,中繼重開接回時用它,不重複掛
@@ -386,16 +387,51 @@ class Trader:
             js["brk_block"] = {**(old.get("brk_block") or {}), **getattr(self, "brk_block", {})}   # 2026-10-31 元大拒絕(資格)的股票
             js["traded"] = sorted(getattr(self, "traded_keys", set()))
             js["prot"] = {k_: v_ for k_, v_ in {**(old.get("prot") or {}), **(getattr(self, "_prot0", None) or {})}.items() if v_}   # 2026-11-21(檢查 T3):值是 None = 部位結束清掉的,不寫回檔   # ③ 2026-11-11 20:25 總停損 / 移動停損利的起點   # 2026-11-09 判二大盤分級檔數
-            self.state_file.write_text(json.dumps(js, ensure_ascii=False), encoding="utf-8")
+            self._state_write(json.dumps(js, ensure_ascii=False))
+            return True
         except Exception as e:
             self.log(f"[交易] 存狀態檔失敗 {e}")
+            return False
+
+    def _state_write(self, text):
+        """2026-11-22 使用者「全部做」(U5):原本 write_text 直接蓋 → 寫到一半當機 / 斷電,整個狀態檔讀不出來被當成 {}
+             (killed / entered / locked 全忘 → 可能重複進場)。改成:先寫 .tmp + fsync 再 os.replace 換上(主檔不會只寫一半);
+             換上後同一份內容再用同樣方法寫一份 .bak(主檔被別的原因弄壞時 load_state 改讀它)。
+             Windows 檔案被別的程式(防毒 / 備份 / 中繼每分鐘讀狀態檔)開著時 replace 會 PermissionError → 等一下重試幾次"""
+        f = self.state_file
+        def put(dst):
+            tmp = dst.with_name(dst.name + ".tmp")
+            with open(tmp, "w", encoding="utf-8") as fh:
+                fh.write(text); fh.flush()
+                try: os.fsync(fh.fileno())
+                except OSError: pass
+            _replace_retry(tmp, dst)
+        put(f)
+        try: put(f.with_name(f.name + ".bak"))
+        except Exception as e: self.log(f"[交易] 狀態檔備份 .bak 失敗(主檔已存好){e!r}")
+
+    @staticmethod
+    def _state_read(f):
+        """讀一個狀態檔;讀不到 / 不是完整 JSON 物件回 None"""
+        try:
+            js = json.loads(f.read_text(encoding="utf-8"))
+            return js if isinstance(js, dict) else None
+        except Exception:
+            return None
 
     def load_state(self):
+        # 2026-11-22 使用者「全部做」(U5):主檔讀不出來(寫到一半 / 壞掉)或剛好在換檔的空檔不見了 → 改讀上一份好的 .bak;
+        #   主檔讀得到但不是今天的 → 照舊當成 {}(不拿 .bak 的)
         try:
-            if self.state_file and self.state_file.exists():
-                js = json.loads(self.state_file.read_text(encoding="utf-8"))
-                if js.get("day") == self.now().strftime("%Y-%m-%d"):
-                    return js
+            if not self.state_file: return {}
+            js = self._state_read(self.state_file) if self.state_file.exists() else None
+            if js is None:
+                bak = self.state_file.with_name(self.state_file.name + ".bak")
+                js = self._state_read(bak) if bak.exists() else None
+                if js is not None and not getattr(self, "_bak_logged", False):
+                    self._bak_logged = True; self.log(f"[交易] !! 狀態檔 {self.state_file.name} 讀不出來 → 改用上一份備份 {bak.name}")
+            if js and js.get("day") == self.now().strftime("%Y-%m-%d"):
+                return js
         except Exception:
             pass
         return {}
@@ -1000,6 +1036,11 @@ class Trader:
                 try:   # 2026-11-21 使用者「改 A」(A6):一檔取消失敗(元大沒登入等)不能讓其他檔不做;沒取消掉的單 bridge 確認掛單時會再取消
                     if p.get("oco_live"):
                         self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False; self.log(f"[交易] 13:20 取消:刪除元大條件單 {p['oco_no']}")
+                    if o and not o.get("dead") and o.get("purpose") == "平倉":
+                        # 2026-11-22 使用者「全部做」(U3):程式自己的平倉單不取消(原本連剛送的平倉單也取消、p["order"] 清掉 →
+                        #   例:13:21 中繼重開,trader 13:21 備援平倉單一送出馬上被這裡取消,部位卡在「平倉中、沒有單」)。
+                        #   留著照常等成交(IOC 沒成交完 after_report 會照 force_limit 改掛漲停 / 跌停 ROD 重送);bridge 確認掛單時也認得是自己的平倉單不取消
+                        p["force_limit"] = True; continue
                     if o and not o.get("dead") and o.get("no"):
                         self.gw.cancel(o["no"], p["code"], o["side"], o["typ"]); self.log(f"[交易] 13:20 取消:{p['code']} {o['purpose']}委託 {o['no']}")
                 except Exception as e:
@@ -1016,7 +1057,27 @@ class Trader:
         with self.lock:
             for c, p in list(self.positions.items()):
                 if codes is not None and c not in codes: continue
-                if p.get("state") != HOLDING or not p.get("qty"): continue
+                if not p.get("qty"): continue
+                o = p.get("order")
+                if p.get("state") == EXITING:
+                    # 2026-11-22 使用者「全部做」(U3):平倉中的部位原本這裡不管 → 平倉單被取消 / 沒在掛的就沒人送。
+                    #   改:平倉單還活著 → 不重送(整個部位已有平倉單就算已送出);沒有單(取消 / 失效、不是卡住重送上限)→ 照剩下張數補送漲停 / 跌停 ROD
+                    if o and not o.get("dead"):
+                        if o.get("purpose") == "平倉" and not p.get("ph_part"): sent.add(c)
+                        continue
+                    if p.get("stuck"): continue   # 重送超過上限:留給複查(和原本一樣)
+                    free = p["qty"] - (self.ph_lots(c) if self.prehang_wait(c) else 0)
+                    if free <= 0: continue
+                    try:
+                        self.log(f"[交易] {at or self.force_exit} {c} 平倉中但沒有掛著的平倉單 → 補送 {free} 張")
+                        p["force_limit"] = True; p["order"] = None
+                        if free < p["qty"]: p["ph_part"] = True
+                        self.send_exit(p, free, self.last_px.get(c, p["entry"]))
+                    except Exception as e:
+                        p["order"] = None; fail.add(c); self.log(f"[交易] !! {at or self.force_exit} {c} 平倉單送不出去 {e!r} → 之後再送"); continue
+                    if p.get("order") and not p.get("ph_part"): sent.add(c)
+                    continue
+                if p.get("state") != HOLDING: continue
                 try:
                     self.exit_pos(p, f"{self.force_exit} 強制平倉", self.last_px.get(c, p["entry"]), force_limit=True)
                 except Exception as e:
@@ -2599,7 +2660,8 @@ class Trader:
         try:
             if self._prot0 is None: self._prot0 = self.load_state().get("prot") or {}
             self._prot0[p["code"]] = {"e": p.get("entry"), "d": p.get("dir"), "br0": p.get("br0"), "mt_a": p.get("mt_a"), "mt_px": p.get("mt_px")}   # 2026-11-21(檢查 T3)加方向 d
-            if time.time() - self._prot_t > 20: self._prot_t = time.time(); self.save_state()
+            # 2026-11-22 使用者「全部做」(U5):原本先記時間再存 → 存失敗也要等 20 秒;改成存成功才記,失敗 5 秒後再存
+            if time.time() - self._prot_t > 20: self._prot_t = time.time() if self.save_state() else time.time() - 15
         except Exception: pass
 
     def iron_hit_part(self, p, code, price, avg):
@@ -3049,6 +3111,16 @@ class Trader:
                 self.send(p, "平倉", "S" if p["dir"] > 0 else "B", p["qty"], shift(px, -(self.slip + 3) * p["dir"]), p["typ"])
             return
         self.finish_pos(p)
+
+
+def _replace_retry(src, dst, tries=8):
+    """2026-11-22 使用者「全部做」(U5):os.replace 遇到 Windows 檔案鎖(PermissionError)等一下重試;最後一次還失敗就丟出去"""
+    for i in range(tries):
+        try:
+            os.replace(src, dst); return
+        except PermissionError:
+            if i == tries - 1: raise
+            time.sleep(0.05 * (i + 1))
 
 
 AMT_YES = ("額度", "金額", "上限", "限額", "超過", "不足")

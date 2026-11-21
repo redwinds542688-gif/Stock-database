@@ -101,5 +101,10 @@ jobs:
           git add -A bugs
           git diff --cached --quiet && { echo "沒有變動"; exit 0; }
           git commit -q -m "抓 bug 紀錄 / 用量存檔 $(TZ=Asia/Taipei date '+%Y-%m-%d %H:%M')"
-          for i in 1 2 3; do git pull --rebase -q && git push -q && exit 0; sleep 5; done
-          exit 1
+          # 2026-11-22 使用者「全部做」(D6):pull --rebase 衝突會卡在 rebase 中、後面重試全失敗 → 衝突先 abort 再以這次為準(-X theirs)重新 rebase
+          for i in $(seq 1 5); do
+            git push -q origin HEAD:main && exit 0
+            sleep $((i * 10)); git fetch -q origin main || continue
+            git rebase -q origin/main || { git rebase --abort; git rebase -q -X theirs origin/main || git rebase --abort; }
+          done
+          echo "推送 5 次都失敗"; exit 1

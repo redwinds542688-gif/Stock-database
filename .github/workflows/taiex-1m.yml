@@ -43,4 +43,12 @@ jobs:
           for d in kline_index kline_futures; do [ -d $d ] && git add $d; done
           git diff --cached --quiet && exit 0
           git commit -m "加權指數 / 台指期 1 分 K"
-          for i in 1 2 3; do git pull --rebase -q && git push -q && exit 0; sleep 5; done
+          # 2026-11-22 使用者「全部做」(D6):原本 pull --rebase 衝突時(daily 14:30 的 save_fbars 也寫同一個 kline_futures/TXF/<週>.csv)
+          #   會卡在 rebase 中、後面兩次也失敗、最後還是綠燈。改成:衝突就 abort 後用 -X theirs(這次期交所逐筆合成的完整 K 優先)
+          #   重新 rebase,最多 6 次,都失敗結束碼 1。daily 那邊撞到時會以這份為準、只補沒有的分鐘
+          for i in $(seq 1 6); do
+            git push -q origin HEAD:main && exit 0
+            sleep $((i * 10)); git fetch -q origin main || continue
+            git rebase -q origin/main || { git rebase --abort; git rebase -q -X theirs origin/main || git rebase --abort; }
+          done
+          echo "推送 6 次都失敗"; exit 1

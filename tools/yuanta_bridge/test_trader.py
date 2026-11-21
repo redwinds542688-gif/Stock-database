@@ -1025,7 +1025,9 @@ at(12, 31); t12_.step([]); o12["exp_at"] -= 11; t12_.step([]); ok(sum(1 for x in
 cf3 = tmp / "carry3.json"; cf3.write_text('[{"code":"1709","dir":-1,"lots":1,"entry":49.35,"typ":"0","judge":"判三"}]', encoding="utf-8"); ig3 = tmp / "ign4.txt"; ig3.write_text("1709\n", encoding="utf-8")
 at(9, 1); u1, h1 = mk(TRADE_CARRY_FILE=str(cf3), TRADE_IGNORE_FILE=str(ig3)); u1.ref_of = lambda c: 50.0; u1.on_tick("1709", 50.0); u1.step([]); q1 = u1.positions["1709"]
 at(10, 0); u1.on_tick("1709", 53.3); ok(q1["state"] == EXITING); n1 = len(h1.sent)
-at(13, 20); u1.prepare_close_all(); u1.recheck([], [], "13:20"); ok(q1["state"] == EXITING and any(x[:3] == ("1709", "B", 1) for x in h1.sent[n1:]), (q1["state"], h1.sent[n1:])); at(10, 0)
+# 2026-11-22 使用者「全部做」(U3):13:20 不再取消程式自己的平倉單(原本取消後靠 recheck 重送)→ 平倉單留著、不取消、不重送
+at(13, 20); u1.prepare_close_all(); u1.recheck([], [{"code": "1709", "bs": "B", "lots": 1, "no": (q1["order"] or {}).get("no"), "tag": (q1["order"] or {}).get("tag")}], "13:20")
+ok(q1["state"] == EXITING and q1["order"] and not q1["order"].get("dead") and not any(x[0] == "cancel" for x in h1.sent[n1:]) and not any(x[:3] == ("1709", "B", 1) for x in h1.sent[n1:]), (q1["state"], h1.sent[n1:])); at(10, 0)
 # 5) 留倉被手動買回、回報漏了 → 13:20 複查看到 留倉 + 今天成交 = 0 → 結束,13:21 不再買回
 at(9, 1); u5, h5 = mk(TRADE_CARRY_FILE=str(cf3), TRADE_IGNORE_FILE=str(ig3)); u5.ref_of = lambda c: 50.0; u5.on_tick("1709", 50.0); u5.step([])
 at(13, 20); u5.prepare_close_all(); u5.recheck([{"code": "1709", "bs": "B", "lots": 1, "price": 49.0, "time": "11:00", "order_no": "M1"}], [], "13:20"); ok("1709" not in u5.positions)
@@ -1525,3 +1527,66 @@ p8_ = {"code": "2603", "dir": -1, "qty": 2, "entry": 239.75, "judge": "元三", 
 t8_.set_forced_tpsl(p8_, 239.75)
 ok(all(abs(x / _trm.tick_size(x) - round(x / _trm.tick_size(x))) < 1e-6 for x in (p8_["tp"], p8_["sl"]) if x) and p8_["tp"] < 239.75 < p8_["sl"], p8_)
 print("停利 / 停損取到升降單位 OK")
+
+# ── 2026-11-22 使用者「全部做」(U3 / U5)──
+def _u_mk(**kw):
+    NMK[0] += 1
+    cfg = {"TRADE_LOT_TIER": "0", "TRADE_BROKER_STOP": "0", "TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(tmp / "STOP_u"),
+           "TRADE_STATE_FILE": str(tmp / f"u_st{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0"}; cfg.update(kw)
+    g = GW(); t_ = Trader(cfg, g, logs.append, lambda: NOW[0]); g.t = t_; t_.post = lambda *a, **k: None; t_.alerts = []; t_.alert = lambda a, b="", k="pc": t_.alerts.append(a)
+    t_.ref_of = lambda c, t_=t_: t_.last_px.get(c); t_.prime([]); return t_, g
+# U3-1:13:21 備援平倉單送出後,13:20 流程的 prepare_close_all 不取消它;close_now 不重送、算已送出
+at(10, 0); u3, g3u = _u_mk(); u3.on_tick("6269", 86.2); u3.step([ENT]); u3.on_report(51, "A0001", 0, 1000, 86.1)
+at(13, 21); u3.step(); pu = u3.positions["6269"]; ok(pu["state"] == EXITING and pu["order"] and pu["order"]["purpose"] == "平倉", pu)
+nu = len(g3u.sent); u3.prepare_close_all()
+ok(pu["order"] and not any(x[0] == "cancel" for x in g3u.sent[nu:]) and pu["force_limit"], g3u.sent[nu:])
+s_, f_ = u3.close_now("13:20"); ok(s_ == {"6269"} and not f_ and len(g3u.sent) == nu, (s_, g3u.sent[nu:]))
+# 進場委託照舊取消
+at(10, 0); u3e, g3e = _u_mk(); u3e.on_tick("6269", 86.2); u3e.step([ENT]); u3e.positions["6269"]["order"]["no"] = "A0001"
+at(13, 20); u3e.prepare_close_all(); ok(any(x[0] == "cancel" and x[1] == "A0001" for x in g3e.sent) and u3e.positions["6269"]["order"] is None, g3e.sent)
+# U3-2:平倉中但沒有單(例如被取消 / 舊版取消掉)→ close_now 補送漲停 / 跌停 ROD
+at(10, 0); u3b, g3b = _u_mk(); u3b.on_tick("6269", 86.2); u3b.step([ENT]); u3b.on_report(51, "A0001", 0, 1000, 86.1)
+at(13, 21); u3b.step(); pb = u3b.positions["6269"]; pb["order"] = None; nb = len(g3b.sent)
+s_, f_ = u3b.close_now("13:20"); ok(s_ == {"6269"} and g3b.sent[nb:] and g3b.sent[-1][:3] == ("6269", "B", 1) and g3b.sent[-1][6] == "H" and pb["order"], g3b.sent[nb:])
+s_, f_ = u3b.close_now("13:20"); ok(len(g3b.sent) == nb + 1)   # 單還活著 → 不重送
+# 送不出去 → 回傳失敗、部位留在平倉中沒有單(下一圈再送)
+pb["order"] = None; _gs = g3b.send; g3b.send = lambda *a, **k: (_ for _ in ()).throw(ConnectionError("沒登入"))
+s_, f_ = u3b.close_now("13:20"); g3b.send = _gs; ok(f_ == {"6269"} and pb["state"] == EXITING and pb["order"] is None, (s_, f_, pb["order"]))
+s_, f_ = u3b.close_now("13:20", codes={"6269"}); ok(s_ == {"6269"} and pb["order"])
+# stuck(重送超過上限)照舊留給複查
+pb["order"] = None; pb["stuck"] = True; nb = len(g3b.sent); s_, f_ = u3b.close_now("13:20"); ok(len(g3b.sent) == nb and not s_)
+at(10, 0)
+print("2026-11-22 全部做 U3 OK")
+
+# U5:狀態檔原子寫入、壞檔改讀 .bak、定期存檔失敗會重試
+at(10, 0); u5s, _ = _u_mk(); sf5 = u5s.state_file; bak5 = sf5.with_name(sf5.name + ".bak")
+u5s.killed = True; ok(u5s.save_state() is True and not sf5.with_name(sf5.name + ".tmp").exists())
+u5s.entered_keys.add("k1"); ok(u5s.save_state() and bak5.exists())
+ok(u5s.load_state().get("killed") is True and "k1" in u5s.load_state().get("entered"))
+sf5.write_text('{"day": "2026-10-22", "killed": tr', encoding="utf-8")   # 寫到一半當機
+st5 = u5s.load_state(); ok(st5.get("killed") is True, st5)                # 改讀 .bak
+u5b, _ = _u_mk(TRADE_STATE_FILE=str(sf5)); ok(u5b.killed, "重開後 killed 要從 .bak 接回")
+u5b.entered_keys.add("k2"); ok(u5b.save_state()); js5 = u5b.load_state()
+ok(js5.get("killed") is True and {"k1", "k2"} <= set(js5.get("entered")), js5)   # 主檔壞時不能把 .bak 蓋成壞的
+import json as _json5
+ok(_json5.loads(bak5.read_text(encoding="utf-8")).get("killed") is True)
+sf5.write_text('{"day": "2026-10-21", "killed": true}', encoding="utf-8"); ok(u5b.load_state() == {})   # 主檔好但不是今天 → 不拿 .bak
+# Windows 檔案鎖:os.replace 前幾次 PermissionError → 重試成功
+import trader as _tr5
+_or5 = _tr5.os.replace; _n5 = [0]
+def _flaky(a, b):
+    _n5[0] += 1
+    if _n5[0] <= 2: raise PermissionError("locked")
+    return _or5(a, b)
+_tr5.os.replace = _flaky
+try: ok(u5b.save_state() is True and _n5[0] == 4, _n5)   # 主檔 2 次失敗 + 1 次成功、.bak 1 次
+finally: _tr5.os.replace = _or5
+# 一直鎖住 → 回 False,定期存檔(prot_save)不記成已存,5 秒後再存
+_tr5.os.replace = lambda a, b: (_ for _ in ()).throw(PermissionError("locked"))
+try:
+    u5b._prot_t = 0.0; u5b.prot_save({"code": "2330", "entry": 100.0, "dir": 1})
+    ok(time.time() - u5b._prot_t > 10, u5b._prot_t)
+finally: _tr5.os.replace = _or5
+u5b.prot_save({"code": "2330", "entry": 100.0, "dir": 1}); ok("2330" not in (u5b.load_state().get("prot") or {}))   # 5 秒內不重存
+u5b._prot_t -= 6; u5b.prot_save({"code": "2330", "entry": 100.0, "dir": 1}); ok(time.time() - u5b._prot_t < 5 and "2330" in (u5b.load_state().get("prot") or {}))
+print("2026-11-22 全部做 U5 OK")

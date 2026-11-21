@@ -14,6 +14,7 @@
 #    · 今天暫停先賣後買   → short_first=0(HTML 端會排除)
 #    · 今天新列注意股 / 處置股 → 併入 attention / disposed
 #    · 名單的日期欄位若還不是今天(證交所還沒更新),就不覆蓋、只記錄 pending,09:05 再試一次
+#    · 2026-11-22(D1/D3):名單是空的、檔數太少、沒有日期、上櫃名單比前一交易日還舊 → 同樣不覆蓋、pending
 # ══════════════════════════════════════════════════════
 
 import os, json, time, sys, re
@@ -160,15 +161,69 @@ if P.get("elig_checked") == today and os.environ.get("FORCE") != "1":   # FORCE=
     sys.exit(0)
 
 # ── 今天的可當沖名單 ─────────────────────────────
+# 2026-11-22 使用者「全部做」(D1):名單是空的 / 只有佔位列 / 檔數太少 / 沒有日期 → 一律當「抓取失敗」:
+#   不套用、不算進 ok_src、不標 elig_checked(原本 ld=None 會跳過日期檢查、整個市場的名單股全被改成 (0,0) 不可當沖,
+#   還標了今天已複檢、後面幾次不再重跑 → 引擎 09:06 把整個市場丟掉)。和 make_pool.py(twse_ok=bool(m))、
+#   tools/yuanta_bridge/elig.py(名單是空的就 raise)一樣的防護,另外再要求:
+#     · 名單裡 4 碼普通股至少 DT_MIN_CODES 檔(實測 2026-11-21:上市約 1000、上櫃約 730)
+#     · pool.json 裡這個市場的股票,至少 DT_MIN_COVER(50%)要出現在名單裡(昨天都在可當沖名單裡才進得了 pool)
+DT_MIN_CODES = {"上市": 300, "上櫃": 200}
+DT_MIN_COVER = 0.5
+
+
+def prev_weekday(d):
+    d -= timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d
+
+
+# 2026-11-22 使用者「全部做」(D3):名單日期規則(原本兩個市場都接受 4 天內的舊名單,而且照樣標「今天已複檢完成」)
+#   · 上市(TWTB4U):早上已經是今天的名單 → 日期必須 = 今天;不是今天就 pending,不套用(09:05 那次再試)
+#   · 上櫃(tpex_securities):資料日期永遠標「前一個交易日」(2026-11-02 實測,收盤後才換) → 能拿到的最新名單就是
+#     前一個交易日的那份。前一個交易日以 pool.json 的 date 為準(make_pool 14:30 用前一交易日收盤做的);
+#     pool.json 沒有 date 時退一步用「前一個平日」。
+#       - 名單日期 ≥ 前一個交易日 → 套用,且算「完成」(這已是開盤前拿得到最新的一份)
+#       - 名單日期 < 前一個交易日(櫃買還沒換 / 卡住)→ 不套用、pending、不標 elig_checked = 今天
+#   · 任何市場都不會用「比前一個交易日更舊」的名單標完成。
+TODAY_D = date.fromisoformat(today)
+try:
+    PREV_TD = min(date.fromisoformat(P.get("date") or ""), TODAY_D)   # 同一天 14:30 之後手動 FORCE 重跑時 pool.json 的 date 就是今天
+except ValueError:
+    PREV_TD = prev_weekday(TODAY_D)
+pool_codes = {"上市": {s["code"] for s in P["pool"] if s.get("market") == "twse"},
+              "上櫃": {s["code"] for s in P["pool"] if s.get("market") != "twse"}}
+
+
+def list_problem(label, m, ld):
+    """名單不能用的原因;可以用回傳空字串"""
+    if len(m) < DT_MIN_CODES[label]:
+        return f"{label}名單只有 {len(m)} 檔(< {DT_MIN_CODES[label]},當作抓取失敗)"
+    pc = pool_codes[label]
+    if pc:
+        cover = len(pc & set(m)) / len(pc)
+        if cover < DT_MIN_COVER:
+            return f"{label}名單只涵蓋名單股 {cover:.0%}(< {DT_MIN_COVER:.0%},當作抓取失敗)"
+    if not ld:
+        return f"{label}名單沒有日期(當作還沒更新)"
+    ldd = date.fromisoformat(ld)
+    if label == "上市":
+        if ldd != TODAY_D:
+            return f"{label}名單日期是 {ld},還不是今天"
+    elif ldd < PREV_TD:
+        return f"{label}名單日期 {ld} 比前一個交易日 {PREV_TD} 還舊"
+    return ""
+
+
 elig, ok_src, pending = {}, [], []
 for label, url in (("上市", TWSE_DT), ("上櫃", TPEX_DT)):
     try:
         m, ld = parse_daytrade_list(get_json(url))
         print(f"{label}可當沖名單:{len(m)} 檔,名單日期 {ld}")
-        # 2026-10-15 實測:證交所名單早上已是今天;櫃買名單早上仍標昨天(收盤後才換日期),
-        # 所以只要名單不超過 4 天舊就採用(櫃買用最新那份),太舊才視為還沒更新
-        if ld and (date.fromisoformat(today) - date.fromisoformat(ld)).days > 4:
-            pending.append(f"{label}名單日期仍是 {ld}")
+        why = list_problem(label, m, ld)
+        if why:
+            print("  不套用:" + why)
+            pending.append(why)
             continue
         elig.update({c: (1, sf) for c, sf in m.items()})
         ok_src.append(label)
@@ -176,18 +231,38 @@ for label, url in (("上市", TWSE_DT), ("上櫃", TPEX_DT)):
         print(f"{label}可當沖名單抓取失敗:{e}")
         pending.append(f"{label}抓取失敗")
 
+
+def pause_active(r, target):
+    """2026-11-22 使用者「全部做」(L2):櫃買「暫停先賣後買預告」是預告名單,有 FirstDayToSuspendSellThenBuy(暫停首日)/
+    DayOfReinstatingSellThenBuy(恢復日)。複檢的對象是「今天」:今天在 [暫停首日, 恢復日) 之間才標 short_first=0;
+    已經恢復的、還沒開始的不再一律標 0。日期看不懂就保守當作暫停中。"""
+    a = roc_to_iso(field(r, "FirstDay", "暫停首日", "停止起日"))
+    b = roc_to_iso(field(r, "Reinstat", "恢復"))
+    if not a and not b:
+        return True
+    t = target.isoformat()
+    return (not a or a <= t) and (not b or t < b)
+
+
 if "上櫃" in ok_src:
     try:
-        paused, _ = parse_daytrade_list(get_json(TPEX_DT_PAUSE))
-        for c in paused:
+        n_pause = n_skip = 0
+        for r in get_json(TPEX_DT_PAUSE):
+            c = field(r, "Code", "代號")
+            if not is_stock_code(c):
+                continue
+            if not pause_active(r, TODAY_D):
+                n_skip += 1
+                continue
+            n_pause += 1
             if c in elig:
                 elig[c] = (1, 0)
-        print(f"上櫃暫停先賣後買:{len(paused)} 檔")
+        print(f"上櫃暫停先賣後買:今天暫停中 {n_pause} 檔(預告中還沒開始 / 已恢復 {n_skip} 檔不算)")
     except Exception as e:
         print(f"上櫃暫停先賣後買預告抓取失敗(略過):{e}")
 
 if not ok_src:
-    print("兩個交易所都還沒更新或抓不到;本次不覆蓋,只記錄 pending:" + "; ".join(pending))
+    print("兩個交易所都還沒更新或抓不到(或名單不可用);本次不覆蓋,只記錄 pending:" + "; ".join(pending))
     P["elig_pending"] = {"at": now_tw().strftime("%Y-%m-%d %H:%M"), "why": pending}
     with open("pool.json", "w", encoding="utf-8") as f:
         json.dump(P, f, ensure_ascii=False, indent=1)
@@ -229,7 +304,7 @@ P["attention"] = sorted(attention)
 P["disposed"] = sorted(disposed)
 P["elig_checked_at"] = now_tw().strftime("%Y-%m-%d %H:%M")
 P["elig_source_today"] = ok_src
-if len(ok_src) == 2:                      # 上市、上櫃都用今天的名單更新了 → 完成
+if len(ok_src) == 2:                      # 上市(今天的名單)、上櫃(前一交易日 = 最新可得的名單)都套用了 → 完成(D3:見上面日期規則)
     P["elig_checked"] = today
     P.pop("elig_pending", None)
 else:                                     # 只更新了一個市場 → 標記未完成,09:05 那次會再補另一個

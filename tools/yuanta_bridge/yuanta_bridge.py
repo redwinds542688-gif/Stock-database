@@ -1319,12 +1319,16 @@ class Bridge:
             try: name = self.trader.name_of(code) if self.trader else ""
             except Exception: pass
             otc = str(mkt) == str(self.Y.enumMarketType.TWOTC)
+            # 2026-11-22 使用者「全部做」(D7):名單外股票原本固定寫 daytrade=1、short_first=1 → 引擎 canshort=True,不能放空的股票也發空單訊號。
+            #   改成照查得到的資料判斷(官方可當沖 / 暫停先賣後買名單、今天的資格複檢、元大回過無券、本機以前的名單檔),查不到一律保守當作不可先賣
+            dtf, sff, dsrc = self.extra_dt(code, otc)
+            log(f"[名單外] {code} 當沖資格:可當沖 {dtf}、可先賣 {sff}({dsrc})")
             xf = HERE / "engine_data" / "extra_codes.json"
             try: xj = json.loads(xf.read_text(encoding="utf-8"))
             except Exception: xj = {}
             if xj.get("day") != day: xj = {"day": day, "codes": []}
             xj["codes"] = [s for s in xj["codes"] if s.get("code") != code] + [{"code": code, "name": name if name and name != code else code, "market": "tpex" if otc else "twse",
-                           "close": prev, "prev": prev, "date": prev_days[-1] if prev_days else "", "daytrade": 1, "short_first": 1, "extra": 1, "at": now_tw().strftime("%H:%M")}]
+                           "close": prev, "prev": prev, "date": prev_days[-1] if prev_days else "", "daytrade": dtf, "short_first": sff, "extra": 1, "at": now_tw().strftime("%H:%M")}]
             tmp = xf.with_suffix(".tmp"); tmp.write_text(json.dumps(xj, ensure_ascii=False), encoding="utf-8"); os.replace(tmp, xf)
             n_k = sum(len(r) for r in got.values())
             log(f"[名單外] {code} 加入今天的監控名單:補 {len(got)} 天 {n_k} 根元大 1 分 K(今天 {len(got.get(day, []))} 根),昨收 {prev}")
@@ -1333,6 +1337,54 @@ class Bridge:
             self.phone_alert(f"✅ {name or code} {code} 已加入監控名單", f"名單外手動成交 → 補了 {len(got)} 天元大 1 分 K,判一~五開始照算")
         except Exception as e:
             log(f"[名單外] {code} 加入名單失敗", e)
+
+    def extra_dt(self, code, otc=False):
+        """2026-11-22 使用者「全部做」(D7):名單外股票的 (daytrade, short_first, 來源說明)。
+           1. 官方名單(和 elig.py / make_pool.py 同一份:證交所 TWTB4U、櫃買可當沖 + 暫停先賣後買),一天抓一次(失敗 10 分鐘後再試)
+           2. 官方名單抓不到 → 本機最近 7 天的名單檔 pool_*.json 裡有這檔的標記
+           3. 都查不到 → 可當沖 1(只影響空單)、可先賣 0(保守:引擎不發空單)
+           之後再套:今天資格複檢檔(不可當沖 / 不可先賣 / 處置)、元大今天回過無券(trader.noshort)→ 一律不可先賣"""
+        c = str(code); dtf, sff, src = None, None, ""
+        try:
+            import elig
+            day = now_tw().strftime("%Y-%m-%d"); L = self.__dict__.get("_dtl")
+            if not L or L.get("day") != day or (not L.get("ok") and time.time() - L.get("t", 0) > 600):
+                m, ok, pause = {}, set(), set()
+                for mk, url in (("twse", elig.TWSE_DT), ("tpex", elig.TPEX_DT)):
+                    try:
+                        got, _ = elig.parse_dt(elig.get_json(url, timeout=15, tries=1))
+                        if got: m.update(got); ok.add(mk)
+                    except Exception as e: log(f"[名單外] 抓{'上市' if mk == 'twse' else '上櫃'}可當沖名單失敗", e)
+                try: pause = set(elig.parse_dt(elig.get_json(elig.TPEX_DT_PAUSE, timeout=15, tries=1))[0])
+                except Exception as e: log("[名單外] 抓上櫃暫停先賣後買失敗", e)
+                L = self._dtl = {"day": day, "m": m, "ok": ok, "pause": pause, "t": time.time()}
+            mk = "tpex" if otc else "twse"
+            if c in L["m"]:
+                dtf, sff, src = 1, 1 if L["m"][c] == 1 and c not in L["pause"] else 0, "官方可當沖名單"
+            elif L["ok"] >= {"twse", "tpex"} or mk in L["ok"]:
+                dtf, sff, src = 0, 0, "不在官方可當沖名單"
+        except Exception as e: log(f"[名單外] {c} 查官方當沖名單失敗", e)
+        if dtf is None:
+            try:
+                lim = (now_tw().date() - dt.timedelta(days=7)).isoformat()
+                for f in sorted(HERE.glob("pool_*.json"), reverse=True)[:10]:
+                    if f.stem[5:] < lim: break
+                    j = json.loads(f.read_text(encoding="utf-8")); pool = j.get("pool", j) if isinstance(j, dict) else j
+                    x = next((x for x in pool if str(x.get("code")) == c and "short_first" in x), None)
+                    if x:
+                        dtf, sff, src = (1 if x.get("daytrade") == 1 else 0), (1 if x.get("short_first") == 1 else 0), f"本機名單檔 {f.name}"; break
+            except Exception as e: log(f"[名單外] {c} 查本機名單檔失敗", e)
+        if dtf is None: dtf, sff, src = 1, 0, "查不到資料,保守當作不可先賣"
+        try:
+            import elig; e = elig.load_today() or {}
+            if c in (e.get("nodt") or []): dtf, sff, src = 0, 0, src + ";今天複檢不可當沖"
+            if sff and (c in (e.get("noshort") or []) or c in (e.get("disposed") or []) or c in (e.get("all_disposed") or [])): sff, src = 0, src + ";今天複檢不可先賣 / 處置"
+        except Exception: pass
+        try:
+            if sff and self.trader and c in (getattr(self.trader, "noshort", None) or {}): sff, src = 0, src + ";元大今天回過無券"
+        except Exception: pass
+        if not dtf: sff = 0
+        return dtf, sff, src
 
     def push_extra_list(self, xj):
         """名單外股票清單推上 Worker(?extra=push),手機自己算判別式時(電腦離線)也會把它們加進名單"""
@@ -1562,8 +1614,19 @@ class Bridge:
             if ca["ph"] == "fast": ca["ph"] = "pick"
         with self.qcap(qw):
             if ca["ph"] == "pick" and left() >= qw:
-                ca["keep"] = self.prehang_pick(at) or set()   # 2026-11-05 使用者「程式要檢查 我是否預掛」→「改」:手動預掛、剛好平掉未沖銷張數的平倉單保留(書號)
-                ca["ph"] = "confirm"
+                kp = self.prehang_pick(at)   # 2026-11-05 使用者「程式要檢查 我是否預掛」→「改」:手動預掛、剛好平掉未沖銷張數的平倉單保留(書號)
+                if kp is None:
+                    # 2026-11-22 使用者「全部做」(U2):查不到元大委託 → 不清掉盤中看到的預掛、2 秒後(下一圈)重查;
+                    #   重查 CLOSE_CONFIRM_TRIES 次還是查不到 → 保留盤中看到的手動預掛(trader 也照它們等到期限,期限到了照舊取消再平),其他照舊確認 / 取消
+                    ca["pk"] = ca.get("pk", 0) + 1; ca["next"] = time.time() + 2
+                    if ca["pk"] < tries:
+                        log(f"[交易] {at} 查手動預掛:元大委託查不到(第 {ca['pk']} 次)→ 預掛資訊先不動,下一圈重查")
+                        return False
+                    fast_ = ca.get("fast") or set()
+                    with t.lock: kp = {n for c_, v in (t.prehang or {}).items() if c_ not in fast_ for n in v}
+                    log(f"!! [交易] {at} 查手動預掛:{ca['pk']} 次都查不到 → 保留盤中看到的手動預掛 {len(kp)} 筆,其他照舊取消")
+                    if kp: self.phone_alert(f"⚠ {at} 查不到元大委託", f"保留盤中看到的手動預掛 {len(kp)} 筆,{t.prehang_deadline} 前沒成交由程式平,請在投資先生確認")
+                ca["keep"] = set(kp); ca["ph"] = "confirm"
             if ca["ph"] == "confirm" and left() >= qw:
                 keep = ca["keep"]; ca["k"] += 1; k = ca["k"]; ca["next"] = time.time() + 2
                 r = self.query_today(with_oco=False)
@@ -1689,10 +1752,15 @@ class Bridge:
     def prehang_pick(self, at):
         """13:20 查元大還掛著的委託:手動下的(沒有程式的自訂編號)、方向是平倉、同一檔加起來不超過未沖銷張數 → 保留,回傳書號集合;
            張數比未沖銷少也保留(沒預掛的張數程式平,2026-11-17);太多 / 期限設 0 → 不保留(照舊取消,程式全部平)"""
-        t = self.trader; t.prehang = {}
-        if t.prehang_deadline in ("", "0") or t.prehang_deadline <= t.force_exit: return set()   # 2026-11-08 01:08 期限 ≤ 13:20 = 13:20 全部取消(預設)
+        # 2026-11-22 使用者「全部做」(U2):原本一開頭就把 t.prehang 清空,查詢失敗回 set() 也不重試 → 盤中看到的手動預掛資訊整個不見,
+        #   確認掛單時被當成一般掛單取消、13:21 trader 備援照全部張數平(模擬 phdrop:13:20 就把要等到 13:25 的預掛取消了)。
+        #   改:查詢失敗回 None、不動原本的預掛資訊(close_all_step 下一圈重查);查成功才整個換成這次查到的
+        t = self.trader
+        if t.prehang_deadline in ("", "0") or t.prehang_deadline <= t.force_exit:   # 2026-11-08 01:08 期限 ≤ 13:20 = 13:20 全部取消(預設)
+            t.prehang = {}; return set()
         r = self.query_today(with_oco=False)
-        if not r: return set()
+        if not r: return None
+        ph = {}
         trs, amb = self.guard_trades(r["trades"], at)   # 2026-11-21(檢查 R4):可疑重複成交的檔判斷不了未沖銷張數 → 不保留預掛(照舊取消),複查也跳過、推手機請人工確認
         net = {}
         for x in trs: net[x["code"]] = net.get(x["code"], 0) + x["lots"] * (1 if x["bs"] == "B" else -1)
@@ -1705,12 +1773,13 @@ class Bridge:
             q = sum(w["lots"] for w in man)
             if not man: continue
             if 0 < q <= abs(n):   # 2026-11-17 14:05 使用者「四張平倉 二張照預掛邏輯 一直到13點25分」→「改」:預掛比部位少也保留,沒預掛的張數 13:20 由程式平
-                keep |= {w["no"] for w in man}; t.prehang[c] = [w["no"] for w in man]
+                keep |= {w["no"] for w in man}; ph[c] = [w["no"] for w in man]
                 for w in man:   # ph_lots 要知道每張預掛的張數(盤中沒看到的預掛這裡補記),才能只平沒預掛的張數
                     if not (t.man_meta.get(w["no"]) or {}).get("lots"): t.man_meta[w["no"]] = {"bs": w["bs"], "typ": w.get("typ"), "lots": w["lots"], "fl": 0, "px": w.get("price") or 0}
                 log(f"[交易] {at} {c} 有手動預掛平倉 {q} 張(未沖銷 {abs(n)} 張)→ 保留,{t.prehang_deadline} 前沒成交才由程式平" + (f";沒預掛的 {abs(n) - q} 張程式現在平" if q < abs(n) else ""))
             else:
                 log(f"[交易] {at} {c} 手動預掛 {q} 張比未沖銷 {abs(n)} 張多 → 照舊取消,程式全部平")
+        t.prehang = ph   # U2:查成功才換
         if keep: self.phone_alert(f"✅ {at} 保留手動預掛平倉 {len(t.prehang)} 檔", f"{', '.join(t.prehang)};{t.prehang_deadline} 前沒成交會改由程式平倉")
         return keep
 
@@ -1902,7 +1971,12 @@ class Bridge:
             if r is None:
                 with self.qcap(qw): r = self.query_today(with_oco=False)   # 2026-11-21「改 A」(A1):複查查詢也有時間上限
             if not r:
-                log(f"!! {at} 複查:查不到成交回報"); self.trader.alert(f"⚠ {at} 複查失敗", "查不到元大成交回報,請在投資先生確認有沒有未沖銷的股票"); return
+                # 2026-11-22 使用者「全部做」(U4):原本查不到就 return(None)→ 主迴圈當成做完、這分鐘的複查就沒了。
+                #   改:回 "fail",主迴圈在同一分鐘內每 3 秒重查;過了這分鐘還是查不到才算這次複查失敗、推手機(一次)
+                log(f"!! {at} 複查:查不到成交回報")
+                if now_tw().strftime("%H:%M") > at:
+                    self.trader.alert(f"⚠ {at} 複查失敗", "查不到元大成交回報,請在投資先生確認有沒有未沖銷的股票")
+                return "fail"
             safe, amb = self.guard_trades(r["trades"], at)   # 2026-11-21(檢查 R4)
             with self.skip_codes(amb):
                 self.trader.recheck(safe, [w for w in r["working"] if w.get("no") not in gone], at)   # 剛取消的手動預掛不算掛著(取消回報可能還沒到)
@@ -2392,7 +2466,7 @@ class Bridge:
                 import subprocess
                 self.engine = subprocess.Popen([sys.executable, str(HERE / "engine.py")], cwd=str(HERE)); log(f"[公式] engine.py 已啟動(pid {self.engine.pid}),判一二三由電腦算、手機只收雲端通知")
             except Exception as e: log("[公式] engine.py 啟動失敗", e)
-        fails = 0; k = 0; resumed = False; rechecked = set(); closed_all = False; resume_try = 0.0
+        fails = 0; k = 0; resumed = False; rechecked = set(); closed_all = False; resume_try = 0.0; rck_next = {}   # rck_next:2026-11-22(U4)複查查不到 → 下次重查的時間
         self.last_tick = time.time(); self.last_kick = 0.0; self.n_kick = 0; self.last_recon = time.time()
         # 2026-10-30 11:08(實際時間)使用者「該如何避免再次出現這問題」→「2道都做」第 1 道:電腦自己做開盤前資格複檢(elig.py),
         #   啟動時先做一次(08:45 前),08:30、08:44 再各做一次(證交所 / 櫃買早上才換今天的名單);結果存本機 + 推 Worker,手機、引擎、trader 都照它排除
@@ -2507,7 +2581,14 @@ class Bridge:
                 ca_ok = closed_all or not (self.trader.enabled and self.trader.cancel_all)   # 2026-11-21「改 A」(A1):13:20 流程做完才做 13:22 起的複查(和原本 close_all 做完才複查的順序一樣)
                 for at in self.trader.recheck_times:                     # 13:22 / 13:23 / 13:24 各一次
                     if at not in rechecked and hm_now >= at and ca_ok:
-                        if self.recheck_positions(at) is not False: rechecked.add(at)   # False = 手動預掛還在確認取消,下一圈再做
+                        if time.time() < rck_next.get(at, 0.0): break
+                        rr_ = self.recheck_positions(at)
+                        # 2026-11-22 使用者「全部做」(U4):查詢失敗("fail")原本也標成做完 → 這分鐘的複查不見了。
+                        #   改:查成功才算做完;查不到 → 同一分鐘內 3 秒後重查,過了這分鐘(recheck_positions 已推手機)才放棄這一次
+                        if rr_ == "fail":
+                            if now_tw().strftime("%H:%M") > at: rechecked.add(at)
+                            else: rck_next[at] = time.time() + 3
+                        elif rr_ is not False: rechecked.add(at)   # False = 手動預掛還在確認取消,下一圈再做
                         break
                 # 2026-11-07 12:55 使用者「能再加快進場訊息速度嗎」:原本每 10 秒才推一次 K → 一分鐘收完最慢要等 10 秒(平均 5 秒)才推上去,電腦算訊號也跟著晚。
                 #   改成:換分鐘後第 1 秒就推剛走完的那根(晚到的成交照舊整分鐘重送);其他時間維持每 10 秒
