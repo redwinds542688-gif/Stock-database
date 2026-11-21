@@ -8,7 +8,9 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
+import android.app.AlertDialog
 import android.webkit.JavascriptInterface
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -35,6 +37,10 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 2026-11-21 使用者「掃描 會員 崩潰」(夥伴看盤按掃描 App 直接關掉):記下當機原因,下次打開秀出來(截圖給 Claude 查)
+        val crashF = java.io.File(filesDir, "crash.txt")
+        val prev = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e -> try { crashF.writeText(android.util.Log.getStackTraceString(e).take(3000)) } catch (x: Exception) {}; prev?.uncaughtException(t, e) }
         val loader = WebViewAssetLoader.Builder().addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this)).build()
         web = WebView(this)
         web.setBackgroundColor(0xFF0B0E14.toInt())
@@ -47,6 +53,12 @@ class MainActivity : Activity() {
             allowContentAccess = true
         }
         web.webViewClient = object : WebViewClient() {
+            // 網頁元件(畫面)當掉:不讓整個 App 跟著關掉,記下原因、重開畫面
+            override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                try { crashF.writeText("畫面元件當掉(didCrash=${detail.didCrash()})") } catch (x: Exception) {}
+                try { (view.parent as? android.view.ViewGroup)?.removeView(view); view.destroy() } catch (x: Exception) {}
+                recreate(); return true
+            }
             // 2026-11-16 21:35 使用者「每一次都要重新安裝嗎」→「改」:畫面改從雲端讀最新的(Worker /partner/ = main 的 partner_app/mine.html),改畫面不用重裝;
             //   網址照舊是 appassets(金鑰存的地方不變、相機照樣能用),只是內容換成雲端那份;雲端讀不到(沒網路、逾時)才用 App 裡內建的那份
             override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? {
@@ -58,10 +70,12 @@ class MainActivity : Activity() {
             // 掃描金鑰 QR Code:網頁要相機 → 先問 Android 相機權限,同意了才給網頁
             override fun onPermissionRequest(request: PermissionRequest) {
                 runOnUiThread {
-                    if (request.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) {
-                        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
-                        else { pendingPerm = request; requestPermissions(arrayOf(Manifest.permission.CAMERA), REQ_CAM) }
-                    } else request.deny()
+                    try {
+                        if (request.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) {
+                            if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
+                            else { pendingPerm = request; requestPermissions(arrayOf(Manifest.permission.CAMERA), REQ_CAM) }
+                        } else request.deny()
+                    } catch (e: Exception) { try { crashF.writeText("相機權限:" + android.util.Log.getStackTraceString(e).take(2000)) } catch (x: Exception) {}; try { request.deny() } catch (x: Exception) {} }
                 }
             }
             // 「從相簿選 QR Code 圖片」
@@ -75,6 +89,8 @@ class MainActivity : Activity() {
         setContentView(web)
         if (savedInstanceState != null) web.restoreState(savedInstanceState)
         else web.loadUrl("https://appassets.androidplatform.net/assets/mine.html")
+        if (crashF.exists()) { val t = try { crashF.readText() } catch (e: Exception) { "" }; crashF.delete()
+            if (t.isNotBlank()) AlertDialog.Builder(this).setTitle("上次夥伴看盤意外關閉").setMessage("請截圖這個畫面給 Claude:\n\n" + t.take(1200)).setPositiveButton("好", null).show() }
         Updater.check(this)   // 打開 App 時檢查一次版本,有新版才問
         UpdateAlarm.schedule(this)   // 每個平日 08:30(開盤前 30 分鐘)再檢查一次
         if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTI)   // 08:30 有新版時要能跳通知
@@ -83,7 +99,7 @@ class MainActivity : Activity() {
     override fun onRequestPermissionsResult(code: Int, perms: Array<out String>, res: IntArray) {
         if (code == REQ_CAM) {
             val p = pendingPerm; pendingPerm = null
-            if (p != null) { if (res.isNotEmpty() && res[0] == PackageManager.PERMISSION_GRANTED) p.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) else p.deny() }
+            if (p != null) try { if (res.isNotEmpty() && res[0] == PackageManager.PERMISSION_GRANTED) p.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) else p.deny() } catch (e: Exception) {}
         }
     }
 

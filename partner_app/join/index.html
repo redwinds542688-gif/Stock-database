@@ -279,7 +279,7 @@ function qrScan(onText, onErr){
   const stop = () => { done = true; try{ stream && stream.getTracks().forEach(t => t.stop()); }catch(e){} w.remove(); };
   w.querySelector("button").onclick = stop;
   (async () => {
-    try{ if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw {name: "這個開啟方式不支援相機"}; stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: "environment"}, audio: false}); }
+    try{ if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw {name: "這個開啟方式不支援相機"}; stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: "environment", width: {ideal: 1280}, height: {ideal: 720}}, audio: false});   /* 2026-11-21「掃描 崩潰」:不要用相機最大解析度 */ }
     catch(e){ msg.textContent = "打不開相機(" + (e && e.name || e) + "):請允許使用相機,或按取消改用「從相簿選 QR Code 圖片」"; return; }
     v.srcObject = stream; try{ await v.play(); }catch(e){}
     const det = await qrDetector(); if (!det){ try{ await loadJsQR(); }catch(e){ msg.textContent = "載入掃描元件失敗(請確認網路)"; return; } }
@@ -287,7 +287,7 @@ function qrScan(onText, onErr){
     const tick = async () => { if (done) return;
       try{ let text = null;
         if (det){ const r = await det.detect(v); if (r && r.length) text = r[0].rawValue; }
-        else if (v.videoWidth){ cv.width = v.videoWidth; cv.height = v.videoHeight; g.drawImage(v, 0, 0); const im = g.getImageData(0, 0, cv.width, cv.height); const r = window.jsQR(im.data, im.width, im.height, {inversionAttempts: "dontInvert"}); if (r) text = r.data; }
+        else if (v.videoWidth){ const sc = Math.min(1, 640 / v.videoWidth); cv.width = Math.round(v.videoWidth * sc); cv.height = Math.round(v.videoHeight * sc); g.drawImage(v, 0, 0, cv.width, cv.height);   /* 縮成 640 寬再找 QR(省記憶體) */ const im = g.getImageData(0, 0, cv.width, cv.height); const r = window.jsQR(im.data, im.width, im.height, {inversionAttempts: "dontInvert"}); if (r) text = r.data; }
         if (text){ stop(); try{ navigator.vibrate && navigator.vibrate(60); }catch(e){} onText(text); return; } }catch(e){}
       setTimeout(tick, 200); };
     tick();
