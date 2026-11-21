@@ -398,6 +398,10 @@ class Bridge:
                         if strIndex == "SendAlgoCOOdrStrategy" and self.trader:
                             self.trader.on_strategy_reply(str(d.OrderNo), st in (0, 1, 100, 101), str(d.Msg), str(getattr(d, "StkCode", "") or "").strip() or None)
                     return
+                # 2026-11-22 使用者「改」(剩餘 1):查詢回應沒有帶「是哪一次查詢」→ 照送出順序對(先送的先回)。屬於已經放棄(逾時)的舊查詢 → 丟掉,
+                #   不混進下一次查詢(原本逾時的那份晚到,會被下一次查詢當成新的 → 用舊快照對帳 / 兩份成交疊在一起)。帳號錯 / 被登出這種錯誤碼照常處理
+                if strIndex in self.Q_TYPES and not self.q_take(strIndex) and int(dwIndex) not in QRY_FATAL and int(dwIndex) not in QRY_RELOGIN:
+                    log(f"查詢回應 {strIndex}:屬於已放棄(逾時)的舊查詢 → 丟掉,不混進這次查詢"); return
                 if strIndex == "GetOrderTradeReport" and self.resume_buf is not None:
                     r = objValue
                     lots_of = lambda q: q // 1000 if q >= 1000 else q
@@ -555,6 +559,7 @@ class Bridge:
         self.api.OnResponse += self.on_response
         self.disconnected.clear(); self.logged_in.clear(); self.trade_up.clear()
         with self.tag_lock: self.sent_tags.clear()                         # 重連:舊連線的回應不會來了,順序重新算
+        self.q_reset()   # 2026-11-22 使用者「改」(剩餘 1):舊連線還沒回的查詢不會再回了 → 查詢排隊紀錄清掉
         self.api.Open(mode)
         # 2026-10-24 Windows 第一次實測:Open 後 2 秒就登入,交易主機還沒連上,登入請求被丟掉、元大完全不回應 → 等「交易主機 Is Connected」再登入
         if not self.trade_up.wait(30):
@@ -1410,13 +1415,35 @@ class Bridge:
         for i in range(r.StkOrderList.Count):
             try: oprice[str(r.StkOrderList[i].OrderNo).strip()] = float(r.StkOrderList[i].Price or 0)
             except Exception: pass
-        _seen = set()   # 2026-11-16 12:06 使用者「用成交序號去掉重複的成交」:同一筆成交(書號 + 時間 + 價 + 量 + 買賣 + 代碼)回報兩次只算一次
+        # 2026-11-16 12:06 使用者「用成交序號去掉重複的成交」:同一筆成交(書號 + 時間 + 價 + 量 + 買賣 + 代碼)回報兩次只算一次
+        # 2026-11-22 使用者「改」(剩餘 1):沒有成交序號時「完全一樣」的兩筆也可能是真的分筆成交(2 張 1+1)→ 一律去掉會少算已用額度(多進場)。
+        #   額度寧可多算(早一點擋新進場)也不能少算 → 只在兩種情況去掉一樣的:① bridge.env 設了 FILL_ID_FIELD,而且序號一樣;
+        #   ② 沒有序號,但程式收到的即時成交回報(trader.rr_led)這張書號的張數剛好等於「去掉一樣的」張數(= 確定是查詢重複,11/16 那種)。其他照原樣算
+        fid_f = CFG.get("FILL_ID_FIELD", "").strip()
+        led = dict(getattr(self.trader, "rr_led", None) or {}) if self.trader else {}
+        dupn = dict(getattr(self.trader, "dup_nos", None) or {}) if self.trader else {}   # 接回時用狀態檔部位確定是重複的書號(同 ②)
+        rows = {}
         for i in range(r.StkTradeList.Count):
             x = r.StkTradeList[i]; dp = float(x.SPrice)
-            _k = (str(x.OrderNo).strip(), str(x.DateTime), dp, int(x.OkQty), str(x.BS).strip(), str(x.CompanyNo).strip())
-            if _k in _seen: continue
-            _seen.add(_k)
-            fill += dp * int(x.OkQty)   # 2026-11-04 11:24 使用者「應該是平倉後 資金額度會回補回來」→「改」:已成交的照實際成交價算(強平掛漲停 / 跌停,成交後元大把多扣的補回);還掛著的單照委託價(work)、沒平倉的部位照漲停預留(hold)不變  # 原 11/02 版:成交照 max(成交價, 委託價)
+            fv = ""
+            if fid_f:
+                try: fv = str(getattr(x, fid_f, "") or "").strip()
+                except Exception: fv = ""
+            no_ = str(x.OrderNo).strip(); q_ = int(x.OkQty)
+            rows.setdefault(no_, []).append(((no_, str(x.DateTime), dp, q_, str(x.BS).strip(), str(x.CompanyNo).strip(), fv), dp, q_))
+        for no_, rs in rows.items():
+            seen_, dd_ = set(), []
+            for k_, dp, q_ in rs:
+                if k_ in seen_: continue
+                seen_.add(k_); dd_.append((k_, dp, q_))
+            use = rs
+            if len(dd_) < len(rs):
+                if fid_f and all(k_[-1] for k_, _, _ in rs): use = dd_                       # ① 有序號:序號一樣 = 同一筆
+                else:
+                    lot = lambda q: q // 1000 if q >= 1000 else q
+                    ld_ = sum(lot(q) for _, _, q in dd_)
+                    if no_ and ld_ in (led.get(no_), dupn.get(no_)): use = dd_                 # ② 即時回報帳本 / 接回時的部位證據確定是重複
+            for _, dp, q_ in use: fill += dp * q_   # 2026-11-04 11:24 使用者「應該是平倉後 資金額度會回補回來」→「改」:已成交的照實際成交價算(強平掛漲停 / 跌停,成交後元大把多扣的補回);還掛著的單照委託價(work)、沒平倉的部位照漲停預留(hold)不變  # 原 11/02 版:成交照 max(成交價, 委託價)
         if self.trader and abs(fill - getattr(self.trader, "amount_today", 0)) >= 1:   # 2026-11-16 12:03 使用者「那就是計算出了問題 元大總資金還380幾萬」→「500萬扣元大明細裡的總價金」:程式「今天已用額度」一律照元大成交總價金(原本只往上調;11/16 斷線重開接回後程式算 5,784,900、元大實際約 340 萬 → 10:51 後都不進場、世紀手動加碼被平)
             try: self.trader.log(f"[交易] 今天成交金額照元大總價金校正 {getattr(self.trader, 'amount_today', 0):,.0f} → {fill:,.0f}") if abs(fill - getattr(self.trader, "amount_today", 0)) >= 10000 else None
             except Exception: pass
@@ -1457,24 +1484,35 @@ class Bridge:
         """查元大今天的委託成交回報(+ 有效的二擇一條件單);查不到回 None。
            2026-10-28 平倉檢查 #9:同一時間只做一個查詢(手機查輸贏 / 30 秒複查 / 13:20 平倉共用 resume_buf,重疊會互相清掉)"""
         cap = self.__dict__.get("_qcap")   # 2026-11-21 使用者「改 A」(A1):13:20 平倉路上的查詢有時間上限(元大不回應時不能卡主迴圈)
+        # 2026-11-22 使用者「改」(剩餘 1):cap = 整次查詢(排隊 + 送出 + 等回應)最多幾秒(原本排隊、等回應各算一次 → 最多約 2 倍);
+        #   定期查詢(qcap skip_busy)遇到上一次同種查詢逾時、元大還沒回 → 這輪不查(沿用上次的資料),不再多丟一個查詢、也不卡主迴圈
+        t_end = (time.time() + cap) if cap else None
+        if self.__dict__.get("_qskip") and self.q_busy("GetOrderTradeReport"):
+            self.q_note("!! 上一次委託成交查詢元大還沒回(逾時放棄的)→ 這輪不查,沿用上次的資料"); return None
         if not self.qlock.acquire(timeout=min(40, cap) if cap else 40):
             log(f"!! 查詢排隊超過 {min(40, cap) if cap else 40:g} 秒,這次不查"); return None
         with_oco = with_oco and self.broker_stop_on()   # 2026-10-29 16:43 使用者「改」:不掛條件單(TRADE_BROKER_STOP=0)就不查條件單(元大元件的參數和文件對不上,查了只會記一行失敗)
         self.resume_buf = {"trades": [], "tags": {}, "types": {}, "oco": [], "working": [], "got_rpt": False, "got_oco": not with_oco}
         try:
-            self.api.GetOrderTradeReport(True, CFG["YT_ACCOUNT"])                       # True = 不列出取消單
+            self.q_call("GetOrderTradeReport", lambda: self.api.GetOrderTradeReport(True, CFG["YT_ACCOUNT"]))   # True = 不列出取消單
             if with_oco:
                 time.sleep(1.2)                                                         # 帳務 / 查詢類一秒最多 3 次
-                try: self.get_cond(3)   # 3 = 二擇一;2026-11-10 改走 get_cond(失敗時自動找對的參數寫法)
+                try: self.q_call("GetConditionStrategy", lambda: self.get_cond(3))   # 3 = 二擇一;2026-11-10 改走 get_cond(失敗時自動找對的參數寫法)
                 except Exception as e:   # 2026-10-29 12:03 正式環境實測:No method matches given arguments (str, StrategyType, str) → 參數型別 / 順序和文件不同,先當作沒有條件單,不讓它把整個查詢弄掛(TRADE_BROKER_STOP=0 本來就不掛條件單)
                     self.resume_buf["got_oco"] = True; self.resume_buf["oco_failed"] = True; log("查二擇一條件單失敗(改用狀態檔存的編號):", e)
-            for _ in range(max(1, int(cap / 0.5)) if cap else 30):
+            if t_end is None: t_end = time.time() + 15   # 沒設上限:和原本一樣送出後最多等 15 秒
+            while time.time() < t_end:
                 if self.resume_buf["got_rpt"] and self.resume_buf["got_oco"]: break
                 if self.resume_buf.get("rpt_fail"): break   # 2026-11-21(檢查 R1):元大回這個查詢沒權限 → 不用等逾時
-                time.sleep(0.5)
+                time.sleep(min(0.25, max(0.02, t_end - time.time())))
+            ok_ = self.resume_buf["got_rpt"] and self.resume_buf["got_oco"]
+            if not ok_ and cap:
+                _m = f"!! 元大查詢 {cap:g} 秒內沒回完 → 這次不用(晚到的回應會丟掉,不混進下一次)"
+                if self.__dict__.get("_qskip"): self.q_note(_m, "to")   # 定期查詢:元大一直慢的時候 30 秒記一次就好
+                else: log(_m)
             return dict(self.resume_buf) if self.resume_buf["got_rpt"] else None
         finally:
-            self.resume_buf = None; self.qlock.release()
+            self.q_end(); self.resume_buf = None; self.qlock.release()
 
     def query_strategies(self, types=(1, 2, 3, 4, 5)):
         """查全部有效條件單(1 停損利、2 移動鎖利、3 二擇一、4 母子單、5 多條件)
@@ -1488,7 +1526,7 @@ class Bridge:
         self.resume_buf = {"trades": [], "tags": {}, "oco": [], "working": [], "got_rpt": True, "got_oco": False, "want_oco": len(types), "n_oco": 0}
         try:
             for t in types:
-                try: self.get_cond(t); time.sleep(1.2)   # 查詢類一秒最多 3 次
+                try: self.q_call("GetConditionStrategy", lambda t=t: self.get_cond(t)); time.sleep(1.2)   # 查詢類一秒最多 3 次;2026-11-22(剩餘 1)記下送出順序(晚到的舊回應丟掉)
                 except Exception as e:   # 2026-10-29 同上:簽章不合就當作沒有條件單
                     self.resume_buf["got_oco"] = True; log("查條件單失敗(當作沒有):", e); break
             for _ in range(max(1, int(cap / 0.5)) if cap else 20):
@@ -1498,14 +1536,76 @@ class Bridge:
                 log("!! 條件單查詢元大沒回應(這次當作查不到)"); return None
             return list(self.resume_buf["oco"])
         finally:
-            self.resume_buf = None; self.qlock.release()
+            self.q_end(); self.resume_buf = None; self.qlock.release()
 
     @contextlib.contextmanager
-    def qcap(self, sec):
-        """2026-11-21 使用者「改 A」(A1):這段時間內的元大查詢(query_today / query_strategies)最多等 sec 秒(排隊 + 等回應)"""
-        old = self.__dict__.get("_qcap"); self._qcap = sec
+    def qcap(self, sec, skip_busy=False):
+        """2026-11-21 使用者「改 A」(A1):這段時間內的元大查詢(query_today / query_strategies)最多等 sec 秒(排隊 + 等回應)
+           2026-11-22 使用者「改」(剩餘 1):skip_busy = 定期查詢(額度 / 30 秒檢查 / 每分鐘對帳):上一次同種查詢逾時、元大還沒回 → 這輪不查"""
+        old = self.__dict__.get("_qcap"), self.__dict__.get("_qskip"); self._qcap = sec; self._qskip = skip_busy
         try: yield
-        finally: self._qcap = old
+        finally: self._qcap, self._qskip = old
+
+    # ── 2026-11-22 使用者「改」(剩餘 1):元大查詢的「第幾次」紀錄 ──
+    #   元大的查詢回應不帶「回的是哪一次查詢」。同一種查詢照送出順序排隊(先送的先回):_qp[種類] = [[編號, 送出時間], …],
+    #   _qact[種類] = 現在正在等的那一次。回應來了 → 拿排最前面的那一次:是正在等的 → 收;是已經放棄(逾時)的 → 丟掉(不混進這次)。
+    #   放棄的查詢超過 QUERY_ORPHAN_SEC(預設 60)秒還沒回 = 當作元大不會回了,從排隊拿掉(不然之後每一次都會錯位)
+    Q_TYPES = ("GetOrderTradeReport", "GetConditionStrategy")
+
+    def _qst(self):
+        d = self.__dict__
+        if "_qp_lock" not in d: d["_qp_lock"] = threading.Lock(); d["_qp"] = {}; d["_qact"] = {}; d["_qseq"] = 0
+        return d["_qp_lock"]
+
+    def _q_expire(self, typ):
+        lst = self._qp.setdefault(typ, []); lim = float(CFG.get("QUERY_ORPHAN_SEC", "60") or 60); now = time.time()
+        while lst and lst[0][0] != self._qact.get(typ) and now - lst[0][1] > lim:
+            g = lst.pop(0); log(f"!! 元大查詢 {typ} 第 {g[0]} 次放棄後 {now - g[1]:.0f} 秒都沒回 → 當作不會回了")
+        return lst
+
+    def q_call(self, typ, fn):
+        """送出一次查詢(先記排隊再送:回應可能在送出的呼叫還沒結束就到);送出失敗(丟例外)→ 拿掉這一次"""
+        with self._qst():
+            self._qseq += 1; g = self._qseq; self._qp.setdefault(typ, []).append([g, time.time()]); self._qact[typ] = g
+            self.__dict__.setdefault("_qmine", []).append((typ, g))
+        try: return fn()
+        except Exception:
+            with self._qst():
+                self._qp[typ] = [x for x in self._qp.get(typ, []) if x[0] != g]
+                if self._qact.get(typ) == g: self._qact[typ] = None
+            raise
+
+    def q_end(self):
+        """這次查詢結束(收到 / 逾時):還沒回的那幾次變成「已放棄」(之後晚到的回應丟掉)"""
+        with self._qst():
+            for typ, g in self.__dict__.pop("_qmine", []):
+                if self._qact.get(typ) == g: self._qact[typ] = None
+
+    def q_take(self, typ):
+        """元大回了一個 typ 查詢的回應:True = 是正在等的那一次(收);False = 舊的 / 不知道是哪一次的(丟)"""
+        with self._qst():
+            lst = self._q_expire(typ)
+            if not lst: return False
+            g = lst.pop(0)[0]
+            return g == self._qact.get(typ)
+
+    def q_busy(self, typ):
+        """有放棄的同種查詢還沒回(還沒過 QUERY_ORPHAN_SEC)"""
+        with self._qst():
+            return bool(self._q_expire(typ))
+
+    def q_reset(self):
+        with self._qst():
+            self._qp.clear(); self._qact.clear()
+
+    def q_note(self, msg, key=""):
+        at = self.__dict__.setdefault("_qnote_at", {})
+        if time.time() - at.get(key, 0) > 30: at[key] = time.time(); log(msg)
+
+    def q_wait(self):
+        """2026-11-22 使用者「改」(剩餘 1):盤中定期查詢(額度、30 秒成交檢查、每分鐘對帳、接回)每次最多等幾秒(QUERY_WAIT_SEC,預設 4)"""
+        try: return max(1.0, float(CFG.get("QUERY_WAIT_SEC", "4") or 4))
+        except Exception: return 4.0
 
     def close_all(self, at):
         """一次做完整個 13:20 取消 / 平倉流程(測試、手動用;主迴圈用 close_all_step 分好幾圈做,不卡主迴圈)"""
@@ -1862,7 +1962,8 @@ class Bridge:
         if not self.trader or not self.trader.enabled:
             return True
         try:
-            r = self.query_today()
+            # 2026-11-22 使用者「改」(剩餘 1):接回的查詢也在主迴圈 → 最多等 QUERY_WAIT_SEC 秒(+ 有查條件單時多 2 秒);沒回 → 下一分鐘再試
+            with self.qcap(self.q_wait() + (2.0 if self.broker_stop_on() else 0.0), skip_busy=True): r = self.query_today()
         except Exception as e:
             log("接回:查詢失敗(下一分鐘再試)", e); return False
         if not r:
@@ -2479,19 +2580,24 @@ class Bridge:
                 if FAMILY and k % 60 == 31 and (not getattr(self, "_acfg_seen", False) or (time.strftime("%H:%M", _tw) >= "08:45" and getattr(self, "_acfg_day", "") != time.strftime("%Y-%m-%d", _tw))):
                     threading.Thread(target=self.acfg_sync, daemon=True).start()
                 # 2026-10-29 額度(使用者「我現在要做的是2」):沒開自動交易時沒有人查今天的委託成交 → 每 QUOTA_SEC(60)秒查一次,查到就由 quota_from_report 推上雲端
+                # 2026-11-22 使用者「改」(剩餘 1):下面三個定期查詢(額度、30 秒成交檢查、每分鐘對帳)原本元大不回時每個最多卡主迴圈約 15 秒 →
+                #   每次最多等 QUERY_WAIT_SEC(預設 4)秒,沒回就這輪跳過(沿用上次的資料,下一輪再查);上一次逾時的查詢元大還沒回 → 不再送新的(skip_busy)
+                qw_ = self.q_wait()
                 if CFG.get("QUOTA_PUSH", "1") == "1" and CFG.get("PUSH_KEY") and k % int(CFG.get("QUOTA_SEC", "60")) == 0 and self.logged_in.is_set():
-                    try: self.query_today(with_oco=False)
+                    try:
+                        with self.qcap(qw_, skip_busy=True): self.query_today(with_oco=False)
                     except Exception as e: log("額度查詢失敗", e)
                 if self.trader.enabled and self.trader.need_verify():   # 2026-10-28 漲停 / 跌停單 30 秒沒成交完 → 查元大:還掛著就等、沒有就重送
-                    r = self.query_today(with_oco=False)
+                    with self.qcap(qw_, skip_busy=True): r = self.query_today(with_oco=False)
                     if r: self.trader.verify(r["working"], self.guard_trades(r["trades"], "30 秒檢查")[0], r.get("tags"))   # 平倉檢查 #2:委託書號沒回來也能用自訂編號對;2026-11-21(檢查 R4)可疑重複照較少張數算
-                    else: log("[交易] 30 秒檢查:查不到元大委託回報,下一輪再查")
+                    else: self.q_note("[交易] 30 秒檢查:查不到元大委託回報,下一輪再查", "vf")   # 2026-11-22(剩餘 1):元大慢的時候每圈都會跳過 → 30 秒記一次就好
                 hm_now = now_tw().strftime("%H:%M")
                 # 2026-10-28 模擬測試:斷線 / 重開漏掉回報 → 每分鐘(重連後馬上)跟元大對一次帳,程式不知道的部位接回來 / 平掉
                 # 2026-11-21 使用者「全改」(檢查 R9):還沒接回成功前不對帳(對帳會把程式自己開的部位當成「晚到的成交」平掉);(檢查 R4)可疑重複成交判斷不了的檔跳過
                 if self.trader.enabled and resumed and "09:01" <= hm_now < self.trader.force_exit and time.time() - self.last_recon > 60:
                     self.last_recon = time.time()
-                    r = self.query_today(with_oco=False)
+                    with self.qcap(qw_, skip_busy=True): r = self.query_today(with_oco=False)   # 2026-11-22(剩餘 1):最多等 QUERY_WAIT_SEC 秒;沒回 → 這分鐘不對帳
+                    if r is None: self.last_recon = time.time() - 50   # 這分鐘沒查到 → 10 秒後再試(不用等一整分鐘)
                     if r:
                         safe, amb = self.guard_trades(r["trades"], "對帳")
                         with self.skip_codes(amb):
