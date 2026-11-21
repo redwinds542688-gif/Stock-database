@@ -65,7 +65,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 /* 一頁固定 8 檔、不切半列(17:50 使用者「照這樣 一頁 八檔 不要切到」):列高 = 清單高度 ÷ 8(太矮的螢幕少放幾檔),滑動一格一格對齊 */
 /* 19:15 使用者「要順暢」:列底改單色(斜紋每列都要重畫,手機滑起來會卡)、清單用 GPU 圖層、每列各自排版不互相影響 */
 .list > .prow2:nth-child(even),.list > .row:nth-child(even){background:#151D2C}
-.list > .prow2,.list > .row,.list > .dsep,.list > .dend{contain:layout paint;height:var(--rh,auto);align-content:center;flex:none;scroll-snap-align:start;padding-top:0;padding-bottom:0}
+.list > .prow2,.list > .row,.list > .dsep,.list > .dend,.list > .drow{contain:layout paint;height:var(--rh,auto);align-content:center;flex:none;scroll-snap-align:start;padding-top:0;padding-bottom:0}
 .row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center;padding:9px 8px;border-bottom:1px solid #1E2636;background:#131A28}
 .nm{min-width:0} .nm b{display:block;font-size:clamp(16px,5vw,19px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .nm small{display:block;font-size:14px;color:var(--green);font-variant-numeric:tabular-nums}
 .px{text-align:right;font-variant-numeric:tabular-nums} .px b{font-size:clamp(15px,4.8vw,19px);white-space:nowrap} .px small{display:block;font-size:13px;color:var(--sub)}
@@ -92,6 +92,9 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .prow2 .sub .sd{margin-left:0} .prow2 .tg{text-align:right;font-size:13px;color:var(--sub)}
 .dsep{display:flex;align-items:center;gap:10px;padding:0 10px;background:#1A2234;border-bottom:1px solid #2A3244;font-variant-numeric:tabular-nums}
 .dsep b{font-size:clamp(16px,5vw,19px);color:var(--gold)} .dsep span{font-size:14px;color:var(--sub)} .dsep em{margin-left:auto;font-style:normal;font-weight:900;font-size:clamp(16px,5vw,19px)}
+.drow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:calc(var(--u) * .6);padding:0 calc(var(--u) * .75);border-bottom:1px solid #1E2636;background:#131A28;font-variant-numeric:tabular-nums}
+.list > .drow:nth-child(even){background:#151D2C} .drow b{font-size:calc(var(--uf) * 1.39);color:var(--gold)} .drow span{font-size:calc(var(--uf) * 1.02);color:var(--sub)} .drow em{font-style:normal;font-weight:900;text-align:right;font-size:calc(var(--uf) * 1.5)}
+#hd .amt{cursor:pointer}
 .dend{flex:none;padding:0 14px;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--sub);font-size:13px}
 .days{display:flex;gap:6px;overflow-x:auto;padding:0 6px 8px}
 .day{flex:none;height:34px;padding:0 12px;border-radius:17px;border:1px solid var(--line2);background:transparent;color:var(--soft);font:500 15px var(--f);cursor:pointer}
@@ -472,6 +475,17 @@ const dayLabel = d => { const [m, dd] = d.split("/").map(Number); return `${d}($
 const fillRow = o => `<div class="prow2"><div class="nm"><b>${esc(o.nm)}</b><div class="cd"><i>${esc(o.code)}</i>${o.pct ? `<em class="${o.pct.startsWith("+")?"up":"dn"}">${esc(o.pct)}%</em>` : ""}</div></div>
       <div class="n${o.b.length > 6 ? " sm" : ""}">${esc(o.b)}</div><div class="n${o.a.length > 6 ? " sm" : ""}">${esc(o.a)}</div><div class="pl ${cls(o.p)}${fmt(o.p).length > 7 ? " sm" : ""}">${fmt(o.p)}</div>
       <div class="now">出場價</div><div class="sub">${sd(o.s)}<span>${o.q}張</span></div><div class="tg">元大成交</div></div>`;
+/* 2026-11-21 使用者「明細裡 點擊 金額 就是每天的輸贏列表 最上面最近 最下面最遠 原金額便是總統計 按返回或滑鼠右鍵 退出這畫面回到明細」:
+   明細標題列的金額按一下 → 每日輸贏(一天一列,新的在上);標題列金額 = 全部加起來;手機返回鍵 / 滑鼠右鍵 → 回明細 */
+function vDays(){ const ks = Object.keys(DAYS), tot = ks.reduce((a, d) => a + dayTot(d), 0);
+  return [head("每日", `${ks.length} 天`, fmt(tot), cls(tot)),
+    ks.map(d => `<div class="drow"><b>${dayLabel(d)}</b><span>${DAYS[d].length} 筆</span><em class="${cls(dayTot(d))}">${fmt(dayTot(d))}</em></div>`).join("")
+    + (ST.loading ? `<div class="dsep"><span>讀取更早的紀錄…</span></div>` : "")]; }
+function daysOpen(){ if (S.days) return; S.days = true; try{ history.pushState({days: 1}, ""); }catch(e){} render(); document.getElementById("list").scrollTop = 0; }
+function daysClose(){ if (!S.days) return; S.days = false; S.day = null; render(); document.getElementById("list").scrollTop = 0; }
+window.addEventListener("popstate", () => daysClose());
+document.addEventListener("contextmenu", e => { if (S.days){ e.preventDefault(); try{ history.back(); }catch(x){ daysClose(); } } });
+document.addEventListener("click", e => { if (S.tab === "明細" && !S.days && e.target.closest("#hd .amt")) daysOpen(); });
 function vDone(){
   const ks = Object.keys(DAYS), d0 = S.day && DAYS[S.day] ? S.day : ks[0], tot = d0 ? dayTot(d0) : 0;
   if (!ks.length) return [head("明細", md(ST.day || twDate()), fmt(0), "mut"), `<div class="empty">${!keyGet() ? "輸入金鑰後,這裡會列出你元大帳號的成交明細" : ST.loading || !ST.todayTried ? "讀取中…" : esc(ST.pcDown ? "電腦沒開或沒連線,雲端備份也還沒有成交紀錄(11/12 以後的才有雲端備份)" : (ST.posErr || "還沒有成交紀錄"))}</div>`];
@@ -499,7 +513,7 @@ function fitText(){ try{
     while (el.scrollWidth > el.clientWidth + 0.5 && fs > 10 && k++ < 30){ fs -= 1; el.style.fontSize = fs + "px"; } } }catch(e){} }
 
 function render(){
-  const v = S.tab==="當沖" ? vPos() : vDone(), h = v[0], pre = v.length > 2 ? v[1] : "", l = v[v.length - 1];
+  const v = S.tab==="當沖" ? vPos() : S.days ? vDays() : vDone(), h = v[0], pre = v.length > 2 ? v[1] : "", l = v[v.length - 1];
   const set = (id, v) => { const e = document.getElementById(id); if (e.__v !== v){ e.__v = v; e.innerHTML = v; } };   // 沒變就不重畫(滑動中不會被打斷)
   set("hd", h); set("pre", pre); set("list", l); fit(); fitText();
   document.getElementById("nav").innerHTML = ["當沖","明細"].map(t=>`<button type="button" class="${S.tab===t?"on":""}" data-tab="${t}" aria-current="${S.tab===t?"page":"false"}">${t}</button>`).join("");
@@ -507,7 +521,7 @@ function render(){
 document.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return;
   if (b.id === "spk" && coexist()){ notifyQuiet("名揚四海正開著:由名揚四海響,夥伴看盤不響也不震"); return; }
   if (b.id === "spk"){ const m = !muted(); sndSet(m); MUTED_MEM = m; render(); notifyQuiet(m ? "這台靜音(不響,震動照舊)" : "這台通知有聲音"); if (!m) webSnd("long", ""); return; }
-  if (b.dataset.tab){ S.tab = b.dataset.tab; S.day = null; render(); document.getElementById("list").scrollTop = 0; return; }
+  if (b.dataset.tab){ if (S.days){ S.days = false; try{ history.back(); }catch(x){} } S.tab = b.dataset.tab; S.day = null; render(); document.getElementById("list").scrollTop = 0; return; }
   if (b.id === "keyBtn") return;   /* 2026-11-18 使用者「金鑰通過後 這看盤版就專屬金鑰主人的 不需要更換他人的功能」:按了沒反應 */
 });
 function notifyQuiet(t){ const L = document.getElementById('toastL'); L.innerHTML = `<div class="toast pc" role="status"><b>${esc(t)}</b></div>`; clearTimeout(notify.t); notify.t = setTimeout(() => L.innerHTML = '', 1800); }
