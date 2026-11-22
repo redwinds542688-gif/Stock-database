@@ -1654,3 +1654,12 @@ for _ in range(3): cb10.reconcile([_fill("B", 1, 29.0)], [])
 ok("1709" not in cb10.positions and len(cb10.journal) == 1 and not [x for x in gcb10.sent if x[0] == "1709"], (cb10.positions, gcb10.sent))
 at(10, 0)
 print("2026-11-22 留倉對帳 B9 OK")
+
+# 2026-11-22 判二 / 三 / 八 / 十「沒走」出場(訊號後 45 分鐘最有利不到 0.3%)→ 引擎通知標題「沒走」,中繼照一般出場平倉
+for _j in ("判二", "判三", "判八", "判十"):
+    at(10, 0); tmz, gmz = mk(TRADE_CAP="250000"); tmz.ref_of = lambda c: 86.0; tmz.on_tick("6269", 86.2)
+    tmz.step([sig(f"10:00:6269|台郡|{_j}", "short", "台郡 6269 做空進場 86.2", f"10:00 空 · 停利 81.89 停損 87.49 · 2張 · {_j}")])
+    _no = tmz.positions["6269"]["order"]["no"]; tmz.on_report(51, _no, 0, 2000, 86.1); ok(tmz.positions["6269"]["state"] == HOLDING, tmz.positions["6269"])
+    at(10, 46); tmz.step([sig(f"10:46:6269|台郡沒走|{_j}", "loss", "⚠⚠ 台郡 6269 沒走 -0.1% 立即平倉", f"10:45 做空 10:00 進 86.10 → 現價 86.20 · 2張 · {_j}")])
+    ok(tmz.positions["6269"]["state"] == EXITING and gmz.sent[-1][1] == "B", _j, tmz.positions["6269"], gmz.sent)
+print("沒走出場 OK")
