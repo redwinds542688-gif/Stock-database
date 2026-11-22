@@ -99,11 +99,30 @@ const ymdOf = t => t.toISOString().slice(0, 10);
 const hhmmOf = t => t.toISOString().slice(11, 16);
 // 2026-11-06 15:44 使用者「美股只是參考 每天8.20 拿到資料之後 在當沖的通知欄裡 顯示 美股四大指數的結果 當沖按鍵 左上角 閃紅點」:
 //   台灣 08:20 / 08:30 / 08:45 cron 抓前一個美股交易日的道瓊、S&P 500、那斯達克、費半收盤(Yahoo 圖表 API,抓不到改 FRED),存 Hub「usmkt」;GET ?usmkt=get 給手機
-const US_IDX = [["^TWII", "台股", ""], ["^SOX", "費半", "NASDAQSOX"], ["^N225", "日經", "NIKKEI225"], ["^IXIC", "那斯達克", "NASDAQCOM"], ["^KS11", "韓國", ""], ["^GSPC", "S&P 500", "SP500"]];   // 2026-11-07 14:29 使用者「資訊 增加 s&p 500 的圖」:第六格加回 S&P 500   // 2026-11-06 23:31 使用者「改」:台灣加權移到右上(跟標題同一排),中間 費半 / 日經,下面 NASDAQ / 韓國綜合   // 2026-11-06 23:02 使用者「把道瓊刪除 那費城半導體移到原道瓊位置 原費半改日經225」   // 2026-11-06 20:03 使用者「這裡的 s&p500 改成台灣股市」:第二格換台灣加權指數(Yahoo ^TWII;FRED 沒有,抓不到就空著)
+const US_IDX = [["^TWII", "台股", ""], ["TXF", "台指期", ""], ["^N225", "日經", "NIKKEI225"], ["^SOX", "費半", "NASDAQSOX"], ["^KS11", "韓國", ""], ["^IXIC", "那斯達克", "NASDAQCOM"]];   // 2026-11-22 16:32 使用者「通知欄 拿掉 S&P 換 台指期排在右1」:左欄 台灣加權 / 日經 / 韓國,右欄 台指期 / 費半 / NASDAQ(台指期用中繼推的 1 分 K)   // 2026-11-07 14:29 使用者「資訊 增加 s&p 500 的圖」:第六格加回 S&P 500   // 2026-11-06 23:31 使用者「改」:台灣加權移到右上(跟標題同一排),中間 費半 / 日經,下面 NASDAQ / 韓國綜合   // 2026-11-06 23:02 使用者「把道瓊刪除 那費城半導體移到原道瓊位置 原費半改日經225」   // 2026-11-06 20:03 使用者「這裡的 s&p500 改成台灣股市」:第二格換台灣加權指數(Yahoo ^TWII;FRED 沒有,抓不到就空著)
+/* 2026-11-22 台指期那一格:Yahoo 沒有台指期,用中繼每分鐘推到雲端的台指期 1 分 K(Hub fbars:日期)。
+   最近一個已收盤(今天要 13:46 以後)的交易日 = 收盤 / 走勢線,再前一個有 K 的交易日最後一根 = 昨收(算漲跌) */
+async function txfRow(env, name) {
+  if (!env.HUB) return null;
+  const t = new Date(Date.now() + 8 * 3600e3), hm = t.toISOString().slice(11, 16), got = [];
+  for (let k = 0; k < 15 && got.length < 2; k++) {
+    const d = new Date(t.getTime() - k * 864e5).toISOString().slice(0, 10);
+    if (k === 0 && hm < "13:46") continue;
+    let v = null; try { v = await hubOf(env).kvGet("fbars:" + d); } catch (e) {}
+    const bars = (v && Array.isArray(v.bars) ? v.bars : []).filter(b => b && +b[4] > 0);
+    if (bars.length) got.push({ d, bars });
+  }
+  if (got.length < 2) return null;
+  const cl = got[0].bars.map(b => +b[4]), c1 = cl[cl.length - 1], c0 = +got[1].bars[got[1].bars.length - 1][4];
+  const row = { name, close: +c1.toFixed(2), prev: +c0.toFixed(2), pct: +((c1 / c0 - 1) * 100).toFixed(2), date: got[0].d, src: "中繼" };
+  if (cl.length >= 5) row.spark = cl.length > 90 ? cl.filter((x, i) => i % Math.ceil(cl.length / 90) === 0 || i === cl.length - 1) : cl;
+  return row;
+}
 async function fetchUS(env) {
   const out = [];
   for (const [sym, name, fred] of US_IDX) {
     let row = null;
+    if (sym === "TXF") { try { row = await txfRow(env, name); } catch (e) {} if (row) row.chg = +(row.close - row.prev).toFixed(2); out.push(row || { name, close: null, pct: null, date: "", src: "" }); continue; }
     try {
       const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=10d&interval=1d`, { headers: { "User-Agent": "Mozilla/5.0" } });
       const j = await r.json(); const res = j && j.chart && j.chart.result && j.chart.result[0];
@@ -139,7 +158,7 @@ async function fetchUS(env) {
 async function usGet(env, force) {
   let v = null; try { v = env.HUB ? await hubOf(env).kvGet("usmkt") : null; } catch (e) {}
   const t = new Date(Date.now() + 8 * 3600e3), d = t.toISOString().slice(0, 10), hm = t.toISOString().slice(11, 16), wd = t.getUTCDay();
-  const ok = v && v.d === d && v.idx && v.idx.length >= US_IDX.length && v.idx.every(x => x.close != null);
+  const ok = v && v.d === d && v.idx && v.idx.length >= US_IDX.length && v.idx.every(x => x.close != null) && US_IDX.every(([, n], i) => v.idx[i] && v.idx[i].name === n);   // 2026-11-22 換格子(S&P → 台指期)後,快取裡的舊格子不算抓齊,馬上重抓
   const stp = wd >= 1 && wd <= 5 ? ["14:40", "13:40"].find(x => hm >= x) : null, okPm = !stp || (v && v.hm >= stp);   // 2026-11-09 15:08 使用者「13.40 改」:平日 13:40 再加一次(台股 13:30 收盤);日經 / 韓國還在交易的那天不會拿(只拿已收盤),14:40 那次才換   // 2026-11-09 14:32 使用者「台股 美股 韓股 日股 都要逐日更新」:早上 08:30 抓美股(前一晚收盤);平日 14:40 後再抓一次,換上台股 / 日經 / 韓國當天收盤和走勢線   // 2026-11-07 加 S&P 500 後,舊快取少一張要重抓
   if (force || ((!ok || !okPm) && hm >= "08:30")) {   // 2026-11-07 15:03 使用者「不用隨時抓 每天早上8.30抓一次即可 除非抓不到」:08:30 前不抓;今天抓齊就整天用快取   // 2026-11-06 16:11 週六、週日也抓(手機來問時;星期六 08:20 起顯示到星期一 09:00)
     const c = MC.get("usfetch"); if (!force && c && Date.now() - c < 300e3) return v;   // 手機來問、今天還沒有:最多 5 分鐘抓一次
