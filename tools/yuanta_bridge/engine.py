@@ -1080,6 +1080,15 @@ def build_universe(j, day, cap, held=(), noted=(), old_src=None):
         else: rest.append(str(s["code"]))
     n_held = len([c for c in held if c in src])
     codes = carried + rest[: max(0, R["cnt"] - n_held)]
+    # 2026-11-22 使用者(判別式聊天轉達)「改:引擎計算迴圈的股票順序」:原本 carried(在手 / 今天通知過,set 轉 list 順序不固定)排最前面,
+    #   09:06 重建、名單更新、名單外股票加入時會重排 → 同一分鐘同一判別式多檔新進場誰先拿額度不固定,回測總表對不上。
+    #   改成固定照名單成交張數(pool 的 lots)大到小、同張數照代碼小到大;沒有張數的(名單外手動成交)排最後、照代碼。carried 只保證留在監控名單裡
+    def _ord(c):
+        lt = src.get(c, {}).get("lots")
+        try: lt = float(lt) if lt is not None and not src[c].get("extra") else None
+        except Exception: lt = None
+        return (0, -lt, c) if lt is not None else (1, 0.0, c)
+    codes = sorted(codes, key=_ord)
     no_new = {c for c in carried if not src[c].get("extra") and stock_ok(src[c], j, R)}
     names, prev, mkts, canshort = {}, {}, {}, {}
     for c in codes:

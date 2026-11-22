@@ -185,4 +185,20 @@ if __name__ == "__main__":
     E.CFG.pop("ENGINE_BR_POOL"); E._BR_POOL = {}
     ok(E.br_local(DAY) == {"09:00": 0.5})   # 名單讀不到 → 照舊
     print("寬度自己算整份名單 OK")
-    print("test_engine 全部 OK")
+
+# 2026-11-22 計算迴圈股票順序固定照名單張數大到小(同張數照代碼),在手 / 今天通知過不排前面,名單外手動成交排最後
+def _st(c, lots, close=100): return {"code": c, "name": c, "market": "twse", "close": close, "prev": close, "amp": 9, "lots": lots, "daytrade": 1, "short_first": 1, "date": DAY}
+_pool = [_st("2330", 5000), _st("2303", 9000), _st("2317", 5000), _st("1301", 100), _st("3008", 7000)]
+_sv = (E.pool_rules, E.stock_ok, E.extra_codes)
+try:
+    E.pool_rules = lambda j, cap: {"lo": 0, "hi": 1e9, "amp": 0, "size": 99, "cnt": 99, "tick": 0, "excl": [], "lots": 0, "bars": 0, "days": 1}
+    E.stock_ok = lambda s, j, R: ""
+    E.extra_codes = lambda d: [{"code": "6789", "name": "x", "close": 50, "prev": 50, "extra": 1}]
+    u = E.build_universe({"pool": _pool}, DAY, 250000, held={"1301", "2317"}, noted={"3008"})
+    ok(u["codes"] == ["2303", "3008", "2317", "2330", "1301", "6789"], u["codes"])
+    u2 = E.build_universe({"pool": _pool}, DAY, 250000)
+    ok(u2["codes"] == ["2303", "3008", "2317", "2330", "1301", "6789"], u2["codes"])
+finally:
+    E.pool_rules, E.stock_ok, E.extra_codes = _sv
+print("計算順序照張數 OK")
+print("test_engine 全部 OK")
