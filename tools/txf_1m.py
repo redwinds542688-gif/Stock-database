@@ -64,6 +64,18 @@ def fetch(d):
         b = bars.get(t)
         if b is None: bars[t] = [p, p, p, p, q]
         else: b[1] = max(b[1], p); b[2] = min(b[2], p); b[3] = p; b[4] += q
+    # 2026-11-22 判別式聊天轉達(使用者):結算日近月 13:30 就收了,13:30~13:45 沒有 K → ⑧ 強弱「前一天台指期收盤(13:45 前最後一根)」拿到近月 13:29,
+    #   隔天近月已經換成下個月,兩個合約差一個價差(11/18 約 0.7%)→ 11/19 判十 11 筆空單全被擋。改成:結算日 13:30 以後接下個月合約(隔天的近月)的真實成交
+    if settle:
+        nx = f"{d.year + 1}01" if d.month == 12 else f"{d.year}{d.month + 1:02d}"
+        nb = {}
+        for tm, p, q in ticks.get(nx, []):
+            t = f"{tm[:2]}:{tm[2:4]}"
+            if t < "13:30" or t in bars: continue
+            b = nb.get(t)
+            if b is None: nb[t] = [p, p, p, p, q]
+            else: b[1] = max(b[1], p); b[2] = min(b[2], p); b[3] = p; b[4] += q
+        bars.update(nb)
     # 2026-11-22 使用者「全部做」(L1):期交所每筆成交檔的「成交數量(B+S)」是買賣雙邊合計(每筆 = 2 × 口數),
     #   原本直接加總 → 量是實際口數的 2 倍,和中繼推的元大台指期 K(save_cloud_bars.save_fbars,單邊口數)對不起來。
     #   改成除以 2(單邊口數)。每筆都是偶數,合計除 2 一定整除;萬一出現奇數就四捨五入。

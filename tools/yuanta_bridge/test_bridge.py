@@ -472,4 +472,38 @@ try:
 finally:
     _el.get_json, _el.load_today, Y.HERE = _gj, _lt, _here
 
+# 2026-11-22 結算日 13:30 以後台指期改收下個月(判別式聊天轉達:11/18 只到 13:29 → 11/19 ⑧ 強弱偏 0.82%)
+import json as _json, io as _io
+_uo, _th, _here2 = Y.urllib.request.urlopen, Y.threading.Thread, Y.HERE
+try:
+    Y.HERE = TMP
+    class _SyncT:
+        def __init__(s, target=None, daemon=None): s.t = target
+        def start(s): s.t()
+    Y.threading.Thread = _SyncT
+    Q = {}
+    Y.urllib.request.urlopen = lambda rq, timeout=None: _io.BytesIO(_json.dumps({"RtData": {"QuoteList": Q["L"]}}).encode())
+    b = Y.Bridge.__new__(Y.Bridge); b.fut_n = None; b.fut_src_save = lambda *a: None
+    ok(b.fut_settle_next(dt.date(2026, 12, 16)) == (2027, 1) and b.fut_settle_next(dt.date(2026, 12, 15)) is None and b.fut_settle_next(dt.date(2026, 12, 17)) is None, "結算日判斷")
+    def poll(hm, near_px, nx_px, near_t, nx_t):
+        NOW[0] = dt.datetime(2026, 12, 16, int(hm[:2]), int(hm[3:]), 5, tzinfo=Y.TW); b._tf_at = 0
+        Q["L"] = [{"SymbolID": "TXFL6-F", "CLastPrice": str(near_px), "CTotalVolume": "100", "CTime": near_t},
+                  {"SymbolID": "TXFA7-F", "CLastPrice": str(nx_px), "CTotalVolume": "50", "CTime": nx_t}]
+        b.fut_poll()
+    poll("13:28", 40000, 40300, "132800", "132800")
+    poll("13:29", 40001, 40301, "132900", "132900")
+    poll("13:30", 40002, 40302, "133000", "133000")   # 13:30 以後:收下個月
+    poll("13:44", 40002, 40310, "133000", "134400")
+    ok(b.fut_tf["13:29"][3] == 40001 and b.fut_tf["13:30"][3] == 40302 and b.fut_tf["13:44"][3] == 40310, b.fut_tf)
+    NOW[0] = dt.datetime(2026, 12, 16, 13, 46, 0, tzinfo=Y.TW); b.fut_flush()
+    rows = open(TMP / "kline_futures" / "TXF" / "2026-12-16.csv", encoding="utf-8").read().split()
+    ok(rows[-1].split(",")[1] == "13:44" and rows[-1].split(",")[5] == "40310.0", rows[-3:])
+    # 一般日子不變:13:30 以後照收近月
+    b2 = Y.Bridge.__new__(Y.Bridge); b2.fut_n = None; b2.fut_src_save = lambda *a: None; b = b2
+    NOW[0] = dt.datetime(2026, 12, 15, 13, 40, 5, tzinfo=Y.TW); b._tf_at = 0
+    Q["L"] = [{"SymbolID": "TXFL6-F", "CLastPrice": "40100", "CTotalVolume": "100", "CTime": "134000"}, {"SymbolID": "TXFA7-F", "CLastPrice": "40400", "CTotalVolume": "50", "CTime": "134000"}]
+    b.fut_poll(); ok(b.fut_tf["13:40"][3] == 40100, b.fut_tf)
+finally:
+    Y.urllib.request.urlopen, Y.threading.Thread, Y.HERE = _uo, _th, _here2
+
 print(f"test_bridge 全部通過({N_OK[0]} 項)")

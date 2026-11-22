@@ -671,6 +671,12 @@ class Bridge:
         if d > third_wed(y, m): y, m = (y + 1, 1) if m == 12 else (y, m + 1)
         return y, m
 
+    def fut_settle_next(self, d=None):
+        """結算日(今天近月是本月、明天就換月)→ 回傳下個月 (年, 月);其他日子 None"""
+        d = d or now_tw().date(); y, m = self.fut_near(d)
+        if (y, m) == (d.year, d.month) and self.fut_near(d + dt.timedelta(days=1)) != (y, m): return self.fut_near(d + dt.timedelta(days=1))
+        return None
+
     def fut_sub(self):
         if FAMILY or CFG.get("FUT_ENABLE", "1") != "1": return   # 2026-11-15 家人帳號:台指期由主帳號收(公式引擎在主帳號)
         try:
@@ -724,6 +730,14 @@ class Bridge:
                 L = ((js.get("RtData") or {}).get("QuoteList") or [])
                 best = None
                 _y, _m = self.fut_near(); _near = f"TXF{'ABCDEFGHIJKL'[_m - 1]}{_y % 10}-F"   # 2026-11-18 21:00 使用者「改」:固定近月代號(結算日下個月成交量比較大,原本「量最大」會選到下個月)
+                # 2026-11-22 判別式聊天轉達(使用者):結算日近月 13:30 收 → 13:30 以後改收下個月合約(隔天的近月),隔天 ⑧ 強弱的「前一天台指期收盤」才是同一個合約
+                _nx = self.fut_settle_next()
+                if _nx and now_tw().strftime("%H:%M") >= "13:30":
+                    _near = f"TXF{'ABCDEFGHIJKL'[_nx[1] - 1]}{_nx[0] % 10}-F"
+                    if getattr(self, "_tf_nx_day", None) != now_tw().date():   # 第一次換:丟掉 13:30 以後還是近月的那幾根
+                        self._tf_nx_day = now_tw().date()
+                        for _k in [k for k in (getattr(self, "fut_tf", {}) or {}) if k >= "13:30"]: self.fut_tf.pop(_k, None)
+                        log(f"[台指期·期交所] 結算日 13:30 以後改收下個月 {_near}")
                 if any(str(q.get("SymbolID", "")) == _near for q in L): L = [q for q in L if str(q.get("SymbolID", "")) == _near]
                 for q in L:
                     sid = str(q.get("SymbolID", ""))
@@ -737,6 +751,7 @@ class Bridge:
                     return
                 ct = best[3].zfill(6); hm = f"{ct[:2]}:{ct[2:4]}" if ct.isdigit() and ct != "000000" else now_tw().strftime("%H:%M")
                 if not ("08:45" <= hm <= "13:45"): return
+                if _nx and best[0] == _near and _near != f"TXF{'ABCDEFGHIJKL'[_m - 1]}{_y % 10}-F" and hm < "13:30": return
                 bars = self.__dict__.setdefault("fut_tf", {}); b = bars.get(hm); px = best[1]
                 if b is None: bars[hm] = [px, px, px, px, 0]
                 else: b[1] = max(b[1], px); b[2] = min(b[2], px); b[3] = px
@@ -823,7 +838,9 @@ class Bridge:
                 except FileNotFoundError: pass
                 except Exception as e: log("[台指期] 讀本機舊 1 分 K 失敗", e)
             mg = dict(self._fut_old); mg.update(tf if use is ya else {}); mg.update(use)
-            if self.fut_near(_nd + dt.timedelta(days=1)) != (_y, _m) and (_y, _m) == (_nd.year, _nd.month): mg = {k: v for k, v in mg.items() if k <= "13:30"}   # 2026-11-18 21:00 結算日:近月 13:30 收盤,之後不寫(避免混進下個月)
+            if self.fut_near(_nd + dt.timedelta(days=1)) != (_y, _m) and (_y, _m) == (_nd.year, _nd.month):   # 2026-11-18 21:00 結算日:近月 13:30 收盤,元大那份(近月)之後不寫
+                # 2026-11-22 判別式聊天轉達:13:30 以後只寫期交所那份(fut_poll 已改收下個月合約)或重開前存的,隔天 ⑧ 強弱的前一天收盤才不會停在近月 13:29
+                mg = {k: v for k, v in mg.items() if k < "13:30" or (getattr(self, "_tf_nx_day", None) == _nd and k in tf) or (k in self._fut_old and k not in ya)}
             rows = [[hm] + list(v) for hm, v in sorted(mg.items()) if hm < cur]   # 只寫已經收完的分鐘
             if not rows: return
             with open(tmp, "w", encoding="utf-8") as fh:
