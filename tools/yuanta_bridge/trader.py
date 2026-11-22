@@ -2499,15 +2499,8 @@ class Trader:
             self.log(f"[交易] 不進場 {title}:現價 {last} 已不在停利 {tp_sig} / 停損 {sl_sig} 之間"); return
         d = 1 if kind == "long" else -1
         price = shift(last, self.slip * d)                     # 買進往上讓、賣出往下讓
-        if self.ent_pct > 0 and ref_e > 0 and abs(price / ref_e - 1) * 100 > self.ent_pct + 1e-9:   # 2026-11-11 22:44 使用者「全改」 9:「進場規則就是不超過+-5 如果讓2檔超過 就不進行交易」
-            # 2026-11-22 使用者(判別式聊天轉達)「訊號點位在 ±5% 裡面就要算數,降二檔做空超過 ±5% 不計」:現價在 ±5% 內就要送單,
-            #   讓 2 檔後超過 ±5% → 委託價改掛在 ±5% 界線上(做空 = 昨收 × 0.95 往上取到升降單位、做多 = 昨收 × 1.05 往下取),委託價仍不超過 ±5%(鐵律 ①)
-            b = ref_e * (1 - self.ent_pct / 100) if d < 0 else ref_e * (1 + self.ent_pct / 100)
-            p2 = px_tick(b, 0 if d < 0 else 1e18)
-            if abs(p2 / ref_e - 1) * 100 > self.ent_pct + 1e-9 or (p2 - last) * d < -1e-9:
-                self.log(f"[交易] 不進場 {title}:委託價 {price}(現價 {last} 讓 {self.slip} 檔)離昨收 {ref_e} {(price / ref_e - 1) * 100:+.2f}%,界線價 {p2} 也不行"); return
-            self.log(f"[交易] {code} 委託價 {price}(現價 {last} 讓 {self.slip} 檔)會超過昨收 ±{self.ent_pct:g}% → 改掛界線價 {p2}")
-            price = p2
+        # 2026-11-22 使用者(判別式聊天轉達)「訊號在 ±5% 內,降二檔不管有沒有超出 ±5% 都算」:±5% 只看現價(上面那關),委託價(現價讓 2 檔)不再檢查 ±5%
+        #   (原 2026-11-11 22:44「讓 2 檔超過就不進」→ 同日 21:57 改掛界線價 → 再改成照讓 2 檔送單)
         if lim > 0 and price * 1000 > lim + 1e-6:   # 2026-11-11 23:06 使用者「全改」(第三輪) 6:一張上限也看委託價(現價讓 2 檔)
             self.log(f"[交易] 不進場 {title}:委託價 {price} 一張 {price * 1000:,.0f} 超過多空上限 {lim:,.0f}(超額,鐵律 ⑤)"); return
         lots = self.lots_for(max(px_sig, price))   # 2026-11-11 22:44 使用者「全改」 10:張數分級照訊號價和委託價較高的算(金額不超過 16 萬 / 25 萬)   # 2026-11-11 14:49 張數分級   # 原 max(1, int(self.cap // (px_sig * 1000)))   # 2026-10-30 張數照多空上限(訊號價算,和通知上的張數一樣)
