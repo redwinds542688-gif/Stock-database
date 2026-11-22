@@ -2047,7 +2047,9 @@ class Bridge:
             except Exception: pass
             try: items["blocked"] = [json.loads(x) for x in (ed / f"blocked_{day}.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()][-400:]   # 2026-11-12 20:29 被擋 / 等待中的訊號
             except Exception: pass
-            try: items["signals"] = [json.loads(x) for x in (ed / f"live_{day}.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()][-300:]   # 引擎發出的通知
+            try: items["signals"] = [json.loads(x) for x in (ed / f"live_{day}.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()][-1500:]   # 引擎發出的通知(2026-11-22 對帳用:300 → 1500 則,一天全部)
+            except Exception: pass
+            try: items["verdicts"] = [json.loads(x) for x in (ed / f"verdict_{day}.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()][-1500:]   # 2026-11-22 每則進場訊號有沒有進場(實盤 vs 總表對帳,tools/recon.py)
             except Exception: pass
             try: items["fills"] = (getattr(self, "_fills_cache", None) or (0, None))[1]   # 元大成交明細(手機明細同一份)
             except Exception: pass
