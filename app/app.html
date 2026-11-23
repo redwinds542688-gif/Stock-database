@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-23 大盤線圖標題列加台指期漲跌幅(白字,對前一交易日台指期收盤);下格寬度小框也拿掉,數值寫在「寬度(上漲家數 %)」後面
   · 2026-11-23 大盤線圖上格說明框拿掉,十字線那分鐘的大盤指數 / 漲跌 / 台指期直接顯示在標題列(點數高的在前)
   · 2026-11-23 大盤線圖十字說明框:寬度照字量、十字兩邊放不下就整排找不壓線的位置(不再蓋在線上)
   · 2026-11-23 大盤線圖的寬度和監控標題同調:寬度一更新線圖馬上用同一份重畫,小數一位一律無條件捨去
@@ -611,7 +612,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611231139">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611231144">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4483,6 +4484,11 @@ async function mkcFetch(force){
     if (!fb || !Object.keys(MKC.fx).length){ if (Object.keys(oldFx || {}).length) MKC.fx = oldFx; MKC.rn = (MKC.rn || 0) + 1; clearTimeout(MKC.rt); if (MKC.rn <= 3) MKC.rt = setTimeout(() => { if (MKC.open) mkcFetch(true); }, 10000); } else MKC.rn = 0;
     MKC.br = {}; if (br && br.br){ for (const [k, v] of Object.entries(br.br)) if (isFinite(+v)) MKC.br[k] = +v * 100; }
     else if (day === BREADTH.d) for (const [t, v] of BREADTH.arr){ const k = new Date((t + 8 * 3600) * 1000).toISOString().slice(11, 16); MKC.br[k] = +v * 100; }
+    /* 2026-11-23 11:43 使用者「台指期漲跌幅 也標上去 白色」:台指期昨收 = 前一個有台指期 1 分 K 的交易日最後一根(一般盤收盤,和資訊頁台指期那格同一算法);一天只找一次 */
+    if (MKC.fyd !== day){ MKC.fy0 = 0; const dd = new Date(day + 'T00:00:00Z');
+      for (let k = 1; k <= 8 && !MKC.fy0; k++){ dd.setUTCDate(dd.getUTCDate() - 1); const wd = dd.getUTCDay(); if (wd === 0 || wd === 6) continue;
+        const pf = await J_('fbars=' + dd.toISOString().slice(0, 10)); const bs = ((pf && pf.bars) || []).filter(b => b && +b[4] > 0); if (bs.length) MKC.fy0 = +bs[bs.length - 1][4]; }
+      if (MKC.fy0) MKC.fyd = day; }
     const m = q && (q.msgArray || []).find(x => x.c === 't00'); MKC.y0 = m && String(m.d || '') === day.replace(/-/g, '') && +m.y > 0 ? +m.y : 0;   // 證交所 t00 的昨收(只有同一天才用)
     MKC.at = Date.now();
   }catch(e){}
@@ -4519,7 +4525,7 @@ function mkcDraw(){ try{
     const line = (A, col, w) => A.length ? `<path d="${A.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y1(p[1]).toFixed(1)).join(' ')}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linejoin="round"/>` : '';
     h += line(FX, '#FFFFFF', 2) + line(IX, '#FF3B3B', 2.4); g.y1 = y1; }
   else h += `<text x="${W / 2}" y="${(T1 + B1) / 2}" font-size="12" fill="#8C96AB" text-anchor="middle">還沒有大盤 / 台指期資料</text>`;
-  h += `<line x1="0" x2="${W}" y1="${B1 + 8}" y2="${B1 + 8}" stroke="#3A4356"/><text x="6" y="${T2 - 6}" font-size="16" font-weight="700" fill="#FFD54F">寬度(上漲家數 %)</text>`;
+  h += `<line x1="0" x2="${W}" y1="${B1 + 8}" y2="${B1 + 8}" stroke="#3A4356"/><!--BTTL-->`; const bttl0 = `<text x="6" y="${T2 - 6}" font-size="16" font-weight="700" fill="#FFD54F">寬度(上漲家數 %)</text>`; let bttl = '';
   const y2 = v => T2 + 6 + (B2 - T2 - 6) * (100 - v) / 100;
   for (const v of [100, 50, 0]) h += `<line x1="${L}" x2="${W - R}" y1="${y2(v)}" y2="${y2(v)}" stroke="${v === 50 ? '#B89A3C' : '#2A3346'}" ${v === 50 ? 'stroke-dasharray="4 3"' : ''}/><text x="${L - 4}" y="${y2(v) + 4}" font-size="13" fill="#D4B65A" text-anchor="end">${v}%</text>`;
   if (BR.length > 1){ const P = BR.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y2(p[1]).toFixed(1)).join(' '), A = `${P} L${x(BR[BR.length - 1][0])} ${y2(50)} L${x(BR[0][0])} ${y2(50)} Z`;
@@ -4554,13 +4560,14 @@ function mkcDraw(){ try{
     const pr = vi != null && MKC.y0 ? (vi / MKC.y0 - 1) * 100 : null, pct = pr == null ? '' : ` <tspan fill="${pr > 0 ? '#FF3B3B' : pr < 0 ? '#1DD75B' : '#E6EAF2'}">${pr > 0 ? '+' : ''}${pr.toFixed(2)}%</tspan>`;
     /* 2026-11-23 11:39 使用者「把台指期大盤顯示視窗拿掉 改顯示在上面大盤 台指期 那列」:上格不再跳小框,十字線那分鐘的大盤指數 / 漲跌 / 台指期直接寫在標題列(點數高的放前面;太長就縮字) */
     { const fx_ = v => v != null ? v.toFixed(0) : '—', pcs = pr == null ? '' : `${pr > 0 ? '+' : ''}${pr.toFixed(2)}%`, pcc = pr > 0 ? '#FF3B3B' : pr < 0 ? '#1DD75B' : '#E6EAF2';
-      const A = `<tspan fill="#FF3B3B">大盤指數 ${fx_(vi)}</tspan>${pcs ? ` <tspan fill="${pcc}">${pcs}</tspan>` : ''}`, Bf = `<tspan fill="#FFFFFF">台指期 ${fx_(vf)}</tspan>`;
-      const plain = `大盤指數 ${fx_(vi)} ${pcs}　台指期 ${fx_(vf)}`, wd = tw_(plain), fs = wd > W - 12 ? Math.max(11, Math.floor(16 * (W - 12) / wd)) : 16;
+      const fpr = vf != null && MKC.fy0 ? (vf / MKC.fy0 - 1) * 100 : null, fps = fpr == null ? '' : `${fpr > 0 ? '+' : ''}${fpr.toFixed(2)}%`;
+      const A = `<tspan fill="#FF3B3B">大盤指數 ${fx_(vi)}</tspan>${pcs ? ` <tspan fill="${pcc}">${pcs}</tspan>` : ''}`, Bf = `<tspan fill="#FFFFFF">台指期 ${fx_(vf)}${fps ? ' ' + fps : ''}</tspan>`;
+      const plain = `大盤指數 ${fx_(vi)} ${pcs}　台指期 ${fx_(vf)} ${fps}`, wd = tw_(plain), fs = wd > W - 12 ? Math.max(11, Math.floor(16 * (W - 12) / wd)) : 16;
       ttl = `<text x="6" y="19" font-size="${fs}" font-weight="700">${fUp ? Bf + '　' + A : A + '　' + Bf}</text>`; }
-    { const bw = 118, bh = 30, q = place(bw, bh, T2 + 6, B2 - 2, pts2);
-      h += `<rect x="${q.bx}" y="${q.by}" width="${bw}" height="${bh}" rx="5" fill="#0B0F17" stroke="#5A6478" opacity=".95"/><text x="${q.bx + 7}" y="${q.by + 21}" font-size="16" font-weight="700" fill="#FFD54F">寬度 ${vb != null ? (Math.floor(vb * 10 + 1e-6) / 10).toFixed(1) + '%' : '—'}</text>`; }
+    /* 2026-11-23 11:43 使用者「大盤寬度 也這樣改」:下格的寬度小框也拿掉,十字線那分鐘的寬度寫在下格標題列 */
+    bttl = `<text x="6" y="${T2 - 6}" font-size="16" font-weight="700" fill="#FFD54F">寬度(上漲家數 %) ${vb != null ? (Math.floor(vb * 10 + 1e-6) / 10).toFixed(1) + '%' : '—'}</text>`;
     h += `<rect x="${Math.max(0, Math.min(W - 48, cx - 24))}" y="${B2 + 1}" width="48" height="20" rx="3" fill="#E6EAF2"/><text x="${Math.max(24, Math.min(W - 24, cx))}" y="${B2 + 16}" font-size="13.5" font-weight="700" fill="#0B0F17" text-anchor="middle">${tl}</text>`; }
-  h = h.replace('<!--TTL-->', ttl || ttl0);
+  h = h.replace('<!--TTL-->', ttl || ttl0).replace('<!--BTTL-->', bttl || bttl0);
   el.innerHTML = `<svg width="${W}" height="${H}" style="display:block">${h}</svg>`;
 }catch(e){} }
 function mkcToggle(){ MKC.open = !MKC.open; const el = mkcBox(); el.style.display = MKC.open ? 'block' : 'none'; MKC.ci = -1;
