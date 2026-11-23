@@ -194,6 +194,10 @@ class Trader:
         #   這份判別式還沒發平倉通知、沒過最後進場時間 → 補進場一次(照當下價格,停利 / 停損照原訊號);0 = 關
         #   12:10 使用者「這種股票要加上 確認按鍵」:條件到了不自動下單,手機跳「確認補進場」(?trade=pos 的 redo),按了才進(act=redo)
         self.over_redo = cfg.get("TRADE_OVER_REDO", "1") == "1"
+        # 2026-11-23 使用者(判別式聊天轉達)「所有的停損 都必須照真正的進場價來算」:判別式部位成交後停損價照元大成交均價重算(停損 % 照訊號價那份),
+        #   「沒走」(訊號後 TRADE_NOMOVE_MIN 分鐘內、照成交均價算的最有利幅度 < TRADE_NOMOVE_PCT%)中繼自己盯(引擎照訊號價算的沒走通知照收,哪個先到先平)
+        self.nm_judges = {x.strip() for x in cfg.get("TRADE_NOMOVE_JUDGES", "判二,判三,判八,判十").split(",") if x.strip()}
+        self.nm_min = int(float(cfg.get("TRADE_NOMOVE_MIN", "45") or 45)); self.nm_pct = float(cfg.get("TRADE_NOMOVE_PCT", "0.3") or 0.3)
         # 2026-11-06 使用者「如果價格又回到原預計空的點位呢」→「改重啟一次」:因「太晚了」沒進的訊號先記著,
         #   N 分鐘內現價回到訊號價 ±TRADE_MAX_DEV_PCT 以內、還沒碰到停利 / 停損 → 自動補進場(0 = 關)
         self.late_redo_min = float(cfg.get("TRADE_LATE_REDO_MIN", "10"))
@@ -641,6 +645,13 @@ class Trader:
                         if judge != "接回":                                   # 這則進場通知之後(斷線期間)同一判別式、同一檔已經發過平倉通知 → 接回後馬上平
                             exit_it = next((x for x in signals[i0 + 1:] if x.get("kind") in EXIT_KINDS and code_of(x.get("title")) == c and judge_of(x.get("body")) == judge), None)
                     p = self.new_pos(c, d, judge, title or "接回部位", tp=tp, sl=sl)
+                    try:   # 2026-11-23 停損照真正進場價:接回時一樣從元大均價重算;沒走要用訊號那根時間
+                        mp_ = RE_PX_END.search(title or ""); ps_ = num(mp_.group(1)) if mp_ else 0
+                        if ps_ > 0: p["px_sig"] = ps_; p["tp_sig"], p["sl_sig"] = tp or None, sl or None
+                        if ps_ > 0 and avg > 0: self.sig_rebase(p, avg)
+                        mb_ = RE_BAR.match(body or "")
+                        if mb_: p["t_sig"] = mb_.group(1).zfill(5)
+                    except Exception as e_: self.log(f"[交易] 接回 {c} 停損照均價重算失敗 {e_!r}")
                     p["no_max_move"] = False   # 2026-11-11 14:17 全改:假突破也套 ±6.5%   # 原 "✓破" in body   # 2026-10-29 稽核 #4:假突破空單接回後一樣不套 ±6.5%
                     if exit_it: p["resume_exit"] = "接回:斷線期間已有平倉通知 " + exit_it.get("title", "")
                 p["qty"], p["entry"], p["state"] = abs(n), avg, HOLDING
@@ -1516,6 +1527,7 @@ class Trader:
                 p.update({"judge0": p.get("judge"), "judge": MANUAL, "tp_pct": self.y3_tp, "sl_pct": self.y3_sl,
                           "y3_posted": True})   # 2026-11-18 11:46 寶成:判二被手動加碼改元三後沒標 y3_posted → oco_refresh 一直當成「元三開倉還沒發卡」不掛新條件單(11 張沒有元大條件單)
             if p.get("judge") in (MANUAL, FORCED) and (p.get("tp_pct") or p.get("sl_pct")): self.set_forced_tpsl(p, p["entry"])
+            elif self.sig_rebase(p, p["entry"]): pass   # 2026-11-23 有訊號那份:從訊號 % 照新均價重算
             elif e0 > 0:   # 2026-11-02 11:45 使用者「這邊需要重新再算過停利跟停損」:判一~四照原本停利 / 停損離進場價的 % 不變,從新均價重算
                 if p.get("tp"): p["tp"] = px_tick(p["entry"] * p["tp"] / e0, p["entry"])   # 2026-11-22 取到升降單位
                 if p.get("sl"): p["sl"] = self.cap_sl(p["code"], p["dir"], p["judge"], px_tick(p["entry"] * p["sl"] / e0, p["entry"]))
@@ -1964,6 +1976,19 @@ class Trader:
                       self.log(f"[交易] !! {p['code']} 碰到{w} {self.oco_grace:g} 秒元大條件單還沒平 → 程式刪條件單自己平")
                       self.alert(f"⚠ {self.name_of(p['code'])} {p['code']} 元大條件單沒觸發", f"碰到{w} {self.oco_grace:g} 秒還沒平,程式已自己平倉")
                       self.exit_pos(p, f"{w}(條件單沒觸發)", self.last_px.get(p["code"], p["entry"]), force_limit=True)
+                  if (p["state"] == HOLDING and p.get("judge") in self.nm_judges and self.nm_min > 0 and p.get("t_sig") and not p.get("nm_done")
+                          and p.get("entry") and minutes_of(p["t_sig"]) is not None and minutes_of(hm) is not None
+                          and minutes_of(hm) >= minutes_of(p["t_sig"]) + self.nm_min + 1):
+                      # 2026-11-23 使用者「所有的停損 都必須照真正的進場價來算」:沒走 = 訊號那根後 nm_min 分鐘(那根收完、下一根開盤)時,
+                      #   進場後最有利價(鐵律 ⑥ 記的 mt_px,起點 = 成交均價)離成交均價不到 nm_pct% → 平倉。只判斷一次(最有利只會變大,過了就不會再觸發)
+                      p["nm_done"] = True
+                      if minutes_of(hm) <= minutes_of(p["t_sig"]) + self.nm_min + 3:   # 重開接回時早就過了很久 → 不補判(最有利價可能沒記到)
+                          b_ = p.get("mt_px")
+                          if b_ is None: b_ = self.prot_get(p, "mt_px")
+                          b_ = float(b_ or p["entry"]); fav = (b_ - p["entry"]) / p["entry"] * 100 * p["dir"]
+                          if fav < self.nm_pct - 1e-9:
+                              self.log(f"[交易] {p['code']} {p['judge']} 沒走:訊號 {p['t_sig']} 後 {self.nm_min} 分鐘,照成交均價 {p['entry']:.2f} 最有利只 {fav:+.2f}%(< {self.nm_pct:g}%)→ 平倉")
+                              self.exit_pos(p, "沒走", self.last_px.get(p["code"], p["entry"])); continue
                   if p["state"] == HOLDING and hm >= fe and time.time() - p.get("_xfail", 0) > 5:   # 2026-11-21「改 A」(A6):送不出去的 5 秒後再試(不每秒洗紀錄)
                       self.exit_pos(p, f"{self.force_exit} 強制平倉", self.last_px.get(p["code"], p["entry"]), force_limit=True)
                   o = p.get("order")
@@ -2519,6 +2544,7 @@ class Trader:
         p["t_sig"] = (RE_BAR.match(body or "") and RE_BAR.match(body or "").group(1).zfill(5)) or it.get("t") or ""   # 2026-11-13 訊號時間(平倉卡部位鍵,和引擎同一把)
         if it.get("_late"): p["late"] = True                      # 2026-11-13 太晚補進場:成交後發一張補進場卡
         p["px_sig"] = px_sig                                       # 2026-10-31 改 C:補單前檢查現價離訊號價多遠
+        p["tp_sig"], p["sl_sig"] = tp_sig, sl_sig                  # 2026-11-23 停利 / 停損照成交均價重算用(sig_rebase)
         p["no_max_move"] = False   # 2026-11-11 14:17 使用者「全改」:假突破空單也套 ±6.5%(進場已限 ±5%)   # 原 "✓破" in body   # 2026-10-28 使用者選「元大那邊對假突破空單不套 6.5%」:判三「假突破跌破 Ka 空」(通知帶「空✓破」)常在離昨收 +6.5% 以上才進場,不套 ±6.5% 強制平倉(停利 / 停損 / 13:20 / 手機平倉通知照舊)
         if ekey:
             self.entered_keys.add(ekey); self.save_state()      # 2026-10-29 稽核 #3:送單就記(沒成交也不再追同一個訊號)
@@ -3041,6 +3067,18 @@ class Trader:
         p["exit_why"] = w0
         return False
 
+    def sig_rebase(self, p, avg):
+        """2026-11-23 使用者「所有的停損 都必須照真正的進場價來算」「停利也是」:判別式部位的停利 / 停損 % 照訊號(通知上的停利 / 停損 ÷ 訊號價)不變,
+           價位改從元大實際成交均價算(有加碼用加碼後均價);一律從訊號那份重算(不在上一次重算的結果上再乘,避免升降單位誤差累積)。回 True = 有重算"""
+        ps = p.get("px_sig"); tps, sls = p.get("tp_sig"), p.get("sl_sig")
+        if p.get("forced") or p.get("over3") or p.get("judge") in (MANUAL, FORCED) or not ps or not avg or not (tps or sls): return False
+        tp0, sl0 = p.get("tp"), p.get("sl")
+        if tps: p["tp"] = px_tick(avg * tps / ps, avg)
+        if sls: p["sl"] = self.cap_sl(p["code"], p["dir"], p["judge"], px_tick(avg * sls / ps, avg))
+        if (p.get("tp"), p.get("sl")) != (tp0, sl0):
+            self.log(f"[交易] {p['code']} {p['judge']} 均價 {avg:.2f}(訊號 {ps})→ 照成交價重算 停利 {tp0} → {p.get('tp')}、停損 {sl0} → {p.get('sl')}")
+        return True
+
     def man_only(self, p, why):
         """2026-11-02 程式的進場單確定沒成交,但進場中有手動同方向成交 → 只用手動那幾張接成部位(不拿掉);沒有手動成交回 False"""
         ml, mc = p.pop("man_lots", 0), p.pop("man_cost", 0.0)
@@ -3049,6 +3087,7 @@ class Trader:
         avg = mc / (ml * 1000); base = p.get("px_sig") or avg
         p["order"] = None; p.pop("wait_confirm", None)
         if p.get("forced"): self.set_forced_tpsl(p, avg)
+        elif self.sig_rebase(p, avg): pass   # 2026-11-23
         elif base:
             if p.get("tp"): p["tp"] = px_tick(avg * p["tp"] / base, avg)   # 2026-11-22 取到升降單位
             if p.get("sl"): p["sl"] = self.cap_sl(p["code"], p["dir"], p["judge"], px_tick(avg * p["sl"] / base, avg))
@@ -3079,10 +3118,11 @@ class Trader:
             o["filled"] += p.pop("pre_filled"); o["cost"] += p.pop("pre_cost", 0.0)
         lots = o["filled"] // 1000; avg = o["cost"] / o["filled"] if o["filled"] else 0
         p["order"] = None
+        if o["purpose"] == "進場" and lots > 0 and avg > 0: self.sig_rebase(p, avg)   # 2026-11-23 停損 / 停利照元大成交均價
         if o["purpose"] == "進場" and lots > 0 and p.get("man_lots"):   # 2026-11-02 進場中的手動同方向成交一起併進來,停利 / 停損照原本 % 從新均價重算
             ml, mc = p.pop("man_lots"), p.pop("man_cost", 0.0); base = avg
             o["cost"] += mc; lots += ml; avg = o["cost"] / (lots * 1000)
-            if not p.get("forced") and base:
+            if not p.get("forced") and base and not self.sig_rebase(p, avg):   # 2026-11-23 有訊號那份就從訊號重算(照合併後均價)
                 if p.get("tp"): p["tp"] = px_tick(avg * p["tp"] / base, avg)   # 2026-11-22 取到升降單位
                 if p.get("sl"): p["sl"] = self.cap_sl(p["code"], p["dir"], p["judge"], px_tick(avg * p["sl"] / base, avg))
             self.log(f"[交易] {p['code']} 進場單成交 {lots - ml} 張 + 手動 {ml} 張 → 併成 {lots} 張 均價 {avg:.2f}")
