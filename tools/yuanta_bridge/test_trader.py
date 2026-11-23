@@ -1679,3 +1679,11 @@ _nm_case("判二", 212.0, False)           # +0.47% → 有走
 _nm_case("判一", 211.5, False)           # 判一沒有沒走
 _nm_case("判十", 211.5, True)
 print("停損 / 沒走照成交價 OK")
+# 2026-11-23 🔒 鐵律 ⑨ V 型反轉空單平倉:引擎通知「反轉平」→ 有元大成交的部位照平(看大盤,不看進場價)
+at(10, 0); tv, gv = mk(TRADE_CAP="250000"); tv.ref_of = lambda c: 86.0; tv.on_tick("3036", 86.2)
+tv.step([sig("10:00:3036|文曄|判七", "short", "文曄 3036 做空進場 86.2", "09:59 空 · 停利 82.00 停損 88.00 · 2張 · 判七")])
+tv.on_report(51, tv.positions["3036"]["order"]["no"], 0, 2000, 86.1); ok(tv.positions["3036"]["state"] == HOLDING)
+at(10, 30); tv.step([sig("10:30:3036|文曄反轉平|判七", "loss", "⚠⚠ 文曄 3036 反轉平 -1.3% 立即平倉", "10:29 做空 09:59 進 86.20 → 現價 87.30 · 2張 · 判七")])
+ok(tv.positions["3036"]["state"] == EXITING and gv.sent[-1][1] == "B", tv.positions["3036"], gv.sent)
+import engine as _eng2; ok(_eng2.exit_text("反轉平") == "反轉平")
+print("反轉平出場 OK")
