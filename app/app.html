@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-23 大盤線圖可縮放:上滑放大、下滑縮小(和 K 圖一樣,每 120px 一倍,最多看 20 分鐘,右邊對齊最新),左右拖照舊是十字線;電腦版滾輪縮放
   · 2026-11-23 大盤線圖標題列加台指期漲跌幅(白字,對前一交易日台指期收盤);下格寬度小框也拿掉,數值寫在「寬度(上漲家數 %)」後面
   · 2026-11-23 大盤線圖上格說明框拿掉,十字線那分鐘的大盤指數 / 漲跌 / 台指期直接顯示在標題列(點數高的在前)
   · 2026-11-23 大盤線圖十字說明框:寬度照字量、十字兩邊放不下就整排找不壓線的位置(不再蓋在線上)
@@ -612,7 +613,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611231144">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611231155">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4495,47 +4496,61 @@ async function mkcFetch(force){
   MKC.busy = false; mkcDraw();
 }
 function mkcBox(){ let el = document.getElementById('mkChart'); if (!el){ el = document.createElement('div'); el.id = 'mkChart'; document.body.appendChild(el);
-    el.addEventListener('pointerdown', ev => { if (ev.button === 2) return; el.setPointerCapture && el.setPointerCapture(ev.pointerId); mkcPt(ev); ev.preventDefault(); });
-    el.addEventListener('pointermove', ev => { if (MKC.ci >= 0 || ev.buttons) mkcPt(ev); });
-    const up = () => { MKC.ci = -1; mkcDraw(); }; el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('pointerleave', ev => { if (ev.pointerType === 'mouse') up(); }); }
+    /* 2026-11-23 11:52 使用者「上滑放大 下滑縮小 跟k 圖的操作一樣」:放下 0.24 秒內上下滑 = 縮放(上滑放大、下滑縮小,每 120px 一倍);
+       左右拖 / 按住 = 十字線(和原本一樣);點一下 = 十字線跳到那裡 */
+    let st = null;
+    el.addEventListener('pointerdown', ev => { if (ev.button === 2) return; el.setPointerCapture && el.setPointerCapture(ev.pointerId); st = {x: ev.clientX, y: ev.clientY, t: Date.now(), mode: '', z0: MKC.z || 1}; ev.preventDefault();
+      if (ev.pointerType === 'mouse'){ st.mode = 'x'; mkcPt(ev); } });
+    el.addEventListener('pointermove', ev => { if (!st){ if (MKC.ci >= 0 && ev.buttons) mkcPt(ev); return; }
+      const dx = ev.clientX - st.x, dy = ev.clientY - st.y;
+      if (!st.mode){ if (Date.now() - st.t < 240 && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) st.mode = 'z'; else if (Math.abs(dx) > 6 || Math.abs(dy) > 6 || Date.now() - st.t >= 240) st.mode = 'x'; }
+      if (st.mode === 'z'){ MKC.z = Math.max(1, Math.min(270 / 20, st.z0 * Math.pow(2, -dy / 120))); MKC.ci = -1; mkcDraw(); }
+      else if (st.mode === 'x') mkcPt(ev); });
+    el.addEventListener('wheel', ev => { ev.preventDefault(); MKC.z = Math.max(1, Math.min(270 / 20, (MKC.z || 1) * Math.pow(2, -ev.deltaY / 240))); mkcDraw(); }, {passive: false});   // 電腦版:滾輪縮放
+    const up = ev => { if (st && !st.mode && ev && ev.clientX != null) mkcPt(ev); st = null; MKC.ci = -1; mkcDraw(); }; el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('pointerleave', ev => { if (ev.pointerType === 'mouse') up(); }); }
   return el; }
 function mkcPos(){ const el = document.getElementById('mkChart'), rs = document.getElementById('result'), hd = rs && rs.querySelector('.grid.head'); if (!el || !rs || !hd) return;
   const a = hd.getBoundingClientRect(), b = rs.getBoundingClientRect(); el.style.top = Math.round(a.bottom) + 'px'; el.style.height = Math.max(120, Math.round(b.bottom - a.bottom)) + 'px'; }
 const MKC_M = hm => (+hm.slice(0, 2)) * 60 + (+hm.slice(3, 5)) - 540;   // 09:00 → 0 … 13:30 → 270
 function mkcGeom(){ const el = document.getElementById('mkChart'); const W = el.clientWidth, H = el.clientHeight, L = 56, R = 20, T1 = 36, B1 = Math.round(H * 0.6), T2 = B1 + 30, B2 = H - 22;
-  return {W, H, L, R, T1, B1, T2, B2, x: i => L + (W - L - R) * i / 270}; }
+  /* 2026-11-23 11:52 使用者「上滑放大 下滑縮小 跟k 圖的操作一樣」:時間軸可縮放(MKC.z 倍,最多看 20 分鐘),右邊對齊最新一分鐘 */
+  const keys = [...Object.keys(MKC.ix), ...Object.keys(MKC.fx), ...Object.keys(MKC.br)].map(MKC_M).filter(v => v >= 0 && v <= 270), last = keys.length ? Math.max(...keys) : 270;
+  const z = Math.max(1, Math.min(270 / 20, MKC.z || 1)), span = 270 / z; let m1 = z <= 1.0001 ? 270 : Math.min(270, last + span * 0.06); let m0 = Math.max(0, m1 - span); m1 = Math.min(270, m0 + span);
+  return {W, H, L, R, T1, B1, T2, B2, m0, m1, x: i => L + (W - L - R) * (i - m0) / Math.max(1, m1 - m0)}; }
 function mkcPt(ev){ try{ const el = document.getElementById('mkChart'), g = mkcGeom(), r = el.getBoundingClientRect();
   const keys = [...Object.keys(MKC.ix), ...Object.keys(MKC.fx), ...Object.keys(MKC.br)]; if (!keys.length) return;
-  const last = Math.max(...keys.map(MKC_M).filter(v => v >= 0 && v <= 270)); let i = Math.round((ev.clientX - r.left - g.L) / (g.W - g.L - g.R) * 270);
+  const last = Math.max(...keys.map(MKC_M).filter(v => v >= 0 && v <= 270)); let i = Math.round(g.m0 + (ev.clientX - r.left - g.L) / (g.W - g.L - g.R) * (g.m1 - g.m0));
   MKC.ci = Math.max(0, Math.min(last, i)); mkcDraw(); }catch(e){} }
 function mkcDraw(){ try{
   const el = document.getElementById('mkChart'); if (!el || !MKC.open) return; mkcPos();
-  const g = mkcGeom(), {W, H, L, R, T1, B1, T2, B2, x} = g, S = (o, k) => Object.keys(o).filter(h => h >= '09:00' && h <= '13:30').sort().map(h => [MKC_M(h), o[h]]);
+  const g = mkcGeom(), {W, H, L, R, T1, B1, T2, B2, x, m0, m1} = g, S = (o, k) => Object.keys(o).filter(h => h >= '09:00' && h <= '13:30').sort().map(h => [MKC_M(h), o[h]]);
+  const inV = p => p[0] >= m0 - 1 && p[0] <= m1 + 1;   /* 縮放時刻度只看畫面裡的那段 */
   const IX = S(MKC.ix), FX = S(MKC.fx), BR = S(MKC.br); let h = '';
   const md = MKC.d ? MKC.d.slice(5).replace('-', '/') : '';
   const ttl0 = `<text x="6" y="19" font-size="16" font-weight="700" fill="#FF3B3B">大盤指數 <tspan fill="#FFFFFF">台指期</tspan><tspan fill="#8C96AB" font-weight="400">(點)${md ? ' · ' + md : ''}</tspan></text>`; let ttl = '';
   h += '<!--TTL-->';
-  const pv = [...IX, ...FX].map(p => p[1]); if (MKC.y0) pv.push(MKC.y0);
+  const pv = [...IX, ...FX].filter(inV).map(p => p[1]); if (MKC.y0 && (m1 - m0 > 269 || (pv.length && MKC.y0 >= Math.min(...pv) - (Math.max(...pv) - Math.min(...pv)) * 0.3 && MKC.y0 <= Math.max(...pv) + (Math.max(...pv) - Math.min(...pv)) * 0.3))) pv.push(MKC.y0);
+  h += `<clipPath id="mkcP"><rect x="${L}" y="${T1 - 2}" width="${W - L - R}" height="${B1 - T1 + 4}"/></clipPath><clipPath id="mkcQ"><rect x="${L}" y="${T2}" width="${W - L - R}" height="${B2 - T2}"/></clipPath>`;
   if (pv.length){ const mn = Math.min(...pv), mx = Math.max(...pv), sp = Math.max(1, mx - mn), st = [10, 20, 50, 100, 200, 500, 1000].find(v => sp / v <= 7) || 1000, lo = Math.floor(mn / st) * st, hi = Math.ceil(mx / st) * st || lo + st;
     const y1 = v => T1 + (B1 - T1) * (hi - v) / Math.max(1, hi - lo);
     for (let v = hi; v >= lo; v -= st) h += `<line x1="${L}" x2="${W - R}" y1="${y1(v)}" y2="${y1(v)}" stroke="#2A3346"/><text x="${L - 4}" y="${y1(v) + 4}" font-size="13" fill="#A9B2C4" text-anchor="end">${v}</text>`;
-    if (MKC.y0){ h += `<line x1="${L}" x2="${W - R}" y1="${y1(MKC.y0)}" y2="${y1(MKC.y0)}" stroke="#8C96AB" stroke-dasharray="4 3"/><text x="${W - R - 2}" y="${y1(MKC.y0) - 3}" font-size="12.5" fill="#A9B2C4" text-anchor="end">昨收 ${MKC.y0.toFixed(0)}</text>`;
+    if (MKC.y0){ if (y1(MKC.y0) >= T1 - 1 && y1(MKC.y0) <= B1 + 1) h += `<line x1="${L}" x2="${W - R}" y1="${y1(MKC.y0)}" y2="${y1(MKC.y0)}" stroke="#8C96AB" stroke-dasharray="4 3"/><text x="${W - R - 2}" y="${y1(MKC.y0) - 3}" font-size="12.5" fill="#A9B2C4" text-anchor="end">昨收 ${MKC.y0.toFixed(0)}</text>`;
       if (IX.length > 1){ const P = IX.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y1(p[1]).toFixed(1)).join(' '); const up = IX[IX.length - 1][1] >= MKC.y0;
-        h += `<path d="${P} L${x(IX[IX.length - 1][0])} ${y1(MKC.y0)} L${x(IX[0][0])} ${y1(MKC.y0)} Z" fill="${up ? '#FF3B3B' : '#1DD75B'}" opacity=".12"/>`; } }
+        h += `<path d="${P} L${x(IX[IX.length - 1][0])} ${y1(MKC.y0)} L${x(IX[0][0])} ${y1(MKC.y0)} Z" fill="${up ? '#FF3B3B' : '#1DD75B'}" opacity=".12" clip-path="url(#mkcP)"/>`; } }
     const line = (A, col, w) => A.length ? `<path d="${A.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y1(p[1]).toFixed(1)).join(' ')}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linejoin="round"/>` : '';
-    h += line(FX, '#FFFFFF', 2) + line(IX, '#FF3B3B', 2.4); g.y1 = y1; }
+    h += `<g clip-path="url(#mkcP)">` + line(FX, '#FFFFFF', 2) + line(IX, '#FF3B3B', 2.4) + '</g>'; g.y1 = y1; }
   else h += `<text x="${W / 2}" y="${(T1 + B1) / 2}" font-size="12" fill="#8C96AB" text-anchor="middle">還沒有大盤 / 台指期資料</text>`;
   h += `<line x1="0" x2="${W}" y1="${B1 + 8}" y2="${B1 + 8}" stroke="#3A4356"/><!--BTTL-->`; const bttl0 = `<text x="6" y="${T2 - 6}" font-size="16" font-weight="700" fill="#FFD54F">寬度(上漲家數 %)</text>`; let bttl = '';
   const y2 = v => T2 + 6 + (B2 - T2 - 6) * (100 - v) / 100;
   for (const v of [100, 50, 0]) h += `<line x1="${L}" x2="${W - R}" y1="${y2(v)}" y2="${y2(v)}" stroke="${v === 50 ? '#B89A3C' : '#2A3346'}" ${v === 50 ? 'stroke-dasharray="4 3"' : ''}/><text x="${L - 4}" y="${y2(v) + 4}" font-size="13" fill="#D4B65A" text-anchor="end">${v}%</text>`;
   if (BR.length > 1){ const P = BR.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y2(p[1]).toFixed(1)).join(' '), A = `${P} L${x(BR[BR.length - 1][0])} ${y2(50)} L${x(BR[0][0])} ${y2(50)} Z`;
     h += `<clipPath id="mkcU"><rect x="${L}" y="${T2}" width="${W - L - R}" height="${y2(50) - T2}"/></clipPath><clipPath id="mkcD"><rect x="${L}" y="${y2(50)}" width="${W - L - R}" height="${B2 - y2(50)}"/></clipPath>`;
-    h += `<path d="${A}" fill="#FF3B3B" opacity=".3" clip-path="url(#mkcU)"/><path d="${A}" fill="#1DD75B" opacity=".3" clip-path="url(#mkcD)"/><path d="${P}" fill="none" stroke="#FFD54F" stroke-width="1.8"/>`; }
+    h += `<g clip-path="url(#mkcQ)"><path d="${A}" fill="#FF3B3B" opacity=".3" clip-path="url(#mkcU)"/><path d="${A}" fill="#1DD75B" opacity=".3" clip-path="url(#mkcD)"/><path d="${P}" fill="none" stroke="#FFD54F" stroke-width="1.8"/></g>`; }
   const keys = [...IX, ...FX, ...BR].map(p => p[0]); const last = keys.length ? Math.max(...keys) : -1;
   const curI = MKC.ci >= 0 ? MKC.ci : last;   /* 刻度字跟十字線時間標籤重疊就不畫那個刻度字 */
-  for (let i = 0; i <= 270; i += 30) h += `<line x1="${x(i)}" x2="${x(i)}" y1="${T1}" y2="${B2}" stroke="#1F2635"/><text x="${x(i)}" y="${H - 5}" font-size="12.5" fill="#A9B2C4" text-anchor="middle" class="mkt">${curI >= 0 && Math.abs(x(i) - x(curI)) < 44 ? '' : 9 + Math.floor(i / 60) + ':' + (i % 60 ? '30' : '00')}</text>`;
+  const tst = m1 - m0 > 150 ? 30 : m1 - m0 > 75 ? 15 : m1 - m0 > 40 ? 10 : 5; for (let i = Math.ceil(m0 / tst) * tst; i <= m1 + 1e-6; i += tst) h += `<line x1="${x(i)}" x2="${x(i)}" y1="${T1}" y2="${B2}" stroke="#1F2635"/><text x="${x(i)}" y="${H - 5}" font-size="12.5" fill="#A9B2C4" text-anchor="middle" class="mkt">${curI >= 0 && Math.abs(x(i) - x(curI)) < 44 ? '' : 9 + Math.floor(i / 60) + ':' + String(i % 60).padStart(2, '0')}</text>`;
   // 還沒到的時間(開盤中)變暗
-  if (MKC.d === todayTW() && inSession() && last >= 0 && last < 270) h += `<rect x="${x(last)}" y="${T1}" width="${x(270) - x(last)}" height="${B2 - T1}" fill="#0B0F17" opacity=".45"/>`;
+  if (MKC.d === todayTW() && inSession() && last >= 0 && last < 270) h += `<rect x="${x(last)}" y="${T1}" width="${Math.max(0, x(m1) - x(last))}" height="${B2 - T1}" fill="#0B0F17" opacity=".45"/>`;
   // 十字虛線
   /* 2026-11-19 16:57 使用者「一進去 十字虛線就直接出現在最後一個」:沒在拖時十字線停在最新一分鐘 */
   if (MKC.ci >= 0 || last >= 0){ const i = MKC.ci >= 0 ? MKC.ci : last, at = A => { let r = null; for (const p of A){ if (p[0] > i) break; r = p[1]; } return r; }, vi = at(IX), vf = at(FX), vb = at(BR), cx = x(i), tl = `${String(9 + Math.floor((i + 0) / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}`;
@@ -4570,7 +4585,7 @@ function mkcDraw(){ try{
   h = h.replace('<!--TTL-->', ttl || ttl0).replace('<!--BTTL-->', bttl || bttl0);
   el.innerHTML = `<svg width="${W}" height="${H}" style="display:block">${h}</svg>`;
 }catch(e){} }
-function mkcToggle(){ MKC.open = !MKC.open; const el = mkcBox(); el.style.display = MKC.open ? 'block' : 'none'; MKC.ci = -1;
+function mkcToggle(){ MKC.open = !MKC.open; const el = mkcBox(); el.style.display = MKC.open ? 'block' : 'none'; MKC.ci = -1; if (MKC.open) MKC.z = 1;   /* 2026-11-23 每次打開回到整天 */
   if (MKC.open){ mkcPos(); el.innerHTML = '<div style="color:#8C96AB;font-size:13px;padding:14px">讀取大盤 / 台指期 / 寬度…</div>'; mkcFetch(false); } }
 window.mkcToggle = mkcToggle; window.MKC = MKC;
 /* 2026-11-19 23:08 使用者「這畫面 除了移動十字虛線 區域外任何觸碰都是先關閉這個視窗 返回股票監控區」:
