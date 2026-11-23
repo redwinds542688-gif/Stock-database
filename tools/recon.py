@@ -22,7 +22,15 @@ RE_LOTS = re.compile(r"·\s*(\d+)張\s*·")
 RE_XIN = re.compile(r"(做多|做空)\s*(\d{1,2}:\d{2})\s*進\s*([\d,]+(?:\.\d+)?)\s*→\s*現價\s*([\d,]+(?:\.\d+)?)")
 CN = {"判一": "一", "判二": "二", "判三": "三", "判四": "四", "判五": "五", "判六": "六", "判七": "七", "判八": "八", "判九": "九", "判十": "十"}
 
-hm = lambda s: (str(s or "")[:5]).zfill(5) if re.match(r"^\d{1,2}:\d{2}", str(s or "")) else ""
+def tod(s):
+    """時間字串 → 'HH:MM:SS'(24 小時制);認得 '09:49'、'09:49:20'、元大的 '2026/11/23 上午 09:49:20' / '下午 01:05:02'(2026-11-23 修:原本只認開頭是時間的,元大成交時間配不到訊號)"""
+    s = str(s or ""); m = re.search(r"(\d{1,2}):(\d{2})(?::(\d{2}))?", s)
+    if not m: return ""
+    h = int(m.group(1))
+    if ("下午" in s or "PM" in s.upper()) and h < 12: h += 12
+    elif ("上午" in s or "AM" in s.upper()) and h == 12: h = 0
+    return f"{h:02d}:{m.group(2)}:{m.group(3) or '00'}"
+hm = lambda s: tod(s)[:5]
 def mi(s):
     s = hm(s); return int(s[:2]) * 60 + int(s[3:5]) if s else None
 num = lambda s: float(str(s).replace(",", ""))
@@ -71,7 +79,8 @@ def real_of(entries, legs):
     ok = [e for e in entries if e["ok"]]
     for e in ok: e["legs"] = []
     other = []
-    for g in sorted(legs or [], key=lambda g: str(g.get("t0", ""))):
+    legs = [dict(g, t0=tod(g.get("t0")) or g.get("t0"), t=tod(g.get("t")) or g.get("t")) for g in (legs or [])]
+    for g in sorted(legs, key=lambda g: str(g.get("t0", ""))):
         side = 1 if g.get("dir") == "做多" else -1; t0 = mi(g.get("t0"))
         cand = [e for e in ok if e["code"] == str(g.get("code")) and e["side"] == side and t0 is not None and mi(e["t"]) is not None and mi(e["t"]) <= t0]
         if cand: cand[-1]["legs"].append(g)
