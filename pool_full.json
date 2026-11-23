@@ -91,7 +91,7 @@
 "code": "3189",
 "name": "景碩",
 "market": "twse",
-"lots": 54794
+"lots": 54944
 },
 {
 "code": "5314",
@@ -367,7 +367,7 @@
 "code": "2382",
 "name": "廣達",
 "market": "twse",
-"lots": 14850
+"lots": 14940
 },
 {
 "code": "2481",
@@ -514,16 +514,16 @@
 "lots": 10272
 },
 {
+"code": "6415",
+"name": "矽力*-KY",
+"market": "twse",
+"lots": 10036
+},
+{
 "code": "4979",
 "name": "華星光",
 "market": "tpex",
 "lots": 9961
-},
-{
-"code": "6415",
-"name": "矽力*-KY",
-"market": "twse",
-"lots": 9879
 },
 {
 "code": "3035",
@@ -554,6 +554,12 @@
 "name": "尖點",
 "market": "twse",
 "lots": 9565
+},
+{
+"code": "5457",
+"name": "宣德",
+"market": "tpex",
+"lots": 9467
 },
 {
 "code": "3260",
@@ -620,12 +626,6 @@
 "name": "材料*-KY",
 "market": "twse",
 "lots": 7491
-},
-{
-"code": "5457",
-"name": "宣德",
-"market": "tpex",
-"lots": 7467
 },
 {
 "code": "2486",
