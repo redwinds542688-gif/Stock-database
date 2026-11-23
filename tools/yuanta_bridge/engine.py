@@ -1292,8 +1292,8 @@ class Engine:
         self.br_rs = {"一", "一2", "二", "五", "六", "六3", "八", "九", "十"}   # 2026-11-21 使用者「B」:看寬度 / 名單平均的判別式
         for rs in RS_ALL: self.envs[rs] = rs_env.env_of(rs, str(DATA / "breadth.json") if rs in ("一", "一2", "二", "五", "六", "六3", "八", "九", "十") else None)   # 判八要名單上漲比例(LBR)
         for _e in self.envs.values():
-            if _e.get("TXSYNC") or _e.get("VRV"): _e["IXFDIR"] = str(HERE / "engine_data" / "ix")   # 2026-11-23 鐵律 ⑨ 反轉平(VRV)要加權 + 台指期(判七這類沒有 TXSYNC 的也要)   # 2026-11-16 14:38 使用者「改」:模擬器台指期缺一段時改讀加權指數(引擎每輪把 Worker ixbars 寫成 engine_data/ix/<日期>.csv)
-            if _e.get("TXSYNC") or _e.get("TXBOUNCE") or _e.get("TXBOUNCEW") or _e.get("TXDROP") or _e.get("TXDROPW") or _e.get("VRV"): _e["TXFDIR"] = str(HERE / "kline_futures" / "TXF")   # 2026-11-18 16:53 判七沒有 TXSYNC 也要台指期(⑧ 急彈 / 急彈贏單平倉)   # ⑧ 模擬器讀中繼存的台指期 1 分 K   # 2026-11-10 23:05 判六(午盤 Ka 穿 VWAP)要寬度 10 分鐘變化   # 判五:名單平均檔 DATA/mktavg.json(write_breadth 寫)
+            if _e.get("TXSYNC") or _e.get("VRV") or _e.get("TXFROMLO"): _e["IXFDIR"] = str(HERE / "engine_data" / "ix")   # 2026-11-23 鐵律 ⑨ 反轉平(VRV)/ ⑧ 空單離今低(TXFROMLO,rs_env.txfromlo)要加權 + 台指期(判七這類沒有 TXSYNC 的也要)   # 2026-11-16 14:38 使用者「改」:模擬器台指期缺一段時改讀加權指數(引擎每輪把 Worker ixbars 寫成 engine_data/ix/<日期>.csv)
+            if _e.get("TXSYNC") or _e.get("TXBOUNCE") or _e.get("TXBOUNCEW") or _e.get("TXDROP") or _e.get("TXDROPW") or _e.get("VRV") or _e.get("TXFROMLO"): _e["TXFDIR"] = str(HERE / "kline_futures" / "TXF")   # 2026-11-18 16:53 判七沒有 TXSYNC 也要台指期(⑧ 急彈 / 急彈贏單平倉)   # ⑧ 模擬器讀中繼存的台指期 1 分 K   # 2026-11-10 23:05 判六(午盤 Ka 穿 VWAP)要寬度 10 分鐘變化   # 判五:名單平均檔 DATA/mktavg.json(write_breadth 寫)
         if self.envs.get("六", {}).get("MODE") not in ("j6k", "j6r"):   # 2026-11-10 23:05 判六 = 午盤 Ka 穿 VWAP(j6k;舊超賣急彈 j6r 封存但還認得);私人庫沒有 → 判六先不跑
             self.envs.pop("六", None); log("!! 私人庫 rs_env.py 還沒有觀察版判六(J6 MODE=j6k),判六今天先不跑")
         if self.envs.get("六3", {}).get("MODE") != "j63" or "六" not in self.envs:   # 2026-11-12 23:40 判六做空(判六3):私人庫沒有 J63 / 判六沒開 → 不跑
