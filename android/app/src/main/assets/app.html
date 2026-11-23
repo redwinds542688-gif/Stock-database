@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-23 大盤線圖:某一分鐘讀不到台指期 1 分 K 不再把白線清空(沿用上一份、10 秒後補讀,最多 3 次)
   · 2026-11-23 同一秒好幾則進場通知改成排隊一則一則跳、一則一則響(隔 1.1 秒);原本同時到會互相切掉聲音、超過系統每秒上限的通知被丟掉(10:30 判一急彈空等 7 則)
   · 2026-11-22 22:09(實際時間)實盤 vs 總表對帳:總表(reports/總表_<日期>.json)一推上來就自動再對一次那天(14:52 那次照舊先出實盤)
   · 2026-11-22 22:01(實際時間)下單程式進場:±5% 只看現價;現價在 ±5% 內就照「現價讓 2 檔」送單,委託價超過 ±5% 也送(取代 21:57 改掛界線價)
@@ -607,7 +608,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611231036">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611231128">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4467,8 +4468,13 @@ async function mkcFetch(force){
     if (!day){ MKC.busy = false; return; }
     if (ix === null && MKC.d === day){ MKC.busy = false; mkcDraw(); return; }   // 過去那天已經抓過(收盤後不變)
     const [fb, br, q] = await Promise.all([J_('fbars=' + day), day === BREADTH.d && BREADTH.arr.length ? null : J_('breadth=' + day), J_('codes=t00&mkt=tse&src=mis')]);
+    /* 2026-11-23 11:26 使用者「台指期的白線不見了」:那一分鐘讀台指期 1 分 K 沒回來(逾時 / 雲端忙)→ 原本把台指期整條清空,白線消失、說明框「台指期 —」;
+       改成:同一天讀不到就沿用上一份(不清空),10 秒後再補讀一次 */
+    const same = MKC.d === day, oldIx = same ? MKC.ix : {}, oldFx = same ? MKC.fx : {};
     MKC.d = day; MKC.ix = {}; for (const [k, v] of Object.entries(ix || {})) if (+v > 0 && k >= '09:00' && k <= '13:30') MKC.ix[k] = +v;
+    if (!Object.keys(MKC.ix).length && Object.keys(oldIx || {}).length) MKC.ix = oldIx;
     MKC.fx = {}; for (const b of ((fb && fb.bars) || [])) if (b && b[0] >= '09:00' && b[0] <= '13:30' && +b[4] > 0) MKC.fx[b[0]] = +b[4];
+    if (!fb || !Object.keys(MKC.fx).length){ if (Object.keys(oldFx || {}).length) MKC.fx = oldFx; MKC.rn = (MKC.rn || 0) + 1; clearTimeout(MKC.rt); if (MKC.rn <= 3) MKC.rt = setTimeout(() => { if (MKC.open) mkcFetch(true); }, 10000); } else MKC.rn = 0;
     MKC.br = {}; if (br && br.br){ for (const [k, v] of Object.entries(br.br)) if (isFinite(+v)) MKC.br[k] = +v * 100; }
     else if (day === BREADTH.d) for (const [t, v] of BREADTH.arr){ const k = new Date((t + 8 * 3600) * 1000).toISOString().slice(11, 16); MKC.br[k] = +v * 100; }
     const m = q && (q.msgArray || []).find(x => x.c === 't00'); MKC.y0 = m && String(m.d || '') === day.replace(/-/g, '') && +m.y > 0 ? +m.y : 0;   // 證交所 t00 的昨收(只有同一天才用)
