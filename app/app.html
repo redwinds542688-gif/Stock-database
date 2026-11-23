@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-23 大盤線圖十字說明框:寬度照字量、十字兩邊放不下就整排找不壓線的位置(不再蓋在線上)
   · 2026-11-23 大盤線圖的寬度和監控標題同調:寬度一更新線圖馬上用同一份重畫,小數一位一律無條件捨去
   · 2026-11-23 大盤線圖:某一分鐘讀不到台指期 1 分 K 不再把白線清空(沿用上一份、10 秒後補讀,最多 3 次)
   · 2026-11-23 同一秒好幾則進場通知改成排隊一則一則跳、一則一則響(隔 1.1 秒);原本同時到會互相切掉聲音、超過系統每秒上限的通知被丟掉(10:30 判一急彈空等 7 則)
@@ -609,7 +610,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611231135">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611231137">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4537,16 +4538,19 @@ function mkcDraw(){ try{
     /* 2026-11-19 16:46 使用者「十字虛線 點位說明 上面只顯示台指期跟大盤指數 下面另外多一個 說明寬度 都不可以壓線」:
        上格小框 = 時間 + 大盤 + 台指期;下格另一個小框 = 寬度;兩個框都找不壓到線的位置(十字左 / 右 × 上下各位置,壓到最少的點、同分取靠上) */
     const pts1 = [...IX, ...FX].map(p => [x(p[0]), g.y1 ? g.y1(p[1]) : -99]), pts2 = BR.map(p => [x(p[0]), y2(p[1])]);
-    const place = (bw, bh, top, bot, pts) => { let best = null;
-      for (const bx of [cx + 10, cx - 10 - bw]){ if (bx < L || bx + bw > W - R) continue;
+    /* 2026-11-23 11:36 使用者「大盤台指期顯示視窗 擋住線」:框 200 寬,十字線在中間時左右兩邊都放不下 → 原本直接蓋在十字線上壓到線。
+       改成:框寬照字實際量;位置先試十字右 / 左,放不下就整排橫著找,挑壓到線最少的(同分:不蓋十字線 > 離十字線近 > 靠上) */
+    const place = (bw, bh, top, bot, pts) => { let best = null; const xs = [cx + 10, cx - 10 - bw]; for (let bx = L + 2; bx + bw <= W - R; bx += 8) xs.push(bx);
+      for (const bx of xs){ if (bx < L || bx + bw > W - R) continue; const cover = bx <= cx + 4 && bx + bw >= cx - 4 ? 1 : 0, dist = Math.min(Math.abs(bx - cx), Math.abs(bx + bw - cx));
         for (let by = top; by + bh <= bot; by += 6){ let n = 0; for (const [px, py] of pts) if (px >= bx - 3 && px <= bx + bw + 3 && py >= by - 3 && py <= by + bh + 3) n++;
-          if (!best || n < best.n) best = {bx, by, n}; if (n === 0) break; }
-        if (best && best.n === 0 && best.bx === bx) break; }
+          const sc = n * 1e6 + cover * 1e4 + dist * 10 + (by - top) / 100;
+          if (!best || sc < best.sc) best = {bx, by, n, sc}; if (n === 0) break; } }
       return best || {bx: Math.max(L, Math.min(W - R - bw, cx + 10)), by: top}; };
+    const tw_ = (t) => { try{ const c = mkcDraw._c || (mkcDraw._c = document.createElement('canvas').getContext('2d')); c.font = '700 16px ' + getComputedStyle(document.body).fontFamily; return c.measureText(t).width; }catch(e){ return t.length * 10; } };
     /* 17:06 使用者:「大盤」改「大盤指」,漲跌幅跌要綠色(漲紅、平白) */
     /* 17:09 使用者「台指期 跟 大盤指 誰多 誰就在上面」 */ const fUp = vf != null && vi != null && vf > vi;
     const pr = vi != null && MKC.y0 ? (vi / MKC.y0 - 1) * 100 : null, pct = pr == null ? '' : ` <tspan fill="${pr > 0 ? '#FF3B3B' : pr < 0 ? '#1DD75B' : '#E6EAF2'}">${pr > 0 ? '+' : ''}${pr.toFixed(2)}%</tspan>`;
-    { const bw = Math.min(W - L - R - 10, 200), bh = 76, q = place(bw, bh, T1 + 2, B1 - 2, pts1);
+    { const bw = Math.min(W - L - R - 10, Math.ceil(Math.max(tw_(tl), tw_('大盤指 ' + (vi != null ? vi.toFixed(0) : '—') + (pr == null ? '' : ' ' + (pr > 0 ? '+' : '') + pr.toFixed(2) + '%')), tw_('台指期 ' + (vf != null ? vf.toFixed(0) : '—'))) + 16)), bh = 76, q = place(bw, bh, T1 + 2, B1 - 2, pts1);
       h += `<rect x="${q.bx}" y="${q.by}" width="${bw}" height="${bh}" rx="5" fill="#0B0F17" stroke="#5A6478" opacity=".95"/><text x="${q.bx + 7}" y="${q.by + 21}" font-size="16" font-weight="700" fill="#E6EAF2">${tl}</text>`
         + `<text x="${q.bx + 7}" y="${q.by + (fUp ? 67 : 44)}" font-size="16" font-weight="700" fill="#FF3B3B">大盤指 ${vi != null ? vi.toFixed(0) : '—'}${pct}</text><text x="${q.bx + 7}" y="${q.by + (fUp ? 44 : 67)}" font-size="16" font-weight="700" fill="#FFFFFF">台指期 ${vf != null ? vf.toFixed(0) : '—'}</text>`; }
     { const bw = 118, bh = 30, q = place(bw, bh, T2 + 6, B2 - 2, pts2);
