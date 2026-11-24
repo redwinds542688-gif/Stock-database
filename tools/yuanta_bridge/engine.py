@@ -2384,9 +2384,21 @@ def live():
                 want = hm_add(hm, -1); t_end = time.time() + bar_wait
                 # 2026-11-24 使用者「改」:13:25~13:29 是收盤集合競價,沒有逐筆成交、不會有 1 分 K → 不等(原本每輪等滿 ENGINE_BAR_WAIT 15 秒,心跳 K 顯示 17 秒);只抓一次就算
                 if "13:25" <= want <= "13:29": t_end = time.time()
+                _lk = CFG.get("ENGINE_LOCAL_K", "1") == "1"; _lk_n = 0
                 while True:
                     bars, last = today_bars_fast(day); lb = latest_bar(bars, last)   # 2026-11-07 只抓最近幾分鐘
                     if lb >= want or time.time() >= t_end: break
+                    # 2026-11-25 使用者「有加快訊息的方法嗎」→「改」:11/23 實盤引擎整分後第 12 秒才發通知(中繼看到 → 成交 < 1 秒)。
+                    #   雲端還沒有 hm-1 那根 → 直接用中繼本機逐筆組的 K(就是中繼推上雲端的同一份),只補雲端最後一根之後、已收完的分鐘;下一輪照舊以雲端為準
+                    if _lk and bars:
+                        lb_ = local_bars()
+                        if lb_:
+                            for c, rows in bars.items():
+                                l0 = max((r[0] for r in rows), default="")
+                                add = [list(r) for r in (lb_.get(c) or []) if l0 < r[0] < hm]
+                                if add: bars[c] = rows + add; _lk_n += 1
+                            lb = latest_bar(bars, last)
+                            if lb >= want: flags.append("本機K"); break
                     time.sleep(0.5)   # 2026-11-06 3 → 1 秒;2026-11-07 → 0.5 秒
                 _tm["K到齊"] = _msec()
                 forming = live_forming(eng.codes, eng.mkts, hm, bars)
@@ -2443,6 +2455,10 @@ def live():
                 eng.heartbeat(healthy, f"{hm} {dtm:.0f}s {n_ev} 事件" + (" " + ";".join(off) if off else "") + f" ⏱K{_tm['K到齊']:.1f}/寬{_tm['寬度']:.1f}/對{_tm['對帳']:.1f}/完{_tm['算完']:.1f}" + (f"/通{_ft:.1f}" if _ft is not None else ""), flags)
                 log(f"{hm} 算完 {dtm:.1f} 秒,K 到 {lb},事件 {n_ev},錯誤 {errs}/{njobs},開著 {len(eng.pos)}{' ' + ' '.join(flags) if flags else ''}")
                 log(f"{hm} 時間(整分後第幾秒):{_tt}")
+                try:   # 2026-11-25 每輪各段在整分後第幾秒,中繼每分鐘備份上雲端(pcbk rounds),延遲分析 workflow 讀
+                    with open(DATA / f"rounds_{day}.jsonl", "a", encoding="utf-8") as _f:
+                        _f.write(json.dumps({"hm": hm, **{k: round(v, 2) for k, v in _tm.items()}, "first": round(_ft, 2) if _ft is not None else None, "dtm": round(dtm, 1), "n": n_ev, "fl": flags}, ensure_ascii=False) + "\n")
+                except Exception: pass
                 # 2026-11-06 加速:規則重抓 / 名單重讀移到算完之後(原本在算之前,碰到的那一輪會晚幾秒)
                 # 規則每 30 分鐘重抓(稽核 #5)
                 if time.time() - RULES["at"] >= rules_every:

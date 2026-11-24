@@ -44,4 +44,13 @@ jobs:
           for i, nm in enumerate(("通知", "看到", "送單", "成交")):
               xs = [x[i] for x in rows if x[i] is not None]
               if xs: print(f"{nm}:中位數 {st.median(xs):.1f} 秒,最快 {min(xs):.1f},最慢 {max(xs):.1f}({len(xs)} 筆)")
+          rq = urllib.request.Request(f"{B}?pcbk=get&d={d}&name=rounds", headers={"X-Push-Key": K, "User-Agent": "lat/1"})
+          try: R = (json.loads(urllib.request.urlopen(rq, timeout=30).read().decode("utf-8")) or {}).get("v") or []
+          except Exception: R = []
+          if R:
+              print(f"\n引擎每輪各段(整分後第幾秒,2026-11-25 起才有;共 {len(R)} 輪)")
+              for k in ("開始", "K到齊", "整理K", "寬度", "對帳", "first", "算完"):
+                  xs = [float(r[k]) for r in R if r.get(k) is not None]
+                  if xs: print(f"{k}:中位數 {st.median(xs):.1f},最慢 {max(xs):.1f}")
+              print("用本機 K 的輪數:", sum(1 for r in R if "本機K" in (r.get("fl") or [])))
           PY

@@ -2061,6 +2061,8 @@ class Bridge:
                     _out.append(o_); _n += _l
                 items["signals"] = list(reversed(_out))
             except Exception: pass
+            try: items["rounds"] = [json.loads(x) for x in (ed / f"rounds_{day}.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()][-400:]   # 2026-11-25 引擎每輪各段整分後第幾秒(延遲分析)
+            except Exception: pass
             try: items["verdicts"] = [json.loads(x) for x in (ed / f"verdict_{day}.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()][-3000:]   # 2026-11-22 每則進場訊號有沒有進場(實盤 vs 總表對帳,tools/recon.py)
             except Exception: pass
             try: items["fills"] = (getattr(self, "_fills_cache", None) or (0, None))[1]   # 元大成交明細(手機明細同一份)
