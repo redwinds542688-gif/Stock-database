@@ -2464,6 +2464,16 @@ class Trader:
             if w and (judge is None or judge == w["judge"]):
                 self.late_wait.pop(code, None); self.log(f"[交易] {code} 太晚了等補進場取消:{w['judge']} 已發平倉通知")
             p = self.positions.get(code)
+            # 2026-11-24 使用者選 B(「停利停損沒走選 B」):判別式部位的停利 / 停損 / 沒走已經由中繼照元大成交均價自己算(sig_rebase / 沒走自己盯),
+            #   引擎照「訊號價」算的這三種出場通知不理(不然訊號價比較近時會比使用者要的早平);其他引擎出場(移平、總平、反轉平、超6.5%、判別式自訂出場、13:20)照收
+            if (p and p.get("px_sig") and (p.get("tp_sig") or p.get("sl_sig")) and not p.get("forced") and not p.get("over3")
+                    and p.get("judge") not in (MANUAL, FORCED) and self.exit_match(p, judge)):
+                mx = re.search(rf"{re.escape(code)}\s+(?:出場[^:]*:\s*)?(停利|停損|沒走)", title or "")
+                if mx and not RE_IRON_EXIT.search(title or ""):
+                    if mx.group(1) != "沒走" or p.get("judge") in self.nm_judges:   # 沒走:只有中繼自己有盯的判別式才不理
+                        self.log(f"[交易] {code} {p['judge']} 引擎照訊號價的「{mx.group(1)}」通知不理(停利 {p.get('tp')} / 停損 {p.get('sl')} 照成交均價 {p.get('entry')} 由中繼自己判斷):{title}")
+                        return
+            p = self.positions.get(code)
             if p and (self.exit_match(p, judge) or (p.get("over3") and judge and judge == p.get("judge0") and RE_IRON_EXIT.search(title or ""))):   # 2026-11-12 00:20 使用者「加」:超額補進場(記強三)的部位,原判別式的鐵律平倉通知(超 6.5% / 總平 / 移平)也照平;一般停利停損照判三
                 if p["state"] == HOLDING:
                     self.exit_pos(p, "手機平倉通知:" + title, self.last_px.get(code, p["entry"]))
