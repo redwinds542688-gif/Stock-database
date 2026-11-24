@@ -20,11 +20,15 @@ class GW:
 class GWN(GW):
     def send(s, *a): GW.send(s, *a); return None          # 真的通道:委託書號從回應事件來
 tmp = Path(tempfile.mkdtemp()); stop = tmp / "STOP"; NMK = [0]
+import trader as _tr_re; _tr_re_init = _tr_re.Trader.__init__
+def _tr_re_wrap(self, cfg, *a, **k):   # 2026-11-24 測試的 Trader 一律把 real_ent.json 寫到暫存資料夾(不要寫進 engine_data)
+    cfg = dict(cfg); cfg.setdefault("TRADE_REALENT_FILE", str(tmp / f"re_{id(cfg)}.json")); _tr_re_init(self, cfg, *a, **k)
+_tr_re.Trader.__init__ = _tr_re_wrap
 Trader.IRON_LOTS = False   # 舊案例用固定張數(TRADE_QTY);鐵律 ⑤ 的檢查在檔案最後另外測
 
 def mk(gw=GW, prime=True, **kw):
     NMK[0] += 1   # 2026-10-29 每個測試自己的狀態檔(今天進場過的訊號會存檔,不要互相影響)
-    cfg = {"TRADE_LOT_TIER": "0", "TRADE_BROKER_STOP": "0", "TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0", "TRADE_Y3_TP_PCT": "2.5"}; cfg.update(kw)
+    cfg = {"TRADE_LOT_TIER": "0", "TRADE_BROKER_STOP": "0", "TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json"), "TRADE_REALENT_FILE": str(tmp / f"re{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0", "TRADE_Y3_TP_PCT": "2.5"}; cfg.update(kw)
     g = gw(); t = Trader(cfg, g, logs.append, lambda: NOW[0]); g.t = t; t.posts = []; t.alerts = []
     t.post = lambda a, b, k, t_=None, **kw: (t.posts.append((a, b, k)), t.__dict__.setdefault("pkeys", []).append(kw.get("pos"))); t.akinds = []; t.alert = lambda a, b="", k="pc": (t.alerts.append(a), t.akinds.append(k))
     t.ref_of = lambda c, t=t: t.last_px.get(c)   # 2026-11-11 16:28 鐵律:沒有昨收不進場 → 測試預設昨收 = 現價(要測 ±5% / 6.5% 的自己設)
@@ -1185,6 +1189,9 @@ ok(tm_.mt_px_hit(pm_, 247.0, -1, pm_["entry"]))
 # 2026-11-24 持倉提示:三條出場線分開給,最反向那條 = exit_px;positions_view 帶得出來
 xl_ = tm_.exit_lines(pm_); ok(abs(xl_["sl"] - pm_["sl"]) < 1e-6 and abs(xl_["mt"] - 239.75 * 1.03) < 1e-3 and abs(min(xl_.values()) - tm_.exit_px(pm_)) < 1e-3, xl_)
 pv_ = [q for q in tm_.positions_view() if q["code"] == "2603"][0]; ok(pv_["xl"] == xl_ and "bxe" in pv_ and "br0" in pv_, pv_)
+# 2026-11-24 改鐵律:真實部位的元大成交均價記到 real_ent.json(給引擎算總平);加碼後均價跟著改、成交時間留第一次;手動 / 強制不記
+_rj = _js.loads(tm_.re_file.read_text(encoding="utf-8")); _rd = list(_rj.values())[0]["2603"]
+ok(_rd["d"] == -1 and abs(_rd["e"] - 239.75) < 1e-6 and _rd["j"] == "判四", _rd)
 print("鐵律 ⑥ 手動加碼移平重算 OK")
 # 2026-11-20 使用者「改1,2」② 熱門股先算:分組算完的交回順序 —— 有上限的判別式會是新進場時,等原本排前面的同判別式先對帳
 class _FP:

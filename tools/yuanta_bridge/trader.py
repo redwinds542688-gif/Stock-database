@@ -285,6 +285,7 @@ class Trader:
             try: k_, lo_, hi_ = x_.split(":"); self.j2_brng[k_.strip()] = (float(lo_), float(hi_))
             except Exception: pass   # 2026-11-09 判二大盤分級檔數(見 reset_day 說明)
         self.br_file = Path(cfg.get("TRADE_BR_FILE") or (Path(__file__).resolve().parent / "engine_data" / "breadth.json")); self._br = (0.0, None)
+        self.re_file = Path(cfg.get("TRADE_REALENT_FILE") or (Path(__file__).resolve().parent / "engine_data" / "real_ent.json"))   # 2026-11-24 鐵律 ④ 總平用元大成交均價(給電腦引擎讀)
         self.prehang = {}   # code → 保留的手動預掛委託書號 [no, …]
         self.del_q = []     # 2026-11-08 20:50 等元大確認刪除的條件單編號
         self.man_cards = {}  # 2026-11-06 14:26 手動預掛(新進場 / 加碼)發過卡的書號 → {lots, px, d, end}
@@ -2776,7 +2777,24 @@ class Trader:
                 self._prot0[code] = None; self.save_state()
         except Exception: pass
 
+    def real_ent_save(self, p):
+        """2026-11-24 16:10 使用者「改鐵律」(台塑化 11/18:訊號 88.50、元大成交 88.20,中繼 11:12 總平、引擎用訊號價算到 11:36 才發):
+           真實部位的元大成交均價記到 engine_data/real_ent.json(今天、代碼 → 方向 / 均價 / 成交時間 / 判別式),電腦引擎算鐵律 ④ 總平時用它;
+           整天保留(平倉後也留著,引擎重算不會又退回訊號價);只是給引擎讀,中繼自己的平倉判斷不變"""
+        try:
+            if not p.get("entry") or p.get("judge") in (MANUAL, FORCED): return
+            d = self.now().strftime("%Y-%m-%d"); f = self.re_file
+            try: js = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+            except Exception: js = {}
+            day = js.get(d) or {}; old = day.get(p["code"]) or {}
+            new = {"d": int(p["dir"]), "e": round(float(p["entry"]), 4), "t": old.get("t") if old.get("d") == int(p["dir"]) and old.get("t") else (p.get("t0") or self.hm()), "j": p.get("judge")}
+            if old == new: return
+            day[p["code"]] = new; f.parent.mkdir(parents=True, exist_ok=True); tmp = f.with_suffix(".tmp")
+            tmp.write_text(json.dumps({d: day}, ensure_ascii=False), encoding="utf-8"); os.replace(tmp, f)
+        except Exception: pass
+
     def prot_save(self, p):
+        self.real_ent_save(p)
         try:
             if self._prot0 is None: self._prot0 = self.load_state().get("prot") or {}
             self._prot0[p["code"]] = {"e": p.get("entry"), "d": p.get("dir"), "br0": p.get("br0"), "mt_a": p.get("mt_a"), "mt_px": p.get("mt_px")}   # 2026-11-21(檢查 T3)加方向 d
@@ -3199,6 +3217,7 @@ class Trader:
                                f"{p['t0']} 元大 · {'超額補進' if p.get('over3') else '太晚補進'} · 停利 {p['tp']:.2f} 停損 {p['sl']:.2f} · {lots}張 · {p['judge']}", "long" if p["dir"] > 0 else "short")
                 except Exception as e: self.log(f"[交易] 補進場發卡失敗 {e!r}")
             self.log(f"[交易] 持倉 {p['code']} {p['judge']} {'多' if p['dir'] > 0 else '空'} {lots} 張 均價 {avg:.2f} 停利 {p['tp']} 停損 {p['sl']}")
+            self.real_ent_save(p)
             if self.oco_ok(p["code"]) and p["tp"] and p["sl"]:
                 p["oco_no"] = None; self.oco_q.append(p["code"])
                 self.gw.place_oco(p["code"], p["mkt"], p["dir"], p["qty"] or lots, p["tp"], p["sl"])

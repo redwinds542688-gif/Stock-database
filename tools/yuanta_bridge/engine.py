@@ -1704,6 +1704,7 @@ class Engine:
             _cand = ([hm_add(min(_lt), _wait + _dly)] if _lt else []) + ([hm_add(_to, _dly)] if _to else [])
             last_ = min(_cand) if _cand else ""
             idle = bool(last_) and bool(hm_now) and hm_now > hm_add(last_, 11) and CFG.get("ENGINE_SKIP_IDLE", "1") == "1"
+            _re = self.real_ent()
             for c in self.codes:
                 if only is not None and (rs, c) not in only: continue
                 if (idle or gone) and (rs, c) not in self.pos: continue
@@ -1715,6 +1716,7 @@ class Engine:
                     continue
                 env = dict(e_)
                 if not self.canshort.get(c, False): env["CANSHORT"] = "0"   # 2026-10-29 稽核 #3:不能先賣 → 空單只記錄
+                if c in _re: env["REALENT"] = f"{_re[c]['d']}:{_re[c]['e']}:{_re[c]['t']}"   # 2026-11-24 使用者「改鐵律」:這檔有元大真實部位 → 鐵律 ④ 總平用元大成交均價算虧幾 %(模擬器 _brx 讀 REALENT)
                 jobs.append((c, self.names.get(c, c), rs, env, self.day))
         if skip_on: jobs.sort(key=lambda x: 0 if (x[2], x[0]) in self.pos else 1)   # 2026-11-07 開著的部位先算(停損 / 停利早一點發);其他照原本順序(新進場的先後不變)
         if CFG.get("ENGINE_GROUP", "1") == "1" and jobs:   # 2026-11-20 使用者「改1,2」:同一檔的判別式一起算(① 前段共用)+ ② 熱門股先算
@@ -1723,6 +1725,14 @@ class Engine:
             return (self.pool.imap(_sim_one, jobs, chunksize=1) if jobs else iter(())), len(jobs)
         t0 = time.time(); res = self.pool.map(_sim_one, jobs, chunksize=4) if jobs else []
         return res, time.time() - t0, len(jobs)
+
+    def real_ent(self):
+        """2026-11-24 使用者「改鐵律」:中繼 trader 記的今天真實部位元大成交均價(engine_data/real_ent.json:代碼 → d 方向 / e 均價 / t 成交時間);讀不到 = 空(照舊用訊號價)"""
+        try:
+            f = DATA / "real_ent.json"; st = f.stat(); key = (st.st_mtime_ns, st.st_size, self.day)
+            if getattr(self, "_re_key", None) != key: self._re_key = key; self._re = (json.loads(f.read_text(encoding="utf-8")) or {}).get(self.day) or {}
+            return {c: v for c, v in (self._re or {}).items() if isinstance(v, dict) and v.get("e") and v.get("d") in (1, -1) and v.get("t")}
+        except Exception: return {}
 
     def order12(self, it, upto):
         """2026-11-21 判一急彈空(一2):同一輪會新進場的判一急彈空先留著,這輪其他結果交回完後,照(進場那根、量比大的先)交回(一天 5 檔名額給量比大的)"""
