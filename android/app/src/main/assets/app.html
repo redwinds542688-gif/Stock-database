@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-24 公式選單「鑰匙」上鎖:這支手機有鑰匙就一律灰字(鑰匙符號照亮)、單擊沒反應;長按 0.6 秒變白字,再單擊才開輸入 / 掃描金鑰視窗;開過、10 秒沒點、按返回或滑鼠右鍵 → 回到灰色。沒鑰匙照舊單擊就開
   · 2026-11-24 公式選單「鑰匙」「說明」改成手指放開就打開(和判一~判十一樣,滑動超過 12px 不算點);原本只等手機送點擊,手指稍微一動就沒反應、要長按才打得開
   · 2026-11-24 15:34(實際時間)電腦下單:有元大成交的判別式部位,停利 / 停損 / 沒走只照成交均價由電腦自己判斷,引擎照訊號價發的這三種出場通知不理(使用者選 B);移平、總平、反轉平、±6.5%、判別式自訂出場、13:20 照常
   · 2026-11-24 股票監控區持倉提示:有部位的股票在成交價下面顯示 快平(紅閃)/ 反轉(橙)/ 小心(黃)/ 續抱(綠),照順序取第一個成立的(出場線 0.5% 內或總平快成立 → 快平;站回 28 均線且 OBV 往上 → 反轉;只成立一個或出場線 1% 內 → 小心;其他 → 續抱,做多反過來);出場線 / 寬度用電腦中繼現成值(中繼改成三條線分開給),Kb / OBV 用雲端 1 分 K;只是提示,不會自動平倉;每列同位置同寬、字在底色裡置中
@@ -621,7 +622,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611241555">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611241600">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -883,6 +884,7 @@
   .rsmenu .rsm:active{background:#2B3549}
   .rsmenu.lk .rsm,.rsmenu.lk .rsm.sel,.rsmenu.lk .rsm.off{color:#4A525E}   /* 2026-11-19 08:08 使用者「鑰匙 二字也變成灰色 只有鑰匙符號亮著」 */ .rsmenu.lk .rsm:active{background:transparent}   /* 2026-11-19 08:03 開盤中只能看燈:字灰、燈號 / 鑰匙照亮 */
   .rsmenu .rsm,.rsmenu .rsm.sel,.rsmenu .rsm.off{color:#FFFFFF}   /* 2026-10-27 11:05(實際時間)使用者:「判一二三 顏色不一樣 改一律白色」:選中 / 關掉都白字,狀態只看右邊燈號(原本選中綠字、關掉灰字) */
+  .rsmenu .rsm.kl,.rsmenu.lk .rsm.kl{color:#4A525E}   /* 2026-11-24 有鑰匙:「鑰匙」字灰(符號照亮),長按解鎖變白才點得開 */
   .rsmenu .rsm .lamp{width:11px;height:11px;border-radius:50%;background:#4A525E;box-shadow:0 0 3px rgba(0,0,0,.6);flex:0 0 11px}
   .rsmenu .rsm.g .lamp{background:#1DD75B;box-shadow:0 0 6px rgba(29,215,91,.7)}
   .rsmenu .rsm.r .lamp{background:#FF3B3B;box-shadow:0 0 6px rgba(255,59,59,.7)}
@@ -3028,7 +3030,7 @@ window.fitBands = fitBands;
     // 2026-11-09 09:06 使用者「判別未啟動」「電腦版」:電腦 / 看盤版沒有 Android 背景監控 → 改看電腦引擎心跳(engine=get,3 分鐘內有算 = 在跑)
     if (!window.Android){ try{ run = engineOn(); }catch(e){} }
     menu.querySelectorAll('.rsm').forEach(x => { const k = x.dataset.rs, on = rsOn(k);
-      if (k === 'key'){ x.classList.toggle('g', !!appKey.get()); x.classList.remove('r'); x.classList.remove('off'); x.classList.remove('sel'); return; }   // 2026-10-29 鑰匙列:有鑰匙綠燈
+      if (k === 'key'){ x.classList.toggle('g', !!appKey.get()); x.classList.toggle('kl', !!appKey.get() && !window.__keyUL); x.classList.remove('r'); x.classList.remove('off'); x.classList.remove('sel'); return; }   // 2026-10-29 鑰匙列:有鑰匙綠燈
       if (k === 'help'){ x.classList.remove('g'); x.classList.remove('r'); x.classList.remove('off'); x.classList.remove('sel'); return; }
       if (x.classList.contains('stub')){ x.classList.remove('g'); x.classList.remove('r'); x.classList.add('off'); x.classList.toggle('sel', window.NL_VIEW === 'msg' && window.LOG_RS === x.textContent.trim()); return; }   // 2026-11-06 判六 / 判七 研究中:燈不亮(不在 BG_RS,不監控、不下單)   // 2026-10-30 說明列沒有燈
       // 2026-10-29 23:12 使用者「免費的使用者 判一二三都不會亮燈 但在一個月的使用期間 還是可以看到 主機發送過來的模擬交易訊息 當沖 明細」:試用鑰匙 → 判一二三的燈不亮(訊息 / 當沖 / 明細照常顯示)
@@ -3068,7 +3070,13 @@ window.fitBands = fitBands;
       b.addEventListener('touchmove', ev => { const t = ev.touches[0]; if (Math.abs(t.clientX - x0) > 12 || Math.abs(t.clientY - y0) > 12) mv = true; }, {passive: true});
       b.addEventListener('touchend', ev => { at = Date.now(); ev.preventDefault(); if (!mv) fn(); }, {passive: false});
       b.addEventListener('click', ev => { ev.preventDefault(); if (Date.now() - at < 800) return; fn(); }); };
-    if (k === 'key'){ rsTap(() => { if (rsLk()){ rsLkMsg(); return; } closeMenu(); keyShow(''); }); return; }   // 2026-10-29 鑰匙列:點 = 鑰匙視窗(沒有長按)
+    /* 2026-11-24 15:58 使用者「只要這手機已經有鑰匙 就是灰色顯示 不管什麼時候都一樣 除了長按鑰匙後會讓鑰匙變成白色 再點擊 才會出現輸入金鑰的畫面」:
+       有鑰匙 → 「鑰匙」字灰(鑰匙符號照亮)、單擊沒反應;長按 0.6 秒 → 字變白(解鎖),再單擊才開鑰匙視窗;開過、或 10 秒沒點 → 又鎖回灰色。沒鑰匙的照舊單擊就開 */
+    if (k === 'key'){ let hold = 0, longed = false; const relock = () => { clearTimeout(window.__keyULt); window.__keyUL = false; b.classList.toggle('kl', !!appKey.get()); }; window.__keyRelock = relock;
+      b.addEventListener('pointerdown', () => { longed = false; clearTimeout(hold); if (rsLk() || !appKey.get() || window.__keyUL) return;
+        hold = setTimeout(() => { longed = true; window.__keyUL = true; b.classList.remove('kl'); clearTimeout(window.__keyULt); window.__keyULt = setTimeout(relock, 10000); }, 600); });
+      ['pointerup', 'pointercancel', 'pointerleave'].forEach(e => b.addEventListener(e, () => clearTimeout(hold)));
+      rsTap(() => { if (rsLk()){ rsLkMsg(); return; } if (longed){ longed = false; return; } if (appKey.get() && !window.__keyUL) return; relock(); closeMenu(); keyShow(''); }); return; }   // 2026-10-29 鑰匙列:點 = 鑰匙視窗(沒有長按)
     if (k === 'help'){ rsTap(() => { closeMenu(); helpShow(); }); return; }   // 2026-10-30 說明列:點 = 選股邏輯說明
     if (b.classList.contains('stub')){ b.addEventListener('click', ev => { ev.preventDefault(); closeMenu(); setStatus(lb + ' 研究中,尚未開放(盤中關閉、不監控、不下單)'); }); return; }   // 2026-11-06 判六 / 判七 只有按鍵
     const act = () => { if (rsLk()){ rsLkMsg(); return; } setView('msg', lb); };   // 單擊 / 雙擊 = 通知欄只列這份,公式鍵亮燈,視窗收起;回全部按「訊息」
@@ -6980,6 +6988,7 @@ function placeXVol(t){
 /* 2026-11-02 12:03 使用者(截圖:強制平倉視窗開著,又跳出「離開程式?」):返回鍵 / 返回手勢先關最上面那層(強制交易 / 鑰匙視窗、抓 bug 面板、公式小視窗、設定、K 圖),
    都沒有開才問要不要離開。App 1.5.53 起返回鍵先問 appBack();舊 App 只在 K 圖開著時呼叫 closeChart,所以 closeChart 也先關視窗 */
 window.appBack = () => { try{
+  if (window.__keyUL && window.__keyRelock){ __keyRelock(); return 'closed'; }   /* 2026-11-24 15:59 使用者「按返回或滑鼠右鍵 直接退回變成 灰色鑰匙 的狀態」:長按解鎖(白字)後按返回 / 右鍵 → 鎖回灰色 */
   const w = document.getElementById('fmWin'); if (w){ w.remove(); return 'closed'; }
   { const hp = document.getElementById('haltP'); if (hp){ hp.remove(); return 'closed'; } }   /* 2026-11-22 操作檢查:停止 / 解除進場的滑動框開著,返回鍵 / 右鍵先關它(原本直接把 App 退到背景,框還留著) */
   if (document.getElementById('winMenu') && window.winMenuClose){ winMenuClose(); return 'closed'; }   /* 同上:贏% 平倉選單 */
