@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-24 虛擬的「今天」收盤後直接用重寫紀錄(使用者「改 就是要顯示」:虛擬點判七是空的,今晚重寫的 11/24 判七 16 則看不到);虛擬 = 看盤版、設定選虛擬、或明細切虛擬;盤中與元大照舊看真的通知。另修:最上面那天換了時日期框跟著回到那天(原本會停在舊日期)
   · 2026-11-24 18:53(實際時間)電腦引擎 13:25~13:29 收盤集合競價不再等 K(沒有逐筆成交本來就不會有 K;原本每輪白等 15 秒)
   · 2026-11-24 顯示檢查修正:① 大盤線圖窄手機(360px)下方時間字黏在一起(10:0010:30)→ 字間距不夠就隔格寫,最右邊時間靠右不壓框 ② 持倉提示只給標「做多中 / 做空中」的列(收盤後列上已不是做多中就不顯示)③ 明細「這天的元大成交還沒拿到」左邊留空不貼框
   · 2026-11-24 鐵律 ④ 總平成交均價補強:同一檔同一天先平倉、又同方向再進場 → 記成多筆,算總平時挑成交時間落在那段進場 −2~+20 分、最接近的那筆(原本只記第一筆,第二筆會退回訊號價);手機背景、電腦引擎、模擬器同一套
@@ -627,7 +628,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611241853">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611242253">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -8464,11 +8465,15 @@ window.bgTick = bgTick; window.BG = BG;
       else out.push(r); }
     histLimC.set(d, {k, v: out}); return out; }
   function itemsFor(d){
+    /* 2026-11-24 22:51 使用者「改 就是要顯示」(虛擬點判七是空的;今晚重寫的 11/24 判七 16 則看不到):收盤後「虛擬」的今天也直接用重寫紀錄(app/log_backfill.json);
+       虛擬 = 看盤版、主導機設定選了「虛擬」、或明細切在「虛擬」;盤中照舊看雲端真的通知,元大(主導$)照舊看真的 */
+    const vSel_ = vwOnly() || SET_ACCT === '__virt' || !!window.DONE_VIRT;
+    if (vSel_ && d === todayStr() && !inSession() && HIST && HIST[d] && HIST[d].length) return histLim(d);
     if (window.VIEWER && d === todayStr()) return (CLOUD_LOG.items[d] || []).slice();   // 2026-10-29 看盤版:今天只看雲端(Worker)的通知,手機自己不算
     // 2026-10-18 使用者:「資料不同」(兩支手機的 10/16 紀錄不一樣,因為各自當天跑的版本不同)→ 過去的日子一律以雲端為準,兩支手機看到的一樣
     // 2026-10-19 起過去的日子優先用雲端通知紀錄(手機當天真的發過的,判一 / 判二 都有);沒有才用 app/log_backfill.json(判別式一重跑);今天 = 手機本機 + 雲端合併
     // 2026-11-04 17:15 使用者「重寫進場與明細 用新的 判一到四 包含永久跟開盤 都用虛擬」「包含今天」:有重算紀錄(app/log_backfill.json)的日子一律用它(現行判一~四重算,含超額);今天收盤後也用
-    if (HIST && HIST[d] && (d !== todayStr() || !inSession()) && (vwOnly() || d < '2026-11-23')) return histLim(d);   /* 2026-11-20 14:20 進場:11/22 以前元大也看重算的 */   /* 2026-11-09 21:35 使用者「用現在邏輯 重新寫進場 明細 與檢討 元大虛擬都一樣 明天再接入元大」→「重寫 22天 包含今天」:元大真實成交改從 11/10 起,11/09 以前永久版元大也看重算的 */   // 2026-11-05 16:50 使用者「重寫紀錄 進場 跟 明細 永久會員跟非永久會員都寫到今日11月5號 20天」:永久版 11/05 也看重算的,元大真實從 11/06 起   // 2026-11-04 19:16 永久版 11/05 起進場欄看真的通知(雲端紀錄),看盤版一律看重算的
+    if (HIST && HIST[d] && (d !== todayStr() || !inSession()) && (vSel_ || d < '2026-11-23')) return histLim(d);   /* 2026-11-20 14:20 進場:11/22 以前元大也看重算的 */   /* 2026-11-09 21:35 使用者「用現在邏輯 重新寫進場 明細 與檢討 元大虛擬都一樣 明天再接入元大」→「重寫 22天 包含今天」:元大真實成交改從 11/10 起,11/09 以前永久版元大也看重算的 */   // 2026-11-05 16:50 使用者「重寫紀錄 進場 跟 明細 永久會員跟非永久會員都寫到今日11月5號 20天」:永久版 11/05 也看重算的,元大真實從 11/06 起   // 2026-11-04 19:16 永久版 11/05 起進場欄看真的通知(雲端紀錄),看盤版一律看重算的
     if (d !== todayStr() && (CLOUD_LOG.items[d] || []).length) return CLOUD_LOG.items[d];
     try{ if (window.Android && Android.logFor){ const a = JSON.parse(Android.logFor(d) || '[]'); if (a.length || !(HIST && HIST[d])) return mergeCloud(a, d); } }catch(e){}
     if (d !== todayStr()) return mergeCloud([], d);
@@ -9130,7 +9135,8 @@ window.bgTick = bgTick; window.BG = BG;
     }
     if (!dayList.length) dayList.push(d);   // 2026-11-06 09:07 使用者截圖「日期呢」:開盤中今天還沒有通知 → 日期框原本空白,改成照樣顯示今天
     window.NL_ALL = allShown; window.NL_DAYS = dayList;
-    if (!window.NL_TOPDAY || !dayList.includes(window.NL_TOPDAY)) window.NL_TOPDAY = dayList[0] || today;
+    if (!window.NL_TOPDAY || !dayList.includes(window.NL_TOPDAY) || window.__nlFirstDay !== dayList[0]) window.NL_TOPDAY = dayList[0] || today;   /* 2026-11-24 22:51 最上面那天換了(例:重算紀錄晚到、今天多了卡片)→ 日期框跟著回到最上面那天(原本會停在舊的 11/20) */
+    window.__nlFirstDay = dayList[0];
     window.__e845Day = pre845 && allShown.length ? today : null;
     // 2026-10-27 03:10 使用者(收盤後開通知欄:「剛剛進入通知欄是圖一 應該是圖二這樣才對」):今天沒通知時不放「今日還沒有通知」那塊佔位,前幾天直接接在標題下;完全沒有任何一天才顯示
     if (pre845 && allShown.length){ html = `<div class="empty e845" data-day="${today}">${window.LOG_RS ? '今天沒有' + window.LOG_RS + '的通知' : '今日還沒有通知<br>(進場 / 停利 / 停損 / 出場會列在這裡)'}</div>` + html; dayList.unshift(today);
