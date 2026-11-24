@@ -1,0 +1,47 @@
+name: 進場延遲分析(引擎 → 中繼 → 送單 → 成交)
+
+# 2026-11-25 使用者「有加快訊息的方法嗎」→「改」:讀電腦中繼備份到雲端的 ?pcbk lat(trader.lat_rows,每個進場訊號各階段時間),
+#   印出每筆在整分後第幾秒:雲端收到通知 / 中繼看到 / 送單 / 第一筆成交。只印秒數,不印金鑰
+on:
+  workflow_dispatch:
+    inputs:
+      d: { description: 日期 YYYY-MM-DD, required: true }
+
+permissions:
+  contents: read
+
+jobs:
+  lat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 延遲
+        env:
+          K: ${{ secrets.YT_PUSH_KEY }}
+          D: ${{ inputs.d }}
+        run: |
+          python3 - <<'PY'
+          import os, re, sys, json, urllib.request, datetime
+          K = os.environ.get("K", ""); d = os.environ.get("D", "")
+          if not K or not re.match(r"^\d{4}-\d{2}-\d{2}$", d): print("沒有金鑰或日期不對"); sys.exit(1)
+          B = "https://twse-proxy.redwinds542688.workers.dev/"
+          rq = urllib.request.Request(f"{B}?pcbk=get&d={d}&name=lat", headers={"X-Push-Key": K, "User-Agent": "lat/1"})
+          v = (json.loads(urllib.request.urlopen(rq, timeout=30).read().decode("utf-8")) or {}).get("v") or []
+          tz = datetime.timezone(datetime.timedelta(hours=8))
+          def s(x):
+              if not x: return None
+              x = float(x); x = x / 1000 if x > 1e11 else x
+              return datetime.datetime.fromtimestamp(x, tz)
+          print(f"{d} 共 {len(v)} 筆;秒數 = 那一分鐘整分後第幾秒(通知 = 雲端收到引擎通知;看到 = 中繼收到;送單;成交 = 第一筆成交)")
+          rows = []
+          for r in sorted(v, key=lambda r: float(r.get("seen") or 0)):
+              ts, se, sn, ff = s(r.get("ts")), s(r.get("seen")), s(r.get("sent")), s(r.get("ff"))
+              b = (ts or se).replace(second=0, microsecond=0)
+              f = lambda t: f"{(t - b).total_seconds():6.1f}" if t else "     -"
+              rows.append([(t - b).total_seconds() if t else None for t in (ts, se, sn, ff)])
+              print(f"{b:%H:%M} {r.get('code', ''):>6} {str(r.get('k', ''))[:28]:28}  通知{f(ts)}  看到{f(se)}  送單{f(sn)}  成交{f(ff)}  {'進' if r.get('ok') else '沒進'}")
+          import statistics as st
+          for i, nm in enumerate(("通知", "看到", "送單", "成交")):
+              xs = [x[i] for x in rows if x[i] is not None]
+              if xs: print(f"{nm}:中位數 {st.median(xs):.1f} 秒,最快 {min(xs):.1f},最慢 {max(xs):.1f}({len(xs)} 筆)")
+          PY
