@@ -1716,7 +1716,7 @@ class Engine:
                     continue
                 env = dict(e_)
                 if not self.canshort.get(c, False): env["CANSHORT"] = "0"   # 2026-10-29 稽核 #3:不能先賣 → 空單只記錄
-                if c in _re: env["REALENT"] = f"{_re[c]['d']}:{_re[c]['e']}:{_re[c]['t']}"   # 2026-11-24 使用者「改鐵律」:這檔有元大真實部位 → 鐵律 ④ 總平用元大成交均價算虧幾 %(模擬器 _brx 讀 REALENT)
+                if c in _re: env["REALENT"] = ";".join(f"{r['d']}:{r['e']}:{r['t']}" for r in _re[c])   # 2026-11-24 使用者「改鐵律」:這檔有元大真實部位 → 鐵律 ④ 總平用元大成交均價算虧幾 %(模擬器 _brx 讀 REALENT)
                 jobs.append((c, self.names.get(c, c), rs, env, self.day))
         if skip_on: jobs.sort(key=lambda x: 0 if (x[2], x[0]) in self.pos else 1)   # 2026-11-07 開著的部位先算(停損 / 停利早一點發);其他照原本順序(新進場的先後不變)
         if CFG.get("ENGINE_GROUP", "1") == "1" and jobs:   # 2026-11-20 使用者「改1,2」:同一檔的判別式一起算(① 前段共用)+ ② 熱門股先算
@@ -1731,7 +1731,11 @@ class Engine:
         try:
             f = DATA / "real_ent.json"; st = f.stat(); key = (st.st_mtime_ns, st.st_size, self.day)
             if getattr(self, "_re_key", None) != key: self._re_key = key; self._re = (json.loads(f.read_text(encoding="utf-8")) or {}).get(self.day) or {}
-            return {c: v for c, v in (self._re or {}).items() if isinstance(v, dict) and v.get("e") and v.get("d") in (1, -1) and v.get("t")}
+            out = {}   # 2026-11-24 17:10 一檔一天多筆(先平倉又再進場):代碼 → [{d, e, t}, …]
+            for c, v in (self._re or {}).items():
+                L = [r for r in (v if isinstance(v, list) else [v]) if isinstance(r, dict) and r.get("e") and r.get("d") in (1, -1) and r.get("t")]
+                if L: out[c] = L
+            return out
         except Exception: return {}
 
     def order12(self, it, upto):

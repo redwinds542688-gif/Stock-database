@@ -1190,8 +1190,12 @@ ok(tm_.mt_px_hit(pm_, 247.0, -1, pm_["entry"]))
 xl_ = tm_.exit_lines(pm_); ok(abs(xl_["sl"] - pm_["sl"]) < 1e-6 and abs(xl_["mt"] - 239.75 * 1.03) < 1e-3 and abs(min(xl_.values()) - tm_.exit_px(pm_)) < 1e-3, xl_)
 pv_ = [q for q in tm_.positions_view() if q["code"] == "2603"][0]; ok(pv_["xl"] == xl_ and "bxe" in pv_ and "br0" in pv_, pv_)
 # 2026-11-24 改鐵律:真實部位的元大成交均價記到 real_ent.json(給引擎算總平);加碼後均價跟著改、成交時間留第一次;手動 / 強制不記
-_rj = _js.loads(tm_.re_file.read_text(encoding="utf-8")); _rd = list(_rj.values())[0]["2603"]
-ok(_rd["d"] == -1 and abs(_rd["e"] - 239.75) < 1e-6 and _rd["j"] == "判四", _rd)
+_rj = _js.loads(tm_.re_file.read_text(encoding="utf-8")); _rl = list(_rj.values())[0]["2603"]; _rd = _rl[0]
+ok(len(_rl) == 1 and _rd["d"] == -1 and abs(_rd["e"] - 239.75) < 1e-6 and _rd["j"] == "判四" and _rd["t"] == "10:05", _rl)
+# 同一檔平倉後 11:30 又同方向進場 → 多一筆(第一筆留著);11:40(20 分內)再更新均價 → 改第二筆、時間留 11:30
+_p2 = {"code": "2603", "dir": -1, "judge": "判四", "t0": "11:30", "entry": 241.0}; tm_.real_ent_save(_p2); _p2["t0"] = "11:40"; _p2["entry"] = 240.5; tm_.real_ent_save(_p2)
+_rl = list(_js.loads(tm_.re_file.read_text(encoding="utf-8")).values())[0]["2603"]
+ok(len(_rl) == 2 and _rl[0]["t"] == "10:05" and abs(_rl[0]["e"] - 239.75) < 1e-6 and _rl[1]["t"] == "11:30" and abs(_rl[1]["e"] - 240.5) < 1e-6, _rl)
 print("鐵律 ⑥ 手動加碼移平重算 OK")
 # 2026-11-20 使用者「改1,2」② 熱門股先算:分組算完的交回順序 —— 有上限的判別式會是新進場時,等原本排前面的同判別式先對帳
 class _FP:

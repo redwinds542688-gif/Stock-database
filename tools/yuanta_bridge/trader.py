@@ -2786,10 +2786,18 @@ class Trader:
             d = self.now().strftime("%Y-%m-%d"); f = self.re_file
             try: js = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
             except Exception: js = {}
-            day = js.get(d) or {}; old = day.get(p["code"]) or {}
-            new = {"d": int(p["dir"]), "e": round(float(p["entry"]), 4), "t": old.get("t") if old.get("d") == int(p["dir"]) and old.get("t") else (p.get("t0") or self.hm()), "j": p.get("judge")}
-            if old == new: return
-            day[p["code"]] = new; f.parent.mkdir(parents=True, exist_ok=True); tmp = f.with_suffix(".tmp")
+            # 2026-11-24 17:10 判別式聊天室「同一檔先平倉、又同方向再進場,第二筆對不上」→ 一檔一天存多筆清單:同方向、成交時間一樣(同一個部位加碼 / 分批)
+            #   或相差 20 分鐘內 → 同一筆(時間留第一筆、均價用最新);否則加一筆新的。平倉後照樣留著
+            day = js.get(d) or {}; L = day.get(p["code"]) or []
+            if isinstance(L, dict): L = [L]
+            dr, e, t = int(p["dir"]), round(float(p["entry"]), 4), (p.get("t0") or self.hm())[:5]
+            m = lambda x: int(x[:2]) * 60 + int(x[3:5])
+            hit = next((r for r in reversed(L) if r.get("d") == dr and r.get("t") and abs(m(t) - m(r["t"])) < 20), None)
+            if hit:
+                if hit.get("e") == e: return
+                hit["e"] = e; hit["j"] = p.get("judge")
+            else: L.append({"d": dr, "e": e, "t": t, "j": p.get("judge")})
+            day[p["code"]] = L; f.parent.mkdir(parents=True, exist_ok=True); tmp = f.with_suffix(".tmp")
             tmp.write_text(json.dumps({d: day}, ensure_ascii=False), encoding="utf-8"); os.replace(tmp, f)
         except Exception: pass
 
