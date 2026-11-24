@@ -19,7 +19,7 @@
 "code": "2618",
 "name": "長榮航",
 "market": "twse",
-"lots": 88566
+"lots": 88578
 },
 {
 "code": "6456",
@@ -43,7 +43,7 @@
 "code": "2412",
 "name": "中華電",
 "market": "twse",
-"lots": 62050
+"lots": 62074
 },
 {
 "code": "9933",
@@ -61,7 +61,7 @@
 "code": "2603",
 "name": "長榮",
 "market": "twse",
-"lots": 44291
+"lots": 44303
 },
 {
 "code": "2027",
@@ -121,7 +121,7 @@
 "code": "1216",
 "name": "統一",
 "market": "twse",
-"lots": 22430
+"lots": 22454
 },
 {
 "code": "6148",
@@ -133,7 +133,7 @@
 "code": "5871",
 "name": "中租-KY",
 "market": "twse",
-"lots": 20451
+"lots": 20463
 },
 {
 "code": "3702",
@@ -157,7 +157,7 @@
 "code": "3045",
 "name": "台灣大",
 "market": "twse",
-"lots": 15228
+"lots": 15240
 },
 {
 "code": "1312",
@@ -290,6 +290,12 @@
 "name": "聯華",
 "market": "twse",
 "lots": 5693
+},
+{
+"code": "2705",
+"name": "六福",
+"market": "twse",
+"lots": 5583
 },
 {
 "code": "4915",
