@@ -840,6 +840,15 @@ for s in pool:
         br_ = s.get("bars") if d == LAST else traded_minutes(c, s["market"], d)
         row.append([d, lo_, br_, am_])
     s["d3"] = row
+# 2026-11-25 使用者「1 改,手機也一起改」:補進來的(from_prev)滾輪改看它入選那天(d0),跳過 LAST(極端日,鎖漲停量 / 振幅都不達標)
+#   → 手機 / 電腦滾輪讀的欄位(amp / lots / bars / d3)直接換成 d0 起算的資料,兩邊程式不用改;今天(LAST)的原值留在 last_amp / last_lots / last_bars / last_d3
+TDAYS_X = sorted(d for d, k in _cnt_d.items() if k >= 300 and d <= LAST)[-(DAYS_MAX + 1):][::-1]
+for s in pool:
+    if not s.get("from_prev"): continue
+    c = s["code"]; ds = [d for d in TDAYS_X if d != LAST and d <= s["d0"]][:DAYS_MAX]
+    s["last_amp"], s["last_lots"], s["last_bars"], s["last_d3"] = s.get("amp"), s.get("lots"), s.get("bars"), s.get("d3")
+    s["amp"], s["lots"], s["bars"] = s["d0_amp"], s["d0_lots"], s["d0_bars"]
+    s["d3"] = [[d, lots_h.get(c, {}).get(d), (s["d0_bars"] if d == s["d0"] else traded_minutes(c, s["market"], d)), hist.get(c, {}).get(d)] for d in ds]
 print(f"連續天數資料:交易日 {TDAYS}")
 print(f"成交分鐘數來源:{s_src}")
 print(f"排除不可當沖 {n0 - n1} 檔、注意/處置股 {n1 - n2} 檔、冷門(成交 < {MIN_BARS} 分鐘){n_cold} 檔、5 日均振幅不足 {min(n2, SIZE * 3) - n3 - n_cold} 檔 → 最終 {len(pool)} 檔")
