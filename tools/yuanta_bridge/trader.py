@@ -2346,7 +2346,24 @@ class Trader:
     def positions_view(self):
         with self.lock:
             return [{"code": p["code"], "dir": p["dir"], "qty": p["qty"], "entry": round(p["entry"], 2), "judge": p["judge"], "state": p["state"],
-                     "tp": p["tp"], "sl": p["sl"], "t0": p.get("t0", ""), "xp": self.exit_px(p)} for p in self.positions.values()]
+                     "tp": p["tp"], "sl": p["sl"], "t0": p.get("t0", ""), "xp": self.exit_px(p),
+                     "xl": self.exit_lines(p), "br0": p.get("br0"), "brn": self._br[1] if hasattr(self, "_br") else None, "bxl": self.brx_l, "bxe": self.brx_e} for p in self.positions.values()]   # 2026-11-24 持倉提示(續抱 / 小心 / 反轉 / 快平)用:三條出場線分開給 + 總平的寬度,只是顯示
+
+    def exit_lines(self, p):
+        """2026-11-24 持倉提示用:停損 sl / 移平 mt / 強平 fx 三條線分開給手機(和 exit_px 同一套算法,只是顯示,不改任何平倉判斷)"""
+        out = {}
+        try:
+            d = p["dir"]
+            if p.get("sl"): out["sl"] = round(float(p["sl"]), 4)
+            if self.mtsl > 0 and p.get("entry"):
+                th = max(self.mtsl, IRON_MTSL_EX.get(p.get("judge"), 0)) if p.get("judge") in IRON_MTSL_EX else self.mtsl
+                a = float(p.get("mt_px") or p["entry"]); out["mt"] = round(a * (1 - th / 100) if d > 0 else a * (1 + th / 100), 4)
+            ref = self.ref_of(p["code"]) or p.get("ref") or 0
+            man = p.get("judge") in (MANUAL, FORCED) and self.man_move > 0
+            mm = self.man_move if man else self.j7_move if p.get("judge") in ("判七", "判四", "判五") and self.j7_move > 0 else self.max_move
+            if (man or not p.get("no_max_move")) and ref > 0 and mm > 0: out["fx"] = round(ref * (1 - mm / 100) if d > 0 else ref * (1 + mm / 100), 4)
+        except Exception: pass
+        return {k: v for k, v in out.items() if v > 0}
 
     def exit_px(self, p):
         """2026-11-20 10:25 使用者「每張卡片 在最右下面 輸 的前面 顯示一個 平倉價 進場時 就加上 接近時 變色提示」→ 選「最先會碰到的反向價」:

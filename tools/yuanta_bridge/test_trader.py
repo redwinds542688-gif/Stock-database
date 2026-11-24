@@ -1182,6 +1182,9 @@ tm_.on_other_fill("2603", "S", 1000, 240.5, "M901"); pm_ = tm_.positions["2603"]
 ok(pm_["qty"] == 2 and abs(pm_["mt_px"] - 239.75) < 1e-9 and abs(tm_.exit_px(pm_) - min(pm_["sl"], 239.75 * 1.03)) < 1e-6, pm_)
 tm_._mt_test = True; ok(not tm_.mt_px_hit(pm_, 245.0, -1, pm_["entry"]))   # 原本最有利 236 × 1.03 = 243.08 → 245 會平;重算後 239.75 × 1.03 = 246.94 不平
 ok(tm_.mt_px_hit(pm_, 247.0, -1, pm_["entry"]))
+# 2026-11-24 持倉提示:三條出場線分開給,最反向那條 = exit_px;positions_view 帶得出來
+xl_ = tm_.exit_lines(pm_); ok(abs(xl_["sl"] - pm_["sl"]) < 1e-6 and abs(xl_["mt"] - 239.75 * 1.03) < 1e-3 and abs(min(xl_.values()) - tm_.exit_px(pm_)) < 1e-3, xl_)
+pv_ = [q for q in tm_.positions_view() if q["code"] == "2603"][0]; ok(pv_["xl"] == xl_ and "bxe" in pv_ and "br0" in pv_, pv_)
 print("鐵律 ⑥ 手動加碼移平重算 OK")
 # 2026-11-20 使用者「改1,2」② 熱門股先算:分組算完的交回順序 —— 有上限的判別式會是新進場時,等原本排前面的同判別式先對帳
 class _FP:
