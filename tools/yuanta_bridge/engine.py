@@ -2306,6 +2306,8 @@ def live():
                 for _t in _ths: _t.start()
                 # 等 hm-1 那根上來(稽核 #6)
                 want = hm_add(hm, -1); t_end = time.time() + bar_wait
+                # 2026-11-24 使用者「改」:13:25~13:29 是收盤集合競價,沒有逐筆成交、不會有 1 分 K → 不等(原本每輪等滿 ENGINE_BAR_WAIT 15 秒,心跳 K 顯示 17 秒);只抓一次就算
+                if "13:25" <= want <= "13:29": t_end = time.time()
                 while True:
                     bars, last = today_bars_fast(day); lb = latest_bar(bars, last)   # 2026-11-07 只抓最近幾分鐘
                     if lb >= want or time.time() >= t_end: break
