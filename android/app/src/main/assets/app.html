@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-24 23:50(實際時間)虛擬檢討:重寫檔(review_rebuilt)有這一天就用重寫的數字(原本只到 11/22;主導$ 照舊用元大成交);重寫檔 / 明細 / 進場紀錄 / 重算紀錄改 5 分鐘一個版本(原本 1 小時)
   · 2026-11-24 23:33(實際時間)電腦引擎接上判三第二套(三2「判新」)和判七第二套(七2「極端日做空」):各自獨立,開關跟判三 / 判七,通知內文帶「判新」/「空 極端」;收盤檢討 0 筆也推(App 檢討不再停在前一天)
   · 2026-11-24 虛擬的「今天」收盤後直接用重寫紀錄(使用者「改 就是要顯示」:虛擬點判七是空的,今晚重寫的 11/24 判七 16 則看不到);虛擬 = 看盤版、設定選虛擬、或明細切虛擬;盤中與元大照舊看真的通知。另修:最上面那天換了時日期框跟著回到那天(原本會停在舊日期)
   · 2026-11-24 18:53(實際時間)電腦引擎 13:25~13:29 收盤集合競價不再等 K(沒有逐筆成交本來就不會有 K;原本每輪白等 15 秒)
@@ -629,7 +630,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611242333">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611242350">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1988,7 +1989,7 @@ const rvPoll = async () => { try{ if (!BASE.liveUrl || (!window.VIEWER && !liveO
   // 2026-11-09 21:58 使用者「檢討與明細不符合」:22 天紀錄照現行判別式重寫後,11/09 以前的檢討數字改用重算的(app/review_rebuilt.json,和明細 bt_fill 同一份);拖輸 / 通知晚幾秒照電腦當天的
   // 2026-11-17 01:48 使用者「如果 真有夥伴 照虛擬所有配置下單 你13.30之後重寫的 豈不是跟夥伴的帳對不上」→「改」:重算只用在 11/13 以前;11/16 起虛擬 / 檢討照盤中實際
   try{ if (j && j.d && j.d >= '2026-11-16' && j.auto && Array.isArray(j.auto.list)){ const L = vdDedupe(j.auto.list.filter(c => !c.over)); if (L.length !== j.auto.list.filter(c => !c.over).length){ const by = {}; for (const c of L){ const b = by[c.rs] || (by[c.rs] = {n: 0, w: 0, net: 0}); b.n++; b.w += +c.net > 0; b.net += +c.net; } j.auto = Object.assign({}, j.auto, {list: L, n: L.length, w: L.filter(c => +c.net > 0).length, net: L.reduce((a, c) => a + (+c.net || 0), 0), by, best: L.reduce((a, c) => !a || +c.net > +a.net ? c : a, null), worst: L.reduce((a, c) => !a || +c.net < +a.net ? c : a, null)}); } } }catch(e){}   /* 2026-11-17 01:48 使用者「改」:11/16 起檢討照盤中實際(電腦推的),只扣掉同一檔重複的 */
-  try{ if (j && j.d && j.d <= '2026-11-22'){ if (!window.__RVB){   /* 2026-11-17 21:51 使用者「從寫今天的紀錄虛擬」:11/17 檢討也看現行規則重算的 */ const rb = await fetch(`${REPO_RAW}/app/review_rebuilt.json?v=${Math.floor(Date.now() / 3600000)}`); if (rb.ok) window.__RVB = await rb.json(); }
+  try{ if (j && j.d){ const __bk = Math.floor(Date.now() / 300000); if (!window.__RVB || window.__RVBk !== __bk){ window.__RVBk = __bk;   /* 2026-11-24 23:5x 判別式聊天轉達使用者「今天的虛擬重寫」:原本只有 11/22 以前用重寫那份;改成重寫檔有這一天就用(檢討的元大那份照舊用元大成交 Y,不受影響);重寫檔 5 分鐘重抓一次(原本開 App 只抓一次) */   /* 2026-11-17 21:51 使用者「從寫今天的紀錄虛擬」:11/17 檢討也看現行規則重算的 */ const rb = await fetch(`${REPO_RAW}/app/review_rebuilt.json?v=${__bk}`); if (rb.ok) window.__RVB = await rb.json(); }
       const X = window.__RVB && window.__RVB[j.d]; if (X) j.auto = Object.assign({}, j.auto || {}, X, {obs: {}}); } }catch(e){}
   if (j && 'd' in j){ const ch = JSON.stringify(j) !== JSON.stringify(window.__RV || null); window.__RV = j; if (ch && window.NL_VIEW === 'pos' && window.nlRender) nlRender(); } }catch(e){} };
 setTimeout(rvPoll, 4000); setInterval(rvPoll, 5 * 60000); window.rvPoll = rvPoll;
@@ -8422,7 +8423,7 @@ window.bgTick = bgTick; window.BG = BG;
   // 2026-10-17 回溯資料:雲端 app/log_backfill.json 裡放用模擬補出來的前幾天紀錄(使用者重裝 App 後舊紀錄不見),
   // 只在 App 本身那天沒有紀錄時才用它補
   let HIST = {}; try{ HIST = JSON.parse(localStorage.getItem('mysh.backfill') || '{}'); }catch(e){}
-  (async () => { try{ const r = await fetch(`${REPO_RAW}/app/log_backfill.json?v=${Math.floor(Date.now() / 3600000)}`); if (r.ok){ HIST = await r.json(); try{ localStorage.setItem('mysh.backfill', JSON.stringify(HIST)); }catch(e){} render(true); } }catch(e){} })();
+  (async () => { try{ const r = await fetch(`${REPO_RAW}/app/log_backfill.json?v=${Math.floor(Date.now() / 300000)}`); if (r.ok){ HIST = await r.json(); try{ localStorage.setItem('mysh.backfill', JSON.stringify(HIST)); }catch(e){} render(true); } }catch(e){} })();
   function days(){
     let ds = [todayStr()];
     try{ if (window.Android && Android.logDays) ds = JSON.parse(Android.logDays() || '[]'); }catch(e){}
@@ -8488,8 +8489,8 @@ window.bgTick = bgTick; window.BG = BG;
   try{ window.PROB_MODEL = JSON.parse(localStorage.getItem('mysh.probModel') || 'null'); }catch(e){}   // 2026-10-25 試算機率的修正表(先用上次存的,再抓新的)
   (async () => { try{ const r = await fetch(`${REPO_RAW}/app/prob_model.json?v=${Math.floor(Date.now() / 3600000)}`); if (r.ok){ window.PROB_MODEL = await r.json(); try{ localStorage.setItem('mysh.probModel', JSON.stringify(window.PROB_MODEL)); }catch(e){} } }catch(e){} })();
   let LVE = {}; try{ LVE = JSON.parse(localStorage.getItem('mysh.lve') || '{}'); }catch(e){}   // 2026-11-03 16:12 盤中真的發過的進場訊息(收盤後 GitHub 排程存,代號|多空|判別式),虛擬交易對照用
-  window.lveLoad = async fresh => { try{ const r = await fetch(`${REPO_RAW}/live_entries.json?v=${fresh ? Date.now() : Math.floor(Date.now() / 3600000)}`, fresh ? {cache: 'no-store'} : undefined); if (r.ok){ const j = await r.json(); if (JSON.stringify(j) === JSON.stringify(LVE)) return; LVE = j; try{ localStorage.setItem('mysh.lve', JSON.stringify(LVE)); }catch(e){} render(true); } }catch(e){} }; lveLoad(false);
-  window.btfLoad = async fresh => { try{ const r = await fetch(`${REPO_RAW}/app/bt_fill.json?v=${fresh ? Date.now() : Math.floor(Date.now() / 3600000)}`, fresh ? {cache: 'no-store'} : undefined); if (r.ok){ const j = await r.json(); if (fresh && JSON.stringify(j) === JSON.stringify(BTF)) return; BTF = j; try{ localStorage.setItem('mysh.btfill', JSON.stringify(BTF)); }catch(e){} render(true); } }catch(e){} }; btfLoad(false);
+  window.lveLoad = async fresh => { try{ const r = await fetch(`${REPO_RAW}/live_entries.json?v=${fresh ? Date.now() : Math.floor(Date.now() / 300000)}`, fresh ? {cache: 'no-store'} : undefined); if (r.ok){ const j = await r.json(); if (JSON.stringify(j) === JSON.stringify(LVE)) return; LVE = j; try{ localStorage.setItem('mysh.lve', JSON.stringify(LVE)); }catch(e){} render(true); } }catch(e){} }; lveLoad(false);
+  window.btfLoad = async fresh => { try{ const r = await fetch(`${REPO_RAW}/app/bt_fill.json?v=${fresh ? Date.now() : Math.floor(Date.now() / 300000)}`, fresh ? {cache: 'no-store'} : undefined); if (r.ok){ const j = await r.json(); if (fresh && JSON.stringify(j) === JSON.stringify(BTF)) return; BTF = j; try{ localStorage.setItem('mysh.btfill', JSON.stringify(BTF)); }catch(e){} render(true); } }catch(e){} }; btfLoad(false);
   let PNLC = {}; try{ PNLC = JSON.parse(localStorage.getItem('mysh.pnlc') || '{}'); }catch(e){}   // 2026-10-24 16:36 每天輸贏的紀錄(切換日期不用重算)
   let pnlcT = 0; const pnlcSave = () => { clearTimeout(pnlcT); pnlcT = setTimeout(() => { try{ const ks = Object.keys(PNLC).sort(); while (ks.length > 80) delete PNLC[ks.shift()]; localStorage.setItem('mysh.pnlc', JSON.stringify(PNLC)); }catch(e){} }, 500); };
   window.nlRender = () => render(true);
