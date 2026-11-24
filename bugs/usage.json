@@ -1,100 +1,100 @@
 {
- "2026-11-24": {
-  "d": "2026-11-24",
+ "2026-11-25": {
+  "d": "2026-11-25",
   "tot": 0,
   "top": []
  },
- "2026-11-23": {
-  "d": "2026-11-23",
-  "tot": 67628,
+ "2026-11-24": {
+  "d": "2026-11-24",
+  "tot": 59334,
   "top": [
    [
     "key|codes",
-    16182
-   ],
-   [
-    "key|log=get",
-    7889
+    15641
    ],
    [
     "key|breadth",
-    7471
+    7577
    ],
    [
-    "key|gh:pool.json",
-    4619
+    "key|log=get",
+    7309
    ],
    [
     "key|trade=pos",
-    3564
+    3088
    ],
    [
     "key|bars",
-    2774
+    2750
    ],
    [
     "key|ybars",
-    2764
+    2740
    ],
    [
     "key|trade=fills",
-    2188
+    1864
    ],
    [
     "pc|ybars=push",
-    1823
-   ],
-   [
-    "key|codes=t00",
-    1783
+    1705
    ],
    [
     "key|quota=get",
-    1674
+    1507
+   ],
+   [
+    "key|codes=t00",
+    1505
    ],
    [
     "none|breadth",
-    1496
+    1493
    ],
    [
     "pc|log=get",
-    1453
+    1488
+   ],
+   [
+    "key|ixbars",
+    1245
    ],
    [
     "key|fbars",
-    1233
+    1239
    ],
    [
     "none|codes",
-    821
-   ],
-   [
-    "key|engine=get",
-    754
+    819
    ],
    [
     "pc|log=wait",
-    753
+    802
    ],
    [
-    "key|extra=get",
-    560
+    "key|engine=get",
+    779
    ],
    [
     "pc|quota=push",
-    523
+    516
+   ],
+   [
+    "key|extra=get",
+    476
    ],
    [
     "none|ybars",
-    380
+    382
    ],
    [
-    "pc|fbars=push",
-    295
+    "none|/icon-192.png",
+    299
    ],
    [
     "pc|pcbk=put",
-    270
+    268
    ],
    [
     "pc|engine=push",
@@ -102,902 +102,134 @@
    ],
    [
     "key|usmkt=get",
-    239
+    203
    ],
    [
     "key|review=get",
-    236
-   ],
-   [
-    "key|elig=get",
-    195
-   ],
-   [
-    "key|cap=get",
-    170
-   ],
-   [
-    "pc|gh:",
-    164
+    203
    ],
    [
     "free|log=get",
-    162
+    202
+   ],
+   [
+    "pc|fbars=push",
+    169
+   ],
+   [
+    "key|elig=get",
+    165
    ],
    [
     "key|bars=snap",
-    159
+    162
    ],
    [
-    "key|ixbars",
-    153
+    "pc|gh:",
+    134
    ],
    [
-    "none|/icon-192.png",
-    145
+    "key|gh:pool.json",
+    119
+   ],
+   [
+    "key|cap=get",
+    117
    ],
    [
     "key|log=days",
-    129
+    107
    ],
    [
-    "key|acct=list",
-    91
+    "pc|log=add",
+    103
+   ],
+   [
+    "key|yahoo",
+    102
    ],
    [
     "pc|gh:tools/yuanta_bridge",
-    83
+    84
+   ],
+   [
+    "key|acct=list",
+    71
+   ],
+   [
+    "none|push=last",
+    63
    ],
    [
     "pc|gh:pool.json",
-    65
-   ],
-   [
-    "key|gh:app/app.html",
-    61
-   ],
-   [
-    "key|gh:judge.js",
-    55
+    59
    ],
    [
     "pc|gh:review/*",
     51
    ],
    [
-    "pc|log=add",
-    44
+    "key|gh:app/app.html",
+    45
    ],
    [
-    "key|yahoo",
+    "key|gh:judge.js",
     43
    ],
    [
-    "pc|gh:backtest/studies",
-    36
-   ],
-   [
-    "none|push=last",
-    34
+    "none|trade=fills",
+    42
    ],
    [
     "pc|cap=get",
-    33
-   ],
-   [
-    "pc|gh:backtest/tools",
-    30
-   ],
-   [
-    "key|keys=me",
-    27
-   ],
-   [
-    "key|gh:kline/2441",
-    19
+    32
    ],
    [
     "pc|gh:reports/新判別式_*",
-    19
+    32
    ],
    [
-    "key|gh:kline/8422",
-    18
+    "key|keys=me",
+    26
    ],
    [
-    "key|gh:kline/2618",
-    18
-   ],
-   [
-    "key|gh:kline/1101",
-    18
-   ],
-   [
-    "key|gh:kline/2603",
-    18
-   ],
-   [
-    "key|gh:kline/2409",
-    18
-   ],
-   [
-    "key|gh:kline/3481",
-    18
-   ],
-   [
-    "key|gh:kline/2303",
-    18
-   ],
-   [
-    "key|gh:kline/6770",
-    18
-   ],
-   [
-    "key|gh:kline/2344",
-    18
-   ],
-   [
-    "key|gh:kline/2468",
-    18
-   ],
-   [
-    "key|gh:kline/2327",
-    18
-   ],
-   [
-    "key|gh:kline/2317",
-    18
-   ],
-   [
-    "key|gh:kline/2337",
-    18
-   ],
-   [
-    "key|gh:kline/1802",
-    18
-   ],
-   [
-    "key|gh:kline/2408",
-    18
-   ],
-   [
-    "key|gh:kline/2324",
-    18
-   ],
-   [
-    "key|gh:kline/2412",
-    18
-   ],
-   [
-    "key|gh:kline/2610",
-    18
-   ],
-   [
-    "key|gh:kline/2027",
-    18
-   ],
-   [
-    "key|gh:kline/3231",
-    18
-   ],
-   [
-    "key|gh:kline/3711",
-    18
-   ],
-   [
-    "key|gh:kline/2356",
-    18
-   ],
-   [
-    "key|gh:kline/1605",
-    18
-   ],
-   [
-    "key|gh:kline/2355",
-    18
-   ],
-   [
-    "key|gh:kline/2353",
-    18
-   ],
-   [
-    "key|gh:kline/9933",
-    18
-   ],
-   [
-    "key|gh:kline/1326",
-    18
-   ],
-   [
-    "key|gh:kline/1216",
-    18
-   ],
-   [
-    "key|gh:kline/2471",
-    18
-   ],
-   [
-    "key|gh:kline/6116",
-    18
-   ],
-   [
-    "key|gh:kline/2615",
-    18
-   ],
-   [
-    "key|gh:kline/3045",
-    18
-   ],
-   [
-    "key|gh:kline/2609",
-    18
-   ],
-   [
-    "key|gh:kline/3702",
-    18
-   ],
-   [
-    "key|gh:kline/6505",
-    18
-   ],
-   [
-    "key|gh:kline/2328",
-    18
-   ],
-   [
-    "key|gh:kline/2301",
-    18
-   ],
-   [
-    "key|gh:kline/2382",
-    18
-   ],
-   [
-    "key|gh:kline/1714",
-    18
-   ],
-   [
-    "key|gh:kline/4958",
-    18
-   ],
-   [
-    "key|gh:kline/2371",
-    18
-   ],
-   [
-    "key|gh:kline/6672",
-    18
-   ],
-   [
-    "key|gh:kline/2449",
-    18
-   ],
-   [
-    "key|gh:kline/2312",
-    18
-   ],
-   [
-    "key|gh:kline/8150",
-    18
-   ],
-   [
-    "key|gh:kline/6285",
-    18
-   ],
-   [
-    "key|gh:kline/2105",
-    18
-   ],
-   [
-    "key|gh:kline/3706",
-    18
-   ],
-   [
-    "key|gh:kline/1409",
-    18
-   ],
-   [
-    "key|gh:kline/2376",
-    18
-   ],
-   [
-    "key|gh:kline/6269",
-    18
-   ],
-   [
-    "key|gh:kline/4938",
-    18
-   ],
-   [
-    "key|gh:kline/2313",
-    18
-   ],
-   [
-    "key|gh:kline/4763",
-    18
-   ],
-   [
-    "key|gh:kline/1785",
-    18
-   ],
-   [
-    "key|gh:kline/1312",
-    18
-   ],
-   [
-    "key|gh:kline/3006",
-    18
-   ],
-   [
-    "key|gh:kline/4906",
-    18
-   ],
-   [
-    "key|gh:kline/1102",
-    18
-   ],
-   [
-    "key|gh:kline/3260",
-    18
-   ],
-   [
-    "key|gh:kline/6239",
-    18
-   ],
-   [
-    "key|gh:kline/3036",
-    18
-   ],
-   [
-    "key|gh:kline/9945",
-    18
-   ],
-   [
-    "key|gh:kline/5347",
-    18
-   ],
-   [
-    "key|gh:kline/2352",
-    18
-   ],
-   [
-    "key|gh:kline/2634",
-    18
-   ],
-   [
-    "key|gh:kline/8069",
-    18
-   ],
-   [
-    "key|gh:kline/2481",
-    18
-   ],
-   [
-    "key|gh:kline/1504",
-    18
-   ],
-   [
-    "key|gh:kline/5351",
-    18
-   ],
-   [
-    "key|gh:kline/5483",
-    18
-   ],
-   [
-    "key|gh:kline/6112",
-    18
-   ],
-   [
-    "key|gh:kline/6919",
-    18
-   ],
-   [
-    "key|gh:kline/7765",
-    18
-   ],
-   [
-    "key|gh:kline/2646",
-    18
-   ],
-   [
-    "key|gh:kline/2498",
-    18
-   ],
-   [
-    "key|gh:kline/2451",
-    18
-   ],
-   [
-    "key|gh:kline/6443",
-    18
-   ],
-   [
-    "key|gh:kline/2377",
-    18
-   ],
-   [
-    "key|gh:kline/3673",
-    18
-   ],
-   [
-    "key|gh:kline/8099",
-    18
-   ],
-   [
-    "key|gh:kline/6282",
-    18
-   ],
-   [
-    "key|gh:kline/2354",
-    18
-   ],
-   [
-    "key|gh:kline/3044",
-    18
-   ],
-   [
-    "key|gh:kline/8070",
-    18
-   ],
-   [
-    "key|gh:kline/8112",
-    18
-   ],
-   [
-    "key|gh:kline/7788",
-    18
-   ],
-   [
-    "key|gh:kline/2367",
-    18
-   ],
-   [
-    "key|gh:kline/2347",
-    18
-   ],
-   [
-    "key|gh:kline/5457",
-    18
-   ],
-   [
-    "key|gh:kline/3005",
-    18
-   ],
-   [
-    "key|gh:kline/3028",
-    18
-   ],
-   [
-    "key|gh:kline/3149",
-    18
-   ],
-   [
-    "key|gh:kline/2385",
-    18
-   ],
-   [
-    "key|gh:kline/2363",
-    18
-   ],
-   [
-    "key|gh:kline/5314",
-    17
-   ],
-   [
-    "key|gh:kline/1303",
-    17
-   ],
-   [
-    "key|gh:kline/1301",
-    17
-   ],
-   [
-    "key|gh:kline/4904",
-    17
-   ],
-   [
-    "key|gh:kline/3576",
-    17
-   ],
-   [
-    "key|gh:kline/2489",
-    17
-   ],
-   [
-    "key|gh:kline/1717",
-    17
-   ],
-   [
-    "key|gh:kline/1711",
-    17
-   ],
-   [
-    "key|gh:kline/3033",
-    17
-   ],
-   [
-    "key|ws=log",
+    "pc|gh:backtest/tools",
     16
    ],
    [
-    "pc|gh:android/app",
-    15
-   ],
-   [
-    "pc|vdone=push",
-    15
-   ],
-   [
     "pc|gh:backtest/chk",
-    14
+    15
    ],
    [
     "pc|gh:backtest/sim_day.py",
     12
    ],
    [
-    "none|ixbars",
-    11
-   ],
-   [
     "none|trade=pos",
     11
    ],
    [
-    "pc|gh:判別式候選_均線收斂回測.md",
-    9
+    "pc|gh:android/app",
+    10
    ],
    [
-    "pc|gh:kline/3711",
-    9
-   ],
-   [
-    "pc|gh:kline/2634",
-    9
-   ],
-   [
-    "pc|gh:kline/2363",
-    9
-   ],
-   [
-    "none|engine=get",
-    9
-   ],
-   [
-    "pc|gh:kline/1717",
+    "pc|gh:backtest/studies",
     8
-   ],
-   [
-    "pc|gh:kline/3673",
-    8
-   ],
-   [
-    "pc|gh:kline/8112",
-    8
-   ],
-   [
-    "key|gh:app/log_backfill.json?v=498723",
-    8
-   ],
-   [
-    "key|gh:app/prob_model.json?v=498723",
-    8
-   ],
-   [
-    "key|gh:live_entries.json?v=498723",
-    8
-   ],
-   [
-    "key|gh:app/bt_fill.json?v=498723",
-    8
-   ],
-   [
-    "key|gh:app/review_rebuilt.json?v=498723",
-    8
-   ],
-   [
-    "pc|gh:app/app.html",
-    7
-   ],
-   [
-    "pc|gh:kline/2409",
-    7
-   ],
-   [
-    "pc|gh:kline/3481",
-    7
-   ],
-   [
-    "pc|gh:kline/2468",
-    7
-   ],
-   [
-    "pc|gh:kline/2344",
-    7
-   ],
-   [
-    "pc|gh:kline/2317",
-    7
-   ],
-   [
-    "pc|gh:kline/2337",
-    7
-   ],
-   [
-    "pc|gh:kline/1802",
-    7
-   ],
-   [
-    "pc|gh:kline/2324",
-    7
-   ],
-   [
-    "pc|gh:kline/3231",
-    7
-   ],
-   [
-    "pc|gh:kline/2027",
-    7
-   ],
-   [
-    "pc|gh:kline/2618",
-    7
-   ],
-   [
-    "pc|gh:kline/1301",
-    7
-   ],
-   [
-    "pc|gh:kline/2353",
-    7
-   ],
-   [
-    "pc|gh:kline/9933",
-    7
-   ],
-   [
-    "pc|gh:kline/1216",
-    7
-   ],
-   [
-    "pc|gh:kline/2471",
-    7
-   ],
-   [
-    "pc|gh:kline/3702",
-    7
-   ],
-   [
-    "pc|gh:kline/6505",
-    7
-   ],
-   [
-    "pc|gh:kline/2301",
-    7
-   ],
-   [
-    "pc|gh:kline/2603",
-    7
-   ],
-   [
-    "pc|gh:kline/2371",
-    7
-   ],
-   [
-    "pc|gh:kline/1714",
-    7
-   ],
-   [
-    "pc|gh:kline/2312",
-    7
-   ],
-   [
-    "pc|gh:kline/2449",
-    7
-   ],
-   [
-    "pc|gh:kline/3706",
-    7
-   ],
-   [
-    "pc|gh:kline/1409",
-    7
-   ],
-   [
-    "pc|gh:kline/2376",
-    7
-   ],
-   [
-    "pc|gh:kline/3576",
-    7
-   ],
-   [
-    "pc|gh:kline/6269",
-    7
-   ],
-   [
-    "pc|gh:kline/4763",
-    7
-   ],
-   [
-    "pc|gh:kline/4938",
-    7
-   ],
-   [
-    "pc|gh:kline/1312",
-    7
-   ],
-   [
-    "pc|gh:kline/2489",
-    7
-   ],
-   [
-    "pc|gh:kline/3006",
-    7
-   ],
-   [
-    "pc|gh:kline/4906",
-    7
-   ],
-   [
-    "pc|gh:kline/2352",
-    7
-   ],
-   [
-    "pc|gh:kline/1504",
-    7
-   ],
-   [
-    "pc|gh:kline/2498",
-    7
-   ],
-   [
-    "pc|gh:kline/6443",
-    7
-   ],
-   [
-    "pc|gh:kline/2377",
-    7
-   ],
-   [
-    "pc|gh:kline/2354",
-    7
-   ],
-   [
-    "pc|gh:kline/2367",
-    7
-   ],
-   [
-    "pc|gh:kline/1711",
-    7
-   ],
-   [
-    "pc|gh:kline/3149",
-    7
-   ],
-   [
-    "key|vdone",
-    7
    ],
    [
     "none|quota=get",
+    8
+   ],
+   [
+    "none|log=days",
     7
    ],
    [
-    "none|gh:pool.json",
+    "none|codes=t00",
     7
-   ],
-   [
-    "none|review=get",
-    7
-   ],
-   [
-    "pc|gh:kline/6770",
-    6
-   ],
-   [
-    "pc|gh:kline/2327",
-    6
-   ],
-   [
-    "pc|gh:kline/1101",
-    6
-   ],
-   [
-    "pc|gh:kline/1303",
-    6
-   ],
-   [
-    "pc|gh:kline/2610",
-    6
-   ],
-   [
-    "pc|gh:kline/2356",
-    6
-   ],
-   [
-    "pc|gh:kline/1605",
-    6
-   ],
-   [
-    "pc|gh:kline/1326",
-    6
-   ],
-   [
-    "pc|gh:kline/2615",
-    6
-   ],
-   [
-    "pc|gh:kline/2609",
-    6
-   ],
-   [
-    "pc|gh:kline/2382",
-    6
-   ],
-   [
-    "pc|gh:kline/6672",
-    6
-   ],
-   [
-    "pc|gh:kline/8150",
-    6
-   ],
-   [
-    "pc|gh:kline/6285",
-    6
-   ],
-   [
-    "pc|gh:kline/2313",
-    6
-   ],
-   [
-    "pc|gh:kline/6239",
-    6
-   ],
-   [
-    "pc|gh:kline/3036",
-    6
-   ],
-   [
-    "pc|gh:kline/2481",
-    6
-   ],
-   [
-    "pc|gh:kline/6282",
-    6
-   ],
-   [
-    "none|usmkt=get",
-    6
-   ],
-   [
-    "pc|gh:pool_full.json",
-    6
-   ],
-   [
-    "pc|gh:kline/1709",
-    6
-   ],
-   [
-    "pc|gh:kline/2492",
-    6
-   ],
-   [
-    "pc|gh:kline/2606",
-    6
-   ],
-   [
-    "pc|gh:kline/2340",
-    6
    ],
    [
     "pc|gh:kline/2351",
-    6
-   ],
-   [
-    "pc|gh:kline/2426",
     6
    ],
    [
@@ -1005,27 +237,7 @@
     6
    ],
    [
-    "pc|gh:kline/3016",
-    6
-   ],
-   [
-    "pc|gh:kline/3605",
-    6
-   ],
-   [
-    "pc|gh:kline/3715",
-    6
-   ],
-   [
-    "pc|gh:kline/4916",
-    6
-   ],
-   [
-    "pc|gh:kline/2332",
-    6
-   ],
-   [
-    "pc|gh:kline/3042",
+    "pc|gh:kline/2606",
     6
    ],
    [
@@ -1033,83 +245,39 @@
     6
    ],
    [
-    "pc|gh:kline/6209",
+    "pc|gh:kline/5871",
     6
    ],
    [
-    "pc|gh:kline/2464",
+    "pc|gh:kline/6488",
     6
    ],
    [
-    "pc|gh:kline/4919",
+    "pc|gh:kline/9904",
     6
    ],
    [
-    "pc|gh:kline/3189",
+    "key|ws=log",
     6
    ],
    [
-    "pc|gh:kline/4526",
+    "none|gh:pool.json",
     6
    ],
    [
-    "pc|gh:kline/6415",
+    "none|gh:app/bt_fill.json?v=498751",
     6
    ],
    [
-    "pc|gh:app/viewer.html",
+    "pc|gh:kline/1216",
     5
    ],
    [
-    "pc|gh:pool.js",
+    "pc|gh:kline/1312",
     5
    ],
    [
-    "pc|gh:kline/2303",
-    5
-   ],
-   [
-    "pc|gh:kline/2408",
-    5
-   ],
-   [
-    "pc|gh:kline_yuanta/3711",
-    5
-   ],
-   [
-    "pc|gh:kline/4958",
-    5
-   ],
-   [
-    "pc|gh:kline_yuanta/8099",
-    5
-   ],
-   [
-    "pc|gh:kline/2347",
-    5
-   ],
-   [
-    "key|gh:app/prob_model.json?v=498722",
-    5
-   ],
-   [
-    "key|gh:app/log_backfill.json?v=498722",
-    5
-   ],
-   [
-    "key|gh:live_entries.json?v=498722",
-    5
-   ],
-   [
-    "key|gh:app/bt_fill.json?v=498722",
-    5
-   ],
-   [
-    "key|gh:app/review_rebuilt.json?v=498722",
-    5
-   ],
-   [
-    "none|log=days",
+    "pc|gh:kline/2027",
     5
    ],
    [
@@ -1117,43 +285,63 @@
     5
    ],
    [
-    "pc|gh:kline/2465",
+    "pc|gh:kline/2354",
     5
    ],
    [
-    "pc|gh:kline/3026",
+    "pc|gh:kline/2468",
     5
    ],
    [
-    "pc|gh:kline/2542",
+    "pc|gh:kline/2471",
     5
    ],
    [
-    "pc|gh:kline/4960",
+    "pc|gh:kline/2603",
     5
    ],
    [
-    "pc|gh:kline/6257",
+    "pc|gh:kline/2618",
     5
    ],
    [
-    "pc|gh:kline/3035",
+    "pc|gh:kline/2634",
     5
    ],
    [
-    "pc|gh:kline/6278",
+    "pc|gh:kline/3006",
     5
    ],
    [
-    "pc|gh:kline/3701",
+    "pc|gh:kline/3016",
     5
    ],
    [
-    "pc|gh:kline/2455",
+    "pc|gh:kline/3189",
     5
    ],
    [
-    "pc|gh:kline/6213",
+    "pc|gh:kline/3576",
+    5
+   ],
+   [
+    "pc|gh:kline/3702",
+    5
+   ],
+   [
+    "pc|gh:kline/4763",
+    5
+   ],
+   [
+    "pc|gh:kline/5475",
+    5
+   ],
+   [
+    "pc|gh:kline/5904",
+    5
+   ],
+   [
+    "pc|gh:kline_yuanta/3189",
     5
    ],
    [
@@ -1161,11 +349,263 @@
     5
    ],
    [
-    "pc|gh:kline/8039",
+    "pc|gh:kline/6505",
     5
    ],
    [
-    "pc|yquote=register",
+    "pc|gh:kline/9933",
+    5
+   ],
+   [
+    "key|vdone",
+    5
+   ],
+   [
+    "pc|gh:pool_full.json",
+    5
+   ],
+   [
+    "none|usmkt=get",
+    5
+   ],
+   [
+    "none|gh:app/prob_model.json?v=498751",
+    5
+   ],
+   [
+    "none|elig=get",
+    5
+   ],
+   [
+    "pc|gh:app/viewer.html",
+    4
+   ],
+   [
+    "pc|gh:kline/1101",
+    4
+   ],
+   [
+    "pc|gh:kline/1301",
+    4
+   ],
+   [
+    "pc|gh:kline/1303",
+    4
+   ],
+   [
+    "pc|gh:kline/1326",
+    4
+   ],
+   [
+    "pc|gh:kline/1504",
+    4
+   ],
+   [
+    "pc|gh:kline/1605",
+    4
+   ],
+   [
+    "pc|gh:kline/1709",
+    4
+   ],
+   [
+    "pc|gh:kline/1711",
+    4
+   ],
+   [
+    "pc|gh:kline/1714",
+    4
+   ],
+   [
+    "pc|gh:kline/1717",
+    4
+   ],
+   [
+    "pc|gh:kline/1785",
+    4
+   ],
+   [
+    "pc|gh:kline/1802",
+    4
+   ],
+   [
+    "pc|gh:kline/1815",
+    4
+   ],
+   [
+    "pc|gh:kline/2301",
+    4
+   ],
+   [
+    "pc|gh:kline/2312",
+    4
+   ],
+   [
+    "pc|gh:kline/2317",
+    4
+   ],
+   [
+    "pc|gh:kline/2324",
+    4
+   ],
+   [
+    "pc|gh:kline/2337",
+    4
+   ],
+   [
+    "pc|gh:kline/2340",
+    4
+   ],
+   [
+    "pc|gh:kline/2344",
+    4
+   ],
+   [
+    "pc|gh:kline/2347",
+    4
+   ],
+   [
+    "pc|gh:kline/2353",
+    4
+   ],
+   [
+    "pc|gh:kline/2356",
+    4
+   ],
+   [
+    "pc|gh:kline/2363",
+    4
+   ],
+   [
+    "pc|gh:kline/2367",
+    4
+   ],
+   [
+    "pc|gh:kline/2377",
+    4
+   ],
+   [
+    "pc|gh:kline/2408",
+    4
+   ],
+   [
+    "pc|gh:kline/2409",
+    4
+   ],
+   [
+    "pc|gh:kline/2426",
+    4
+   ],
+   [
+    "pc|gh:kline/2449",
+    4
+   ],
+   [
+    "pc|gh:kline/2464",
+    4
+   ],
+   [
+    "pc|gh:kline/2465",
+    4
+   ],
+   [
+    "pc|gh:kline/2481",
+    4
+   ],
+   [
+    "pc|gh:kline/2489",
+    4
+   ],
+   [
+    "pc|gh:kline/2492",
+    4
+   ],
+   [
+    "pc|gh:kline/2609",
+    4
+   ],
+   [
+    "pc|gh:kline/2610",
+    4
+   ],
+   [
+    "pc|gh:kline/3026",
+    4
+   ],
+   [
+    "pc|gh:kline/3035",
+    4
+   ],
+   [
+    "pc|gh:kline/3036",
+    4
+   ],
+   [
+    "pc|gh:kline/3105",
+    4
+   ],
+   [
+    "pc|gh:kline/3149",
+    4
+   ],
+   [
+    "pc|gh:kline/3260",
+    4
+   ],
+   [
+    "pc|gh:kline/3264",
+    4
+   ],
+   [
+    "pc|gh:kline/3481",
+    4
+   ],
+   [
+    "pc|gh:kline/3605",
+    4
+   ],
+   [
+    "pc|gh:kline/3673",
+    4
+   ],
+   [
+    "pc|gh:kline/3701",
+    4
+   ],
+   [
+    "pc|gh:kline/3711",
+    4
+   ],
+   [
+    "pc|gh:kline/4906",
+    4
+   ],
+   [
+    "pc|gh:kline/4916",
+    4
+   ],
+   [
+    "pc|gh:kline/4919",
+    4
+   ],
+   [
+    "pc|gh:kline/4938",
+    4
+   ],
+   [
+    "pc|gh:kline/4958",
+    4
+   ],
+   [
+    "pc|gh:kline/4960",
+    4
+   ],
+   [
+    "pc|gh:kline/4979",
+    4
+   ],
+   [
+    "pc|gh:kline/5314",
     4
    ],
    [
@@ -1173,307 +613,175 @@
     4
    ],
    [
-    "pc|gh:kline/6116",
-    4
-   ],
-   [
-    "pc|gh:kline_yuanta/2105",
-    4
-   ],
-   [
     "pc|gh:kline/5347",
     4
    ],
    [
-    "pc|gh:kline/5483",
+    "pc|gh:kline/5351",
     4
    ],
    [
-    "pc|gh:kline_yuanta/7765",
+    "pc|gh:kline/5425",
     4
    ],
    [
-    "pc|gh:kline_yuanta/8070",
+    "pc|gh:kline/6770",
     4
    ],
    [
-    "pc|gh:kline_yuanta/3033",
+    "pc|gh:kline/6182",
     4
    ],
    [
-    "pc|gh:kline_yuanta/2385",
+    "pc|gh:kline/6209",
     4
    ],
    [
-    "none|gh:app/ignore_codes.json?v=2992341",
+    "pc|gh:kline/6213",
     4
    ],
    [
-    "none|elig=get",
+    "pc|gh:kline/6239",
     4
    ],
    [
-    "pc|gh:kline/4927",
+    "pc|gh:kline/6257",
     4
    ],
    [
-    "pc|gh:kline/5871",
+    "pc|gh:kline_yuanta/3711",
     4
    ],
    [
-    "pc|gh:kline/9904",
+    "pc|gh:kline/6278",
     4
    ],
    [
-    "none|gh:app/ignore_codes.json?v=2992411",
+    "pc|gh:kline/6282",
     4
    ],
    [
-    "none|gh:live_entries.json?v=498735",
+    "pc|gh:kline/6285",
     4
    ],
    [
-    "none|gh:app/bt_fill.json?v=498735",
+    "pc|gh:kline/6415",
     4
    ],
    [
-    "none|gh:app/prob_model.json?v=498735",
+    "pc|gh:kline/6443",
     4
    ],
    [
-    "key|gh:app/log_backfill.json?v=498720",
-    3
+    "pc|gh:kline/6672",
+    4
    ],
    [
-    "key|gh:app/bt_fill.json?v=498720",
-    3
-   ],
-   [
-    "key|gh:live_entries.json?v=498720",
-    3
-   ],
-   [
-    "key|gh:app/prob_model.json?v=498720",
-    3
-   ],
-   [
-    "key|gh:app/review_rebuilt.json?v=498720",
-    3
-   ],
-   [
-    "key|gh:kline_yuanta/8422",
-    3
-   ],
-   [
-    "key|gh:kline_yuanta/2409",
-    3
-   ],
-   [
-    "key|gh:kline_yuanta/3045",
-    3
-   ],
-   [
-    "key|gh:kline_yuanta/2371",
-    3
-   ],
-   [
-    "key|gh:kline_yuanta/3036",
-    3
-   ],
-   [
-    "key|gh:kline_yuanta/2634",
-    3
-   ],
-   [
-    "key|gh:kline_yuanta/6282",
-    3
-   ],
-   [
-    "key|gh:kline_yuanta/7788",
-    3
-   ],
-   [
-    "key|gh:kline_yuanta/5457",
-    3
-   ],
-   [
-    "key|gh:kline_yuanta/3149",
-    3
-   ],
-   [
-    "pc|gh:交接紀錄.md",
-    3
-   ],
-   [
-    "pc|gh:kline_yuanta/2412",
-    3
-   ],
-   [
-    "pc|gh:kline_yuanta/1216",
-    3
-   ],
-   [
-    "pc|gh:kline_yuanta/3045",
-    3
-   ],
-   [
-    "pc|gh:kline/2328",
-    3
-   ],
-   [
-    "pc|gh:kline/2105",
-    3
-   ],
-   [
-    "pc|gh:kline/1785",
-    3
-   ],
-   [
-    "pc|gh:kline/1102",
-    3
-   ],
-   [
-    "pc|gh:kline_yuanta/1102",
-    3
-   ],
-   [
-    "pc|gh:kline/3260",
-    3
-   ],
-   [
-    "pc|gh:kline/9945",
-    3
+    "pc|gh:kline/8039",
+    4
    ],
    [
     "pc|gh:kline/8069",
+    4
+   ],
+   [
+    "pc|gh:kline/8112",
+    4
+   ],
+   [
+    "pc|gh:kline/8150",
+    4
+   ],
+   [
+    "pc|gh:kline_yuanta/2606",
+    4
+   ],
+   [
+    "pc|gh:kline_yuanta/2351",
+    4
+   ],
+   [
+    "none|gh:live_entries.json?v=498751",
+    4
+   ],
+   [
+    "none|gh:app/log_backfill.json?v=498752",
+    4
+   ],
+   [
+    "key|gh:app/log_backfill.json?v=498744",
     3
    ],
    [
-    "pc|gh:kline/8422",
+    "key|gh:app/bt_fill.json?v=498744",
     3
    ],
    [
-    "pc|gh:kline/5351",
+    "key|gh:app/prob_model.json?v=498744",
     3
    ],
    [
-    "pc|gh:kline/7765",
+    "key|gh:live_entries.json?v=498744",
     3
    ],
    [
-    "pc|gh:kline/2646",
+    "pc|yquote=register",
     3
    ],
    [
-    "pc|gh:kline_yuanta/2646",
+    "pc|gh:app/app.html",
     3
    ],
    [
-    "pc|gh:kline/8099",
+    "pc|gh:kline/1409",
     3
    ],
    [
-    "pc|gh:kline/8070",
+    "pc|gh:kline/2303",
     3
    ],
    [
-    "pc|gh:kline/7788",
+    "pc|gh:kline/2327",
     3
    ],
    [
-    "pc|gh:kline_yuanta/7788",
+    "pc|gh:kline/2332",
     3
    ],
    [
-    "pc|gh:kline/5457",
+    "pc|gh:kline/2352",
     3
    ],
    [
-    "pc|gh:kline_yuanta/5457",
+    "pc|gh:kline/2371",
     3
    ],
    [
-    "pc|gh:kline_yuanta/3028",
+    "pc|gh:kline/2382",
     3
    ],
    [
-    "pc|gh:kline/3033",
+    "pc|gh:kline/2455",
     3
    ],
    [
-    "pc|gh:kline/2385",
+    "pc|gh:kline/2498",
     3
    ],
    [
-    "pc|gh:kline_yuanta/2363",
+    "pc|gh:kline/2542",
     3
    ],
    [
-    "none|gh:app/ignore_codes.json?v=2992336",
+    "pc|gh:kline/2615",
     3
    ],
    [
-    "key|trade=cmd",
+    "pc|gh:kline/3042",
     3
    ],
    [
-    "key|bug=put",
-    3
-   ],
-   [
-    "none|gh:app/bt_fill.json?v=498723",
-    3
-   ],
-   [
-    "none|codes=t00",
-    3
-   ],
-   [
-    "none|gh:app/prob_model.json?v=498723",
-    3
-   ],
-   [
-    "none|gh:app/ignore_codes.json?v=2992342",
-    3
-   ],
-   [
-    "none|gh:app/ignore_codes.json?v=2992343",
-    3
-   ],
-   [
-    "pc|gh:kline/8028",
-    3
-   ],
-   [
-    "pc|gh:kline/9958",
-    3
-   ],
-   [
-    "pc|gh:kline/1815",
-    3
-   ],
-   [
-    "pc|gh:kline/3264",
-    3
-   ],
-   [
-    "pc|gh:kline/3624",
-    3
-   ],
-   [
-    "pc|gh:kline/3374",
-    3
-   ],
-   [
-    "pc|gh:kline/5475",
-    3
-   ],
-   [
-    "pc|gh:kline/3105",
-    3
-   ],
-   [
-    "pc|gh:kline/6147",
+    "pc|gh:kline/3231",
     3
    ],
    [
@@ -1481,775 +789,107 @@
     3
    ],
    [
+    "pc|gh:kline/3374",
+    3
+   ],
+   [
+    "pc|gh:kline/3624",
+    3
+   ],
+   [
+    "pc|gh:kline/3706",
+    3
+   ],
+   [
+    "pc|gh:kline/3715",
+    3
+   ],
+   [
+    "pc|gh:kline/5457",
+    3
+   ],
+   [
+    "pc|gh:kline/5483",
+    3
+   ],
+   [
+    "pc|gh:kline/6116",
+    3
+   ],
+   [
+    "pc|gh:kline/6147",
+    3
+   ],
+   [
+    "pc|gh:kline/6269",
+    3
+   ],
+   [
     "pc|gh:kline/6290",
     3
    ],
    [
-    "none|/app",
-    2
+    "pc|gh:交接紀錄.md",
+    3
    ],
    [
-    "none|/pool.js",
-    2
+    "pc|gh:kline_yuanta/4979",
+    3
    ],
    [
-    "none|/manifest.webmanifest",
-    2
+    "pc|gh:kline_yuanta/2486",
+    3
    ],
    [
-    "key|gh:kline_yuanta/1101",
-    2
+    "pc|gh:kline_yuanta/2455",
+    3
    ],
    [
-    "key|gh:kline_yuanta/2618",
-    2
+    "pc|gh:kline_yuanta/8028",
+    3
    ],
    [
-    "key|gh:kline_yuanta/2603",
-    2
+    "pc|gh:判別式候選_均線收斂回測.md",
+    3
    ],
    [
-    "key|gh:kline_yuanta/2303",
-    2
+    "pc|gh:kline_yuanta/5904",
+    3
    ],
    [
-    "key|gh:kline_yuanta/3481",
-    2
+    "pc|gh:kline_yuanta/3450",
+    3
    ],
    [
-    "key|gh:kline_yuanta/6770",
-    2
+    "pc|gh:kline_yuanta/3016",
+    3
    ],
    [
-    "key|gh:kline_yuanta/2344",
-    2
+    "key|bug=put",
+    3
    ],
    [
-    "key|gh:kline_yuanta/2468",
-    2
+    "none|gh:app/log_backfill.json?v=498751",
+    3
    ],
    [
-    "key|gh:kline_yuanta/2317",
-    2
+    "none|bars",
+    3
    ],
    [
-    "key|gh:kline_yuanta/2327",
-    2
+    "none|review=get",
+    3
    ],
    [
-    "key|gh:kline_yuanta/2337",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/1802",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2408",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2324",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/5314",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/1303",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2610",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2412",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/3231",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2027",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/3711",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/1301",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2356",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2355",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/1605",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2353",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/9933",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/1326",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/1216",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2471",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/6116",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2615",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2609",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/3702",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/6505",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2328",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2301",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2382",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/4958",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/1714",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2312",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/6672",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2449",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/8150",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/6285",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2105",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/4904",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/3706",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/1409",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/3576",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2376",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/6269",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/4763",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2313",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/4938",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/1785",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/1312",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2489",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/3006",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/4906",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/3260",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/1102",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/6239",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/9945",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/5347",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2352",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/8069",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2481",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/1504",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/5351",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/5483",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/6112",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/6919",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/7765",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/1717",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2498",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2646",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2451",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/6443",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2377",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/3673",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/8099",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/3044",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2354",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/8070",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/8112",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2367",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/1711",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2347",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/3005",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/3028",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/3033",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2385",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2363",
-    2
-   ],
-   [
-    "key|gh:kline_yuanta/2441",
-    2
-   ],
-   [
-    "key|push=sub",
-    2
+    "none|engine=get",
+    3
    ],
    [
     "pc|gh:app/bt_fill.json",
     2
    ],
    [
-    "pc|gh:live_entries.json",
-    2
-   ],
-   [
-    "pc|gh:judge.js",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2303",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/3481",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/6770",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2468",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2344",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2327",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2317",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2337",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/1802",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2408",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2324",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/1101",
-    2
-   ],
-   [
-    "pc|gh:kline/5314",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/5314",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/1303",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2610",
-    2
-   ],
-   [
-    "pc|gh:kline/2412",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2027",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2618",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/1301",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2356",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2353",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/9933",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2471",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/6116",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2615",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2609",
-    2
-   ],
-   [
-    "pc|gh:kline/3045",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/3702",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2301",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2382",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/4958",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2603",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2371",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/1714",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2312",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2449",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/6672",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/8150",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/4904",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/3706",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/1409",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2376",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/3576",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/4763",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2313",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/4938",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/1785",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/3006",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/3260",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/6239",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/3036",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/9945",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2352",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2634",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2481",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/1504",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/5351",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/5483",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/6112",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/6919",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/1717",
-    2
-   ],
-   [
-    "pc|gh:kline/2451",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2451",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/3673",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2377",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2354",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/3044",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/8112",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2367",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/1711",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2347",
-    2
-   ],
-   [
-    "pc|gh:kline/3005",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/3005",
-    2
-   ],
-   [
-    "pc|gh:kline_yuanta/2441",
-    2
-   ],
-   [
-    "none|gh:app/ignore_codes.json?v=2992324",
-    2
-   ],
-   [
-    "key|gh:app/review_rebuilt.json?v=498721",
-    2
-   ],
-   [
-    "none|fbars",
-    2
-   ],
-   [
-    "none|gh:app/ignore_codes.json?v=2992333",
-    2
-   ],
-   [
-    "pc|gh:data.json",
-    2
-   ],
-   [
-    "none|gh:live_entries.json?v=498723",
-    2
-   ],
-   [
-    "none|gh:app/log_backfill.json?v=498723",
-    2
-   ],
-   [
-    "none|extra=get",
-    2
-   ],
-   [
-    "none|gh:app/ignore_codes.json?v=2992344",
-    2
-   ],
-   [
-    "key|gh:app/log_backfill.json?v=498724",
-    2
-   ],
-   [
-    "key|gh:live_entries.json?v=498724",
-    2
-   ],
-   [
-    "key|gh:app/bt_fill.json?v=498724",
-    2
-   ],
-   [
-    "key|gh:app/prob_model.json?v=498724",
-    2
-   ],
-   [
-    "key|gh:app/review_rebuilt.json?v=498724",
-    2
-   ],
-   [
-    "pc|gh:amp_history.json",
+    "pc|gh:app/review_rebuilt.json",
     2
    ],
    [
@@ -2257,7 +897,183 @@
     2
    ],
    [
-    "pc|gh:kline_futures/TXF",
+    "pc|gh:kline/2313",
+    2
+   ],
+   [
+    "pc|gh:kline/2376",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2303",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2409",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/3481",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/1802",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/1303",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2344",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2317",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/1815",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2327",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2408",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2337",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2468",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/5314",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/1101",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2324",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2313",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2610",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2449",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/3105",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/1301",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/3231",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/6182",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2492",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2027",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/4958",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/6213",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2618",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2323",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2356",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2603",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/5347",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/1605",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/1326",
+    2
+   ],
+   [
+    "pc|gh:kline/8028",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/6505",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/3264",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2471",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/1216",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/3374",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2301",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/6456",
+    2
+   ],
+   [
+    "pc|gh:kline/9958",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/3006",
     2
    ],
    [
@@ -2265,63 +1081,363 @@
     2
    ],
    [
-    "pc|gh:kline_yuanta/2474",
+    "pc|gh:live_entries.json",
     2
    ],
    [
-    "pc|gh:kline_yuanta/2103",
+    "pc|gh:kline_yuanta/5871",
     2
    ],
    [
-    "pc|gh:kline/8021",
+    "pc|gh:reports/實盤_*",
     2
    ],
    [
-    "pc|gh:kline_yuanta/5009",
+    "pc|gh:reports/對帳_*",
     2
    ],
    [
-    "pc|gh:kline_yuanta/5904",
+    "pc|gh:kline_yuanta/2353",
     2
    ],
    [
-    "pc|gh:kline_yuanta/8932",
+    "pc|gh:kline_yuanta/2382",
     2
    ],
    [
-    "pc|gh:kline/4979",
+    "pc|gh:kline_yuanta/2481",
     2
    ],
    [
-    "pc|gh:kline/5425",
+    "pc|gh:kline_yuanta/2615",
     2
    ],
    [
-    "pc|gh:kline/5904",
+    "pc|gh:kline_yuanta/8039",
     2
    ],
    [
-    "pc|gh:kline/6173",
+    "pc|gh:kline_yuanta/1785",
     2
    ],
    [
-    "none|gh:app/log_backfill.json?v=498735",
+    "pc|gh:kline_yuanta/2312",
     2
    ],
    [
-    "none|gh:app/ignore_codes.json?v=2992322",
+    "pc|gh:kline_yuanta/4960",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/3026",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2609",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/1312",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2465",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/6488",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/5351",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/3036",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/5483",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/1714",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/6239",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/1709",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/6415",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/3035",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/6278",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/8069",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/3260",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2426",
+    2
+   ],
+   [
+    "pc|gh:judge.js",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/5475",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/3576",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2489",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/4763",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2367",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2464",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/1504",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2377",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2340",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/4919",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/6209",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2634",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/5425",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/1717",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2363",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/1711",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/3605",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/6282",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/3149",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/3673",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2354",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/4906",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2347",
+    2
+   ],
+   [
+    "none|gh:app/ignore_codes.json?v=2992468",
+    2
+   ],
+   [
+    "key|gh:live_entries.json?v=498745",
+    2
+   ],
+   [
+    "key|gh:app/bt_fill.json?v=498745",
+    2
+   ],
+   [
+    "key|gh:app/log_backfill.json?v=498745",
+    2
+   ],
+   [
+    "key|gh:app/prob_model.json?v=498745",
+    2
+   ],
+   [
+    "pc|gh:kline/2049",
+    2
+   ],
+   [
+    "pc|gh:kline/2451",
+    2
+   ],
+   [
+    "pc|gh:kline/2466",
+    2
+   ],
+   [
+    "pc|gh:kline/3019",
+    2
+   ],
+   [
+    "pc|gh:kline/3034",
+    2
+   ],
+   [
+    "pc|gh:kline/4904",
+    2
+   ],
+   [
+    "pc|gh:kline/5469",
+    2
+   ],
+   [
+    "pc|gh:kline/6614",
+    2
+   ],
+   [
+    "pc|gh:kline/8213",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/1569",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/2392",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/3265",
+    2
+   ],
+   [
+    "pc|gh:kline/2412",
+    2
+   ],
+   [
+    "pc|gh:kline/4915",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/3624",
+    2
+   ],
+   [
+    "pc|gh:kline_yuanta/4722",
+    2
+   ],
+   [
+    "pc|gh:kline/3045",
+    2
+   ],
+   [
+    "pc|gh:kline/2474",
+    2
+   ],
+   [
+    "none|extra=get",
+    2
+   ],
+   [
+    "key|gh:app/bt_fill.json?v=498751",
+    2
+   ],
+   [
+    "key|gh:live_entries.json?v=498751",
+    2
+   ],
+   [
+    "none|gh:live_entries.json?v=498752",
+    2
+   ],
+   [
+    "none|gh:app/bt_fill.json?v=498752",
+    2
+   ],
+   [
+    "none|gh:app/ignore_codes.json?v=2992512",
+    2
+   ],
+   [
+    "pc|usage=get",
     1
    ],
    [
-    "pc|gh:.github/workflows",
+    "pc|pcbk=get",
     1
    ],
    [
-    "pc|gh:Cloudflare用量.md",
+    "none|/app",
     1
    ],
    [
-    "pc|gh:app/cf_usage.json",
+    "none|/pool.js",
+    1
+   ],
+   [
+    "none|gh:app/ignore_codes.json?v=2992466",
+    1
+   ],
+   [
+    "none|/manifest.webmanifest",
+    1
+   ],
+   [
+    "none|/sw.js",
+    1
+   ],
+   [
+    "key|push=sub",
     1
    ],
    [
@@ -2329,35 +1445,47 @@
     1
    ],
    [
-    "pc|gh:app/review_rebuilt.json",
+    "pc|gh:bugs/bug_20261119211730.json",
     1
    ],
    [
-    "pc|gh:reports/總表_*",
+    "pc|gh:bugs/bug_20261120112457.json",
     1
    ],
    [
-    "pc|gh:tools/recon.py",
+    "pc|gh:bugs/bug_20261120112859.json",
     1
    ],
    [
-    "pc|gh:判別式三.md",
+    "pc|gh:bugs/bug_20261121175857.json",
     1
    ],
    [
-    "pc|gh:判別式二.md",
+    "pc|gh:bugs/bug_20261122002606.json",
     1
    ],
    [
-    "pc|gh:判別式八.md",
+    "pc|gh:bugs/bug_20261123110455.json",
     1
    ],
    [
-    "pc|gh:判別式十.md",
+    "pc|gh:bugs/bug_20261123114143.json",
     1
    ],
    [
-    "pc|gh:鐵律.md",
+    "pc|gh:bugs/bug_20261123120828.json",
+    1
+   ],
+   [
+    "pc|gh:bugs/list.json",
+    1
+   ],
+   [
+    "pc|gh:bugs/pbug.json",
+    1
+   ],
+   [
+    "pc|gh:bugs/usage.json",
     1
    ],
    [
@@ -2365,35 +1493,15 @@
     1
    ],
    [
-    "pc|gh:kline_yuanta/2409",
+    "pc|gh:kline_yuanta/6770",
     1
    ],
    [
-    "pc|gh:kline_yuanta/3231",
+    "pc|gh:kline_yuanta/6147",
     1
    ],
    [
-    "pc|gh:kline/2355",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/2355",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/1605",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/1326",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/6505",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/2328",
+    "pc|gh:kline_yuanta/9904",
     1
    ],
    [
@@ -2401,47 +1509,51 @@
     1
    ],
    [
-    "pc|gh:kline/4904",
+    "pc|gh:kline_yuanta/9933",
     1
    ],
    [
-    "pc|gh:kline_yuanta/6269",
+    "pc|gh:kline_yuanta/6116",
     1
    ],
    [
-    "pc|gh:kline_yuanta/1312",
+    "pc|gh:kline_yuanta/3702",
     1
    ],
    [
-    "pc|gh:kline_yuanta/2489",
+    "pc|gh:pool.js",
     1
    ],
    [
-    "pc|gh:kline_yuanta/4906",
+    "pc|gh:kline_yuanta/8150",
     1
    ],
    [
-    "pc|gh:kline_yuanta/5347",
+    "pc|gh:kline_yuanta/4916",
     1
    ],
    [
-    "pc|gh:kline_yuanta/8069",
+    "pc|gh:kline_yuanta/6672",
     1
    ],
    [
-    "pc|gh:kline_yuanta/8422",
+    "pc|gh:kline_yuanta/4938",
     1
    ],
    [
-    "pc|gh:kline/6112",
+    "pc|gh:reports/新判別式_累計.json",
     1
    ],
    [
-    "pc|gh:kline/6919",
+    "pc|gh:tools/recon.py",
     1
    ],
    [
-    "pc|gh:kline_yuanta/2498",
+    "pc|gh:kline_yuanta/6257",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/3701",
     1
    ],
    [
@@ -2449,139 +1561,119 @@
     1
    ],
    [
-    "pc|gh:kline/3044",
+    "pc|gh:判別式三.md",
     1
    ],
    [
-    "pc|gh:kline_yuanta/6282",
+    "pc|gh:鐵律.md",
     1
    ],
    [
-    "pc|gh:kline/3028",
+    "pc|gh:kline_yuanta/8112",
     1
    ],
    [
-    "pc|gh:kline_yuanta/3149",
+    "none|gh:app/ignore_codes.json?v=2992470",
     1
    ],
    [
-    "pc|gh:kline/2441",
+    "none|gh:app/ignore_codes.json?v=2992471",
     1
    ],
    [
-    "none|gh:app/ignore_codes.json?v=2992329",
+    "pc|gh:判別式二.md",
     1
    ],
    [
-    "key|gh:app/prob_model.json?v=498721",
+    "key|gh:app/bt_fill.json?v=498746",
     1
    ],
    [
-    "key|gh:live_entries.json?v=498721",
+    "key|gh:live_entries.json?v=498746",
     1
    ],
    [
-    "key|gh:app/bt_fill.json?v=498721",
+    "key|gh:app/prob_model.json?v=498746",
     1
    ],
    [
-    "key|gh:app/log_backfill.json?v=498721",
+    "key|gh:app/log_backfill.json?v=498746",
     1
    ],
    [
-    "key|gh:app/bt_fill.json?v=1795398831096",
+    "none|gh:app/ignore_codes.json?v=2992476",
     1
    ],
    [
-    "none|gh:partner_app/apk",
+    "pc|gh:app/cf_usage.json",
     1
    ],
    [
-    "key|gh:live_entries.json?v=1795398831096",
+    "pc|gh:Cloudflare用量.md",
     1
    ],
    [
-    "key|gh:live_entries.json?v=1795402649200",
+    "pc|gh:data.json",
     1
    ],
    [
-    "key|gh:app/bt_fill.json?v=1795402649200",
+    "key|gh:app/bt_fill.json?v=1795498333518",
     1
    ],
    [
-    "key|gh:live_entries.json?v=1795403051679",
+    "key|gh:live_entries.json?v=1795498333518",
     1
    ],
    [
-    "key|gh:app/bt_fill.json?v=1795403051679",
+    "none|/partner",
     1
    ],
    [
-    "none|gh:kline_yuanta/2409",
+    "pc|gh:partner_app/mine.html",
     1
    ],
    [
-    "none|gh:app/ignore_codes.json?v=2992352",
+    "pc|gh:worker.js",
     1
    ],
    [
-    "key|gh:app/bt_fill.json?v=498725",
+    "pc|gh:夥伴版交接.md",
     1
    ],
    [
-    "key|gh:live_entries.json?v=498725",
+    "pc|gh:amp_history.json",
     1
    ],
    [
-    "key|gh:app/log_backfill.json?v=498725",
+    "pc|gh:kline_cloud/1216",
     1
    ],
    [
-    "key|gh:app/prob_model.json?v=498725",
+    "pc|gh:kline_cloud/1301",
     1
    ],
    [
-    "key|gh:app/review_rebuilt.json?v=498725",
+    "pc|gh:kline_cloud/1303",
     1
    ],
    [
-    "pc|review=push",
+    "pc|gh:kline_cloud/1605",
     1
    ],
    [
-    "pc|gh:kline_cloud/1102",
+    "pc|gh:kline_cloud/1709",
     1
    ],
    [
-    "pc|gh:kline_cloud/1802",
+    "pc|gh:kline_cloud/1717",
     1
    ],
    [
-    "pc|gh:kline_cloud/2323",
+    "pc|gh:kline_cloud/1785",
     1
    ],
    [
-    "pc|gh:kline_cloud/2356",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/3481",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/4906",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2105",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2353",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/8112",
+    "pc|gh:kline_cloud/1815",
     1
    ],
    [
@@ -2589,11 +1681,31 @@
     1
    ],
    [
-    "pc|gh:kline_cloud/2312",
+    "pc|gh:kline_cloud/2303",
     1
    ],
    [
-    "pc|gh:kline_cloud/2313",
+    "pc|gh:kline_cloud/2317",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2324",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2327",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2332",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2344",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2347",
     1
    ],
    [
@@ -2605,55 +1717,7 @@
     1
    ],
    [
-    "pc|gh:kline_cloud/3702",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/7765",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/pools",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/1101",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/1303",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/1312",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/1326",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/1711",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/1714",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2301",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2303",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2328",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2355",
+    "pc|gh:kline_cloud/2371",
     1
    ],
    [
@@ -2661,11 +1725,47 @@
     1
    ],
    [
-    "pc|gh:kline_cloud/2377",
+    "pc|gh:kline_cloud/2382",
     1
    ],
    [
-    "pc|gh:kline_cloud/2489",
+    "pc|gh:kline_cloud/2408",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2409",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2426",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2449",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2455",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2465",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2471",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2486",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2492",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2542",
     1
    ],
    [
@@ -2673,35 +1773,87 @@
     1
    ],
    [
-    "pc|gh:kline_cloud/2610",
+    "pc|gh:kline_cloud/2609",
     1
    ],
    [
-    "pc|gh:kline_cloud/2615",
+    "pc|gh:kline_cloud/2634",
     1
    ],
    [
-    "pc|gh:kline_cloud/3005",
+    "pc|gh:kline_cloud/3026",
     1
    ],
    [
-    "pc|gh:kline_cloud/3006",
+    "pc|gh:kline_cloud/3035",
     1
    ],
    [
-    "pc|gh:kline_cloud/3028",
+    "pc|gh:kline_cloud/3149",
     1
    ],
    [
-    "pc|gh:kline_cloud/3044",
+    "pc|gh:kline_cloud/3264",
     1
    ],
    [
-    "pc|gh:kline_cloud/3231",
+    "pc|gh:kline_cloud/3576",
     1
    ],
    [
-    "pc|gh:kline_cloud/3260",
+    "pc|gh:kline_cloud/3605",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/3624",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/3673",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/3702",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/3711",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/3715",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/4763",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/4916",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/4979",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/5314",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/5457",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/5475",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/5483",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/5871",
     1
    ],
    [
@@ -2709,7 +1861,27 @@
     1
    ],
    [
-    "pc|gh:kline_cloud/6116",
+    "pc|gh:kline_cloud/6147",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/6182",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/6257",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/6269",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/6278",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/6290",
     1
    ],
    [
@@ -2721,175 +1893,7 @@
     1
    ],
    [
-    "pc|gh:kline_cloud/7788",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/8422",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/9933",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/9945",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/1416",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/1609",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/2542",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2344",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2354",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2367",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2408",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2498",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2609",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/4763",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/5347",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/6112",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/6285",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/3717",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/1504",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/1609",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2347",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2451",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/3036",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/6221",
-    1
-   ],
-   [
     "pc|gh:kline_cloud/6672",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/1709",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/1605",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2412",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2634",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/6239",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/1785",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2385",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2471",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2646",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/3045",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/3711",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/5457",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/8099",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/2323",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2337",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2409",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/6269",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/6488",
     1
    ],
    [
@@ -2897,123 +1901,27 @@
     1
    ],
    [
-    "pc|gh:kline_cloud/8033",
+    "pc|gh:kline_cloud/8028",
     1
    ],
    [
-    "pc|gh:kline_cloud/8070",
+    "pc|gh:kline_cloud/8112",
     1
    ],
    [
-    "pc|gh:kline_cloud/1301",
+    "pc|gh:kline_cloud/9958",
     1
    ],
    [
-    "pc|gh:kline_cloud/1409",
+    "pc|gh:kline_cloud/pools",
     1
    ],
    [
-    "pc|gh:kline_cloud/2324",
+    "pc|gh:kline_futures/TXF",
     1
    ],
    [
-    "pc|gh:kline_cloud/2618",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2317",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2332",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/3029",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/5314",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/6153",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/6282",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2382",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2441",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/5202",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/6153",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/5871",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/6488",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/2464",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/6221",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/3035",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/3715",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/5202",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/6148",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/6415",
-    1
-   ],
-   [
-    "pc|gh:kline_yuanta/8033",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/8150",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2327",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/2449",
-    1
-   ],
-   [
-    "pc|gh:kline_cloud/3035",
+    "pc|gh:kline_yuanta/1409",
     1
    ],
    [
@@ -3021,7 +1929,79 @@
     1
    ],
    [
-    "pc|gh:kline_cloud/3576",
+    "pc|gh:kline_yuanta/2355",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/2371",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/2376",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/1409",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/1711",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2353",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2464",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2618",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/3265",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/5347",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/6116",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2312",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2610",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/3006",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/2352",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/1326",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/3481",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2301",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2354",
     1
    ],
    [
@@ -3029,55 +2009,327 @@
     1
    ],
    [
-    "pc|gh:kline_cloud/3033",
+    "pc|gh:kline_cloud/3189",
     1
    ],
    [
-    "pc|gh:kline_cloud/5483",
+    "pc|gh:kline_cloud/4958",
     1
    ],
    [
-    "key|gh:app/log_backfill.json?v=498727",
+    "pc|gh:kline_cloud/6285",
     1
    ],
    [
-    "key|gh:app/prob_model.json?v=498727",
+    "pc|gh:kline_cloud/1714",
     1
    ],
    [
-    "pc|gh:reports/實盤_*",
+    "pc|gh:kline_cloud/1802",
     1
    ],
    [
-    "pc|gh:reports/對帳_*",
+    "pc|gh:kline_cloud/2323",
     1
    ],
    [
-    "pc|pcbk=get",
+    "pc|gh:kline_cloud/2377",
     1
    ],
    [
-    "none|gh:app/ignore_codes.json?v=2992366",
+    "pc|gh:kline_cloud/3450",
     1
    ],
    [
-    "pc|gh:kline/8358",
+    "pc|gh:kline_cloud/4919",
     1
    ],
    [
-    "pc|gh:kline/6488",
+    "pc|gh:kline_cloud/6209",
     1
    ],
    [
-    "pc|gh:kline/6182",
+    "pc|gh:kline_cloud/8039",
     1
    ],
    [
-    "pc|gh:lots_history.json",
+    "pc|gh:kline_yuanta/4526",
     1
    ],
    [
-    "none|trade=fills",
+    "pc|gh:kline_cloud/4906",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/9904",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/1101",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/1312",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2340",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/3706",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/6239",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/8150",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/4927",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2337",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/4960",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2356",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/3016",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/3231",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/6415",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/5457",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2468",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/3105",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/3260",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/3374",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/3701",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/5351",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/6282",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/2328",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/5464",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2313",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2367",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2489",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/3042",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/4938",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/8069",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/9933",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/1504",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2606",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2615",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/3036",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/6213",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/1710",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/6148",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2351",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/2498",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/5425",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/6456",
+    1
+   ],
+   [
+    "pc|gh:kline_cloud/6488",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/3044",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/3042",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/6269",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/2451",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/2498",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/2542",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/3706",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/3715",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/6173",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/6949",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/8021",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/8932",
+    1
+   ],
+   [
+    "pc|gh:kline_yuanta/9958",
+    1
+   ],
+   [
+    "none|gh:app/ignore_codes.json?v=2992506",
+    1
+   ],
+   [
+    "none|gh:app/ignore_codes.json?v=2992507",
+    1
+   ],
+   [
+    "pc|gh:reports/總表_*",
+    1
+   ],
+   [
+    "none|gh:app/ignore_codes.json?v=2992510",
+    1
+   ],
+   [
+    "none|gh:app/ignore_codes.json?v=2992511",
+    1
+   ],
+   [
+    "none|gh:app/prob_model.json?v=498752",
+    1
+   ],
+   [
+    "key|gh:app/prob_model.json?v=498752",
+    1
+   ],
+   [
+    "pc|gh:kline/8415",
+    1
+   ],
+   [
+    "none|gh:app/ignore_codes.json?v=2992552",
+    1
+   ],
+   [
+    "key|gh:app/bt_fill.json?v=498758",
+    1
+   ],
+   [
+    "key|gh:live_entries.json?v=498758",
+    1
+   ],
+   [
+    "key|gh:app/bt_fill.json?v=1795531541668",
     1
    ]
   ]
