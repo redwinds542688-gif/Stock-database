@@ -1,0 +1,35 @@
+name: 補推收盤檢討(review:last)
+
+# 2026-11-24 判別式聊天:11/24 電腦引擎全天 0 筆(判別式事件 0)→ engine.push_review「沒有資料不推」→ review:last 停在 11/23,
+#   App 資訊頁「檢討」一直顯示 11/23。手動 Run:輸入日期,用 GitHub Secrets 的 YT_PUSH_KEY 推 ?review=push {d, auto:{n:0}}(只換 review:last,
+#   重大發現照舊讀 Stock-logic review/<日期>.json);已經有那天的 auto 就不蓋
+on:
+  workflow_dispatch:
+    inputs:
+      d: { description: 日期 YYYY-MM-DD, required: true }
+
+permissions:
+  contents: read
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 推空的檢討數字
+        env:
+          K: ${{ secrets.YT_PUSH_KEY }}
+          D: ${{ inputs.d }}
+        run: |
+          python3 - <<'PY'
+          import os, re, sys, json, urllib.request
+          K = os.environ.get("K", ""); d = os.environ.get("D", "")
+          if not K or not re.match(r"^\d{4}-\d{2}-\d{2}$", d): print("沒有金鑰或日期不對"); sys.exit(1)
+          B = "https://twse-proxy.redwinds542688.workers.dev/"
+          H = {"X-Push-Key": K, "User-Agent": "review-push/1", "Content-Type": "application/json"}
+          g = json.loads(urllib.request.urlopen(urllib.request.Request(f"{B}?review=get&d={d}", headers=H), timeout=20).read().decode("utf-8"))
+          if g.get("auto"): print(d, "已經有檢討數字,不蓋:", str(g["auto"])[:120]); sys.exit(0)
+          auto = {"n": 0, "w": 0, "net": 0, "by": {}, "best": None, "worst": None, "list": [], "drag": [], "note": "電腦引擎今天沒有判別式事件(補推)"}
+          r = urllib.request.urlopen(urllib.request.Request(f"{B}?review=push", data=json.dumps({"d": d, "auto": auto}).encode(), headers=H, method="POST"), timeout=20).read().decode("utf-8")
+          print(d, "補推:", r)
+          PY
