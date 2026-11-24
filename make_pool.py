@@ -769,6 +769,62 @@ for s in pool[:POOL_KEEP * 3]:
         break
 n3 = len(kept)
 pool = kept[:POOL_KEEP]
+
+# ── 5b. 2026-11-25 使用者「如果監控股票沒有滿百檔 就再加上前一天的股票」「加在一起的股票 還是要經過選股的全部偵測過」──
+#   起因:11/24 加權 +9% 很多股票整天鎖漲停,11/25 名單只剩 43 檔。名單不到 PREV_FILL 檔 → 前一個交易日的名單(pool_prev.json,
+#   沒有就用目前磁碟上的舊 pool.json)裡、這次沒入選的股票當候選,每一檔重跑全部檢查,通過才加(標 from_prev):
+#   單日數字(量 / 振幅 / 成交 K 棒 / tick 成本)用它入選那天(d0,非極端日)的資料;身分(可當沖 / 注意 / 處置 / 金融 / 股價 LO~HI 用最新收盤)用今天的;
+#   近 AVG_DAYS 天平均振幅用最新的(含 LAST)
+PREV_FILL = 100
+prev_P, prev_from = None, ""
+for _f in ("pool_prev.json", "pool.json"):
+    try:
+        _j = json.load(open(_f, encoding="utf-8"))
+        if _j.get("date") and _j["date"] < LAST and _j.get("pool"): prev_P, prev_from = _j, _f; break
+    except Exception: pass
+fill_stat = {}
+if len(pool) < PREV_FILL and prev_P:
+    have = {s["code"] for s in pool}; byc = {r["code"]: r for r in rows}
+    pc = [x for x in prev_P["pool"] if x["code"] not in have]
+    print(f"名單只有 {len(pool)} 檔(< {PREV_FILL}):前一個交易日名單 {prev_from}({prev_P['date']},{len(prev_P['pool'])} 檔)沒入選的 {len(pc)} 檔重新檢查")
+    fill_stat["原本"] = len(pool); fill_stat["候選"] = len(pc)
+    addl = []
+    def _no(w): fill_stat[w] = fill_stat.get(w, 0) + 1
+    for x in pc:
+        c = x["code"]; d0 = x.get("d0") or prev_P["date"]; r = byc.get(c)
+        if not is_stock_code(c): _no("非普通股"); continue
+        if r is None: _no("今天沒有行情"); continue
+        if is_financial(r): _no("金融股"); continue
+        if not (LO <= r["close"] <= HI): _no("價格"); continue
+        if c not in elig: _no("不可當沖"); continue
+        if c in attention or c in disposed: _no("注意/處置"); continue
+        l0 = lots_h.get(c, {}).get(d0, x.get("lots") if d0 == prev_P["date"] else None)
+        a0 = hist.get(c, {}).get(d0, x.get("amp") if d0 == prev_P["date"] else None)
+        cl0 = x.get("close") or r["close"]; tk0 = tick_of(cl0) / cl0 * 100
+        if l0 is None or l0 < MIN_LOTS: _no("量不足(d0)"); continue
+        if a0 is None or a0 < MIN_AMP: _no("振幅(d0)"); continue
+        if tk0 > TICK_MAX_PCT: _no("tick成本(d0)"); continue
+        a5 = avg_amp(c, r["market"])
+        hits = amp_hits(c)
+        if a5 is None or a5 < AVG5_MIN_AMP or hits < AVG5_MIN_HITS: _no(f"{AVG_DAYS}日均振幅"); continue
+        b0 = traded_minutes(c, r["market"], d0)
+        if MIN_BARS and b0 is not None and b0 < MIN_BARS: _no("冷門(d0 成交K棒)"); continue
+        s = dict(r); s.update(amp5=a5, amp_days=len(hist.get(c, {})), amp_hits=hits, bars=traded_minutes(c, r["market"]),
+                              from_prev=True, d0=d0, d0_lots=l0, d0_amp=a0, d0_bars=b0)
+        addl.append(s)
+    addl.sort(key=lambda s: -(s.get("d0_lots") or 0))
+    addl = addl[:max(0, POOL_KEEP - len(pool))]
+    fill_stat["通過"] = len(addl)
+    pool = pool + addl
+    print(f"補前一天名單:候選 {len(pc)} 檔 → 通過 {len(addl)} 檔;擋掉:" + ", ".join(f"{k} {v}" for k, v in fill_stat.items() if k not in ("原本", "候選", "通過")) + f" → 名單 {len(pool)} 檔")
+    if addl:   # pool_full.json 也加上同一批
+        try:
+            _pf = json.load(open("pool_full.json", encoding="utf-8")); _hv = {x["code"] for x in _pf.get("pool", [])}
+            _pf["pool"] += [{"code": s["code"], "name": s.get("name", ""), "market": s["market"], "lots": s["lots"], "from_prev": True} for s in addl if s["code"] not in _hv]
+            json.dump(_pf, open("pool_full.json", "w", encoding="utf-8"), ensure_ascii=False, indent=0)
+        except Exception as e: print("pool_full.json 補前一天名單失敗:", e)
+elif len(pool) < PREV_FILL:
+    print(f"名單只有 {len(pool)} 檔,但找不到前一個交易日的名單(pool_prev.json / pool.json 日期都不早於 {LAST})")
 # 2026-11-07 16:15 使用者「連續幾天」:每檔附最近 DAYS_MAX 個交易日 [日期, 張數, 成交K棒數, 振幅](新到舊);手機 / 電腦依滾輪
 #   「最低成交量 / 成交K棒 / 最低振幅 / 連續天數」篩:連續 N 天每天都要達標(N=1 = 只看前一天,和以前一樣)
 _cnt_d = {}
@@ -829,6 +885,10 @@ window.RAW_POOL = [
 with open("pool.js", "w", encoding="utf-8") as f:
     f.write(js)
 
+try:   # 2026-11-25 換新的一天前,把舊名單(前一個交易日)存成 pool_prev.json(同一天重跑時 pool.json 已經是今天的,補名單要用這份)
+    _old = json.load(open("pool.json", encoding="utf-8"))
+    if _old.get("date") and _old["date"] < LAST: json.dump(_old, open("pool_prev.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+except Exception: pass
 with open("pool.json", "w", encoding="utf-8") as f:
     json.dump({"date": LAST, "generated": stamp,
                "rules": {"lo": LO, "hi": HI, "min_amp": MIN_AMP, "size": POOL_KEEP, "min_lots": MIN_LOTS, "min_bars": MIN_BARS,
@@ -836,7 +896,7 @@ with open("pool.json", "w", encoding="utf-8") as f:
                          "avg5_min_amp": AVG5_MIN_AMP, "avg5_min_hits": AVG5_MIN_HITS, "avg_days": AVG_DAYS, "days_max": DAYS_MAX,
                          "entry_max_chg": ENTRY_MAX_CHG},
                "disposed": sorted(disposed), "attention": sorted(attention),
-               "elig_source": src_note, "pool": pool}, f, ensure_ascii=False, indent=1)
+               "elig_source": src_note, "prev_fill": fill_stat, "pool": pool}, f, ensure_ascii=False, indent=1)
 
 print(f"\n完成:{len(pool)} 檔 → pool.js / pool.json")
 print("前 5 名:")
