@@ -2047,9 +2047,21 @@ class Bridge:
             except Exception: pass
             try: items["blocked"] = [json.loads(x) for x in (ed / f"blocked_{day}.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()][-400:]   # 2026-11-12 20:29 被擋 / 等待中的訊號
             except Exception: pass
-            try: items["signals"] = [json.loads(x) for x in (ed / f"live_{day}.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()][-1500:]   # 引擎發出的通知(2026-11-22 對帳用:300 → 1500 則,一天全部)
+            try:   # 引擎發出的通知(2026-11-22 對帳用)。2026-11-24 修:一天全部(1500 則)整包超過 Worker 單項 80 萬字上限被丟掉(11/24 雲端沒有 signals)→
+                #   只留進出場通知、只留對帳用到的欄位,從最新的往前放到 70 萬字為止
+                _sg = []
+                for x in (ed / f"live_{day}.jsonl").read_text(encoding="utf-8").splitlines():
+                    try: o_ = json.loads(x)
+                    except Exception: continue
+                    if o_.get("kind") in ("long", "short", "exit", "profit", "loss"): _sg.append({k: o_.get(k) for k in ("t", "title", "body", "kind", "_k", "key", "pos") if o_.get(k) is not None})
+                _out, _n = [], 2
+                for o_ in reversed(_sg):
+                    _l = len(json.dumps(o_, ensure_ascii=False)) + 1
+                    if _n + _l > 700000: break
+                    _out.append(o_); _n += _l
+                items["signals"] = list(reversed(_out))
             except Exception: pass
-            try: items["verdicts"] = [json.loads(x) for x in (ed / f"verdict_{day}.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()][-1500:]   # 2026-11-22 每則進場訊號有沒有進場(實盤 vs 總表對帳,tools/recon.py)
+            try: items["verdicts"] = [json.loads(x) for x in (ed / f"verdict_{day}.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()][-3000:]   # 2026-11-22 每則進場訊號有沒有進場(實盤 vs 總表對帳,tools/recon.py)
             except Exception: pass
             try: items["fills"] = (getattr(self, "_fills_cache", None) or (0, None))[1]   # 元大成交明細(手機明細同一份)
             except Exception: pass
