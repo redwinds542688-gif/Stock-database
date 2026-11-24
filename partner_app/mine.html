@@ -336,10 +336,14 @@ const ST = { pcDown: false, pos: null, posAt: 0, posErr: "", fills: {}, order: [
 let ENTRY = [], DAYS = {};
 function stReset(){ Object.assign(ST, { todayTried: false, pcDown: false, pos: null, posAt: 0, posErr: "", fills: {}, order: [], back: 0, more: true, loading: false, acct: "", seenLegs: null, seenPos: null, hi: 0, lo: 0, empty: 0, day: twDate() }); ST.q.clear(); }
 const nameOf = c => (ST.q.get(c) || {}).n || ((Object.values(ST.fills).flatMap(f => f.rows).find(r => r.code === c)) || {}).nm || c;
+/* 2026-11-24 使用者「這似乎沒有照平倉的時間排序」:元大成交時間是「2026/11/24 下午 01:05:02」→ 換成 24 小時制「13:05:02」再排(原本照文字排,下午 12 點排在 1 點前面) */
+const hms = x => { const s = String(x || ""), m = s.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/); if (!m){ const d = s.match(/^(\d{2})(\d{2})(\d{2})$/); return d ? `${d[1]}:${d[2]}:${d[3]}` : ""; }
+  let h = +m[1]; if (/下午|PM/i.test(s) && h < 12) h += 12; if (/上午|AM/i.test(s) && h === 12) h = 0;
+  return `${String(h).padStart(2, "0")}:${m[2]}:${m[3] || "00"}`; };
 function legsOf(v){   // 和主導版明細一樣:有一趟一趟的(legs)就用它,沒有才用每檔合計(rows)
   if (!v || typeof v !== "object") return [];
   const L = Array.isArray(v.legs) && (v.legs.length || !(v.rows || []).some(r => r.lots > 0)) ? v.legs : null;
-  if (L) return L.filter(r => +r.lots > 0).map(r => ({nm: r.name || r.code, code: String(r.code), s: r.dir === "做多" ? "l" : "s", ent: +r.ent, ex: +r.ex, q: +r.lots, p: Math.round(+r.net || 0), t: String(r.t || "")}));
+  if (L) return L.filter(r => +r.lots > 0).map(r => ({nm: r.name || r.code, code: String(r.code), s: r.dir === "做多" ? "l" : "s", ent: +r.ent, ex: +r.ex, q: +r.lots, p: Math.round(+r.net || 0), t: hms(r.t)}));
   return (v.rows || []).filter(r => +r.lots > 0).map(r => { const lg = r.dir === "做多"; return {nm: r.name || r.code, code: String(r.code), s: lg ? "l" : "s", ent: lg ? +r.buy : +r.sell, ex: lg ? +r.sell : +r.buy, q: +r.lots, p: Math.round(+r.net || 0), t: ""}; });
 }
 async function loadPos(){

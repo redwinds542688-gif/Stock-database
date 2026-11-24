@@ -832,9 +832,11 @@ const PFEE = 0.001425 * 0.25, PTAX = 0.0015;
 const pNet = (lg, ent, ex, q) => { const d = lg ? 1 : -1, a = ent * q * 1000, b = ex * q * 1000, buy = d > 0 ? a : b, sell = d > 0 ? b : a, f = x => Math.max(20, Math.floor(x * PFEE + 1e-6));
   return Math.round((ex - ent) * d * q * 1000 - f(buy) - f(sell) - Math.floor(sell * PTAX + 1e-6)); };
 const pFmt = n => (n > 0 ? "+" : n < 0 ? "−" : "") + Math.abs(Math.round(n)).toLocaleString("en-US");
+const pHms = x => { const s = String(x || ""), m = s.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/); if (!m) return "";   // 2026-11-24 元大「下午 01:05:02」→「13:05:02」
+  let h = +m[1]; if (/下午|PM/i.test(s) && h < 12) h += 12; if (/上午|AM/i.test(s) && h === 12) h = 0; return `${String(h).padStart(2, "0")}:${m[2]}:${m[3] || "00"}`; };
 const pLegs = v => { if (!v || typeof v !== "object") return [];
   const L = Array.isArray(v.legs) && (v.legs.length || !(v.rows || []).some(r => r.lots > 0)) ? v.legs : null;
-  if (L) return L.filter(r => +r.lots > 0).map(r => ({ nm: r.name || r.code, code: String(r.code), lg: r.dir === "做多", ent: +r.ent, ex: +r.ex, q: +r.lots, p: Math.round(+r.net || 0), t: String(r.t || "") }));
+  if (L) return L.filter(r => +r.lots > 0).map(r => ({ nm: r.name || r.code, code: String(r.code), lg: r.dir === "做多", ent: +r.ent, ex: +r.ex, q: +r.lots, p: Math.round(+r.net || 0), t: pHms(r.t) }));
   return (v.rows || []).filter(r => +r.lots > 0).map(r => { const lg = r.dir === "做多"; return { nm: r.name || r.code, code: String(r.code), lg, ent: lg ? +r.buy : +r.sell, ex: lg ? +r.sell : +r.buy, q: +r.lots, p: Math.round(+r.net || 0), t: "" }; }); };
 async function famPush(env, a, d, items) {
   const hub = hubOf(env); let subs = null; try { subs = await hub.kvGet("ppsubs:" + a); } catch (e) { return; }
