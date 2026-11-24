@@ -650,6 +650,8 @@ class Trader:
                     try:   # 2026-11-23 停損照真正進場價:接回時一樣從元大均價重算;沒走要用訊號那根時間
                         mp_ = RE_PX_END.search(title or ""); ps_ = num(mp_.group(1)) if mp_ else 0
                         if ps_ > 0: p["px_sig"] = ps_; p["tp_sig"], p["sl_sig"] = tp or None, sl or None
+                        if "判新" in (body or ""): p["sub"] = "三2"
+                        elif "極端" in (body or ""): p["sub"] = "七2"
                         if ps_ > 0 and avg > 0: self.sig_rebase(p, avg)
                         mb_ = RE_BAR.match(body or "")
                         if mb_: p["t_sig"] = mb_.group(1).zfill(5)
@@ -1978,7 +1980,7 @@ class Trader:
                       self.log(f"[交易] !! {p['code']} 碰到{w} {self.oco_grace:g} 秒元大條件單還沒平 → 程式刪條件單自己平")
                       self.alert(f"⚠ {self.name_of(p['code'])} {p['code']} 元大條件單沒觸發", f"碰到{w} {self.oco_grace:g} 秒還沒平,程式已自己平倉")
                       self.exit_pos(p, f"{w}(條件單沒觸發)", self.last_px.get(p["code"], p["entry"]), force_limit=True)
-                  if (p["state"] == HOLDING and p.get("judge") in self.nm_judges and self.nm_min > 0 and p.get("t_sig") and not p.get("nm_done")
+                  if (p["state"] == HOLDING and p.get("judge") in self.nm_judges and not p.get("sub") and self.nm_min > 0 and p.get("t_sig") and not p.get("nm_done")
                           and p.get("entry") and minutes_of(p["t_sig"]) is not None and minutes_of(hm) is not None
                           and minutes_of(hm) >= minutes_of(p["t_sig"]) + self.nm_min + 1):
                       # 2026-11-23 使用者「所有的停損 都必須照真正的進場價來算」:沒走 = 訊號那根後 nm_min 分鐘(那根收完、下一根開盤)時,
@@ -2574,6 +2576,8 @@ class Trader:
         if it.get("_late"): p["late"] = True                      # 2026-11-13 太晚補進場:成交後發一張補進場卡
         p["px_sig"] = px_sig                                       # 2026-10-31 改 C:補單前檢查現價離訊號價多遠
         p["tp_sig"], p["sl_sig"] = tp_sig, sl_sig                  # 2026-11-23 停利 / 停損照成交均價重算用(sig_rebase)
+        if "判新" in (body or ""): p["sub"] = "三2"                  # 2026-11-24 判三第二套(判新)/ 判七第二套(極端日):標記,沒走等判三 / 判七專屬規則不套
+        elif "極端" in (body or ""): p["sub"] = "七2"
         p["no_max_move"] = False   # 2026-11-11 14:17 使用者「全改」:假突破空單也套 ±6.5%(進場已限 ±5%)   # 原 "✓破" in body   # 2026-10-28 使用者選「元大那邊對假突破空單不套 6.5%」:判三「假突破跌破 Ka 空」(通知帶「空✓破」)常在離昨收 +6.5% 以上才進場,不套 ±6.5% 強制平倉(停利 / 停損 / 13:20 / 手機平倉通知照舊)
         if ekey:
             self.entered_keys.add(ekey); self.save_state()      # 2026-10-29 稽核 #3:送單就記(沒成交也不再追同一個訊號)
