@@ -2210,14 +2210,9 @@ class Engine:
             if open_tm == sig and (rs, code) not in self.pos and (rs, code, sig) not in self.emitted: out.add((rs, code))
         return out
 
-    def step(self, upto, **kw):
-        """跑到 upto(不含)那分鐘的 K;發 upto 前 10 分鐘內的新事件(回放用;盤中用 compute + apply)"""
-        if CFG.get("ENGINE_REPLAY_OLD") == "1":   # 驗證用:舊的整輪算完再對帳
-            res, dtm, njobs = self.compute()
-            errs = sum(1 for r in res if r[3])
-            n_ev = self.apply(res, upto, **kw)
-            return dtm, errs, n_ev
-        # 2026-11-06 回放和盤中走同一條路:算完一檔就對帳、過了進場時段只算持倉
+    def write_ix(self):
+        """今天的加權指數(Worker ixbars + 電腦即時)寫成 engine_data/ix/<日期>.csv 給模擬器(IXFDIR:七2 極端日 / ⑨ 反轉平 / ⑧ 備援);前一交易日沒有就補。
+           2026-11-25 假盤即時測試抓到:原本只寫在 step()(回放才走),盤中 live() 從來沒寫 → 七2 盤中不發(11/24 電腦 0 筆)、⑨ 沒有加權"""
         try:   # 2026-11-16 14:38 使用者「改」:⑧ 台指期缺一段時的加權指數備援,寫成檔給模擬器讀(IXFDIR)
             _ix = self.ix_map()
             if _ix:
@@ -2239,6 +2234,16 @@ class Engine:
                             write_atomic(_d / f"{_p}.csv", "date,time,open,high,low,close,volume\n" + "".join(f"{_p},{k},{v},{v},{v},{v},0\n" for k, v in sorted(_m.items()))); _got = _p; break
                     log(f"前一個交易日加權指數檔補好了({_got})" if _got else "!! 沒有前一個交易日的加權指數檔(engine_data/ix),雲端也補不到 → 判七2 今天不發、⑧ 強弱不看")
             except Exception as e: log("前一日加權指數檔檢查失敗", e)
+
+    def step(self, upto, **kw):
+        """跑到 upto(不含)那分鐘的 K;發 upto 前 10 分鐘內的新事件(回放用;盤中用 compute + apply)"""
+        if CFG.get("ENGINE_REPLAY_OLD") == "1":   # 驗證用:舊的整輪算完再對帳
+            res, dtm, njobs = self.compute()
+            errs = sum(1 for r in res if r[3])
+            n_ev = self.apply(res, upto, **kw)
+            return dtm, errs, n_ev
+        # 2026-11-06 回放和盤中走同一條路:算完一檔就對帳、過了進場時段只算持倉
+        self.write_ix()
         self.upto_hm = upto; t0 = time.time(); it, njobs = self.compute(stream=True); errs = 0; n_ev = 0
         cutoff = hm_add(upto, -10); an = kw.get("allow_new", True); ap = kw.get("allow_phantom", True); rb = kw.get("rs_block") or {}
         for r in self.order12(it, upto):
@@ -2445,6 +2450,7 @@ def live():
                 if late_n >= 3: off.append(f"K 連續 {late_n} 分鐘晚到")
                 # 2026-11-06 13:24 使用者「還有什麼可以再更快的」:算完一檔就對帳發通知,不等整輪(順序和以前一樣)
                 eng.upto_hm = hm
+                eng.write_ix()   # 2026-11-25 盤中也寫今天的加權指數檔(原本只有回放寫 → 七2 盤中不發)
                 eng.t_first = None; t0c = time.time(); it, njobs = eng.compute(stream=True); res = []; errs = 0; n_ev = 0
                 _ths[1].join(15); _tm["對帳"] = _msec()   # 2026-11-21 使用者「改」(2):先開算(工作行程已經在跑),對帳前才等雲端通知對帳回來(原本開算前等)
                 cutoff = hm_add(hm, -10); ok0 = not off and not late
@@ -2466,8 +2472,8 @@ def live():
                 log(f"{hm} 算完 {dtm:.1f} 秒,K 到 {lb},事件 {n_ev},錯誤 {errs}/{njobs},開著 {len(eng.pos)}{' ' + ' '.join(flags) if flags else ''}")
                 log(f"{hm} 時間(整分後第幾秒):{_tt}")
                 try:   # 2026-11-25 每輪各段在整分後第幾秒,中繼每分鐘備份上雲端(pcbk rounds),延遲分析 workflow 讀
-                    with open(DATA / f"rounds_{day}.jsonl", "a", encoding="utf-8") as _f:
-                        _f.write(json.dumps({"hm": hm, **{k: round(v, 2) for k, v in _tm.items()}, "first": round(_ft, 2) if _ft is not None else None, "dtm": round(dtm, 1), "n": n_ev, "fl": flags}, ensure_ascii=False) + "\n")
+                    with open(DATA / f"rounds_{day}.jsonl", "a", encoding="utf-8") as _rf_:
+                        _rf_.write(json.dumps({"hm": hm, **{k: round(v, 2) for k, v in _tm.items()}, "first": round(_ft, 2) if _ft is not None else None, "dtm": round(dtm, 1), "n": n_ev, "fl": flags}, ensure_ascii=False) + "\n")
                 except Exception: pass
                 # 2026-11-06 加速:規則重抓 / 名單重讀移到算完之後(原本在算之前,碰到的那一輪會晚幾秒)
                 # 規則每 30 分鐘重抓(稽核 #5)
