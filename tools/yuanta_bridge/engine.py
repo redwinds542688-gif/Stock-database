@@ -443,6 +443,7 @@ def breadth_fetch(day):
         _BR_LAST.update(d=day, br={**(_BR_LAST["br"] if same else {}), **(j.get("br") or {})}, av={**(_BR_LAST["av"] if same else {}), **(j.get("av") or {})}, at=time.time())
     return j if isinstance(j, dict) else {}
 
+_BR_FILLV = {}   # 2026-11-25 電腦補的寬度值(分鐘 → 值),雲端有了再比對
 _BR_FILLED = set()   # 2026-11-21 使用者「B」:最近一次寫的寬度 / 名單平均裡,哪幾分鐘是電腦自己補的(雲端還沒有)
 
 def breadth_apply(day, br, av):
@@ -452,8 +453,15 @@ def breadth_apply(day, br, av):
     av = av_fill(day, av or {})   # 2026-11-20 使用者「改1234」 3:雲端缺的分鐘用電腦自己算的補
     if av: write_atomic(DATA / "mktavg.json", json.dumps({day: av}))   # 2026-11-05 判五:名單平均(Worker ?breadth 的 av)
     elif not (DATA / "mktavg.json").exists(): write_atomic(DATA / "mktavg.json", "{}")
+    try:   # 2026-11-25 之前電腦補過、現在雲端有了的分鐘:比對差多少(看縮短等雲端寬度有沒有影響)
+        _cmp = [(k, _BR_FILLV[k], (br or {})[k]) for k in list(_BR_FILLV) if k in (br or {})]
+        for k, a, b in _cmp: _BR_FILLV.pop(k, None)
+        _bad = [(k, a, b) for k, a, b in _cmp if abs(float(a) - float(b)) > 1e-6]
+        if _bad: log(f"寬度電腦補 vs 雲端:{len(_bad)}/{len(_cmp)} 分鐘不同 " + " ".join(f"{k} {a}→{b}" for k, a, b in _bad[:5]))
+    except Exception: pass
     br = br_fill(day, br or {})
     _BR_FILLED.clear(); _BR_FILLED.update((set(br) - br0) | (set(av or {}) - av0))
+    for k in set(br) - br0: _BR_FILLV.setdefault(k, br[k])
     if br:
         write_atomic(f, json.dumps({day: br})); return True, len(br), max(br)
     if not f.exists(): write_atomic(f, "{}")
@@ -473,7 +481,8 @@ def breadth_wait(day, hm, want, th, cloud_ok):
        背景那次(th)還在跑就先等它;回來了還沒有 → 換沒用過的 since(hm-1、hm-2…)再問,避開 Worker 50 秒邊緣快取。回傳 True = 雲端有這分鐘了"""
     have = lambda: _BR_LAST.get("d") == day and want in (_BR_LAST.get("br") or {})
     if have() or not cloud_ok or not cloud_up() or hm >= "13:26": return have()
-    t_end = min(time.time() + _f(CFG.get("ENGINE_BR_MAXWAIT"), 4), time.time() + max(0.0, 15 - _msec())); k = 0
+    # 2026-11-25 使用者「都改」(加快通知):最多 4 秒 / 第 15 秒 → 2 秒 / 第 8 秒(等不到照舊電腦補;補的跟雲端差多少記在 log「寬度電腦補 vs 雲端」)
+    t_end = min(time.time() + _f(CFG.get("ENGINE_BR_MAXWAIT"), 2), time.time() + max(0.0, _f(CFG.get("ENGINE_BR_MAXSEC"), 8) - _msec())); k = 0
     while time.time() < t_end and not have():
         if th is not None and th.is_alive(): th.join(min(0.3, max(0.0, t_end - time.time()))); continue
         k += 1
@@ -2392,6 +2401,7 @@ def live():
                     #   雲端還沒有 hm-1 那根 → 直接用中繼本機逐筆組的 K(就是中繼推上雲端的同一份),只補雲端最後一根之後、已收完的分鐘;下一輪照舊以雲端為準
                     if _lk and bars:
                         lb_ = local_bars()
+                        if not lb_: _lk = False   # 本機拿不到 → 這輪不再問(不洗紀錄)
                         if lb_:
                             for c, rows in bars.items():
                                 l0 = max((r[0] for r in rows), default="")
