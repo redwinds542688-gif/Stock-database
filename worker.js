@@ -99,11 +99,30 @@ const ymdOf = t => t.toISOString().slice(0, 10);
 const hhmmOf = t => t.toISOString().slice(11, 16);
 // 2026-11-06 15:44 使用者「美股只是參考 每天8.20 拿到資料之後 在當沖的通知欄裡 顯示 美股四大指數的結果 當沖按鍵 左上角 閃紅點」:
 //   台灣 08:20 / 08:30 / 08:45 cron 抓前一個美股交易日的道瓊、S&P 500、那斯達克、費半收盤(Yahoo 圖表 API,抓不到改 FRED),存 Hub「usmkt」;GET ?usmkt=get 給手機
-const US_IDX = [["^TWII", "台股", ""], ["^SOX", "費半", "NASDAQSOX"], ["^N225", "日經", "NIKKEI225"], ["^IXIC", "那斯達克", "NASDAQCOM"], ["^KS11", "韓國", ""], ["^GSPC", "S&P 500", "SP500"]];   // 2026-11-07 14:29 使用者「資訊 增加 s&p 500 的圖」:第六格加回 S&P 500   // 2026-11-06 23:31 使用者「改」:台灣加權移到右上(跟標題同一排),中間 費半 / 日經,下面 NASDAQ / 韓國綜合   // 2026-11-06 23:02 使用者「把道瓊刪除 那費城半導體移到原道瓊位置 原費半改日經225」   // 2026-11-06 20:03 使用者「這裡的 s&p500 改成台灣股市」:第二格換台灣加權指數(Yahoo ^TWII;FRED 沒有,抓不到就空著)
+const US_IDX = [["^TWII", "台股", ""], ["TXF", "台指期", ""], ["^N225", "日經", "NIKKEI225"], ["^SOX", "費半", "NASDAQSOX"], ["^KS11", "韓國", ""], ["^IXIC", "那斯達克", "NASDAQCOM"]];   // 2026-11-22 16:32 使用者「通知欄 拿掉 S&P 換 台指期排在右1」:左欄 台灣加權 / 日經 / 韓國,右欄 台指期 / 費半 / NASDAQ(台指期用中繼推的 1 分 K)   // 2026-11-07 14:29 使用者「資訊 增加 s&p 500 的圖」:第六格加回 S&P 500   // 2026-11-06 23:31 使用者「改」:台灣加權移到右上(跟標題同一排),中間 費半 / 日經,下面 NASDAQ / 韓國綜合   // 2026-11-06 23:02 使用者「把道瓊刪除 那費城半導體移到原道瓊位置 原費半改日經225」   // 2026-11-06 20:03 使用者「這裡的 s&p500 改成台灣股市」:第二格換台灣加權指數(Yahoo ^TWII;FRED 沒有,抓不到就空著)
+/* 2026-11-22 台指期那一格:Yahoo 沒有台指期,用中繼每分鐘推到雲端的台指期 1 分 K(Hub fbars:日期)。
+   最近一個已收盤(今天要 13:46 以後)的交易日 = 收盤 / 走勢線,再前一個有 K 的交易日最後一根 = 昨收(算漲跌) */
+async function txfRow(env, name) {
+  if (!env.HUB) return null;
+  const t = new Date(Date.now() + 8 * 3600e3), hm = t.toISOString().slice(11, 16), got = [];
+  for (let k = 0; k < 15 && got.length < 2; k++) {
+    const d = new Date(t.getTime() - k * 864e5).toISOString().slice(0, 10);
+    if (k === 0 && hm < "13:46") continue;
+    let v = null; try { v = await hubOf(env).kvGet("fbars:" + d); } catch (e) {}
+    const bars = (v && Array.isArray(v.bars) ? v.bars : []).filter(b => b && +b[4] > 0);
+    if (bars.length) got.push({ d, bars });
+  }
+  if (got.length < 2) return null;
+  const cl = got[0].bars.map(b => +b[4]), c1 = cl[cl.length - 1], c0 = +got[1].bars[got[1].bars.length - 1][4];
+  const row = { name, close: +c1.toFixed(2), prev: +c0.toFixed(2), pct: +((c1 / c0 - 1) * 100).toFixed(2), date: got[0].d, src: "中繼" };
+  if (cl.length >= 5) row.spark = cl.length > 90 ? cl.filter((x, i) => i % Math.ceil(cl.length / 90) === 0 || i === cl.length - 1) : cl;
+  return row;
+}
 async function fetchUS(env) {
   const out = [];
   for (const [sym, name, fred] of US_IDX) {
     let row = null;
+    if (sym === "TXF") { try { row = await txfRow(env, name); } catch (e) {} if (row) row.chg = +(row.close - row.prev).toFixed(2); out.push(row || { name, close: null, pct: null, date: "", src: "" }); continue; }
     try {
       const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=10d&interval=1d`, { headers: { "User-Agent": "Mozilla/5.0" } });
       const j = await r.json(); const res = j && j.chart && j.chart.result && j.chart.result[0];
@@ -139,7 +158,7 @@ async function fetchUS(env) {
 async function usGet(env, force) {
   let v = null; try { v = env.HUB ? await hubOf(env).kvGet("usmkt") : null; } catch (e) {}
   const t = new Date(Date.now() + 8 * 3600e3), d = t.toISOString().slice(0, 10), hm = t.toISOString().slice(11, 16), wd = t.getUTCDay();
-  const ok = v && v.d === d && v.idx && v.idx.length >= US_IDX.length && v.idx.every(x => x.close != null);
+  const ok = v && v.d === d && v.idx && v.idx.length >= US_IDX.length && v.idx.every(x => x.close != null) && US_IDX.every(([, n], i) => v.idx[i] && v.idx[i].name === n);   // 2026-11-22 換格子(S&P → 台指期)後,快取裡的舊格子不算抓齊,馬上重抓
   const stp = wd >= 1 && wd <= 5 ? ["14:40", "13:40"].find(x => hm >= x) : null, okPm = !stp || (v && v.hm >= stp);   // 2026-11-09 15:08 使用者「13.40 改」:平日 13:40 再加一次(台股 13:30 收盤);日經 / 韓國還在交易的那天不會拿(只拿已收盤),14:40 那次才換   // 2026-11-09 14:32 使用者「台股 美股 韓股 日股 都要逐日更新」:早上 08:30 抓美股(前一晚收盤);平日 14:40 後再抓一次,換上台股 / 日經 / 韓國當天收盤和走勢線   // 2026-11-07 加 S&P 500 後,舊快取少一張要重抓
   if (force || ((!ok || !okPm) && hm >= "08:30")) {   // 2026-11-07 15:03 使用者「不用隨時抓 每天早上8.30抓一次即可 除非抓不到」:08:30 前不抓;今天抓齊就整天用快取   // 2026-11-06 16:11 週六、週日也抓(手機來問時;星期六 08:20 起顯示到星期一 09:00)
     const c = MC.get("usfetch"); if (!force && c && Date.now() - c < 300e3) return v;   // 手機來問、今天還沒有:最多 5 分鐘抓一次
@@ -623,6 +642,18 @@ const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\
 const b64uStr = t => b64u(new TextEncoder().encode(t));
 const PUSH_KINDS = new Set(["long", "short", "loss", "profit", "exit"]);
 const REAL_RE = /·\s*元大中繼\s*$|·\s*(強三|元三)\s*$|·\s*(強平|元平)\s*·/;   // 2026-11-07 元平(元大手動平倉)也是真實卡
+// 2026-11-22 使用者選 A:「未進場」只給自己(owner / 中繼)看。電腦引擎在中繼沒真的進場時把進場通知改成
+//   標題第一個「進場」→「未進場」、內容結尾「 · 判X」前面插「 · 未進場[:原因]」(engine.py verdict)。
+//   看盤會員 / 免費 / 夥伴鑰匙看到的是「程式虛擬交易」→ 改回原本的進場通知(剛好是引擎那一步的反向,其他字不動)
+const NOENT_RE = /\s·\s未進場(?::[^]*?)?(?=\s*·\s*判[一二三四五六七八九十]\s*$)/;
+const unSkip = x => {
+  if (!x || typeof x !== "object") return x;
+  const b = String(x.body || ""), t = String(x.title || "");
+  if (NOENT_RE.test(b)) return { ...x, title: t.replace("未進場", "進場"), body: b.replace(NOENT_RE, "") };
+  // 引擎改標題但內容結尾沒有「 · 判X」(內容沒插字)的進場通知:只改回標題
+  if ((x.kind === "long" || x.kind === "short") && t.includes("未進場")) return { ...x, title: t.replace("未進場", "進場") };
+  return x;
+};
 async function vapidKeys(env) {
   const hub = hubOf(env); let v = await hub.kvGet("vapid");
   if (!v) { const kp = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
@@ -999,6 +1030,32 @@ const isFamKey = k => String(k || "").startsWith(FAM_PRE);
 const famNameOk = n => /^[\p{L}\p{N}_-]{1,12}$/u.test(n || "") && ACCT_RE.test(n) && !/^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(n);
 const mktNow = () => { const t = twNow(), wd = t.getUTCDay(), m = t.getUTCHours() * 60 + t.getUTCMinutes(); return wd > 0 && wd < 6 && m >= 540 && m < 810; };   // 台股盤中 平日 09:00~13:29(夥伴設定 / 新增 / 移除 盤中不收)
 const ACCT_RE = /^[^\s|:\/\\?#&<>"']{1,12}$/;
+// 2026-11-22 使用者選 A:夥伴名字不能和家人帳號(?keys=add {acct})撞名(撞了 acfg:<名字>、pcbka:<名字> 會混在一起)。
+//   比對前統一:全形半形(NFKC)、大小寫、空白都不算差別
+const nameNorm = n => String(n || "").normalize("NFKC").replace(/\s+/g, "").toLowerCase();
+const DUP_FAM_MSG = "這個名字已經是家人帳號,請換一個名字", DUP_PTN_MSG = "這個名字已經是夥伴,請換一個名字";
+// 名冊 Hub acctreg = {fam:{正規名: 名字}, ptn:{正規名: 名字}}:fam = ?keys=add {acct} 發過的家人帳號,ptn = 夥伴加入發過看盤金鑰的名字。
+//   第一次用到(還沒有名冊)掃一次 KV 的 key:*(家人鑰匙有 acct;by 是「夥伴加入」的算夥伴)補齊;KV 讀失敗就不存,下次再掃
+async function acctReg(env, hub) {
+  let R = null; try { R = await hub.kvGet("acctreg"); } catch (e) {}
+  if (R && typeof R === "object" && R.fam && R.ptn) return R;
+  R = { fam: {}, ptn: {} }; let ok = true;
+  try { let cursor; do { const r = await env.LOGS.list({ prefix: "key:", cursor, limit: 1000 });
+      for (const x of r.keys) { let v = null; try { v = JSON.parse((await env.LOGS.get(x.name)) || "null"); } catch (e) { ok = false; }
+        if (v && v.acct && ACCT_RE.test(v.acct)) R[v.by === "夥伴加入" ? "ptn" : "fam"][nameNorm(v.acct)] = v.acct; }
+      cursor = r.list_complete ? null : r.cursor; } while (cursor); } catch (e) { ok = false; }
+  if (ok) { try { await hub.kvPut("acctreg", R); } catch (e) {} }
+  return R;
+}
+async function acctRegAdd(env, hub, which, n) { try { const R = await acctReg(env, hub); R[which][nameNorm(n)] = n; await hub.kvPut("acctreg", R); } catch (e) {} }
+// 家人帳號的名字(正規化):名冊 fam + 有中繼備份(accts)但不是夥伴(不在夥伴名冊 fams、也沒發過夥伴金鑰)的
+async function famAcctNames(env, hub) {
+  const R = await acctReg(env, hub), out = new Set(Object.keys(R.fam || {}));
+  let AC = null, FS = null; try { AC = await hub.kvGet("accts"); } catch (e) {} try { FS = await hub.kvGet("fams"); } catch (e) {}
+  const ptn = new Set([...Object.keys(R.ptn || {}), ...Object.keys(FS && typeof FS === "object" ? FS : {}).map(nameNorm)]);
+  for (const a of Object.keys(AC && typeof AC === "object" ? AC : {})) { const k = nameNorm(a); if (!ptn.has(k)) out.add(k); }
+  return out;
+}
 
 export default {
   // ── Cloudflare Cron Trigger 到點 → 叫 GitHub 跑對應的 workflow ──
@@ -1147,11 +1204,12 @@ export default {
     if (url.searchParams.get("twidx")) {   // 2026-11-13 19:50 使用者「好」(每天存加權指數 1 分 K):證交所每 5 秒指數 → 1 分 K(GitHub 機器連證交所會被擋,改由這裡抓);公開資料,收盤後的日子存 Hub 不重抓
       const d = String(url.searchParams.get("twidx")).replace(/-/g, "").slice(0, 8);
       if (!/^\d{8}$/.test(d)) return J({ error: "twidx 要 YYYYMMDD" }, 400);
-      const hub = env.HUB ? hubOf(env) : null, ck = "twidx:" + d;
+      // 2026-11-22 使用者「全部做」(L4):分鐘歸屬改了(見下面)→ Hub 快取鍵換成 twidx2:,舊的(錯的)那份不再讀,過去的日子第一次讀時重算
+      const hub = env.HUB ? hubOf(env) : null, ck = "twidx2:" + d;
       if (hub){ const old = await hub.kvGet(ck); if (old) return J(old); }
       // 2026-11-21 使用者「全改」(檢查 W4):Hub 沒存(盤中 / 很舊的日子)才去證交所 → 沒鑰匙的每個 IP 10 分鐘最多 20 次;同一天 60 秒內共用同一份(這個執行個體記憶體)
       if (!pushOk && !KI && !ipLimit("twidx", request.headers.get("CF-Connecting-IP") || "?", 20, 600e3)) return J({ error: "太頻繁,10 分鐘後再試" }, 429);
-      { const c = MC.get("twidx:" + d); if (c && Date.now() - c.at < 60e3) return J(c.v); }
+      { const c = MC.get("twidx2:" + d); if (c && Date.now() - c.at < 60e3) return J(c.v); }
       let j = null;
       let bad = null;
       for (const pth of ["rwd/zh/TAIEX/MI_5MINS_INDEX", "exchangeReport/MI_5MINS_INDEX", "rwd/zh/afterTrading/MI_5MINS_INDEX"]) {   // 證交所改版過網址,依序試
@@ -1161,7 +1219,13 @@ export default {
       if (!j) return J(bad || { error: "抓不到" }, 502);
       if (!j || j.stat !== "OK" || !Array.isArray(j.data) || !j.data.length) return J({ d, bars: [], stat: j && j.stat });
       const f = j.fields || [], i = Math.max(1, f.findIndex(x => /加權/.test(x) && !/未含/.test(x))), B = {};
-      for (const r of j.data){ const t = String(r[0]).slice(0, 5), p = parseFloat(String(r[i]).replace(/,/g, "")); if (!(t >= "09:00" && t <= "13:30") || !(p > 0)) continue;
+      // 2026-11-22 使用者「全部做」(L4):1 分 K 標「開始時間」(和元大 K 一樣),HH:MM:00 那筆是「上一分鐘」的收盤,不是這分鐘的開盤
+      //   (原本 09:01:00 算進 09:01 那根當開盤)→ 秒數 00 的歸到前一分鐘。
+      //   09:00:00 那筆是「昨天收盤」(還沒撮合;2026-11-20 實測 09:00:00 = 38,426.89 = 11/19 收盤),不能當 09:00 的開盤 → 不收;
+      //   09:00 那根從 09:00:05(開盤撮合後第一筆)開始。13:30:00 是收盤集合競價結果 → 自成 13:30 那根(和個股 K 一樣)
+      const mmOf = t => { const hh = +t.slice(0, 2), mi = +t.slice(3, 5), ss = +t.slice(6, 8) || 0; let m = hh * 60 + mi - (ss === 0 ? 1 : 0); return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
+      for (const r of j.data){ const ts = String(r[0]).trim(), p = parseFloat(String(r[i]).replace(/,/g, "")); if (!(ts > "09:00:00" && ts <= "13:30:00") || !(p > 0)) continue;
+        const t = ts.slice(0, 8) === "13:30:00" ? "13:30" : mmOf(ts);
         const b = B[t]; if (!b) B[t] = [p, p, p, p]; else { b[1] = Math.max(b[1], p); b[2] = Math.min(b[2], p); b[3] = p; } }
       const out = { d, bars: Object.keys(B).sort().map(t => [t, ...B[t]]) };
       const nowD = ymdOf(twNow()).replace(/-/g, ""), hm = twNow().toISOString().slice(11, 16);
@@ -1284,6 +1348,9 @@ export default {
         const acct = String(b.acct || "").trim();   // 2026-11-15 家人鑰匙:{name, acct}(acct = 中繼 ACCT_NAME)→ 只看自己帳號
         if (acct && !ACCT_RE.test(acct)) return J({ error: "acct(家人名字)最多 12 個字,不能有空白或符號" }, 400);
         if (acct && (pl || b.role === "owner")) return J({ error: "家人鑰匙不能同時是 owner 或付費方案" }, 400);
+        // 2026-11-22 使用者選 A:家人帳號不能和夥伴同名(夥伴名冊 fams,大小寫 / 全形半形 / 空白不算差別)
+        if (acct && env.HUB) { let FS = null; try { FS = await hubOf(env).kvGet("fams"); } catch (e) {}
+          if (Object.keys(FS && typeof FS === "object" ? FS : {}).some(x => nameNorm(x) === nameNorm(acct))) return J({ error: DUP_PTN_MSG, dup: "ptn" }, 409); }
         const role = pl ? pl.role : b.role === "owner" ? "owner" : b.role === "mgr" ? "mgr" : "viewer", name = String(b.name || acct || "").slice(0, 40), k = acct ? newKey(FAM_PRE) : newKey();
         const rec = { name, role, on: true, made: ymdOf(twNow()) };
         if (acct) rec.acct = acct;
@@ -1291,6 +1358,7 @@ export default {
         const days = +b.days > 0 ? Math.floor(+b.days) : pl ? pl.days : role === "trial" ? 30 : 0;   // 試用(trial):30 天,期間沒有今天的判一二三訊號(過去的成績單看得到)
         if (days > 0) rec.exp = ymdOf(new Date(twNow().getTime() + days * 86400e3));   // 到期日(天數,不填 = 不到期;日期是 Worker 的時間,手機改時間沒用)
         await env.LOGS.put("key:" + k, JSON.stringify(rec));
+        if (acct && env.HUB) await acctRegAdd(env, hubOf(env), "fam", acct);   // 2026-11-22 使用者選 A:記進家人名冊(夥伴撞名檢查用)
         if (role === "owner") await env.LOGS.put("keys:owners", "1");
         return J({ ok: true, k, ...rec });
       }
@@ -1376,7 +1444,8 @@ export default {
         const tier = await pushTier(env, s), all = (await hubOf(env).logGet(ymdOf(twNow()))).filter(x => pushCanSee(tier, x));
         const now = hhmmOf(twNow()), m = +now.slice(0, 2) * 60 + +now.slice(3) - 3, since = String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
         const recent = all.filter(x => (x.t || "") >= since).slice(0, 3);
-        return J({ items: (recent.length ? recent : all.slice(0, 1)).map(x => ({ title: x.title, body: x.body, key: x._k || x.title })) });
+        // 2026-11-22 使用者選 A:不是 owner 的推播內容把「未進場」改回原本的進場(虛擬交易);owner 照舊(本來就不推未進場)
+        return J({ items: (recent.length ? recent : all.slice(0, 1)).map(x => tier === "owner" ? x : unSkip(x)).map(x => ({ title: x.title, body: x.body, key: x._k || x.title })) });
       }
       return J({ error: "push=key / sub / unsub / last" }, 400);
     }
@@ -1681,7 +1750,7 @@ export default {
         if (o.skip) return J({ ok: true, skip: "已按移除", st: o.st });
         if (o.st === "run" && !o.key) {   // 登入成功 → 發看盤金鑰(和 ?keys=add {acct} 同一種)
           const k = newKey(FAM_PRE); await env.LOGS.put("key:" + k, JSON.stringify({ name: n, role: "viewer", on: true, made: ymdOf(twNow()), acct: n, by: "夥伴加入" }));
-          const o2 = await hub.famPatch(n, { key: k }, true); if (!o2 || o2.skip) await offKey(k); }   // 同時有兩次回報:只留第一把,這把作廢
+          const o2 = await hub.famPatch(n, { key: k }, true); if (!o2 || o2.skip) await offKey(k); else await acctRegAdd(env, hub, "ptn", n); }   // 2026-11-22 使用者選 A:記進名冊(撞名檢查分得出夥伴 / 家人)   // 同時有兩次回報:只留第一把,這把作廢
         return J({ ok: true, st: o.st });
       }
       if (!mgrKI) return J({ error: KI && KI.role === "mgr" ? "這把管理鑰匙已綁在另一支手機" : "要夥伴加入的管理鑰匙", badKey: true }, 403);
@@ -1698,6 +1767,8 @@ export default {
       if (famQ === "add") {
         if (typeof b.enc !== "string" || b.enc.length < 100 || b.enc.length > 4000) return J({ error: "加密資料不對" }, 400);
         const L = await L0(); if (L[n] && L[n].st !== "fail") return J({ error: `已經有【${n}】` }, 409);
+        // 2026-11-22 使用者選 A:和家人帳號撞名就擋(原本只看夥伴名冊,會蓋掉家人的 acfg:<名字>)
+        if (!L[n] && (await famAcctNames(env, hub)).has(nameNorm(n))) return J({ error: DUP_FAM_MSG, dup: "fam" }, 409);
         const c = b.cfg && typeof b.cfg === "object" ? b.cfg : {}, o = {}, bad = [];
         const num = (k, lo, hi) => { if (c[k] == null) return; const v = Math.round(+c[k]); if (!isFinite(v) || v < lo || v > hi) bad.push(k); else o[k] = v; };
         num("max_amount", 1000000, 5000000); num("cap", 100000, 250000); num("max_loss", 5000, 30000); num("kill_loss", 10000, 50000);
@@ -2072,7 +2143,10 @@ export default {
         if (it.d >= DO_SINCE && env.HUB) {                        // 2026-10-24 起存 Hub(不用 KV 寫入 / list 額度)
           const res = await hubOf(env).logAdd(it.d, key, item, it.pos ? String(it.pos).replace(/[^\w\u4e00-\u9fff|:.\-]/g, "").slice(0, 80) : "");
           // 2026-11-01 iPhone 網頁版 App:今天的新通知(不是重複的平倉)→ 推播給訂閱的手機(背景做,不拖慢回應)
-          if (res && !res.dup && it.d === ymdOf(twNow()) && ctx && ctx.waitUntil && !/未進場:額度不夠/.test(item.body))   // 2026-11-13 額度用完的進場訊號不推播(2026-11-13 14:40 修:原本這行把推播寫進註解,11:56 起 iPhone 網頁版沒推播)
+          // 2026-11-13 額度用完的進場訊號不推播(2026-11-13 14:40 修:原本這行把推播寫進註解,11:56 起 iPhone 網頁版沒推播)
+          // 2026-11-22 使用者選 A:看盤會員 / 免費看到的是虛擬交易,「未進場:額度不夠」對他們就是一般進場 → 照樣推給他們;
+          //   owner 不變:pushCanSee 的 owner 規則本來就擋掉所有「· 未進場」(含額度不夠),所以這裡不再整則擋
+          if (res && !res.dup && it.d === ymdOf(twNow()) && ctx && ctx.waitUntil)
             ctx.waitUntil(pushFanout(env, { ...item, key: String(it.key || "") }).catch(() => {}));
           return J(res);
         }
@@ -2114,7 +2188,8 @@ export default {
         const REAL = /·\s*元大中繼\s*$|·\s*(強三|元三)\s*$|·\s*(強平|元平)\s*·/;
         // 2026-11-04 強平過的部位,引擎照算的虛擬出場(內容有「· 已強平 ·」):看盤版 / 免費照常看(拿掉「已強平」這幾個字,一進一出),永久版 App 自己藏
         const FCV = /\s*·\s*已強平(?=\s*·)/;
-        const mine = pushOk || ownerKI, scrub0 = a => mine || !Array.isArray(a) ? a : a.filter(x => !REAL.test(String((x && x.body) || "")) && !isYt(x)).map(x => FCV.test(String(x.body || "")) ? { ...x, body: String(x.body).replace(FCV, "") } : x);
+        // 2026-11-22 使用者選 A:不是自己(owner / 中繼)讀的 → 「未進場」通知改回原本的進場(unSkip,虛擬交易照常一進一出)
+        const mine = pushOk || ownerKI, scrub0 = a => mine || !Array.isArray(a) ? a : a.filter(x => !REAL.test(String((x && x.body) || "")) && !isYt(x)).map(x => FCV.test(String(x.body || "")) ? { ...x, body: String(x.body).replace(FCV, "") } : x).map(unSkip);
         // 免費第 8~30 天:只留平倉的(kind loss / profit / exit)和配得上的進場(同代碼、同判別式、進場那根時間 = 平倉內容裡的「HH:MM 進」)
         const closedOnly = a => {
           if (!Array.isArray(a)) return a;

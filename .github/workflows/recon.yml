@@ -1,0 +1,82 @@
+name: 實盤 vs 總表 每日對帳
+
+# 2026-11-22 判別式聊天室(使用者「三個都改」,總表要算得跟電腦實際一樣)要的 F:每個交易日收盤後,
+#   用 GitHub Secrets 的 YT_PUSH_KEY(只放環境變數,不印出來)讀電腦中繼備份到雲端的 ?pcbk(signals 引擎通知 / verdicts 有沒有進場 / fills 元大成交),
+#   tools/recon.py 整理成 reports/實盤_<日期>.json;判別式聊天室放了 reports/總表_<日期>.json 就再出 reports/對帳_<日期>.json
+on:
+  workflow_dispatch:
+    inputs:
+      d: { description: 日期 YYYY-MM-DD(不填 = 今天), required: false, default: '' }
+  schedule:
+    - cron: '52 6 * * 1-5'   # UTC 06:52 = 台北 14:52(週一 ~ 五,中繼 13:46 收工最後一份備份之後)
+  # 2026-11-22 判別式聊天室:總表要等 K 線齊了才算(15:27 起跑,約 15:40~16:30 才推 reports/總表_<日期>.json)→ 推上來就再對一次那天;
+  #   這個工作自己存的 實盤 / 對帳 不會再觸發(只看 總表_*,而且 GITHUB_TOKEN 推的 commit 本來就不觸發 workflow)
+  push:
+    branches: [main]
+    paths: ['reports/總表_*.json']
+
+permissions:
+  contents: write
+
+concurrency: { group: recon, cancel-in-progress: false }
+
+jobs:
+  recon:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: 要對哪幾天
+        env:
+          EV: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          D: ${{ inputs.d }}
+        run: |
+          if [ "$EV" = "push" ]; then
+            if [ -n "$BEFORE" ] && ! echo "$BEFORE" | grep -q '^0*$' && git cat-file -e "$BEFORE" 2>/dev/null; then
+              git -c core.quotepath=false diff --name-only "$BEFORE" HEAD -- 'reports/總表_*.json'
+            else
+              git -c core.quotepath=false show --name-only --format= HEAD -- 'reports/總表_*.json'
+            fi | sed -n 's#^reports/總表_\([0-9-]\{10\}\)\.json$#\1#p' | sort -u > /tmp/days
+          fi
+          [ -s /tmp/days ] || echo "${D:-$(TZ=Asia/Taipei date +%Y-%m-%d)}" > /tmp/days
+          echo "要對:$(tr '\n' ' ' < /tmp/days)"
+      - name: 讀雲端備份 → 對帳
+        env:
+          K: ${{ secrets.YT_PUSH_KEY }}
+          D: ${{ inputs.d }}
+        run: |
+          for d in $(cat /tmp/days); do
+          D="$d" python3 - <<'PY'
+          import os, sys, json, datetime, urllib.request
+          K = os.environ.get("K", "")
+          if not K: print("GitHub Secrets 沒有 YT_PUSH_KEY"); sys.exit(1)
+          d = os.environ["D"]
+          B = "https://twse-proxy.redwinds542688.workers.dev/"
+          import shutil; shutil.rmtree("/tmp/rc", ignore_errors=True); os.makedirs("/tmp/rc", exist_ok=True)
+          got = {}
+          for nm in ("signals", "verdicts", "fills"):
+              try:
+                  rq = urllib.request.Request(f"{B}?pcbk=get&d={d}&name={nm}", headers={"X-Push-Key": K, "User-Agent": "recon/1"})
+                  j = json.loads(urllib.request.urlopen(rq, timeout=30).read().decode("utf-8"))
+              except Exception as e:
+                  print(nm, "讀不到", type(e).__name__); j = {}
+              v = j.get("v") if isinstance(j, dict) else None
+              got[nm] = v is not None
+              json.dump(v, open(f"/tmp/rc/{nm}.json", "w", encoding="utf-8"), ensure_ascii=False)
+          print(d, "雲端備份", got)
+          open("/tmp/rc/d", "w").write(d)
+          if not got["signals"] and not got["fills"]: print("這天沒有備份(休市 / 電腦沒開)"); open("/tmp/rc/skip", "w").write("1")
+          PY
+          [ -f /tmp/rc/skip ] && continue
+          python3 tools/recon.py "$d" /tmp/rc/signals.json /tmp/rc/verdicts.json /tmp/rc/fills.json "reports/總表_$d.json" reports
+          done
+      - name: 存檔
+        run: |
+          git config user.name "github-actions[bot]"; git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/ 2>/dev/null || true
+          git diff --cached --quiet && { echo "沒有變更"; exit 0; }
+          git commit -q -m "實盤 vs 總表 對帳 $(tr '\n' ' ' < /tmp/days)"
+          for i in 1 2 3 4; do git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0; sleep $((i * 10)); done
+          exit 1

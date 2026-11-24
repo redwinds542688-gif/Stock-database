@@ -16,6 +16,10 @@ on:
 permissions:
   contents: write         # 要能 commit 回 repo
 
+# 2026-11-22 使用者「全部做」(D6):原本 daily / recheck / live-entries / full_hist 共用 group: daily。
+#   GitHub 同一組最多 1 個執行中 + 1 個排隊,新排進來的會把排隊中的「靜靜取消」(cancel-in-progress: false 也一樣)
+#   → 例如延遲的 live-entries / recheck 會把 14:30 的 daily 擠掉。改成每支自己一組;
+#   會寫同一個檔的(daily ↔ recheck 的 pool.json、daily ↔ taiex-1m 的 kline_futures/TXF)由下面 commit 步驟的重試處理。
 concurrency:
   group: daily
   cancel-in-progress: false
@@ -37,7 +41,9 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: 存今天的雲端 1 分K(盤中判別式用的那份,回測 KSRC=cloud 讀;要在換明天名單之前)
-        run: python save_cloud_bars.py || echo "雲端 1 分K 存檔失敗(不影響其他步驟)"
+        run: |
+          D=$(TZ=Asia/Taipei date +%F); echo "D_TW=$D" >> "$GITHUB_ENV"   # 2026-11-22(D6):commit 重試時要用同一天補台指期 K
+          python save_cloud_bars.py "$D" || echo "雲端 1 分K 存檔失敗(不影響其他步驟)"
 
       - name: 產生 pool.js / pool.json
         env:
@@ -57,9 +63,35 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add pool.js pool.json pool_full.json app/prob_model.json kline/ kline_cloud/ kline_yuanta/ kline_futures/ amp_history.json lots_history.json bars_history.json
           if git diff --cached --quiet; then
-            echo "沒有新資料,不 commit"
-          else
-            git commit -m "資料更新 $(TZ=Asia/Taipei date '+%Y-%m-%d %H:%M')"
-            git pull --rebase
-            git push
+            echo "沒有新資料,不 commit"; exit 0
           fi
+          git commit -q -m "資料更新 $(TZ=Asia/Taipei date '+%Y-%m-%d %H:%M')"
+          # 2026-11-22 使用者「全部做」(D6):原本 git pull --rebase; git push 沒有重試,和 taiex-1m(14:43,同一個
+          #   kline_futures/TXF/<週>.csv)、recheck(pool.json)撞到就整次失敗、資料沒推上去。改成最多 6 次:
+          #   fetch → rebase(衝突時「這次跑的版本優先」-X theirs)→
+          #     · 這次整份重做的檔(pool*.json / pool.js / *_history.json / prob_model.json)直接用這次的結果蓋回去(不讓文字合併混進別人的行)
+          #     · 台指期 kline_futures/TXF:遠端那份有變(taiex-1m 推了期交所完整 K)→ 以遠端為準,再用 save_fbars 只補遠端沒有的分鐘
+          KEEP="$RUNNER_TEMP/keep"; mkdir -p "$KEEP"
+          OWN="pool.js pool.json pool_full.json app/prob_model.json amp_history.json lots_history.json bars_history.json"
+          for f in $OWN; do [ -f "$f" ] && mkdir -p "$KEEP/$(dirname "$f")" && cp "$f" "$KEEP/$f"; done
+          BASE=$(git rev-parse HEAD~1)
+          for i in 1 2 3 4 5 6; do
+            git push -q origin HEAD:main && { echo "推送成功(第 $i 次)"; exit 0; }
+            sleep $((i * 10))
+            git fetch -q origin main || continue
+            if ! git rebase -q origin/main; then
+              git rebase --abort
+              git rebase -q -X theirs origin/main || { git rebase --abort; echo "rebase 失敗,再試"; continue; }
+            fi
+            for f in $OWN; do [ -f "$KEEP/$f" ] && cp "$KEEP/$f" "$f"; done
+            if ! git diff --quiet "$BASE" origin/main -- kline_futures; then
+              for f in $(git diff --name-only "$BASE" origin/main -- kline_futures); do git show "origin/main:$f" > "$f" 2>/dev/null || true; done
+              python -c "import save_cloud_bars as s; s.save_fbars('$D_TW')" || echo "台指期雲端 K 重補失敗(以遠端期交所那份為準)"
+            fi
+            git add $OWN kline_futures/ 2>/dev/null || true
+            if ! git diff --cached --quiet; then
+              if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]; then git commit -q -m "資料更新 $(TZ=Asia/Taipei date '+%Y-%m-%d %H:%M')"; else git commit -q --amend --no-edit; fi
+            fi
+            BASE=$(git rev-parse origin/main)
+          done
+          echo "推送 6 次都失敗"; exit 1

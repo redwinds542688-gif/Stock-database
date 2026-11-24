@@ -91,4 +91,10 @@ jobs:
           git add app/cf_usage.json Cloudflare用量.md
           git diff --cached --quiet && exit 0
           git commit -m "Cloudflare 每天用量"
-          for i in 1 2 3; do git pull --rebase -q && git push -q && exit 0; sleep 5; done
+          # 2026-11-22 使用者「全部做」(D6):衝突先 abort 再以這次為準(-X theirs)重新 rebase;都失敗結束碼 1
+          for i in $(seq 1 5); do
+            git push -q origin HEAD:main && exit 0
+            sleep $((i * 10)); git fetch -q origin main || continue
+            git rebase -q origin/main || { git rebase --abort; git rebase -q -X theirs origin/main || git rebase --abort; }
+          done
+          echo "推送 5 次都失敗"; exit 1

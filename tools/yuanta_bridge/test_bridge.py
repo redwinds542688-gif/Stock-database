@@ -402,4 +402,108 @@ ok(b.trader.calls and [x["_k"] for x in b.trader.calls[-1][1]] == ["a", "b"] and
 b = mk(); b.trader = T9(); b._prime_t0 = time.time() - 200; b._sf_bad = 0; b.prime_local_maybe("2026-11-23"); ok(b.trader.calls)
 os.environ.pop("ENGINE_DIR", None)
 
+# ── 2026-11-22 使用者「全部做」(U2 / U4 / D7)──
+_sl22 = Y.time.sleep; Y.time.sleep = lambda s: None
+try:
+    S17 = {"code": "2317", "bs": "S", "lots": 1, "price": 200.0, "time": "09:35:00", "order_no": "Z1"}
+    W17 = {"no": "M1", "code": "2317", "bs": "B", "lots": 1, "typ": "0", "tag": "", "price": 199.0}
+    def mk22():
+        b = mk(); b.logged_in.set(); b.trader.prehang_deadline = "13:25"; b.trader.prehang = {"2317": ["M1"]}
+        b.cancels = []; b.cancel_order = lambda no, code, bs, typ: b.cancels.append(no)
+        b.query_strategies = lambda types=(1, 2, 3, 4, 5): []
+        return b
+    NOW[0] = dt.datetime(2026, 11, 23, 13, 20, 1, tzinfo=Y.TW)
+    # U2-1:查詢失敗 → 回 None、盤中記的預掛不動;查成功才換
+    b = mk22(); b.query_today = lambda with_oco=True: None
+    ok(b.prehang_pick("13:20") is None and b.trader.prehang == {"2317": ["M1"]}, b.trader.prehang)
+    b.query_today = lambda with_oco=True: {"working": [W17], "trades": [S17], "tags": {}}
+    ok(b.prehang_pick("13:20") == {"M1"} and b.trader.prehang == {"2317": ["M1"]})
+    b.query_today = lambda with_oco=True: {"working": [], "trades": [S17], "tags": {}}
+    ok(b.prehang_pick("13:20") == set() and b.trader.prehang == {})   # 查成功、預掛不在了 → 清掉
+    # U2-2:13:20 流程查預掛前 2 次查不到 → 重查,第 3 次查到 → 保留預掛、不取消
+    b = mk22(); qn22 = [0]
+    def q22(with_oco=True):
+        qn22[0] += 1
+        return None if qn22[0] <= 2 else {"working": [W17], "trades": [S17], "tags": {}}
+    b.query_today = q22; LOGS.clear(); b.close_all("13:20")
+    ok(b._ca["keep"] == {"M1"} and not b.cancels and b.trader.prehang == {"2317": ["M1"]}, b._ca, b.cancels, LOGS)
+    ok(sum("查手動預掛:元大委託查不到" in x for x in LOGS) == 2, LOGS)
+    rc = [c for c in b.trader.calls if c[0] == "recheck"][-1]; ok([w["no"] for w in rc[2]] == ["M1"], rc)
+    # U2-3:一直查不到(超過 CLOSE_CONFIRM_TRIES)→ 保留盤中看到的預掛、推手機,確認時不取消它
+    b = mk22(); qn22[0] = 0
+    def q22b(with_oco=True):
+        qn22[0] += 1
+        return None if qn22[0] <= 6 else {"working": [W17, dict(W17, no="X9", tag="", code="2330", bs="S")], "trades": [S17], "tags": {}}
+    b.query_today = q22b; b.close_all("13:20")
+    ok(b._ca["keep"] == {"M1"} and set(b.cancels) == {"X9"} and any("查不到元大委託" in a for a in b.alerts), b._ca["keep"], b.cancels, b.alerts)
+    # U4:複查查不到 → 回 "fail";同一分鐘內不推手機,過了這分鐘才推
+    b = mk22(); b.trader.prehang = {}; b.trader.alerts = []; b.trader.alert = lambda a, body="": b.trader.alerts.append(a)
+    b.query_today = lambda with_oco=True: None
+    NOW[0] = dt.datetime(2026, 11, 23, 13, 22, 5, tzinfo=Y.TW)
+    ok(b.recheck_positions("13:22") == "fail" and not b.trader.alerts)
+    NOW[0] = dt.datetime(2026, 11, 23, 13, 23, 0, tzinfo=Y.TW)
+    ok(b.recheck_positions("13:22") == "fail" and b.trader.alerts == ["⚠ 13:22 複查失敗"], b.trader.alerts)
+    b.query_today = lambda with_oco=True: {"working": [], "trades": [S17], "tags": {}}
+    ok(b.recheck_positions("13:23") is True and b.trader.calls[-1][0] == "recheck")
+finally:
+    Y.time.sleep = _sl22
+
+# D7:名單外股票的可當沖 / 可先賣
+import elig as _el
+_gj, _lt, _here = _el.get_json, _el.load_today, Y.HERE
+try:
+    NOW[0] = dt.datetime(2026, 11, 23, 10, 0, tzinfo=Y.TW)
+    def _fake_lists(url, params=None, timeout=40, tries=2):
+        if url == _el.TWSE_DT: return [{"Code": "2330", "Suspension": ""}, {"Code": "2317", "Suspension": "Y"}]
+        if url == _el.TPEX_DT: return [{"SecuritiesCompanyCode": "6269"}, {"SecuritiesCompanyCode": "3105"}]
+        if url == _el.TPEX_DT_PAUSE: return [{"SecuritiesCompanyCode": "6269"}]
+        raise RuntimeError("x")
+    _el.get_json = _fake_lists; _el.load_today = lambda: {"noshort": ["3105"]}
+    b = mk()
+    ok(b.extra_dt("2330")[:2] == (1, 1) and b.extra_dt("2317")[:2] == (1, 0), b.extra_dt("2317"))
+    ok(b.extra_dt("6269", True)[:2] == (1, 0) and b.extra_dt("3105", True)[:2] == (1, 0) and b.extra_dt("1101")[:2] == (0, 0))
+    b.trader.noshort = {"2330": "無券"}; ok(b.extra_dt("2330")[:2] == (1, 0))
+    # 官方名單抓不到 → 本機最近的名單檔;也沒有 → 保守不可先賣
+    _el.get_json = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("斷網")); _el.load_today = lambda: None
+    Y.HERE = TMP; (TMP / "pool_2026-11-21.json").write_text('{"pool": [{"code": "3008", "daytrade": 1, "short_first": 1}, {"code": "2603", "daytrade": 1, "short_first": 0}]}', encoding="utf-8")
+    (TMP / "pool_2026-10-01.json").write_text('{"pool": [{"code": "2002", "daytrade": 1, "short_first": 1}]}', encoding="utf-8")   # 太舊不用
+    b = mk()
+    ok(b.extra_dt("3008")[:2] == (1, 1) and b.extra_dt("2603")[:2] == (1, 0) and b.extra_dt("2002")[:2] == (1, 0) and b.extra_dt("9999")[:2] == (1, 0), b.extra_dt("2002"))
+finally:
+    _el.get_json, _el.load_today, Y.HERE = _gj, _lt, _here
+
+# 2026-11-22 結算日 13:30 以後台指期改收下個月(判別式聊天轉達:11/18 只到 13:29 → 11/19 ⑧ 強弱偏 0.82%)
+import json as _json, io as _io
+_uo, _th, _here2 = Y.urllib.request.urlopen, Y.threading.Thread, Y.HERE
+try:
+    Y.HERE = TMP
+    class _SyncT:
+        def __init__(s, target=None, daemon=None): s.t = target
+        def start(s): s.t()
+    Y.threading.Thread = _SyncT
+    Q = {}
+    Y.urllib.request.urlopen = lambda rq, timeout=None: _io.BytesIO(_json.dumps({"RtData": {"QuoteList": Q["L"]}}).encode())
+    b = Y.Bridge.__new__(Y.Bridge); b.fut_n = None; b.fut_src_save = lambda *a: None
+    ok(b.fut_settle_next(dt.date(2026, 12, 16)) == (2027, 1) and b.fut_settle_next(dt.date(2026, 12, 15)) is None and b.fut_settle_next(dt.date(2026, 12, 17)) is None, "結算日判斷")
+    def poll(hm, near_px, nx_px, near_t, nx_t):
+        NOW[0] = dt.datetime(2026, 12, 16, int(hm[:2]), int(hm[3:]), 5, tzinfo=Y.TW); b._tf_at = 0
+        Q["L"] = [{"SymbolID": "TXFL6-F", "CLastPrice": str(near_px), "CTotalVolume": "100", "CTime": near_t},
+                  {"SymbolID": "TXFA7-F", "CLastPrice": str(nx_px), "CTotalVolume": "50", "CTime": nx_t}]
+        b.fut_poll()
+    poll("13:28", 40000, 40300, "132800", "132800")
+    poll("13:29", 40001, 40301, "132900", "132900")
+    poll("13:30", 40002, 40302, "133000", "133000")   # 13:30 以後:收下個月
+    poll("13:44", 40002, 40310, "133000", "134400")
+    ok(b.fut_tf["13:29"][3] == 40001 and b.fut_tf["13:30"][3] == 40302 and b.fut_tf["13:44"][3] == 40310, b.fut_tf)
+    NOW[0] = dt.datetime(2026, 12, 16, 13, 46, 0, tzinfo=Y.TW); b.fut_flush()
+    rows = open(TMP / "kline_futures" / "TXF" / "2026-12-16.csv", encoding="utf-8").read().split()
+    ok(rows[-1].split(",")[1] == "13:44" and rows[-1].split(",")[5] == "40310.0", rows[-3:])
+    # 一般日子不變:13:30 以後照收近月
+    b2 = Y.Bridge.__new__(Y.Bridge); b2.fut_n = None; b2.fut_src_save = lambda *a: None; b = b2
+    NOW[0] = dt.datetime(2026, 12, 15, 13, 40, 5, tzinfo=Y.TW); b._tf_at = 0
+    Q["L"] = [{"SymbolID": "TXFL6-F", "CLastPrice": "40100", "CTotalVolume": "100", "CTime": "134000"}, {"SymbolID": "TXFA7-F", "CLastPrice": "40400", "CTotalVolume": "50", "CTime": "134000"}]
+    b.fut_poll(); ok(b.fut_tf["13:40"][3] == 40100, b.fut_tf)
+finally:
+    Y.urllib.request.urlopen, Y.threading.Thread, Y.HERE = _uo, _th, _here2
+
 print(f"test_bridge 全部通過({N_OK[0]} 項)")

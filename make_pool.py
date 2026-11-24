@@ -186,6 +186,7 @@ def normalize(rows, market):
             "code": code, "name": name, "close": round(close, 2),
             "dir": 1 if chg > 0 else (-1 if chg < 0 else 0),
             "lots": int(vol / 1000),                      # 股 → 張
+            "shares": int(vol),                           # 2026-11-22 使用者「全部做」(L3):精確成交股數(fetch_kline 算 13:30 收盤量用,不再用 張×1000)
             "value": round((val if val is not None else close * vol) / 1e8, 2),   # 成交金額(億)
             "amp": round(amp, 2), "market": market, "date": dt,
             "prev": round(prev, 2),                       # 昨收(進場 ±3% 的基準)
@@ -520,11 +521,28 @@ try:
     print(f"上櫃可當沖名單:{len(m)} 檔")
     src_note.append("櫃買 tpex_securities")
     try:
-        paused = {c for c in parse_daytrade_list(get_json(TPEX_DT_PAUSE))}
+        # 2026-11-22 使用者「全部做」(L2):「暫停先賣後買預告」有暫停首日(FirstDayToSuspendSellThenBuy)/ 恢復日
+        #   (DayOfReinstatingSellThenBuy)。原本名單上的一律標 short_first=0(已恢復的、下週才開始的也算)。
+        #   這份 pool 是給「下一個交易日」用的 → 下一個交易日(LAST 之後的第一個平日;遇連假由隔天早上 recheck.py 以「今天」再修正)
+        #   落在 [暫停首日, 恢復日) 之間才標 0。日期看不懂就保守當作暫停。
+        _nd = date.fromisoformat(LAST) + timedelta(days=1)
+        while _nd.weekday() >= 5:
+            _nd += timedelta(days=1)
+        _nd = _nd.isoformat()
+        paused, n_skip = set(), 0
+        for r in get_json(TPEX_DT_PAUSE):
+            c = field(r, "Code", "代號")
+            if not is_stock_code(c):
+                continue
+            a, b = roc_to_iso(field(r, "FirstDay", "暫停首日")), roc_to_iso(field(r, "Reinstat", "恢復"))
+            if (a or b) and not ((not a or a <= _nd) and (not b or _nd < b)):
+                n_skip += 1
+                continue
+            paused.add(c)
         for c in paused:
             if c in elig:
                 elig[c] = (1, 0)
-        print(f"上櫃暫停先賣後買:{len(paused)} 檔")
+        print(f"上櫃暫停先賣後買:下一交易日 {_nd} 暫停中 {len(paused)} 檔(還沒開始 / 已恢復 {n_skip} 檔不算)")
     except Exception as e:
         print(f"上櫃暫停先賣後買預告抓取失敗(略過):{e}")
 except Exception as e:
@@ -602,12 +620,15 @@ for label, fn, target in (("上市注意股(網站)", lambda: twse_site_notice(L
 
 # ── 4. FinMind 備援:官方名單缺的市場,逐檔查;官方處置股抓不到時才用它 ──
 if TOKEN:
-    S.headers["Authorization"] = f"Bearer {TOKEN}"
+    # 2026-11-22 使用者「全部做」(D2):原本把 FinMind token 設在共用的 S 上,之後 S 打 Yahoo(日K / 1 分K)也會帶著
+    #   Authorization: Bearer <token> → token 外流給第三方。改成 FinMind 專用的 Session,S 不再帶 token。
+    FM_S = requests.Session()
+    FM_S.headers.update({"User-Agent": "Mozilla/5.0", "Accept": "application/json", "Authorization": f"Bearer {TOKEN}"})
 
     def fm(dataset, **kw):
         j = {}
         for attempt in range(3):
-            r = S.get(FM_API, params={"dataset": dataset, **kw}, timeout=60)
+            r = FM_S.get(FM_API, params={"dataset": dataset, **kw}, timeout=60)
             if r.status_code == 402:
                 raise RuntimeError("FinMind 額度用完")
             j = r.json()
@@ -660,25 +681,55 @@ pool = [s for s in pool if s["code"] not in attention and s["code"] not in dispo
 n2 = len(pool)
 
 # 5 日平均振幅:只對前 SIZE*3 檔候選算(歷史不足的會向 Yahoo 補抓),省時間
+MAX_GAP_MIN = 10   # 2026-11-22(D4):元大 1 分 K 盤中最長允許連續缺幾分鐘(超過 = 中繼斷線,當作不完整)
+
+
+def yuanta_max_gap(tms):
+    """元大當天的 HH:MM 清單 → 09:00~13:25(連續競價)之間最長的連續缺漏分鐘數(含開頭 09:00 之後、結尾 13:25 之前的缺口)。
+    13:25~13:30 是收盤集合競價,本來就沒有 K,不算空洞。"""
+    mins = sorted({int(t[:2]) * 60 + int(t[3:5]) for t in tms if len(t) >= 5 and t[:2].isdigit() and t[3:5].isdigit()})
+    lo, hi = 9 * 60, 13 * 60 + 25
+    inside = [m for m in mins if lo <= m <= hi]
+    if not inside:
+        return 999
+    gap = 0
+    pts = ([lo - 1] if inside[0] != lo else []) + inside + ([hi + 1] if inside[-1] != hi else [])
+    for a, b in zip(pts, pts[1:]):
+        gap = max(gap, b - a - 1)
+    return gap
+
+
 def traded_minutes(code, market, day=None):
     """資料日 LAST 有成交的 1 分鐘數。2026-10-25 使用者「現在抓股票 都以元大為準」:先看元大(kline_yuanta/,桌機收工後抓、
     14:30 save_cloud_bars.py 存進來的;沒成交的分鐘元大不給 K),沒有才用 Yahoo 1 分 K(09:00 那根量常是 0 也算),都抓不到回傳 None"""
     day = day or LAST   # 2026-11-07 連續天數:前幾天也要算
-    if day in bars_h.get(code, {}): return bars_h[code][day]
+    cached = bars_h.get(code, {}).get(day)
+    # 2026-11-22 使用者「全部做」(D4):快取裡「不到 MIN_BARS」的值可能是以前用不完整的元大 K 算出來的(中繼斷線那天),
+    #   不直接相信:元大檔現在是完整的就重算覆蓋;只有 ≥ MIN_BARS(結果不會改變篩選)才直接用快取。
+    if cached is not None and cached >= MIN_BARS: return cached
     y, w, _ = date.fromisoformat(day).isocalendar()
     fy = os.path.join("kline_yuanta", code, f"{y}-W{w:02d}.csv")
+    yuanta_bad = False
     if os.path.exists(fy):
         with open(fy, encoding="utf-8") as fh:
-            tms = [line.split(",")[1] for line in fh if line.startswith(day)]
-        n = len(tms)
+            tms = [line.split(",")[1].strip() for line in fh if line.startswith(day)]
+        n = len(set(tms))
         # 2026-10-25 使用者「改」:元大那天要是完整的一天(有 09:05 以前的 K、也有 13:30 收盤那根)才用;
         #   桌機晚開機(例如 11:00)時推上來的盤中 K 只有後半天,熱門股也只有約 150 根,會被誤判成冷門股 → 不完整就改用 Yahoo
-        if n and (n >= MIN_BARS or (min(tms) <= "09:05" and "13:30" in tms)):
+        # 2026-11-22 使用者「全部做」(D4):中繼盤中斷線(例如 10:10~11:20 沒推)時,09:00 和 13:30 都在、只有約 200 根,
+        #   原本會被當成「完整」→ 判成冷門股,還寫進 bars_history.json 之後都不再修正。
+        #   改成:不到 MIN_BARS 時,還要「盤中(09:00~13:25)沒有連續超過 MAX_GAP_MIN 分鐘的空洞」才算完整;
+        #   真的冷門股偶爾會有長空洞 → 只是改用 Yahoo 再算一次,不會判錯。不完整的元大結果一律不寫快取。
+        if n and (n >= MIN_BARS or (min(tms) <= "09:05" and "13:30" in tms and yuanta_max_gap(tms) <= MAX_GAP_MIN)):
             s_src["元大"] = s_src.get("元大", 0) + 1
             bars_h.setdefault(code, {})[day] = n
             return n
         if n:
             s_src["元大不完整→Yahoo"] = s_src.get("元大不完整→Yahoo", 0) + 1
+            yuanta_bad = True
+    if cached is not None and not yuanta_bad:
+        # 沒有元大檔:快取是 Yahoo 算的 → 沿用,不重抓。元大檔不完整時,快取可能就是以前從這份不完整的檔算的 → 改用 Yahoo 重算覆蓋
+        return cached
     s_src["Yahoo"] = s_src.get("Yahoo", 0) + 1
     for suf in ([".TW", ".TWO"] if market == "twse" else [".TWO", ".TW"]):
         try:
@@ -695,10 +746,11 @@ def traded_minutes(code, market, day=None):
             for dd, k in cnt.items():   # 2026-11-07 Yahoo 一次給 5 天,前幾天的也記下來(今天這天由上面元大 / 這裡算)
                 if dd != LAST or dd == day: bars_h.setdefault(code, {}).setdefault(dd, k)
             n = cnt.get(day, 0)
-            return n if n else None
+            if n: bars_h.setdefault(code, {})[day] = n   # 2026-11-22(D4):這一天用 Yahoo 重算的值蓋掉快取裡可能錯的舊值
+            return n if n else cached
         except Exception:
             pass
-    return None
+    return cached   # Yahoo 也抓不到:有舊快取就沿用(和以前一樣),沒有回傳 None(不擋)
 
 
 print(f"計算 {AVG_DAYS} 日平均振幅 + 昨天成交分鐘數 …")

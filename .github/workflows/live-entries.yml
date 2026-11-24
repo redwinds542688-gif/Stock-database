@@ -13,8 +13,8 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: daily
+concurrency:   # 2026-11-22 使用者「全部做」(D6):原本 group: daily,排隊中的 daily / recheck 會被它擠掉;只寫 live_entries.json,自己一組
+  group: live-entries
   cancel-in-progress: false
 
 jobs:
@@ -34,9 +34,13 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add live_entries.json 2>/dev/null || true
           if git diff --cached --quiet; then
-            echo "沒有變動,不 commit"
-          else
-            git commit -m "盤中進場訊息存檔 $(TZ=Asia/Taipei date '+%Y-%m-%d %H:%M')"
-            git pull --rebase
-            git push
+            echo "沒有變動,不 commit"; exit 0
           fi
+          git commit -m "盤中進場訊息存檔 $(TZ=Asia/Taipei date '+%Y-%m-%d %H:%M')"
+          # 2026-11-22 使用者「全部做」(D6):推送失敗重試(fetch → rebase,衝突以這次為準),最多 5 次
+          for i in $(seq 1 5); do
+            git push -q origin HEAD:main && exit 0
+            sleep $((i * 10)); git fetch -q origin main || continue
+            git rebase -q origin/main || { git rebase --abort; git rebase -q -X theirs origin/main || git rebase --abort; }
+          done
+          echo "推送 5 次都失敗"; exit 1

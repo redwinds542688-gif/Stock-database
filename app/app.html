@@ -5,6 +5,34 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-24 13:32(實際時間)電腦雲端備份:引擎通知只留進出場、從最新往前放到 70 萬字(11/24 整天 1500 則超過雲端單項上限被丟掉,實盤對帳讀不到訊號)
+  · 2026-11-24 02:03(實際時間)🔒 ⑧ 空單離今低(台指期離今天最低 > 2.5% 不做空):電腦引擎有這條的判別式都讀台指期 / 加權(判七這類沒有 TXSYNC 的也是)
+  · 2026-11-23 大盤線圖放大後可左右平移:放大時快速左右滑(0.24 秒內)= 平移,往右滑看較早、往左滑回最新;慢慢拖或按住照舊是十字線;平移後預設十字線停在畫面最右邊那分鐘
+  · 2026-11-23 14:59(實際時間)🔒 鐵律 ⑨ V 型反轉空單平倉:電腦引擎有 VRV 的判別式都讀加權 + 台指期(判七這類也是),出場通知標題「反轉平」;中繼收到照平(含有元大成交、超額補進場的部位)
+  · 2026-11-23 13:43(實際時間)停利 / 停損照真實進場價:判別式部位成交後,停利 / 停損 % 照訊號、價位照元大成交均價重算(有加碼用加碼後均價,元大條件單照新價掛);判二 / 三 / 八 / 十「沒走」電腦照成交均價自己盯(訊號後 45 分鐘最有利 < 0.3% 平倉)
+  · 2026-11-23 大盤線圖可縮放:上滑放大、下滑縮小(和 K 圖一樣,每 120px 一倍,最多看 20 分鐘,右邊對齊最新),左右拖照舊是十字線;電腦版滾輪縮放
+  · 2026-11-23 大盤線圖標題列加台指期漲跌幅(白字,對前一交易日台指期收盤);下格寬度小框也拿掉,數值寫在「寬度(上漲家數 %)」後面
+  · 2026-11-23 大盤線圖上格說明框拿掉,十字線那分鐘的大盤指數 / 漲跌 / 台指期直接顯示在標題列(點數高的在前)
+  · 2026-11-23 大盤線圖十字說明框:寬度照字量、十字兩邊放不下就整排找不壓線的位置(不再蓋在線上)
+  · 2026-11-23 大盤線圖的寬度和監控標題同調:寬度一更新線圖馬上用同一份重畫,小數一位一律無條件捨去
+  · 2026-11-23 大盤線圖:某一分鐘讀不到台指期 1 分 K 不再把白線清空(沿用上一份、10 秒後補讀,最多 3 次)
+  · 2026-11-23 同一秒好幾則進場通知改成排隊一則一則跳、一則一則響(隔 1.1 秒);原本同時到會互相切掉聲音、超過系統每秒上限的通知被丟掉(10:30 判一急彈空等 7 則)
+  · 2026-11-22 22:09(實際時間)實盤 vs 總表對帳:總表(reports/總表_<日期>.json)一推上來就自動再對一次那天(14:52 那次照舊先出實盤)
+  · 2026-11-22 22:01(實際時間)下單程式進場:±5% 只看現價;現價在 ±5% 內就照「現價讓 2 檔」送單,委託價超過 ±5% 也送(取代 21:57 改掛界線價)
+  · 2026-11-22 21:57(實際時間)下單程式進場:現價在昨收 ±5% 內就送單,讓 2 檔後超過 ±5% 時委託價改掛在 ±5% 界線價(做空往上、做多往下取到升降單位),不再放棄
+  · 2026-11-22 21:29(實際時間)實盤 vs 總表每日對帳:電腦每分鐘雲端備份多存「每則進場訊號有沒有進場」、通知存一整天;每個交易日 14:52 排程整理成 reports/實盤_<日期>.json,有總表那份就出 reports/對帳_<日期>.json
+  · 2026-11-22 20:52(實際時間)電腦引擎同一分鐘多檔新進場的先後固定照名單成交張數大到小(同張數照代碼、名單外手動成交排最後),在手 / 今天通知過的股票不再排最前面;回測總表照同一順序
+  · 2026-11-22 資訊六格拿掉 S&P 500,換台指期排右欄第一格(右欄:台指期 / 費城半導體 / NASDAQ;台指期用中繼推的 1 分 K 算收盤、漲跌、走勢線)
+  · 2026-11-22 08:59(實際時間)結算日台指期:近月 13:30 收盤後改接下個月合約(隔天的近月)13:30~13:45 的真實成交(雲端排程和電腦中繼都改),隔天 ⑧ 強弱的「前一天台指期收盤」才是同一個合約(原本停在近月 13:29,11/19 台指期比加權強 0.82% 擋掉判十空單)
+  · 2026-11-22 06:07(實際時間)逐項決定:留倉沒寫進略過名單時,對帳 / 複查 / 30 秒檢查 / 重開接回把留倉張數算進淨部位(不再誤判「元大已經沒有這個部位」,13:20 平倉、±6.5% 停損照管,回補照入帳);看盤 / 免費 / 夥伴看到的「未進場」還原成原本進場通知(只有擁有者看到);夥伴名字和家人帳號撞名擋下
+  · 2026-11-22 02:40(實際時間)第五輪檢查修正(使用者「全部做」):13:20 查不到手動預掛時保留、下一圈再查(不再重複平倉)、不取消程式自己的平倉單、複查查不到同分鐘重查、狀態檔安全寫入;名單外股票照官方名單判斷能不能先賣;電腦盤中換規則立刻生效、判一 Ka~Kb 等待時段算到 12:26、被關掉的判別式部位照算到平倉、K 卡住不誤判訊號消失、當機不重發、雲端逾時 7 秒、等中繼回報改背景、補寬度用整份名單;資格複檢空名單 / 舊名單不套用、FinMind 金鑰不再送 Yahoo、斷線 K 不當完整、元大歷史 K 不截斷不混檔、排程推送重試、台指期量改單邊、加權 09:00 開盤修正
+  · 2026-11-22 02:16(實際時間)撤回中繼「定期查詢最多等 4 秒 / 盤中重開接回分筆」那次修改(使用者「全部做」U1):模擬證實掉一個元大回應會讓 13:20 整段查詢錯位、元大慢於 4 秒時重開接不回部位;回到前一版(已模擬整天驗證)
+  · 2026-11-22 02:04(實際時間)手動加碼 / 元三 / 強三的停利停損取到升降單位(使用者「手動加碼之後 價格也可能出現這樣 也照合理價位寫」):比均價高往上取、比均價低往下取,和模擬器 / 引擎 / 手機同一套
+  · 2026-11-22 操作檢查修正:停止進場框 / 贏% 選單開著按返回(或右鍵)先關框不再把 App 退到背景;公式 / 贏% 開著長按進場會先收掉,不疊在底下
+  · 2026-11-22 開盤中長按「進場」= 停止所有進場 / 解除進場限制(往右滑到底才生效;判一~判十不進場,當沖中照常平倉,手動 / 強制照常;停止中進場鍵壓紅色禁止標誌;電腦隔天開工自動解除);收盤後長按照舊重新讀取
+  · 2026-11-22 贏% 平倉選單改成長按下排「當沖」鍵打開(開盤中),一出來就選好贏1%、清單直接列出;不在名單的部位改顯示名字不只代號
+  · 2026-11-22 00:33(實際時間)中繼剩餘兩項(使用者「改」):額度 / 盤中對帳 / 30 秒成交檢查每次最多等 4 秒,元大沒回這輪跳過、沿用上次資料(元大慢時主迴圈最多卡 30 秒 → 4 秒),晚到的舊回應不再混進下一次查詢;盤中重開接回先比對重開前存的部位和即時成交紀錄,真的分筆成交不再少接,判斷不了推手機;額度沒有證據不去重(寧可多算)
+  · 2026-11-22 修:公式開著按設定 / 進場 / 當沖 / 明細,手指按下時不再先收公式露出底下明細(閃一下),放開才直接換過去
   · 2026-11-21 23:39(實際時間)第四輪檢查修正(使用者「改 A 改回」「改 1 2 4」):13:20 先照程式部位送平倉再確認(元大查詢不回應也 13:20:00 平倉);真的分筆成交不被當重複;晚到回報加時間判斷;0000 / 帳密 / 凍結 / 權限登入錯誤當天停;13:20 單檔送失敗不中止整批;推雲端佇列換日清掉;雲端整天讀不到時本機訊號照常下單;電腦心跳帶各判別式今天已進的股票(caps,給手機);電腦認手機的部位鍵寫法;錯誤紀錄不再被遮壞;iPhone 推播永久失敗照實說;名單外手動成交股票改回只給有鑰匙的人
   · 2026-11-21 21:38(實際時間)第三輪檢查修正(使用者「全改」):中繼 —— 登入暫時被拒(請勿連續登入等)會退避重試、只有帳密錯 / 凍結 / 沒權限才整天停;雲端掛時本機 K 照寫、推雲端改背景不卡主迴圈;Windows 寫 K 檔撞到引擎讀不會重登;成交回報疑似重複時不反向下單、推手機請人工確認;台指期 K 每天重置;自動更新全部檔案成功才算;接回失敗會重試;13:20 查詢失敗不當成沒掛單;休市日不登入。下單程式 —— 成交金額不重複算、晚到回報接回原本那筆、張數對不上以元大為準。雲端 —— 錯誤紀錄由 GitHub 排程存進私人庫、補抓指數 / 台指期帶金鑰會重試、免費版可上傳錯誤紀錄、推播訂閱失敗照實說
   · 2026-11-21 21:05(實際時間)全面檢查修正(使用者「全改」):雲端只讓沒鑰匙的人讀名單 / 紀錄 / 看盤頁等必要檔(簽章金鑰、設定檔一律不給);雲端故障時看盤鑰匙不能變成管理者;推播、錯誤紀錄、資金資料、幾個公開轉送加鑰匙或次數限制;下單程式重開接回不再當掉、平倉中的虧損算進上限、同檔再進場不沿用上一筆移平價、均價 / 對帳入帳 / IOC 晚到成交修正、跳檔價精確;電腦引擎預判不拖到下一分鐘、收盤確認先確認寬度、判一急彈空不被後面判別式搶走;強制進場滑桿寫實際送出的價格、送出中鎖住、逾時提示改成「單可能已送出,請到當沖確認」
@@ -590,7 +618,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611212339">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611241332">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -896,6 +924,7 @@
   #notifLog .usk .usl{display:flex;flex-direction:column;justify-content:center;min-width:0}
   #notifLog .card .ln.sub .xpv,#notifLog .card .ln.sub .xpd{font-size:.62em;font-weight:700;font-style:normal;line-height:1.1;color:#C9D1E0;letter-spacing:0;white-space:nowrap}
   #notifLog .card .ln.sub .xpd{color:#8C96AB;font-weight:600}
+  #refreshBtn{position:relative} #refreshBtn .haltX{position:absolute;left:50%;top:50%;width:auto;height:100%;aspect-ratio:1;transform:translate(-50%,-50%);pointer-events:none;z-index:2}   /* 2026-11-22 停止所有進場中:進場鍵上的禁止標誌 */
   #notifLog .card .ln.sub .xpv > .pxl{color:#1DD75B}   /* 2026-11-20 10:52 使用者「損 改綠色」:「損」字綠色(價照舊白 / 黃 / 紅閃) */
   #notifLog .card .ln.sub .xpv,#notifLog .card .ln.sub .xpd{display:inline-flex;justify-content:space-between;align-items:baseline;width:6.3em;vertical-align:baseline}   /* 2026-11-20 10:33 使用者「平 在固定位置 上下卡片的 平 要對齊」:固定寬,「平」靠左、價靠右 */
   #notifLog .card .ln.sub .xpv.xy{color:#FFD54F} #notifLog .card .ln.sub .xpv.xr{color:#FF3B3B;animation:xpBlink .8s steps(2, start) infinite}
@@ -1898,7 +1927,7 @@ const usSpark = (sp, prev, up) => { if (!Array.isArray(sp) || sp.length < 2) ret
     + `<line x1="0" x2="100" y1="${by}" y2="${by}" stroke="#8C96AB" stroke-width="1" stroke-dasharray="2 3" vector-effect="non-scaling-stroke"/>`
     + `<circle cx="100" cy="${Y(sp[n - 1])}" r="1.6" fill="${col}"/></svg>`; };
 const usCards = () => { const U = window.__US; if (!U) return '';
-  const NM = {'道瓊': '道瓊工業', 'S&P 500': 'S&P 500', '台股': '台灣加權', '那斯達克': 'NASDAQ', '費半': '費城半導體', '日經': '日經225', '韓國': '韓國綜合'};   /* 23:02 道瓊拿掉;順序 費半 / 台灣加權 / NASDAQ / 日經225(Worker 決定) */   /* 2026-11-06 20:03 S&P 500 那格換台灣加權 */
+  const NM = {'道瓊': '道瓊工業', 'S&P 500': 'S&P 500', '台指期': '台指期', '台股': '台灣加權', '那斯達克': 'NASDAQ', '費半': '費城半導體', '日經': '日經225', '韓國': '韓國綜合'};   /* 23:02 道瓊拿掉;順序 費半 / 台灣加權 / NASDAQ / 日經225(Worker 決定) */   /* 2026-11-06 20:03 S&P 500 那格換台灣加權 */
   const f = v => v == null ? '—' : (+v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   let h = '<div class="usx">';
   for (const x of (U.idx || [])){ const up = (x.pct || 0) > 0, dn = (x.pct || 0) < 0, c = up ? 'up' : dn ? 'dn' : '';
@@ -2061,7 +2090,11 @@ window.redoAsk = redoAsk;
    長按標題 0.8 秒 → 確認 → 電腦建立 / 刪除緊急停止檔(?trade=cmd act=halt / resume)。緊急停止中:電腦不再自動進場,已有部位照常停利 / 停損 / 13:20 平倉,強制進場照常。
    標題顏色照電腦回的狀態(?trade=pos 的 halted;App 在前景時每 60 秒問一次,當沖開著時 15 秒),上次的狀態存手機,開 App 先照它畫 */
 const HALT = { on: (() => { try{ return localStorage.getItem('mysh.halted') === '1'; }catch(e){ return false; } })() };
-function haltPaint(){ const s = document.querySelector('h1 .rainbow'); if (s) s.classList.toggle('halted', !!HALT.on && !vwOnly()); }
+function haltPaint(){ const s = document.querySelector('h1 .rainbow'); if (s) s.classList.toggle('halted', !!HALT.on && !vwOnly());
+  /* 2026-11-22 00:56 使用者「長按 進場 … 停止所有進場 … 在進場文字上面出現 圖一 壓著文字顯示」:緊急停止中(不自動進場)→ 進場鍵壓一個紅色禁止標誌 */
+  try{ const b = document.getElementById('refreshBtn'); if (b){ let x = b.querySelector('.haltX'); const on = !!HALT.on && !vwOnly();
+    if (on && !x){ x = document.createElement('span'); x.className = 'haltX'; x.innerHTML = '<svg viewBox="0 0 100 100" width="100%" height="100%"><circle cx="50" cy="50" r="43" fill="none" stroke="#FF1A1A" stroke-width="9"/><line x1="20" y1="20" x2="80" y2="80" stroke="#FF1A1A" stroke-width="9"/></svg>'; b.appendChild(x); }
+    else if (!on && x) x.remove(); } }catch(e){} }
 function haltSet(on){ HALT.on = !!on; try{ localStorage.setItem('mysh.halted', HALT.on ? '1' : '0'); }catch(e){} haltPaint(); }
 window.haltSet = haltSet;
 function haltAsk(){
@@ -2105,6 +2138,43 @@ function haltAsk(){
       if (act === 'halt_close' || act === 'close_only') try{ tposPoll(true); }catch(e){}
     }; });
 }
+/* 2026-11-22 00:56 使用者「增加開盤中 長按 進場 出現一個 停止所有進場的畫面 一樣做滑到右啟動 … 再長按一次 則是解除進場限制」→ 四點照建議 →「改」:
+   開盤中長按下排「進場」→ 紅框「停止所有進場」/ 綠框「解除進場限制」,往右滑到底才送(和標題長按的「只停止進場」同一個電腦停止檔,act=halt / resume,src=entry);
+   停止中:判一~判十不再自動進場,當沖中的照常停利 / 停損 / 移平 / 13:20 平倉,手動 / 強制進場照常;電腦隔天開工自動解除(只解除從進場鍵設的) */
+function entryHaltPanel(){
+  if (!vTrade()) return; const old = el('haltP'); if (old){ old.remove(); }
+  try{ if (window.closeRsMenu) closeRsMenu(); if (window.winMenuClose) winMenuClose(); }catch(e){}   /* 2026-11-22 操作檢查:公式選單 / 贏% 選單開著時長按進場,先收掉,不要疊在停止框底下 */
+  const stop = !HALT.on, c = stop ? '#FF3B3B' : '#1DD75B', box = el('notifLog'); if (!box) return;
+  const B = box.getBoundingClientRect(), hd = box.querySelector('.hd'), top = hd ? hd.getBoundingClientRect().bottom + 4 : B.top + 4;
+  let nPos = 0; try{ nPos = ((window.__tpos || {}).pos || []).filter(p => +p.qty > 0).length; }catch(e){}
+  const p = document.createElement('div'); p.id = 'haltP';
+  p.style.cssText = `position:fixed;left:${B.left + 6}px;top:${top}px;width:${B.width - 12}px;height:${Math.max(150, B.bottom - top - 6)}px;box-sizing:border-box;z-index:901;border:3px solid ${c};border-radius:12px;background:#000;padding:8px 10px;box-shadow:0 0 0 2px #000,0 0 0 4px #8C96AB;display:flex;flex-direction:column;color:#E6EAF2;font-family:inherit`;
+  const icon = stop ? '<svg viewBox="0 0 100 100" width="34" height="34"><circle cx="50" cy="50" r="41" fill="none" stroke="#FF1A1A" stroke-width="10"/><line x1="21" y1="21" x2="79" y2="79" stroke="#FF1A1A" stroke-width="10"/></svg>'
+                    : '<svg viewBox="0 0 100 100" width="34" height="34"><circle cx="50" cy="50" r="41" fill="none" stroke="#1DD75B" stroke-width="10"/><path d="M30 52 L45 66 L72 36" fill="none" stroke="#1DD75B" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  p.innerHTML = `<div style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;color:${c}">${icon}${stop ? '停止所有進場' : '解除進場限制'}</div>
+    <div style="margin:8px 2px 0;font-size:14.5px;line-height:1.55;color:#C9D1E0">${stop ? `啟動後:<br>• 判一~判十 <b style="color:#FF3B3B">全部不再進場</b>(新訊號不下單)<br>• 當沖中 ${nPos} 檔照舊顧到底:停利 / 停損 / 移平 / 13:20 平倉<br>• 手動、強制進場不受影響;明天開盤自動解除` : '解除後:<br>• 判一~判十 恢復正常進場<br>• 解除前錯過的訊號不補進'}</div>
+    <div class="hmsg" style="color:#FF4D5E;font-size:13px;min-height:16px;margin-top:4px"></div>
+    <div class="hs" style="position:relative;margin-top:auto;height:44px;border:2px solid #555;border-radius:22px;box-sizing:border-box;display:flex;align-items:center;color:#aab;font-weight:700;font-size:17px;touch-action:none;user-select:none;-webkit-user-select:none"><span class="hk" style="position:absolute;left:3px;top:3px;bottom:3px;width:70px;border-radius:18px;background:${c};display:flex;align-items:center;justify-content:center;color:#000;font-size:20px;font-weight:900;touch-action:none">▶▶</span><span style="margin-left:auto;margin-right:22px">往右滑 ${stop ? '停止進場' : '恢復進場'}</span></div>`;
+  document.body.appendChild(p);
+  const close = () => { p.remove(); document.removeEventListener('pointerdown', outside, true); };
+  const outside = ev => { if (!p.contains(ev.target)) close(); };
+  setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
+  const hs = p.querySelector('.hs'), hk = p.querySelector('.hk'), msg = p.querySelector('.hmsg'); let sx = null, dx = 0, busy = false; const max = () => hs.clientWidth - hk.offsetWidth - 6;
+  const send = async () => { if (busy) return; busy = true; hk.textContent = '…';
+    const api = fmApi(); if (!api){ msg.textContent = '沒有設定雲端網址,不能送到電腦'; busy = false; hk.textContent = '▶▶'; hk.style.transform = ''; return; }
+    const cmd = {act: stop ? 'halt' : 'resume', src: 'entry', id: 'ehalt-' + Date.now()}; const pin = fmPin.get(); if (pin) cmd.pin = pin;
+    let r = null; try{ const q = await fetch(api + 'cmd', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cmd), signal: AbortSignal.timeout(12000)}); r = await q.json(); }
+    catch(e){ r = {ok: false, msg: '電腦沒有回應(電腦關機、斷線或元大中繼沒在跑),沒有設定成功'}; }
+    busy = false;
+    if (!r || !r.ok){ msg.textContent = (r && r.msg) || '沒有設定成功'; hk.textContent = '▶▶'; hk.style.transform = ''; return; }
+    haltSet(typeof r.halted === 'boolean' ? r.halted : stop); close();
+    fmToast(stop ? '已停止所有進場:判一~判十不再進場,當沖中的照常平倉' : '已解除進場限制,恢復正常進場', 4000); try{ tposPoll(true); }catch(e){} };
+  hk.addEventListener('pointerdown', ev => { ev.stopPropagation(); if (busy) return; sx = ev.clientX; dx = 0; try{ hk.setPointerCapture(ev.pointerId); }catch(e){} });
+  hk.addEventListener('pointermove', ev => { if (sx == null) return; dx = Math.max(0, Math.min(max(), ev.clientX - sx)); hk.style.transform = `translateX(${dx}px)`; });
+  const up = () => { if (sx == null) return; sx = null; if (dx >= max() - 6){ send(); return; } hk.style.transform = ''; dx = 0; };
+  hk.addEventListener('pointerup', up); hk.addEventListener('pointercancel', up);
+}
+window.entryHaltPanel = entryHaltPanel;
 (function haltInit(){
   const go = () => {
     haltPaint();
@@ -2617,8 +2687,13 @@ window.fmShow = fmShow;
     [[3, '贏3%', '#FF4D5E'], [2, '贏2%', '#FF4D5E'], [1, '贏1%', '#FF4D5E'], [0, '全平倉', '#FFD54F']].forEach(([th, t, c]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.dataset.th = th; b.dataset.c = c;
       b.style.cssText = `height:${ih}px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:7px;border:2px solid ${c};box-shadow:0 0 0 2px #000,0 0 0 3.5px #8C96AB;background:#000;color:${c};font-weight:700;font-size:${Math.min(24, Math.max(13, ih * 0.42))}px;white-space:nowrap;padding:0;font-family:inherit`;
       b.addEventListener('click', ev => { ev.stopPropagation(); choose(th, m); }); m.appendChild(b); });
-    document.body.appendChild(m); setTimeout(() => document.addEventListener('pointerdown', outside, true), 0); };
-  const isLb = t => t && t.closest && (t.closest('#notifLog .hd .dlb') || (window.NL_VIEW === 'pos' && t.closest('#notifLog .hd .dstat')));   /* 2026-11-19 04:18 當沖框拿掉後,長按日期格開 贏% 平倉選單 */
+    document.body.appendChild(m); setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
+    choose(1, m);   /* 2026-11-22 00:43 使用者「初始直接設在1% 一出來就是圖二的畫面」:一打開就選好贏1%、右邊清單直接出來 */ };
+  /* 2026-11-22 00:36 使用者「本來當沖裡 左上角當沖長按會出現 贏全平 贏1%,2%,3% 現在那個按鍵已經被取消 改在五顆按鍵那個當沖 一樣長按觸發」:
+     觸發點搬到下排「當沖」鍵長按(見 btnState);通知欄裡的日期格不再當觸發點 */
+  const isLb = t => t && t.closest && t.closest('#notifLog .hd .dlb:not(.ghost)');
+  window.winMenuClose = closeM;
+  window.winMenuOpen = () => { if (window.NL_VIEW !== 'pos' && window.nlSetView) nlSetView('pos'); setTimeout(openM, 60); };
   box.addEventListener('pointerdown', ev => { if (!isLb(ev.target)) return; x0 = ev.clientX; y0 = ev.clientY; clearTimeout(tm); tm = setTimeout(() => { tm = null; openM(); }, 600); }, true);
   box.addEventListener('pointermove', ev => { if (tm && (Math.abs(ev.clientX - x0) > 10 || Math.abs(ev.clientY - y0) > 10)){ clearTimeout(tm); tm = null; } }, true);
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => box.addEventListener(t, () => { clearTimeout(tm); tm = null; }, true));
@@ -2771,8 +2846,10 @@ window.fitBands = fitBands;
   };
   let hold, held = false, lastTap = 0;
   const showMsg = e => { if (held){ held = false; return; } e.preventDefault(); if (window.closeRsMenu) closeRsMenu(); if (window.LOG_RS || (window.NL_VIEW && window.NL_VIEW !== 'msg')){ window.LOG_RS = ''; window.NL_VIEW = 'msg'; window.__nlTouch = 0; if (window.nlRender) nlRender(); } const pnl = document.querySelector('.panel'); if (pnl) pnl.classList.remove('open'); if (window.hideInfo) hideInfo(); if (window.refreshToolbar) refreshToolbar(); };
-  btn.addEventListener('touchstart', () => { hold = setTimeout(() => { held = true; btn.style.opacity = '.3'; setTimeout(() => { btn.style.opacity = ''; }, 200); reload(); }, 700); }, {passive:true});
-  btn.dataset.nomt = 1; btn.addEventListener('mousedown', () => { hold = setTimeout(() => { held = true; reload(); }, 700); });
+  /* 2026-11-22 開盤中長按進場 = 停止所有進場 / 解除進場限制(滑動確認);收盤後長按照舊 = 重新讀取雲端資料 */
+  const longAct = () => { let s_ = false; try{ s_ = inSession() && vTrade(); }catch(e){} if (s_){ try{ navigator.vibrate && navigator.vibrate(30); }catch(e){} entryHaltPanel(); } else reload(); };
+  btn.addEventListener('touchstart', () => { hold = setTimeout(() => { held = true; btn.style.opacity = '.3'; setTimeout(() => { btn.style.opacity = ''; }, 200); longAct(); }, 700); }, {passive:true});
+  btn.dataset.nomt = 1; btn.addEventListener('mousedown', () => { hold = setTimeout(() => { held = true; longAct(); }, 700); });
   ['touchend','touchmove','touchcancel','mouseup','mouseleave'].forEach(ev => btn.addEventListener(ev, () => clearTimeout(hold), {passive:true}));
   // 中間三顆:更新 / 狀態 / 規則。狀態、規則顯示在同一個框裡(infoView),「訊息」切回監控紀錄
   const info = document.getElementById('infoView'), nl = document.getElementById('notifLog');
@@ -2922,9 +2999,20 @@ window.fitBands = fitBands;
   // 2026-11-03 22:16 使用者「按公式 再按明細 結果會跳到 進場」:原本「已經在明細再按一次 = 回進場」,但公式 / 設定蓋在上面時畫面上看到的不是明細,還是照「在明細」算 → 跳到進場。
   //   改成:公式 / 設定開著時按當沖 / 明細,一律打開那一頁;只有畫面上真的正在看那一頁才切回進場
   const shownView = () => { const pnl = document.querySelector('.panel'); if (Date.now() - (window.__menuShutAt || 0) < 800){ window.__menuShutAt = 0; return ''; } if (menuOpen() || (pnl && pnl.classList.contains('open'))) return '';   /* 手指按下時公式剛被收起來,也算公式開著 */ return window.NL_VIEW; };
-  tapOn(document.getElementById('btnState'), () => setView('pos'));   /* 2026-11-19 05:49 使用者「所有按鍵都一樣 按哪個就在哪個 再按一次同樣的 也是停留在原來按鍵位置」:原本再按一次切回進場 → 一律停在當沖 */
+  tapOn(document.getElementById('btnState'), () => { if (window.__bsHeld){ window.__bsHeld = 0; return; } setView('pos'); });
+  /* 2026-11-22 下排「當沖」長按 0.6 秒 = 贏3% / 贏2% / 贏1% / 全平倉 選單(原本當沖頁左上角的當沖框;開盤中、連得上電腦才開,規則照舊) */
+  { const bs = document.getElementById('btnState'); let ht = null, hx = 0, hy = 0;
+    const start = (x, y) => { hx = x; hy = y; clearTimeout(ht); ht = setTimeout(() => { ht = null; let s_ = false; try{ s_ = inSession(); }catch(e){} if (!s_) return; window.__bsHeld = 1; if (window.winMenuOpen) winMenuOpen(); }, 600); };
+    const stop = () => { clearTimeout(ht); ht = null; };
+    if (bs){ bs.addEventListener('touchstart', ev => { const t = ev.touches[0]; start(t.clientX, t.clientY); }, {passive: true});
+      bs.addEventListener('touchmove', ev => { const t = ev.touches[0]; if (Math.abs(t.clientX - hx) > 10 || Math.abs(t.clientY - hy) > 10) stop(); }, {passive: true});
+      bs.addEventListener('touchcancel', stop, {passive: true}); bs.addEventListener('touchend', stop, {passive: true});
+      bs.dataset.nomt = 1; bs.addEventListener('mousedown', ev => { if (ev.button === 0) start(ev.clientX, ev.clientY); }); bs.addEventListener('mouseup', stop); bs.addEventListener('mouseleave', stop);
+      bs.addEventListener('contextmenu', ev => ev.preventDefault()); } }   /* 2026-11-19 05:49 使用者「所有按鍵都一樣 按哪個就在哪個 再按一次同樣的 也是停留在原來按鍵位置」:原本再按一次切回進場 → 一律停在當沖 */
   tapOn(document.getElementById('btnRules'), () => setView('done'));   /* 同上:一律停在明細 */
-  document.addEventListener('touchstart', ev => { if (menuOpen() && !menu.contains(ev.target) && ev.target.id !== 'btnReload'){ window.__menuShutAt = Date.now(); closeMenu(); } }, {passive: true});
+  /* 2026-11-22 00:26 使用者影片「有看到問題在哪裡嗎」:公式開著按設定(或其他下排按鍵),手指一按下公式就先收起來 → 放開前露出底下的明細(閃一下)才換設定。
+     下排按鍵自己放開時會收公式(setView / 設定的 toggle 都會收),所以按在下排按鍵上時這裡不先收 */
+  document.addEventListener('touchstart', ev => { if (menuOpen() && !menu.contains(ev.target) && ev.target.id !== 'btnReload' && !(ev.target.closest && ev.target.closest('.tool'))){ window.__menuShutAt = Date.now(); closeMenu(); } }, {passive: true});
   // 燈號:綠 = 開盤時段(週一~五 08:45~13:35)+ 這份有開 + App 背景監控在跑;紅 = 開盤時段但這份沒開或監控沒在跑;灰 = 收盤
   const rsLampUpd = () => { try{ if (menu){ let s_ = false; try{ s_ = inSession(); }catch(e){} menu.classList.toggle('lk', s_); }   /* 2026-11-19 08:03 使用者「判一那些也從白字變成灰字 只有綠燈亮著 鑰匙亮著」:開盤中選單字變灰(.lk),燈號、鑰匙照亮 */
     if (!menu) return;
@@ -4345,6 +4433,9 @@ async function loadBreadth(d){
     if (inc && addA.length){ const t0 = addA[0][0]; BREADTH.av = BREADTH.av.filter(x => x[0] < t0).concat(addA); }
     else if (!inc) BREADTH.av = addA;
     BREADTH.d = d; BREADTH.base = base; BREADTH.err = '';   try{ brBadge(); }catch(e){}
+    /* 2026-11-23 11:33 使用者「寬度不同調 數值不同」(監控標題 82.9% / 線圖 83.2%):兩邊同一份雲端寬度,但標題每 15 秒更新、線圖 60 秒才重抓一次,
+       顯示的分鐘不同;小數一位標題無條件捨去、線圖四捨五入。改成:寬度一更新,開著的線圖馬上用同一份重畫(十字線停最新那分鐘 = 標題那個數);線圖也無條件捨去 */
+    try{ if (window.MKC && MKC.open && MKC.d === d){ MKC.br = {}; for (const [t, v] of BREADTH.arr){ const k = new Date((t + 8 * 3600) * 1000).toISOString().slice(11, 16); MKC.br[k] = +v * 100; } mkcDraw(); } }catch(e){}
   }catch(e){ BREADTH.err = e.message; }
 }
 function breadthAt(t){   // t 那分鐘(含)以前最近的寬度;不是今天的 K → null
@@ -4390,59 +4481,85 @@ async function mkcFetch(force){
     if (!day){ MKC.busy = false; return; }
     if (ix === null && MKC.d === day){ MKC.busy = false; mkcDraw(); return; }   // 過去那天已經抓過(收盤後不變)
     const [fb, br, q] = await Promise.all([J_('fbars=' + day), day === BREADTH.d && BREADTH.arr.length ? null : J_('breadth=' + day), J_('codes=t00&mkt=tse&src=mis')]);
+    /* 2026-11-23 11:26 使用者「台指期的白線不見了」:那一分鐘讀台指期 1 分 K 沒回來(逾時 / 雲端忙)→ 原本把台指期整條清空,白線消失、說明框「台指期 —」;
+       改成:同一天讀不到就沿用上一份(不清空),10 秒後再補讀一次 */
+    const same = MKC.d === day, oldIx = same ? MKC.ix : {}, oldFx = same ? MKC.fx : {};
     MKC.d = day; MKC.ix = {}; for (const [k, v] of Object.entries(ix || {})) if (+v > 0 && k >= '09:00' && k <= '13:30') MKC.ix[k] = +v;
+    if (!Object.keys(MKC.ix).length && Object.keys(oldIx || {}).length) MKC.ix = oldIx;
     MKC.fx = {}; for (const b of ((fb && fb.bars) || [])) if (b && b[0] >= '09:00' && b[0] <= '13:30' && +b[4] > 0) MKC.fx[b[0]] = +b[4];
+    if (!fb || !Object.keys(MKC.fx).length){ if (Object.keys(oldFx || {}).length) MKC.fx = oldFx; MKC.rn = (MKC.rn || 0) + 1; clearTimeout(MKC.rt); if (MKC.rn <= 3) MKC.rt = setTimeout(() => { if (MKC.open) mkcFetch(true); }, 10000); } else MKC.rn = 0;
     MKC.br = {}; if (br && br.br){ for (const [k, v] of Object.entries(br.br)) if (isFinite(+v)) MKC.br[k] = +v * 100; }
     else if (day === BREADTH.d) for (const [t, v] of BREADTH.arr){ const k = new Date((t + 8 * 3600) * 1000).toISOString().slice(11, 16); MKC.br[k] = +v * 100; }
+    /* 2026-11-23 11:43 使用者「台指期漲跌幅 也標上去 白色」:台指期昨收 = 前一個有台指期 1 分 K 的交易日最後一根(一般盤收盤,和資訊頁台指期那格同一算法);一天只找一次 */
+    if (MKC.fyd !== day){ MKC.fy0 = 0; const dd = new Date(day + 'T00:00:00Z');
+      for (let k = 1; k <= 8 && !MKC.fy0; k++){ dd.setUTCDate(dd.getUTCDate() - 1); const wd = dd.getUTCDay(); if (wd === 0 || wd === 6) continue;
+        const pf = await J_('fbars=' + dd.toISOString().slice(0, 10)); const bs = ((pf && pf.bars) || []).filter(b => b && +b[4] > 0); if (bs.length) MKC.fy0 = +bs[bs.length - 1][4]; }
+      if (MKC.fy0) MKC.fyd = day; }
     const m = q && (q.msgArray || []).find(x => x.c === 't00'); MKC.y0 = m && String(m.d || '') === day.replace(/-/g, '') && +m.y > 0 ? +m.y : 0;   // 證交所 t00 的昨收(只有同一天才用)
     MKC.at = Date.now();
   }catch(e){}
   MKC.busy = false; mkcDraw();
 }
 function mkcBox(){ let el = document.getElementById('mkChart'); if (!el){ el = document.createElement('div'); el.id = 'mkChart'; document.body.appendChild(el);
-    el.addEventListener('pointerdown', ev => { if (ev.button === 2) return; el.setPointerCapture && el.setPointerCapture(ev.pointerId); mkcPt(ev); ev.preventDefault(); });
-    el.addEventListener('pointermove', ev => { if (MKC.ci >= 0 || ev.buttons) mkcPt(ev); });
-    const up = () => { MKC.ci = -1; mkcDraw(); }; el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('pointerleave', ev => { if (ev.pointerType === 'mouse') up(); }); }
+    /* 2026-11-23 11:52 使用者「上滑放大 下滑縮小 跟k 圖的操作一樣」:放下 0.24 秒內上下滑 = 縮放(上滑放大、下滑縮小,每 120px 一倍);
+       放大時 0.24 秒內快速左右滑 = 平移;慢慢左右拖 / 按住 = 十字線(和原本一樣);點一下 = 十字線跳到那裡 */
+    let st = null;
+    el.addEventListener('pointerdown', ev => { if (ev.button === 2) return; el.setPointerCapture && el.setPointerCapture(ev.pointerId); st = {x: ev.clientX, y: ev.clientY, t: Date.now(), mode: '', z0: MKC.z || 1}; ev.preventDefault();
+      if (ev.pointerType === 'mouse'){ st.mode = 'x'; mkcPt(ev); } });
+    el.addEventListener('pointermove', ev => { if (!st){ if (MKC.ci >= 0 && ev.buttons) mkcPt(ev); return; }
+      const dx = ev.clientX - st.x, dy = ev.clientY - st.y;
+      if (!st.mode){ if (Date.now() - st.t < 240 && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) st.mode = 'z'; else if ((MKC.z || 1) > 1.0001 && Date.now() - st.t < 240 && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)){ st.mode = 'p'; st.p0 = MKC.pan || 0; } else if (Math.abs(dx) > 6 || Math.abs(dy) > 6 || Date.now() - st.t >= 240) st.mode = 'x'; }
+      if (st.mode === 'z'){ MKC.z = Math.max(1, Math.min(270 / 20, st.z0 * Math.pow(2, -dy / 120))); MKC.ci = -1; mkcDraw(); }
+      else if (st.mode === 'p'){ const g = mkcGeom(); MKC.pan = st.p0 + dx * (g.m1 - g.m0) / Math.max(1, g.W - g.L - g.R); MKC.ci = -1; mkcDraw(); }   // 2026-11-23 15:40 使用者「放大後 無法左右移動畫面」:放大時快速左右滑 = 平移(往右滑看較早)
+      else if (st.mode === 'x') mkcPt(ev); });
+    el.addEventListener('wheel', ev => { ev.preventDefault(); MKC.z = Math.max(1, Math.min(270 / 20, (MKC.z || 1) * Math.pow(2, -ev.deltaY / 240))); mkcDraw(); }, {passive: false});   // 電腦版:滾輪縮放
+    const up = ev => { if (st && !st.mode && ev && ev.clientX != null) mkcPt(ev); st = null; MKC.ci = -1; mkcDraw(); }; el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('pointerleave', ev => { if (ev.pointerType === 'mouse') up(); }); }
   return el; }
 function mkcPos(){ const el = document.getElementById('mkChart'), rs = document.getElementById('result'), hd = rs && rs.querySelector('.grid.head'); if (!el || !rs || !hd) return;
   const a = hd.getBoundingClientRect(), b = rs.getBoundingClientRect(); el.style.top = Math.round(a.bottom) + 'px'; el.style.height = Math.max(120, Math.round(b.bottom - a.bottom)) + 'px'; }
 const MKC_M = hm => (+hm.slice(0, 2)) * 60 + (+hm.slice(3, 5)) - 540;   // 09:00 → 0 … 13:30 → 270
 function mkcGeom(){ const el = document.getElementById('mkChart'); const W = el.clientWidth, H = el.clientHeight, L = 56, R = 20, T1 = 36, B1 = Math.round(H * 0.6), T2 = B1 + 30, B2 = H - 22;
-  return {W, H, L, R, T1, B1, T2, B2, x: i => L + (W - L - R) * i / 270}; }
+  /* 2026-11-23 11:52 使用者「上滑放大 下滑縮小 跟k 圖的操作一樣」:時間軸可縮放(MKC.z 倍,最多看 20 分鐘),右邊對齊最新一分鐘 */
+  const keys = [...Object.keys(MKC.ix), ...Object.keys(MKC.fx), ...Object.keys(MKC.br)].map(MKC_M).filter(v => v >= 0 && v <= 270), last = keys.length ? Math.max(...keys) : 270;
+  const z = Math.max(1, Math.min(270 / 20, MKC.z || 1)), span = 270 / z; let m1 = z <= 1.0001 ? 270 : Math.min(270, last + span * 0.06); if (z > 1.0001){ MKC.pan = Math.max(0, Math.min(m1 - span, MKC.pan || 0)); m1 -= MKC.pan; } else MKC.pan = 0; let m0 = Math.max(0, m1 - span); m1 = Math.min(270, m0 + span);
+  return {W, H, L, R, T1, B1, T2, B2, m0, m1, x: i => L + (W - L - R) * (i - m0) / Math.max(1, m1 - m0)}; }
 function mkcPt(ev){ try{ const el = document.getElementById('mkChart'), g = mkcGeom(), r = el.getBoundingClientRect();
   const keys = [...Object.keys(MKC.ix), ...Object.keys(MKC.fx), ...Object.keys(MKC.br)]; if (!keys.length) return;
-  const last = Math.max(...keys.map(MKC_M).filter(v => v >= 0 && v <= 270)); let i = Math.round((ev.clientX - r.left - g.L) / (g.W - g.L - g.R) * 270);
+  const last = Math.max(...keys.map(MKC_M).filter(v => v >= 0 && v <= 270)); let i = Math.round(g.m0 + (ev.clientX - r.left - g.L) / (g.W - g.L - g.R) * (g.m1 - g.m0));
   MKC.ci = Math.max(0, Math.min(last, i)); mkcDraw(); }catch(e){} }
 function mkcDraw(){ try{
   const el = document.getElementById('mkChart'); if (!el || !MKC.open) return; mkcPos();
-  const g = mkcGeom(), {W, H, L, R, T1, B1, T2, B2, x} = g, S = (o, k) => Object.keys(o).filter(h => h >= '09:00' && h <= '13:30').sort().map(h => [MKC_M(h), o[h]]);
+  const g = mkcGeom(), {W, H, L, R, T1, B1, T2, B2, x, m0, m1} = g, S = (o, k) => Object.keys(o).filter(h => h >= '09:00' && h <= '13:30').sort().map(h => [MKC_M(h), o[h]]);
+  const inV = p => p[0] >= m0 - 1 && p[0] <= m1 + 1;   /* 縮放時刻度只看畫面裡的那段 */
   const IX = S(MKC.ix), FX = S(MKC.fx), BR = S(MKC.br); let h = '';
   const md = MKC.d ? MKC.d.slice(5).replace('-', '/') : '';
-  h += `<text x="6" y="19" font-size="16" font-weight="700" fill="#FF3B3B">大盤指數 <tspan fill="#FFFFFF">台指期</tspan><tspan fill="#8C96AB" font-weight="400">(點)${md ? ' · ' + md : ''}</tspan></text>`;
-  const pv = [...IX, ...FX].map(p => p[1]); if (MKC.y0) pv.push(MKC.y0);
+  const ttl0 = `<text x="6" y="19" font-size="16" font-weight="700" fill="#FF3B3B">大盤指數 <tspan fill="#FFFFFF">台指期</tspan><tspan fill="#8C96AB" font-weight="400">(點)${md ? ' · ' + md : ''}</tspan></text>`; let ttl = '';
+  h += '<!--TTL-->';
+  const pv = [...IX, ...FX].filter(inV).map(p => p[1]); if (MKC.y0 && (m1 - m0 > 269 || (pv.length && MKC.y0 >= Math.min(...pv) - (Math.max(...pv) - Math.min(...pv)) * 0.3 && MKC.y0 <= Math.max(...pv) + (Math.max(...pv) - Math.min(...pv)) * 0.3))) pv.push(MKC.y0);
+  h += `<clipPath id="mkcP"><rect x="${L}" y="${T1 - 2}" width="${W - L - R}" height="${B1 - T1 + 4}"/></clipPath><clipPath id="mkcQ"><rect x="${L}" y="${T2}" width="${W - L - R}" height="${B2 - T2}"/></clipPath>`;
   if (pv.length){ const mn = Math.min(...pv), mx = Math.max(...pv), sp = Math.max(1, mx - mn), st = [10, 20, 50, 100, 200, 500, 1000].find(v => sp / v <= 7) || 1000, lo = Math.floor(mn / st) * st, hi = Math.ceil(mx / st) * st || lo + st;
     const y1 = v => T1 + (B1 - T1) * (hi - v) / Math.max(1, hi - lo);
     for (let v = hi; v >= lo; v -= st) h += `<line x1="${L}" x2="${W - R}" y1="${y1(v)}" y2="${y1(v)}" stroke="#2A3346"/><text x="${L - 4}" y="${y1(v) + 4}" font-size="13" fill="#A9B2C4" text-anchor="end">${v}</text>`;
-    if (MKC.y0){ h += `<line x1="${L}" x2="${W - R}" y1="${y1(MKC.y0)}" y2="${y1(MKC.y0)}" stroke="#8C96AB" stroke-dasharray="4 3"/><text x="${W - R - 2}" y="${y1(MKC.y0) - 3}" font-size="12.5" fill="#A9B2C4" text-anchor="end">昨收 ${MKC.y0.toFixed(0)}</text>`;
+    if (MKC.y0){ if (y1(MKC.y0) >= T1 - 1 && y1(MKC.y0) <= B1 + 1) h += `<line x1="${L}" x2="${W - R}" y1="${y1(MKC.y0)}" y2="${y1(MKC.y0)}" stroke="#8C96AB" stroke-dasharray="4 3"/><text x="${W - R - 2}" y="${y1(MKC.y0) - 3}" font-size="12.5" fill="#A9B2C4" text-anchor="end">昨收 ${MKC.y0.toFixed(0)}</text>`;
       if (IX.length > 1){ const P = IX.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y1(p[1]).toFixed(1)).join(' '); const up = IX[IX.length - 1][1] >= MKC.y0;
-        h += `<path d="${P} L${x(IX[IX.length - 1][0])} ${y1(MKC.y0)} L${x(IX[0][0])} ${y1(MKC.y0)} Z" fill="${up ? '#FF3B3B' : '#1DD75B'}" opacity=".12"/>`; } }
+        h += `<path d="${P} L${x(IX[IX.length - 1][0])} ${y1(MKC.y0)} L${x(IX[0][0])} ${y1(MKC.y0)} Z" fill="${up ? '#FF3B3B' : '#1DD75B'}" opacity=".12" clip-path="url(#mkcP)"/>`; } }
     const line = (A, col, w) => A.length ? `<path d="${A.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y1(p[1]).toFixed(1)).join(' ')}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linejoin="round"/>` : '';
-    h += line(FX, '#FFFFFF', 2) + line(IX, '#FF3B3B', 2.4); g.y1 = y1; }
+    h += `<g clip-path="url(#mkcP)">` + line(FX, '#FFFFFF', 2) + line(IX, '#FF3B3B', 2.4) + '</g>'; g.y1 = y1; }
   else h += `<text x="${W / 2}" y="${(T1 + B1) / 2}" font-size="12" fill="#8C96AB" text-anchor="middle">還沒有大盤 / 台指期資料</text>`;
-  h += `<line x1="0" x2="${W}" y1="${B1 + 8}" y2="${B1 + 8}" stroke="#3A4356"/><text x="6" y="${T2 - 6}" font-size="16" font-weight="700" fill="#FFD54F">寬度(上漲家數 %)</text>`;
+  h += `<line x1="0" x2="${W}" y1="${B1 + 8}" y2="${B1 + 8}" stroke="#3A4356"/><!--BTTL-->`; const bttl0 = `<text x="6" y="${T2 - 6}" font-size="16" font-weight="700" fill="#FFD54F">寬度(上漲家數 %)</text>`; let bttl = '';
   const y2 = v => T2 + 6 + (B2 - T2 - 6) * (100 - v) / 100;
   for (const v of [100, 50, 0]) h += `<line x1="${L}" x2="${W - R}" y1="${y2(v)}" y2="${y2(v)}" stroke="${v === 50 ? '#B89A3C' : '#2A3346'}" ${v === 50 ? 'stroke-dasharray="4 3"' : ''}/><text x="${L - 4}" y="${y2(v) + 4}" font-size="13" fill="#D4B65A" text-anchor="end">${v}%</text>`;
   if (BR.length > 1){ const P = BR.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y2(p[1]).toFixed(1)).join(' '), A = `${P} L${x(BR[BR.length - 1][0])} ${y2(50)} L${x(BR[0][0])} ${y2(50)} Z`;
     h += `<clipPath id="mkcU"><rect x="${L}" y="${T2}" width="${W - L - R}" height="${y2(50) - T2}"/></clipPath><clipPath id="mkcD"><rect x="${L}" y="${y2(50)}" width="${W - L - R}" height="${B2 - y2(50)}"/></clipPath>`;
-    h += `<path d="${A}" fill="#FF3B3B" opacity=".3" clip-path="url(#mkcU)"/><path d="${A}" fill="#1DD75B" opacity=".3" clip-path="url(#mkcD)"/><path d="${P}" fill="none" stroke="#FFD54F" stroke-width="1.8"/>`; }
-  const keys = [...IX, ...FX, ...BR].map(p => p[0]); const last = keys.length ? Math.max(...keys) : -1;
-  const curI = MKC.ci >= 0 ? MKC.ci : last;   /* 刻度字跟十字線時間標籤重疊就不畫那個刻度字 */
-  for (let i = 0; i <= 270; i += 30) h += `<line x1="${x(i)}" x2="${x(i)}" y1="${T1}" y2="${B2}" stroke="#1F2635"/><text x="${x(i)}" y="${H - 5}" font-size="12.5" fill="#A9B2C4" text-anchor="middle" class="mkt">${curI >= 0 && Math.abs(x(i) - x(curI)) < 44 ? '' : 9 + Math.floor(i / 60) + ':' + (i % 60 ? '30' : '00')}</text>`;
+    h += `<g clip-path="url(#mkcQ)"><path d="${A}" fill="#FF3B3B" opacity=".3" clip-path="url(#mkcU)"/><path d="${A}" fill="#1DD75B" opacity=".3" clip-path="url(#mkcD)"/><path d="${P}" fill="none" stroke="#FFD54F" stroke-width="1.8"/></g>`; }
+  const keys = [...IX, ...FX, ...BR].map(p => p[0]); const last = keys.length ? Math.max(...keys) : -1, dI = last >= 0 ? Math.min(last, Math.floor(m1)) : -1;   /* 平移後預設十字線停在畫面最右邊那分鐘 */
+  const curI = MKC.ci >= 0 ? MKC.ci : dI;   /* 刻度字跟十字線時間標籤重疊就不畫那個刻度字 */
+  const tst = m1 - m0 > 150 ? 30 : m1 - m0 > 75 ? 15 : m1 - m0 > 40 ? 10 : 5; for (let i = Math.ceil(m0 / tst) * tst; i <= m1 + 1e-6; i += tst) h += `<line x1="${x(i)}" x2="${x(i)}" y1="${T1}" y2="${B2}" stroke="#1F2635"/><text x="${x(i)}" y="${H - 5}" font-size="12.5" fill="#A9B2C4" text-anchor="middle" class="mkt">${curI >= 0 && Math.abs(x(i) - x(curI)) < 44 ? '' : 9 + Math.floor(i / 60) + ':' + String(i % 60).padStart(2, '0')}</text>`;
   // 還沒到的時間(開盤中)變暗
-  if (MKC.d === todayTW() && inSession() && last >= 0 && last < 270) h += `<rect x="${x(last)}" y="${T1}" width="${x(270) - x(last)}" height="${B2 - T1}" fill="#0B0F17" opacity=".45"/>`;
+  if (MKC.d === todayTW() && inSession() && last >= 0 && last < 270) h += `<rect x="${x(last)}" y="${T1}" width="${Math.max(0, x(m1) - x(last))}" height="${B2 - T1}" fill="#0B0F17" opacity=".45"/>`;
   // 十字虛線
   /* 2026-11-19 16:57 使用者「一進去 十字虛線就直接出現在最後一個」:沒在拖時十字線停在最新一分鐘 */
-  if (MKC.ci >= 0 || last >= 0){ const i = MKC.ci >= 0 ? MKC.ci : last, at = A => { let r = null; for (const p of A){ if (p[0] > i) break; r = p[1]; } return r; }, vi = at(IX), vf = at(FX), vb = at(BR), cx = x(i), tl = `${String(9 + Math.floor((i + 0) / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}`;
+  if (MKC.ci >= 0 || last >= 0){ const i = MKC.ci >= 0 ? MKC.ci : dI, at = A => { let r = null; for (const p of A){ if (p[0] > i) break; r = p[1]; } return r; }, vi = at(IX), vf = at(FX), vb = at(BR), cx = x(i), tl = `${String(9 + Math.floor((i + 0) / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}`;
     h += `<line x1="${cx}" x2="${cx}" y1="${T1}" y2="${B2}" stroke="#E6EAF2" stroke-dasharray="4 3"/>`;
     if (vi != null && g.y1){ const cy = g.y1(vi); h += `<line x1="${L}" x2="${W - R}" y1="${cy}" y2="${cy}" stroke="#E6EAF2" stroke-dasharray="4 3"/><rect x="0" y="${cy - 10}" width="${L - 2}" height="20" rx="3" fill="#E6EAF2"/><text x="${(L - 2) / 2}" y="${cy + 5}" font-size="13.5" font-weight="700" fill="#0B0F17" text-anchor="middle">${vi.toFixed(0)}</text><circle cx="${cx}" cy="${cy}" r="4" fill="#FF3B3B" stroke="#fff"/>`; }
     if (vf != null && g.y1) h += `<circle cx="${cx}" cy="${g.y1(vf)}" r="3.5" fill="#fff"/>`;
@@ -4450,24 +4567,31 @@ function mkcDraw(){ try{
     /* 2026-11-19 16:46 使用者「十字虛線 點位說明 上面只顯示台指期跟大盤指數 下面另外多一個 說明寬度 都不可以壓線」:
        上格小框 = 時間 + 大盤 + 台指期;下格另一個小框 = 寬度;兩個框都找不壓到線的位置(十字左 / 右 × 上下各位置,壓到最少的點、同分取靠上) */
     const pts1 = [...IX, ...FX].map(p => [x(p[0]), g.y1 ? g.y1(p[1]) : -99]), pts2 = BR.map(p => [x(p[0]), y2(p[1])]);
-    const place = (bw, bh, top, bot, pts) => { let best = null;
-      for (const bx of [cx + 10, cx - 10 - bw]){ if (bx < L || bx + bw > W - R) continue;
+    /* 2026-11-23 11:36 使用者「大盤台指期顯示視窗 擋住線」:框 200 寬,十字線在中間時左右兩邊都放不下 → 原本直接蓋在十字線上壓到線。
+       改成:框寬照字實際量;位置先試十字右 / 左,放不下就整排橫著找,挑壓到線最少的(同分:不蓋十字線 > 離十字線近 > 靠上) */
+    const place = (bw, bh, top, bot, pts) => { let best = null; const xs = [cx + 10, cx - 10 - bw]; for (let bx = L + 2; bx + bw <= W - R; bx += 8) xs.push(bx);
+      for (const bx of xs){ if (bx < L || bx + bw > W - R) continue; const cover = bx <= cx + 4 && bx + bw >= cx - 4 ? 1 : 0, dist = Math.min(Math.abs(bx - cx), Math.abs(bx + bw - cx));
         for (let by = top; by + bh <= bot; by += 6){ let n = 0; for (const [px, py] of pts) if (px >= bx - 3 && px <= bx + bw + 3 && py >= by - 3 && py <= by + bh + 3) n++;
-          if (!best || n < best.n) best = {bx, by, n}; if (n === 0) break; }
-        if (best && best.n === 0 && best.bx === bx) break; }
+          const sc = n * 1e6 + cover * 1e4 + dist * 10 + (by - top) / 100;
+          if (!best || sc < best.sc) best = {bx, by, n, sc}; if (n === 0) break; } }
       return best || {bx: Math.max(L, Math.min(W - R - bw, cx + 10)), by: top}; };
+    const tw_ = (t) => { try{ const c = mkcDraw._c || (mkcDraw._c = document.createElement('canvas').getContext('2d')); c.font = '700 16px ' + getComputedStyle(document.body).fontFamily; return c.measureText(t).width; }catch(e){ return t.length * 10; } };
     /* 17:06 使用者:「大盤」改「大盤指」,漲跌幅跌要綠色(漲紅、平白) */
     /* 17:09 使用者「台指期 跟 大盤指 誰多 誰就在上面」 */ const fUp = vf != null && vi != null && vf > vi;
     const pr = vi != null && MKC.y0 ? (vi / MKC.y0 - 1) * 100 : null, pct = pr == null ? '' : ` <tspan fill="${pr > 0 ? '#FF3B3B' : pr < 0 ? '#1DD75B' : '#E6EAF2'}">${pr > 0 ? '+' : ''}${pr.toFixed(2)}%</tspan>`;
-    { const bw = Math.min(W - L - R - 10, 200), bh = 76, q = place(bw, bh, T1 + 2, B1 - 2, pts1);
-      h += `<rect x="${q.bx}" y="${q.by}" width="${bw}" height="${bh}" rx="5" fill="#0B0F17" stroke="#5A6478" opacity=".95"/><text x="${q.bx + 7}" y="${q.by + 21}" font-size="16" font-weight="700" fill="#E6EAF2">${tl}</text>`
-        + `<text x="${q.bx + 7}" y="${q.by + (fUp ? 67 : 44)}" font-size="16" font-weight="700" fill="#FF3B3B">大盤指 ${vi != null ? vi.toFixed(0) : '—'}${pct}</text><text x="${q.bx + 7}" y="${q.by + (fUp ? 44 : 67)}" font-size="16" font-weight="700" fill="#FFFFFF">台指期 ${vf != null ? vf.toFixed(0) : '—'}</text>`; }
-    { const bw = 118, bh = 30, q = place(bw, bh, T2 + 6, B2 - 2, pts2);
-      h += `<rect x="${q.bx}" y="${q.by}" width="${bw}" height="${bh}" rx="5" fill="#0B0F17" stroke="#5A6478" opacity=".95"/><text x="${q.bx + 7}" y="${q.by + 21}" font-size="16" font-weight="700" fill="#FFD54F">寬度 ${vb != null ? vb.toFixed(1) + '%' : '—'}</text>`; }
+    /* 2026-11-23 11:39 使用者「把台指期大盤顯示視窗拿掉 改顯示在上面大盤 台指期 那列」:上格不再跳小框,十字線那分鐘的大盤指數 / 漲跌 / 台指期直接寫在標題列(點數高的放前面;太長就縮字) */
+    { const fx_ = v => v != null ? v.toFixed(0) : '—', pcs = pr == null ? '' : `${pr > 0 ? '+' : ''}${pr.toFixed(2)}%`, pcc = pr > 0 ? '#FF3B3B' : pr < 0 ? '#1DD75B' : '#E6EAF2';
+      const fpr = vf != null && MKC.fy0 ? (vf / MKC.fy0 - 1) * 100 : null, fps = fpr == null ? '' : `${fpr > 0 ? '+' : ''}${fpr.toFixed(2)}%`;
+      const A = `<tspan fill="#FF3B3B">大盤指數 ${fx_(vi)}</tspan>${pcs ? ` <tspan fill="${pcc}">${pcs}</tspan>` : ''}`, Bf = `<tspan fill="#FFFFFF">台指期 ${fx_(vf)}${fps ? ' ' + fps : ''}</tspan>`;
+      const plain = `大盤指數 ${fx_(vi)} ${pcs}　台指期 ${fx_(vf)} ${fps}`, wd = tw_(plain), fs = wd > W - 12 ? Math.max(11, Math.floor(16 * (W - 12) / wd)) : 16;
+      ttl = `<text x="6" y="19" font-size="${fs}" font-weight="700">${fUp ? Bf + '　' + A : A + '　' + Bf}</text>`; }
+    /* 2026-11-23 11:43 使用者「大盤寬度 也這樣改」:下格的寬度小框也拿掉,十字線那分鐘的寬度寫在下格標題列 */
+    bttl = `<text x="6" y="${T2 - 6}" font-size="16" font-weight="700" fill="#FFD54F">寬度(上漲家數 %) ${vb != null ? (Math.floor(vb * 10 + 1e-6) / 10).toFixed(1) + '%' : '—'}</text>`;
     h += `<rect x="${Math.max(0, Math.min(W - 48, cx - 24))}" y="${B2 + 1}" width="48" height="20" rx="3" fill="#E6EAF2"/><text x="${Math.max(24, Math.min(W - 24, cx))}" y="${B2 + 16}" font-size="13.5" font-weight="700" fill="#0B0F17" text-anchor="middle">${tl}</text>`; }
+  h = h.replace('<!--TTL-->', ttl || ttl0).replace('<!--BTTL-->', bttl || bttl0);
   el.innerHTML = `<svg width="${W}" height="${H}" style="display:block">${h}</svg>`;
 }catch(e){} }
-function mkcToggle(){ MKC.open = !MKC.open; const el = mkcBox(); el.style.display = MKC.open ? 'block' : 'none'; MKC.ci = -1;
+function mkcToggle(){ MKC.open = !MKC.open; const el = mkcBox(); el.style.display = MKC.open ? 'block' : 'none'; MKC.ci = -1; if (MKC.open){ MKC.z = 1; MKC.pan = 0; }   /* 2026-11-23 每次打開回到整天 */
   if (MKC.open){ mkcPos(); el.innerHTML = '<div style="color:#8C96AB;font-size:13px;padding:14px">讀取大盤 / 台指期 / 寬度…</div>'; mkcFetch(false); } }
 window.mkcToggle = mkcToggle; window.MKC = MKC;
 /* 2026-11-19 23:08 使用者「這畫面 除了移動十字虛線 區域外任何觸碰都是先關閉這個視窗 返回股票監控區」:
@@ -6800,6 +6924,8 @@ function placeXVol(t){
    都沒有開才問要不要離開。App 1.5.53 起返回鍵先問 appBack();舊 App 只在 K 圖開著時呼叫 closeChart,所以 closeChart 也先關視窗 */
 window.appBack = () => { try{
   const w = document.getElementById('fmWin'); if (w){ w.remove(); return 'closed'; }
+  { const hp = document.getElementById('haltP'); if (hp){ hp.remove(); return 'closed'; } }   /* 2026-11-22 操作檢查:停止 / 解除進場的滑動框開著,返回鍵 / 右鍵先關它(原本直接把 App 退到背景,框還留著) */
+  if (document.getElementById('winMenu') && window.winMenuClose){ winMenuClose(); return 'closed'; }   /* 同上:贏% 平倉選單 */
   { const dw = document.getElementById('dragWin'); if (dw){ if (window.dragClose) dragClose(); else dw.remove(); return 'closed'; } }   // 2026-11-07 拖輸通知視窗:返回鍵先關它
   const bp = document.getElementById('bugPanel'); if (bp && bp.classList.contains('on')){ bp.classList.remove('on'); return 'closed'; }
   const m = document.getElementById('rsMenu'); if (m && !m.classList.contains('hidden') && window.closeRsMenu){ closeRsMenu(); return 'closed'; }
@@ -8135,6 +8261,13 @@ setInterval(wsEnsure, 2000);
 /* 2026-11-13 11:56(實際時間)使用者「改 一起改」:
    1. 手機 App 裡有兩份網頁(背景監控服務 + 打開的畫面),11/12 加 WebSocket 後兩份都會跳 Android 通知 → 同一則跳兩次;背景監控在跑時,打開的畫面不跳(進場欄照樣更新)
    2. 額度用完(未進場:額度不夠)的進場訊號不跳通知、不響,只留在進場欄 */
+/* 2026-11-23 10:35 使用者「所有的判別式進場 都有通知嗎 剛剛很多個進場都沒有通知」「聲音通知」「尤其判一2」→「改」:
+   10:30 同一秒 7 則進場(判一急彈空 5 + 判四 + 判二)一起跳 → App 每響一則先停掉前一則的聲音(只剩一聲)、Android 一秒超過約 5 則通知會被系統丟掉。
+   改成排隊:一則一則跳、一則一則響,每則隔 1.1 秒 */
+const NQ = {q: [], busy: false};
+function notifQ(fn){ NQ.q.push(fn); if (NQ.busy) return; NQ.busy = true;
+  const pump = () => { const f = NQ.q.shift(); if (!f){ NQ.busy = false; return; } try{ f(); }catch(e){} setTimeout(pump, 1100); }; pump(); }
+window.notifQ = notifQ;
 async function cloudNotifyNew(force){
   try{
     const now = Date.now(), sec_ = new Date(now).getSeconds(); if (!force && now - (BG.vAt || 0) < (WSN.ok ? (vwOnly() ? 30000 : 15000) : vwOnly() ? 15000 : (sec_ < 25 ? 900 : 3000))) return 'ok ' + (BG.vN || 0);   /* 2026-11-12 21:00 使用者「都改」(Cloudflare 1):推送連著(WSN.ok)= 有新通知雲端會推過來叫我讀,這裡只剩保險 15 秒(看盤版 30 秒)讀一次;推送斷了才照舊輪詢 */   /* 2026-11-12 20:36 使用者「先把 永久會員 加快 這最重要」(已升級 Workers Paid):永久版每分鐘前 25 秒(電腦換分鐘第 2 秒開算、訊號都在這段出來)每 1 秒讀一次,其他時間 3 秒;一台約 1 萬次 / 天;看盤版照舊 15 秒 */   /* 2026-11-11 23:21 使用者「幫忙 加速 程式 程式通知」:每分鐘前 25 秒(電腦換分鐘第 2 秒開算、訊號都在這段出來)每 1.5 秒讀一次,其他時間照舊 5 秒 */   // 2026-11-07 使用者「看看還有什麼會拖慢速度的 再檢查」:自己的 App(永久版)讀電腦通知 15 → 5 秒(看盤版維持 15 秒,省 Worker 請求)
@@ -8148,7 +8281,7 @@ async function cloudNotifyNew(force){
     if (BG.vDay !== d){ BG.vDay = d; BG.vSeen = new Set(arr.map(cloudLogKey)); BG.vN = arr.length; return 'init ' + arr.length; }   // 第一輪(或換日):已有的不重發
     for (const x of arr.slice().reverse()){ const k = cloudLogKey(x); if (BG.vSeen.has(k)) continue; BG.vSeen.add(k);
       if (x.kind && x.kind !== 'warn' && x.kind !== 'sys' && !freeRes && !/未進場:額度不夠/.test(x.body || '') && !(!vwOnly() && /·\s*未進場/.test(x.body || ''))){ if (await realGone(x)) continue; const fire = () => { try{ if (!(window.Android && !(Android.isService && Android.isService()) && Android.monitorRunning && Android.monitorRunning())) andNotify(x.title, x.body, x.kind); }catch(e){} try{ webSnd(x.kind, x.title); }catch(e){} try{ pcNotify(x.title, x.body, x.kind); }catch(e){} };
-        if (entryWaitNeed(x)) entryReal(x).then(ok => { if (ok) fire(); else bgLog('[通知·中繼沒進場,不跳] ' + x.title + ' | ' + x.body); }); else fire(); }
+        if (entryWaitNeed(x)) entryReal(x).then(ok => { if (ok) notifQ(fire); else bgLog('[通知·中繼沒進場,不跳] ' + x.title + ' | ' + x.body); }); else notifQ(fire); }
       { const mw = /^win(\d)$/.exec(x.kind || ''); if (mw) try{ celebrate(x.title, +mw[1]); }catch(e){} } }
     BG.vN = arr.length; try{ if (window.nlRenderBg) nlRenderBg(); else if (window.nlRender) nlRender(); }catch(e){}
     return 'ok ' + arr.length;
@@ -8582,10 +8715,10 @@ window.bgTick = bgTick; window.BG = BG;
         const TP = TP0 && TP0.ok && TP0.enabled && Date.now() - (TP0.at || 0) < 2 * 60000 ? TP0 : null;
         const TPL = (() => { if (TP) return TP; try{ const n = new Date(Date.now() + 8 * 3600000), hm = n.getUTCHours() * 60 + n.getUTCMinutes(); if (hm < 13 * 60 + 20) return null;
           const L = JSON.parse(localStorage.getItem('mysh.tpos.last') || 'null'); return L && L.d === today && Array.isArray(L.pos) ? {ok: true, pos: L.pos} : null; }catch(e){ return null; } })();   // 2026-11-04 13:20 後電腦沒在交易 → 用今天最後一次的元大部位   // 2026-10-30 13:21 使用者「如果沒有連線主機 這裡跟明細一樣 顯示程式自己做的模擬交易」:2 分鐘沒問到電腦也算連不上 → 列模擬(標「當沖 系統」)
-        const nmOf = c => SIG_NAMES.get(c) || ((SRC || []).find(x => x.code === c) || {}).name || ((cards.find(o => o.code === c) || {}).name) || c;
+        const nmOf = (c, n2) => SIG_NAMES.get(c) || ((SRC || []).find(x => x.code === c) || {}).name || ((cards.find(o => o.code === c) || {}).name) || n2 || ((LIVE.get(String(c)) || {}).n) || c;   /* 2026-11-22 不在監控名單、也還沒卡片的部位:用電腦給的名字 / 報價名字,不再只顯示代號 */
         // 12:37 使用者「電腦那邊沒辦法連線也不要影響這邊的顯示」:電腦連不上(或還沒問到)→ 照原本用手機通知列(和改之前一樣)
         const open = over ? [] : (!TPL || !TPL.ok || window.DONE_VIRT) ? cards.filter(o => o.type === 'entry' && !o.over && !o.notrade && !o.madd && !o._hide && !o.phNew && o._alert !== 'exit' && o.entP > 0 && !cards.some(x => x.fc && x.code === o.code && x.t >= o.t)) : (TPL.pos || []).filter(p => p.qty > 0 && p.entry > 0 && (p.state === '持倉中' || p.state === '平倉中'))
-          .map(p => ({code: p.code, name: nmOf(p.code), side: p.dir > 0 ? 'long' : 'short', entP: +p.entry, lots: +p.qty, rs: p.judge, exiting: p.state === '平倉中', t: String(p.t0 || '')}));
+          .map(p => ({code: p.code, name: nmOf(p.code, p.name), side: p.dir > 0 ? 'long' : 'short', entP: +p.entry, lots: +p.qty, rs: p.judge, exiting: p.state === '平倉中', t: String(p.t0 || '')}));
         // 2026-10-29 12:25(實際時間)使用者「既然真實接通 … 顯示元大裡的真實的交易」:元大帳號裡手動進場、還沒沖掉的張數(成交回報 open ≠ 0)也列進當沖(程式的部位已在上面,不重複)
         if (TP && !over && !window.DONE_VIRT){ tfillsPoll(); try{ const F = window.__tfills; const IG_ = ignSet(); if (F && F.ok && F.d === today && Array.isArray(F.rows)) for (const r of F.rows){ const q = +r.open || 0; if (!q || IG_.has(String(r.code)) || open.some(o => o.code === r.code)) continue;   /* 2026-11-17 09:46 使用者「庫存的和益是借卷 空 我已經贖回 這邊不用顯示和益做多」:不管名單(電腦 ignore_codes.txt,?trade=pos 的 ignore)不列 */
               open.push({code: r.code, name: r.name || nmOf(r.code), side: q > 0 ? 'long' : 'short', entP: q > 0 ? +r.buy : +r.sell, lots: Math.abs(q), manual: true, t: String(r.t || r.time || '99:99')}); } }catch(e){} }

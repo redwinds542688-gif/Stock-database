@@ -14,7 +14,7 @@
 #
 #  13:30 收盤集合競價那根 K:Yahoo 的 1 分K 只給到 13:25,沒有 13:30 那根,
 #  但那根量最大、收盤價也在那根。所以補出 13:30 那根(開高低收都 = 收盤價,
-#  量 = 日總量 − 分K 總量):
+#  量 = 日總量 − 分K 總量;2026-11-22 起其中的開盤競價量依元大 09:00 拆回 09:00 那根,見 add_close_bar):
 #    · 資料日(pool.json 的 date)用 pool.json 裡證交所 / 櫃買的官方收盤與成交量(最準)
 #    · 其他日子用 Yahoo 日K(Yahoo 最後一根「當前 K 棒」的日期不可靠,所以最新一天不用它)
 #
@@ -108,10 +108,30 @@ def yahoo_daily(sym):
         return {}
 
 
-NOTE = {"added": 0, "fixed": 0, "novol": 0, "nodaily": 0}   # 統計:補了幾根 / 覆寫幾根 Yahoo 的零量 13:30 / 幾根量算不出 / 幾天沒日K
+NOTE = {"added": 0, "fixed": 0, "novol": 0, "nodaily": 0, "open_auc": 0, "open_unknown": 0}   # 統計:補了幾根 / 覆寫幾根 Yahoo 的零量 13:30 / 幾根量算不出 / 幾天沒日K / 09:00 補了開盤量 / 開盤量無從拆分
 
 
-def add_close_bar(df, daily, today_tw):
+def yuanta_auction(code, d):
+    """2026-11-22 使用者「全部做」(L3):元大 1 分 K(kline_yuanta/,save_cloud_bars.py 存的)當天 09:00 那根量 = 開盤集合競價量、
+    13:30 那根量 = 收盤集合競價量。回傳 (09:00 量, 13:30 量),沒有就 None"""
+    y, w, _ = pd.Timestamp(d).isocalendar()
+    f = os.path.join("kline_yuanta", code, f"{y}-W{w:02d}.csv")
+    o = c = None
+    if not code or not os.path.exists(f):
+        return None, None
+    try:
+        with open(f, encoding="utf-8") as fh:
+            for line in fh:
+                p = line.strip().split(",")
+                if len(p) >= 7 and p[0] == d:
+                    if p[1] == "09:00": o = int(float(p[6]))
+                    elif p[1] == "13:30": c = int(float(p[6]))
+    except Exception:
+        return None, None
+    return o, c
+
+
+def add_close_bar(df, daily, today_tw, code=""):
     """每個交易日的 13:30 收盤 K:沒有就補上;Yahoo 自己給的那根量一律是 0(2026-10-15 實測),
     也要用日K 的收盤價與剩餘量覆寫。已經帶量的 13:30(之前補過的)不動。當天盤中不補。"""
     if df is None or not len(df) or not daily:
@@ -135,6 +155,24 @@ def add_close_bar(df, daily, today_tw):
         if auction < 0:                                # 分K 總量比日總量還大(來源口徑不同)→ 收盤價照補,量記 0
             NOTE["novol"] += 1
             auction = 0
+        # 2026-11-22 使用者「全部做」(L3):Yahoo 09:00 那根量是 0(開盤集合競價量不在分 K 裡,2026-11-20 實測 1101/1301/1303… 都是),
+        #   原本「日總量 − 分K 總量」整個算到 13:30 → 13:30 收盤量 = 開盤 + 收盤兩次集合競價。
+        #   改成:09:00 量是 0 時,用元大那天的 09:00 量(開盤競價)放回 09:00;元大沒有 09:00 但有 13:30 → 13:30 用元大的量、剩下的給 09:00。
+        #   兩個都沒有 → 無從拆分,照舊全部算 13:30(統計 open_unknown)
+        o900 = body[body["time"] == "09:00"]
+        if auction > 0 and len(o900) and int(o900["volume"].iloc[0]) == 0:
+            yo, yc = yuanta_auction(code, d)
+            if yo is not None and yo > 0:
+                op = min(yo, auction)
+            elif yc is not None:
+                op = max(auction - yc, 0)
+            else:
+                op = 0
+                NOTE["open_unknown"] += 1
+            if op > 0:
+                df.loc[o900.index, "volume"] = int(op)
+                auction -= op
+                NOTE["open_auc"] += 1
         if len(has):                                   # Yahoo 給的零量 13:30 → 覆寫成官方收盤 + 剩餘量
             df.loc[has.index, ["open", "high", "low", "close", "volume"]] = [close, close, close, close, int(auction)]
             NOTE["fixed"] += 1
@@ -262,9 +300,10 @@ for i, s in enumerate(stocks, 1):
     # 官方收盤 / 成交量要對到「這檔自己的資料日」(s["date"]),不是 pool.json 的整體日期:
     # 2026-10-15 之前上市資料慢一天卻標成當天,害 13:30 那根寫到前一天的收盤價
     s_date = s.get("date") or P["date"]
-    if s.get("close") and s.get("lots"):
-        daily[s_date] = (float(s["close"]), int(s["lots"]) * 1000)
-    df = add_close_bar(df, daily, pd.Timestamp.now(tz="Asia/Taipei").strftime("%Y-%m-%d"))
+    if s.get("close") and (s.get("shares") or s.get("lots")):
+        # 2026-11-22(L3):有精確成交股數(make_pool 的 shares)就用它;舊 pool.json 沒有才用 張×1000(會差最多 999 股)
+        daily[s_date] = (float(s["close"]), int(s.get("shares") or int(s["lots"]) * 1000))
+    df = add_close_bar(df, daily, pd.Timestamp.now(tz="Asia/Taipei").strftime("%Y-%m-%d"), code)
     time.sleep(SLEEP / 2)
     save_by_week(code, df)
     st = stats(code)
@@ -296,6 +335,7 @@ with open(idx_path, "w", encoding="utf-8") as f:
                "stocks": index}, f, ensure_ascii=False, indent=1)
 
 print(f"13:30 收盤 K:補了 {NOTE['added']} 根、覆寫 Yahoo 零量的 {NOTE['fixed']} 根(其中 {NOTE['novol']} 根量算不出記 0);{NOTE['nodaily']} 個交易日沒有日K 可對")
+print(f"09:00 開盤競價量:用元大拆回 {NOTE['open_auc']} 天、沒有元大 K 無從拆分(仍併在 13:30){NOTE['open_unknown']} 天")
 print(f"\n完成:成功 {ok} 檔,失敗 {fail} 檔 → {OUT_DIR}/  目前總量 {total_kb/1024:.1f} MB")
 if ok == 0:
     sys.exit("一檔都沒抓到,視為失敗")

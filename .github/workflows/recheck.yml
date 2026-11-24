@@ -22,8 +22,10 @@ on:
 permissions:
   contents: write
 
+# 2026-11-22 使用者「全部做」(D6):原本和 daily 共用 group: daily,排隊中的 run 會被同組新排進來的靜靜取消
+#   (延遲的 recheck 會把 14:30 daily 擠掉)。改成自己一組;同組內較新的 recheck 取代排隊中的舊 recheck 沒關係(本來就是重試)
 concurrency:
-  group: daily
+  group: recheck
   cancel-in-progress: false
 
 jobs:
@@ -48,14 +50,33 @@ jobs:
           FORCE: ${{ github.event.inputs.force || '0' }}
 
       - name: Commit 回 repo
+        env:
+          FORCE: ${{ github.event.inputs.force || '0' }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add pool.js pool.json
           if git diff --cached --quiet; then
-            echo "沒有變動,不 commit"
-          else
-            git commit -m "資格複檢 $(TZ=Asia/Taipei date '+%Y-%m-%d %H:%M')"
-            git pull --rebase
-            git push
+            echo "沒有變動,不 commit"; exit 0
           fi
+          git commit -q -m "資格複檢 $(TZ=Asia/Taipei date '+%Y-%m-%d %H:%M')"
+          # 2026-11-22 使用者「全部做」(D6):原本 git pull --rebase; git push 不重試。改成最多 5 次:
+          #   遠端的 pool.json / pool.js 沒變 → 一般 rebase 再推;
+          #   遠端的 pool.json 變了(daily 換了新名單 / 另一次複檢先推了)→ 不拿舊名單的修改去硬合併,
+          #   丟掉這次的 commit、在遠端最新的 pool.json 上重跑一次 recheck.py 再推(今天已複檢過的話 recheck.py 會直接結束,沒東西可推)
+          for i in 1 2 3 4 5; do
+            git push -q origin HEAD:main && { echo "推送成功(第 $i 次)"; exit 0; }
+            sleep $((i * 10))
+            git fetch -q origin main || continue
+            if git diff --quiet HEAD~1 origin/main -- pool.json pool.js; then
+              git rebase -q origin/main || { git rebase --abort; continue; }
+            else
+              echo "遠端 pool.json 已更新 → 在最新的名單上重跑複檢"
+              git reset -q --hard origin/main
+              python recheck.py
+              git add pool.js pool.json
+              git diff --cached --quiet && { echo "重跑後沒有變動"; exit 0; }
+              git commit -q -m "資格複檢 $(TZ=Asia/Taipei date '+%Y-%m-%d %H:%M')"
+            fi
+          done
+          echo "推送 5 次都失敗"; exit 1
