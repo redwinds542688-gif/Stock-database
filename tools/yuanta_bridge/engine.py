@@ -963,7 +963,8 @@ def exit_text(why):
     if "反向" in why: return "反向"
     if "沒走" in why: return "沒走"
     if "保本" in why: return "保本"
-    if "Kb" in why: return "破Kb"   # 2026-10-30 判一 / 判二 zoneHold:量縮回到 Ka~Kb 續抱後收盤越過 Kb 0.3% 出場
+    if "Kb" in why: return "破Kb"
+    if "大盤起" in why: return why.strip()[:6]   # 2026-11-25 假盤回放:判三2 大盤起跌 / 起漲出場原本寫「出」,看起來和 13:20 一樣   # 2026-10-30 判一 / 判二 zoneHold:量縮回到 Ka~Kb 續抱後收盤越過 Kb 0.3% 出場
     return "出"
 
 
@@ -1296,6 +1297,7 @@ class Engine:
         self.txdrop_fn = getattr(rs_env, "txdrop", None)   # 2026-11-18 17:12 🔒 ⑧ 急殺不做多(使用者「解鎖 改」;私人庫 rs_env.txdrop;env TXDROP)
         self.txoffhi_fn = getattr(rs_env, "txoffhi", None)   # 2026-11-17 20:28 判九(使用者「改」):台指期離今高跌 > 2% 不追空(私人庫 rs_env.txoffhi;env TXOFFHI)
         self.txlonghi_fn = getattr(rs_env, "txlonghi", None)   # 2026-11-17 21:47 判一 / 二 / 六做多(使用者「解鎖 都改」):台指期離今高跌 > 1.5% 不做多(私人庫 rs_env.txlonghi;env TXLONGHI)
+        self.txfromlo_fn = getattr(rs_env, "txfromlo", None); self.txlonglo_fn = getattr(rs_env, "txlonglo", None)   # 2026-11-25 ⑧ 空單離今低 / 判二做多離今低(假盤回放抓到引擎沒檢查)
         self.txrel_fn = getattr(rs_env, "txrel", None)   # 2026-11-17 18:58 ⑧ 台指期 vs 加權強弱(使用者「解鎖 改」0.7%;私人庫 rs_env.txrel,模擬器同一份;舊版 rs_env 沒有 = 不看)
         self.txcover_fn = getattr(rs_env, "txf_cover", None)   # 2026-11-16 14:38 使用者「改」:台指期缺一段 → ⑧ 改用加權指數(私人庫 rs_env.txf_cover;舊版 rs_env 沒有 = 照舊)
         self.j9max = int(getattr(rs_env, "J9MAX", J9MAX))   # 2026-11-14 判九
@@ -1992,6 +1994,18 @@ class Engine:
         except Exception: pass
         self._txf_c = (time.time(), self.day, m); return m
 
+    def txfl_map(self):
+        """⑧ 空單離今低 / 判二做多離今低用:同一份台指期 1 分 K 的最低價 {HH:MM: low}(模擬器 _txfl 同一份;2026-11-24 使用者「改」用 low);20 秒快取"""
+        c = self.__dict__.get("_txfl_c")
+        if c and time.time() - c[0] < 20 and c[1] == self.day: return c[2]
+        m = {}
+        try:
+            with open(HERE / "kline_futures" / "TXF" / f"{self.day}.csv", encoding="utf-8") as fh:
+                for r in csv.DictReader(fh):
+                    if r.get("date") == self.day and "08:45" <= r["time"] <= "13:45" and r.get("low"): m[r["time"]] = float(r["low"])
+        except Exception: pass
+        self._txfl_c = (time.time(), self.day, m); return m
+
     def ix_map(self):
         """⑧ 備援 3:Worker ?ixbars=今天(每分鐘加權指數收盤,09:00 起);20 秒快取"""
         c = self.__dict__.get("_ix_c")
@@ -2055,6 +2069,24 @@ class Engine:
         except Exception: return []
 
     def tx_ok(self, rs, code, tm, side):
+        """2026-11-25 假盤全鏈回放抓到:🔒 ⑧ 空單離今低(TXFROMLO)/ 判二做多離今低(TXLONGLO)引擎原本沒檢查 → 模擬器回測擋掉(close_trade 才印「這筆不做」)、
+           盤中引擎照發進場(11/23 多發 7 筆、11/18 1 筆)。進場前補檢查,判斷用私人庫 rs_env.txfromlo / txlonglo(模擬器同一份);沒載入 / 出錯 → 不發"""
+        if not self._tx_ok0(rs, code, tm, side): return False
+        e = self.envs.get(rs, {})
+        for key, fnm, on in (("TXFROMLO", "txfromlo", side < 0), ("TXLONGLO", "txlonglo", side > 0)):
+            th = e.get(key)
+            if not (on and th): continue
+            fn = getattr(self, fnm + "_fn", None)
+            if not fn: log(f"{JUDGE[rs]} {code} {tm} ⑧ {fnm} 沒載入(私人庫 rs_env)→ 不發"); return False
+            try:
+                txf = self.txf_map(); lo = self.txfl_map() if txf else None
+                if not txf and not e.get("TXSYNC"): txf = self.ix_map()   # 模擬器:沒有 TXSYNC 的(判七這類)台指期沒有改用加權;有 TXSYNC 的只看台指期
+                ok, why = fn(side, tm, txf or {}, th, lo)
+            except Exception as ex: log(f"⑧ {fnm} 檢查失敗 → 不發", ex); return False
+            if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發"); return False
+        return True
+
+    def _tx_ok0(self, rs, code, tm, side):
         """⑧ 台指期同步進場(2026-11-13 22:17 使用者「解鎖 改 全部套用」;23:32「只看台指期方向 解鎖改」):rs_env 有 TXSYNC 才看;判斷用私人庫 rs_env.txsync(和模擬器同一份)。
            這天完全沒有台指期 → 先不看(照舊進場)+ 推一次警告;其他算不出來 / 不合 → 不做"""
         c = self.envs.get(rs, {}).get("TXSYNC"); fn = getattr(self, "txsync_fn", None)
@@ -2183,6 +2215,21 @@ class Engine:
                 _d = HERE / "engine_data" / "ix"; _d.mkdir(parents=True, exist_ok=True)
                 write_atomic(_d / f"{self.day}.csv", "date,time,open,high,low,close,volume\n" + "".join(f"{self.day},{k},{v},{v},{v},{v},0\n" for k, v in sorted(_ix.items())))
         except Exception as e: log("⑧ 加權指數備援檔寫入失敗", e)
+        if self.__dict__.get("_ixprev_d") != self.day:   # 2026-11-25 假盤回放抓到:判七2 加權昨收(EXX)/ ⑧ TXREL 讀前一個交易日的 engine_data/ix;電腦前一天沒跑到收盤(或剛裝好)就沒有 → 七2 整天不發、沒 log
+            self._ixprev_d = self.day
+            try:
+                _d = HERE / "engine_data" / "ix"; _d.mkdir(parents=True, exist_ok=True)
+                if not any(f.stem < self.day for f in _d.glob("20*.csv")):
+                    _got = None; _x = dt.date.fromisoformat(self.day)
+                    for _i in range(1, 8):
+                        _p = (_x - dt.timedelta(days=_i)).isoformat()
+                        if dt.date.fromisoformat(_p).weekday() >= 5: continue
+                        try: _m = (http(worker_url(f"ixbars={_p}"), timeout=6) or {}).get("m") or {}
+                        except Exception: _m = {}
+                        if _m:
+                            write_atomic(_d / f"{_p}.csv", "date,time,open,high,low,close,volume\n" + "".join(f"{_p},{k},{v},{v},{v},{v},0\n" for k, v in sorted(_m.items()))); _got = _p; break
+                    log(f"前一個交易日加權指數檔補好了({_got})" if _got else "!! 沒有前一個交易日的加權指數檔(engine_data/ix),雲端也補不到 → 判七2 今天不發、⑧ 強弱不看")
+            except Exception as e: log("前一日加權指數檔檢查失敗", e)
         self.upto_hm = upto; t0 = time.time(); it, njobs = self.compute(stream=True); errs = 0; n_ev = 0
         cutoff = hm_add(upto, -10); an = kw.get("allow_new", True); ap = kw.get("allow_phantom", True); rb = kw.get("rs_block") or {}
         for r in self.order12(it, upto):
