@@ -2650,6 +2650,15 @@ class Trader:
         except Exception as ex:
             self.log(f"[交易] 留倉接回失敗 {ex!r}")
 
+    def man_pct_bad(self, d, r):
+        """2026-11-25 🔓→🔒 使用者「手動進場 做多不受+5%限制 只受-5%限制 做空不受-5%限制 只受+5%限制」:手動進場鐵律 ① 只擋單邊
+           做多:比昨收跌超過 ent_pct% 才擋(漲多少都可以);做空:比昨收漲超過 ent_pct% 才擋(跌多少都可以)。r = 價 / 昨收 − 1"""
+        lim = self.ent_pct / 100 + 1e-11
+        return (r < -lim) if d > 0 else (r > lim)
+
+    def man_pct_txt(self, d):
+        return f"手動做多低於 −{self.ent_pct:g}% 不行" if d > 0 else f"手動做空高於 +{self.ent_pct:g}% 不行"
+
     def man_iron_why(self, code, d, lots, price):
         """2026-11-12 11:40 手動新進場 / 加碼預掛(還沒成交)照鐵律先檢查:③ 09:30~12:30 ① 委託價離昨收 ±5% ⑤ 成交後整個部位張數分級 / 一張 25 萬 / 500 萬額度;
            回違反原因(空字串 = 沒違反)。不管名單(ignore_codes)裡的股票不檢查"""
@@ -2663,7 +2672,7 @@ class Trader:
             # 2026-11-16 12:30 🔓→🔒 使用者「手動進場 鐵律3,5,不能管 解鎖改」:手動進場不檢查 ③ 時間、⑤(一張 25 萬上限 / 分級張數 / 500 萬額度),只剩 ① ±5%;進場後元三管理照舊、金額照算進 500 萬(預掛也一樣)
             ex = self.mon_excluded(code, px)
             if ex: why.append(f"被監控排除({ex})")
-            if ref > 0 and px > 0 and abs(px / ref - 1) * 100 > self.ent_pct + 1e-9: why.append(f"價格離昨收 {(px / ref - 1) * 100:+.1f}%(超過 ±{self.ent_pct:g}%)")
+            if ref > 0 and px > 0 and self.man_pct_bad(d, px / ref - 1): why.append(f"價格離昨收 {(px / ref - 1) * 100:+.1f}%({self.man_pct_txt(d)})")
             return "、".join(why)
         except Exception as e:
             self.log(f"[交易] 預掛鐵律檢查失敗 {e!r}"); return ""
@@ -2719,8 +2728,12 @@ class Trader:
             # 2026-11-16 12:30 🔓→🔒 使用者「手動進場 鐵律3,5,不能管 解鎖改」:手動進場不檢查 ③ 時間、⑤(一張 25 萬上限 / 分級張數 / 500 萬額度),只剩 ① ±5%;進場後元三管理照舊、金額照算進 500 萬
             ex = self.mon_excluded(p["code"], price) if p.get("judge") == MANUAL else ""
             if ex: why.append(f"被監控排除({ex})")
-            bad_p = [px_ for _, px_ in fl if ref > 0 and px_ > 0 and abs(px_ / ref - 1) * 100 > self.ent_pct + 1e-9]
-            if bad_p: why.append(f"成交價離昨收 {(bad_p[0] / ref - 1) * 100:+.1f}%(超過 ±{self.ent_pct:g}%)")
+            if str(what).startswith("強制"):   # 手機強制進場照舊 ±5% 兩邊都擋(使用者只放寬元大手動進場)
+                bad_p = [px_ for _, px_ in fl if ref > 0 and px_ > 0 and abs(px_ / ref - 1) * 100 > self.ent_pct + 1e-9]
+                if bad_p: why.append(f"成交價離昨收 {(bad_p[0] / ref - 1) * 100:+.1f}%(超過 ±{self.ent_pct:g}%)")
+            else:
+                bad_p = [px_ for _, px_ in fl if ref > 0 and px_ > 0 and self.man_pct_bad(p["dir"], px_ / ref - 1)]
+                if bad_p: why.append(f"成交價離昨收 {(bad_p[0] / ref - 1) * 100:+.1f}%({self.man_pct_txt(p['dir'])})")
             if not why: return False
             w = "、".join(why); code = p["code"]
             self.log(f"[交易] !! {code} 元大{what} {lots} 張 @ {price} 違反鐵律({w})→ 整個部位 {p['qty']} 張馬上平掉")

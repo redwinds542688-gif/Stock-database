@@ -931,13 +931,18 @@ ti9, gi9 = mk(TRADE_IGNORE_FILE=str(igf)); ok("1709" in ti9.ignore and "YY0070" 
 ti9.on_tick("1709", 49.0); ti9.step([ENTX("1709", 49.0, judge="判三", kind="short")]); ok("1709" not in ti9.positions and not gi9.sent)
 ok(not ti9.force_enter("1709", 1, 1)[0]); ti9.on_report(51, "M1", 0, 1000, 49.0, basket="", code="1709", bs="B"); ok("1709" not in ti9.positions)
 # 2026-11-11 20:53 元大手動單違反鐵律 → 接起來馬上全部平掉(⑥ 不能例外)
-def man_(h, m, px, n, ref=50.0):
+def man_(h, m, px, n, ref=50.0, bs="B"):
     at(h, m); t_, g_ = mk(TRADE_CAP="250000", TRADE_Y3_POST_DELAY="0"); t_.ref_of = lambda c: ref; t_.on_tick("2330", px)
-    t_.on_report(51, "M9", 0, n * 1000, px, basket="", code="2330", bs="B"); return t_, g_
+    t_.on_report(51, "M9", 0, n * 1000, px, basket="", code="2330", bs=bs); return t_, g_
 tA, gA = man_(10, 0, 50.0, 3); ok(tA.positions["2330"]["state"] == HOLDING)                          # 50 元 3 張:合規,照管
 tB, gB = man_(10, 0, 50.0, 6); ok(tB.positions["2330"]["state"] == HOLDING, tB.positions["2330"].get("exit_why"))   # 2026-11-16 12:30「手動進場 鐵律3,5,不能管 解鎖改」:6 張超過 25 萬 → 不平(原平)   # 6 張超過 25 萬(2026-11-14 不分級;原 4 張超過分級)
 tC, gC = man_(9, 20, 50.0, 1); ok(tC.positions["2330"]["state"] == HOLDING)                          # 2026-11-16 12:30 手動進場不看 ③:09:20 → 不平(原平)
-tD, gD = man_(10, 0, 53.0, 1); ok(tD.positions["2330"]["state"] == EXITING)                         # +6%
+# 2026-11-25 使用者「手動進場 做多不受+5%限制 只受-5%限制 做空不受-5%限制 只受+5%限制」
+tD, gD = man_(10, 0, 53.0, 1); ok(tD.positions["2330"]["state"] == HOLDING, tD.positions["2330"].get("exit_why"))   # 做多 +6% → 不平(原平)
+tD2, _ = man_(10, 0, 47.0, 1); ok(tD2.positions["2330"]["state"] == EXITING)                       # 做多 −6% → 平
+tD3, _ = man_(10, 0, 53.0, 1, bs="S"); ok(tD3.positions["2330"]["state"] == EXITING)               # 做空 +6% → 平
+tD4, _ = man_(10, 0, 47.0, 1, bs="S"); ok(tD4.positions["2330"]["state"] == HOLDING, tD4.positions["2330"].get("exit_why"))   # 做空 −6% → 不平
+_w = lambda d, px: tD.man_iron_why("2317", d, 1, px); ok(_w(1, 53.0) == "" and "−5%" in _w(1, 47.0) and "+5%" in _w(-1, 53.0) and _w(-1, 47.0) == "", [_w(1, 53.0), _w(1, 47.0), _w(-1, 53.0), _w(-1, 47.0)])   # 預掛同一套
 at(10, 0)
 # 2026-11-11 20:55 留倉接回(和益 1709 借券空 1 張 @49.35):開盤接成程式部位,現股(0)買回;不掛條件單;13:20 平
 cf = tmp / "carry.json"; cf.write_text('[{"code":"1709","dir":-1,"lots":1,"entry":49.35,"typ":"0","judge":"判三"}]', encoding="utf-8")
@@ -1076,7 +1081,9 @@ tq1.amount_today = 4990000; tq1.on_report(50, "M76", 0, 1000, 243.0, "", "6278",
 # 沒違反的預掛(80 元一張、空倉)照舊不取消;12:31 以後的新預掛取消;ignore_codes 的不管
 tq2, gq2 = mk(TRADE_CAP="250000"); tq2.ref_of = lambda c: 50.0; tq2.on_tick("2330", 50.0); tq2.on_report(50, "M78", 0, 1000, 50.0, "", "2330", "B", "0"); ok(not [x for x in gq2.sent if x[0] == "cancel"], gq2.sent)
 at(12, 31); tq2.on_report(50, "M79", 0, 1000, 50.0, "", "2331", "B", "0"); ok(("cancel", "M79", "2331", "B") not in gq2.sent, gq2.sent)   # 2026-11-16 12:30「手動進場 鐵律3,5,不能管 解鎖改」:12:31 新預掛不取消(原取消)
-at(11, 0); tq2.on_report(50, "M81", 0, 1000, 53.0, "", "2332", "B", "0"); ok(("cancel", "M81", "2332", "B") in gq2.sent, gq2.sent)   # ① 照舊:離昨收 +6% 的手動預掛照取消
+at(11, 0); tq2.on_report(50, "M81", 0, 1000, 53.0, "", "2332", "B", "0"); ok(("cancel", "M81", "2332", "B") not in gq2.sent, gq2.sent)   # 2026-11-25 手動做多 +6% 預掛 → 不取消(原取消)
+tq2.on_report(50, "M82", 0, 1000, 53.0, "", "2333", "S", "0"); ok(("cancel", "M82", "2333", "S") in gq2.sent, gq2.sent)   # 手動做空 +6% → 取消
+tq2.on_report(50, "M83", 0, 1000, 47.0, "", "2334", "B", "0"); ok(("cancel", "M83", "2334", "B") in gq2.sent, gq2.sent)   # 手動做多 −6% → 取消
 igq = tmp / "ign6.txt"; igq.write_text("1709\n", encoding="utf-8"); tq3, gq3 = mk(TRADE_CAP="250000", TRADE_IGNORE_FILE=str(igq)); tq3.ref_of = lambda c: 50.0; tq3.on_report(50, "M80", 0, 1000, 53.3, "", "1709", "S", "0"); ok(not [x for x in gq3.sent if x[0] == "cancel"], gq3.sent); at(10, 0)
 # 2026-11-13 10:27 頎邦:判七強平也要寫強平卡
 at(10, 11); t7c, g7c = mk(); t7c.on_tick("6147", 175.0); t7c.step([sig("k6147", "short", "頎邦 6147 做空進場 175.00", "10:10 空 · 停利 165.38 停損 178.00 · 1張 · 判七")])
