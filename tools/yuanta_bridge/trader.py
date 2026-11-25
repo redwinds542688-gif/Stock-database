@@ -2256,10 +2256,13 @@ class Trader:
         if not lim > 0: return ""
         if not (y > 0 and last > 0): return f"還沒有{'昨收' if not y > 0 else '元大即時價'},沒辦法確認鐵律 ±{lim:g}%,不能強制{'做多' if d > 0 else '做空'}"   # 2026-11-11 16:28 鐵律檢查「改」:確認不了就不給進
         ch = (last / y - 1) * 100
-        if abs(ch) > lim + 1e-9: return f"現價 {last} 離昨收 {ch:+.1f}%(超過 ±{lim:g}%),不能強制{'做多' if d > 0 else '做空'}"   # 2026-11-11 15:36 多空都照 ±5%
+        # 2026-11-25 使用者「強制進場也一樣」(同手動進場):做多只擋低於 −lim%、做空只擋高於 +lim%
+        _bad = lambda r: (r < -lim - 1e-9) if d > 0 else (r > lim + 1e-9)
+        _tx = (f"低於 −{lim:g}%,不能強制做多" if d > 0 else f"高於 +{lim:g}%,不能強制做空")
+        if _bad(ch): return f"現價 {last} 離昨收 {ch:+.1f}%({_tx})"
         try: lp = float(px) if px not in (None, "") else 0.0
         except Exception: lp = 0.0
-        if lp > 0 and abs(lp / y - 1) * 100 > lim + 1e-9: return f"指定價 {lp} 離昨收 {(lp / y - 1) * 100:+.1f}%(超過 ±{lim:g}%),不能強制{'做多' if d > 0 else '做空'}"   # 2026-11-11 22:20 指定限價也要在 ±5% 內
+        if lp > 0 and _bad((lp / y - 1) * 100): return f"指定價 {lp} 離昨收 {(lp / y - 1) * 100:+.1f}%({_tx})"   # 2026-11-11 22:20 指定限價也要在範圍內
         return ""
 
     def force_close(self, code, cmd_id=None):
@@ -2728,12 +2731,8 @@ class Trader:
             # 2026-11-16 12:30 🔓→🔒 使用者「手動進場 鐵律3,5,不能管 解鎖改」:手動進場不檢查 ③ 時間、⑤(一張 25 萬上限 / 分級張數 / 500 萬額度),只剩 ① ±5%;進場後元三管理照舊、金額照算進 500 萬
             ex = self.mon_excluded(p["code"], price) if p.get("judge") == MANUAL else ""
             if ex: why.append(f"被監控排除({ex})")
-            if str(what).startswith("強制"):   # 手機強制進場照舊 ±5% 兩邊都擋(使用者只放寬元大手動進場)
-                bad_p = [px_ for _, px_ in fl if ref > 0 and px_ > 0 and abs(px_ / ref - 1) * 100 > self.ent_pct + 1e-9]
-                if bad_p: why.append(f"成交價離昨收 {(bad_p[0] / ref - 1) * 100:+.1f}%(超過 ±{self.ent_pct:g}%)")
-            else:
-                bad_p = [px_ for _, px_ in fl if ref > 0 and px_ > 0 and self.man_pct_bad(p["dir"], px_ / ref - 1)]
-                if bad_p: why.append(f"成交價離昨收 {(bad_p[0] / ref - 1) * 100:+.1f}%({self.man_pct_txt(p['dir'])})")
+            bad_p = [px_ for _, px_ in fl if ref > 0 and px_ > 0 and self.man_pct_bad(p["dir"], px_ / ref - 1)]   # 2026-11-25 手動進場 / 強制進場(使用者「強制進場也一樣」)同一套單邊
+            if bad_p: why.append(f"成交價離昨收 {(bad_p[0] / ref - 1) * 100:+.1f}%({self.man_pct_txt(p['dir'])})")
             if not why: return False
             w = "、".join(why); code = p["code"]
             self.log(f"[交易] !! {code} 元大{what} {lots} 張 @ {price} 違反鐵律({w})→ 整個部位 {p['qty']} 張馬上平掉")

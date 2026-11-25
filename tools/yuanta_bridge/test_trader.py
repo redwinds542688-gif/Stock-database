@@ -573,12 +573,12 @@ s27b.on_report(51, "i00QY", 0, 1000, 43.0, basket="", code="3481", bs="B"); ok(n
 ok(s27b.positions["3481"]["sl"] == 41.75, s27b.positions["3481"]["sl"]); s27b.on_tick("3481", 41.8); ok(s27b.positions["3481"]["state"] == HOLDING); s27b.on_tick("3481", 41.75); ok(s27b.positions["3481"]["state"] == EXITING)   # 停損 41.07 收到線 41.75
 s27c, g27c = mk(); s27c.ref_of = lambda c: 100.0; s27c.on_tick("3002", 101.0); s27c.force_enter("3002", -1, 1); s27c.on_report(51, "A0001", 0, 1000, 101.0); ok(s27c.positions["3002"]["sl"] <= 106.5, s27c.positions["3002"]["sl"])
 s27c.on_tick("3002", 106.5); ok(s27c.positions["3002"]["state"] == EXITING, s27c.positions["3002"])   # 強三做空最晚 +6.5% 出
-s27e, _ = mk(); s27e.ref_of = lambda c: 100.0; s27e.on_tick("3003", 105.2); ok("±5" in s27e.force_block("3003", -1) and "±5" in s27e.force_block("3003", 1)); s27e.on_tick("3003", 104.9); ok(s27e.force_block("3003", -1) == "")
+s27e, _ = mk(); s27e.ref_of = lambda c: 100.0; s27e.on_tick("3003", 105.2); ok("+5" in s27e.force_block("3003", -1) and s27e.force_block("3003", 1) == "");   # 2026-11-25 強制做多 +5.2% 不擋 s27e.on_tick("3003", 104.9); ok(s27e.force_block("3003", -1) == "")
 s27d, _ = mk(TRADE_MANUAL_MAX_MOVE_PCT="6.5"); s27d.ref_of = lambda c: 44.6; s27d.on_tick("3481", 43.0); s27d.on_report(51, "i00QZ", 0, 1000, 43.0, basket="", code="3481", bs="B"); s27d.on_tick("3481", 41.65); ok(s27d.positions["3481"]["state"] == EXITING)   # 開關關掉照舊
-# S28) 2026-11-11 15:36 強制進場:離昨收超過 ±5% 多空都不給做(原 −6.5% 不做多、+6.5% 不做空)
+# S28) 強制進場(2026-11-25 使用者「強制進場也一樣」):做多只擋低於 −5%、做空只擋高於 +5%
 s28, g28 = mk(); s28.ref_of = lambda c: 100.0; s28.on_tick("2330", 94.9)
 r = s28.force_enter("2330", 1, 1); ok(not r[0] and "不能強制做多" in r[1] and "2330" not in s28.positions, r)
-ok(not s28.force_enter("2330", -1, 1)[0])
+ok(s28.force_block("2330", -1) == "")   # 2026-11-25 強制做空 −5.1% 不擋(原擋)
 s28b, _ = mk(); s28b.ref_of = lambda c: 100.0; s28b.on_tick("2331", 104.9); ok(s28b.force_enter("2331", -1, 1)[0])
 # PH) 2026-11-11 21:34 使用者「13.20程式必須取消所有預掛 包含元大手動預掛」(取代 11-05 保留預掛到期限):期限設更晚也拉回 13:20;13:20 有預掛 → 先取消再平
 import datetime as _dt
@@ -1047,11 +1047,14 @@ at(13, 21); n5 = len(h5.sent); u5.step([]); ok(len(h5.sent) == n5, h5.sent[n5:])
 # 2) 超額訊號在時段外(訊號 12:40)不記著補
 at(12, 41); u2, _ = mk(TRADE_CAP="250000"); u2.ref_of = lambda c: 252.0; u2.on_tick("3006", 257.5)
 u2.step([sig("u2", "short", "晶豪科 3006 做空進場 257.50", "12:40 空 · 停利 234.30 停損 266.44 · 1張 · 超額 · 判四")]); ok("3006" not in u2.over_wait); at(10, 0)
-# 3) 強制進場沒指定價:現價讓 2 檔超過 ±5% → 不給進(昨收 50、現價 52.4 → 52.6)
-u3, h3 = mk(TRADE_CAP="250000"); u3.ref_of = lambda c: 50.0; u3.on_tick("2330", 52.4); ok(not u3.force_enter("2330", 1, 1)[0] and not h3.sent)
+# 3) 強制進場:2026-11-25 使用者「強制進場也一樣」→ 做多只擋低於 −5%、做空只擋高於 +5%
+u3, h3 = mk(TRADE_CAP="250000"); u3.ref_of = lambda c: 50.0; u3.on_tick("2330", 52.6); ok(not u3.force_enter("2330", -1, 1)[0] and not h3.sent)   # 做空 +5.2% → 不給
+ok(u3.force_block("2330", 1) == "" and "−5%" in u3.force_block("2330", 1, px=47.0) and u3.force_block("2330", -1, px=47.0) != "" )   # 現價 52.4:做多可以;指定 47 做多擋;做空現價就擋
+u3b, _ = mk(TRADE_CAP="250000"); u3b.ref_of = lambda c: 50.0; u3b.on_tick("2330", 47.4); ok(u3b.force_block("2330", -1) == "" and "−5%" in u3b.force_block("2330", 1))
 # 4) 沒有元大即時價不給強制進場;強制進場成交價超過 ±5% → 平
 u4, h4 = mk(TRADE_CAP="250000"); u4.ref_of = lambda c: 50.0; ok(not u4.force_enter("2330", 1, 1, px=50.0, ref=50.0)[0])
-u4.on_tick("2330", 50.0); ok(u4.force_enter("2330", 1, 1)[0]); o4 = u4.positions["2330"]["order"]; u4.on_report(51, "A0001", 0, 1000, 52.8, basket=o4["tag"]); u4.step([]); ok(u4.positions["2330"]["state"] == EXITING, u4.positions["2330"])
+u4.on_tick("2330", 50.0); ok(u4.force_enter("2330", 1, 1)[0]); o4 = u4.positions["2330"]["order"]; u4.on_report(51, "A0001", 0, 1000, 52.8, basket=o4["tag"]); u4.step([]); ok(u4.positions["2330"]["state"] == HOLDING, u4.positions["2330"])   # 2026-11-25 強制做多成交 +5.6% → 不平(原平)
+u4b, _ = mk(TRADE_CAP="250000"); u4b.ref_of = lambda c: 50.0; u4b.on_tick("2330", 50.0); ok(u4b.force_enter("2330", 1, 1)[0]); o4b = u4b.positions["2330"]["order"]; u4b.on_report(51, "A0001", 0, 1000, 47.2, basket=o4b["tag"]); u4b.step([]); ok(u4b.positions["2330"]["state"] == EXITING, u4b.positions["2330"])   # 強制做多成交 −5.6% → 平
 # 6) 委託價一張超過上限:現價 249.5、委託 250.5 → 不進
 u6, h6 = mk(TRADE_CAP="250000"); u6.ref_of = lambda c: 249.0; u6.on_tick("2330", 249.5); u6.step([ENTX("2330", 249.5)]); ok("2330" not in u6.positions and not h6.sent, h6.sent)
 # 8) 訊號那根 09:28 → 不進
