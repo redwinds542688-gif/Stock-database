@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-25 進場欄:平倉卡找不到對應的進場卡(台玻 09:13 手動進場被鐵律馬上平,當時中繼沒發進場卡)→ 照平倉卡寫的方向 / 時間 / 進場價 / 張數 / 判別式補一張進場卡(只是顯示,雲端紀錄不動;已有進場卡就不補)
   · 2026-11-25 進場欄:同一檔同一判別式連兩筆交易的第二張平倉卡不再被當成重複丟掉(台玻 09:07 移平後 09:13 又手動進場被鐵律平,第二筆看不到)→ 只丟內容一模一樣的平倉卡;同一分鐘進場又平倉時平倉卡排上面
   · 2026-11-25 中繼:違反鐵律、接起來馬上平掉的手動進場也先發進場卡(使用者「台玻手動進場 2 次 這邊只有一次」:09:13 手動做多 1 張 @ 67.7 被鐵律平掉,原本沒發進場卡、進場欄看不到);平倉照舊
   · 2026-11-25 09:29(實際時間)手動進場 / 強制進場鐵律 ① 改單邊:做多只擋低於昨收 −5%、做空只擋高於 +5%(手機強制進場按鈕 + 電腦預掛 / 成交檢查;程式自動進場照舊 ±5%)(使用者「手動進場 做多不受+5%限制 只受-5%限制 做空不受-5%限制 只受+5%限制」「強制進場也一樣」)
@@ -636,7 +637,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611250947">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611251005">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -8465,6 +8466,16 @@ window.bgTick = bgTick; window.BG = BG;
     if (now - (CLOUD_LOG.at[d] || 0) < ttl) return; CLOUD_LOG.at[d] = now;
     fetch(u + 'get&d=' + d + '&_=' + now).then(r => r.ok ? r.json() : null).then(a => { if (Array.isArray(a)){ CLOUD_LOG.items[d] = a; render(true); } }).catch(() => {});
   }
+  /* 2026-11-25 10:04 使用者「台玻 做多 只有平倉卡 沒有進場卡」(09:13 手動進場被鐵律馬上平,當時的中繼沒發進場卡):平倉卡寫了「做多 09:13 進 67.70 · 1張 · 元三」,
+     找不到同一檔、同方向、同判別式、同一分鐘的進場卡 → 照平倉卡補一張進場卡(只是顯示,雲端紀錄不動) */
+  function orphanEnt(list){ try{
+    const ents = list.filter(x => /(做多|做空)進場/.test(x.title || ''));
+    for (const x of list.slice()){ if (!/^(exit|profit|loss)$/.test(x.kind || '')) continue;
+      const m = /^\d\d:\d\d (做多|做空) (\d\d:\d\d) 進 ([\d.]+) → 現價 [\d.]+ · (\d+)張(?: · \S+)* · (\S+)\s*$/.exec(x.body || ''), t = /^(?:⚠⚠ |⚠ |✅ )?(\S+) (\d{4,6}[A-Z]*) /.exec(x.title || '');
+      if (!m || !t) continue; const [, sd, et, ep, n, rs] = m, [, nm, code] = t;
+      if (ents.some(e => (e.title || '').includes(code) && (e.title || '').includes(sd + '進場') && String(e.body || '').trim().endsWith(rs) && (e.t || '').slice(0, 5) === et)) continue;
+      const e = {t: et, title: `${nm} ${code} ${sd}進場 ${(+ep).toFixed(2)}`, body: `${et} 元大 · ${n}張 · ${rs}`, kind: sd === '做多' ? 'long' : 'short', synth: 1};
+      list.push(e); ents.push(e); } }catch(e){} return list; }
   function mergeCloud(local, d){
     const c = CLOUD_LOG.items[d] || []; if (!c.length) return local;
     /* 2026-11-20 10:09 使用者「世紀 實際有6張」「卡片上只有4張」→「改」:電腦同一張進場卡改寫(元三分批成交 4 → 6 張,同鍵覆蓋雲端),
@@ -8478,6 +8489,7 @@ window.bgTick = bgTick; window.BG = BG;
     for (const x of asc){ const k = cloudLogKey(Object.assign({}, x, {t: ''})) + (/預掛/.test(x.title || '') ? '|' + x.title + '|' + String(x.body || '').replace(/^\d\d:\d\d\s*/, '') : ''), m = mm_(x.t), p = last.get(k);   /* 2026-11-18 09:54 使用者「0936版 監控預掛還在 富喬」:三張預掛取消卡標題都是「富喬 1815 預掛已取消」→ 被當成同一則,10 分鐘內只留第一張(09:24),118.5 / 119.5 的取消卡被丟掉;預掛卡加上內容(方向 / 張數 / 價)一起比 */
       if (p != null && m >= 0 && m - p <= 10){ drop.add(x); continue; } last.set(k, m); }
     const res = drop.size ? out.filter(x => !drop.has(x)) : out;
+    orphanEnt(res);
     const xr_ = x => /^(exit|profit|loss)$/.test(x.kind || '') ? 0 : 1;   // 2026-11-25 同一分鐘進場又平倉(台玻 09:13 手動進場被鐵律馬上平):平倉卡排在進場卡上面(比較新)
     return res.sort((a, b) => (b.t || '').localeCompare(a.t || '') || xr_(a) - xr_(b));   // 新的在前(同一分鐘的維持原本順序)
   }
@@ -8503,7 +8515,7 @@ window.bgTick = bgTick; window.BG = BG;
     // 2026-10-19 起過去的日子優先用雲端通知紀錄(手機當天真的發過的,判一 / 判二 都有);沒有才用 app/log_backfill.json(判別式一重跑);今天 = 手機本機 + 雲端合併
     // 2026-11-04 17:15 使用者「重寫進場與明細 用新的 判一到四 包含永久跟開盤 都用虛擬」「包含今天」:有重算紀錄(app/log_backfill.json)的日子一律用它(現行判一~四重算,含超額);今天收盤後也用
     if (HIST && HIST[d] && (d !== todayStr() || !inSession()) && (vSel_ || d < '2026-11-23')) return histLim(d);   /* 2026-11-20 14:20 進場:11/22 以前元大也看重算的 */   /* 2026-11-09 21:35 使用者「用現在邏輯 重新寫進場 明細 與檢討 元大虛擬都一樣 明天再接入元大」→「重寫 22天 包含今天」:元大真實成交改從 11/10 起,11/09 以前永久版元大也看重算的 */   // 2026-11-05 16:50 使用者「重寫紀錄 進場 跟 明細 永久會員跟非永久會員都寫到今日11月5號 20天」:永久版 11/05 也看重算的,元大真實從 11/06 起   // 2026-11-04 19:16 永久版 11/05 起進場欄看真的通知(雲端紀錄),看盤版一律看重算的
-    if (d !== todayStr() && (CLOUD_LOG.items[d] || []).length) return CLOUD_LOG.items[d];
+    if (d !== todayStr() && (CLOUD_LOG.items[d] || []).length){ const L_ = orphanEnt(CLOUD_LOG.items[d].slice()), xr_ = x => /^(exit|profit|loss)$/.test(x.kind || '') ? 0 : 1; return L_.sort((a, b) => (b.t || '').localeCompare(a.t || '') || xr_(a) - xr_(b)); }
     try{ if (window.Android && Android.logFor){ const a = JSON.parse(Android.logFor(d) || '[]'); if (a.length || !(HIST && HIST[d])) return mergeCloud(a, d); } }catch(e){}
     if (d !== todayStr()) return mergeCloud([], d);
     return BG.log.filter(l => l.includes('[通知]')).slice().reverse().map(l => { const m = l.match(/^(\d\d:\d\d):\d\d \[通知\] (.*?) \| (.*)$/); return m ? {t: m[1], title: m[2], body: m[3], kind: ''} : {t: '', title: l, body: '', kind: ''}; });
