@@ -942,6 +942,9 @@ tD, gD = man_(10, 0, 53.0, 1); ok(tD.positions["2330"]["state"] == HOLDING, tD.p
 tD2, _ = man_(10, 0, 47.0, 1); ok(tD2.positions["2330"]["state"] == EXITING)                       # 做多 −6% → 平
 ok(any("做多進場 47.00" in x[0] and "1張 · 元三" in x[1] for x in tD2.posts), tD2.posts)              # 2026-11-25 台玻:違反鐵律馬上平的手動進場也要發進場卡(進場欄才看得到)
 tD3, _ = man_(10, 0, 53.0, 1, bs="S"); ok(tD3.positions["2330"]["state"] == EXITING)               # 做空 +6% → 平
+tD5, _ = man_(10, 0, 54.0, 1); ok(tD5.positions["2330"]["state"] == EXITING)                       # 2026-11-25 統一範圍:手動做多 +8% → 平(上限 +7%)
+tD6, _ = man_(10, 0, 46.0, 1, bs="S"); ok(tD6.positions["2330"]["state"] == EXITING)               # 手動做空 −8% → 平(下限 −7%)
+tD5.on_tick("2317", 51.0); ok("−5%~+7%" in tD5.force_block("2317", 1, px=54.0) and tD5.force_block("2317", 1, px=53.0) == "", tD5.force_block("2317", 1, px=54.0))  # 強制做多指定 +8% 擋、+6% 可以
 tD4, _ = man_(10, 0, 47.0, 1, bs="S"); ok(tD4.positions["2330"]["state"] == HOLDING, tD4.positions["2330"].get("exit_why"))   # 做空 −6% → 不平
 _w = lambda d, px: tD.man_iron_why("2317", d, 1, px); ok(_w(1, 53.0) == "" and "−5%" in _w(1, 47.0) and "+5%" in _w(-1, 53.0) and _w(-1, 47.0) == "", [_w(1, 53.0), _w(1, 47.0), _w(-1, 53.0), _w(-1, 47.0)])   # 預掛同一套
 at(10, 0)
@@ -973,7 +976,11 @@ at(12, 30); t7_.step([]); ok(not any(x[0] == "cancel" for x in g7_.sent))
 at(12, 31); t7_.step([]); ok(("cancel", o7_["no"], "2330", "B") in g7_.sent, g7_.sent); at(10, 0)
 # 8) 進場補單限價最遠到昨收 ±5%:做多訊號 52.3(昨收 50)→ IOC 讓 2 檔 52.5(剛好 +5%)→ 補單 +1% = 52.8 → 收到 52.5
 t8_, g8_ = mk(TRADE_CAP="250000"); t8_.ref_of = lambda c: 50.0; t8_.on_tick("2330", 52.3); t8_.step([ENTX("2330", 52.3)]); ok(g8_.sent and g8_.sent[-1][3] == 52.5, g8_.sent); t8_.on_report(50, "A0001", 25, 0, 0)
-ok(g8_.sent[-1][:2] == ("2330", "B") and g8_.sent[-1][3] == 52.5, g8_.sent)
+ok(g8_.sent[-1][:2] == ("2330", "B") and g8_.sent[-1][3] == 52.8, g8_.sent)   # 2026-11-25 做多有利方向最遠 +7%(53.5)→ 52.8 不用收(原收到 +5% 52.5)
+t8b, g8b = mk(TRADE_CAP="250000"); t8b.ref_of = lambda c: 50.0; t8b.on_tick("2330", 53.3); t8b.step([ENTX("2330", 53.3)]); ok(g8b.sent and g8b.sent[-1][3] == 53.5, g8b.sent); t8b.on_report(50, "A0001", 25, 0, 0)
+ok(g8b.sent[-1][:2] == ("2330", "B") and g8b.sent[-1][3] == 53.5, g8b.sent)   # 補單 53.8 → 收到 +7% 53.5
+t8c, g8c = mk(TRADE_CAP="250000"); t8c.ref_of = lambda c: 50.0; t8c.on_tick("2330", 53.6); t8c.step([ENTX("2330", 53.6)]); ok(not g8c.sent, g8c.sent)   # 現價 +7.2% → 不進
+t8d, g8d = mk(TRADE_CAP="250000"); t8d.ref_of = lambda c: 50.0; t8d.on_tick("2330", 47.4); t8d.step([ENTX("2330", 47.4)]); ok(not g8d.sent, g8d.sent)   # 做多現價 −5.2% → 不進
 # 2026-11-11 超額補進場:照原訊號發布時間 10 分鐘內有效(12:29 發布 → 12:39 失效);12:30 後在 10 分鐘內一樣可以補
 OVX = lambda k: sig(k, "short", "晶豪科 3006 做空進場 257.50", "12:29 空 · 停利 234.30 停損 266.44 · 1張 · 超額 · 判四")
 at(12, 29); tx_, gx_ = mk(TRADE_CAP="250000"); tx_.ref_of = lambda c: 252.0; tx_.on_tick("3006", 257.5); tx_.step([OVX("kx1")]); ok(tx_.over_wait["3006"]["until_hm"] == "12:39", tx_.over_wait)
@@ -1017,7 +1024,8 @@ ok(_eng.exit_text("總停損") == "總平" and _eng.exit_text("移動停損利")
 t9_, g9_ = mk(TRADE_CAP="250000"); t9_.ref_of = lambda c: 50.0; t9_.on_tick("2330", 52.4); t9_.step([ENTX("2330", 52.4)]); ok(g9_.sent and g9_.sent[-1][3] == 52.6 and g9_.sent[-1][1] == "B", g9_.sent)
 # 9b) 做空:昨收 50、現價 47.55(−4.9%)→ 讓 2 檔 47.45(−5.1%)照送;現價本身超過 ±5% 照舊不進
 t9s, g9s = mk(TRADE_CAP="250000"); t9s.ref_of = lambda c: 50.0; t9s.on_tick("2330", 47.55); t9s.step([sig("10:0x:s9", "short", "股2330 2330 做空進場 47.55", "10:00 空 · 停利 45.17 停損 48.26 · 判一")]); ok(g9s.sent and g9s.sent[-1][3] == 47.45 and g9s.sent[-1][1] == "S", g9s.sent)
-t9o, g9o = mk(TRADE_CAP="250000"); t9o.ref_of = lambda c: 50.0; t9o.on_tick("2330", 47.4); t9o.step([sig("10:0x:s9o", "short", "股2330 2330 做空進場 47.4", "10:00 空 · 停利 45.03 停損 48.11 · 判一")]); ok(not g9o.sent, g9o.sent)
+t9o, g9o = mk(TRADE_CAP="250000"); t9o.ref_of = lambda c: 50.0; t9o.on_tick("2330", 47.4); t9o.step([sig("10:0x:s9o", "short", "股2330 2330 做空進場 47.4", "10:00 空 · 停利 45.03 停損 48.11 · 判一")]); ok(g9o.sent, g9o.sent)   # 2026-11-25 做空 −5.2% 在 −7%~+5% 內 → 照送(原不進)
+t9p, g9p = mk(TRADE_CAP="250000"); t9p.ref_of = lambda c: 50.0; t9p.on_tick("2330", 46.4); t9p.step([sig("10:0x:s9p", "short", "股2330 2330 做空進場 46.4", "10:00 空 · 停利 44.08 停損 47.1 · 判一")]); ok(not g9p.sent, g9p.sent)   # 做空 −7.2% → 不進
 # 10) 張數照訊號價和委託價較高的算:訊號 53.3(3 張 15.99 萬)、委託 53.5 → 3 張 16.05 萬超過 → 2 張
 t10_, g10_ = mk(TRADE_CAP="250000"); t10_.ref_of = lambda c: 53.0; t10_.on_tick("2330", 53.3); t10_.step([ENTX("2330", 53.3)]); ok(g10_.sent[-1][2] == 4, g10_.sent)   # 2026-11-14 不分級:委託 53.5 → 25 萬 ÷ 5.35 萬 = 4 張(原分級 2 張)
 # 6) 對帳發現張數變多(漏了手動加碼回報):判二 2 張 → 元大 6 張(手動 4 張,超過分級)→ 整個部位平

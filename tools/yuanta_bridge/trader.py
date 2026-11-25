@@ -122,6 +122,7 @@ def lot_tier_qty(px, cap=250000):   # 2026-11-17 23:45 🔓→🔒 鐵律 ⑤(�
     if px <= 0: return 1
     cap = min(float(cap or 250000), 250000.0)
     return max(1, int(cap // (px * 1000)))   # 2026-11-14 00:55 🔓→🔒 鐵律 ⑤ 改「不分級」(使用者「如果購買不分級呢」→「解鎖 改」):每筆 25 萬能買幾張就買幾張(原 ≤80 元最多 3 張 ≤16 萬、80~250 元最多 2 張);超過 250 元一張 > 25 萬 = 超額,另外管
+IRON_FAV = 7.0   # 2026-11-25 使用者「統一定義 所有進場 做多範圍 -5%到+7% 做空範圍-7%到+5%」「包含 手動進場 強制進場」:有利方向最遠 7%、不利方向最遠 IRON_PCT 5%
 IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG, IRON_BRX_L, IRON_BRX_E = 5.0, 6.5, "09:30", "12:30", "12:32", 1.5, 0.15   # 鐵律 ③ 09:30(23:38 曾改 09:15,23:49 使用者「改成9點30分進場 解鎖改」改回)
 IRON_CAP_MAX = 250000   # 2026-11-11 22:46 使用者「最多上限改25萬」:多空上限(設定檔 / 主導機)最多 25 萬   # 原 500000 # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:設定檔的多空上限最多 50 萬(和主導機能設的範圍一樣)
 IRON_EXIT, JUDGES_ALL = "13:20", ("判一", "判二", "判三", "判四", "判五", "判六", "判七", "判八", "判九", "判十")   # 2026-11-18 23:35 加判十   # 2026-11-14 15:14 加判八;17:58 加判九   # 2026-11-11 22:25 使用者「改13」:設定檔的開關不能關掉鐵律保護
@@ -254,6 +255,7 @@ class Trader:
         #   ① 進場時現價離昨收 ±5% 以內   ② 部位離昨收不利 6.5% 強制平倉(判別式 / 元三 / 強三都一樣)   ③ 只在 09:30~12:30 進場(判別式通知最晚 12:32 到)   ④ 總停損:虧 > 1.5% 且大盤寬度反向 ≥ 0.15 → 平倉
         _lo = lambda v, cap: v if 0 < v <= cap else cap
         self.ent_pct = _lo(self.ent_pct, IRON_PCT); self.force_block_pct = _lo(self.force_block_pct, IRON_PCT)
+        self.ent_fav = _lo(float(cfg.get("TRADE_ENTRY_FAV_PCT", "7") or 7), IRON_FAV)   # 2026-11-25 有利方向最遠(做多 +7%、做空 −7%)
         self.max_move = _lo(self.max_move, IRON_MOVE); self.j7_move = _lo(self.j7_move, IRON_MOVE); self.man_move = _lo(self.man_move, IRON_MOVE)
         self.j_from = max(self.j_from, IRON_FROM); self.j_to = min(self.j_to, IRON_TO_SIG); self.force_to = min(self.force_to, IRON_TO)
         # 2026-11-11 22:25 使用者「改13」:設定檔的開關不能關掉鐵律保護:元三一律接手(TRADE_Y3=0 無效)、13:20 一律強制平倉(TRADE_FORCE_EXIT 寫更晚拉回)、TRADE_JUDGES 留空 = 預設判一~七
@@ -2257,8 +2259,8 @@ class Trader:
         if not (y > 0 and last > 0): return f"還沒有{'昨收' if not y > 0 else '元大即時價'},沒辦法確認鐵律 ±{lim:g}%,不能強制{'做多' if d > 0 else '做空'}"   # 2026-11-11 16:28 鐵律檢查「改」:確認不了就不給進
         ch = (last / y - 1) * 100
         # 2026-11-25 使用者「強制進場也一樣」(同手動進場):做多只擋低於 −lim%、做空只擋高於 +lim%
-        _bad = lambda r: (r < -lim - 1e-9) if d > 0 else (r > lim + 1e-9)
-        _tx = (f"低於 −{lim:g}%,不能強制做多" if d > 0 else f"高於 +{lim:g}%,不能強制做空")
+        _bad = lambda r: self.pct_bad(d, r / 100, lim)   # 2026-11-25 統一範圍(做多 −5%~+7%、做空 −7%~+5%)
+        _tx = self.pct_txt(d, lim) + f",不能強制{'做多' if d > 0 else '做空'}"
         if _bad(ch): return f"現價 {last} 離昨收 {ch:+.1f}%({_tx})"
         try: lp = float(px) if px not in (None, "") else 0.0
         except Exception: lp = 0.0
@@ -2552,8 +2554,9 @@ class Trader:
         if lim > 0 and pck * 1000 > lim + 1e-6:
             self.log(f"[交易] 不進場 {title}:一張 {pck * 1000:,.0f} 超過多空上限 {lim:,.0f}(超額,鐵律 ⑤)"); return
         # 2026-11-11 14:17 使用者「做多做空都一樣 解鎖 全改」:現價離昨收超過 ±TRADE_ENTRY_PCT(5)% 不進
-        if self.ent_pct > 0 and ref_e > 0 and abs(last / ref_e - 1) * 100 > self.ent_pct + 1e-9:
-            self.log(f"[交易] 不進場 {title}:現價 {last} 離昨收 {ref_e} {(last / ref_e - 1) * 100:+.2f}%,超過 ±{self.ent_pct:g}%"); return
+        _d = 1 if kind == "long" else -1
+        if self.ent_pct > 0 and ref_e > 0 and self.pct_bad(_d, last / ref_e - 1, self.ent_pct):
+            self.log(f"[交易] 不進場 {title}:現價 {last} 離昨收 {ref_e} {(last / ref_e - 1) * 100:+.2f}%,{self.pct_txt(_d, self.ent_pct)}"); return
         if not ((sl_sig < last < tp_sig) if kind == "long" else (tp_sig < last < sl_sig)):   # 2026-11-08 15:57 使用者「改」:現價已經碰到停利 / 停損就不進(太晚 / 超額補進場本來就有這關)
             self.log(f"[交易] 不進場 {title}:現價 {last} 已不在停利 {tp_sig} / 停損 {sl_sig} 之間"); return
         d = 1 if kind == "long" else -1
@@ -2653,14 +2656,23 @@ class Trader:
         except Exception as ex:
             self.log(f"[交易] 留倉接回失敗 {ex!r}")
 
+    def pct_bad(self, d, r, lim=None):
+        """2026-11-25 使用者「統一定義 所有進場 做多範圍 -5%到+7% 做空範圍-7%到+5%」(程式 / 手動 / 強制進場一樣):r = 價 / 昨收 − 1;
+           做多 −lim% ~ +ent_fav%、做空 −ent_fav% ~ +lim% 以外 = 不行"""
+        lim = (self.ent_pct if lim is None else lim) / 100; fav = self.ent_fav / 100; e = 1e-11
+        return (r < -lim - e or r > fav + e) if d > 0 else (r > lim + e or r < -fav - e)
+
+    def pct_txt(self, d, lim=None):
+        lim = self.ent_pct if lim is None else lim
+        return f"做多範圍 −{lim:g}%~+{self.ent_fav:g}% 以外" if d > 0 else f"做空範圍 −{self.ent_fav:g}%~+{lim:g}% 以外"
+
     def man_pct_bad(self, d, r):
         """2026-11-25 🔓→🔒 使用者「手動進場 做多不受+5%限制 只受-5%限制 做空不受-5%限制 只受+5%限制」:手動進場鐵律 ① 只擋單邊
            做多:比昨收跌超過 ent_pct% 才擋(漲多少都可以);做空:比昨收漲超過 ent_pct% 才擋(跌多少都可以)。r = 價 / 昨收 − 1"""
-        lim = self.ent_pct / 100 + 1e-11
-        return (r < -lim) if d > 0 else (r > lim)
+        return self.pct_bad(d, r)   # 2026-11-25 改統一範圍(做多 −5%~+7%、做空 −7%~+5%)
 
     def man_pct_txt(self, d):
-        return f"手動做多低於 −{self.ent_pct:g}% 不行" if d > 0 else f"手動做空高於 +{self.ent_pct:g}% 不行"
+        return self.pct_txt(d)
 
     def man_iron_why(self, code, d, lots, price):
         """2026-11-12 11:40 手動新進場 / 加碼預掛(還沒成交)照鐵律先檢查:③ 09:30~12:30 ① 委託價離昨收 ±5% ⑤ 成交後整個部位張數分級 / 一張 25 萬 / 500 萬額度;
@@ -3104,9 +3116,9 @@ class Trader:
         px = fb_price(sig, p["dir"], self.ref_of(p["code"]) or 0, self.fb_pct)
         rf = self.ref_of(p["code"]) or 0   # 2026-11-11 22:20 使用者「不管進場部位如何 都受程式管束」:補單限價最遠到昨收 ±5%(做多往下取、做空往上取)
         if rf > 0 and self.ent_pct > 0:
-            v_ = rf * (1 + p["dir"] * self.ent_pct / 100); t_ = tick_size(v_)
+            v_ = rf * (1 + p["dir"] * self.ent_fav / 100); t_ = tick_size(v_)   # 2026-11-25 有利方向最遠 +7%(做多)/ −7%(做空)
             e_ = round(math.floor(v_ / t_ + 1e-6) * t_ if p["dir"] > 0 else math.ceil(v_ / t_ - 1e-6) * t_, 2)
-            if (p["dir"] > 0 and px > e_) or (p["dir"] < 0 and px < e_): self.log(f"[交易] {p['code']} 補單限價 {px} 超過昨收 ±{self.ent_pct:g}% → 改 {e_}"); px = e_   # 2026-11-08 16:09 使用者「改」:補單不再掛漲停 / 跌停(買方 / 賣方很少時會一路吃下去),改掛訊號價 ±1% 限價
+            if (p["dir"] > 0 and px > e_) or (p["dir"] < 0 and px < e_): self.log(f"[交易] {p['code']} 補單限價 {px} 超過昨收 {p['dir'] * self.ent_fav:+g}% → 改 {e_}"); px = e_   # 2026-11-08 16:09 使用者「改」:補單不再掛漲停 / 跌停(買方 / 賣方很少時會一路吃下去),改掛訊號價 ±1% 限價
         # 2026-11-21 使用者「全改」(檢查 輕a / T6):補單價比 IOC 高(做多往上 1%)→ 張數照補單價重算:IOC 已成交的金額 + 補單 ≤ 多空上限(鐵律 ⑤,最多 25 萬),
         #   一筆不超過上限;IOC 已成交 + 補單也不超過原本要的張數
         lim = self.cap_lim() if (self.cap > 0 or Trader.IRON_LOTS) else 0
