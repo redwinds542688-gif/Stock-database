@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-25 小手機(360×640)監控區一列只剩 24px、名稱下面的「做多中 / 做空中」被切一半:字要縮到一半以下才裝得下時不硬塞 8 列,改回一般列高(名稱、部位、持倉提示都完整,清單用捲的);電腦 / 平板 / 一般手機不變
   · 2026-11-25 持倉提示各種螢幕自動適應:電腦 / 平板 / 手機照列高把價格 + 提示放在列中間;很矮的螢幕(一列 < ~40px,例:360×640 小手機)改放在價格左邊同一行,固定位置上下對齊
   · 2026-11-25 持倉提示字被切(使用者電腦版截圖「字體被切」):電腦視窗矮、一列只有 ~45px 時,價格 + 提示整塊照列高量過再上下置中,放不下就把提示字縮小(最小 55%);視窗大小改變也重新量
   · 2026-11-24 23:50(實際時間)虛擬檢討:重寫檔(review_rebuilt)有這一天就用重寫的數字(原本只到 11/22;主導$ 照舊用元大成交);重寫檔 / 明細 / 進場紀錄 / 重算紀錄改 5 分鐘一個版本(原本 1 小時)
@@ -632,7 +633,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611250918">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611250925">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2838,6 +2839,9 @@ function fitBands(){ try{
   rows.forEach(x => { x.style.height = rowH + 'px'; x.style.removeProperty('--rk'); });
   const f = rows[0], nm = f.querySelector('.nm'), pl = f.querySelector('.posline');
   const need = (nm ? nm.offsetHeight : 0) + (pl ? pl.offsetHeight + 1 : 0);
+  /* 2026-11-25 09:23 使用者「當然要修」(360×640 小手機一列只剩 24px,名稱下面的「做多中 / 做空中」被切一半):
+     要縮到 50% 以下才裝得下 → 不硬塞 8 列,改回一般列高(名稱 + 部位完整顯示,清單用捲的) */
+  if ((rowH - 4) / need < 0.5){ r.classList.remove('rows8'); rows.forEach(x => { x.style.height = ''; x.style.removeProperty('--rk'); }); if (window.holdHintPaint) holdHintPaint(); return; }
   if (need > rowH - 4){ const rk = Math.max(.5, Math.floor((rowH - 4) / need * 100) / 100); rows.forEach(x => x.style.setProperty('--rk', rk)); }
   if (window.holdHintPaint) holdHintPaint();   // 2026-11-25 列高變了 → 持倉提示重新量(不被切)
 }catch(e){} }
