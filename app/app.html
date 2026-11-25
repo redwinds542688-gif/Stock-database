@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-25 09:29(實際時間)手動進場 / 強制進場鐵律 ① 改單邊:做多只擋低於昨收 −5%、做空只擋高於 +5%(手機強制進場按鈕 + 電腦預掛 / 成交檢查;程式自動進場照舊 ±5%)(使用者「手動進場 做多不受+5%限制 只受-5%限制 做空不受-5%限制 只受+5%限制」「強制進場也一樣」)
   · 2026-11-25 小手機(360×640)監控區一列只剩 24px、名稱下面的「做多中 / 做空中」被切一半:字要縮到一半以下才裝得下時不硬塞 8 列,改回一般列高(名稱、部位、持倉提示都完整,清單用捲的);電腦 / 平板 / 一般手機不變
   · 2026-11-25 持倉提示各種螢幕自動適應:電腦 / 平板 / 手機照列高把價格 + 提示放在列中間;很矮的螢幕(一列 < ~40px,例:360×640 小手機)改放在價格左邊同一行,固定位置上下對齊
   · 2026-11-25 持倉提示字被切(使用者電腦版截圖「字體被切」):電腦視窗矮、一列只有 ~45px 時,價格 + 提示整塊照列高量過再上下置中,放不下就把提示字縮小(最小 55%);視窗大小改變也重新量
@@ -633,7 +634,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611250925">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611250929">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2412,7 +2413,7 @@ function fmShow(o){
       if (lu) lu.addEventListener('click', () => { if (LU > 0){ px = LU; pxSet = true; paint(); } });
       if (ld) ld.addEventListener('click', () => { if (LD > 0){ px = LD; pxSet = true; paint(); } }); } }
   // 2026-11-03 13:21 使用者「加 強制進場 該股票-6.5%不做多 反之亦然」:離昨收跌超過 6.5% 不給做多、漲超過 6.5% 不給做空(電腦那邊也會擋)
-  const chg = o.y > 0 && o.z > 0 ? (o.z / o.y - 1) * 100 : 0, blockOf = d => Math.abs(chg) > 5 + 1e-9 ? `離昨收 ${chg >= 0 ? '+' : ''}${chg.toFixed(1)}%(超過 ±5%),不能強制${d > 0 ? '做多' : '做空'}` : '';   // 2026-11-11 15:36 使用者「沒有任何特殊可以例外」:多空都照 ±5%
+  const chg = o.y > 0 && o.z > 0 ? (o.z / o.y - 1) * 100 : 0, blockOf = d => (d > 0 ? chg < -5 - 1e-9 : chg > 5 + 1e-9) ? `離昨收 ${chg >= 0 ? '+' : ''}${chg.toFixed(1)}%(${d > 0 ? '低於 −5%' : '高於 +5%'}),不能強制${d > 0 ? '做多' : '做空'}` : '';   // 2026-11-25 使用者「強制進場也一樣」(同手動進場):做多只擋低於 −5%、做空只擋高於 +5%(原多空都照 ±5%)
   if (o.act === 'enter') w.querySelectorAll('.fmdir button').forEach(b => { if (blockOf(+b.dataset.d)){ b.style.opacity = '.35'; b.style.textDecoration = 'line-through'; } });
   w.querySelectorAll('.fmdir button').forEach(b => b.addEventListener('click', () => { { const why = blockOf(+b.dataset.d); if (why){ er.textContent = why; return; } } dir = +b.dataset.d; if (!pxSet && (dir > 0 ? LU : LD) > 0) px = dir > 0 ? LU : LD;   /* 沒動過價格:做多漲停、做空跌停 */ w.querySelectorAll('.fmdir button').forEach(x => x.classList.toggle('on', x === b)); er.textContent = ''; paint(); }));
   const close = () => { try{ w.remove(); }catch(e){} };
