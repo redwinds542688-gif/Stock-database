@@ -940,6 +940,7 @@ tC, gC = man_(9, 20, 50.0, 1); ok(tC.positions["2330"]["state"] == HOLDING)     
 # 2026-11-25 使用者「手動進場 做多不受+5%限制 只受-5%限制 做空不受-5%限制 只受+5%限制」
 tD, gD = man_(10, 0, 53.0, 1); ok(tD.positions["2330"]["state"] == HOLDING, tD.positions["2330"].get("exit_why"))   # 做多 +6% → 不平(原平)
 tD2, _ = man_(10, 0, 47.0, 1); ok(tD2.positions["2330"]["state"] == EXITING)                       # 做多 −6% → 平
+ok(any("做多進場 47.00" in x[0] and "1張 · 元三" in x[1] for x in tD2.posts), tD2.posts)              # 2026-11-25 台玻:違反鐵律馬上平的手動進場也要發進場卡(進場欄才看得到)
 tD3, _ = man_(10, 0, 53.0, 1, bs="S"); ok(tD3.positions["2330"]["state"] == EXITING)               # 做空 +6% → 平
 tD4, _ = man_(10, 0, 47.0, 1, bs="S"); ok(tD4.positions["2330"]["state"] == HOLDING, tD4.positions["2330"].get("exit_why"))   # 做空 −6% → 不平
 _w = lambda d, px: tD.man_iron_why("2317", d, 1, px); ok(_w(1, 53.0) == "" and "−5%" in _w(1, 47.0) and "+5%" in _w(-1, 53.0) and _w(-1, 47.0) == "", [_w(1, 53.0), _w(1, 47.0), _w(-1, 53.0), _w(-1, 47.0)])   # 預掛同一套

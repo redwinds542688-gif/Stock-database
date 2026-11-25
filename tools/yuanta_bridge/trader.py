@@ -2737,6 +2737,14 @@ class Trader:
             w = "、".join(why); code = p["code"]
             self.log(f"[交易] !! {code} 元大{what} {lots} 張 @ {price} 違反鐵律({w})→ 整個部位 {p['qty']} 張馬上平掉")
             self.alert(f"⛔ {self.name_of(code)} {code} 手動單違反鐵律,已全部平倉", f"{what} {lots} 張 @ {price}:{w}")
+            # 2026-11-25 09:36 使用者「查 台玻手動進場2次 這邊只有一次」(09:13 手動做多 1 張 @ 67.7 離昨收 +5.9% → 馬上平):違反鐵律的手動進場原本直接平掉、
+            #   沒發進場卡 → 進場欄看不到這筆(平倉卡沒有對應的進場卡)。先補發進場卡(和一般元三進場同格式),再平倉;只是顯示,平倉照舊
+            if what == "手動進場" and p.get("judge") in (MANUAL, FORCED) and not p.get("y3_posted"):
+                try:
+                    p["y3_posted"] = True; tc = self.hm(); p["y3_card"] = {"t": tc}; d = p["dir"]; tp, sl = p.get("tp") or 0, p.get("sl") or 0
+                    self.post(f"{self.name_of(code)} {code} {'做多' if d > 0 else '做空'}進場 {float(price):.2f}",
+                              f"{p.get('t0', tc)} 元大 · 停利 {tp:.2f} 停損 {sl:.2f} · {lots}張 · {p['judge']}", "long" if d > 0 else "short", t=tc)
+                except Exception as e: self.log(f"[交易] 違反鐵律的手動進場補發進場卡失敗 {e!r}")
             self.exit_pos(p, "鐵律", self.last_px.get(code, price), force_limit=True)
             return True
         except Exception as e:
