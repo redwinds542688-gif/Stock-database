@@ -1207,7 +1207,7 @@ tm_._mt_test = True; ok(not tm_.mt_px_hit(pm_, 245.0, -1, pm_["entry"]))   # 原
 ok(tm_.mt_px_hit(pm_, 247.0, -1, pm_["entry"]))
 # 2026-11-24 持倉提示:三條出場線分開給,最反向那條 = exit_px;positions_view 帶得出來
 xl_ = tm_.exit_lines(pm_); ok(abs(xl_["sl"] - pm_["sl"]) < 1e-6 and abs(xl_["mt"] - 239.75 * 1.03) < 1e-3 and abs(min(xl_.values()) - tm_.exit_px(pm_)) < 1e-3, xl_)
-pv_ = [q for q in tm_.positions_view() if q["code"] == "2603"][0]; ok(pv_["xl"] == xl_ and "bxe" in pv_ and "br0" in pv_, pv_)
+pv_ = [q for q in tm_.positions_view() if q["code"] == "2603"][0]; ok(pv_["xl"] == xl_ and "bxe" in pv_ and "br0" in pv_ and pv_["ph"] is False, pv_)
 # 2026-11-24 改鐵律:真實部位的元大成交均價記到 real_ent.json(給引擎算總平);加碼後均價跟著改、成交時間留第一次;手動 / 強制不記
 _rj = _js.loads(tm_.re_file.read_text(encoding="utf-8")); _rl = list(_rj.values())[0]["2603"]; _rd = _rl[0]
 ok(len(_rl) == 1 and _rd["d"] == -1 and abs(_rd["e"] - 239.75) < 1e-6 and _rd["j"] == "判四" and _rd["t"] == "10:05", _rl)

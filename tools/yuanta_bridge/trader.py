@@ -2355,7 +2355,7 @@ class Trader:
         with self.lock:
             return [{"code": p["code"], "dir": p["dir"], "qty": p["qty"], "entry": round(p["entry"], 2), "judge": p["judge"], "state": p["state"],
                      "tp": p["tp"], "sl": p["sl"], "t0": p.get("t0", ""), "xp": self.exit_px(p),
-                     "xl": self.exit_lines(p), "br0": p.get("br0"), "brn": self._br[1] if hasattr(self, "_br") else None, "bxl": self.brx_l, "bxe": self.brx_e} for p in self.positions.values()]   # 2026-11-24 持倉提示(續抱 / 小心 / 反轉 / 快平)用:三條出場線分開給 + 總平的寬度,只是顯示
+                     "xl": self.exit_lines(p), "br0": p.get("br0"), "brn": self._br[1] if hasattr(self, "_br") else None, "bxl": self.brx_l, "bxe": self.brx_e, "ph": bool(self.prehang.get(p["code"]))} for p in self.positions.values()]   # 2026-11-25 11:36 使用者「一般應該顯示 預贖」:有手動預掛的平倉單還沒成交 → ph,手機平倉卡標「預贖」   # 2026-11-24 持倉提示(續抱 / 小心 / 反轉 / 快平)用:三條出場線分開給 + 總平的寬度,只是顯示
 
     def exit_lines(self, p):
         """2026-11-24 持倉提示用:停損 sl / 移平 mt / 強平 fx 三條線分開給手機(和 exit_px 同一套算法,只是顯示,不改任何平倉判斷)"""
