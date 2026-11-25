@@ -654,6 +654,7 @@ class Trader:
                         if ps_ > 0: p["px_sig"] = ps_; p["tp_sig"], p["sl_sig"] = tp or None, sl or None
                         if "判新" in (body or ""): p["sub"] = "三2"
                         elif "極端" in (body or ""): p["sub"] = "七2"
+                        elif "空 大跌" in (body or ""): p["sub"] = "七3"
                         if ps_ > 0 and avg > 0: self.sig_rebase(p, avg)
                         mb_ = RE_BAR.match(body or "")
                         if mb_: p["t_sig"] = mb_.group(1).zfill(5)
@@ -2584,6 +2585,7 @@ class Trader:
         p["tp_sig"], p["sl_sig"] = tp_sig, sl_sig                  # 2026-11-23 停利 / 停損照成交均價重算用(sig_rebase)
         if "判新" in (body or ""): p["sub"] = "三2"                  # 2026-11-24 判三第二套(判新)/ 判七第二套(極端日):標記,沒走等判三 / 判七專屬規則不套
         elif "極端" in (body or ""): p["sub"] = "七2"
+        elif "空 大跌" in (body or ""): p["sub"] = "七3"   # 2026-11-25 判七第三套(大跌日順勢空)
         p["no_max_move"] = False   # 2026-11-11 14:17 使用者「全改」:假突破空單也套 ±6.5%(進場已限 ±5%)   # 原 "✓破" in body   # 2026-10-28 使用者選「元大那邊對假突破空單不套 6.5%」:判三「假突破跌破 Ka 空」(通知帶「空✓破」)常在離昨收 +6.5% 以上才進場,不套 ±6.5% 強制平倉(停利 / 停損 / 13:20 / 手機平倉通知照舊)
         if ekey:
             self.entered_keys.add(ekey); self.save_state()      # 2026-10-29 稽核 #3:送單就記(沒成交也不再追同一個訊號)

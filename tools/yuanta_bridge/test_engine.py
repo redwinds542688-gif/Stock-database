@@ -202,3 +202,10 @@ finally:
     E.pool_rules, E.stock_ok, E.extra_codes = _sv
 print("計算順序照張數 OK")
 print("test_engine 全部 OK")
+# 2026-11-25 七3(判七第三套「大跌日順勢空」):解析進場行、內文「空 大跌」、自訂出場、雲端對回 七3
+_ev73 = E.parse_events("  10:09 判七3(大跌日) 加權 -2.80%、股 -3.00%、離今高 −4.00% → 進場空 97.00 ×2張\n  10:30 停利 出 93.10", "七3")
+assert _ev73[0][1] == "entry" and _ev73[0][2]["text"] == "空 大跌" and _ev73[0][2]["px"] == 97.0 and "大跌日" in _ev73[0][2]["note"], _ev73
+assert "七3" in E.RS_ALL and E.JUDGE["七3"] == "判七" and "七3" in E.CUSTOM_EXIT_RS and E.RS_OF["判七"] == "七"
+assert not E.parse_events("  10:09 判七2(極端日) 加權 +5.4% → 進場空 18.80 ×13張", "七3")[0][2]["text"].endswith("大跌")
+print("七3 解析 OK")
+
