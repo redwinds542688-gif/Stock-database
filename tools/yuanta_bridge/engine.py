@@ -2091,6 +2091,14 @@ class Engine:
            盤中引擎照發進場(11/23 多發 7 筆、11/18 1 筆)。進場前補檢查,判斷用私人庫 rs_env.txfromlo / txlonglo(模擬器同一份);沒載入 / 出錯 → 不發"""
         if not self._tx_ok0(rs, code, tm, side): return False
         e = self.envs.get(rs, {})
+        _th = float(e.get("TXRELS") or 0) if side < 0 and float(e.get("TXRELS") or 0) > 0 else float(e.get("TXREL") or 0)
+        if not e.get("TXSYNC") and _th > 0:   # 2026-11-25 18:33 七3 ⑧ 方向(TXSYNC)不套、強弱照套(使用者「解鎖 改」;手機 txSyncOk 照跑 txRelOk):沒有 TXSYNC 的 _tx_ok0 不看強弱 → 這裡補
+            _rf = getattr(self, "txrel_fn", None)
+            if not _rf: log(f"{JUDGE[rs]} {code} {tm} ⑧ 強弱判斷程式沒載入 → 不發"); return False
+            try:
+                _tp, _ip = self.txrel_prev(); ok, why = _rf(side, tm, self.txf_map(), self.ix_map(), _tp, _ip, _th)
+            except Exception as ex: log("⑧ 強弱檢查失敗 → 不發", ex); return False
+            if not ok: log(f"{JUDGE[rs]} {code} {tm} {why} → 不發"); return False
         for key, fnm, on in (("TXFROMLO", "txfromlo", side < 0), ("TXLONGLO", "txlonglo", side > 0)):
             th = e.get(key)
             if not (on and th): continue
