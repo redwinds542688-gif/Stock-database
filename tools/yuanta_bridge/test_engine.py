@@ -208,4 +208,9 @@ assert _ev73[0][1] == "entry" and _ev73[0][2]["text"] == "空 大跌" and _ev73[
 assert "七3" in E.RS_ALL and E.JUDGE["七3"] == "判七" and "七3" in E.CUSTOM_EXIT_RS and E.RS_OF["判七"] == "七"
 assert not E.parse_events("  10:09 判七2(極端日) 加權 +5.4% → 進場空 18.80 ×13張", "七3")[0][2]["text"].endswith("大跌")
 print("七3 解析 OK")
+# 2026-11-25 六4(判六第四套「恐慌反轉翻紅做多」)
+_ev64 = E.parse_events("  09:34 判六4(恐慌翻紅) 加權今低 -8.99%、反彈 1.74%、股今低 -10.00%、現 +1.48% → 進場多 23.95 ×10張\n  13:20 13:20 強制平倉 出 25.95", "六4")
+assert _ev64[0][1] == "entry" and _ev64[0][2]["side"] == 1 and _ev64[0][2]["text"] == "多 恐慌翻紅" and _ev64[0][2]["px"] == 23.95, _ev64
+assert "六4" in E.RS_ALL and E.JUDGE["六4"] == "判六" and "六4" in E.CUSTOM_EXIT_RS and E.RS_OF["判六"] == "六"
+print("六4 解析 OK")
 

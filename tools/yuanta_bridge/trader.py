@@ -655,6 +655,7 @@ class Trader:
                         if "判新" in (body or ""): p["sub"] = "三2"
                         elif "極端" in (body or ""): p["sub"] = "七2"
                         elif "空 大跌" in (body or ""): p["sub"] = "七3"
+                        elif "恐慌翻紅" in (body or ""): p["sub"] = "六4"
                         if ps_ > 0 and avg > 0: self.sig_rebase(p, avg)
                         mb_ = RE_BAR.match(body or "")
                         if mb_: p["t_sig"] = mb_.group(1).zfill(5)
@@ -1324,7 +1325,7 @@ class Trader:
             mm = self.man_move if man else self.j7_move if p.get("judge") in ("判七", "判四", "判五") and self.j7_move > 0 else self.max_move   # 2026-11-09 15:43 判七第一次修改(使用者「解鎖改」):判七空單漲到昨收 +8% 才強平(其他判別式照舊 ±6.5%)
             hit_mv = (man or not p.get("no_max_move")) and ref > 0 and mm > 0 and ((price <= ref * (1 - mm / 100)) if d > 0 else (price >= ref * (1 + mm / 100)))
             hit_br = False; hit_mt = False
-            if self.mtsl > 0 and not (hit_tp or hit_sl or hit_mv):   # 2026-11-11 19:50 鐵律 ⑥ 移動停損利;20:25 使用者「123478改」② 所有部位都由中繼即時盯一份(判別式部位引擎也會推平倉通知,誰先到誰平)
+            if self.mtsl > 0 and p.get("sub") != "六4" and not (hit_tp or hit_sl or hit_mv):   # 2026-11-25 六4 不套 ⑥(使用者「六4 解鎖 改」:抱到 13:20)   # 2026-11-11 19:50 鐵律 ⑥ 移動停損利;20:25 使用者「123478改」② 所有部位都由中繼即時盯一份(判別式部位引擎也會推平倉通知,誰先到誰平)
                 hit_mt = self.mt_px_hit(p, price, d, p.get("entry"))   # 2026-11-13 02:37 鐵律 ⑥ 改用股價(使用者「解鎖 改」)
             if self.brx_l > 0 and not (hit_tp or hit_sl or hit_mv) and p.get("entry"):   # 2026-11-11 19:16 總停損;20:25 ② 所有部位都由中繼即時盯一份
                 if p.get("br0") is None:
@@ -2586,6 +2587,7 @@ class Trader:
         if "判新" in (body or ""): p["sub"] = "三2"                  # 2026-11-24 判三第二套(判新)/ 判七第二套(極端日):標記,沒走等判三 / 判七專屬規則不套
         elif "極端" in (body or ""): p["sub"] = "七2"
         elif "空 大跌" in (body or ""): p["sub"] = "七3"   # 2026-11-25 判七第三套(大跌日順勢空)
+        elif "恐慌翻紅" in (body or ""): p["sub"] = "六4"   # 2026-11-25 判六第四套(恐慌反轉翻紅做多):⑥ 移平不套
         p["no_max_move"] = False   # 2026-11-11 14:17 使用者「全改」:假突破空單也套 ±6.5%(進場已限 ±5%)   # 原 "✓破" in body   # 2026-10-28 使用者選「元大那邊對假突破空單不套 6.5%」:判三「假突破跌破 Ka 空」(通知帶「空✓破」)常在離昨收 +6.5% 以上才進場,不套 ±6.5% 強制平倉(停利 / 停損 / 13:20 / 手機平倉通知照舊)
         if ekey:
             self.entered_keys.add(ekey); self.save_state()      # 2026-10-29 稽核 #3:送單就記(沒成交也不再追同一個訊號)
@@ -2853,7 +2855,7 @@ class Trader:
         try:
             d = p["dir"]; ref = self.ref_of(code) or p.get("ref") or 0; mm = self.man_move if self.man_move > 0 else self.max_move
             if ref > 0 and mm > 0 and ((price <= ref * (1 - mm / 100)) if d > 0 else (price >= ref * (1 + mm / 100))): return f"超{mm:g}%"
-            if self.mtsl > 0 and self.mt_px_hit(p, price, d, avg): return "移平"   # 2026-11-13 02:37 ⑥ 改用股價
+            if self.mtsl > 0 and p.get("sub") != "六4" and self.mt_px_hit(p, price, d, avg): return "移平"   # 2026-11-13 02:37 ⑥ 改用股價(六4 不套)
             if self.brx_l > 0 and avg > 0:
                 if p.get("br0") is None: p["br0"] = self.br_now()
                 if p.get("br0") is not None and (avg - price) / avg * 100 * d > self.brx_l + 1e-9:
