@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-25 持倉提示字被切(使用者電腦版截圖「字體被切」):電腦視窗矮、一列只有 ~45px 時,價格 + 提示整塊照列高量過再上下置中,放不下就把提示字縮小(最小 55%);視窗大小改變也重新量
   · 2026-11-24 23:50(實際時間)虛擬檢討:重寫檔(review_rebuilt)有這一天就用重寫的數字(原本只到 11/22;主導$ 照舊用元大成交);重寫檔 / 明細 / 進場紀錄 / 重算紀錄改 5 分鐘一個版本(原本 1 小時)
   · 2026-11-24 23:33(實際時間)電腦引擎接上判三第二套(三2「判新」)和判七第二套(七2「極端日做空」):各自獨立,開關跟判三 / 判七,通知內文帶「判新」/「空 極端」;收盤檢討 0 筆也推(App 檢討不再停在前一天)
   · 2026-11-24 虛擬的「今天」收盤後直接用重寫紀錄(使用者「改 就是要顯示」:虛擬點判七是空的,今晚重寫的 11/24 判七 16 則看不到);虛擬 = 看盤版、設定選虛擬、或明細切虛擬;盤中與元大照舊看真的通知。另修:最上面那天換了時日期框跟著回到那天(原本會停在舊日期)
@@ -630,7 +631,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611242350">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611250911">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2836,6 +2837,7 @@ function fitBands(){ try{
   const f = rows[0], nm = f.querySelector('.nm'), pl = f.querySelector('.posline');
   const need = (nm ? nm.offsetHeight : 0) + (pl ? pl.offsetHeight + 1 : 0);
   if (need > rowH - 4){ const rk = Math.max(.5, Math.floor((rowH - 4) / need * 100) / 100); rows.forEach(x => x.style.setProperty('--rk', rk)); }
+  if (window.holdHintPaint) holdHintPaint();   // 2026-11-25 列高變了 → 持倉提示重新量(不被切)
 }catch(e){} }
 window.fitBands = fitBands;
 
@@ -4977,9 +4979,21 @@ function holdHintPaint(){ try{ document.querySelectorAll('#bands .row').forEach(
     row.classList.toggle('hh', !!h);
     if (!h){ if (old) old.remove(); return; }
     const c = 'hn h' + h.k, t = HINT_T[h.k]; if (old){ if (old.className !== c) old.className = c; if (old.textContent !== t) old.textContent = t; old.title = h.w; }
-    else px.insertAdjacentHTML('beforeend', hintTag(row.dataset.code)); }); }catch(e){} }
+    else px.insertAdjacentHTML('beforeend', hintTag(row.dataset.code));
+    hintFit(row, px); }); }catch(e){} }
+/* 2026-11-25 09:08 使用者(電腦版截圖)「字體被切」:電腦視窗矮時一列只有 ~45px,價格 + 提示放不下、提示下半截被列切掉 →
+   量一下:超出列底就先把價格往上挪(最多挪到列頂),還不夠再把提示字縮小(最小 55%) */
+function hintFit(row, px){ try{ const hn = px.querySelector('.hn'), pv = px.querySelector('.pxv'); px.style.top = ''; if (!hn || !pv) return; hn.style.fontSize = ''; hn.style.marginTop = '';
+  const R = row.getBoundingClientRect(); if (!R.height) return;
+  let P = pv.getBoundingClientRect(); const gl = P.height * 0.16;   // 價格框上下各有一點行距(字本身比框小):提示往上貼到字底,位置用字頂算
+  hn.style.marginTop = (1 - gl).toFixed(1) + 'px';
+  let H = hn.getBoundingClientRect(), need = H.bottom - (P.top + gl); const room = R.height - 3;
+  if (need > room){ const k = Math.max(.55, 1 - (need - room) / H.height); hn.style.fontSize = (0.6 * k).toFixed(3) + 'em'; P = pv.getBoundingClientRect(); H = hn.getBoundingClientRect(); need = H.bottom - (P.top + gl); }
+  const top0 = parseFloat(getComputedStyle(px).top) || 0, want = R.top + 1.5 + Math.max(0, (room - need) / 2);   // 價格字頂 ~ 提示底 整塊在這一列上下置中
+  px.style.top = (top0 + want - (P.top + gl)).toFixed(1) + 'px'; }catch(e){} }
+let hintRz = 0; window.addEventListener('resize', () => { clearTimeout(hintRz); hintRz = setTimeout(holdHintPaint, 250); });
 setTimeout(holdHintCalc, 4000); setInterval(holdHintCalc, 20000);
-window.HINT = HINT; window.holdHintOne = holdHintOne; window.holdHintCalc = holdHintCalc;
+window.HINT = HINT; window.holdHintOne = holdHintOne; window.holdHintCalc = holdHintCalc; window.holdHintPaint = holdHintPaint;
 setInterval(() => { try{ document.querySelectorAll('#notifLog .xpx').forEach(e => { const h = xpCell(e.dataset.c); if (e.innerHTML !== h) e.innerHTML = h; }); }catch(e){} }, 3000);
 setInterval(() => { try{ document.querySelectorAll('#notifLog .nowp').forEach(e => { const z = +(((LIVE.get(e.dataset.c) || {}).z) || 0); if (z > 0){ const t = z.toFixed(2); if (e.textContent !== t) e.textContent = t; } }); }catch(e){} }, 3000);   // 2026-11-10 進場卡「現」跟報價更新
 window.__needlesNow = () => { try{ document.querySelectorAll('#bands .row').forEach(row => rowNeedle(row, LIVE.get(row.dataset.code))); }catch(e){} };
