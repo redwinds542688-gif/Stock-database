@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-25 進場欄:同一檔同一判別式連兩筆交易的第二張平倉卡不再被當成重複丟掉(台玻 09:07 移平後 09:13 又手動進場被鐵律平,第二筆看不到)→ 只丟內容一模一樣的平倉卡;同一分鐘進場又平倉時平倉卡排上面
   · 2026-11-25 中繼:違反鐵律、接起來馬上平掉的手動進場也先發進場卡(使用者「台玻手動進場 2 次 這邊只有一次」:09:13 手動做多 1 張 @ 67.7 被鐵律平掉,原本沒發進場卡、進場欄看不到);平倉照舊
   · 2026-11-25 09:29(實際時間)手動進場 / 強制進場鐵律 ① 改單邊:做多只擋低於昨收 −5%、做空只擋高於 +5%(手機強制進場按鈕 + 電腦預掛 / 成交檢查;程式自動進場照舊 ±5%)(使用者「手動進場 做多不受+5%限制 只受-5%限制 做空不受-5%限制 只受+5%限制」「強制進場也一樣」)
   · 2026-11-25 小手機(360×640)監控區一列只剩 24px、名稱下面的「做多中 / 做空中」被切一半:字要縮到一半以下才裝得下時不硬塞 8 列,改回一般列高(名稱、部位、持倉提示都完整,清單用捲的);電腦 / 平板 / 一般手機不變
@@ -635,7 +636,7 @@
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611250937">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611250947">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -8477,7 +8478,8 @@ window.bgTick = bgTick; window.BG = BG;
     for (const x of asc){ const k = cloudLogKey(Object.assign({}, x, {t: ''})) + (/預掛/.test(x.title || '') ? '|' + x.title + '|' + String(x.body || '').replace(/^\d\d:\d\d\s*/, '') : ''), m = mm_(x.t), p = last.get(k);   /* 2026-11-18 09:54 使用者「0936版 監控預掛還在 富喬」:三張預掛取消卡標題都是「富喬 1815 預掛已取消」→ 被當成同一則,10 分鐘內只留第一張(09:24),118.5 / 119.5 的取消卡被丟掉;預掛卡加上內容(方向 / 張數 / 價)一起比 */
       if (p != null && m >= 0 && m - p <= 10){ drop.add(x); continue; } last.set(k, m); }
     const res = drop.size ? out.filter(x => !drop.has(x)) : out;
-    return res.sort((a, b) => (b.t || '').localeCompare(a.t || ''));   // 新的在前(同一分鐘的維持原本順序)
+    const xr_ = x => /^(exit|profit|loss)$/.test(x.kind || '') ? 0 : 1;   // 2026-11-25 同一分鐘進場又平倉(台玻 09:13 手動進場被鐵律馬上平):平倉卡排在進場卡上面(比較新)
+    return res.sort((a, b) => (b.t || '').localeCompare(a.t || '') || xr_(a) - xr_(b));   // 新的在前(同一分鐘的維持原本順序)
   }
   /* 2026-11-07 00:48 使用者「燈號不對 今天金額才20112」:重算紀錄(app/log_backfill.json)被重寫回「含超額、全部訊號」版(11/06 有 10 筆,明細的額度版只有 9 筆)
      → 進場、燈號跟明細對不起來。改成手機自己對:有額度版明細(bt_fill)的日子,進場只留明細那幾筆的進場 + 出場,張數照額度(以後不管紀錄怎麼重寫都一致) */
@@ -8619,7 +8621,7 @@ window.bgTick = bgTick; window.BG = BG;
     { const keep = []; const seenExit = new Map();   // key = code|rs → 已經有一張平倉卡
       for (let k = cards.length - 1; k >= 0; k--){ const o = cards[k]; const kk = o.code + '|' + (o.rs || '');
         if (o.type === 'entry'){ seenExit.delete(kk); keep.push(o); continue; }
-        if (o.type === 'exit'){ if (seenExit.has(kk)) continue; seenExit.set(kk, true); }
+        if (o.type === 'exit'){ const ek = kk + '|' + String((o.x && o.x.body) || '').replace(/^\d\d:\d\d\s*/, ''); if (seenExit.has(ek)) continue; seenExit.set(ek, true); }   /* 2026-11-25 09:42 使用者「要改可以看到」(台玻第二筆平倉卡被當成重複丟掉):只丟內容一模一樣的平倉卡 */
         keep.push(o); }
       keep.reverse(); cards.length = 0; cards.push(...keep); }
     fillEnt(cards);
@@ -8772,7 +8774,7 @@ window.bgTick = bgTick; window.BG = BG;
       const keep = []; const seenExit = new Map();
       for (let k = a.length - 1; k >= 0; k--){ const o = a[k]; const kk = o.code + '|' + (o.rs || '');
         if (o.type === 'entry'){ seenExit.delete(kk); keep.push(o); continue; }
-        if (o.type === 'exit' && !(o.x && o.x.bt)){ if (seenExit.has(kk)) continue; seenExit.set(kk, true); }   /* 2026-11-03 16:15 重算的虛擬交易每筆都是獨立一趟(10/13 台塑判二做了兩趟),不併 */
+        if (o.type === 'exit' && !(o.x && o.x.bt)){ const ek = kk + '|' + String((o.x && o.x.body) || '').replace(/^\d\d:\d\d\s*/, ''); if (seenExit.has(ek)) continue; seenExit.set(ek, true); }   /* 2026-11-25 09:42 使用者「要改可以看到」(台玻 09:07 移平平倉後 09:13 又手動進場、被鐵律平掉:第二張平倉卡跟第一張同檔同判別式、中間沒有進場卡 → 被當成重複的平倉卡丟掉):只丟內容一模一樣的(真的重複),不同筆交易的平倉卡都留著 */   /* 2026-11-03 16:15 重算的虛擬交易每筆都是獨立一趟(10/13 台塑判二做了兩趟),不併 */
         keep.push(o); }
       return fillEnt(keep.reverse()); };
     const RSL = window.LOG_RS ? [window.LOG_RS] : ['判一', '判二', '判三', '判四', '判五'];
