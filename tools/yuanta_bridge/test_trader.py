@@ -1752,4 +1752,13 @@ at(9, 40); t64, g64 = mk(TRADE_CAP="250000"); t64._mt_test = True; t64.ref_of = 
 t64.step([sig("09:35:6443|元晶|判六", "long", "元晶 6443 做多進場 23.95", "09:34 多 恐慌翻紅 · 停利 26.30 停損 23.45 · 10張 · 恐慌翻紅 加權今低 -8.99% · 判六")])
 p64 = t64.positions["6443"]; ok(p64.get("sub") == "六4", p64); t64.on_report(51, p64["order"]["no"], 0, 10000, 23.95); ok(p64["state"] == HOLDING)
 at(10, 30); t64.on_tick("6443", 25.9); t64.on_tick("6443", 24.95); ok(p64["state"] == HOLDING, "六4 從 25.9 回落 3.7% 不移平", p64.get("exit_why"))
+# 2026-11-26 富喬 1815:名單外手動空單一開始沒有昨收(② 沒作用),中繼補上昨收後下一個 tick 就照 ② 平
+at(11, 2); tF, gF = mk(TRADE_CAP="250000"); REF = [None]; tF.ref_of = lambda c: REF[0]; tF.on_tick("1815", 107.0)
+tF.on_report(51, "MF1", 0, 2000, 107.0, basket="", code="1815", bs="S"); pF = tF.positions["1815"]; ok(pF["state"] == HOLDING, pF)
+at(11, 47); tF.on_tick("1815", 108.5); ok(pF["state"] == HOLDING, "沒有昨收時 ② 沒作用(原狀)")
+REF[0] = 101.5; tF.on_tick("1815", 108.5); ok(pF["state"] == EXITING, pF.get("exit_why"))   # 昨收補上:① 成交價 107 = +5.4%(做空上限 +5%)補檢查 → 平(② 也碰到)
+at(11, 2); tG, _ = mk(TRADE_CAP="250000"); REF2 = [None]; tG.ref_of = lambda c: REF2[0]; tG.on_tick("1815", 105.0)
+tG.on_report(51, "MG1", 0, 2000, 105.0, basket="", code="1815", bs="S"); pG = tG.positions["1815"]; ok(pG["state"] == HOLDING)
+REF2[0] = 101.5; tG.on_tick("1815", 105.5); ok(pG["state"] == HOLDING, "105 = +3.4% 在範圍內不平", pG.get("exit_why"))
+tG.on_tick("1815", 108.2); ok(pG["state"] == EXITING and "6.5" in str(pG.get("exit_why")), pG.get("exit_why"))   # ② 昨收 +6.5% = 108.1
 print("七2 / 三2 / 七3 / 六4 標記 OK")

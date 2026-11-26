@@ -1316,6 +1316,9 @@ class Trader:
             hit_tp = p["tp"] > 0 and ((price >= p["tp"]) if d > 0 else (price <= p["tp"]))
             hit_sl = p["sl"] > 0 and ((price <= p["sl"]) if d > 0 else (price >= p["sl"]))
             ref = self.ref_of(code) or p.get("ref") or 0             # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 3:先用元大 / 電腦的昨收,手機帶來的只在電腦沒有時用(原:強三先用手機的)
+            if ref and p.get("_iron_retry"):   # 2026-11-26 昨收補上了 → 補做手動 / 強制進場的 ① 檢查(違反就整個平)
+                _ir = p.pop("_iron_retry")
+                if self.iron_manual(p, _ir["px"], _ir["lots"], _ir["what"], fills=_ir.get("fills")): return
             if not ref and not p.get("ref_warned"):
                 p["ref_warned"] = True; self.log(f"[交易] !! {code} 沒有昨收,±{self.max_move:g}% 保護這檔暫時沒作用")
                 if p.get("forced"): self.alert(f"⚠ {code} 沒有昨收", f"±{self.max_move:g}% 保護暫時沒作用,停利 / 停損 / 13:20 照常")
@@ -2745,6 +2748,8 @@ class Trader:
                     m_ = minutes_of(t_) if t_ else None
                     fl.append((f"{m_ // 60:02d}:{m_ % 60:02d}" if m_ is not None else None, float(px_ or 0)))
             # 2026-11-16 12:30 🔓→🔒 使用者「手動進場 鐵律3,5,不能管 解鎖改」:手動進場不檢查 ③ 時間、⑤(一張 25 萬上限 / 分級張數 / 500 萬額度),只剩 ① ±5%;進場後元三管理照舊、金額照算進 500 萬
+            if not ref > 0 and not p.get("_iron_retry"):   # 2026-11-26 富喬:名單外股票成交當下還沒有昨收 → ① 先記著,昨收補上後(on_tick)再檢查一次
+                p["_iron_retry"] = {"px": price, "lots": lots, "what": what, "fills": fills}; self.log(f"[交易] {p['code']} {what}:還沒有昨收,① 等昨收補上再檢查")
             ex = self.mon_excluded(p["code"], price) if p.get("judge") == MANUAL else ""
             if ex: why.append(f"被監控排除({ex})")
             bad_p = [px_ for _, px_ in fl if ref > 0 and px_ > 0 and self.man_pct_bad(p["dir"], px_ / ref - 1)]   # 2026-11-25 手動進場 / 強制進場(使用者「強制進場也一樣」)同一套單邊

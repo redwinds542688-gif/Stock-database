@@ -1272,7 +1272,32 @@ class Bridge:
             self.codes.append((code, mkt)); self.pending_sub.append((code, mkt)); log(f"[交易] {code} 不在名單上 → 補訂閱逐筆")
             if CFG.get("EXTRA_ADD", "1") == "1" and "09:00" <= now_tw().strftime("%H:%M") < "13:25":
                 threading.Thread(target=self.extra_add, args=(code, mkt), daemon=True).start()
+        if not (self.quotes.meta.get(code) or {}).get("y"): threading.Thread(target=self.ensure_ref, args=(code,), daemon=True).start()   # 2026-11-26 富喬:名單外持倉沒有昨收 → ② ±6.5% 沒作用
         return str(mkt)
+
+    def ensure_ref(self, code):
+        """2026-11-26 判別式聊天轉使用者「不管手動 強制 程式自己進場 都要改好」(富喬 1815 手動空單過昨收 +6.5% 沒平:名單外 / 注意股臨時訂閱,報價沒有昨收 → 鐵律 ② 沒作用):
+           昨收先問證交所即時行情(mis.twse getStockInfo 的 y,上市 / 上櫃都試),拿到馬上寫進報價(trader.ref_of 讀這裡);元大清盤參考價之後來了會蓋過。同一檔 60 秒內只問一次"""
+        try:
+            if (self.quotes.meta.get(code) or {}).get("y"): return True
+            last = self.__dict__.setdefault("_ref_try", {})
+            if time.time() - last.get(code, 0) < 60: return False
+            last[code] = time.time()
+            for ex in ("tse", "otc"):
+                try:
+                    u = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={ex}_{code}.tw&json=1&delay=0&_={int(time.time() * 1000)}"
+                    r = json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://mis.twse.com.tw/stock/index.jsp"}), timeout=5).read().decode("utf-8"))
+                    a = (r.get("msgArray") or [{}])[0]; y = float(a.get("y") or 0)
+                except Exception: y = 0.0
+                if y > 0:
+                    with self.quotes.lock:
+                        m = self.quotes.meta.setdefault(code, {"n": "", "ex": ex, "y": None})
+                        if not m.get("y"): m["y"] = y
+                        if not m.get("n") and a.get("n"): m["n"] = str(a["n"])
+                    log(f"[交易] {code} 昨收補上 {y}(證交所即時行情)→ ② ±6.5% 開始作用"); return True
+            log(f"[交易] !! {code} 證交所也查不到昨收,1 分鐘後再試")
+        except Exception as e: log("補昨收失敗", e)
+        return False
 
     def kline_query(self, code, mkt, day):
         """用中繼這條已登入的連線查元大 1 分 K(day = YYYY-MM-DD);回傳 [(YYYY-MM-DD, HH:MM, o, h, l, c, 股數)]"""
@@ -2544,6 +2569,12 @@ class Bridge:
                 #   盤中(09:01~13:24,開盤前試撮和 13:25 收盤集合競價本來就沒有逐筆)連續 TICK_WATCH 秒(預設 60)一筆逐筆都沒有 → 當作斷線,重新登入、重新訂閱;
                 #   重連後還是沒有,每次間隔拉長(60 → 120 → 240 秒,最多 5 分鐘),避免一直登入被元大鎖;第一次和每第 3 次發手機提醒
                 hm_w = now_tw().strftime("%H:%M")
+                if "08:45" <= hm_w <= "13:30" and self.trader and time.time() - getattr(self, '_refchk_at', 0) >= 30:   # 2026-11-26 每 30 秒:任何持倉(手動 / 強制 / 程式 / 留倉)沒有昨收 → 補
+                    self._refchk_at = time.time()
+                    try:
+                        for c in [p["code"] for p in list(self.trader.positions.values()) if p.get("qty")]:
+                            if not (self.quotes.meta.get(c) or {}).get("y"): threading.Thread(target=self.ensure_ref, args=(c,), daemon=True).start()
+                    except Exception as e: log("持倉昨收檢查失敗", e)
                 if "09:00" <= hm_w <= "13:36" and time.time() - getattr(self, '_bk_at', 0) >= 60:   # 2026-11-12 20:22 使用者「改」:每分鐘把電腦關鍵資料備份到雲端(背景,不卡主迴圈)
                     self._bk_at = time.time(); threading.Thread(target=self.pc_backup, args=(day,), daemon=True).start()
                 # 2026-11-21 使用者「全改」(輕微項,休市日):連上 10 分鐘以上、09:10 了還一筆逐筆都沒有 → 多半是休市(颱風假、清單沒列到的休市日)或訂閱整個沒成功,
