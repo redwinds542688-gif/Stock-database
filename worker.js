@@ -893,6 +893,26 @@ function legsFix(legs) {
     return out.sort((a, b) => sec(b.t) - sec(a.t));
   } catch (e) { return legs; }
 }
+// 2026-11-26 13:49 使用者「改」:以前存進 D1 trades 的明細也是 12 小時制錯配 → 一次性就地重新配對(只動 trades 表;R2 原始檔、AI 檢討不動,不重跑 AI)
+//   做完記 Hub fix:legs12,之後不再做;沒有 12 小時制時間的日子不碰
+async function d1LegsFix(env) {
+  const hub = hubOf(env); let st = null; try { st = await hub.kvGet("fix:legs12"); } catch (e) { return; }
+  if (st && st.done) return st;
+  const DB = env.DB, out = { done: false, days: [], at: new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 19) };
+  let ds = []; try { ds = ((await DB.prepare("SELECT DISTINCT d FROM trades WHERE t LIKE '%午%' OR t0 LIKE '%午%' OR t LIKE '%M %' OR t0 LIKE '%M %'").all()).results || []).map(r => r.d); }
+  catch (e) { out.err = String(e).slice(0, 160); out.done = /no such table/i.test(String(e)); await hub.kvPut("fix:legs12", out); return out; }
+  for (const d of ds) {
+    const rows = (await DB.prepare("SELECT * FROM trades WHERE d = ?").bind(d).all()).results || [];
+    const fixed = legsFix(rows.map(r => ({ code: r.code, name: r.name, dir: r.dir, t0: r.t0, t: r.t, ent: +r.ent, ex: +r.ex, lots: +r.lots, gross: +r.gross, fee: +r.fee, tax: +r.tax, net: +r.net })));
+    if (!Array.isArray(fixed) || fixed === rows || !fixed.length) continue;
+    const n0 = rows.reduce((a, r) => a + (+r.net || 0), 0), n1 = fixed.reduce((a, g) => a + (+g.net || 0), 0);
+    if (Math.abs(n0 - n1) > 2) { out.days.push({ d, skip: `總淨額對不上 ${n0}→${n1}` }); continue; }   // 有沒配完的(留倉)就不動,寧可不改
+    const P = (q, ...a) => DB.prepare(q).bind(...a), stt = [P("DELETE FROM trades WHERE d = ?", d)];
+    for (const g of fixed) stt.push(P("INSERT INTO trades VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", d, String(g.code || ""), String(g.name || ""), String(g.dir || ""), String(g.t0 || ""), String(g.t || ""), +g.ent || 0, +g.ex || 0, +g.lots || 0, +g.gross || 0, +g.fee || 0, +g.tax || 0, +g.net || 0));
+    await DB.batch(stt); out.days.push({ d, n: rows.length + "→" + fixed.length, net: n1 });
+  }
+  out.done = true; await hub.kvPut("fix:legs12", out); console.log("D1 明細重新配對 " + JSON.stringify(out)); return out;
+}
 const pLegs = v => { if (!v || typeof v !== "object") return [];
   const L = Array.isArray(v.legs) && (v.legs.length || !(v.rows || []).some(r => r.lots > 0)) ? legsFix(v.legs) : null;
   if (L) return L.filter(r => +r.lots > 0).map(r => ({ nm: r.name || r.code, code: String(r.code), lg: r.dir === "做多", ent: +r.ent, ex: +r.ex, q: +r.lots, p: Math.round(+r.net || 0), t: pHms(r.t) }));
@@ -1111,6 +1131,7 @@ export default {
         const j = await misFresh("tse_t00.tw", 2), m = ((j && j.msgArray) || []).find(x => x && x.c === "t00"), z = m ? parseFloat(m.z) : NaN;
         if (z > 0) { const pm = hm - 1, lab = `${String(Math.floor(pm / 60)).padStart(2, "0")}:${String(pm % 60).padStart(2, "0")}`, k = "ixbars:" + ymdOf(t), hub = hubOf(env);
           const o = (await hub.kvGet(k)) || {}; o[lab] = z; await hub.kvPut(k, o); } } } catch (e) { console.log("加權指數記錄失敗 " + e); }
+    try { if (env.DB && env.HUB && ["13:52", "14:20", "16:20", "20:20"].includes(key)) await d1LegsFix(env); } catch (e) { console.log("D1 明細重新配對失敗 " + e); }   // 2026-11-26 一次性(收盤後幾個時間試,做完就跳過;不每分鐘查,不耗額度)
     // 2026-11-12 21:00 使用者「都改」:交易日 14:05~14:59 做每日備份(R2 / D1 / AI 檢討),做完一次就不再做
     try { const wd = t.getUTCDay(), hm = t.getUTCHours() * 60 + t.getUTCMinutes();
       if (wd >= 1 && wd <= 5 && hm >= 14 * 60 + 5 && hm < 15 * 60 && snap !== "holiday" && env.HUB) { const r = await dailyArchive(env, ymdOf(t), false); if (!r.skip) console.log("每日備份 " + JSON.stringify(r)); } } catch (e) { console.log("每日備份失敗 " + e); }
