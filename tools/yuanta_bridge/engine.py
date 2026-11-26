@@ -2362,6 +2362,10 @@ class Engine:
     def heartbeat(self, on, msg="", flags=()):
         if self.dry or not CFG.get("PUSH_KEY"): return
         fl = "".join(flags)
+        try:   # 2026-11-26 使用者「你自動監控」:加權來源(元大幾分鐘 / 證交所補幾分鐘)帶在心跳,雲端看得到元大加權有沒有收到
+            _src = (self.ix_live() or {}).get("src") or {}
+            if _src: msg = (msg + f" 加權元{_src.get('元大', 0)}證{_src.get('證交所補', 0)}").strip()
+        except Exception: pass
         try: http(worker_url("engine=push"), {"d": self.day, "hm": now_tw().strftime("%H:%M"), "on": 1 if on else 0, "n": len(self.codes),
                                                "msg": (fl + " " if fl else "") + msg + f" 規則{RULES['ver']}", "ver": RULES["ver"], "stale": 1 if RULES["stale"] else 0,
                                                # 2026-11-21 使用者「改 1」:今天各有上限的判別式已進的股票(超額不算),手機在電腦在線 / 剛離線時以這份為準(Worker ?engine=get 的 caps)
