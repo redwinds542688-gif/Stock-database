@@ -52,6 +52,7 @@ RS_OF = {v: k for k, v in JUDGE.items() if k not in ("六3", "一2", "三2", "�
 J9MAX = 5   # 2026-11-14 17:58 判九一天最多 5 檔(實際用私人庫 rs_env.J9MAX)
 J8MAX = 5   # 2026-11-14 15:14 判八一天最多 5 檔(實際用私人庫 rs_env.J8MAX)
 J12MAX = 5   # 2026-11-21 判一急彈空(一2)一天最多 5 檔;同一輪多檔時量比大的先(order12);實際用私人庫 rs_env.J12MAX
+J64MAX = 5   # 2026-11-27 使用者「解鎖 改」:六4(恐慌翻紅做多)一天最多 5 檔、先到先做;實際用私人庫 rs_env.J64MAX
 J63MAX = 5   # 2026-11-12 23:40 使用者選「只限一天最多5筆」:判六做空(判六3)一天最多 5 檔;實際用私人庫 rs_env.J63MAX
 TAKE = 2.5
 RULE_FILES = (("backtest/sim_day.py", "sys.argv"), ("backtest/chk/rs_env.py", "def env_of"))   # 2026-10-29 只從私人庫 Stock-logic 抓(公開庫 tools/backtest/ 已刪,不再退回);第二欄 = 內容一定要有的字(擋 Worker 回錯誤頁)
@@ -1214,6 +1215,7 @@ class Engine:
         self.j63 = set()      # 2026-11-12 23:40 判六做空(判六3)今天已進場的股票:一天最多 J63MAX 檔
         self.j9 = set()       # 2026-11-14 判九今天已進場的股票:一天最多 J9MAX 檔
         self.j8 = set()       # 2026-11-14 判八今天已進場的股票:一天最多 J8MAX 檔
+        self.j64 = set()      # 2026-11-27 六4 今天已進場的股票:一天最多 J64MAX 檔
         self.j5 = set()       # 2026-11-05 判五今天已進場的股票:一天最多 J5MAX 檔
         self.j4 = set()       # 2026-10-31 判四今天已進場(推了、或雲端已有,超額的不算)的股票:一天最多 T4MAX 檔
         self._cq = []; self._cq_lock = threading.Lock(); self._cq_th = None   # 2026-11-20 雲端排隊(使用者「改1234」 2)
@@ -1234,7 +1236,7 @@ class Engine:
                 j = json.loads(self.state_f.read_text(encoding="utf-8"))
                 self.pos = {tuple(k.split("|")): v for k, v in j.get("pos", {}).items()}
                 self.emitted = set(tuple(x) for x in j.get("emitted", []))
-                self.j4 = set(j.get("j4", [])); self.j5 = set(j.get("j5", [])); self.j63 = set(j.get("j63", [])); self.j12 = set(j.get("j12", [])); self.j8 = set(j.get("j8", [])); self.j9 = set(j.get("j9", []))
+                self.j4 = set(j.get("j4", [])); self.j5 = set(j.get("j5", [])); self.j63 = set(j.get("j63", [])); self.j12 = set(j.get("j12", [])); self.j8 = set(j.get("j8", [])); self.j9 = set(j.get("j9", [])); self.j64 = set(j.get("j64", []))
                 self.drag = set(j.get("drag", []))
                 self.closed = j.get("closed", []); self.lat = j.get("lat", [])
                 self.emitted |= {(x[0], x[1], x[2]) for x in j.get("seen", []) if len(x) == 4 and x[3] == "entry"}   # 舊版狀態檔
@@ -1331,6 +1333,7 @@ class Engine:
         self.txcover_fn = getattr(rs_env, "txf_cover", None)   # 2026-11-16 14:38 使用者「改」:台指期缺一段 → ⑧ 改用加權指數(私人庫 rs_env.txf_cover;舊版 rs_env 沒有 = 照舊)
         self.j9max = int(getattr(rs_env, "J9MAX", J9MAX))   # 2026-11-14 判九
         self.j8max = int(getattr(rs_env, "J8MAX", J8MAX))   # 2026-11-14 判八
+        self.j64max = int(getattr(rs_env, "J64MAX", 0) or 0)   # 2026-11-27 六4:私人庫 rs_env 有 J64MAX(判別式聊天合進 main 後)才限制;舊版 = 不限
         self.j5max = int(getattr(rs_env, "J5MAX", J5MAX))   # 2026-11-05 判五一天上限(私人庫 rs_env.J5MAX;apply 裡沒有 rs_env 這個名字)
         self.br_rs = {"一", "一2", "二", "五", "六", "六3", "八", "九", "十", "三2"}   # 2026-11-21 使用者「B」:看寬度 / 名單平均的判別式
         for rs in RS_ALL:
@@ -1374,7 +1377,7 @@ class Engine:
 
     def save(self):
         if not self.state_f: return
-        try: write_atomic(self.state_f, json.dumps({"emitted": sorted(self.emitted), "j4": sorted(self.j4), "j5": sorted(self.j5), "j63": sorted(getattr(self, "j63", set())), "j12": sorted(getattr(self, "j12", set())), "j8": sorted(getattr(self, "j8", set())), "j9": sorted(getattr(self, "j9", set())), "drag": sorted(self.drag), "closed": self.closed, "lat": self.lat, "pos": {"|".join(k): v for k, v in self.pos.items()}, "ver": RULES["ver"]}, ensure_ascii=False))
+        try: write_atomic(self.state_f, json.dumps({"emitted": sorted(self.emitted), "j4": sorted(self.j4), "j5": sorted(self.j5), "j63": sorted(getattr(self, "j63", set())), "j12": sorted(getattr(self, "j12", set())), "j8": sorted(getattr(self, "j8", set())), "j9": sorted(getattr(self, "j9", set())), "j64": sorted(getattr(self, "j64", set())), "drag": sorted(self.drag), "closed": self.closed, "lat": self.lat, "pos": {"|".join(k): v for k, v in self.pos.items()}, "ver": RULES["ver"]}, ensure_ascii=False))
         except Exception as e: log("!! 狀態檔寫不進去", e)
 
     def push(self, it):
@@ -1534,6 +1537,7 @@ class Engine:
                 if mc and rs == "四" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j4.add(mc.group(1))
                 if mc and rs == "五" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j5.add(mc.group(1))
                 if mc and rs == "八" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j8.add(mc.group(1))   # 2026-11-14 判八一天上限從雲端接回
+                if mc and rs == "六4" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j64.add(mc.group(1))   # 2026-11-27 六4 一天上限從雲端接回
                 if mc and rs == "九" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j9.add(mc.group(1))   # 2026-11-14 判九
                 if mc and rs == "一2" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j12.add(mc.group(1))   # 2026-11-21 判一急彈空一天上限從雲端接回
                 if mc and rs == "六3" and not re.search(r"·\s*超額\s*·", it.get("body", "")): self.j63.add(mc.group(1))   # A:判六做空一天上限也從雲端接回   # 2026-10-31 手機 / 上一個 engine 發過的判四也算進一天上限
@@ -1733,6 +1737,7 @@ class Engine:
             if rs == "四" and not over: self.j4.add(code)
             if rs == "五" and not over: self.j5.add(code)
             if rs == "八" and not over: self.j8.add(code)
+            if rs == "六4" and not over: self.j64.add(code)
             if rs == "九" and not over: self.j9.add(code)
             if rs == "六3" and not over: self.j63.add(code)
             if rs == "一2" and not over: self.j12.add(code)
@@ -1746,7 +1751,7 @@ class Engine:
         # 2026-11-07 19:52 使用者「加速 程式運行跟進場訊息」:不可能再發進場、也沒持倉的不算 —— 強平過的股票;判四 / 判五今天檔數已滿、又不是已進過的股票
         #   (對帳那邊本來就不會發,算了也白算);ENGINE_SKIP_IDLE=0 全部照算
         skip_on = CFG.get("ENGINE_SKIP_IDLE", "1") == "1"
-        full = {"四": len(self.j4) >= int(_f(self.envs.get("四", {}).get("T4MAX"), T4MAX)), "五": len(self.j5) >= getattr(self, "j5max", J5MAX), "六3": len(self.j63) >= getattr(self, "j63max", J63MAX), "一2": len(getattr(self, "j12", set())) >= getattr(self, "j12max", J12MAX), "八": len(getattr(self, "j8", set())) >= getattr(self, "j8max", J8MAX), "九": len(getattr(self, "j9", set())) >= getattr(self, "j9max", J9MAX)}
+        full = {"四": len(self.j4) >= int(_f(self.envs.get("四", {}).get("T4MAX"), T4MAX)), "五": len(self.j5) >= getattr(self, "j5max", J5MAX), "六3": len(self.j63) >= getattr(self, "j63max", J63MAX), "一2": len(getattr(self, "j12", set())) >= getattr(self, "j12max", J12MAX), "八": len(getattr(self, "j8", set())) >= getattr(self, "j8max", J8MAX), "九": len(getattr(self, "j9", set())) >= getattr(self, "j9max", J9MAX), "六4": getattr(self, "j64max", 0) > 0 and len(getattr(self, "j64", set())) >= self.j64max}
         pri = list(getattr(self, "rs_pri", None) or RS_PRIORITY)
         for rs in sorted(RS_ALL, key=lambda x: pri.index(x) if x in pri else 99):   # 2026-11-10 同一分鐘同一檔:勝率高的判別式先算、先發
             e_ = self.envs.get(rs); gone = e_ is None
@@ -1776,7 +1781,7 @@ class Engine:
             for c in self.codes:
                 if only is not None and (rs, c) not in only: continue
                 if (idle or gone) and (rs, c) not in self.pos: continue
-                if skip_on and only is None and (rs, c) not in self.pos and (c in self.fclosed or (full.get(rs) and c not in (self.j4 if rs == "四" else self.j63 if rs == "六3" else self.j12 if rs == "一2" else self.j8 if rs == "八" else self.j9 if rs == "九" else self.j5))): continue
+                if skip_on and only is None and (rs, c) not in self.pos and (c in self.fclosed or (full.get(rs) and c not in (self.j4 if rs == "四" else self.j63 if rs == "六3" else self.j12 if rs == "一2" else self.j8 if rs == "八" else self.j9 if rs == "九" else self.j64 if rs == "六4" else self.j5))): continue
                 # 2026-11-10 13:35(實際時間)使用者「修」:今天還沒有任何成交(元大第一根 K 還沒出來,例:11/10 中華電 2412、3605 09:02 才第一筆)的股票先不算 ——
                 #   原本模擬器找不到今天的 K 會退到 Yahoo 備用檔(引擎沒有)→ FileNotFoundError,log 出現假的「錯誤 14/462」;沒成交本來就不會有訊號
                 if self.last_hm and c not in self.last_hm and (rs, c) not in self.pos:
@@ -1972,6 +1977,8 @@ class Engine:
             self.emitted.add(ek); log(f"判五 {code} {open_tm} 今天判五已 {len(self.j5)} 檔(到上限)→ 不發"); return n
         elif rs == "九" and code not in self.j9 and len(self.j9) >= getattr(self, "j9max", J9MAX):   # 2026-11-14 判九一天最多 J9MAX 檔
             self.emitted.add(ek); log(f"判九 {code} {open_tm} 今天判九已 {len(self.j9)} 檔(到上限)→ 不發"); return n
+        elif rs == "六4" and getattr(self, "j64max", 0) > 0 and code not in self.j64 and len(self.j64) >= self.j64max:   # 2026-11-27 六4 一天最多 J64MAX 檔、先到先做
+            self.emitted.add(ek); log(f"判六(恐慌翻紅){code} {open_tm} 今天六4 已 {len(self.j64)} 檔(到上限)→ 不發"); return n
         elif rs == "八" and code not in self.j8 and len(self.j8) >= getattr(self, "j8max", J8MAX):   # 2026-11-14 判八一天最多 J8MAX 檔
             self.emitted.add(ek); log(f"判八 {code} {open_tm} 今天判八已 {len(self.j8)} 檔(到上限)→ 不發"); return n
         elif rs == "一2" and code not in self.j12 and len(self.j12) >= getattr(self, "j12max", J12MAX):   # 2026-11-21 判一急彈空一天最多 J12MAX 檔
@@ -2370,7 +2377,7 @@ class Engine:
         try: http(worker_url("engine=push"), {"d": self.day, "hm": now_tw().strftime("%H:%M"), "on": 1 if on else 0, "n": len(self.codes),
                                                "msg": (fl + " " if fl else "") + msg + f" 規則{RULES['ver']}", "ver": RULES["ver"], "stale": 1 if RULES["stale"] else 0,
                                                # 2026-11-21 使用者「改 1」:今天各有上限的判別式已進的股票(超額不算),手機在電腦在線 / 剛離線時以這份為準(Worker ?engine=get 的 caps)
-                                               "caps": {k: sorted(v) for k, v in (("四", self.j4), ("五", self.j5), ("六3", self.j63), ("八", getattr(self, "j8", set())), ("九", getattr(self, "j9", set())), ("一2", getattr(self, "j12", set())))}}, key=True, timeout=10)
+                                               "caps": {k: sorted(v) for k, v in (("四", self.j4), ("五", self.j5), ("六3", self.j63), ("八", getattr(self, "j8", set())), ("九", getattr(self, "j9", set())), ("一2", getattr(self, "j12", set())), ("六4", getattr(self, "j64", set())))}}, key=True, timeout=10)
         except Exception as e: log("心跳推不上", e)
 
 
