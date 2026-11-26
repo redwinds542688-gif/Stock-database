@@ -35,6 +35,7 @@ def onr(intMark, dwIndex, strIndex, objHandle, objValue):
                 if YB.login_kind(st.MsgCode, st.MsgContent, st.Count) == "ok": ev_login.set()
             elif strIndex == "GetKLine":
                 lst = objValue.KLineList
+                if lst is None: return
                 for i in range(lst.Count):
                     k = lst[i]; kl.append((str(k.TimeStamp), float(k.ClosePrice), float(k.DealVol)))
             else:
@@ -82,14 +83,12 @@ for mk in mkts:
         time.sleep(0.4)
 if not any("✅" in x for x in out): out.append("   (都沒有資料)")
 
-out.append("3) 訂閱逐筆 20 秒:"); print("訂閱測試 20 秒…")
-for mk in mkts:
+out.append("3) 訂閱逐筆 20 秒(只訂 IX0001、IX0043,一檔一次):"); print("訂閱測試 20 秒…")
+for mk, c in (("TWSE", "IX0001"), ("TWOTC", "IX0043")):   # 2026-11-26 第一次整包 11 個代碼一起訂 → 回傳失敗(可能被無效代碼拖累),改成只訂有 K 線的兩檔
     try:
-        mv = getattr(Y.enumMarketType, mk); lst = List[Y.StockTick]()
-        for c in CANDS:
-            s = Y.StockTick(); s.MarketType = mv; s.StockCode = c; lst.Add(s)
-        ok = api.SubscribeStockTick(acc, lst); out.append(f"   {mk}:訂閱{'送出' if ok else '回傳失敗'}")
-    except Exception as e: out.append(f"   {mk}:訂閱錯誤 {e!r}"[:160])
+        lst = List[Y.StockTick](); s = Y.StockTick(); s.MarketType = getattr(Y.enumMarketType, mk); s.StockCode = c; lst.Add(s)
+        ok = api.SubscribeStockTick(acc, lst); out.append(f"   {mk} {c}:訂閱{'送出' if ok else '回傳失敗'}")
+    except Exception as e: out.append(f"   {mk} {c}:訂閱錯誤 {e!r}"[:160])
     time.sleep(0.5)
 time.sleep(20)
 got = {}
