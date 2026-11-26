@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-26 當沖每列照「最後一次進場或加碼」的時間排,最新的在最上面(使用者「當沖也要一樣最新在最上面 加碼也屬於最新的一種」)
   · 2026-11-26 加碼後原進場卡搬到最上面補強(使用者「還是沒有」):預掛加碼成交的加碼卡走另一條路,原本那張沒搬 → 兩條路都搬
   · 2026-11-26 進場欄:加碼後原本那張進場卡搬到最上面(加碼卡的上面),使用者「聯電 加碼後 原始卡片 要跑來最前面」
   · 2026-11-26 名單外股票成交量再修(使用者「成交量 不對問題 還沒解決」):改在收到報價時就把累計量補成「報價」和「今天 1 分 K 加總」大的那個,K 圖上面的「量」、清單、排序全部一起對(上一版只改了清單那一欄)
@@ -654,7 +655,7 @@ try{ if (localStorage.getItem('mysh.rw') !== '20261125'){ ['mysh.backfill', 'mys
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611261244">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611261245">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -8902,7 +8903,9 @@ window.bgTick = bgTick; window.BG = BG;
         // 2026-10-29 12:25(實際時間)使用者「既然真實接通 … 顯示元大裡的真實的交易」:元大帳號裡手動進場、還沒沖掉的張數(成交回報 open ≠ 0)也列進當沖(程式的部位已在上面,不重複)
         if (TP && !over && !window.DONE_VIRT){ tfillsPoll(); try{ const F = window.__tfills; const IG_ = ignSet(); if (F && F.ok && F.d === today && Array.isArray(F.rows)) for (const r of F.rows){ const q = +r.open || 0; if (!q || IG_.has(String(r.code)) || open.some(o => o.code === r.code)) continue;   /* 2026-11-17 09:46 使用者「庫存的和益是借卷 空 我已經贖回 這邊不用顯示和益做多」:不管名單(電腦 ignore_codes.txt,?trade=pos 的 ignore)不列 */
               open.push({code: r.code, name: r.name || nmOf(r.code), side: q > 0 ? 'long' : 'short', entP: q > 0 ? +r.buy : +r.sell, lots: Math.abs(q), manual: true, t: String(r.t || r.time || '99:99')}); } }catch(e){} }
-        open.sort((a, b) => String(b.t || '').localeCompare(String(a.t || '')));
+        /* 2026-11-26 12:44 使用者「當沖也要一樣最新在最上面 加碼也屬於最新的一種」:排序用這檔最後一次進場 / 加碼的時間(加碼卡 madd 也算) */
+        try{ for (const o of open){ let lt = String(o.t || '').slice(0, 5); for (const c of cards) if (c.type === 'entry' && c.code === o.code && c.side === o.side && !c._hide && !c.phNew && String(c.t || '') > lt) lt = String(c.t || '').slice(0, 5); o.tLast = lt; } }catch(e){}
+        open.sort((a, b) => String(b.tLast || b.t || '').localeCompare(String(a.tLast || a.t || '')));
         try{ const k_ = open.map(o => o.code + o.side).join(','); window.__openSide = new Map(open.map(o => [o.code, o.side])); window.__openReal = !!(TPL && TPL.ok) && !window.DONE_VIRT; window.__openPos = new Map(open.map(o => [o.code, {side: o.side, entP: +o.entP || 0, lots: +o.lots || (typeof lotsOf === 'function' ? +lotsOf(o) : 0) || 1}])); setTimeout(() => { try{ __needlesNow(); }catch(e){} }, 0); if (k_ !== window.__openSideK){ window.__openSideK = k_; setTimeout(() => { try{ window.__reList && __reList(); }catch(e){} }, 0); } }catch(e){}   // 2026-11-09 12:43 監控清單:進場還沒平倉的標做多 / 做空   // 2026-11-09 12:37 使用者「當沖顯示 最晚進來排最上面」:照進場時間,最晚的在最上面
         return {over, TP, TPL, open}; };
       const amt = v => `<span class="num ${v > 0 ? 'up' : v < 0 ? 'dn' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(Math.round(v))}</span>`;   // 2026-10-27 02:50 使用者「千位數,不用」:當沖 / 明細的金額不加千分位逗號
