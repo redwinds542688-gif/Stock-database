@@ -1335,6 +1335,9 @@ class Bridge:
                 for d in sorted(dd): lines += [f"{a},{b},{o},{h},{l},{c},{v}\n" for a, b, o, h, l, c, v in dd[d]]
                 tmp = f.with_suffix(".tmp"); tmp.write_text("".join(lines), encoding="utf-8"); os.replace(tmp, f)
             prev_days = sorted(d for d in got if d < day); prev = got[prev_days[-1]][-1][5] if prev_days else (self.quotes.meta.get(code) or {}).get("y")
+            try:   # 2026-11-26 使用者「鴻海 富喬 沒有漲跌幅」:臨時訂閱的股票報價沒有昨收 → 用前一天最後一根補(元大清盤參考價來了會蓋過)
+                if prev and not (self.quotes.meta.get(code) or {}).get("y"): self.quotes.meta.setdefault(code, {"n": "", "ex": "tse", "y": None})["y"] = float(prev)
+            except Exception: pass
             name = ""
             try: name = self.trader.name_of(code) if self.trader else ""
             except Exception: pass
