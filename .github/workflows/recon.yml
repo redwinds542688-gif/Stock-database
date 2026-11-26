@@ -71,6 +71,24 @@ jobs:
           PY
           [ -f /tmp/rc/skip ] && continue
           python3 tools/recon.py "$d" /tmp/rc/signals.json /tmp/rc/verdicts.json /tmp/rc/fills.json "reports/總表_$d.json" reports
+          # 2026-11-26 判別式聊天轉使用者「都修正 該怎麼做就怎麼做」:有總表、對出差異 → 推手機(不要只寫檔)
+          [ -f "reports/對帳_$d.json" ] && D="$d" K="$K" python3 - <<'PY'
+          import os, json, urllib.request
+          d = os.environ["D"]; K = os.environ.get("K", ""); j = json.load(open(f"reports/對帳_{d}.json", encoding="utf-8")); s = j.get("摘要") or {}
+          A = j.get("總表有實盤沒有") or []; B = j.get("實盤有總表沒有") or []; C = j.get("兩邊都有但不同") or []
+          if not (A or B or C): print("對帳一致,不推"); raise SystemExit(0)
+          from collections import Counter
+          rs = lambda L: "、".join(f"{k} {v}" for k, v in Counter(str(x.get("原因") or "?")[:24] for x in L).most_common(3))
+          body = (f"總表 {s.get('總表淨損益', 0):+,} / 實盤 {s.get('實盤淨損益(配到訊號的)', 0):+,};"
+                  f"總表有實盤沒有 {len(A)}" + (f"({rs(A)})" if A else "") + f";實盤有總表沒有 {len(B)}" + (f"({rs(B)})" if B else "")
+                  + f";兩邊都有但不同 {len(C)}" + (f"({rs(C)})" if C else "") + f" · 明細 reports/對帳_{d}.json · 每日對帳")
+          it = {"d": d, "t": "15:59", "title": f"📋 {d[5:]} 實盤 vs 總表 對帳:{len(A) + len(B) + len(C)} 筆不同", "body": body[:900], "kind": "pc", "key": f"recon|{d}"}
+          try:
+              urllib.request.urlopen(urllib.request.Request("https://twse-proxy.redwinds542688.workers.dev/?log=add", data=json.dumps(it, ensure_ascii=False).encode(), method="POST",
+                                     headers={"X-Push-Key": K, "Content-Type": "application/json", "User-Agent": "recon/1"}), timeout=20)
+              print("已推手機:", it["title"])
+          except Exception as e: print("推手機失敗", type(e).__name__)
+          PY
           done
       - name: 存檔
         run: |
