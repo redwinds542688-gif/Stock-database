@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-26 監控標題「股票」後面改兩行小字:上 台指期漲跌幅(漲紅跌綠,盤中每 60 秒抓台指期 1 分 K)、下 盤寬度(≥50% 紅、<50% 綠),使用者看過圖「改」;收盤後照舊顯示檔數
   · 2026-11-26 當沖 / 明細四列以內不給捲(使用者「滑鼠滾輪 富喬卡片下 有縫隙」:四列剛好放滿,底下補的 3px 讓整片還能捲一點,滾輪一推第一列被切、最後一列下面露縫);超過四列照常捲,進場等其他頁不受影響
   · 2026-11-26 當沖每列照「最後一次進場或加碼」的時間排,最新的在最上面(使用者「當沖也要一樣最新在最上面 加碼也屬於最新的一種」)
   · 2026-11-26 加碼後原進場卡搬到最上面補強(使用者「還是沒有」):預掛加碼成交的加碼卡走另一條路,原本那張沒搬 → 兩條路都搬
@@ -656,7 +657,7 @@ try{ if (localStorage.getItem('mysh.rw') !== '20261125'){ ['mysh.backfill', 'mys
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611261253">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611261256">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1178,6 +1179,7 @@ try{ if (localStorage.getItem('mysh.rw') !== '20261125'){ ['mysh.backfill', 'mys
   .row .posline .pos.code{display:inline-block;min-width:3.7em} .row .posline .chgp{display:inline-block;min-width:4.6em;text-align:right;font-variant-numeric:tabular-nums}   /* 2026-11-19 02:17 使用者「漲跌幅 上下需對齊」:代碼和狀態標籤一樣寬、漲跌幅固定寬靠右 → 每列小數點對齊 */
   .row .px.lu, .row .px.ld{color:#fff!important;border-radius:4px;padding:0 4px;justify-self:end} .row .px.lu{background:#C8102E} .row .px.ld{background:#0E8F47}   /* 2026-11-11 漲停紅底、跌停綠底(和元大一樣) */
   .row .mv{text-align:center}
+  #listBr.br2{display:inline-flex;flex-direction:column;justify-content:center;vertical-align:middle;line-height:1.12;font-size:.5em!important;font-weight:700;letter-spacing:0} #listBr.br2 .brl{white-space:nowrap} #listBr.br2 .k{color:#C9D1E0;font-weight:600} #listBr.br2 b{font-weight:800}   /* 2026-11-26 股票後面:上台指期、下盤寬度,兩行小字 */
   .row .px{position:relative;overflow:visible!important} .row.hh .px{top:-.42em}
   .row .px .hn{position:absolute;right:.8em;width:3.4em;top:100%;margin-top:1px;font-size:.6em;font-weight:800;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;height:1.5em;line-height:1;padding:0 .5em;border-radius:5px;white-space:nowrap;letter-spacing:0;text-align:center}   /* 2026-11-24 15:13 使用者「以 續抱 底色為基 在這裡面 置中」:字在底色裡上下左右置中(拿掉字距,不再偏左;行高 1 + flex 置中,不再偏上) */
   .row .px .hn.hs{top:50%;right:6.6em;margin:0!important;transform:translateY(-50%)}   /* 2026-11-25 很矮的列:提示放價格左邊(固定位置,上下對齊;6 位數價格也不壓到) */
@@ -4537,15 +4539,31 @@ window.mktAvgAt = mktAvgAt;
 function brBadge(){ try{ const el = document.getElementById('listBr'); if (!el) return;   // 2026-11-10 09:24 監控股票數後面的上漲家數 %
   // 09:36 使用者「那就盤中不要用顯示66 改顯示 上漲家 取小數點一位」:盤中藏檔數、只顯示上漲家數(小數一位、無條件捨去);盤後照舊顯示檔數
   const cn = document.getElementById('listCnt'), ses = typeof inSession === 'function' && inSession();
-  if (!ses){ if (cn) cn.style.display = ''; el.textContent = ''; return; }
+  if (!ses){ if (cn) cn.style.display = ''; el.textContent = ''; el.classList.remove('br2'); return; }
+  txbPoll();
   const a = BREADTH.arr, ok = a && a.length && BREADTH.d === todayTW();
   if (!ok){ el.textContent = ''; if (cn) cn.style.display = '';   // 09:35 使用者「還沒有顯示 上漲家」:還沒抓過今天的寬度 → 自己抓(最多每分鐘一次),不等 K 線那條路
     if (typeof liveOn === 'function' && liveOn() && Date.now() - (brBadge._at || 0) > 60000){ brBadge._at = Date.now(); loadBreadth(todayTW()).then(() => { if (BREADTH.arr.length && BREADTH.d === todayTW()) brBadge(); }).catch(() => {}); }
     return; }
   const v = +a[a.length - 1][1]; if (!isFinite(v)){ el.textContent = ''; return; }
-  const p = Math.floor(v * 1000 + 1e-9) / 10; el.textContent = p.toFixed(1) + '%'; el.style.color = p >= 50 ? '#FF3B3B' : '#1DD75B';
-  if (cn) cn.style.display = 'none'; el.style.marginLeft = '.35em'; el.style.fontSize = '';
+  const p = Math.floor(v * 1000 + 1e-9) / 10;
+  /* 2026-11-26 12:55 使用者「改」(看過圖):「股票」後面改兩行小字 —— 上:台指期漲跌幅(漲紅跌綠),下:盤寬度(≥50% 紅、<50% 綠) */
+  const fp = TXB.pct, fs = fp == null ? '—' : `${fp > 0 ? '+' : ''}${fp.toFixed(2)}%`, fc = fp == null ? '#8C96AB' : fp > 0 ? '#FF3B3B' : fp < 0 ? '#1DD75B' : '#E6EAF2';
+  const h_ = `<span class="brl"><span class="k">台指期</span> <b style="color:${fc}">${fs}</b></span><span class="brl"><span class="k">盤寬度</span> <b style="color:${p >= 50 ? '#FF3B3B' : '#1DD75B'}">${p.toFixed(1)}%</b></span>`;
+  if (el.innerHTML !== h_) el.innerHTML = h_; el.style.color = ''; el.classList.add('br2');
+  if (cn) cn.style.display = 'none'; el.style.marginLeft = '.45em'; el.style.fontSize = '';
 }catch(e){} }
+/* 2026-11-26 台指期漲跌幅(監控標題用):盤中每 60 秒抓一次台指期 1 分 K(?fbars=今天)最後一根;昨收 = 前一個有台指期 1 分 K 的交易日最後一根(和大盤線圖同一套,一天找一次、存手機) */
+const TXB = {pct: null, at: 0, busy: false};
+async function txbPoll(){ if (TXB.busy || Date.now() - TXB.at < 60000 || typeof liveOn !== 'function' || !liveOn()) return; TXB.busy = true; TXB.at = Date.now();
+  try{ const U = BASE.liveUrl.replace(/\/$/, ''), J_ = async q => { try{ const r = await fetch(`${U}/?${q}&_=${Date.now()}`, {cache: 'no-store', signal: AbortSignal.timeout(9000)}); return r.ok ? await r.json() : null; }catch(e){ return null; } };
+    const d = todayTW(), fb = await J_('fbars=' + d), bs = ((fb && fb.bars) || []).filter(b => b && +b[4] > 0);
+    if (bs.length && MKC.d === d){ for (const b of bs) if (b[0] >= '09:00' && b[0] <= '13:30') MKC.fx[b[0]] = +b[4]; }   // 大盤線圖同一天的台指期順便更新
+    if (MKC.fyd !== d){ const dd = new Date(d + 'T00:00:00Z'); let y0 = 0;
+      for (let k = 1; k <= 8 && !y0; k++){ dd.setUTCDate(dd.getUTCDate() - 1); const wd = dd.getUTCDay(); if (wd === 0 || wd === 6) continue; const pf = await J_('fbars=' + dd.toISOString().slice(0, 10)); const pb = ((pf && pf.bars) || []).filter(b => b && +b[4] > 0); if (pb.length) y0 = +pb[pb.length - 1][4]; }
+      if (y0){ MKC.fy0 = y0; MKC.fyd = d; try{ mkcSave(); }catch(e){} } }
+    const last = bs.length ? +bs[bs.length - 1][4] : 0; TXB.pct = last > 0 && MKC.fyd === d && MKC.fy0 > 0 ? (last / MKC.fy0 - 1) * 100 : TXB.pct;
+  }catch(e){} TXB.busy = false; try{ brBadge(); }catch(e){} }
 window.brBadge = brBadge; setInterval(brBadge, 15000); setTimeout(brBadge, 3000);
 /* 2026-11-19 16:24 使用者「改」(看過 mock_13):點監控區標題「股票 ○○」→ 監控區八檔的位置換成線圖,再點一次收起。
    上格:大盤指數(紅)、台指期(白),左邊刻度 = 點數,虛線 = 大盤昨收;下格:大盤寬度(黃,上漲家數 %),左邊刻度 0 / 50 / 100%。
