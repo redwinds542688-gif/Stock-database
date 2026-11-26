@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-26 大盤線圖打開變快(使用者「進入這畫面 太慢了 好幾秒」):上次的線存在手機裡、打開先畫再背景更新;大盤指數 / 台指期 / 寬度 / 昨收同時抓(原本一個等一個);台指期昨收畫完再找。模擬雲端每個要 1.5 秒:第一次 4.5 秒 → 1.5 秒,之後 3 秒 → 馬上
   · 2026-11-26 當沖 / 明細每列的網底補回來(做多紫色方格、做空藍色斜紋,和進場卡一樣);11/18 改夥伴版排法後網底規則沒跟上新排法
   · 2026-11-26 大盤線圖三條線(大盤指數、台指期、寬度)都改畫 10 分均線(使用者「都改成10芬均線」→ 選「換成 10 分均線」),十字線上的數字也用均線值,右上角標「10分均線」
   · 2026-11-25 22:10(實際時間)11/25(含)以前主導$ / 元大的檢討、明細、進場也用重寫檔(和虛擬一致;原本 11/23~11/25 主導$ 用元大實際成交);11/26 起元大照實際成交、虛擬照模擬(分流);手機本機舊的重算 / 明細 / 進場快取清一次(判別式聊天轉達使用者「重寫 34天 主導$與虛擬 … 明天再分流」)
@@ -646,7 +647,7 @@ try{ if (localStorage.getItem('mysh.rw') !== '20261125'){ ['mysh.backfill', 'mys
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611261048">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611261054">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4518,21 +4519,25 @@ window.brBadge = brBadge; setInterval(brBadge, 15000); setTimeout(brBadge, 3000)
    收盤後留著當天整天,隔天 09:00 開盤才換新的一天(週末 / 休市日留最近一個交易日)。
    資料:雲端現成的三份 —— 加權每分鐘 ?ixbars、台指期 1 分 K ?fbars(電腦每分鐘推)、寬度 ?breadth;只在圖打開時抓,開盤中每 60 秒更新 */
 const MKC = { open: false, d: '', ix: {}, fx: {}, br: {}, y0: 0, at: 0, busy: false, ci: -1 };
+/* 2026-11-26 10:52 使用者「進入這畫面 太慢了 好幾秒」:上次抓到的線存在手機裡,打開先畫上次的、背景再更新;台指期 / 寬度 / 昨收和大盤指數同時抓;台指期昨收(找前幾天)畫完再找 */
+try{ const o_ = JSON.parse(localStorage.getItem('mysh.mkc') || 'null'); if (o_ && o_.d){ Object.assign(MKC, {d: o_.d, ix: o_.ix || {}, fx: o_.fx || {}, br: o_.br || {}, y0: +o_.y0 || 0, fy0: +o_.fy0 || 0, fyd: o_.fyd || '', full: !!o_.full}); } }catch(e){}
+const mkcSave = () => { try{ localStorage.setItem('mysh.mkc', JSON.stringify({d: MKC.d, ix: MKC.ix, fx: MKC.fx, br: MKC.br, y0: MKC.y0, fy0: MKC.fy0, fyd: MKC.fyd, full: !!MKC.full})); }catch(e){} };
 async function mkcFetch(force){
-  if (MKC.busy) return; MKC.busy = true;
+  if (MKC.busy) return; MKC.busy = true; let fyLater = null;
   try{
     const U = BASE.liveUrl.replace(/\/$/, ''), J_ = async q => { try{ const r = await fetch(`${U}/?${q}&_=${Date.now()}`, {cache: 'no-store', signal: AbortSignal.timeout(9000)}); return r.ok ? await r.json() : null; }catch(e){ return null; } };
     const tw = new Date(Date.now() + 8 * 3600000), hm = tw.getUTCHours() * 60 + tw.getUTCMinutes();
     let d = new Date(tw.getTime()); if (hm < 9 * 60) d.setUTCDate(d.getUTCDate() - 1);
-    let day = '', ix = null;
+    let day = '', ix = null; const tdy_ = todayTW(), wd0_ = new Date(tdy_ + 'T00:00:00Z').getUTCDay();
+    const pre_ = hm >= 9 * 60 && wd0_ !== 0 && wd0_ !== 6 && (force || MKC.d !== tdy_ || inSession()) ? Promise.all([J_('fbars=' + tdy_), tdy_ === BREADTH.d && BREADTH.arr.length ? null : J_('breadth=' + tdy_), J_('codes=t00&mkt=tse&src=mis')]) : null;   // 今天的台指期 / 寬度 / 昨收和大盤指數同時抓
     for (let k = 0; k < 8 && !day; k++){ const wd = d.getUTCDay(), ds = d.toISOString().slice(0, 10);
-      if (wd !== 0 && wd !== 6){ if (!force && MKC.d === ds && !(ds === todayTW() && inSession())){ day = ds; break; }
+      if (wd !== 0 && wd !== 6){ if (!force && MKC.d === ds && MKC.full && !(ds === todayTW() && inSession())){ day = ds; break; }   /* 2026-11-26 存在手機裡的那份要是收盤後抓的(完整)才不重抓 */
         const j = await J_('ixbars=' + ds); if (j && j.m && Object.keys(j.m).length){ day = ds; ix = j.m; break; }
         if (ds === todayTW() && inSession()){ day = ds; ix = {}; break; } }
       d.setUTCDate(d.getUTCDate() - 1); }
     if (!day){ MKC.busy = false; return; }
     if (ix === null && MKC.d === day){ MKC.busy = false; mkcDraw(); return; }   // 過去那天已經抓過(收盤後不變)
-    const [fb, br, q] = await Promise.all([J_('fbars=' + day), day === BREADTH.d && BREADTH.arr.length ? null : J_('breadth=' + day), J_('codes=t00&mkt=tse&src=mis')]);
+    const [fb, br, q] = pre_ && day === tdy_ ? await pre_ : await Promise.all([J_('fbars=' + day), day === BREADTH.d && BREADTH.arr.length ? null : J_('breadth=' + day), J_('codes=t00&mkt=tse&src=mis')]);
     /* 2026-11-23 11:26 使用者「台指期的白線不見了」:那一分鐘讀台指期 1 分 K 沒回來(逾時 / 雲端忙)→ 原本把台指期整條清空,白線消失、說明框「台指期 —」;
        改成:同一天讀不到就沿用上一份(不清空),10 秒後再補讀一次 */
     const same = MKC.d === day, oldIx = same ? MKC.ix : {}, oldFx = same ? MKC.fx : {};
@@ -4543,14 +4548,15 @@ async function mkcFetch(force){
     MKC.br = {}; if (br && br.br){ for (const [k, v] of Object.entries(br.br)) if (isFinite(+v)) MKC.br[k] = +v * 100; }
     else if (day === BREADTH.d) for (const [t, v] of BREADTH.arr){ const k = new Date((t + 8 * 3600) * 1000).toISOString().slice(11, 16); MKC.br[k] = +v * 100; }
     /* 2026-11-23 11:43 使用者「台指期漲跌幅 也標上去 白色」:台指期昨收 = 前一個有台指期 1 分 K 的交易日最後一根(一般盤收盤,和資訊頁台指期那格同一算法);一天只找一次 */
-    if (MKC.fyd !== day){ MKC.fy0 = 0; const dd = new Date(day + 'T00:00:00Z');
+    if (MKC.fyd !== day) fyLater = async () => { MKC.fy0 = 0; const dd = new Date(day + 'T00:00:00Z');
       for (let k = 1; k <= 8 && !MKC.fy0; k++){ dd.setUTCDate(dd.getUTCDate() - 1); const wd = dd.getUTCDay(); if (wd === 0 || wd === 6) continue;
         const pf = await J_('fbars=' + dd.toISOString().slice(0, 10)); const bs = ((pf && pf.bars) || []).filter(b => b && +b[4] > 0); if (bs.length) MKC.fy0 = +bs[bs.length - 1][4]; }
-      if (MKC.fy0) MKC.fyd = day; }
+      if (MKC.fy0) MKC.fyd = day; };
     const m = q && (q.msgArray || []).find(x => x.c === 't00'); MKC.y0 = m && String(m.d || '') === day.replace(/-/g, '') && +m.y > 0 ? +m.y : 0;   // 證交所 t00 的昨收(只有同一天才用)
-    MKC.at = Date.now();
+    MKC.at = Date.now(); MKC.full = day < todayTW() || hm >= 13 * 60 + 31; mkcSave();
   }catch(e){}
   MKC.busy = false; mkcDraw();
+  if (fyLater){ try{ await fyLater(); mkcSave(); if (MKC.open) mkcDraw(); }catch(e){} }   // 台指期昨收畫完再找(不擋第一次畫)
 }
 function mkcBox(){ let el = document.getElementById('mkChart'); if (!el){ el = document.createElement('div'); el.id = 'mkChart'; document.body.appendChild(el);
     /* 2026-11-23 11:52 使用者「上滑放大 下滑縮小 跟k 圖的操作一樣」:放下 0.24 秒內上下滑 = 縮放(上滑放大、下滑縮小,每 120px 一倍);
@@ -4650,7 +4656,7 @@ function mkcDraw(){ try{
   el.innerHTML = `<svg width="${W}" height="${H}" style="display:block">${h}</svg>`;
 }catch(e){} }
 function mkcToggle(){ MKC.open = !MKC.open; const el = mkcBox(); el.style.display = MKC.open ? 'block' : 'none'; MKC.ci = -1; if (MKC.open){ MKC.z = 1; MKC.pan = 0; }   /* 2026-11-23 每次打開回到整天 */
-  if (MKC.open){ mkcPos(); el.innerHTML = '<div style="color:#8C96AB;font-size:13px;padding:14px">讀取大盤 / 台指期 / 寬度…</div>'; mkcFetch(false); } }
+  if (MKC.open){ mkcPos(); if (MKC.d && (Object.keys(MKC.ix).length || Object.keys(MKC.fx).length)) mkcDraw(); else el.innerHTML = '<div style="color:#8C96AB;font-size:13px;padding:14px">讀取大盤 / 台指期 / 寬度…</div>'; mkcFetch(false); } }
 window.mkcToggle = mkcToggle; window.MKC = MKC;
 /* 2026-11-19 23:08 使用者「這畫面 除了移動十字虛線 區域外任何觸碰都是先關閉這個視窗 返回股票監控區」:
    線圖開著時,碰線圖外任何地方(按鍵、通知欄、標題列…)只做「關閉線圖」,這一下不會再觸發被碰到的東西 */
