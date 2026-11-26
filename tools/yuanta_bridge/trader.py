@@ -2321,7 +2321,7 @@ class Trader:
             if code in self.ignore:
                 return (False, "這檔在 TRADE_IGNORE_CODES(不管的股票)")
             n, otyp = 0, ""
-            for t in sorted((t for t in trades if t["code"] == code), key=lambda x: (Trader._tsec(x.get("time")) if Trader._tsec(x.get("time")) is not None else -1))   # 2026-11-26 12 小時制:
+            for t in sorted((t for t in trades if t["code"] == code), key=lambda x: (Trader._tsec(x.get("time")) if Trader._tsec(x.get("time")) is not None else -1)):   # 2026-11-26 12 小時制
                 n0 = n; n += t["lots"] * (1 if t["bs"] == "B" else -1)
                 if n != 0 and (n0 == 0 or (n0 > 0) != (n > 0)): otyp = str(types.get(t.get("order_no"), "") or "").strip()
             mytags = {q["order"]["tag"] for q in self.positions.values() if q.get("order")}
