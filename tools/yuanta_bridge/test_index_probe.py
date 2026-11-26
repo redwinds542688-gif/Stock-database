@@ -11,6 +11,9 @@
 不下單、不改任何設定、不寫雲端。
 """
 import sys, time, threading, datetime as dt
+import builtins as _b
+def print(*a, **k): _b.print(*a, **k, flush=True)   # 2026-11-26 邊跑邊印(原本跑完才印,看起來像卡住)
+print("載入元大元件中…")
 import yuanta_bridge as YB
 
 CFG = YB.CFG
@@ -42,6 +45,7 @@ def onr(intMark, dwIndex, strIndex, objHandle, objValue):
         msgs.append(f"回應處理錯誤 {e!r}")
 
 
+print("連線元大中…")
 mode = Y.enumEnvironmentMode.PROD if CFG.get("YT_ENV", "UAT").upper() == "PROD" else Y.enumEnvironmentMode.UAT
 api = Y.YuantaSparkAPITrader(str(YB.HERE / "log"))
 api.OnResponse += onr
@@ -51,11 +55,13 @@ time.sleep(1)
 acc = CFG["YT_ACCOUNT"]
 api.Login(acc, CFG["YT_PASS"]) if sys.platform == "win32" else api.Login(CFG["YT_PFX"], CFG["YT_PFX_PASS"], acc, CFG["YT_PASS"])
 if not ev_login.wait(20): print("登入失敗:", msgs[-3:]); sys.exit(1)
+print("登入成功,開始測試(約 1~2 分鐘)")
 
 out = []
 out.append("1) 元件功能:" + ", ".join(m for m in dir(api) if any(k in m for k in ("Index", "Quote", "Subscribe", "KLine", "Future"))))
-mkts = [m for m in dir(Y.enumMarketType) if not m.startswith("_") and m[0].isupper()]
-out.append("   市場別:" + ", ".join(mkts))
+mkts_all = [m for m in dir(Y.enumMarketType) if not m.startswith("_") and m[0].isupper()]
+mkts = [m for m in mkts_all if m in ("TWSE", "TWOTC") or any(k in m.upper() for k in ("IDX", "INDEX"))]   # 只試股票市場 + 名字像指數的
+out.append("   市場別(全部):" + ", ".join(mkts_all)); print(out[0]); print(out[1])
 
 day = dt.datetime.now(dt.timezone(dt.timedelta(hours=8)))
 d = day.strftime("%Y/%m/%d")
@@ -72,10 +78,11 @@ for mk in mkts:
         while time.time() - t0 < 2 and not kl: time.sleep(0.1)
         time.sleep(0.4)
         if kl: out.append(f"   ✅ {mk} {c}:{len(kl)} 根,最後 {kl[-1]}")
+        print(f"   查 {mk} {c}:{'有 ' + str(len(kl)) + ' 根' if kl else '沒有'}")
         time.sleep(0.4)
 if not any("✅" in x for x in out): out.append("   (都沒有資料)")
 
-out.append("3) 訂閱逐筆 20 秒:")
+out.append("3) 訂閱逐筆 20 秒:"); print("訂閱測試 20 秒…")
 for mk in mkts:
     try:
         mv = getattr(Y.enumMarketType, mk); lst = List[Y.StockTick]()
