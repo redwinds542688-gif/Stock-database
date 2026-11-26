@@ -1339,6 +1339,12 @@ class Bridge:
             # 2026-11-22 使用者「全部做」(D7):名單外股票原本固定寫 daytrade=1、short_first=1 → 引擎 canshort=True,不能放空的股票也發空單訊號。
             #   改成照查得到的資料判斷(官方可當沖 / 暫停先賣後買名單、今天的資格複檢、元大回過無券、本機以前的名單檔),查不到一律保守當作不可先賣
             dtf, sff, dsrc = self.extra_dt(code, otc)
+            # 2026-11-26 11:10 使用者「改」(富喬 1815 是上櫃股,元大用上市查今天也查得到 K → 一直當上市,手機標「市」、報價走上市):官方上櫃可當沖名單有這檔 → 改上櫃
+            try:
+                if not otc and code in ((self.__dict__.get("_dtl") or {}).get("mks") or {}).get("tpex", set()):
+                    otc = True; mkt = self.Y.enumMarketType.TWOTC; self.pending_sub.append((code, mkt)); log(f"[名單外] {code} 官方名單是上櫃股,改上櫃")
+                    dtf, sff, dsrc = self.extra_dt(code, otc)
+            except Exception as e: log(f"[名單外] {code} 判斷上櫃失敗", e)
             log(f"[名單外] {code} 當沖資格:可當沖 {dtf}、可先賣 {sff}({dsrc})")
             xf = HERE / "engine_data" / "extra_codes.json"
             try: xj = json.loads(xf.read_text(encoding="utf-8"))
@@ -1366,15 +1372,15 @@ class Bridge:
             import elig
             day = now_tw().strftime("%Y-%m-%d"); L = self.__dict__.get("_dtl")
             if not L or L.get("day") != day or (not L.get("ok") and time.time() - L.get("t", 0) > 600):
-                m, ok, pause = {}, set(), set()
+                m, ok, pause, mks = {}, set(), set(), {}
                 for mk, url in (("twse", elig.TWSE_DT), ("tpex", elig.TPEX_DT)):
                     try:
                         got, _ = elig.parse_dt(elig.get_json(url, timeout=15, tries=1))
-                        if got: m.update(got); ok.add(mk)
+                        if got: m.update(got); ok.add(mk); mks[mk] = set(got)   # 2026-11-26 順便記哪個市場(名單外股票判斷上市 / 上櫃)
                     except Exception as e: log(f"[名單外] 抓{'上市' if mk == 'twse' else '上櫃'}可當沖名單失敗", e)
                 try: pause = set(elig.parse_dt(elig.get_json(elig.TPEX_DT_PAUSE, timeout=15, tries=1))[0])
                 except Exception as e: log("[名單外] 抓上櫃暫停先賣後買失敗", e)
-                L = self._dtl = {"day": day, "m": m, "ok": ok, "pause": pause, "t": time.time()}
+                L = self._dtl = {"day": day, "m": m, "ok": ok, "pause": pause, "mks": mks, "t": time.time()}
             mk = "tpex" if otc else "twse"
             if c in L["m"]:
                 dtf, sff, src = 1, 1 if L["m"][c] == 1 and c not in L["pause"] else 0, "官方可當沖名單"

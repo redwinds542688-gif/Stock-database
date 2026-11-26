@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-26 名單外手動成交的股票(富喬)K 圖修正:① 今天早上的 1 分 K(電腦補推上雲端的)手機整天重抓一次,不再只剩最後幾根 ② 前幾天 GitHub 缺的那天改問雲端(電腦補推的元大 1 分 K),不再把 11/24 直接接到今天 ③ 中繼照官方上櫃名單判斷上櫃股(原本元大用上市也查得到 K,一直當上市)
   · 2026-11-26 大盤線圖打開變快(使用者「進入這畫面 太慢了 好幾秒」):上次的線存在手機裡、打開先畫再背景更新;大盤指數 / 台指期 / 寬度 / 昨收同時抓(原本一個等一個);台指期昨收畫完再找。模擬雲端每個要 1.5 秒:第一次 4.5 秒 → 1.5 秒,之後 3 秒 → 馬上
   · 2026-11-26 當沖 / 明細每列的網底補回來(做多紫色方格、做空藍色斜紋,和進場卡一樣);11/18 改夥伴版排法後網底規則沒跟上新排法
   · 2026-11-26 大盤線圖三條線(大盤指數、台指期、寬度)都改畫 10 分均線(使用者「都改成10芬均線」→ 選「換成 10 分均線」),十字線上的數字也用均線值,右上角標「10分均線」
@@ -647,7 +648,7 @@ try{ if (localStorage.getItem('mysh.rw') !== '20261125'){ ['mysh.backfill', 'mys
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611261054">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611261112">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3966,6 +3967,15 @@ async function loadMinuteBars(code, onProgress, opts){   // opts.noStore:背景�
   for (const [y, yt] of res){ bars = bars.concat(y); ybars = ybars.concat(yt); }
   if (!bars.length && !ybars.length) throw new Error(fails.join(' / ') || '沒有資料');
   bars = mergeHistBars(bars, ybars);
+  /* 2026-11-26 11:10 使用者「改」(富喬:11/24 在名單、11/25 不在 → GitHub 上 11/25 整天沒有,圖把 11/24 的 112.50 直接接到今天):
+     今天名單外加進來的股票,前幾個交易日 GitHub 缺的那幾天改問雲端(電腦補推的元大 1 分 K,雲端留 14 天) */
+  try{ const X = window.__EXTRA && Array.isArray(window.__EXTRA.codes) && window.__EXTRA.codes.some(x => String(x.code) === String(code));
+    if (X){ const have = new Set(bars.map(b => dayKey(b.time))), miss = [...needDays(weeks[0]), ...needDays(weeks[1])].filter(n => !have.has(n) && n >= nowN - 9);
+      const add = [];
+      for (const n of miss){ const ds = new Date(n * 86400000).toISOString().slice(0, 10), base = Math.floor(Date.parse(ds + 'T00:00:00+08:00') / 1000);
+        try{ const r = await fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?ybars=${ds}&codes=${code}&_=${Date.now()}`, {cache: 'no-store'}); const j = r.ok ? await r.json() : null; const A = j && j.bars && j.bars[code];
+          if (A && A.length) for (const b of A) add.push({time: base + (+b[0].slice(0, 2)) * 3600 + (+b[0].slice(3, 5)) * 60, open: +b[1], high: +b[2], low: +b[3], close: +b[4], volume: +b[5]}); }catch(e){} }
+      if (add.length) bars = mergeHistBars(bars, add); } }catch(e){}
   BARS_MEM.set(code, {ver, bars});
   return bars;
 }
@@ -4395,6 +4405,13 @@ async function loadYuantaBars(d, base){
       YBARS.bars.set(code, old.concat(add));
     }
     if (j.last) YBARS.last = j.last;
+    /* 2026-11-26 11:10 使用者「改」(富喬名單外手動成交:電腦 11:02 才把今天 09:00~11:02 的 1 分 K 補推上雲端,手機只問 since 之後的 → 早上的 K 全沒了、圖只剩最後幾根):
+       今天名單外加進來的股票(?extra)整天重抓一次 */
+    try{ const X = window.__EXTRA && window.__EXTRA.d === d && Array.isArray(window.__EXTRA.codes) ? window.__EXTRA.codes.map(x => String(x.code)) : [];
+      YBARS.full = YBARS.full && YBARS.full.d === d ? YBARS.full : {d, s: new Set()};
+      for (const c of X){ if (YBARS.full.s.has(c)) continue; YBARS.full.s.add(c);
+        const r2 = await fetch(`${BASE.liveUrl.replace(/\/$/, '')}/?ybars=${d}&codes=${c}&_=${Date.now()}`, {cache: 'no-store'}); const j2 = r2.ok ? await r2.json() : null;
+        const A = j2 && j2.bars && j2.bars[c]; if (A && A.length) YBARS.bars.set(c, A.map(b => ({time: base + (+b[0].slice(0, 2)) * 3600 + (+b[0].slice(3, 5)) * 60, open: +b[1], high: +b[2], low: +b[3], close: +b[4], volume: +b[5]}))); } }catch(e){}
     try{ bugAdd('fn', ['ybars', j.n || 0, j.last || '']); }catch(e){} 
     YBARS.n += j.n || 0; YBARS.err = ''; YBARS.okAt = Date.now();
     const hm = x => x ? (+x.slice(0, 2)) * 60 + (+x.slice(3, 5)) : -1;
