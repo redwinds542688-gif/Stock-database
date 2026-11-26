@@ -31,6 +31,46 @@ def tod(s):
     elif ("上午" in s or "AM" in s.upper()) and h == 12: h = 0
     return f"{h:02d}:{m.group(2)}:{m.group(3) or '00'}"
 hm = lambda s: tod(s)[:5]
+def legs_fix(legs):
+    """2026-11-26 使用者「再找疏漏」:舊版中繼用 12 小時制時間(下午 01:20)排序配對 → 做空配成做多、進場時間晚於出場(11/23 文曄、11/25 台玻)。
+       看到 12 小時制時間就拆回成交、照真正先後重新先進先出配一次;費用照元大規則重算後把整檔總額調回原本(總淨額不變)。和中繼 legs_fix 同一套"""
+    import math
+    try:
+        if not isinstance(legs, list) or not any(re.search(r"上午|下午|AM|PM", str(g.get("t", "")) + str(g.get("t0", "")), re.I) for g in legs if isinstance(g, dict)): return legs
+        def sec(v):
+            x = tod(v)
+            return int(x[:2]) * 3600 + int(x[3:5]) * 60 + int(x[6:8]) if x else -1
+        by = {}
+        for g in legs:
+            if isinstance(g, dict) and int(g.get("lots") or 0) > 0: by.setdefault(g["code"], []).append(g)
+        out = []
+        for code, gs in by.items():
+            fm = {}
+            for g in gs:
+                L = g.get("dir") == "做多"
+                for bs, px, t in (("B" if L else "S", g["ent"], g.get("t0", "")), ("S" if L else "B", g["ex"], g.get("t", ""))):
+                    k = (bs, float(px), str(t)); f = fm.get(k)
+                    if f: f["q"] += int(g["lots"])
+                    else: fm[k] = {"bs": bs, "px": float(px), "t": str(t), "q": int(g["lots"])}
+            fills = sorted(fm.values(), key=lambda f: sec(f["t"]))
+            for f in fills:
+                amt = f["px"] * f["q"] * 1000
+                f["cost"] = max(20, math.floor(amt * 0.001425 * 0.25 + 1e-6)) + (math.floor(amt * 0.0015 + 1e-6) if f["bs"] == "S" else 0); f["left"] = f["q"]
+            q, nl = [], []
+            for f in fills:
+                while f["left"] > 0:
+                    if not q or q[0]["bs"] == f["bs"]: q.append(f); break
+                    h = q[0]; n = min(h["left"], f["left"]); L = h["bs"] == "B"
+                    gross = round((f["px"] - h["px"]) * n * 1000 * (1 if L else -1)); cost = round(h["cost"] * n / h["q"] + f["cost"] * n / f["q"])
+                    nl.append(dict(gs[0], dir="做多" if L else "做空", ent=h["px"], ex=f["px"], lots=n, t0=tod(h["t"]), t=tod(f["t"]), gross=gross, fee=cost, tax=0, net=gross - cost))
+                    h["left"] -= n; f["left"] -= n
+                    if h["left"] <= 0: q.pop(0)
+            tot0 = sum((g.get("gross") or 0) - (g.get("net") or 0) for g in gs); tot1 = sum(g["fee"] for g in nl)
+            if nl and all(f["left"] <= 0 for f in fills): nl[-1]["fee"] += tot0 - tot1; nl[-1]["net"] = nl[-1]["gross"] - nl[-1]["fee"]
+            out += nl
+        return sorted(out, key=lambda g: sec(g["t"]), reverse=True)
+    except Exception:
+        return legs
 def mi(s):
     s = hm(s); return int(s[:2]) * 60 + int(s[3:5]) if s else None
 num = lambda s: float(str(s).replace(",", ""))
@@ -132,7 +172,7 @@ def main(a):
     ld = lambda f: (json.load(open(f, encoding="utf-8")) if f and os.path.exists(f) else None)
     S, V, F = ld(fs), ld(fv), ld(ff)
     S = (S or {}).get("v", S) if isinstance(S, dict) else S; V = (V or {}).get("v", V) if isinstance(V, dict) else V; F = (F or {}).get("v", F) if isinstance(F, dict) and "v" in F else F
-    ent = entries_of(S or [], V or []); legs = (F or {}).get("legs") or []
+    ent = entries_of(S or [], V or []); legs = legs_fix((F or {}).get("legs") or [])   # 2026-11-26 舊版 12 小時制錯配
     other = real_of(ent, legs)
     os.makedirs(od, exist_ok=True)
     real = {"d": d, "說明": "電腦引擎當天每則進場訊號、中繼有沒有進場(why = 沒進原因)、元大實際成交(real;legs = 每一趟)。exits = 引擎虛擬出場通知;other = 配不到訊號的成交(手動 / 元三 / 強三)",
