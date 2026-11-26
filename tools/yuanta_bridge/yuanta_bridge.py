@@ -1336,7 +1336,7 @@ class Bridge:
         if not (self.quotes.meta.get(code) or {}).get("y"): threading.Thread(target=self.ensure_ref, args=(code,), daemon=True).start()   # 2026-11-26 富喬:名單外持倉沒有昨收 → ② ±6.5% 沒作用
         return str(mkt)
 
-    def ensure_ref(self, code):
+    def ensure_ref(self, code, to=5):
         """2026-11-26 判別式聊天轉使用者「不管手動 強制 程式自己進場 都要改好」(富喬 1815 手動空單過昨收 +6.5% 沒平:名單外 / 注意股臨時訂閱,報價沒有昨收 → 鐵律 ② 沒作用):
            昨收先問證交所即時行情(mis.twse getStockInfo 的 y,上市 / 上櫃都試),拿到馬上寫進報價(trader.ref_of 讀這裡);元大清盤參考價之後來了會蓋過。同一檔 60 秒內只問一次"""
         try:
@@ -1347,7 +1347,7 @@ class Bridge:
             for ex in ("tse", "otc"):
                 try:
                     u = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={ex}_{code}.tw&json=1&delay=0&_={int(time.time() * 1000)}"
-                    r = json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://mis.twse.com.tw/stock/index.jsp"}), timeout=5).read().decode("utf-8"))
+                    r = json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://mis.twse.com.tw/stock/index.jsp"}), timeout=to).read().decode("utf-8"))
                     a = (r.get("msgArray") or [{}])[0]; y = float(a.get("y") or 0)
                 except Exception: y = 0.0
                 if y > 0:
@@ -2244,6 +2244,7 @@ class Bridge:
                              "place_oco": lambda _s, *a: self.place_oco(*a), "delete_oco": lambda _s, no: self.delete_oco(no)})()
         t = Trader(cfg, gw, log, now_tw); t.alert = self.phone_alert; t.post = self.trade_post
         t.ref_of = lambda c: (self.quotes.meta.get(c) or {}).get("y")
+        t.ref_need = lambda c: self.ensure_ref(c, 2)   # 2026-11-26(交易鎖裡呼叫,每次最多 2 秒) trader 判 ① 時沒有昨收 → 當場查(證交所 mis)
         t.name_of = self.stock_name   # 2026-11-12 09:16 使用者「股票名稱怎麼變成1709」:名單外股票(留倉接回 / 手動)沒有名稱 → 查本機舊名單、證交所
         t.want_sub = self.want_sub
         for c, m in self.codes:

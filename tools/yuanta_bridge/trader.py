@@ -2687,6 +2687,9 @@ class Trader:
         try:
             if not Trader.IRON_LOTS or code in self.ignore: return ""
             why = []; hm = self.hm(); ref = self.ref_of(code) or 0
+            if not ref > 0 and getattr(self, "ref_need", None):   # 2026-11-26 富喬:名單外股票預掛時還沒有昨收 → 當場請中繼查(證交所),查到才能判 ①
+                try: self.ref_need(code); ref = self.ref_of(code) or 0
+                except Exception: pass
             px = float(price or 0) or float(self.last_px.get(code) or 0)
             p0 = self.positions.get(code)
             if p0 and p0["dir"] == d:   # 2026-11-12 11:55 「解鎖 改:只有手動加碼」:加碼預掛只看 500 萬額度
@@ -2738,6 +2741,9 @@ class Trader:
         try:
             if not Trader.IRON_LOTS: return False
             why = []; hm = self.hm(); ref = self.ref_of(p["code"]) or 0
+            if not ref > 0 and getattr(self, "ref_need", None):   # 2026-11-26 成交當下沒有昨收 → 當場請中繼查;還是沒有才記著等(_iron_retry)
+                try: self.ref_need(p["code"]); ref = self.ref_of(p["code"]) or 0
+                except Exception: pass
             if str(what).startswith("手動加碼"):   # 2026-11-12 11:55 使用者「手動加碼 不受鐵律進場管制 但是進場之後 就要接受程式管轄」→「解鎖 改:只有手動加碼」:加碼不看 ③ 時間 / ① ±5% / ⑤ 分級、一張 25 萬,只看 500 萬額度
                 return False   # 2026-11-16 10:59 🔓→🔒 使用者「手動加碼 不受管500萬 跟25分級管束」→「解鎖 改」:手動加碼不檢查鐵律 ⑤(500 萬額度、25 萬分級);加碼張數併進部位,停利 / 停損 / 移平 / 6.5% / 總停損 / 13:20 照舊一起平;加碼金額照算進今天成交(程式新單照 500 萬扣)
             # 2026-11-11 22:20 使用者「手動依舊受程式管束」:併入 / 對帳接回 / 重開接回也檢查;fills = [(成交時間, 成交價)],時間看不懂的不看時間(重開接回不能拿現在時間誤判)
