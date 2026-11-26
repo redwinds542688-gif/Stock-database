@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-27 做多中 / 做空中的輸贏指針改半邊錶面(使用者「改」):上半紅、下半綠,只亮目前那一半、另一半變暗,弧形外框賺紅賠綠;扣費後淨賺 > 0 才算贏;每 1% 轉 9°、±10% 到頂 / 底;每 2% 一個刻度;金黃色指針由粗到細。平倉後換回原本的漲跌指針
   · 2026-11-27 大盤線圖:昨收線太靠近圖頂時「昨收」標籤改寫在線下面,不再跟右上角「10分均線」疊在一起(使用者「可以不要疊在一起嗎」)
   · 2026-11-27 細字型補漏(使用者「檢查 有沒有顯示錯誤的」):進場 / 當沖 / 明細 / 公式 / 設定分頁鈕、K 圖左右鈕、K線圖鈕、鑰匙視窗掃描鈕原本不繼承字型(用系統字)→ 也改最細
   · 2026-11-27 全部文字、數字改最細(使用者「E 改。所有文字跟數字都改」):中文思源黑體 Noto Sans TC 200、數字等寬 Roboto Mono 200,圖上的字也一樣;字型照用到的字分批下載(第一次多幾百 KB),載完前先用系統字,載完自動重排版面
@@ -671,7 +672,7 @@ try{ if (localStorage.getItem('mysh.rw') !== '20261125'){ ['mysh.backfill', 'mys
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611270020">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611270034">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1358,6 +1359,7 @@ body:has(#sheet.open) #bugDot::before,body:has(#sheet.open) #bugDot::after{displ
 html body, html body *{font-weight:200!important;font-synthesis:none}
 body{font-family:var(--sans)}
 button,input,select,textarea{font-family:inherit}   /* 2026-11-27 按鈕預設不繼承字型(用系統 Arial / 一般粗細中文)→ 跟著變細 */
+.row .rank svg.pdial{width:calc(var(--uf) * 2.125);height:calc(var(--uf) * 3.4);overflow:visible;border:0;padding:0;background:none}   /* 2026-11-27 半邊錶面輸贏指針 */
 </style>
 </head>
 <body>
@@ -5040,6 +5042,14 @@ async function idxPoll(force){
 const NEEDLE_SVG = (id, cls) => `<svg${id ? ' id="' + id + '"' : ''} class="needle${cls ? ' ' + cls : ''}" viewBox="0 0 28 24" overflow="visible"><g class="ndl"><g class="o"><polygon points="7.8,10.4 10.6,10.9 27.5,12 10.6,13.1 7.8,13.6" fill="currentColor"/><circle cx="4.6" cy="12" r="4.6" fill="currentColor"/><circle cx="4.6" cy="12" r="3.1" fill="#E9EDF3"/><circle cx="4.6" cy="12" r="1.3" fill="#8A93A3"/></g><g class="w"><rect x="7.4" y="11.5" width="12.4" height="1" rx=".4" fill="currentColor"/><circle cx="4.6" cy="12" r="3.7" fill="currentColor"/><circle cx="4.6" cy="12" r="1.7" fill="#E9EDF3"/><circle cx="4.6" cy="12" r=".8" fill="#8A93A3"/><circle cx="21.6" cy="12" r="1.9" fill="none" stroke="currentColor" stroke-width="1.1"/><polygon points="23.3,11.25 28,12 23.3,12.75" fill="currentColor"/></g></g></svg>`;
 // 2026-11-09 13:07(實際時間)使用者「股票監控區 做多或做空 股票前面指針 改成 輸贏指針 反白」(看過圖說「改」):
 //   有進場未平倉 → 指針照部位輸贏 %(做多 = 現價比進場漲幾 %,做空反過來;1% = 9°),贏紅底、輸綠底、白針;沒部位照舊當日漲跌
+function pnlDial(pl){   // 2026-11-27 半邊錶面(viewBox 0 0 30 48):軸心在左邊中間 (4,24),半徑 22
+  const D = 9, a = Math.max(-90, Math.min(90, pl * D)) * Math.PI / 180, cx = 4, cy = 24, L = 18.5, f = v => v.toFixed(2);
+  const ux = Math.cos(a), uy = -Math.sin(a), px = -uy, py = ux, b = 1.9, tx = cx - 2.2 * ux, ty = cy - 2.2 * uy, win = pl > 0;
+  let tk = ''; for (const q of [-8, -6, -4, -2, 0, 2, 4, 6, 8]){ const t = q * D * Math.PI / 180, r1 = q === 0 ? 16.5 : 18.5; tk += `<line x1="${f(cx + r1 * Math.cos(t))}" y1="${f(cy - r1 * Math.sin(t))}" x2="${f(cx + 21.3 * Math.cos(t))}" y2="${f(cy - 21.3 * Math.sin(t))}" stroke="#0b0b0b" stroke-width="${q === 0 ? 1.8 : 1.2}"/>`; }
+  return `<path d="M${cx} ${cy} L${cx} 2 A22 22 0 0 1 ${cx + 22} ${cy} Z" fill="${win ? '#FF3B3B' : '#5a2a2a'}"/><path d="M${cx} ${cy} L${cx + 22} ${cy} A22 22 0 0 1 ${cx} 46 Z" fill="${win ? '#1f4a2c' : '#1DD75B'}"/>`
+    + `<path d="M${cx} 0.8 A23.2 23.2 0 0 1 ${cx} 47.2" fill="none" stroke="${win ? '#FF3B3B' : '#1DD75B'}" stroke-width="2.2"/>` + tk
+    + `<polygon points="${f(tx + px * b)},${f(ty + py * b)} ${f(cx + L * ux)},${f(cy + L * uy)} ${f(tx - px * b)},${f(ty - py * b)}" fill="#FFC107"/><circle cx="${cx}" cy="${cy}" r="3.2" fill="#FFC107"/>`;
+}
 function rowNeedle(row, r){
   const nd = row && row.querySelector('.rank svg'); if (!nd || !r) return;
   const op = window.__openPos && __openPos.get(row.dataset.code);
@@ -5048,9 +5058,15 @@ function rowNeedle(row, r){
     const dr = op.side === 'long' ? 1 : -1, lt = op.lots || 1, amt = op.entP * lt * 1000; let pl;
     try{ const C = cost(); const g = (r.z - op.entP) * dr * lt * 1000, nt = g - (dr > 0 ? costAmt(amt, r.z * lt * 1000, C) : costAmt(r.z * lt * 1000, amt, C)); pl = nt / amt * 100; }catch(e){ pl = (r.z - op.entP) / op.entP * 100 * dr; }
     const k = 'P' + pl.toFixed(3);
-    if (nd.__p === k) return; nd.__p = k; needleSet(nd, pl, 6, 30); nd.classList.add('pinv'); nd.classList.toggle('plose', pl < 0); nd.style.color = pl < 0 ? '#1DD75B' : '#FF3B3B'; return;   // 2026-11-11 外框樣式:針跟框同色
+    if (nd.__p === k) return; nd.__p = k;
+    // 2026-11-27 00:33 使用者「改」(選 B + 金黃色指針):做多中 / 做空中的輸贏指針改成半邊錶面 —— 上半紅、下半綠,只亮目前那一半(另一半變暗)、弧形外框賺紅賠綠;
+    //   扣費後淨賺 > 0 才算贏;每 1% 轉 9°、±10% 到頂 / 底;每 2% 一個刻度;金黃色指針由粗到細(原 2026-11-11 外框樣式)
+    if (nd.__orig == null){ nd.__orig = nd.innerHTML; nd.__vb = nd.getAttribute('viewBox'); }
+    nd.setAttribute('viewBox', '0 0 30 48'); nd.innerHTML = pnlDial(pl); nd.classList.remove('pinv', 'plose'); nd.classList.add('pdial'); nd.style.color = ''; return;
   }
-  if (nd.__p === r.chgPct) return; nd.__p = r.chgPct; nd.classList.remove('pinv', 'plose'); needleSet(nd, r.chgPct);
+  if (nd.__p === r.chgPct) return; nd.__p = r.chgPct; nd.classList.remove('pinv', 'plose', 'pdial');
+  if (nd.__orig != null){ nd.innerHTML = nd.__orig; if (nd.__vb) nd.setAttribute('viewBox', nd.__vb); nd.__orig = null; }   // 2026-11-27 平倉了 → 換回原本的漲跌指針
+  needleSet(nd, r.chgPct);
 }
 setInterval(() => { try{   /* 2026-11-10 17:57 使用者(影片)「進場通知欄 10秒後才顯示真正正確的股價」:剛開時即時報價的昨收還沒到,卡片價格顏色先用舊快照的昨收(可能紅綠顛倒),通知內容沒變就不重畫 → 等十幾秒才對;改成報價一到就每 3 秒直接把今天卡片的價格顏色校正(比昨收高紅、低綠、平白) */
   document.querySelectorAll('#notifLog [data-pc]').forEach(e => { const y = +(((LIVE.get(e.dataset.pc) || {}).y) || 0), v = +e.dataset.pv; if (!(y > 0) || !(v > 0)) return; const c = 'px' + (v > y ? ' up' : v < y ? ' down' : ' flat'); if (e.className !== c) e.className = c; });
