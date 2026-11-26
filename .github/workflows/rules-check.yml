@@ -1,0 +1,38 @@
+name: 電腦抓規則檢查(私人庫 Stock-logic 經 Worker)
+
+# 2026-11-26 引擎心跳 stale=1(規則抓不到最新):用 YT_PUSH_KEY 照電腦 fetch_rules 同一條路(?gh=raw&repo=logic)抓 sim_day.py / rs_env.py,
+#   印 HTTP 狀態、大小、是否有必要字串、能不能 compile、內容雜湊(不印金鑰)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 抓規則
+        env:
+          K: ${{ secrets.YT_PUSH_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os, time, hashlib, urllib.request, urllib.error
+          K = os.environ.get("K", ""); B = "https://twse-proxy.redwinds542688.workers.dev/"
+          for f, must in (("backtest/sim_day.py", "sys.argv"), ("backtest/chk/rs_env.py", "def env_of")):
+              u = f"{B}?gh=raw&path={f}&repo=logic&_={int(time.time())}"
+              try:
+                  r = urllib.request.urlopen(urllib.request.Request(u, headers={"X-Push-Key": K, "User-Agent": "mysh-engine/1"}), timeout=60)
+                  b = r.read(); st = r.status
+              except urllib.error.HTTPError as e:
+                  b = e.read(); st = e.code
+              except Exception as e:
+                  print(f, "例外", type(e).__name__, str(e)[:200]); continue
+              t = b.decode("utf-8", "replace")
+              ok_must = must in t
+              try: compile(t, f, "exec"); comp = "OK"
+              except Exception as e: comp = f"{type(e).__name__}: {str(e)[:150]}"
+              print(f, "HTTP", st, "大小", len(b), "有必要字串", ok_must, "compile", comp, "sha", hashlib.sha256(b).hexdigest()[:8])
+              if st != 200 or not ok_must: print("  內容開頭:", t[:300].replace("\n", " "))
+          PY
