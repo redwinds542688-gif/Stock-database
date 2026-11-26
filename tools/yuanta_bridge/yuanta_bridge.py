@@ -1336,6 +1336,40 @@ class Bridge:
         if not (self.quotes.meta.get(code) or {}).get("y"): threading.Thread(target=self.ensure_ref, args=(code,), daemon=True).start()   # 2026-11-26 富喬:名單外持倉沒有昨收 → ② ±6.5% 沒作用
         return str(mkt)
 
+    def tick_guard(self, code):
+        """2026-11-26 使用者「以後 手動進場 不管監控裡面有沒有 程式接管保護都要完整」:持倉的股票 60 秒以上沒收到元大逐筆
+           (臨時訂閱沒成功、上市 / 上櫃判斷錯、冷門股)→ 補送訂閱(5 分鐘一次),並用證交所即時行情的成交價餵給 trader(停利 / 停損 / ② / 移平 / 總平照樣盯)"""
+        try:
+            r = self.quotes.q.get(code); now = now_tw(); age = 999
+            if r and r.get("t") and r.get("d") == now.strftime("%Y%m%d"):
+                h, m_, s_ = (int(x) for x in r["t"].split(":")); age = (now.hour * 3600 + now.minute * 60 + now.second) - (h * 3600 + m_ * 60 + s_)
+            if age < 60: return
+            st = self.__dict__.setdefault("_tg", {}); g = st.setdefault(code, {"sub": 0.0, "noted": False})
+            if time.time() - g["sub"] > 300:
+                g["sub"] = time.time(); g["n"] = g.get("n", 0) + 1; mkt = self.mkt_of_code(code)
+                if mkt is not None:
+                    try:   # 第 1 次照原本判斷的市場重訂,之後上市 / 上櫃輪流試(市場判斷錯就收不到逐筆)
+                        if g["n"] % 2 == 0: mkt = self.Y.enumMarketType.TWOTC if str(mkt) != str(self.Y.enumMarketType.TWOTC) else self.Y.enumMarketType.TWSE
+                    except Exception: pass
+                    self.pending_sub.append((code, mkt))
+            ex0 = (self.quotes.meta.get(code) or {}).get("ex") or "tse"
+            for ex in ([ex0] + [x for x in ("tse", "otc") if x != ex0]):
+                try:
+                    u = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={ex}_{code}.tw&json=1&delay=0&_={int(time.time() * 1000)}"
+                    a = (json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://mis.twse.com.tw/stock/index.jsp"}), timeout=4).read().decode("utf-8")).get("msgArray") or [{}])[0]
+                    z = a.get("z"); z = float(z) if z not in (None, "", "-") else 0.0
+                    if not z > 0:   # 這 5 秒沒成交 → 用最佳買賣價中間(有的話)
+                        b = str(a.get("b") or "").split("_")[0]; k = str(a.get("a") or "").split("_")[0]
+                        z = (float(b) + float(k)) / 2 if b not in ("", "-") and k not in ("", "-") and float(b) > 0 and float(k) > 0 else 0.0
+                    if a.get("y") and not (self.quotes.meta.get(code) or {}).get("y"):
+                        with self.quotes.lock: self.quotes.meta.setdefault(code, {"n": "", "ex": ex, "y": None})["y"] = float(a["y"])
+                except Exception: z = 0.0
+                if z > 0:
+                    if not g["noted"]: g["noted"] = True; log(f"[交易] !! {code} 持倉 {age if age < 999 else '一直'} 秒沒收到元大逐筆 → 改用證交所即時價盯(停利 / 停損 / ② / 移平照常)")
+                    if self.trader: self.trader.on_tick(code, z)
+                    return
+        except Exception as e: log("持倉報價備援失敗", e)
+
     def ensure_ref(self, code, to=5):
         """2026-11-26 判別式聊天轉使用者「不管手動 強制 程式自己進場 都要改好」(富喬 1815 手動空單過昨收 +6.5% 沒平:名單外 / 注意股臨時訂閱,報價沒有昨收 → 鐵律 ② 沒作用):
            昨收先問證交所即時行情(mis.twse getStockInfo 的 y,上市 / 上櫃都試),拿到馬上寫進報價(trader.ref_of 讀這裡);元大清盤參考價之後來了會蓋過。同一檔 60 秒內只問一次"""
@@ -2636,6 +2670,7 @@ class Bridge:
                     try:
                         for c in [p["code"] for p in list(self.trader.positions.values()) if p.get("qty")]:
                             if not (self.quotes.meta.get(c) or {}).get("y"): threading.Thread(target=self.ensure_ref, args=(c,), daemon=True).start()
+                            if "09:00" <= hm_w < "13:25": threading.Thread(target=self.tick_guard, args=(c,), daemon=True).start()
                     except Exception as e: log("持倉昨收檢查失敗", e)
                 if "09:00" <= hm_w <= "13:36" and time.time() - getattr(self, '_bk_at', 0) >= 60:   # 2026-11-12 20:22 使用者「改」:每分鐘把電腦關鍵資料備份到雲端(背景,不卡主迴圈)
                     self._bk_at = time.time(); threading.Thread(target=self.pc_backup, args=(day,), daemon=True).start()
