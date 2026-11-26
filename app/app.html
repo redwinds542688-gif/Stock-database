@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-27 全部文字、數字改最細(使用者「E 改。所有文字跟數字都改」):中文思源黑體 Noto Sans TC 200、數字等寬 Roboto Mono 200,圖上的字也一樣;字型照用到的字分批下載(第一次多幾百 KB),載完前先用系統字,載完自動重排版面
   · 2026-11-26 每日對帳(實盤 vs 總表)也先把 12 小時制錯配的明細重新配對;11/23 文曄、11/25 台玻的對帳重跑
   · 2026-11-26 雲端資料庫以前存的明細(12 小時制錯配)一次性就地重新配對(使用者「改」):只動成交明細表,總淨額對不上的日子不動,AI 檢討不重跑;收盤後自動做一次
   · 2026-11-26 12 小時制錯配的其他漏網:中繼讀存檔的明細(收工後、看以前的日子)先重新配對;雲端 14:05 每日備份(資料庫、AI 檢討)和夥伴 iPhone 平倉通知也先重新配對;重新配對後不重推 20 分鐘前的舊平倉
@@ -615,6 +616,10 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
+<!-- 2026-11-27 00:06 使用者「E 改。所有文字跟數字都改」:全部文字、數字改最細(思源黑體 Noto Sans TC 200、數字等寬 Roboto Mono 200);字型照用到的字分批下載,載完前先用系統字 -->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@200&family=Roboto+Mono:wght@200&display=swap">
+<script>try{ var __fr = function(){ try{ window.dispatchEvent(new Event('resize')); }catch(e){} }; if (document.fonts){ document.fonts.addEventListener('loadingdone', function(){ setTimeout(__fr, 60); }); document.fonts.ready.then(function(){ setTimeout(__fr, 60); }); } }catch(e){}   // 細字型載完 → 版面重排(字寬變了)</script>
 <script>
 /* 2026-11-25 判別式聊天轉達使用者「重寫 34天 主導$與虛擬 … 明天再分流」:手機本機舊的重算 / 明細 / 進場快取清一次(之後照雲端新檔重抓) */
 try{ if (localStorage.getItem('mysh.rw') !== '20261125'){ ['mysh.backfill', 'mysh.btfill', 'mysh.vdone', 'mysh.lve'].forEach(k => localStorage.removeItem(k)); localStorage.setItem('mysh.rw', '20261125'); } }catch(e){}
@@ -664,7 +669,7 @@ try{ if (localStorage.getItem('mysh.rw') !== '20261125'){ ['mysh.backfill', 'mys
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611261353">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611270007">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -674,8 +679,8 @@ try{ if (localStorage.getItem('mysh.rw') !== '20261125'){ ['mysh.backfill', 'mys
     --ink:#12151C; --panel:#1A1F29; --panel2:#212836; --line:#2A3140;
     --text:#E6E9EF; --dim:#7E8899; --faint:#4C5566;
     --up:#E8404A; --down:#22B07D; --brass:#C9A227;
-    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
-    --sans:-apple-system,BlinkMacSystemFont,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+    --mono:"Roboto Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:"Noto Sans TC",-apple-system,BlinkMacSystemFont,"PingFang TC","Microsoft JhengHei",sans-serif;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;
     -webkit-touch-callout:none;                 /* 長按不跳出系統選單 */
@@ -1347,6 +1352,9 @@ body:has(#sheet.open) #bugDot::before,body:has(#sheet.open) #bugDot::after{displ
 /* 2026-11-09 09:53 使用者「電腦 左上角綠燈不會閃嗎」→「電腦版」:沒有 Android App 時,8:45~13:35 電腦判別引擎有心跳 → 左上角綠點閃;心跳停了 3 分鐘 → 紅點;其他時間灰點(手機不變) */
 #bugDot.pc{background:#1DD75B;box-shadow:0 0 6px rgba(29,215,91,.8);animation:bgBlink 1.2s infinite}
 #bugDot.pcoff{background:#FF3B3B;box-shadow:0 0 6px rgba(255,59,59,.8)}
+/* 2026-11-27 00:06 使用者「E 改。所有文字跟數字都改」:全部文字、數字一律最細(含圖上的字) */
+html body, html body *{font-weight:200!important;font-synthesis:none}
+body{font-family:var(--sans)}
 </style>
 </head>
 <body>
@@ -2592,7 +2600,7 @@ window.fmShow = fmShow;
     let hi = Math.max(...bars.map(b => b.high), e), lo = Math.min(...bars.map(b => b.low), e); const pad = (hi - lo) * 0.06 || 0.1; hi += pad; lo -= pad;
     const X = i => L + (i + 0.5) * (W - L - R) / n, Y = v => T + (hi - v) / (hi - lo) * (PH - T), bw = Math.max(1, (W - L - R) / n * 0.7);
     const vmax = Math.max(...bars.map(b => b.volume || 0)) || 1;
-    g.strokeStyle = '#222'; g.lineWidth = 1; g.fillStyle = '#8C96AB'; g.font = '10px sans-serif';
+    g.strokeStyle = '#222'; g.lineWidth = 1; g.fillStyle = '#8C96AB'; g.font = '200 10px "Noto Sans TC",sans-serif';
     for (let k = 0; k <= 4; k++){ const v = lo + (hi - lo) * k / 4, y = Y(v); g.beginPath(); g.moveTo(L, y); g.lineTo(W - R, y); g.stroke(); g.fillText(v.toFixed(v < 50 ? 2 : 1), 1, y + 3); }
     if (split > 0 && split < n){ g.strokeStyle = '#666'; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(X(split) - bw, T); g.lineTo(X(split) - bw, VB); g.stroke(); g.setLineDash([]); }
     if (iAl >= 0){ g.fillStyle = 'rgba(255,140,66,.25)'; g.fillRect(X(iAl) - bw, T, bw * 2, VB - T); }
@@ -2606,7 +2614,7 @@ window.fmShow = fmShow;
     { let pv = 0, vv = 0; line(bars.map((b, i) => { if (i < split) return null; pv += b.close * (b.volume || 0); vv += (b.volume || 0); return vv ? pv / vv : null; }), '#c8a2ff', [4, 3]); }
     // 2026-11-07 13:58 使用者「進場點 拖輸點 123點 都要明顯標示出來」:點上畫記號,文字標籤放在固定的列(拖輸最上、進場第二列、①②③ 價格區底下)
     //   標籤左右錯開不重疊,用細線連到那根 K
-    g.font = 'bold 12px sans-serif';
+    g.font = '200 12px "Noto Sans TC",sans-serif';
     const lay = (items, y) => { items.sort((a, b) => a.x - b.x); let lastR = L;
       for (const it of items){ it.w = g.measureText(it.t).width + 10; it.bx = Math.max(lastR + 4, it.x - it.w / 2); lastR = it.bx + it.w; }
       let over = lastR - (W - R); if (over > 0) for (let k = items.length - 1; k >= 0; k--){ const it = items[k], lim = k ? items[k - 1].bx + items[k - 1].w + 4 : L; const sh = Math.min(over, it.bx - lim); it.bx -= over; if (k && it.bx < lim){ over = lim - it.bx; } else over = 0; }
@@ -2622,7 +2630,7 @@ window.fmShow = fmShow;
       const py = k => d > 0 ? Y(bars[k].low) : Y(bars[k].high);
       const pts = [[i1, '① 爆量 ' + hmOf(bars[i1].time), '#ff8c42'], [i3 - 1, '② 量縮 ' + hmOf(bars[i3 - 1].time), '#4fc3f7'], [i3, '③ 翻' + (d > 0 ? '多 ' : '空 ') + hmOf(bars[i3].time), '#c8a2ff']].filter((q, k) => k !== 1 || i3 - 1 > i1);
       // 2026-11-07 14:06 使用者「123 在k 圖 只要標示 不用詳細說明數值」:只畫 ①②③ 圓圈(① / ② 在那根下面、③ 在上面,上下錯開不重疊)
-      const badge = (x, y, n, col) => { g.fillStyle = col; g.beginPath(); g.arc(x, y, 9, 0, 7); g.fill(); g.strokeStyle = '#0f1115'; g.lineWidth = 1.5; g.stroke(); g.lineWidth = 1; g.fillStyle = '#0f1115'; g.font = 'bold 12px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(n, x, y + 1); g.textAlign = 'left'; g.textBaseline = 'alphabetic'; };
+      const badge = (x, y, n, col) => { g.fillStyle = col; g.beginPath(); g.arc(x, y, 9, 0, 7); g.fill(); g.strokeStyle = '#0f1115'; g.lineWidth = 1.5; g.stroke(); g.lineWidth = 1; g.fillStyle = '#0f1115'; g.font = '200 12px "Noto Sans TC",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(n, x, y + 1); g.textAlign = 'left'; g.textBaseline = 'alphabetic'; };
       const out = (k, far) => d > 0 ? Math.min(PH - 10, Y(bars[k].low) + (far ? 40 : 12)) : Math.max(T + 10, Y(bars[k].high) - (far ? 40 : 12)), inn = k => d > 0 ? Math.max(T + 10, Y(bars[k].high) - 13) : Math.min(PH - 10, Y(bars[k].low) + 13);
       pts.forEach(([k], q) => { const lbl = ['1', '2', '3'][pts.length === 2 && q === 1 ? 2 : q]; badge(X(k), lbl === '3' ? inn(k) : out(k, lbl === '2'), lbl, pts[q][2]); }); }
     const top = [];
@@ -2630,7 +2638,7 @@ window.fmShow = fmShow;
     const mid = [];
     if (iEnt >= 0){ dot(X(iEnt), Y(e), '#26c281', 6); mid.push({x: X(iEnt), py: Y(e), t: '進場 ' + (tEnt || '') + ' ' + (dir > 0 ? '多' : '空') + ' ' + e.toFixed(2), bg: '#26c281', fg: '#06261a'}); }
     if (top.length) lay(top, 3); if (mid.length) lay(mid, 3 + top.length * 22); 
-    g.fillStyle = '#8C96AB'; g.font = '10px sans-serif';
+    g.fillStyle = '#8C96AB'; g.font = '200 10px "Noto Sans TC",sans-serif';
     bars.forEach((b, i) => { const hm = hmOf(b.time); if (hm.endsWith(':00') || (i === split)) g.fillText(i === split ? '開盤' : hm, X(i) - 12, H - 2); });
   }
   async function show(x){
@@ -4732,7 +4740,7 @@ function mkcDraw(){ try{
           const sc = n * 1e6 + cover * 1e4 + dist * 10 + (by - top) / 100;
           if (!best || sc < best.sc) best = {bx, by, n, sc}; if (n === 0) break; } }
       return best || {bx: Math.max(L, Math.min(W - R - bw, cx + 10)), by: top}; };
-    const tw_ = (t) => { try{ const c = mkcDraw._c || (mkcDraw._c = document.createElement('canvas').getContext('2d')); c.font = '700 16px ' + getComputedStyle(document.body).fontFamily; return c.measureText(t).width; }catch(e){ return t.length * 10; } };
+    const tw_ = (t) => { try{ const c = mkcDraw._c || (mkcDraw._c = document.createElement('canvas').getContext('2d')); c.font = '200 16px ' + getComputedStyle(document.body).fontFamily; return c.measureText(t).width; }catch(e){ return t.length * 10; } };
     /* 17:06 使用者:「大盤」改「大盤指」,漲跌幅跌要綠色(漲紅、平白) */
     /* 17:09 使用者「台指期 跟 大盤指 誰多 誰就在上面」 */ const fUp = vf != null && vi != null && vf > vi;
     const pr = vi != null && MKC.y0 ? (vi / MKC.y0 - 1) * 100 : null, pct = pr == null ? '' : ` <tspan fill="${pr > 0 ? '#FF3B3B' : pr < 0 ? '#1DD75B' : '#E6EAF2'}">${pr > 0 ? '+' : ''}${pr.toFixed(2)}%</tspan>`;
@@ -5524,7 +5532,7 @@ function wiDevDraw(wp, r){
   const sy = (H - 8) / (hi - lo), yOf = v => 4 + (hi - v) * sy, pc = A.prevClose;
   // 左邊價格刻度(和 K 圖一樣:比昨收高紅、低綠、平白),刻度間距取好讀的檔位
   { const nice = [0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 5, 10, 20, 50]; let st = nice[nice.length - 1]; for (const v of nice){ if (v * sy >= 26){ st = v; break; } }
-    g.font = '11px ui-monospace,Menlo,monospace'; g.textAlign = 'right'; g.textBaseline = 'middle';
+    g.font = '200 11px "Roboto Mono",ui-monospace,monospace'; g.textAlign = 'right'; g.textBaseline = 'middle';
     if (isFinite(lo) && isFinite(hi) && (hi - lo) / st <= 200) for (let v = Math.ceil(lo / st) * st; v <= hi + 1e-9; v += st){   /* 2026-11-10 12:40 換股票那一刻範圍亂掉(格數上千萬)會卡死整頁 → 格數太多不畫刻度 */ const y = yOf(v); if (y < 6 || y > H - 6) continue;
       g.strokeStyle = '#1C1C1C'; g.beginPath(); g.moveTo(ox, Math.round(y) + 0.5); g.lineTo(W, Math.round(y) + 0.5); g.stroke();
       const vv = +v.toFixed(2); g.fillStyle = PX_AXIS_COL; /* 2026-11-01 使用者「都改成 黃字」→「把 黃色 換 藍色」 */ g.fillText(vv.toFixed(2), ox - 4, y); }
@@ -5548,7 +5556,7 @@ function wiDevDraw(wp, r){
       // 2026-10-27 20:05 使用者:「乖離圖也要跟k圖一樣 十字線碰到乖離均線與kb 要有點」:十字線那根在 Kb(黃虛線)、乖離均 10(紫線)上各畫一個實心點
       { const dot = (v, col) => { if (v == null || !isFinite(v)) return; const yy = yOf(v); g.beginPath(); g.arc(X, yy, 4.5, 0, Math.PI * 2); g.fillStyle = col; g.fill(); g.lineWidth = 1; g.strokeStyle = '#000'; g.stroke(); };
         if (PRESS){ dot(KAa[ci], '#FFE14D'); dot(PAVG(ci), '#B15CFF'); } else { dot(KBa[ci], '#FFE14D'); dot(PY(ci), '#B15CFF'); } }
-      const txt = KAa[ci].toFixed(2); g.font = 'bold 11px ui-monospace,Menlo,monospace';
+      const txt = KAa[ci].toFixed(2); g.font = '200 11px "Roboto Mono",ui-monospace,monospace';
       g.fillStyle = dl > 0 ? '#E0303F' : dl < 0 ? '#08A060' : '#FFFFFF'; g.fillRect(0, Y - 8, ox, 16);
       g.fillStyle = dl === 0 ? '#000' : '#FFF'; g.textAlign = 'right'; g.textBaseline = 'middle'; g.fillText(txt, ox - 4, Y); } }
   // 2026-10-29 00:21 使用者「乖離 怎麼沒有跟 ka kb 一樣的箭頭」:乖離、均 10 後面加和 Ka / Kb 一樣的粗箭頭(這根比前一根大 = 紅↑、小 = 綠↓、一樣不畫)
@@ -5671,7 +5679,7 @@ function wiRender(wp){
 function axDate(t){ try{
   const host = el('chartBot'), cB = (typeof chartB !== 'undefined' && chartB) ? chartB : null; if (!host || !cB || t == null) return;
   let e = el('axDate'); if (!e){ e = document.createElement('div'); e.id = 'axDate'; host.style.position = host.style.position || 'relative';
-    e.style.cssText = 'position:absolute;left:0;bottom:0;z-index:4;display:flex;align-items:center;justify-content:center;pointer-events:none;font:700 12px ui-monospace,Menlo,monospace;color:#FFFFFF;background:' + CHART_THEME.bg; host.appendChild(e); }
+    e.style.cssText = 'position:absolute;left:0;bottom:0;z-index:4;display:flex;align-items:center;justify-content:center;pointer-events:none;font:200 12px var(--mono);color:#FFFFFF;background:' + CHART_THEME.bg; host.appendChild(e); }
   const w = (cB.priceScale('left').width() || 0) + 'px', h = (cB.timeScale().height() || 0) + 'px';   /* 2026-10-28 00:55 捲動變慢:尺寸 / 文字沒變就不碰畫面 */
   if (e.__w !== w){ e.__w = w; e.style.width = w; } if (e.__h !== h){ e.__h = h; e.style.height = h; }
   const k = Math.floor((t + 28800) / 86400); if (e.__d !== k){ e.__d = k; e.textContent = TPE_DATE(t); } }catch(err){} }
@@ -6383,7 +6391,7 @@ function pxAxisAttach(ch, box, getSeries, isOn, xcAt){
   const STEPS = [0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 500];
   const gl = document.createElement('div'), lb = document.createElement('div');
   gl.style.cssText = 'position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:0';
-  lb.style.cssText = 'position:absolute;left:0;top:0;bottom:0;pointer-events:none;z-index:3;font:11px ui-monospace,Menlo,monospace';
+  lb.style.cssText = 'position:absolute;left:0;top:0;bottom:0;pointer-events:none;z-index:3;font:200 11px var(--mono)';
   box.style.position = 'relative'; box.style.background = CHART_THEME.bg; box.insertBefore(gl, box.firstChild); box.appendChild(lb);
   const tbl = box.querySelector('table'); if (tbl){ tbl.style.position = 'relative'; tbl.style.zIndex = '1'; }
   let memo = '', hidden = null, memoY0 = 0;
@@ -6467,7 +6475,7 @@ function initChart(){
     top.style.background = CHART_THEME.bg; top.style.position = 'relative';
     const gl = document.createElement('div'), lb = document.createElement('div');
     gl.style.cssText = 'position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:0';
-    lb.style.cssText = 'position:absolute;left:0;top:0;bottom:0;pointer-events:none;z-index:3;font:11px ui-monospace,Menlo,monospace';
+    lb.style.cssText = 'position:absolute;left:0;top:0;bottom:0;pointer-events:none;z-index:3;font:200 11px var(--mono)';
     top.insertBefore(gl, top.firstChild); top.appendChild(lb);
     const tbl = top.querySelector('table'); if (tbl){ tbl.style.position = 'relative'; tbl.style.zIndex = '1'; }
     const STEPS = [0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 500];
@@ -7051,7 +7059,7 @@ function lockPaint(){
   if (!(BARS[n - 1].high === L && BARS[n - 1].low === L) || n - s0 < 3) return hide();
   if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
   if (!cv){ cv = document.createElement('canvas'); cv.className = 'lockcv'; cv.style.cssText = 'position:absolute;pointer-events:none;z-index:3'; host.appendChild(cv); }
-  if (!tg){ tg = document.createElement('div'); tg.className = 'locktag'; tg.style.cssText = 'position:absolute;pointer-events:none;z-index:4;color:#fff;font:bold 13px sans-serif;padding:2px 8px;border-radius:6px;white-space:nowrap'; host.appendChild(tg); }
+  if (!tg){ tg = document.createElement('div'); tg.className = 'locktag'; tg.style.cssText = 'position:absolute;pointer-events:none;z-index:4;color:#fff;font:200 13px var(--sans);padding:2px 8px;border-radius:6px;white-space:nowrap'; host.appendChild(tg); }
   const W = ce.clientWidth, H = ce.clientHeight, dpr = window.devicePixelRatio || 1;
   cv.style.left = ce.offsetLeft + 'px'; cv.style.top = ce.offsetTop + 'px'; cv.style.width = W + 'px'; cv.style.height = H + 'px'; cv.style.display = '';
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)){ cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
