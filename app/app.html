@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-26 大盤線圖三條線(大盤指數、台指期、寬度)都改畫 10 分均線(使用者「都改成10芬均線」→ 選「換成 10 分均線」),十字線上的數字也用均線值,右上角標「10分均線」
   · 2026-11-25 22:10(實際時間)11/25(含)以前主導$ / 元大的檢討、明細、進場也用重寫檔(和虛擬一致;原本 11/23~11/25 主導$ 用元大實際成交);11/26 起元大照實際成交、虛擬照模擬(分流);手機本機舊的重算 / 明細 / 進場快取清一次(判別式聊天轉達使用者「重寫 34天 主導$與虛擬 … 明天再分流」)
   · 2026-11-25 平倉卡:判別式發了平倉、但你在元大手動預掛的平倉單還沒成交(程式讓位等它)→ 標「預贖」,原本標「平倉中」(使用者「一般應該顯示 預贖」,台灣大 11:14 急彈平);中繼部位多帶 ph(有預掛平倉單),中繼 13:40 後換版才生效
   · 2026-11-25 10:29(實際時間)🔒 鐵律 ① 統一進場範圍:做多離昨收 −5%~+7%、做空 −7%~+5%(電腦下單程式的程式 / 手動 / 強制進場、手機強制進場按鈕;補單限價有利方向最遠 7%)。模擬器 / 手機判別式由判別式聊天跟進(使用者「統一定義 所有進場 做多範圍 -5%到+7% 做空範圍-7%到+5%」「包含 手動進場 強制進場」)
@@ -644,7 +645,7 @@ try{ if (localStorage.getItem('mysh.rw') !== '20261125'){ ['mysh.backfill', 'mys
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611252210">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611261045">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4579,12 +4580,13 @@ function mkcPt(ev){ try{ const el = document.getElementById('mkChart'), g = mkcG
   MKC.ci = Math.max(0, Math.min(last, i)); mkcDraw(); }catch(e){} }
 function mkcDraw(){ try{
   const el = document.getElementById('mkChart'); if (!el || !MKC.open) return; mkcPos();
-  const g = mkcGeom(), {W, H, L, R, T1, B1, T2, B2, x, m0, m1} = g, S = (o, k) => Object.keys(o).filter(h => h >= '09:00' && h <= '13:30').sort().map(h => [MKC_M(h), o[h]]);
+  const g = mkcGeom(), {W, H, L, R, T1, B1, T2, B2, x, m0, m1} = g, S0 = o => Object.keys(o).filter(h => h >= '09:00' && h <= '13:30').sort().map(h => [MKC_M(h), +o[h]]).filter(p => isFinite(p[1])),
+    S = o => { const A = S0(o); return A.map((p, k) => { let s = 0, n = 0; for (let j = k; j >= 0 && A[j][0] > p[0] - 10; j--){ s += A[j][1]; n++; } return [p[0], s / n]; }); };   /* 2026-11-26 10:43 使用者「都改成10分均線」→ 選「換成 10 分均線」:大盤指數、台指期、寬度三條線和十字線上的數字都用 10 分均線(這分鐘往前 10 分鐘的平均;開盤不滿 10 分鐘用已有的平均) */
   const inV = p => p[0] >= m0 - 1 && p[0] <= m1 + 1;   /* 縮放時刻度只看畫面裡的那段 */
   const IX = S(MKC.ix), FX = S(MKC.fx), BR = S(MKC.br); let h = '';
   const md = MKC.d ? MKC.d.slice(5).replace('-', '/') : '';
   const ttl0 = `<text x="6" y="19" font-size="16" font-weight="700" fill="#FF3B3B">大盤指數 <tspan fill="#FFFFFF">台指期</tspan><tspan fill="#8C96AB" font-weight="400">(點)${md ? ' · ' + md : ''}</tspan></text>`; let ttl = '';
-  h += '<!--TTL-->';
+  h += '<!--TTL-->' + `<text x="${W - R - 2}" y="${T1 + 12}" font-size="12" fill="#8C96AB" text-anchor="end">10分均線</text>`;
   const pv = [...IX, ...FX].filter(inV).map(p => p[1]); if (MKC.y0 && (m1 - m0 > 269 || (pv.length && MKC.y0 >= Math.min(...pv) - (Math.max(...pv) - Math.min(...pv)) * 0.3 && MKC.y0 <= Math.max(...pv) + (Math.max(...pv) - Math.min(...pv)) * 0.3))) pv.push(MKC.y0);
   h += `<clipPath id="mkcP"><rect x="${L}" y="${T1 - 2}" width="${W - L - R}" height="${B1 - T1 + 4}"/></clipPath><clipPath id="mkcQ"><rect x="${L}" y="${T2}" width="${W - L - R}" height="${B2 - T2}"/></clipPath>`;
   if (pv.length){ const mn = Math.min(...pv), mx = Math.max(...pv), sp = Math.max(1, mx - mn), st = [10, 20, 50, 100, 200, 500, 1000].find(v => sp / v <= 7) || 1000, lo = Math.floor(mn / st) * st, hi = Math.ceil(mx / st) * st || lo + st;
@@ -4638,7 +4640,7 @@ function mkcDraw(){ try{
     { const fx_ = v => v != null ? v.toFixed(0) : '—', pcs = pr == null ? '' : `${pr > 0 ? '+' : ''}${pr.toFixed(2)}%`, pcc = pr > 0 ? '#FF3B3B' : pr < 0 ? '#1DD75B' : '#E6EAF2';
       const fpr = vf != null && MKC.fy0 ? (vf / MKC.fy0 - 1) * 100 : null, fps = fpr == null ? '' : `${fpr > 0 ? '+' : ''}${fpr.toFixed(2)}%`;
       const A = `<tspan fill="#FF3B3B">大盤指數 ${fx_(vi)}</tspan>${pcs ? ` <tspan fill="${pcc}">${pcs}</tspan>` : ''}`, Bf = `<tspan fill="#FFFFFF">台指期 ${fx_(vf)}${fps ? ' ' + fps : ''}</tspan>`;
-      const plain = `大盤指數 ${fx_(vi)} ${pcs}　台指期 ${fx_(vf)} ${fps}`, wd = tw_(plain), fs = wd > W - 12 ? Math.max(11, Math.floor(16 * (W - 12) / wd)) : 16;
+      const plain = `大盤指數 ${fx_(vi)} ${pcs}　台指期 ${fx_(vf)} ${fps}`, wd = tw_(plain) * 1.08, fs = wd > W - 12 ? Math.max(11, Math.floor(16 * (W - 12) / wd)) : 16;   /* 2026-11-26 粗體比量的寬 ~8%:標題最後的 % 不再被切 */
       ttl = `<text x="6" y="19" font-size="${fs}" font-weight="700">${fUp ? Bf + '　' + A : A + '　' + Bf}</text>`; }
     /* 2026-11-23 11:43 使用者「大盤寬度 也這樣改」:下格的寬度小框也拿掉,十字線那分鐘的寬度寫在下格標題列 */
     bttl = `<text x="6" y="${T2 - 6}" font-size="16" font-weight="700" fill="#FFD54F">寬度(上漲家數 %) ${vb != null ? (Math.floor(vb * 10 + 1e-6) / 10).toFixed(1) + '%' : '—'}</text>`;
