@@ -15,7 +15,7 @@
 
 這個檔不依賴元大元件:下單 / 取消透過 gateway(bridge 提供),測試時可以換成假的。
 """
-import json, math, os, re, time, threading, urllib.request
+import csv, json, math, os, re, time, threading, urllib.request
 from decimal import Decimal
 from pathlib import Path
 
@@ -297,6 +297,11 @@ class Trader:
         self.tick_stale = float(cfg.get("TRADE_TICK_STALE_S", "120"))  # 新進場:最後一筆即時價超過幾秒 = 缺逐筆
         self.ph_ref_wait = float(cfg.get("TRADE_PH_REF_WAIT_S", "30"))  # 手動預掛沒有昨收(背景查)最多等幾秒,還沒有就取消
         self._px_at = {}; self._dmiss = {}; self._dw_at = 0.0; self._br_lag = None
+        # 2026-11-26 使用者「都修正」(情境回放 3):持倉的 ⑨ 反轉平 / ⑧ 急彈贏單 / 急殺贏單(引擎用台指期 / 加權算)→ 讀中繼寫的檔看新不新(20 秒快取)
+        _hd = Path(__file__).resolve().parent
+        self.txf_dir = Path(cfg.get("TRADE_TXF_DIR") or (_hd / "kline_futures" / "TXF"))      # 中繼 ⑧ 每分鐘寫的台指期 1 分 K <日期>.csv
+        self.ixl_dir = Path(cfg.get("TRADE_IXLIVE_DIR") or (_hd / "engine_data" / "ix_live"))  # 中繼 ix_poll 寫的加權 <日期>.json {"m": {HH:MM: 收}}
+        self._txc = {}
         self.prehang = {}   # code → 保留的手動預掛委託書號 [no, …]
         self.del_q = []     # 2026-11-08 20:50 等元大確認刪除的條件單編號
         self.man_cards = {}  # 2026-11-06 14:26 手動預掛(新進場 / 加碼)發過卡的書號 → {lots, px, d, end}
@@ -1363,6 +1368,11 @@ class Trader:
             if ref and p.get("_iron_retry"):   # 2026-11-26 昨收補上了 → 補做手動 / 強制進場的 ① 檢查(違反就整個平)
                 _ir = p.pop("_iron_retry")
                 if self.iron_manual(p, _ir["px"], _ir["lots"], _ir["what"], fills=_ir.get("fills")): return
+                if p.get("sl"):   # 2026-11-26 使用者「都修正」(情境回放 4):成交當下沒昨收 → 停損沒收到 ±6.5% 線(富喬 @105 停損 110)→ 昨收補上後照 cap_sl 重收,元大條件單跟著重掛
+                    _s0 = p["sl"]; p["sl"] = self.cap_sl(code, p["dir"], p.get("judge"), _s0)
+                    if abs(p["sl"] - _s0) > 1e-9:
+                        self.log(f"[交易] {code} 昨收 {ref} 補上 → 停損 {_s0} 收到 {p['sl']}"); self.oco_refresh(p, "昨收補上,停損收到強平線"); self.save_state()
+                        hit_sl = p["sl"] > 0 and ((price <= p["sl"]) if d > 0 else (price >= p["sl"]))
             if not ref and not p.get("ref_warned"):
                 p["ref_warned"] = True; self.log(f"[交易] !! {code} 沒有昨收,±{self.max_move:g}% 保護這檔暫時沒作用")
                 if p.get("forced"): self.alert(f"⚠ {code} 沒有昨收", f"±{self.max_move:g}% 保護暫時沒作用,停利 / 停損 / 13:20 照常")
@@ -2167,6 +2177,17 @@ class Trader:
                     cur.add((code, "即時價"))
                     self._miss_note(code, "即時價", "停利 / 停損 / ② / ⑥ 移平 / ④ 總平(都要現價)", ts, t900, since=(ts - age) if age is not None else None,
                                     extra=f"最後一筆 {age:.0f} 秒前" if age is not None else "今天還沒收到任何即時價")
+            # 2026-11-26 使用者「都修正」(情境回放 3):空單 ⑨ 反轉平 / ⑧ 急彈贏單、多單 ⑧ 急殺贏單是引擎用台指期 / 加權算的 → 這兩份斷了 > 2 分鐘也要通知(只通知不平倉)
+            if held:
+                _sh = [p["code"] for p in held if p.get("dir", 0) < 0]; _lg = [p["code"] for p in held if p.get("dir", 0) > 0]
+                _pr = "、".join(([ "空單 ⑨ 反轉平 / ⑧ 急彈贏單"] if _sh else []) + (["多單 ⑧ 急殺贏單"] if _lg else []))
+                for datum, kind in (("台指期", "txf"), ("加權", "ix")):
+                    if kind == "ix" and hm < "09:03": continue   # 加權 09:00 才有第一根
+                    last, since = self.tx_last(kind)
+                    if since is None or ts - since >= self.miss_s:
+                        cur.add(("全部", datum))
+                        self._miss_note("全部", datum, _pr, ts, t900, since=since, codes=_sh + _lg,
+                                        extra=f"{datum}只到 {last}" if last else f"今天沒有{datum}資料")
             if held and self.brx_l > 0 and hm >= "09:03":
                 b = self.br_now()
                 if b is None or self.br_stale():
@@ -3191,6 +3212,27 @@ class Trader:
         """2026-11-26 缺資料改擋:寬度檔最新一筆落後現在超過 3 分鐘(09:03 起才算;br_now 讀檔時記的 _br_lag)"""
         lag = self.__dict__.get("_br_lag")
         return lag is not None and lag > 3 and "09:03" <= self.hm()
+
+    def tx_last(self, kind):
+        """2026-11-26 使用者「都修正」(情境回放 3):中繼寫的台指期(kind=txf,kline_futures/TXF/<日期>.csv)/ 加權(ix,engine_data/ix_live/<日期>.json)今天最後一根 → (HH:MM, 下一根應該到的時間戳);沒有 → (None, None)。20 秒讀一次檔"""
+        try: n_ = self.now(); day = n_.strftime("%Y-%m-%d"); hm = self.hm()
+        except Exception: return None, None
+        c = self._txc.get(kind)
+        if c and c[0] == day and 0 <= n_.timestamp() - c[1] < 20: last = c[2]
+        else:
+            ks = []
+            try:
+                if kind == "txf":
+                    with open(self.txf_dir / f"{day}.csv", encoding="utf-8") as fh:
+                        for r in csv.DictReader(fh):
+                            if r.get("date") == day and r.get("time") and r.get("close"): ks.append(r["time"][:5])
+                else: ks = list((json.loads((self.ixl_dir / f"{day}.json").read_text(encoding="utf-8")) or {}).get("m") or {})
+            except Exception: ks = []
+            ks = [k for k in ks if k <= hm]; last = max(ks) if ks else None
+            self._txc[kind] = (day, n_.timestamp(), last)
+        if not last: return None, None
+        try: return last, n_.replace(hour=int(last[:2]), minute=int(last[3:5]), second=0, microsecond=0).timestamp() + 120   # 下一根該寫好的時間(last 那根收完 + 1 分鐘)起算缺
+        except Exception: return None, None
 
     def px_age(self, code):
         """2026-11-26 缺資料改擋:這檔最後一筆即時價是幾秒前(沒記過回 None)"""

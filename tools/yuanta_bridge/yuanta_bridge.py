@@ -1338,11 +1338,11 @@ class Bridge:
 
     def tick_guard(self, code):
         """2026-11-26 使用者「以後 手動進場 不管監控裡面有沒有 程式接管保護都要完整」:持倉的股票 60 秒以上沒收到元大逐筆
-           (臨時訂閱沒成功、上市 / 上櫃判斷錯、冷門股)→ 補送訂閱(5 分鐘一次),並用證交所即時行情的成交價餵給 trader(停利 / 停損 / ② / 移平 / 總平照樣盯)"""
+           (臨時訂閱沒成功、上市 / 上櫃判斷錯、冷門股)→ 補送訂閱(5 分鐘一次),並用證交所即時行情的成交價餵給 trader(停利 / 停損 / ② / 移平 / 總平照樣盯)。
+           2026-11-26 使用者「都修正」(情境回放 5):主迴圈 30 秒才叫一次 → 中間的尖峰(富喬 11:47 108.5)容易漏;進入備援後這檔開一條背景執行緒每 TICK_FB_S(5)秒問一次證交所,
+           元大逐筆回來 / 部位沒了 / 過 13:25 就停(一檔最多一條,不重疊);60 秒沒逐筆的門檻、5 分鐘補訂一次照舊,只餵真的成交價"""
         try:
-            r = self.quotes.q.get(code); now = now_tw(); age = 999
-            if r and r.get("t") and r.get("d") == now.strftime("%Y%m%d"):
-                h, m_, s_ = (int(x) for x in r["t"].split(":")); age = (now.hour * 3600 + now.minute * 60 + now.second) - (h * 3600 + m_ * 60 + s_)
+            age = self._tick_age(code)
             if age < 60: return
             st = self.__dict__.setdefault("_tg", {}); g = st.setdefault(code, {"sub": 0.0, "noted": False})
             if time.time() - g["sub"] > 300:
@@ -1352,21 +1352,66 @@ class Bridge:
                         if g["n"] % 2 == 0: mkt = self.Y.enumMarketType.TWOTC if str(mkt) != str(self.Y.enumMarketType.TWOTC) else self.Y.enumMarketType.TWSE
                     except Exception: pass
                     self.pending_sub.append((code, mkt))
-            ex0 = (self.quotes.meta.get(code) or {}).get("ex") or "tse"
-            for ex in ([ex0] + [x for x in ("tse", "otc") if x != ex0]):
-                try:
-                    u = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={ex}_{code}.tw&json=1&delay=0&_={int(time.time() * 1000)}"
-                    a = (json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://mis.twse.com.tw/stock/index.jsp"}), timeout=4).read().decode("utf-8")).get("msgArray") or [{}])[0]
-                    z = a.get("z"); z = float(z) if z not in (None, "", "-") else 0.0
-                    # 2026-11-26 使用者「全改」(稽核 10):只餵真的成交價;原本這 5 秒沒成交就用最佳買賣價中間(不是成交,可能誤觸停利停損 / ② / 移平)→ 拿掉,沒成交就不餵
-                    if a.get("y") and not (self.quotes.meta.get(code) or {}).get("y"):
-                        with self.quotes.lock: self.quotes.meta.setdefault(code, {"n": "", "ex": ex, "y": None})["y"] = float(a["y"])
-                except Exception: z = 0.0
-                if z > 0:
-                    if not g["noted"]: g["noted"] = True; log(f"[交易] !! {code} 持倉 {age if age < 999 else '一直'} 秒沒收到元大逐筆 → 改用證交所即時價盯(停利 / 停損 / ② / 移平照常)")
-                    if self.trader: self.trader.on_tick(code, z)
-                    return
+            if self._tg_held(code):   # 持倉:交給這檔的背景執行緒(馬上問一次、之後每 5 秒);已經在跑就不再開(一檔最多一條,不重疊問)
+                lk = self.__dict__.setdefault("_tg_lock", threading.Lock()); ths = self.__dict__.setdefault("_tg_th", {})
+                with lk:
+                    th = ths.get(code)
+                    if th is not None and th.is_alive(): return
+                    th = ths[code] = threading.Thread(target=self._tg_loop, args=(code,), daemon=True, name=f"tick_fb_{code}"); th.start()
+                return
+            self._mis_feed(code, g, age)
         except Exception as e: log("持倉報價備援失敗", e)
+
+    def _tick_age(self, code):
+        """這檔最後一筆元大逐筆離現在幾秒(今天沒有 → 999)"""
+        r = self.quotes.q.get(code); now = now_tw(); age = 999
+        if r and r.get("t") and r.get("d") == now.strftime("%Y%m%d"):
+            h, m_, s_ = (int(x) for x in r["t"].split(":")); age = (now.hour * 3600 + now.minute * 60 + now.second) - (h * 3600 + m_ * 60 + s_)
+        return age
+
+    def _tg_held(self, code):
+        """2026-11-26 情境回放 5:這檔還是持倉(含進場中已成交 ≥ 1 張)"""
+        try:
+            return any(p.get("code") == code and (p.get("qty") or ((p.get("order") or {}).get("filled") or 0) + (p.get("pre_filled") or 0) >= 1000)
+                       for p in list(self.trader.positions.values()))
+        except Exception: return False
+
+    def _tg_loop(self, code):
+        """2026-11-26 使用者「都修正」(情境回放 5):備援模式的背景輪詢,每 TICK_FB_S 秒問一次證交所成交價;元大逐筆回來(< 60 秒)/ 部位沒了 / 不在 09:00~13:25 → 結束"""
+        try: fb = float(self.__dict__.get("tg_fb_s") or CFG.get("TICK_FB_S") or 5.0)
+        except Exception: fb = 5.0
+        g = self.__dict__.setdefault("_tg", {}).setdefault(code, {"sub": 0.0, "noted": False})
+        try:
+            first = True
+            while True:
+                if not first: time.sleep(fb)
+                first = False
+                hm = now_tw().strftime("%H:%M")
+                if not ("09:00" <= hm < "13:25") or not self.trader or not self._tg_held(code): break
+                age = self._tick_age(code)
+                if age < 60:
+                    if g.get("noted"): g["noted"] = False; log(f"[交易] {code} 元大逐筆回來了 → 停止證交所 {fb:g} 秒備援")
+                    break
+                self._mis_feed(code, g, age)
+        except Exception as e: log("持倉報價備援(背景)失敗", e)
+
+    def _mis_feed(self, code, g, age):
+        """證交所即時行情(mis getStockInfo)這檔的成交價 → trader.on_tick;順便補昨收。只餵真的成交價。餵到回 True"""
+        ex0 = (self.quotes.meta.get(code) or {}).get("ex") or "tse"
+        for ex in ([ex0] + [x for x in ("tse", "otc") if x != ex0]):
+            try:
+                u = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={ex}_{code}.tw&json=1&delay=0&_={int(time.time() * 1000)}"
+                a = (json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://mis.twse.com.tw/stock/index.jsp"}), timeout=4).read().decode("utf-8")).get("msgArray") or [{}])[0]
+                z = a.get("z"); z = float(z) if z not in (None, "", "-") else 0.0
+                # 2026-11-26 使用者「全改」(稽核 10):只餵真的成交價;原本這 5 秒沒成交就用最佳買賣價中間(不是成交,可能誤觸停利停損 / ② / 移平)→ 拿掉,沒成交就不餵
+                if a.get("y") and not (self.quotes.meta.get(code) or {}).get("y"):
+                    with self.quotes.lock: self.quotes.meta.setdefault(code, {"n": "", "ex": ex, "y": None})["y"] = float(a["y"])
+            except Exception: z = 0.0
+            if z > 0:
+                if not g["noted"]: g["noted"] = True; log(f"[交易] !! {code} 持倉 {age if age < 999 else '一直'} 秒沒收到元大逐筆 → 改用證交所即時價盯(停利 / 停損 / ② / 移平照常)")
+                if self.trader: self.trader.on_tick(code, z)
+                return True
+        return False
 
     def ref_need_bg(self, code):
         """2026-11-26 使用者「全改」(稽核 8):trader 在交易鎖裡要昨收 → 只開背景執行緒查(ensure_ref 自己 60 秒限一次),不等網路;

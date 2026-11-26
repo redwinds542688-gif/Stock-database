@@ -469,6 +469,21 @@ try:
     (TMP / "pool_2026-10-01.json").write_text('{"pool": [{"code": "2002", "daytrade": 1, "short_first": 1}]}', encoding="utf-8")   # 太舊不用
     b = mk()
     ok(b.extra_dt("3008")[:2] == (1, 1) and b.extra_dt("2603")[:2] == (1, 0) and b.extra_dt("2002")[:2] == (1, 0) and b.extra_dt("9999")[:2] == (1, 0), b.extra_dt("2002"))
+    # 2026-11-26 情境回放:注意股原本只留名單裡的 → 名單外手動部位(例:富喬 1815 注意股)mon_excluded / blocked 認不出來;全市場那份另存 all_attention,名單內照舊
+    _bl = {"2330": "", "1815": "", "3105": ""}
+    def _fake6(url, params=None, timeout=40, tries=2):
+        if url == _el.TWSE_DT: return [{"Code": "2330", "Suspension": ""}, {"Code": "1815", "Suspension": ""}]
+        if url == _el.TPEX_DT: return [{"SecuritiesCompanyCode": "3105"}]
+        if url == _el.TWSE_NOTICE: return [{"Code": "1815"}, {"Code": "2330"}]
+        return []
+    _el.get_json = _fake6; _sr0, _st0 = _el.site_rows, _el.site_punish; _el.site_rows = lambda *a, **k: []; _el.site_punish = lambda t: set()
+    _el.load_today = _lt; Y.HERE = _here; _elh = _el.HERE; _el.HERE = TMP
+    try:
+        r6 = _el.refresh({"WORKER_URL": ""}, log=lambda *a: None, pool={"date": "2026-11-23", "pool": [{"code": "2330", "market": "twse"}, {"code": "3105", "market": "tpex"}]})
+        ok(r6["attention"] == ["2330"] and "1815" in r6["all_attention"], (r6["attention"], r6.get("all_attention")))   # attention 照舊只有名單內
+        ok(_el.blocked("1815") == "今天是注意股" and _el.blocked("2330") == "今天是注意股" and _el.blocked("3105") == "", [_el.blocked(c) for c in ("1815", "2330", "3105")])
+    finally: _el.HERE = _elh; _el.site_rows, _el.site_punish = _sr0, _st0
+    print("情境回放 6:名單外注意股也認得 OK")
 finally:
     _el.get_json, _el.load_today, Y.HERE = _gj, _lt, _here
 
@@ -555,6 +570,24 @@ try:
     bx1 = _mk_x(True); bx1.extra_add("9999", "tse"); ok(bx1.quotes.meta["9999"]["y"] == 50.0, "證交所查得到 → 用 y", bx1.quotes.meta)
     bx2 = _mk_x(False); bx2.extra_add("9998", "tse"); ok(bx2.quotes.meta["9998"]["y"] == 48.0, "查不到 → 前一天最後一根", bx2.quotes.meta)
     _YB.HERE = _here26
+    # 2026-11-26 情境回放:備援模式(沒元大逐筆)原本 30 秒才問一次證交所 → 富喬 11:47 108.5 這種尖峰會漏;改成這檔一條背景每 5 秒(測試 0.05 秒)問,不重疊,逐筆回來 / 部位沒了就停
+    NOW[0] = dt.datetime(2026, 11, 23, 11, 47, 0, tzinfo=Y.TW)
+    ZS = ["107.0", "107.5", "108.5", "108.0"]; CALLS = [0]; INFL = [0, 0]
+    def _uo5(*a, **k):
+        INFL[0] += 1; INFL[1] = max(INFL[1], INFL[0]); _tm.sleep(0.01); INFL[0] -= 1
+        z = ZS[min(CALLS[0], len(ZS) - 1)]; CALLS[0] += 1
+        return _ty.SimpleNamespace(read=lambda: _js.dumps({"msgArray": [{"z": z, "y": "101.50"}]}).encode())
+    _YB.urllib.request.urlopen = _uo5
+    b5 = mk(); b5.quotes = _ty.SimpleNamespace(meta={"1815": {"y": 101.5, "ex": "tse"}}, q={}, lock=_thr.Lock()); b5.pending_sub = []; b5.mkt_of_code = lambda c: None; b5.tg_fb_s = 0.05
+    TK5 = []; b5.trader = _ty.SimpleNamespace(on_tick=lambda c, z: TK5.append(z), positions={"1815": {"code": "1815", "qty": 2}})
+    for _ in range(3): b5.tick_guard("1815")   # 主迴圈連叫 3 次 → 只開一條
+    ok(sum(1 for t_ in _thr.enumerate() if t_.name == "tick_fb_1815") == 1, [t_.name for t_ in _thr.enumerate()])
+    _tm.sleep(0.4); ok(108.5 in TK5 and len(TK5) >= 4 and INFL[1] == 1, (TK5, INFL))   # 30 秒內問了好幾次、抓到 108.5、同時最多一個請求
+    b5.quotes.q["1815"] = {"t": "11:47:00", "d": "20261123"}; _tm.sleep(0.2)   # 元大逐筆回來 → 停
+    ok(not b5._tg_th["1815"].is_alive(), "逐筆回來背景要停"); n5 = len(TK5); _tm.sleep(0.15); ok(len(TK5) == n5)
+    b5.quotes.q.clear(); b5.tick_guard("1815"); _tm.sleep(0.1); ok(b5._tg_th["1815"].is_alive() and len(TK5) > n5, "又斷 → 重開一條")
+    b5.trader.positions.clear(); _tm.sleep(0.2); ok(not b5._tg_th["1815"].is_alive(), "部位沒了背景要停")
+    print("情境回放 5:持倉備援每 5 秒問證交所、一檔一條 OK")
 finally:
     _YB.urllib.request.urlopen = _uo26
 print("稽核 8 / 10 中繼昨收背景查、只餵成交價 OK")

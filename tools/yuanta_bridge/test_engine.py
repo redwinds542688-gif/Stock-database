@@ -257,11 +257,29 @@ ok(not e.tx_ok("三", "2330", "10:30", 1) and e._tx_miss.startswith("缺資料:�
 e = _mk_tx({"TXDROP": "0.8"}, txf={k: v for k, v in _TXF.items() if k <= "10:10"})
 ok(e.tx_ok("三", "2330", "10:30", 1), "台指期斷了但加權有 → 用加權照判")
 e = _mk_tx({"TXSYNC": "60", "TXBOUNCE": "0.8"}, txf={k: v for k, v in _TXF.items() if k <= "10:10"}, ix={k: v for k, v in _IX.items() if k <= "10:10"})
-ok(not e.tx_ok("三", "2330", "10:30", -1) and "急彈" in e._tx_miss, e._tx_miss)
+ok(not e.tx_ok("三", "2330", "10:30", -1) and ("急彈" in e._tx_miss or "都斷了" in e._tx_miss), e._tx_miss)   # 2026-11-26 情境回放 1:兩份都斷 → ⑧ 方向那步就先當缺資料
 e = _mk_tx({"TXSYNC": "60", "TXFROMLO": "2.5"}, txf={k: v for k, v in _TXF.items() if k <= "10:10"}); e.txfromlo_fn = lambda sd, tm, m, th, lo=None: (True, "")
 ok(not e.tx_ok("三", "2330", "10:30", -1) and "空單離今低" in e._tx_miss, e._tx_miss)   # 有 TXSYNC 的只看台指期(模擬器同一套)
 ok(e.tx_fresh({"10:28": 1.0}, "10:30") and not e.tx_fresh({"10:26": 1.0}, "10:30") and not e.tx_fresh({}, "10:30") and not e.tx_fresh({"10:31": 1.0}, "10:30"))
 print("缺資料改擋:引擎 ⑧ 缺台指期 / 加權 / 前一天收盤 / 判斷程式 → 不發 OK")
+# 2026-11-26 情境回放:G3(11/23 台指期 + 加權 10:20~10:40 都斷)10:29 原本台指期缺一段改用加權沒看新不新 → 用 10:19 的舊加權判 ⑧「不合」記 emitted,資料回來也不再判
+_TXg = {k: v for k, v in _TXF.items() if k <= "10:19"}; _IXg = {k: v for k, v in _IX.items() if k <= "10:19"}
+e = _mk_tx({"TXSYNC": "60"}, txf=_TXg, ix=_IXg); e.txcover_fn = lambda m, tm, n: False
+e.txsync_fn = lambda sd, tm, st, txf_, n, r, *a, **k: (False, "⑧ 台指期 60 分往上 → 不合")
+e.apply_one(("2330", "三", _out, ""), "10:32", "10:22", True, True, {})
+ok(not e.sent and ("三", "2330", "10:30") not in e.emitted and any("台指期 / 加權指數(到 10:30 都斷了)" in str(x) for x in _blk_miss()), (e.emitted, _blk_miss()))
+e = _mk_tx({"TXSYNC": "60"}, txf=_TXg, ix=_IX); e.txcover_fn = None; _seen = []
+e.txsync_fn = lambda sd, tm, st, txf_, n, r, *a, **k: (_seen.append((max(txf_), a)) or True, "⑧ ok")
+ok(e.tx_ok("三", "2330", "10:30", -1) and _seen[-1][0] == "10:30" and _seen[-1][1][:1] == ("09:00",), _seen)   # 台指期斷了、加權新鮮 → 用加權照判
+e = _mk_tx({"TXSYNC": "60"}, txf=_TXF, ix=_IXg); e.txcover_fn = lambda m, tm, n: False; _seen = []
+e.txsync_fn = lambda sd, tm, st, txf_, n, r, *a, **k: (_seen.append((max(txf_), a)) or True, "⑧ ok")
+ok(e.tx_ok("三", "2330", "10:30", -1) and _seen[-1] == ("10:30", ()), _seen)   # 台指期中間缺一段但到 10:30 新鮮、加權斷了 → 照舊用台指期
+print("情境回放 1:⑧ 台指期 / 加權都不新鮮 → 缺資料不記 emitted OK")
+# 2026-11-26 情境回放:心跳旗標 — 09:00~13:25 台指期 / 加權斷了要看得到(和 ⚠寬度 / ⚠規則缺一樣)
+e = _mk_tx({}, txf=_TXg, ix=_IX); ok(e.tx_flags("10:30") == ["⚠台指期缺"], e.tx_flags("10:30"))
+e = _mk_tx({}, txf=_TXg, ix=_IXg); ok(e.tx_flags("10:30") == ["⚠台指期缺", "⚠加權缺"] and e.tx_flags("10:21") == [] and e.tx_flags("13:30") == [], e.tx_flags("10:30"))
+e = _mk_tx({}); ok(e.tx_flags("10:30") == [], "都新鮮 → 沒旗標")
+print("情境回放 2:心跳 ⚠台指期缺 / ⚠加權缺 OK")
 # 2026-11-26 缺資料改擋:規則抓不到最新的、本機那份不是今天抓的 → 全部判別式不發新進場(rs_block)
 _R0 = dict(E.RULES)
 for f_, _ in E.RULE_FILES: (E.SIMD / Path(f_).name).write_text("x", encoding="utf-8")

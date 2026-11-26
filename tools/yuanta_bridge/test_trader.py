@@ -32,6 +32,7 @@ def mk(gw=GW, prime=True, **kw):
     cfg = {"TRADE_LOT_TIER": "0", "TRADE_BROKER_STOP": "0", "TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json"), "TRADE_REALENT_FILE": str(tmp / f"re{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0", "TRADE_Y3_TP_PCT": "2.5"}; cfg.update(kw)
     g = gw(); t = Trader(cfg, g, logs.append, lambda: NOW[0]); g.t = t; t.posts = []; t.alerts = []
     t.post = lambda a, b, k, t_=None, **kw: (t.posts.append((a, b, k)), t.__dict__.setdefault("pkeys", []).append(kw.get("pos"))); t.akinds = []; t.alert = lambda a, b="", k="pc": (t.alerts.append(a), t.akinds.append(k))
+    t.tx_last = lambda kind: ("10:00", NOW[0].timestamp() + 999)   # 2026-11-26 情境回放:持倉台指期 / 加權新鮮度 → 測試預設新鮮(要測斷線的自己設)
     t.br_now = lambda: 0.5   # 2026-11-26 缺資料改擋:判二沒寬度改成不進 → 測試預設大盤上漲家數 50%(要測寬度的自己設)
     t.ref_of = lambda c, t=t: t.last_px.get(c)   # 2026-11-11 16:28 鐵律:沒有昨收不進場 → 測試預設昨收 = 現價(要測 ±5% / 6.5% 的自己設)
     if prime: t.prime([])   # 2026-10-29 稽核 #1:跟 bridge 一樣,啟動時讀到通知(這裡是空的)才算準備好
@@ -1947,3 +1948,40 @@ h5.on_other_fill("2409", "B", 1000, 100.0, "M264"); p5 = h5.positions.get("2409"
 ok(p5 is not None and p5["state"] == HOLDING and any("缺資料:選股規則" in a for a in h5.alerts) and h5.akinds[-1] == "lv4", (p5 and p5["state"], h5.alerts[-2:]))
 _os26.environ.pop("ENGINE_DIR", None); Trader.pool_missing = lambda self: ""; Trader.IRON_LOTS = _IL0
 print("缺資料改擋:手動預掛缺昨收 / 選股規則 → 取消,成交了只通知 OK")
+
+# 2026-11-26 情境回放:持倉的 ⑨ 反轉平 / ⑧ 急彈贏單(空)/ 急殺贏單(多)靠台指期 / 加權 → 中繼寫的檔斷了 > 2 分鐘 → lv4 通知、5 分鐘一次、恢復再通知、不平倉
+_txd = Path(_tf26.mkdtemp()); _ixd = Path(_tf26.mkdtemp())
+def _wtx(upto_m, ix_upto_m=None):
+    rows = ["date,time,open,high,low,close"] + [f"2026-10-22,{9 + m // 60:02d}:{m % 60:02d},1,1,1,1" for m in range(0, upto_m + 1)]
+    (_txd / "2026-10-22.csv").write_text("\n".join(rows) + "\n", encoding="utf-8")
+    im = ix_upto_m if ix_upto_m is not None else upto_m
+    (_ixd / "2026-10-22.json").write_text(_js26.dumps({"y": 1, "m": {f"{9 + m // 60:02d}:{m % 60:02d}": 1.0 for m in range(0, im + 1)}}), encoding="utf-8")
+at(10, 0); _wtx(60); t6, g6 = mk(TRADE_TXF_DIR=str(_txd), TRADE_IXLIVE_DIR=str(_ixd)); del t6.tx_last
+t6.on_tick("6269", 86.2); t6.step([ENT]); t6.on_report(51, "A0001", 0, 1000, 86.1); n6 = len(t6.alerts)
+_hstep(t6, 10, 0, 30); _hstep(t6, 10, 3, 10); ok(len(t6.alerts) == n6, t6.alerts[n6:])   # 10:00 那根之後,10:02 該有 10:01 → 70 秒還不算
+_wtx(60, 64); _hstep(t6, 10, 4, 10); a6 = t6.alerts[n6:]
+ok(len(a6) == 1 and "缺台指期" in a6[0] and "⑨ 反轉平" in a6[0] and "急彈贏單" in a6[0] and t6.akinds[-1] == "lv4" and t6.positions["6269"]["state"] == HOLDING, (a6, t6.akinds[-1:]))
+ok(not [x for x in g6.sent if x[0] == "6269" and x[1] == "B"], "只通知不平倉")
+_wtx(60, 66); _hstep(t6, 10, 6, 0); ok(len(t6.alerts) == n6 + 1, "5 分鐘內不重複")
+_wtx(70); _hstep(t6, 10, 10, 30); ok("台指期恢復" in t6.alerts[-1] and not t6._dmiss, (t6.alerts[n6:], t6._dmiss))
+# 加權也斷(做多:急殺贏單);開盤前沒資料 09:03 前不算加權
+at(10, 0); _wtx(60); t7, _ = mk(TRADE_TXF_DIR=str(_txd), TRADE_IXLIVE_DIR=str(_ixd)); del t7.tx_last
+t7.on_tick("6269", 86.2); t7.step([sig("10:00:6269|台郡做多進場|判二", "long", "台郡 6269 做多進場 86.20", "10:00 多✓ · 停利 88.35 停損 84.05 · 判二")]); t7.on_report(51, "A0001", 0, 1000, 86.2)
+ok(t7.positions["6269"]["dir"] > 0, t7.positions["6269"])
+n7 = len(t7.alerts); _wtx(65, 60); _hstep(t7, 10, 4, 10); a7 = t7.alerts[n7:]
+ok(len(a7) == 1 and "缺加權" in a7[0] and "多單 ⑧ 急殺贏單" in a7[0], a7)
+print("情境回放 3:持倉台指期 / 加權斷了 → lv4 通知不平倉 OK")
+# 2026-11-26 情境回放:手動空 @105、成交當下沒昨收 → 昨收晚到(101.5)時停損也要收到 ±6.5% 線(108.0,和成交當下就有昨收一樣),元大條件單跟著重掛
+_SL = {}
+for _known, _live in ((True, False), (False, False), (False, True)):
+    at(11, 2); tS, gS = mk(TRADE_CAP="250000", TRADE_BROKER_STOP="1"); REFS = [101.5 if _known else None]; tS.ref_of = lambda c: REFS[0]; tS.ref_need = lambda c: None
+    tS.on_tick("1815", 105.0); tS.on_report(51, "MS1", 0, 2000, 105.0, basket="", code="1815", bs="S"); pS = tS.positions["1815"]
+    if _live: tS.on_strategy_reply("KS1", True, ""); ok(pS.get("oco_live") and gS.sent[-1][-1] == 110.0, (pS.get("oco_live"), gS.sent[-1]))   # 沒昨收時的停損 105 × 1.045 = 110
+    REFS[0] = 101.5; tS.on_tick("1815", 105.5); _SL[(_known, _live)] = pS["sl"]
+    ok(pS["state"] == HOLDING and pS["sl"] <= 108.0, (_known, _live, pS["sl"]))
+    if not _known and not _live:   # 條件單還在等元大回應 → 回應到了照新停損重掛
+        tS.on_strategy_reply("KS1", True, ""); ok(gS.sent[-1] == ("oco", "1815", "TWSE", -1, 2, 102.0, 108.0), gS.sent[-3:])
+    if _live:   # 條件單已掛 → 先刪舊的(等元大確認)再照 108.0 掛新的
+        ok(gS.sent[-2:] == [("del_oco", "KS1"), ("oco", "1815", "TWSE", -1, 2, 102.0, 108.0)], gS.sent[-3:])   # 測試通道刪除馬上確認
+ok(_SL[(True, False)] == _SL[(False, False)] == _SL[(False, True)] == 108.0, _SL)
+print("情境回放 4:昨收晚到 → 停損收到 ±6.5% 線、條件單重掛 OK")

@@ -2034,6 +2034,16 @@ class Engine:
             if self.tx_fresh(i, tm): return i
         return None
 
+    def tx_flags(self, hm):
+        """2026-11-26 使用者「都修正」(情境回放 2):09:00~13:25 台指期 / 加權到 hm 沒有或斷了(> TX_LAG 分)→ 心跳旗標「⚠台指期缺」/「⚠加權缺」"""
+        if not ("09:00" <= hm <= "13:25"): return []
+        out = []
+        try:
+            if not self.tx_fresh(self.txf_map(), hm): out.append("⚠台指期缺")
+            if hm >= "09:03" and not self.tx_fresh(self.ix_map(), hm): out.append("⚠加權缺")   # 加權 09:00 才有第一根,開盤前 3 分鐘不算缺
+        except Exception as e: log("台指期 / 加權新鮮度檢查失敗", repr(e))
+        return out
+
     def txrel_ok(self, rs, code, tm, side, th):
         """🔒 ⑧ 台指期 vs 加權強弱:私人庫 rs_env.txrel 資料不全會「先不看」放行 → 2026-11-26 缺資料改擋:引擎先檢查資料齊全(前一天收盤兩個、今天台指期 / 加權到 tm 沒斷),缺就不發"""
         _rf = getattr(self, "txrel_fn", None)
@@ -2215,6 +2225,13 @@ class Engine:
                 except Exception as e: log("⑧ 台指期完整性檢查失敗(照舊用台指期)", e)
             if not txf:   # 2026-11-13 23:58 ⑧ 備援 3:元大 / 期交所台指期都沒有 → 用 Worker 記的加權指數(09:00 起)
                 txf = self.ix_map(); frm = "09:00" if txf else None
+            if txf and not self.tx_fresh(txf, tm):   # 2026-11-26 使用者「都修正」(情境回放 1):原本台指期缺一段改用加權時沒看加權新不新(11/23 10:20~10:40 兩個都斷,10:29 用 10:19 的舊加權判 ⑧ → 「不合」記 emitted,資料回來也不再判)
+                _t0 = self.txf_map(); _i0 = self.ix_map()   # 用的那份不新鮮 → 換另一份(台指期中間缺一段但到 tm 新鮮 → 照舊用台指期;台指期斷了 → 加權),兩份都不新鮮 = 缺資料(不發、不記 emitted、記 blocked)
+                if frm and self.tx_fresh(_t0, tm): txf = _t0; frm = None; log(f"{JUDGE[rs]} {code} {tm} ⑧ 加權到 {tm} 沒更新 → 照舊用台指期")
+                elif not frm and self.tx_fresh(_i0, tm): txf = _i0; frm = "09:00"; log(f"{JUDGE[rs]} {code} {tm} ⑧ 台指期到 {tm} 斷了 → 改用加權指數")
+                else:
+                    log(f"!! {JUDGE[rs]} {code} {tm} ⑧ 台指期 / 加權到 {tm} 都沒有或斷了 → 當缺資料")
+                    return self._miss(rs, code, tm, f"缺資料:⑧ 台指期 / 加權指數(到 {tm} 都斷了)")
             if not txf:
                 if not self.__dict__.get("_txf_warn") and now_tw().strftime("%H:%M") >= "09:05":
                     self._txf_warn = True; log("!! ⑧ 今天沒有台指期 1 分 K(中繼沒收到)、加權指數也沒有 → 全部判別式不進場")
@@ -2537,6 +2554,7 @@ def live():
                 if _rw:   # 2026-11-26 缺資料改擋:規則(私人庫模擬器 / 參數)今天一次都沒抓到最新的 → 全部判別式不發新進場(平倉照算)
                     for r_ in list(eng.envs): rs_block[r_] = _rw
                     flags.append("⚠規則缺")
+                flags += eng.tx_flags(hm)   # 2026-11-26 使用者「都修正」(情境回放 2):⑧ 要的台指期 / 加權斷了 → 心跳旗標(和 ⚠寬度 / ⚠規則缺一樣看得到)
                 late = bool(lb < want) and hm < "13:26"   # 13:25 起收盤集合競價本來就沒有 K
                 stale_bars = (not lb or lb < hm_add(hm, -3)) and hm < "13:26"
                 late_n = late_n + 1 if late else 0

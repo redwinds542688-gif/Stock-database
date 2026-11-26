@@ -144,6 +144,7 @@ def refresh(cfg=None, log=print, pool=None):
     out = {"d": d, "hm": now_tw().strftime("%H:%M"), "at": int(time.time() * 1000), "pool_date": pool_date, "n_pool": len(codes),
            "disposed": sorted(disposed & set(codes)), "attention": sorted(attention & set(codes)), "nodt": nodt, "noshort": noshort,
            "all_disposed": sorted(disposed), "src": src, "err": errs,
+           "all_attention": sorted(attention),   # 2026-11-26 使用者「都修正」(情境回放 6):注意股原本只留名單裡的 → 名單外手動部位(注意股)mon_excluded 認不出來;和處置股一樣另存全市場那份給名單外查(attention 這個鍵照舊只有名單內,手機 / 引擎不變)
            "dt_date": min(lds.values()) if lds else "",          # 2026-10-31 可當沖名單的日期(兩市場取舊的);不是今天 = 證交所 / 櫃買還沒換,盤中會再抓
            # 2026-11-02 上櫃可當沖名單(OpenAPI)的「資料日期」是前一個交易日(11/02 早上還是 1151030),不會變成今天 → 原本當成「還沒更新」,09:05 推了假警報、盤中一直重查。
            #   改成:上市要是今天;上櫃只要不超過 4 天(和雲端 recheck.py 一樣)
@@ -198,7 +199,7 @@ def blocked(code, kind=""):
     e = load_today(); c = str(code)
     if not e: return ""
     if c in e.get("disposed", []) or c in e.get("all_disposed", []): return "今天是處置股"
-    if c in e.get("attention", []): return "今天是注意股"
+    if c in e.get("attention", []) or c in e.get("all_attention", []): return "今天是注意股"   # 2026-11-26 使用者「都修正」(情境回放 6):名單外的注意股也認得(名單內的結果不變:名單內注意股本來就在 attention)
     if c in e.get("nodt", []): return "今天不可現股當沖"
     if kind == "short" and c in e.get("noshort", []): return "今天不可先賣後買(暫停放空)"
     return ""
