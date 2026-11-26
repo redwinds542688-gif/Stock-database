@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-26 明細已存下來的錯配也改對(使用者「台玻還是一樣錯誤」):舊版中繼收工存的明細、以前的日子,時間是 12 小時制 → 手機拆回成交照真正先後重新配對(做空就是做空),整檔總輸贏不變
   · 2026-11-26 明細元大成交做多 / 做空配錯修正(使用者「是錯誤 因為都是做空的」:聯電、台玻都做空,明細卻寫做多):元大成交時間是 12 小時制「下午 01:20」,直接比字串 → 13:20 的買回排在 12:11 的賣出前面,先進先出整個顛倒;中繼配對、對帳排序、手機合併都改成先轉 24 小時。中繼 13:40 後換版,今天的明細那時會自動改對
   · 2026-11-26 明細(元大成交)照出場時間排,最新的在最上面(使用者「明細也要最新排在最上面」)
   · 2026-11-26 監控標題「股票」後面改兩行小字:上 台指期漲跌幅(漲紅跌綠,盤中每 60 秒抓台指期 1 分 K)、下 盤寬度(≥50% 紅、<50% 綠),使用者看過圖「改」;收盤後照舊顯示檔數
@@ -659,7 +660,7 @@ try{ if (localStorage.getItem('mysh.rw') !== '20261125'){ ['mysh.backfill', 'mys
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611261328">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611261335">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2291,7 +2292,39 @@ const ySecOf = v => { const t = String(v == null ? '' : v); let m = t.match(/(\d
   if (!m) return null; let h = +m[1]; const mi = +m[2], se = +m[3];
   if (/下午|PM/i.test(t) && h < 12) h += 12; if (/上午|AM/i.test(t) && h === 12) h = 0;   // 2026-11-26 元大成交時間是 12 小時制(下午 01:20 = 13:20),不轉會排錯
   return h < 24 && mi < 60 && se < 61 ? h * 3600 + mi * 60 + se : null; };
+/* 2026-11-26 13:34 使用者「台玻還是一樣錯誤」:舊版中繼用 12 小時制時間(下午 01:20)排序配對 → 做空被配成做多。中繼新版改好了,
+   但已經存下來的明細(今天收工存檔、以前的日子)還是錯的 → 手機看到 12 小時制時間就把每一趟拆回成交、照真正的先後重新先進先出配一次。
+   費用:每筆成交照元大規則重算後按張數分,最後把整檔加總調回原本的總額(總輸贏不變) */
+function yLegRepair(legs){
+  try{
+    if (!Array.isArray(legs) || !legs.some(g => g && /上午|下午|AM|PM/i.test(String(g.t || '') + String(g.t0 || '')))) return legs;
+    const hms = v => { const x = ySecOf(v); return x == null ? String(v || '') : [x / 3600 | 0, (x / 60 | 0) % 60, x % 60].map(n => String(n).padStart(2, '0')).join(':'); };
+    const by = new Map(); for (const g of legs) if (g && g.lots > 0){ if (!by.has(g.code)) by.set(g.code, []); by.get(g.code).push(g); }
+    const out = [];
+    for (const [code, gs] of by){
+      const fm = new Map(), put = (bs, px, t, q) => { const k = bs + '|' + px + '|' + t; const f = fm.get(k); if (f) f.q += q; else fm.set(k, {bs, px: +px, t, q}); };
+      for (const g of gs){ const L = g.dir === '做多'; put(L ? 'B' : 'S', g.ent, g.t0, +g.lots); put(L ? 'S' : 'B', g.ex, g.t, +g.lots); }
+      const fills = [...fm.values()].sort((a, b) => (ySecOf(a.t) ?? -1) - (ySecOf(b.t) ?? -1));
+      for (const f of fills){ const amt = f.px * f.q * 1000; f.cost = Math.max(20, Math.floor(amt * 0.001425 * 0.25 + 1e-6)) + (f.bs === 'S' ? Math.floor(amt * 0.0015 + 1e-6) : 0); f.left = f.q; }
+      const q = [], nl = [];
+      for (const f of fills){
+        while (f.left > 0){
+          if (!q.length || q[0].bs === f.bs){ q.push(f); break; }
+          const h = q[0], n = Math.min(h.left, f.left), L = h.bs === 'B';
+          const gross = Math.round((f.px - h.px) * n * 1000 * (L ? 1 : -1)), cost = Math.round(h.cost * n / h.q + f.cost * n / f.q);
+          nl.push(Object.assign({}, gs[0], {dir: L ? '做多' : '做空', ent: h.px, ex: f.px, lots: n, t0: hms(h.t), t: hms(f.t), gross, fee: cost, tax: 0, net: gross - cost}));
+          h.left -= n; f.left -= n; if (h.left <= 0) q.shift();
+        }
+      }
+      const tot0 = gs.reduce((a, g) => a + (+g.gross || 0) - (+g.net || 0), 0), tot1 = nl.reduce((a, g) => a + g.fee, 0);
+      if (nl.length && fills.every(f => f.left <= 0)){ const z = nl[nl.length - 1]; z.fee += tot0 - tot1; z.net = z.gross - z.fee; }
+      out.push(...nl);
+    }
+    return out.sort((a, b) => (ySecOf(b.t) ?? -1) - (ySecOf(a.t) ?? -1));
+  }catch(e){ return legs; }
+}
 function yLegMerge(legs){
+  legs = yLegRepair(legs);
   try{
     const asc = legs.filter(r => r && r.lots > 0).slice().reverse();   // legs 最新的在前 → 從最早的開始併
     const out = [], cur = {};
