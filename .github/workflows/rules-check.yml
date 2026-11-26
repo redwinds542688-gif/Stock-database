@@ -35,4 +35,9 @@ jobs:
               except Exception as e: comp = f"{type(e).__name__}: {str(e)[:150]}"
               print(f, "HTTP", st, "大小", len(b), "有必要字串", ok_must, "compile", comp, "sha", hashlib.sha256(b).hexdigest()[:8])
               if st != 200 or not ok_must: print("  內容開頭:", t[:300].replace("\n", " "))
+          try:
+              import json
+              r = urllib.request.urlopen(urllib.request.Request(B + "?engine=get", headers={"X-Push-Key": K, "User-Agent": "mysh-engine/1"}), timeout=30)
+              j = json.loads(r.read().decode("utf-8")); print("電腦心跳:", {k: j.get(k) for k in ("d", "hm", "on", "stale", "ver", "n", "msg")})
+          except Exception as e: print("心跳讀不到", type(e).__name__)
           PY
