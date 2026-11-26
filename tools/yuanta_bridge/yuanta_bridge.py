@@ -1358,9 +1358,7 @@ class Bridge:
                     u = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={ex}_{code}.tw&json=1&delay=0&_={int(time.time() * 1000)}"
                     a = (json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://mis.twse.com.tw/stock/index.jsp"}), timeout=4).read().decode("utf-8")).get("msgArray") or [{}])[0]
                     z = a.get("z"); z = float(z) if z not in (None, "", "-") else 0.0
-                    if not z > 0:   # 這 5 秒沒成交 → 用最佳買賣價中間(有的話)
-                        b = str(a.get("b") or "").split("_")[0]; k = str(a.get("a") or "").split("_")[0]
-                        z = (float(b) + float(k)) / 2 if b not in ("", "-") and k not in ("", "-") and float(b) > 0 and float(k) > 0 else 0.0
+                    # 2026-11-26 使用者「全改」(稽核 10):只餵真的成交價;原本這 5 秒沒成交就用最佳買賣價中間(不是成交,可能誤觸停利停損 / ② / 移平)→ 拿掉,沒成交就不餵
                     if a.get("y") and not (self.quotes.meta.get(code) or {}).get("y"):
                         with self.quotes.lock: self.quotes.meta.setdefault(code, {"n": "", "ex": ex, "y": None})["y"] = float(a["y"])
                 except Exception: z = 0.0
@@ -1369,6 +1367,12 @@ class Bridge:
                     if self.trader: self.trader.on_tick(code, z)
                     return
         except Exception as e: log("持倉報價備援失敗", e)
+
+    def ref_need_bg(self, code):
+        """2026-11-26 使用者「全改」(稽核 8):trader 在交易鎖裡要昨收 → 只開背景執行緒查(ensure_ref 自己 60 秒限一次),不等網路;
+           查到後 trader 的 _iron_retry(成交)/ _ph_ref(預掛)在下一個 tick 補做 ① 檢查"""
+        if (self.quotes.meta.get(code) or {}).get("y"): return True
+        threading.Thread(target=self.ensure_ref, args=(code, 2), daemon=True).start(); return False
 
     def ensure_ref(self, code, to=5):
         """2026-11-26 判別式聊天轉使用者「不管手動 強制 程式自己進場 都要改好」(富喬 1815 手動空單過昨收 +6.5% 沒平:名單外 / 注意股臨時訂閱,報價沒有昨收 → 鐵律 ② 沒作用):
@@ -1456,7 +1460,9 @@ class Bridge:
                 tmp = f.with_suffix(".tmp"); tmp.write_text("".join(lines), encoding="utf-8"); os.replace(tmp, f)
             prev_days = sorted(d for d in got if d < day); prev = got[prev_days[-1]][-1][5] if prev_days else (self.quotes.meta.get(code) or {}).get("y")
             try:   # 2026-11-26 使用者「鴻海 富喬 沒有漲跌幅」:臨時訂閱的股票報價沒有昨收 → 用前一天最後一根補(元大清盤參考價來了會蓋過)
-                if prev and not (self.quotes.meta.get(code) or {}).get("y"): self.quotes.meta.setdefault(code, {"n": "", "ex": "tse", "y": None})["y"] = float(prev)
+                # 2026-11-26 使用者「全改」(稽核 10):先問證交所的昨收(ensure_ref,mis 的 y 是真的參考價);問不到才用前一天最後一根 1 分 K 收盤
+                if prev and not (self.quotes.meta.get(code) or {}).get("y") and not self.ensure_ref(code):
+                    if not (self.quotes.meta.get(code) or {}).get("y"): self.quotes.meta.setdefault(code, {"n": "", "ex": "tse", "y": None})["y"] = float(prev)
             except Exception: pass
             name = ""
             try: name = self.trader.name_of(code) if self.trader else ""
@@ -2278,7 +2284,7 @@ class Bridge:
                              "place_oco": lambda _s, *a: self.place_oco(*a), "delete_oco": lambda _s, no: self.delete_oco(no)})()
         t = Trader(cfg, gw, log, now_tw); t.alert = self.phone_alert; t.post = self.trade_post
         t.ref_of = lambda c: (self.quotes.meta.get(c) or {}).get("y")
-        t.ref_need = lambda c: self.ensure_ref(c, 2)   # 2026-11-26(交易鎖裡呼叫,每次最多 2 秒) trader 判 ① 時沒有昨收 → 當場查(證交所 mis)
+        t.ref_need = self.ref_need_bg   # 2026-11-26 trader 判 ① 時沒有昨收 → 查證交所 mis;2026-11-26 使用者「全改」(稽核 8):原本在交易鎖裡同步查(最多 4~8 秒卡住全部下單)→ 改背景查、馬上回
         t.name_of = self.stock_name   # 2026-11-12 09:16 使用者「股票名稱怎麼變成1709」:名單外股票(留倉接回 / 手動)沒有名稱 → 查本機舊名單、證交所
         t.want_sub = self.want_sub
         for c, m in self.codes:
@@ -2668,7 +2674,7 @@ class Bridge:
                 if "08:45" <= hm_w <= "13:30" and self.trader and time.time() - getattr(self, '_refchk_at', 0) >= 30:   # 2026-11-26 每 30 秒:任何持倉(手動 / 強制 / 程式 / 留倉)沒有昨收 → 補
                     self._refchk_at = time.time()
                     try:
-                        for c in [p["code"] for p in list(self.trader.positions.values()) if p.get("qty")]:
+                        for c in [p["code"] for p in list(self.trader.positions.values()) if p.get("qty") or ((p.get("order") or {}).get("filled") or 0) + (p.get("pre_filled") or 0) >= 1000]:   # 2026-11-26 使用者「全改」(稽核 9):進場中已成交 ≥ 1 張的也盯
                             if not (self.quotes.meta.get(c) or {}).get("y"): threading.Thread(target=self.ensure_ref, args=(c,), daemon=True).start()
                             if "09:00" <= hm_w < "13:25": threading.Thread(target=self.tick_guard, args=(c,), daemon=True).start()
                     except Exception as e: log("持倉昨收檢查失敗", e)

@@ -524,3 +524,37 @@ _new = _YB.legs_fix(_old)
 assert all(g["dir"] == "做空" for g in _new) and sum(g["net"] for g in _new) == sum(g["net"] for g in _old) and _new[0]["t"] == "13:20:01", _new
 assert _YB.legs_fix(_new) == _new
 print("舊明細重新配對 OK")
+
+# ── 2026-11-26 使用者「全改」稽核 8 / 10 回歸測試 ──
+import json as _js, types as _ty, threading as _thr, time as _tm
+_uo26 = _YB.urllib.request.urlopen
+try:
+    # 2026-11-26 稽核 8:ref_need(trader 在交易鎖裡叫)只開背景執行緒查昨收,馬上回(不等網路)
+    b8 = mk(); b8.quotes = _ty.SimpleNamespace(meta={}, q={}, lock=_thr.Lock()); _ev = _thr.Event()
+    b8.ensure_ref = lambda c, to=5: (_tm.sleep(3), _ev.set())
+    _t0 = _tm.time(); r8 = b8.ref_need_bg("1815"); ok(r8 is False and _tm.time() - _t0 < 0.5, "ref_need 不能在鎖裡等網路", _tm.time() - _t0)
+    b8.quotes.meta["1815"] = {"y": 101.5}; ok(b8.ref_need_bg("1815") is True)
+    # 2026-11-26 稽核 10:tick_guard 只餵真的成交價(沒成交不拿買賣價中間)
+    RESP = {"msgArray": [{"z": "-", "b": "37.10_37.05_", "a": "37.20_37.25_", "y": "37.00"}]}
+    _YB.urllib.request.urlopen = lambda *a, **k: _ty.SimpleNamespace(read=lambda: _js.dumps(RESP).encode())
+    b10 = mk(); b10.quotes = _ty.SimpleNamespace(meta={"2409": {"y": 37.0, "ex": "tse"}}, q={}, lock=_thr.Lock()); b10.pending_sub = []; b10.mkt_of_code = lambda c: None
+    TK = []; b10.trader = _ty.SimpleNamespace(on_tick=lambda c, z: TK.append((c, z)))
+    b10.tick_guard("2409"); ok(not TK, "沒成交不能餵買賣價中間", TK)
+    RESP["msgArray"][0]["z"] = "37.15"; b10.tick_guard("2409"); ok(TK == [("2409", 37.15)], TK)
+    # 2026-11-26 稽核 10:名單外股票的昨收先用證交所 y(ensure_ref),查不到才用前一天最後一根 1 分 K 收盤
+    _here26 = _YB.HERE; _YB.HERE = TMP
+    def _mk_x(ref_ok):
+        bx = mk(); bx.quotes = _ty.SimpleNamespace(meta={}, q={}, lock=_thr.Lock(), seed=lambda *a: None); bx.pending_sub = []
+        bx.Y = _ty.SimpleNamespace(enumMarketType=_ty.SimpleNamespace(TWOTC="otc", TWSE="tse"))
+        bx.kline_query = lambda code, mkt, d: [(d, "09:01", 40.0, 40.0, 40.0, 41.0 if d == NOW[0].strftime("%Y-%m-%d") else 48.0, 1000)]
+        def _er(c, to=5):
+            if ref_ok: bx.quotes.meta.setdefault(c, {"n": "", "ex": "tse", "y": None})["y"] = 50.0
+            return ref_ok
+        bx.ensure_ref = _er; bx.extra_dt = lambda *a: (_ for _ in ()).throw(RuntimeError("測試到這裡就好"))
+        return bx
+    bx1 = _mk_x(True); bx1.extra_add("9999", "tse"); ok(bx1.quotes.meta["9999"]["y"] == 50.0, "證交所查得到 → 用 y", bx1.quotes.meta)
+    bx2 = _mk_x(False); bx2.extra_add("9998", "tse"); ok(bx2.quotes.meta["9998"]["y"] == 48.0, "查不到 → 前一天最後一根", bx2.quotes.meta)
+    _YB.HERE = _here26
+finally:
+    _YB.urllib.request.urlopen = _uo26
+print("稽核 8 / 10 中繼昨收背景查、只餵成交價 OK")

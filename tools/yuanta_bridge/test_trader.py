@@ -215,9 +215,15 @@ tq.on_report(51, "A0002", 0, 1000, 84.1); pq["order"]["at"] -= 31
 tq.verify([], [{"code": "6269", "bs": "S", "lots": 3, "price": 86.1, "order_no": "A0001"}, {"code": "6269", "bs": "B", "lots": 1, "price": 84.1, "order_no": "A0002"}])
 ok(gq.sent[-1][:3] == ("6269", "B", 2) and pq["qty"] == 2, gq.sent[-1], pq["qty"])
 # F6c) 元大一直拒絕平倉 → 最多重送 3 次,之後推播請手動
+# 2026-11-26 稽核 1:改成不放棄:每次被拒退回持倉中,隔 2 / 5 / 10 / 10 秒由 step 再送;手機 5 分鐘最多提醒一次、不標 stuck
 tr_, gr_ = mk(GWN); tr_.on_tick("2330", 600.0); tr_.force_enter("2330", 1, 1); tr_.on_report(51, "", 0, 1000, 600.0, basket=gr_.tags[-1]); tr_.force_close("2330")
-for k in range(4): tr_.on_order_reply("", False, "E999 系統忙碌", tag=gr_.tags[-1])
-ok(len([x for x in gr_.sent if x[1] == "S"]) == 4 and tr_.positions["2330"].get("stuck") and "平倉失敗" in tr_.alerts[-1], gr_.sent, tr_.alerts)
+pr_ = tr_.positions["2330"]; wr_ = []
+for k in range(4):
+    tr_.on_order_reply("", False, "E999 系統忙碌", tag=gr_.tags[-1]); wr_.append(pr_.get("_xwait"))
+    ok(pr_["state"] == HOLDING and not pr_.get("order") and not pr_.get("stuck"), pr_)
+    tr_.step(); ok(pr_["state"] == HOLDING, "退避時間還沒到不送"); pr_["_xfail"] -= 11; tr_.step(); ok(pr_["state"] == EXITING, "退避到了照原因再送")
+ok(wr_ == [2, 5, 10, 10] and len([x for x in gr_.sent if x[1] == "S"]) == 5 and pr_.get("resend") == 4, wr_, gr_.sent)
+ok(sum("平倉失敗" in a for a in tr_.alerts) == 1, tr_.alerts)
 # F7) 強制進場 30 秒沒回報:元大沒有也沒成交 → 不重送、推播;元大有成交 → 照元大接上
 tl, gl = mk(); tl.on_tick("2330", (tl.ref_of("2330") or 100.0)); tl.force_enter("2330", 1, 1, 2.5, 1.5); tl.positions["2330"]["order"]["at"] -= 31
 tl.verify([], []); ok("2330" not in tl.positions and len(gl.sent) == 1 and "沒有送到元大" in tl.alerts[-1])
@@ -225,7 +231,9 @@ tl.force_enter("2330", 1, 1, 2.5, 1.5); tl.positions["2330"]["order"]["at"] -= 3
 tl.verify([], [{"code": "2330", "bs": "B", "lots": 1, "price": 601.0, "order_no": "A0002"}]); ok(tl.positions["2330"]["state"] == HOLDING and tl.positions["2330"]["entry"] == 601.0)
 # F8) 平倉單被元大拒絕 → 推播並馬上重送(有次數上限)
 tm, gm = mk(GWN); tm.on_tick("2330", 600.0); tm.force_enter("2330", 1, 1); tm.on_report(51, "", 0, 1000, 600.0, basket=gm.tags[-1]); tm.force_close("2330")
-tm.on_order_reply("", False, "E999 系統忙碌", tag=gm.tags[-1]); pm = tm.positions["2330"]; ok(pm["state"] == EXITING and "被元大拒絕" in tm.alerts[-1] and gm.sent[-1][:3] == ("2330", "S", 1) and gm.sent[-1][6] == "L")
+# 2026-11-26 稽核 1:被拒不再馬上重送 → 退回持倉中、推播,2 秒後由 step 再送跌停 ROD
+tm.on_order_reply("", False, "E999 系統忙碌", tag=gm.tags[-1]); pm = tm.positions["2330"]; ok(pm["state"] == HOLDING and "平倉失敗" in tm.alerts[-1] and pm["_xwait"] == 2)
+pm["_xfail"] -= 3; tm.step(); ok(pm["state"] == EXITING and gm.sent[-1][:3] == ("2330", "S", 1) and gm.sent[-1][6] == "L")
 # F8b) 程式重開時平倉單還掛著(鎖跌停)→ 接成平倉中,不送第二張;強制進場單還掛著 → 進場中
 tw, gw_ = mk(); tw.state_file.write_text('{"day": "2026-10-22", "forced": {"3008": {"tp_pct": 2.5, "sl_pct": 1.5}}}', encoding="utf-8")
 tw.resume([{"code": "6269", "bs": "B", "lots": 1, "price": 86.1, "time": "10:00", "order_no": "A1"}], {"A1": "T100000001"}, [], [],
@@ -319,7 +327,7 @@ ok(t3.positions["3008"]["state"] == EXITING); t3.on_tick("3008", 95.0); ok(not g
 # P4) 重送用完(stuck)→ 手機強平會重新送出
 at(10, 0); t4, g4 = mk(gw=GWN, TRADE_MAX_RESEND="1"); p4 = y3(t4, "2454", "B", 1, 100.0); t4.on_tick("2454", 95.0)
 for _ in range(2): t4.on_order_reply("", False, "rej", g4.tags[-1])
-ok(p4.get("stuck")); n4 = len(g4.sent); r4 = t4.force_close("2454"); ok(r4[0] and g4.sent[n4:] and g4.sent[-1][:3] == ("2454", "S", 1), (r4, g4.sent[n4:]))
+ok(not p4.get("stuck") and p4["state"] == HOLDING); n4 = len(g4.sent)   # 2026-11-26 稽核 1:不再標 stuck,退回持倉中; r4 = t4.force_close("2454"); ok(r4[0] and g4.sent[n4:] and g4.sent[-1][:3] == ("2454", "S", 1), (r4, g4.sent[n4:]))
 # P5) 元三另外下一張加碼 → 併進去;平倉中加碼 → 取消重送全部
 t5, g5 = mk(); p5 = y3(t5, "2317", "B", 1, 100.0, "M1"); t5.on_report(51, "M2", 0, 2000, 100.0, "", "2317", "B"); ok(p5["qty"] == 3)
 t5.on_tick("2317", 95.0); ok(g5.sent[-1][:3] == ("2317", "S", 3)); t5.on_report(51, "M3", 0, 1000, 95.0, "", "2317", "B"); ok(p5["qty"] == 4 and g5.sent[-1][0] == "cancel")
@@ -1590,7 +1598,8 @@ pb["order"] = None; _gs = g3b.send; g3b.send = lambda *a, **k: (_ for _ in ()).t
 s_, f_ = u3b.close_now("13:20"); g3b.send = _gs; ok(f_ == {"6269"} and pb["state"] == EXITING and pb["order"] is None, (s_, f_, pb["order"]))
 s_, f_ = u3b.close_now("13:20", codes={"6269"}); ok(s_ == {"6269"} and pb["order"])
 # stuck(重送超過上限)照舊留給複查
-pb["order"] = None; pb["stuck"] = True; nb = len(g3b.sent); s_, f_ = u3b.close_now("13:20"); ok(len(g3b.sent) == nb and not s_)
+# 2026-11-26 稽核 1:舊狀態檔留下的 stuck 也不跳過 → 一樣補送
+pb["order"] = None; pb["stuck"] = True; nb = len(g3b.sent); s_, f_ = u3b.close_now("13:20"); ok(len(g3b.sent) == nb + 1 and s_ == {"6269"})
 at(10, 0)
 print("2026-11-22 全部做 U3 OK")
 
@@ -1762,3 +1771,100 @@ tG.on_report(51, "MG1", 0, 2000, 105.0, basket="", code="1815", bs="S"); pG = tG
 REF2[0] = 101.5; tG.on_tick("1815", 105.5); ok(pG["state"] == HOLDING, "105 = +3.4% 在範圍內不平", pG.get("exit_why"))
 tG.on_tick("1815", 108.2); ok(pG["state"] == EXITING and "6.5" in str(pG.get("exit_why")), pG.get("exit_why"))   # ② 昨收 +6.5% = 108.1
 print("七2 / 三2 / 七3 / 六4 標記 OK")
+
+from trader import MANUAL
+# ── 2026-11-26 使用者「全改」稽核 1~10 回歸測試 ──
+_IL0 = Trader.IRON_LOTS
+# 2026-11-26 稽核 1:平倉單一直被拒 → 隔 2 / 5 / 10 秒再送(不卡住),等的時候停損照常觸發;13:20 備援照送;30 秒複查失敗只算一次
+at(10, 0); a1, g1 = mk(GWN); a1.on_tick("6269", 86.2); a1.step([ENT]); a1.on_report(51, "A0001", 0, 1000, 86.1, basket=g1.tags[-1]); p1 = a1.positions["6269"]
+a1.on_tick("6269", 88.8); ok(p1["state"] == EXITING)
+a1.on_order_reply("", False, "X999 系統忙碌", tag=g1.tags[-1]); ok(p1["state"] == HOLDING and p1["_xwait"] == 2 and p1["resend"] == 1 and not p1.get("stuck") and not p1.get("order"), p1)
+n1 = len(g1.sent); a1.on_tick("6269", 95.0); ok(len(g1.sent) == n1, "退避中不送")
+p1["_xfail"] -= 3; a1.on_tick("6269", 95.0); ok(p1["state"] == EXITING and g1.sent[-1][:3] == ("6269", "B", 1) and g1.sent[-1][6] == "H", g1.sent[-1])   # 停損照常再觸發
+for _ in range(3): a1.on_order_reply("", False, "X999 系統忙碌", tag=g1.tags[-1]); p1["_xfail"] -= 11; a1.step()
+ok(p1["resend"] == 4 and p1["state"] == EXITING and not p1.get("stuck") and sum("平倉失敗" in x for x in a1.alerts) == 1, (p1.get("resend"), a1.alerts))   # 手機 5 分鐘最多一次
+a1.on_order_reply("", False, "X999 系統忙碌", tag=g1.tags[-1]); ok(p1["state"] == HOLDING and p1["_xwait"] == 10)
+at(13, 20); n1 = len(g1.sent); s1, f1 = a1.close_now("13:20"); ok(s1 == {"6269"} and g1.sent[n1:] and g1.sent[-1][:3] == ("6269", "B", 1), g1.sent[n1:])   # 13:20 不跳過
+at(10, 0); a1b, g1b = mk(); a1b.on_tick("6269", 86.2); a1b.step([ENT]); a1b.on_report(51, "A0001", 0, 1000, 86.1); a1b.on_tick("6269", 88.8); p1b = a1b.positions["6269"]
+p1b["order"]["at"] -= 31; a1b.verify([], [{"code": "6269", "bs": "S", "lots": 1, "price": 86.1, "order_no": "A0001"}]); ok(p1b.get("resend") == 1 and p1b["state"] == EXITING, p1b.get("resend"))
+print("稽核 1 平倉被拒退避重送 OK")
+# 2026-11-26 稽核 2:程式平倉單掛著時手動多平 → 程式部位結束當下接成反向元三;對帳時別的手動單掛著、程式沒有部位 → 照樣接回
+at(10, 0); a2, g2 = mk(); a2.on_tick("2409", 37.25); a2.step([ENTX("2409", 37.25)]); a2.on_report(51, "A0001", 0, 1000, 37.3)
+a2.on_tick("2409", 36.6); ok(a2.positions["2409"]["state"] == EXITING)
+a2.on_other_fill("2409", "S", 3000, 36.6, "M9", "0"); ok(a2.positions["2409"]["qty"] == 0)
+a2.on_report(50, "A0002", 2, 0, 0); q2 = a2.positions.get("2409")
+ok(q2 and q2["judge"] == MANUAL and q2["dir"] == -1 and q2["qty"] == 2 and q2["state"] == HOLDING and q2["entry"] == 36.6, q2)
+ok(any("已由程式接管" in x for x in a2.alerts), a2.alerts)
+a2.on_tick("2409", 45.0); ok(q2["state"] == EXITING and g2.sent[-1][:3] == ("2409", "B", 2), g2.sent[-1])
+at(10, 5); a2b, g2b = mk(); a2b.on_tick("2409", 37.0)
+tr2 = [{"code": "2409", "bs": "S", "lots": 2, "price": 37.0, "time": "10:00:05", "order_no": "M9"}]; wk2 = [{"code": "2409", "bs": "B", "lots": 2, "no": "M10", "tag": "", "typ": "9"}]
+a2b.reconcile(tr2, wk2, {"M9": ""}); a2b.reconcile(tr2, wk2, {"M9": ""}); ok(a2b.positions.get("2409") and a2b.positions["2409"]["judge"] == MANUAL and a2b.positions["2409"]["qty"] == 2, a2b.positions)
+print("稽核 2 平倉中手動多平接元三 OK")
+# 2026-11-26 稽核 3:預掛取消回報漏了 → 連續兩次對帳不在元大掛單 → 拿掉,停損恢復
+at(10, 0); a3, g3 = mk(); a3.on_tick("2409", 37.25); a3.step([ENTX("2409", 37.25)]); a3.on_report(51, "A0001", 0, 1000, 37.3)
+a3.man_order("2409", "M77", 0, 1000, 39.0, "S", "0"); ok(a3.prehang.get("2409") == ["M77"])
+tr3 = [{"code": "2409", "bs": "B", "lots": 1, "price": 37.3, "time": "10:00:01", "order_no": "A0001"}]
+a3.reconcile(tr3, [{"code": "2409", "bs": "S", "lots": 1, "no": "M77", "tag": "", "typ": "0"}], {"A0001": g3.tags[0]}); a3.reconcile(tr3, [], {"A0001": g3.tags[0]}); ok(a3.prehang.get("2409") == ["M77"], "在掛單裡 / 只少一次 → 不動")
+a3.reconcile(tr3, [], {"A0001": g3.tags[0]}); ok(not a3.prehang.get("2409") and "M77" not in a3.man_meta, a3.prehang)
+a3.on_tick("2409", 36.5); ok(a3.positions["2409"]["state"] == EXITING and g3.sent[-1][:3] == ("2409", "S", 1), g3.sent[-1])
+print("稽核 3 預掛回報漏了自動拿掉 OK")
+# 2026-11-26 稽核 4:手動單違反 ① 時平倉單送不出去 → 記著 iron_exit,5 秒後 step / on_tick 再送「鐵律」平倉
+Trader.IRON_LOTS = True
+class GWX4(GW):
+    fail = 0
+    def send(s, *a, **k):
+        if s.fail > 0: s.fail -= 1; raise ConnectionError("元大沒有登入(重連中)")
+        return GW.send(s, *a, **k)
+at(10, 0); a4, g4 = mk(GWX4); a4.ref_of = lambda c: 100.0; a4.on_tick("2409", 106.0); g4.fail = 1
+a4.on_other_fill("2409", "S", 1000, 106.0, "M001", "9"); p4_ = a4.positions["2409"]
+ok(p4_["state"] == HOLDING and p4_.get("iron_exit") and not g4.sent, p4_)
+a4.step(); ok(not g4.sent, "5 秒內不洗")
+p4_["_xfail"] -= 6; a4.step(); ok(p4_["state"] == EXITING and g4.sent[-1][:3] == ("2409", "B", 1) and p4_["exit_why"] == "鐵律", g4.sent)
+at(10, 0); a4b, g4b = mk(GWX4); a4b.ref_of = lambda c: 100.0; a4b.on_tick("2409", 106.0); g4b.fail = 1; a4b.on_other_fill("2409", "S", 1000, 106.0, "M002", "9")
+a4b.positions["2409"]["_xfail"] -= 6; a4b.on_tick("2409", 105.9); ok(a4b.positions["2409"]["state"] == EXITING, "on_tick 也會再送")
+Trader.IRON_LOTS = _IL0
+print("稽核 4 鐵律平倉送不出去會再送 OK")
+# 2026-11-26 稽核 5:條件單掛好的回應晚到(部位已平)→ 馬上刪掉
+at(10, 0); a5, g5 = mk(TRADE_BROKER_STOP="1"); a5.on_tick("6269", 86.2); a5.step([ENT]); a5.on_report(51, "A0001", 0, 1000, 86.1)
+a5.on_tick("6269", 88.8); a5.on_report(51, "A0002", 0, 1000, 88.9); ok("6269" not in a5.positions)
+n5 = len(g5.sent); a5.on_strategy_reply("K0001", True, "", code="6269"); ok(("del_oco", "K0001") in g5.sent[n5:], g5.sent[n5:])
+a5.on_strategy_reply("K0002", False, "失敗", code="6269"); ok(("del_oco", "K0002") not in g5.sent, "掛失敗不用刪")
+print("稽核 5 晚到的條件單刪掉 OK")
+# 2026-11-26 稽核 6:13:20 以後(含 13:25~13:30)手動新進場預掛 → 直接取消、推手機
+at(13, 27); a6, g6 = mk(); a6.ref_of = lambda c: 50.0; a6.on_tick("2409", 50.0)
+a6.man_order("2409", "M88", 0, 2000, 50.1, "B", "0"); ok(("cancel", "M88", "2409", "B") in g6.sent and "已取消" in a6.alerts[-1], (g6.sent, a6.alerts))
+at(13, 19); a6b, g6b = mk(); a6b.ref_of = lambda c: 50.0; a6b.on_tick("2409", 50.0); a6b.man_order("2409", "M89", 0, 1000, 50.1, "B", "0"); ok(not g6b.sent, "13:20 前照舊")
+at(10, 0)
+print("稽核 6 13:20 後手動預掛取消 OK")
+# 2026-11-26 稽核 7:超額 / 太晚補進場:訊號 ≤ 12:30 + 10 分鐘 → 12:39:59 可以、12:40:00 不行;訊號 12:31 不記著補
+def _at_s(h, m, s): NOW[0] = dt.datetime(2026, 10, 22, h, m, s, tzinfo=TW)
+OV7 = lambda k, bar="12:30": dict(sig(k, "short", "晶豪科 3006 做空進場 257.50", f"{bar} 空 · 停利 234.30 停損 266.44 · 1張 · 超額 · 判四"), t=bar)
+at(12, 31); a7, g7 = mk(TRADE_CAP="250000"); a7.ref_of = lambda c: 252.0; a7.on_tick("3006", 257.5); a7.step([OV7("k71")]); ok(a7.over_wait["3006"]["until_hm"] == "12:40", a7.over_wait)
+_at_s(12, 39, 59); a7.on_tick("3006", 249.0); a7.step([]); ok(a7.over_confirm("3006")[0] and "3006" in a7.positions, a7.positions)
+at(12, 31); a7b, _ = mk(TRADE_CAP="250000"); a7b.ref_of = lambda c: 252.0; a7b.on_tick("3006", 257.5); a7b.step([OV7("k72")])
+_at_s(12, 40, 0); a7b.on_tick("3006", 249.0); a7b.step([]); ok("3006" not in a7b.over_wait and not a7b.over_confirm("3006")[0] and "3006" not in a7b.positions)
+at(12, 31); a7c, _ = mk(TRADE_CAP="250000"); a7c.ref_of = lambda c: 252.0; a7c.on_tick("3006", 257.5); a7c.step([OV7("k73", "12:31")]); ok("3006" not in a7c.over_wait, "訊號 12:31 不記")
+at(12, 32); a7d, _ = mk(TRADE_CAP="250000"); a7d.ref_of = lambda c: 252.0; a7d.on_tick("3006", 257.5); a7d.step([OV7("k74")]); a7d.over_wait["3006"]["until_hm"] = "12:42"
+_at_s(12, 40, 0); ok(a7d.can_enter("3006", "判四", "short", over=True), "就算等待表寫錯,12:40 起 can_enter 也擋")
+LT7 = lambda k, bar="12:30": dict(sig(k, "short", "台郡 6269 做空進場 86.20", f"{bar} 空✓ · 停利 84.05 停損 88.70 · 判二"), t=bar)
+at(12, 31); a7e, g7e = mk(); a7e.on_tick("6269", 87.0); a7e.step([LT7("l71")]); ok(a7e.late_wait["6269"]["until_hm"] == "12:40", a7e.late_wait)
+_at_s(12, 39, 59); a7e.on_tick("6269", 86.3); a7e.step([]); ok("6269" in a7e.positions, a7e.late_wait)
+at(12, 31); a7f, _ = mk(); a7f.on_tick("6269", 87.0); a7f.step([LT7("l72")]); _at_s(12, 40, 0); a7f.on_tick("6269", 86.3); a7f.step([]); ok("6269" not in a7f.positions and not a7f.late_wait)
+at(12, 31); a7g, _ = mk(); a7g.on_tick("6269", 87.0); a7g.step([LT7("l73", "12:31")]); ok(not a7g.late_wait and not a7g.positions, "訊號 12:31 不補")
+at(10, 0)
+print("稽核 7 超額 / 太晚補進場最晚 12:39:59 OK")
+# 2026-11-26 稽核 8:沒有昨收時 ref_need 只叫背景查(不等);預掛記著,昨收來了再檢查 ① → 違反就取消
+Trader.IRON_LOTS = True
+at(10, 0); a8, g8 = mk(); R8 = [None]; a8.ref_of = lambda c: R8[0]; asked8 = []; a8.ref_need = lambda c: asked8.append(c)
+a8.on_tick("2409", 106.0); a8.man_order("2409", "M80", 0, 1000, 106.0, "S", "0"); ok(asked8 and "M80" in a8._ph_ref and not g8.sent, (asked8, g8.sent))
+a8.on_tick("2409", 106.0); ok(not g8.sent, "還沒有昨收不動")
+R8[0] = 100.0; a8.on_tick("2409", 106.0); ok(("cancel", "M80", "2409", "S") in g8.sent and "M80" not in a8._ph_ref and "已取消" in a8.alerts[-1], (g8.sent, a8.alerts))
+a8.on_tick("2409", 106.0); ok(sum(1 for x in g8.sent if x[0] == "cancel") == 1, "只取消一次")
+Trader.IRON_LOTS = _IL0
+print("稽核 8 昨收背景查 + 預掛補檢查 OK")
+# 2026-11-26 稽核 9:判別式進場單只成交一部分(還在進場中)→ 已成交的也照 ② 盯:碰到 → 取消剩下的、轉持倉當下照原因平
+at(10, 0); a9, g9 = mk(TRADE_QTY="3"); a9.ref_of = lambda c: 85.0; a9.on_tick("6269", 86.2); a9.step([ENT]); p9 = a9.positions["6269"]
+a9.on_report(51, "A0001", 0, 1000, 86.2, basket=g9.tags[-1]); ok(p9["state"] == ENTERING)
+a9.on_tick("6269", 90.6); ok(p9.get("close_after_entry") and p9.get("iron_part", "").startswith("超") and ("cancel", "A0001", "6269", "S") in g9.sent, (p9.get("iron_part"), g9.sent))
+a9.on_report(50, "A0001", 2, 0, 0, basket=g9.tags[0]); ok(p9["state"] == EXITING and p9["exit_why"].startswith("超") and g9.sent[-1][:3] == ("6269", "B", 1) and not p9.get("forced_close"), (p9.get("exit_why"), g9.sent[-1]))
+print("稽核 9 進場中部分成交也受保護 OK")

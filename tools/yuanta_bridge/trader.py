@@ -124,6 +124,7 @@ def lot_tier_qty(px, cap=250000):   # 2026-11-17 23:45 🔓→🔒 鐵律 ⑤(�
     return max(1, int(cap // (px * 1000)))   # 2026-11-14 00:55 🔓→🔒 鐵律 ⑤ 改「不分級」(使用者「如果購買不分級呢」→「解鎖 改」):每筆 25 萬能買幾張就買幾張(原 ≤80 元最多 3 張 ≤16 萬、80~250 元最多 2 張);超過 250 元一張 > 25 萬 = 超額,另外管
 IRON_FAV = 7.0   # 2026-11-25 使用者「統一定義 所有進場 做多範圍 -5%到+7% 做空範圍-7%到+5%」「包含 手動進場 強制進場」:有利方向最遠 7%、不利方向最遠 IRON_PCT 5%
 IRON_PCT, IRON_MOVE, IRON_FROM, IRON_TO, IRON_TO_SIG, IRON_BRX_L, IRON_BRX_E = 5.0, 6.5, "09:30", "12:30", "12:32", 1.5, 0.15   # 鐵律 ③ 09:30(23:38 曾改 09:15,23:49 使用者「改成9點30分進場 解鎖改」改回)
+OVER_END_M = int(IRON_TO[:2]) * 60 + int(IRON_TO[3:]) + 10   # 2026-11-26 使用者「全改」(稽核 7)「超額補進有10分鐘 所以應該12.39分.59秒止」:超額 / 太晚補進場最晚 = 訊號 12:30 + 10 分鐘(12:40:00 起不補)
 IRON_CAP_MAX = 250000   # 2026-11-11 22:46 使用者「最多上限改25萬」:多空上限(設定檔 / 主導機)最多 25 萬   # 原 500000 # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 4:設定檔的多空上限最多 50 萬(和主導機能設的範圍一樣)
 IRON_EXIT, JUDGES_ALL = "13:20", ("判一", "判二", "判三", "判四", "判五", "判六", "判七", "判八", "判九", "判十")   # 2026-11-18 23:35 加判十   # 2026-11-14 15:14 加判八;17:58 加判九   # 2026-11-11 22:25 使用者「改13」:設定檔的開關不能關掉鐵律保護
 RE_IRON_EXIT = re.compile(r"超過?\s*[\d.]+\s*%|總停損|移動停損利|總平|移平|反轉平|鐵律|強制平倉")   # 2026-11-23 加 ⑨ 反轉平
@@ -931,11 +932,12 @@ class Trader:
                 if n1 != 0 and (n0 == 0 or (n0 > 0) != (n1 > 0)):
                     opener[c] = str(tags.get(t["order_no"], "") or ""); otyp[c] = str(types.get(t["order_no"], "") or "").strip()
                 net[c] = n1
+            self.ph_stale(working)   # 2026-11-26 使用者「全改」(稽核 3)
             mytags = {p["order"]["tag"] for p in self.positions.values() if p.get("order")}
             busy = {w["code"] for w in working if w.get("tag") not in mytags}   # 別的(手動)委託還掛著 = 先不動;程式自己的單不算
             seen, self.recon_seen = getattr(self, "recon_seen", {}), {}
             for c in set(net) | set(self.positions):
-                if c in self.ignore or c in busy:
+                if c in self.ignore or (c in busy and c in self.positions):   # 2026-11-26 使用者「全改」(稽核 2):別的手動單掛著只擋「改張數」;程式完全沒有這檔部位 → 照樣接回(原本整檔跳過,手動單掛多久就沒人管多久)
                     continue
                 n = net.get(c, 0); p = self.positions.get(c)
                 if p and p["state"] == EXITING and p.get("order") and not p["order"].get("dead") and p["order"]["purpose"] == "平倉":
@@ -1065,6 +1067,26 @@ class Trader:
                     except Exception as e: self.log(f"[交易] 對帳接回發卡失敗 {e!r}")
                     p["_iron_pending"] = {"px": p["entry"], "lots": abs(n), "what": "手動單(對帳接回)", "fills": [(t.get("time", ""), t["price"]) for t in cs]}
 
+    def ph_stale(self, working):
+        """2026-11-26 使用者「全改」(稽核 3):手動預掛的取消 / 失效回報漏了(斷線)→ 預掛一直留著,程式整天讓位(停利停損不平、條件單張數 0)。
+           每分鐘對帳時看元大的掛單清單:預掛書號連續兩次都不在 → 拿掉、程式恢復盯、條件單補回(oco_refresh)"""
+        try:
+            nos = {self._no(w.get("no")) for w in working or []}; miss = self.__dict__.setdefault("_ph_miss", {})
+            for c, lst in list(self.prehang.items()):
+                if c in self.ignore: continue
+                for no in list(lst):
+                    if self._no(no) in nos: miss.pop(no, None); continue
+                    miss[no] = miss.get(no, 0) + 1
+                    if miss[no] < 2: continue
+                    miss.pop(no, None); lst.remove(no); self.man_meta.pop(no, None)
+                    if not lst: self.prehang.pop(c, None)
+                    p = self.positions.get(c)
+                    self.log(f"[交易] !! {c} 手動預掛 {no} 連續兩次對帳都不在元大掛單裡(取消 / 失效回報漏了)→ 拿掉,程式恢復盯停利停損")
+                    if p and p["state"] == HOLDING:
+                        self.alert(f"↩ {self.name_of(c)} {c} 預掛單已不在元大", f"取消 / 失效回報漏了,程式恢復盯停利 {p['tp']} / 停損 {p['sl']}")
+                        if not lst: self.oco_refresh(p, "預掛不在元大 → 條件單補回")
+        except Exception as e: self.log(f"[交易] 預掛對帳檢查失敗 {e!r}")
+
     def prepare_close_all(self):
         """13:20 取消全部掛單的第一步:刪程式自己的條件單、取消還在等的委託;部位以之後查到的元大成交回報為準"""
         with self.lock:
@@ -1102,7 +1124,7 @@ class Trader:
                     if o and not o.get("dead"):
                         if o.get("purpose") == "平倉" and not p.get("ph_part"): sent.add(c)
                         continue
-                    if p.get("stuck"): continue   # 重送超過上限:留給複查(和原本一樣)
+                    # 2026-11-26 使用者「全改」(稽核 1):原本 stuck(重送超過上限)這裡跳過 → 改成一樣補送(不放棄)
                     free = p["qty"] - (self.ph_lots(c) if self.prehang_wait(c) else 0)
                     if free <= 0: continue
                     try:
@@ -1297,12 +1319,20 @@ class Trader:
         except Exception: pass
         self.check_kill()
         with self.lock:
+            if self.__dict__.get("_ph_ref") and (self.ref_of(code) or 0) > 0: self.ph_ref_check(code)   # 2026-11-26 使用者「全改」(稽核 8)
             p = self.positions.get(code)
-            if p and p["state"] == ENTERING and p.get("forced") and self.hm() >= "09:00":   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 2:強制進場限價只成交一部分(還在進場中)→ 已成交的張數也照 6.5% / 總停損 / 移動停損利盯
-                o = p.get("order")
-                if o and o.get("purpose") == "進場" and o.get("filled", 0) >= 1000 and not o.get("dead") and not p.get("close_after_entry"):
-                    why = self.iron_hit_part(p, code, price, o["cost"] / o["filled"])
-                    if why:
+            if p and p["state"] == ENTERING and self.hm() >= "09:00":   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 2:強制進場限價只成交一部分(還在進場中)→ 已成交的張數也照 6.5% / 總停損 / 移動停損利盯
+                # 2026-11-26 使用者「全改」(稽核 9):原本只有強制進場;程式自己的進場單(限價 / 補單)只成交一部分還在進場中時也一樣盯(已成交 ≥ 1 張;補單前 IOC 成交的也算)
+                o = p.get("order"); fl_ = (o or {}).get("filled", 0) + (p.get("pre_filled") or 0)
+                if o and o.get("purpose") == "進場" and fl_ >= 1000 and not o.get("dead") and not p.get("close_after_entry"):
+                    why = self.iron_hit_part(p, code, price, (o["cost"] + (p.get("pre_cost") or 0.0)) / fl_)
+                    if why and not p.get("forced"):   # 2026-11-26(稽核 9)判別式部位:取消剩下的,已成交的轉持倉當下照這個原因平(不標強平)
+                        p["close_after_entry"] = True; p["iron_part"] = why
+                        if o.get("no") and not o.get("cancel_sent"): o["cancel_sent"] = True; self.gw.cancel(o["no"], code, o["side"], o["typ"])
+                        elif not o.get("no"): o["cancel_after"] = True
+                        self.log(f"[交易] !! {code} {p.get('judge')} 還在進場中(已成交 {fl_ // 1000} 張)碰到{why} → 取消剩下的,已成交的馬上平")
+                        self.alert(f"⛔ {self.name_of(code)} {code} 鐵律平倉:{why}", f"進場單只成交 {fl_ // 1000} 張,剩下的取消、已成交的馬上平")
+                    elif why:
                         p["forced_close"] = True; p["close_after_entry"] = True
                         if o.get("no") and not o.get("cancel_sent"): o["cancel_sent"] = True; self.gw.cancel(o["no"], code, o["side"], o["typ"])
                         self.log(f"[交易] !! {code} 強制進場還在進場中(已成交 {o['filled'] // 1000} 張)碰到{why} → 取消剩下的,已成交的馬上平")
@@ -1311,6 +1341,9 @@ class Trader:
             if not p or p["state"] != HOLDING:
                 return
             if self.hm() < "09:00":                                   # 2026-10-28 開盤前的試撮價不算
+                return
+            if self.iron_resend(p): return   # 2026-11-26 使用者「全改」(稽核 4)
+            if p.get("_xwait") and time.time() - p.get("_xfail", 0) < p["_xwait"]:   # 2026-11-26 使用者「全改」(稽核 1):平倉單剛被拒 → 等退避秒數到了再判斷(不每個價都送)
                 return
             d = p["dir"]
             hit_tp = p["tp"] > 0 and ((price >= p["tp"]) if d > 0 else (price <= p["tp"]))
@@ -1349,6 +1382,20 @@ class Trader:
             self.exit_pos(p, why, price, force_limit=True)
             if hit_mv and p["state"] == EXITING:   # 讓位給手動預掛時沒平,不要每個價都提醒
                 self.alert(f"⚠ {code} 離昨收 {'−' if d > 0 else '+'}{mm:g}% 系統強制平倉", f"{'做多跌停賣出' if d > 0 else '做空漲停買回'} {p['qty']} 張")
+
+    def ph_ref_check(self, code):
+        """2026-11-26 使用者「全改」(稽核 8):預掛時還沒有昨收(不在交易鎖裡等網路查)→ 昨收補上後補做 ① 檢查;違反 → 取消還沒成交完的預掛、推手機"""
+        for no, x in list(self._ph_ref.items()):
+            if x["code"] != code: continue
+            self._ph_ref.pop(no, None); mc = self.man_cards.get(no)
+            if not mc or mc.get("end") or mc.get("iron") or mc.get("fl", 0) >= mc.get("lots", 0): continue   # 已結束 / 成交完(成交的由 iron_manual 管)
+            iw = self.man_iron_why(code, x["d"], x["lots"], x["px"])
+            if not iw: continue
+            mc["iron"] = iw; self.log(f"[交易] !! {code} 昨收補上:手動預掛 {no} 違反鐵律({iw})→ 取消")
+            try: self.gw.cancel(no, code, x["bs"], x["typ"])
+            except Exception as e: self.log(f"[交易] 取消違規預掛失敗 {e!r}")
+            try: self.alert(f"⛔ {self.name_of(code)} {code} 手動預掛違反鐵律,已取消", f"{x['lots']} 張 @ {x['px'] or '市價'}:{iw}")
+            except Exception: pass
 
     def find_order(self, order_no, basket):
         b, n = str(basket or "").strip(), str(order_no or "").strip()
@@ -1455,7 +1502,17 @@ class Trader:
                 what = ("預掛加碼" if p and p["dir"] == d else "預掛") + ("做多" if d > 0 else "做空")
                 self.man_cards[no] = {"lots": lots, "px": price, "d": d, "fl": 0, "code": code}
                 self.log(f"[交易] {code} 看到手動{what} {lots} 張 @ {price or '市價'}(書號 {no})→ 進場欄發預掛卡,成交後變元三")
+                if self.hm() >= self.force_exit:   # 2026-11-26 使用者「全改」(稽核 6):13:20 以後(含 13:25~13:30 收盤集合競價)的手動新進場 / 加碼預掛 → 直接取消、推手機(不等成交後再平)
+                    self.man_cards[no]["late"] = True
+                    self.log(f"[交易] !! {code} {self.hm()} 手動{what}(已過 {self.force_exit})→ 直接取消這張預掛(書號 {no})")
+                    try: self.gw.cancel(no, code, bs, typ)
+                    except Exception as e: self.log(f"[交易] 取消 {self.force_exit} 後預掛失敗 {e!r}")
+                    try: self.alert(f"⏰ {self.name_of(code)} {code} {self.force_exit} 後手動{what},已取消", f"{lots} 張 @ {price or '市價'};{self.force_exit} 以後不接新進場")
+                    except Exception: pass
+                    return
                 _iw = self.man_iron_why(code, d, lots, price)
+                if not _iw and not (self.ref_of(code) or 0) > 0 and Trader.IRON_LOTS and code not in self.ignore:   # 2026-11-26 使用者「全改」(稽核 8):還沒有昨收(中繼在背景查)→ 記著,昨收來了(on_tick)再檢查 ①
+                    self.__dict__.setdefault("_ph_ref", {})[no] = {"code": code, "d": d, "lots": lots, "px": price, "bs": bs, "typ": typ}
                 if _iw:   # 2026-11-12 11:40 使用者「如果以後發現手動單違規 程式這邊就直接取消預掛」:新進場 / 加碼預掛一看到就檢查鐵律,違反 → 直接取消(不等成交後整個部位平掉)
                     self.man_cards[no]["iron"] = _iw
                     self.log(f"[交易] !! {code} 手動{what} {lots} 張 @ {price or '市價'} 違反鐵律({_iw})→ 直接取消這張預掛(書號 {no})")
@@ -1687,8 +1744,10 @@ class Trader:
                 self.amount_today += price * extra * 1000; self.rt_mark(order_no, extra)   # 2026-11-21 使用者「全改」(檢查 T5):多出來的張數也是成交,算進今天成交金額;(檢查 T7)記下已算過
                 self.flatten_later(code, 1 if bs == "B" else -1, extra, price, typ or None)
             elif extra > 0 and p["state"] == EXITING and p.get("order") and not p["order"].get("dead"):
-                self.alert(f"⚠ {code} 手動平倉多了 {extra} 張", f"程式記 {take} 張,手動平了 {lots} 張,多出來的 {extra} 張變反向部位,請自己處理")
-                self.amount_today += price * extra * 1000; self.rt_mark(order_no, extra)   # 2026-11-21(檢查 T5):同上;(檢查 T7)記下已算過,之後對帳接成元三不再算一次
+                # 2026-11-26 使用者「全改」(稽核 2):程式平倉單還在掛時手動多平 → 原本只推「請自己處理」、多出來的反向部位沒人管(要等對帳,別的手動單掛著時一直不接)。
+                #   改:記在部位上,程式這筆結束(finish_pos)當下就照 11/17 規則接成反向元三(停利停損 / 條件單 / ① / 13:20 都照元三);成交金額 / 已算過在接的時候記(不重複)
+                self.alert(f"⚠ {code} 手動平倉多了 {extra} 張", f"程式記 {take} 張,手動平了 {lots} 張,多出來的 {extra} 張反向部位,程式這筆平完後馬上接成元三管")
+                p.setdefault("_man_extra", []).append((extra, price, order_no, typ, bs))
             o = p.get("order")
             if p["state"] == EXITING and o and not o.get("dead"):
                 # 平倉檢查 #1:程式自己的平倉單也還在 → 取消;取消回來後照剩下的張數重送(剩 0 就結束);它若先成交,多出來的會自動反向補回
@@ -1784,6 +1843,28 @@ class Trader:
     def finish_pos(self, p):
         c = p["code"]
         self.flat_watch[c] = {"mkt": p["mkt"], "dir": p["dir"], "typ": p["typ"], "until": time.time() + 120}
+        try: self._finish_pos(p)
+        finally: self.man_extra_adopt(p)
+
+    def man_extra_adopt(self, p):
+        """2026-11-26 使用者「全改」(稽核 2):程式平倉單掛著時手動多平的張數(_man_extra)→ 程式部位結束當下接成反向元三(和 11/17「多出來二張 程式就照反向監管」同一條路)"""
+        ex = p.pop("_man_extra", None); c = p["code"]
+        if not ex: return
+        if c in self.positions:   # 還有別的部位(例如多平補回)→ 等它結束再接
+            self.positions[c].setdefault("_man_extra", []).extend(ex); return
+        for lots, px, no, typ, bs in ex:
+            self.log(f"[交易] {c} 程式部位結束,平倉中手動多平的 {lots} 張 @ {px} → 當成反向手動進場,接成元三")
+            self.flat_watch.pop(c, None)   # 是手動多下的,不是條件單同時觸發
+            try: self.on_other_fill(c, bs, lots * 1000, px, f"{no or ''}+x", typ)
+            except Exception as e: self.log(f"[交易] !! {c} 手動多平接成元三失敗 {e!r}")
+            q = self.positions.get(c)
+            if q and q.get("judge") == MANUAL and q["state"] in (HOLDING, EXITING):
+                self.alert(f"↔ {self.name_of(c)} {c} 多出 {lots} 張{'多' if bs == 'B' else '空'}單,已由程式接管", f"照判三管(停利 {q.get('tp')} / 停損 {q.get('sl')})")
+            elif not q:   # 沒接成(例如不接元三的時段)→ 成交金額 / 已算過照原本記
+                self.amount_today += px * lots * 1000; self.rt_mark(no, lots)
+
+    def _finish_pos(self, p):
+        c = p["code"]
         self.positions.pop(c, None)
         self.prot_clear(c)   # 2026-11-21 使用者「全改」(檢查 T3):部位結束 → 這筆的移平最有利價 / 進場寬度存檔清掉(下一筆同一檔不會接到)
         for no in self.prehang.pop(c, []) if self.hm() < "13:20" else []:
@@ -1896,6 +1977,11 @@ class Trader:
             else: c = self.oco_q.pop(0) if self.oco_q else None
             p = self.positions.get(c) if c else None
             if not p or p.get("oco_no") is not None:
+                # 2026-11-26 使用者「全改」(稽核 5):條件單掛成功的回應到的時候部位已經平掉(或對不到在等的部位)→ 原本直接不理,元大那張條件單留著(之後可能開出反向新部位)。
+                #   改:這個策略編號不是任何部位現在的條件單 → 馬上刪掉
+                sn = str(strategy_no or "").strip()
+                if ok and sn and not any(str(x.get("oco_no") or "") == sn for x in self.positions.values()):
+                    self.gw.delete_oco(sn); self.log(f"[交易] {c or '?'} 條件單 {sn} 掛好時部位已經不在 → 刪除")
                 return
             if ok and strategy_no:
                 p["oco_no"] = str(strategy_no).strip(); p["oco_live"] = True
@@ -1940,8 +2026,8 @@ class Trader:
                     self.alert(f"⚠ {c} 元大拒絕進場,今天不再自動做這檔", f"{msg} · 名單 / 複檢沒擋到,元大說今天不能做")
             if p.get("forced") and o["purpose"] == "進場":
                 self.alert(f"⚠ 強制進場 {c} 被元大拒絕", str(msg))
-            if o["purpose"] == "平倉":
-                self.alert(f"⚠ {c} 平倉單被元大拒絕", f"{msg} · 會自動重送(最多 {self.max_resend} 次)")
+            if o["purpose"] == "平倉":   # 2026-11-26 使用者「全改」(稽核 1):被拒 → after_report 隔幾秒再送(不放棄);手機提醒由 exit_retry 發(最多 5 分鐘一次)
+                o["rej"] = str(msg)[:60] or "被元大拒絕"
             self.after_report(p)
 
     # ── 每秒呼叫一次 ──
@@ -2000,7 +2086,13 @@ class Trader:
                           if fav < self.nm_pct - 1e-9:
                               self.log(f"[交易] {p['code']} {p['judge']} 沒走:訊號 {p['t_sig']} 後 {self.nm_min} 分鐘,照成交均價 {p['entry']:.2f} 最有利只 {fav:+.2f}%(< {self.nm_pct:g}%)→ 平倉")
                               self.exit_pos(p, "沒走", self.last_px.get(p["code"], p["entry"])); continue
-                  if p["state"] == HOLDING and hm >= fe and time.time() - p.get("_xfail", 0) > 5:   # 2026-11-21「改 A」(A6):送不出去的 5 秒後再試(不每秒洗紀錄)
+                  if self.iron_resend(p): continue   # 2026-11-26 使用者「全改」(稽核 4)
+                  if p["state"] == HOLDING and p.get("_xwhy") and time.time() - p.get("_xfail", 0) >= (p.get("_xwait") or 5):
+                      # 2026-11-26 使用者「全改」(稽核 1):平倉單被拒退回持倉中 → 等滿 2 / 5 / 10 秒照原本的出場原因再送(漲停 / 跌停 ROD)
+                      try: self.exit_pos(p, p["_xwhy"], self.last_px.get(p["code"], p["entry"]), force_limit=True)
+                      except Exception as e: self.log(f"[交易] !! {p['code']} 平倉重送送不出去 {e!r} → 之後再送")
+                      if p["state"] != HOLDING: continue
+                  if p["state"] == HOLDING and hm >= fe and time.time() - p.get("_xfail", 0) > (p.get("_xwait") or 5):   # 2026-11-21「改 A」(A6):送不出去的 5 秒後再試(不每秒洗紀錄)
                       self.exit_pos(p, f"{self.force_exit} 強制平倉", self.last_px.get(p["code"], p["entry"]), force_limit=True)
                   o = p.get("order")
                   if (o and not o.get("dead") and o.get("fallback") and o["purpose"] == "進場" and not o.get("fb_cut")
@@ -2162,8 +2254,8 @@ class Trader:
                 if o["purpose"] == "平倉":
                     want = o["want"] // 1000
                     if f_lots < want:
-                        p["resend"] = p.get("resend", 0) + 1
-                        self.log(f"[交易] !! {c} 平倉單元大那邊沒在掛了,只成交 {f_lots}/{want} 張(沒送到 / 被拒)→ 剩下的重送(第 {p['resend']} 次)")
+                        # 2026-11-26 使用者「全改」(稽核 1):失敗次數只在 after_report 算一次(原本這裡也加 → 一次失敗算兩次),這裡不再加
+                        self.log(f"[交易] !! {c} 平倉單元大那邊沒在掛了,只成交 {f_lots}/{want} 張(沒送到 / 被拒)→ 剩下的重送(第 {p.get('resend', 0) + 1} 次)")
                         self.alert(f"⚠ {c} 平倉單重送", f"30 秒沒成交完、元大查不到這張單 → 重送 {want - f_lots} 張{'漲停買回' if p['dir'] < 0 else '跌停賣出'}")
                     self.after_report(p)                            # 記成交的部分;還有剩 → after_report 會再送(有次數上限)
                 else:                                               # 強制進場(漲停 / 跌停 ROD)
@@ -2510,7 +2602,7 @@ class Trader:
             if self.over_redo and self.cap > 0 and tpsl and mp and code not in self.positions:
                 m0 = minutes_of(it.get("t")) if it.get("t") else None
                 if m0 is None: n_ = self.now(); m0 = n_.hour * 60 + n_.minute
-                m1 = m0 + int(self.over_min)   # 2026-11-11 22:22 使用者「超額 補進 照程式最初發布時間為準的10分鐘內 10分鐘後自動取消 假設12.29發布 12.39即失效」
+                m1 = min(m0 + int(self.over_min), OVER_END_M)   # 2026-11-26 使用者「全改」(稽核 7)「超額補進有10分鐘 所以應該12.39分.59秒止」:最晚 12:39:59   # 2026-11-11 22:22 使用者「超額 補進 照程式最初發布時間為準的10分鐘內 10分鐘後自動取消 假設12.29發布 12.39即失效」
                 self.over_wait[code] = {"it": dict(it), "judge": judge, "kind": kind, "px": num(mp.group(1)), "tp": num(tpsl.group(1)), "sl": num(tpsl.group(2)),
                                         "until_hm": f"{m1 // 60:02d}:{m1 % 60:02d}"}
                 self.log(f"[交易] {code} 超額先記著:現價回到一張 ≤ 多空上限 {self.cap:,.0f} 時補進場(停利 {num(tpsl.group(1))} / 停損 {num(tpsl.group(2))})")
@@ -2546,7 +2638,7 @@ class Trader:
             if self.late_redo_min > 0 and not it.get("_late") and code not in self.positions:
                 m0 = minutes_of(it.get("t")) if it.get("t") else None   # 2026-11-11 22:23 使用者「12.超額 補進 照程式最初發布時間為準的10分鐘內 10分鐘後自動取消」:太晚補進場也照原訊號發布時間 + 10 分鐘
                 if m0 is None: n_ = self.now(); m0 = n_.hour * 60 + n_.minute
-                m1 = m0 + int(min(self.late_redo_min, 10))
+                m1 = min(m0 + int(min(self.late_redo_min, 10)), OVER_END_M)   # 2026-11-26 使用者「全改」(稽核 7):最晚 12:39:59
                 self.late_wait[code] = {"it": dict(it), "judge": judge, "kind": kind, "px": px_sig, "tp": tp_sig, "sl": sl_sig, "until": time.time() + self.late_redo_min * 60,
                                         "until_hm": f"{m1 // 60:02d}:{m1 % 60:02d}"}
                 self.log(f"[交易] {code} 太晚了先記著:{self.late_redo_min:g} 分鐘內現價回到 {px_sig} ±{self.max_dev:g}% 且沒碰停利 {tp_sig} / 停損 {sl_sig} → 自動補進場")
@@ -2687,7 +2779,7 @@ class Trader:
         try:
             if not Trader.IRON_LOTS or code in self.ignore: return ""
             why = []; hm = self.hm(); ref = self.ref_of(code) or 0
-            if not ref > 0 and getattr(self, "ref_need", None):   # 2026-11-26 富喬:名單外股票預掛時還沒有昨收 → 當場請中繼查(證交所),查到才能判 ①
+            if not ref > 0 and getattr(self, "ref_need", None):   # 2026-11-26 富喬:名單外股票預掛時還沒有昨收 → 當場請中繼查(證交所),查到才能判 ①;2026-11-26 使用者「全改」(稽核 8):ref_need 只叫中繼背景查、不在交易鎖裡等(沒查到的預掛記在 _ph_ref,昨收來了 on_tick 再檢查)
                 try: self.ref_need(code); ref = self.ref_of(code) or 0
                 except Exception: pass
             px = float(price or 0) or float(self.last_px.get(code) or 0)
@@ -2741,7 +2833,7 @@ class Trader:
         try:
             if not Trader.IRON_LOTS: return False
             why = []; hm = self.hm(); ref = self.ref_of(p["code"]) or 0
-            if not ref > 0 and getattr(self, "ref_need", None):   # 2026-11-26 成交當下沒有昨收 → 當場請中繼查;還是沒有才記著等(_iron_retry)
+            if not ref > 0 and getattr(self, "ref_need", None):   # 2026-11-26 成交當下沒有昨收 → 當場請中繼查;還是沒有才記著等(_iron_retry);2026-11-26 使用者「全改」(稽核 8):ref_need 只叫中繼背景查、不在交易鎖裡等
                 try: self.ref_need(p["code"]); ref = self.ref_of(p["code"]) or 0
                 except Exception: pass
             if str(what).startswith("手動加碼"):   # 2026-11-12 11:55 使用者「手動加碼 不受鐵律進場管制 但是進場之後 就要接受程式管轄」→「解鎖 改:只有手動加碼」:加碼不看 ③ 時間 / ① ±5% / ⑤ 分級、一張 25 萬,只看 500 萬額度
@@ -2772,10 +2864,22 @@ class Trader:
                     self.post(f"{self.name_of(code)} {code} {'做多' if d > 0 else '做空'}進場 {float(price):.2f}",
                               f"{p.get('t0', tc)} 元大 · 停利 {tp:.2f} 停損 {sl:.2f} · {lots}張 · {p['judge']}", "long" if d > 0 else "short", t=tc)
                 except Exception as e: self.log(f"[交易] 違反鐵律的手動進場補發進場卡失敗 {e!r}")
-            self.exit_pos(p, "鐵律", self.last_px.get(code, price), force_limit=True)
+            # 2026-11-26 使用者「全改」(稽核 4):原本平倉單送不出去(元大沒登入)時例外被下面吞掉、違反就忘了 → 先記在部位上(iron_exit),
+            #   送不出去由 on_tick / step 每 5 秒再送「鐵律」平倉,直到平倉中 / 平完
+            p["iron_exit"] = w
+            try: self.exit_pos(p, "鐵律", self.last_px.get(code, price), force_limit=True)
+            except Exception as e: self.log(f"[交易] !! {code} 鐵律平倉單送不出去 {e!r} → 5 秒後再送")
             return True
         except Exception as e:
             self.log(f"[交易] 鐵律檢查手動單失敗 {e!r}"); return False
+
+    def iron_resend(self, p):
+        """2026-11-26 使用者「全改」(稽核 4):違反鐵律的部位平倉單沒送出去 → 每 5 秒再送一次(持倉中才送)"""
+        if p.get("iron_exit") and p["state"] == HOLDING and time.time() - p.get("_xfail", 0) > 5:
+            try: self.exit_pos(p, "鐵律", self.last_px.get(p["code"], p["entry"]), force_limit=True)
+            except Exception as e: self.log(f"[交易] !! {p['code']} 鐵律平倉單還是送不出去 {e!r} → 5 秒後再送")
+            return p["state"] != HOLDING
+        return False
 
     def cap_sl(self, code, d, judge, sl):
         """2026-11-11 14:57 使用者「缺口 一樣要跟剛剛設定的進出場範圍一樣」:判別式部位的停損價不超過昨收 ±強平線(6.5%),
@@ -2865,6 +2969,8 @@ class Trader:
         """2026-11-11 22:35 使用者「改 1 2 3 4 5」 2:進場中已成交部分的鐵律出場(6.5% / 移動停損利 / 總停損);回原因或空字串"""
         try:
             d = p["dir"]; ref = self.ref_of(code) or p.get("ref") or 0; mm = self.man_move if self.man_move > 0 else self.max_move
+            if not p.get("forced") and p.get("judge") not in (MANUAL, FORCED):   # 2026-11-26 使用者「全改」(稽核 9):判別式部位進場中用和持倉中一樣的 ② 幅度(判七 / 四 / 五 j7_move、其他 max_move)
+                mm = self.j7_move if p.get("judge") in ("判七", "判四", "判五") and self.j7_move > 0 else self.max_move
             if ref > 0 and mm > 0 and ((price <= ref * (1 - mm / 100)) if d > 0 else (price >= ref * (1 + mm / 100))): return f"超{mm:g}%"
             if self.mtsl > 0 and p.get("sub") != "六4" and self.mt_px_hit(p, price, d, avg): return "移平"   # 2026-11-13 02:37 ⑥ 改用股價(六4 不套)
             if self.brx_l > 0 and avg > 0:
@@ -2943,6 +3049,8 @@ class Trader:
             return f"不在 09:00~{self.last_entry}"
         if judge and judge.startswith("判") and getattr(self, "_bar_now", "") and not (self.j_from <= self._bar_now <= IRON_TO):   # 2026-11-11 23:05 使用者「全改」(第三輪) 8:訊號那根 K 的時間也要在 09:30~12:30
             return f"訊號那根 {self._bar_now} 不在 {self.j_from}~{IRON_TO}(鐵律 ③)"
+        if judge and judge.startswith("判") and over and minutes_of(hm) is not None and minutes_of(hm) >= OVER_END_M:   # 2026-11-26 使用者「全改」(稽核 7)「超額補進有10分鐘 所以應該12.39分.59秒止」:訊號 ≤ 12:30 + 10 分鐘,12:40:00 起不補
+            return f"超額 / 太晚補進場最晚 12:39:59(訊號 {IRON_TO} + 10 分鐘,鐵律 ③)"
         if judge and judge.startswith("判") and not over and not (self.j_from <= hm <= self.j_to):   # 超額 / 太晚補進場:時間照原訊號發布後 10 分鐘(over_ok / late_check 管)   # 2026-11-11 14:49 判別式自動進場只在 09:30~12:30(訊號那根;推到這裡最晚 12:32)
             return f"判別式只在 {self.j_from}~{self.j_to} 進場"
         if judge == "判二" and kind in ("long", "short") and self.j2_brng.get(kind):   # 2026-11-10 01:45 判二第二十六次修改(使用者「解鎖 改」):大盤上漲家數要在 22 天贏單範圍內(空 4.4%~88.1%、多 10.6%~92%),取代 ≥ 92% 不做
@@ -3257,7 +3365,7 @@ class Trader:
             if self.man_close_apply(p): return                  # 2026-11-21(檢查 輕c):進場中的手動反方向成交先扣掉;扣完沒部位了就結束
             if p.get("close_after_entry"):                      # 平倉檢查:進場中就按了強平 → 成交多少馬上全部平掉
                 self.n_trades += 1; self.log(f"[交易] {p['code']} 進場成交 {lots} 張,之前已按強平 → 馬上平倉")
-                self.exit_pos(p, "強平", avg, force_limit=True); return
+                self.exit_pos(p, p.get("iron_part") if p.get("iron_part") and not p.get("forced_close") else "強平", avg, force_limit=True); return   # 2026-11-26 使用者「全改」(稽核 9):判別式進場中碰到鐵律 → 照原因平
             if p.get("exit_pending"):                           # 2026-10-29 稽核 #2:進場中收到平倉通知 → 成交轉持倉後馬上平
                 self.n_trades += 1; why = p.pop("exit_pending"); self.log(f"[交易] {p['code']} 進場成交 {lots} 張,進場中已收到平倉通知 → 馬上平倉")
                 self.exit_pos(p, why, self.last_px.get(p["code"], avg)); return
@@ -3289,8 +3397,13 @@ class Trader:
             # 平倉檢查 #1 #2:程式的平倉單成交得比部位多(手動先平了 / 重送重複)= 多平了 → 反向的張數馬上補回
             self.log(f"[交易] !! {p['code']} 平倉成交 {lots} 張,部位只剩 {take} 張 → 多平 {extra} 張,馬上反向補回")
             self.alert(f"⚠ {p['code']} 多平 {extra} 張,已自動補回", f"{'漲停買回' if p['dir'] > 0 else '跌停賣出'} {extra} 張 ROD")
+            mx = p.pop("_man_extra", None)   # 2026-11-26 使用者「全改」(稽核 2):手動多平的張數等多平補回結束再接成元三(不要被補回部位蓋掉)
             self.finish_pos(p)
             self.rebuy(p["code"], -p["dir"], extra, avg, p["mkt"])
+            if mx:
+                q = self.positions.get(p["code"])
+                if q: q.setdefault("_man_extra", []).extend(mx)
+                else: p["_man_extra"] = mx; self.man_extra_adopt(p)
             return
         if (p.get("ph_part") or self.prehang_wait(p["code"])) and p["qty"] > 0 and self.prehang.get(p["code"]) and not p.get("forced_close"):   # 2026-11-08 20:50 檢查:重開接回時 ph_part 記號沒了,預掛期間一樣只補沒預掛的
             # 2026-11-08 18:26 只平沒預掛的那幾張:平完 → 回持倉中、剩下的等預掛;沒平完 → 只重送沒預掛的張數
@@ -3298,11 +3411,9 @@ class Trader:
             if p["qty"] <= keep:
                 p.pop("ph_part", None); p["order"] = None; p["state"] = HOLDING; p["_ph_log"] = True
                 self.log(f"[交易] {p['code']} 沒預掛的張數平完,剩預掛 {p['qty']} 張 → 回持倉中等預掛成交({self.prehang_deadline} 前沒成交由程式平)"); return
+            if o.get("rej") or p.get("resend", 0) >= self.max_resend:   # 2026-11-26 使用者「全改」(稽核 1):被拒 / 重送用完 → 退回持倉中隔幾秒再送(不再卡住放棄)
+                self.exit_retry(p, o); return
             p["resend"] = p.get("resend", 0) + 1
-            if p["resend"] > self.max_resend:
-                self.log(f"[交易] !! {p['code']} 平倉已重送 {self.max_resend} 次還沒平完,停止自動重送,請手動確認")
-                self.alert(f"⚠⚠ {p['code']} 平倉失敗 {p['qty'] - keep} 張", f"已重送 {self.max_resend} 次,請立刻到投資先生手動平倉")
-                p["stuck"] = True; return
             self.log(f"[交易] {p['code']} 沒預掛的還剩 {p['qty'] - keep} 張沒平,再送(第 {p['resend']} 次)")
             p["force_limit"] = True; self.send_exit(p, p["qty"] - keep, px); return
         p.pop("ph_part", None)
@@ -3311,11 +3422,12 @@ class Trader:
             if o.get("shrink") or o.get("partial"):              # 是程式自己取消(手動先平一部分 / 加碼 / 接回時只掛一部分)→ 重送剩下的,不算失敗次數
                 self.log(f"[交易] {p['code']} 平倉單已取消 / 成交 {lots} 張,剩 {p['qty']} 張重新送出")
                 p["force_limit"] = True; self.send_exit(p, p["qty"], px); return
+            # 2026-10-28 獨立檢查 #8:元大一直拒絕 → 不無限重送(原本重送 3 次後標 stuck 放棄)
+            # 2026-11-26 使用者「全改」(稽核 1):被拒(或重送用完)→ 不馬上連送、也不放棄:退回持倉中,隔 2 / 5 / 10 秒(之後每 10 秒)再送,
+            #   等的時候 ② / ④ / ⑥ 停利停損、13:20 平倉照常會觸發(exit_retry);失敗次數只算一次(verify 不再另外加)
+            if o.get("rej") or p.get("resend", 0) >= self.max_resend:
+                self.exit_retry(p, o); return
             p["resend"] = p.get("resend", 0) + 1
-            if p["resend"] > self.max_resend:                  # 2026-10-28 獨立檢查 #8:元大一直拒絕 → 不無限重送,推播請手動處理(13:20 / 13:22 複查還會再平)
-                self.log(f"[交易] !! {p['code']} 平倉已重送 {self.max_resend} 次還沒平完,停止自動重送,請手動確認")
-                self.alert(f"⚠⚠ {p['code']} 平倉失敗 {p['qty']} 張", f"已重送 {self.max_resend} 次,請立刻到投資先生手動平倉")
-                p["stuck"] = True; return
             self.log(f"[交易] {p['code']} 還剩 {p['qty']} 張沒平,再送(第 {p['resend']} 次)")
             if self.exit_mode == "limitup" or p.get("force_limit") or self.hm() >= "13:25":
                 self.send_exit(p, p["qty"], px)
@@ -3323,6 +3435,18 @@ class Trader:
                 self.send(p, "平倉", "S" if p["dir"] > 0 else "B", p["qty"], shift(px, -(self.slip + 3) * p["dir"]), p["typ"])
             return
         self.finish_pos(p)
+
+    def exit_retry(self, p, o):
+        """2026-11-26 使用者「全改」(稽核 1):平倉單被元大拒絕 / 元大沒在掛了 → 原本馬上連送 3 次就標 stuck(之後整天沒保護、13:21 備援也跳過)。
+           改:每次失敗只算一次,部位退回持倉中(_xfail 記號),隔 2 / 5 / 10 秒(之後每 10 秒)由 step 照原因再送;等的時候 on_tick 的 ② / ④ / ⑥ / 停利停損、
+           13:20 / 13:21 備援平倉照常;卡住期間手機最多 5 分鐘提醒一次"""
+        n = p["resend"] = p.get("resend", 0) + 1; w = (2, 5, 10)[min(n, 3) - 1]
+        p["order"] = None; p["state"] = HOLDING; p.pop("ph_part", None); p.pop("stuck", None)
+        p["_xfail"] = time.time(); p["_xwait"] = w; p["_xwhy"] = p.get("exit_why") or "平倉重送"
+        self.log(f"[交易] !! {p['code']} 平倉單沒成功({o.get('rej') or '元大沒在掛了 / 沒成交完'})→ 還剩 {p['qty']} 張,{w} 秒後再送(第 {n} 次失敗,不放棄;等的時候停損停利 / 13:20 照常)")
+        if time.time() - p.get("_xalert", 0) >= 300:
+            p["_xalert"] = time.time()
+            self.alert(f"⚠⚠ {p['code']} 平倉失敗 {p['qty']} 張,自動重送中", f"{o.get('rej') or '元大沒在掛了'} · 程式每 {w} 秒重送(第 {n} 次),請到投資先生確認")
 
 
 def _replace_retry(src, dst, tries=8):
