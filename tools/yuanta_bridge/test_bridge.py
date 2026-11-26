@@ -515,3 +515,12 @@ _L = _YB.fills_legs([{"code": "2303", "bs": "S", "lots": 2, "price": 88.6, "time
                      {"code": "2303", "bs": "B", "lots": 4, "price": 89.5, "time": "2026/11/26 下午 01:20:01"}])
 assert len(_L) == 2 and all(g["dir"] == "做空" for g in _L), _L
 print("12 小時制成交時間配對 OK")
+
+# 2026-11-26 舊版存下的錯配明細 → legs_fix 重新配對,總淨額不變
+_old = [{"code": "1802", "name": "台玻", "dir": "做多", "ent": 59.6, "ex": 59.3, "lots": 4, "t0": "2026/11/26 下午 01:20:01", "t": "2026/11/26 下午 12:57:09", "gross": -1200, "fee": 524, "tax": 0, "net": -1724},
+        {"code": "1802", "name": "台玻", "dir": "做空", "ent": 59.4, "ex": 58.6, "lots": 4, "t0": "2026/11/26 上午 10:34:48", "t": "2026/11/26 上午 10:53:27", "gross": 3200, "fee": 523, "tax": 0, "net": 2677},
+        {"code": "1802", "name": "台玻", "dir": "做多", "ent": 59.6, "ex": 58.6, "lots": 4, "t0": "2026/11/26 下午 01:20:01", "t": "2026/11/26 下午 12:11:26", "gross": -4000, "fee": 518, "tax": 0, "net": -4518}]
+_new = _YB.legs_fix(_old)
+assert all(g["dir"] == "做空" for g in _new) and sum(g["net"] for g in _new) == sum(g["net"] for g in _old) and _new[0]["t"] == "13:20:01", _new
+assert _YB.legs_fix(_new) == _new
+print("舊明細重新配對 OK")

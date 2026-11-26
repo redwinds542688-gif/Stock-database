@@ -90,6 +90,49 @@ def hms24(v):
     return f"{hh:02d}:{mi:02d}:{se:02d}"
 
 
+def legs_fix(legs):
+    """2026-11-26 13:45 使用者「再看看 有什麼疏漏」:舊版存下的明細(fills\\日期.json)每一趟的時間是 12 小時制、配對是錯的(做空變做多)
+       → 拆回成交、照 24 小時先後重新先進先出配一次;費用照元大規則重算再把整檔總額調回原本(總淨額不變)。時間都是 24 小時的原樣回傳"""
+    try:
+        if not isinstance(legs, list) or not any(re.search(r"上午|下午|AM|PM", str(g.get("t", "")) + str(g.get("t0", "")), re.I) for g in legs if isinstance(g, dict)): return legs
+        def sec(v):
+            h = hms24(v).split(":")
+            try: return int(h[0]) * 3600 + int(h[1]) * 60 + int(h[2])
+            except Exception: return -1
+        by = {}
+        for g in legs:
+            if isinstance(g, dict) and int(g.get("lots") or 0) > 0: by.setdefault(g["code"], []).append(g)
+        out = []
+        for code, gs in by.items():
+            fm = {}
+            for g in gs:
+                L = g.get("dir") == "做多"
+                for bs, px, t in (("B" if L else "S", g["ent"], g.get("t0", "")), ("S" if L else "B", g["ex"], g.get("t", ""))):
+                    k = (bs, float(px), str(t)); f = fm.get(k)
+                    if f: f["q"] += int(g["lots"])
+                    else: fm[k] = {"bs": bs, "px": float(px), "t": str(t), "q": int(g["lots"])}
+            fills = sorted(fm.values(), key=lambda f: sec(f["t"]))
+            for f in fills:
+                amt = f["px"] * f["q"] * 1000
+                f["cost"] = max(20, math.floor(amt * 0.001425 * 0.25 + 1e-6)) + (math.floor(amt * 0.0015 + 1e-6) if f["bs"] == "S" else 0); f["left"] = f["q"]
+            q, nl = [], []
+            for f in fills:
+                while f["left"] > 0:
+                    if not q or q[0]["bs"] == f["bs"]: q.append(f); break
+                    h = q[0]; n = min(h["left"], f["left"]); L = h["bs"] == "B"
+                    gross = round((f["px"] - h["px"]) * n * 1000 * (1 if L else -1)); cost = round(h["cost"] * n / h["q"] + f["cost"] * n / f["q"])
+                    nl.append(dict(gs[0], dir="做多" if L else "做空", ent=h["px"], ex=f["px"], lots=n, t0=hms24(h["t"]), t=hms24(f["t"]), gross=gross, fee=cost, tax=0, net=gross - cost))
+                    h["left"] -= n; f["left"] -= n
+                    if h["left"] <= 0: q.pop(0)
+            tot0 = sum((g.get("gross") or 0) - (g.get("net") or 0) for g in gs); tot1 = sum(g["fee"] for g in nl)
+            if nl and all(f["left"] <= 0 for f in fills): nl[-1]["fee"] += tot0 - tot1; nl[-1]["net"] = nl[-1]["gross"] - nl[-1]["fee"]
+            out += nl
+        out.sort(key=lambda g: sec(g["t"]), reverse=True)
+        return out
+    except Exception as e:
+        log("明細重新配對失敗", e); return legs
+
+
 def fills_legs(trades, names=None, disc=0.25, broker=0.001425, tpex=0.0, tax=0.0015, minfee=20):
     """2026-10-29 12:45 使用者「要改」(力積電 空 3 張回補不小心買 4 張、再賠 1 張):每一趟一列。同一檔照成交時間先進先出配對:
        反向成交就和最早還沒沖掉的那筆配,配到幾張就是一趟(進價 = 先成交那筆、出價 = 後成交那筆);配不完的剩下留著等下一筆(最後還剩的 = 還沒沖掉,不列)。
@@ -1239,7 +1282,10 @@ class Bridge:
         """2026-10-31 前幾天的元大成交:每天收盤前(13:36 收工)存的 fills\\日期.json;沒有那天的檔回 ok=False"""
         try:
             f = HERE / "fills" / f"{d}.json"
-            if f.exists(): return dict(json.loads(f.read_text(encoding="utf-8")), closed=True, d=d)
+            if f.exists():
+                j = json.loads(f.read_text(encoding="utf-8"))
+                if isinstance(j, dict) and j.get("legs"): j["legs"] = legs_fix(j["legs"])   # 2026-11-26 舊版存的 12 小時制錯配
+                return dict(j, closed=True, d=d)
         except Exception as e: return {"ok": False, "msg": f"讀不到 {d} 的成交紀錄 {e!r}", "d": d}
         return {"ok": False, "msg": f"電腦沒有 {d} 的成交紀錄", "d": d}
 
@@ -1250,7 +1296,10 @@ class Bridge:
         if c and (c[1] or {}).get("d") == d: return dict(c[1], closed=True)
         try:
             f = HERE / "fills" / f"{d}.json"
-            if f.exists(): return dict(json.loads(f.read_text(encoding="utf-8")), closed=True)
+            if f.exists():
+                j = json.loads(f.read_text(encoding="utf-8"))
+                if isinstance(j, dict) and j.get("legs"): j["legs"] = legs_fix(j["legs"])   # 2026-11-26 舊版存的 12 小時制錯配
+                return dict(j, closed=True)
         except Exception: pass
         return None
 

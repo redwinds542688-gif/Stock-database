@@ -783,7 +783,7 @@ async function dailyArchive(env, d, force) {
   let logs = []; try { logs = await hub.logGet(d); } catch (e) {}
   const pcb = {};
   for (const nm of ["breadth", "codes", "engine", "state", "pos", "pnl", "blocked", "signals", "fills", "lat"]) { try { const x = await hub.kvGet(`pcbk:${d}:${nm}`); if (x && x.v != null) pcb[nm] = x.v; } catch (e) {} }
-  const fills = pcb.fills && pcb.fills.d === d ? pcb.fills : null, legs = fills && Array.isArray(fills.legs) ? fills.legs : [], blocked = Array.isArray(pcb.blocked) ? pcb.blocked : [];
+  const fills = pcb.fills && pcb.fills.d === d ? pcb.fills : null, legs = fills && Array.isArray(fills.legs) ? legsFix(fills.legs) : [], blocked = Array.isArray(pcb.blocked) ? pcb.blocked : [];
   // 5 AI 檢討(先做,R2 / D1 一起存)
   let rv = null;
   try { const old = await hub.kvGet("aireview:" + d); if (old && old.text && !force) rv = old; } catch (e) {}
@@ -865,8 +865,36 @@ const pNet = (lg, ent, ex, q) => { const d = lg ? 1 : -1, a = ent * q * 1000, b 
 const pFmt = n => (n > 0 ? "+" : n < 0 ? "−" : "") + Math.abs(Math.round(n)).toLocaleString("en-US");
 const pHms = x => { const s = String(x || ""), m = s.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/); if (!m) return "";   // 2026-11-24 元大「下午 01:05:02」→「13:05:02」
   let h = +m[1]; if (/下午|PM/i.test(s) && h < 12) h += 12; if (/上午|AM/i.test(s) && h === 12) h = 0; return `${String(h).padStart(2, "0")}:${m[2]}:${m[3] || "00"}`; };
+// 2026-11-26 13:45 使用者「再看看 有什麼疏漏」:舊版中繼用 12 小時制時間(下午 01:20)排序配對 → 做空被配成做多(台玻 / 聯電)。
+//   中繼已改,但已存下 / 已推上來的明細還是錯的 → 看到 12 小時制時間就把每一趟拆回成交、照真正先後重新先進先出配一次(整檔總淨額不變)
+function legsFix(legs) {
+  try {
+    if (!Array.isArray(legs) || !legs.some(g => g && /上午|下午|AM|PM/i.test(String(g.t || "") + String(g.t0 || "")))) return legs;
+    const sec = v => { const h = pHms(v); if (!h) return -1; const [a, b, c] = h.split(":").map(Number); return a * 3600 + b * 60 + c; };
+    const by = new Map(); for (const g of legs) if (g && +g.lots > 0) { if (!by.has(g.code)) by.set(g.code, []); by.get(g.code).push(g); }
+    const out = [];
+    for (const [, gs] of by) {
+      const fm = new Map(), put = (bs, px, t, q) => { const k = bs + "|" + px + "|" + t; const f = fm.get(k); if (f) f.q += q; else fm.set(k, { bs, px: +px, t, q }); };
+      for (const g of gs) { const L = g.dir === "做多"; put(L ? "B" : "S", g.ent, g.t0, +g.lots); put(L ? "S" : "B", g.ex, g.t, +g.lots); }
+      const fills = [...fm.values()].sort((a, b) => sec(a.t) - sec(b.t));
+      for (const f of fills) { const amt = f.px * f.q * 1000; f.cost = Math.max(20, Math.floor(amt * 0.001425 * 0.25 + 1e-6)) + (f.bs === "S" ? Math.floor(amt * 0.0015 + 1e-6) : 0); f.left = f.q; }
+      const q = [], nl = [];
+      for (const f of fills) while (f.left > 0) {
+        if (!q.length || q[0].bs === f.bs) { q.push(f); break; }
+        const h = q[0], n = Math.min(h.left, f.left), L = h.bs === "B";
+        const gross = Math.round((f.px - h.px) * n * 1000 * (L ? 1 : -1)), cost = Math.round(h.cost * n / h.q + f.cost * n / f.q);
+        nl.push(Object.assign({}, gs[0], { dir: L ? "做多" : "做空", ent: h.px, ex: f.px, lots: n, t0: pHms(h.t) || String(h.t || ""), t: pHms(f.t) || String(f.t || ""), gross, fee: cost, tax: 0, net: gross - cost }));
+        h.left -= n; f.left -= n; if (h.left <= 0) q.shift();
+      }
+      const tot0 = gs.reduce((a, g) => a + (+g.gross || 0) - (+g.net || 0), 0), tot1 = nl.reduce((a, g) => a + g.fee, 0);
+      if (nl.length && fills.every(f => f.left <= 0)) { const z = nl[nl.length - 1]; z.fee += tot0 - tot1; z.net = z.gross - z.fee; }
+      out.push(...nl);
+    }
+    return out.sort((a, b) => sec(b.t) - sec(a.t));
+  } catch (e) { return legs; }
+}
 const pLegs = v => { if (!v || typeof v !== "object") return [];
-  const L = Array.isArray(v.legs) && (v.legs.length || !(v.rows || []).some(r => r.lots > 0)) ? v.legs : null;
+  const L = Array.isArray(v.legs) && (v.legs.length || !(v.rows || []).some(r => r.lots > 0)) ? legsFix(v.legs) : null;
   if (L) return L.filter(r => +r.lots > 0).map(r => ({ nm: r.name || r.code, code: String(r.code), lg: r.dir === "做多", ent: +r.ent, ex: +r.ex, q: +r.lots, p: Math.round(+r.net || 0), t: pHms(r.t) }));
   return (v.rows || []).filter(r => +r.lots > 0).map(r => { const lg = r.dir === "做多"; return { nm: r.name || r.code, code: String(r.code), lg, ent: lg ? +r.buy : +r.sell, ex: lg ? +r.sell : +r.buy, q: +r.lots, p: Math.round(+r.net || 0), t: "" }; }); };
 async function famPush(env, a, d, items) {
@@ -892,7 +920,10 @@ async function famPush(env, a, d, items) {
   }
   if (items.fills) {
     const legs = pLegs(items.fills), id = r => [r.code, r.t, r.ent, r.ex, r.q, r.lg ? 1 : 0].join("|");
-    if (Array.isArray(st.legs)) for (const r of legs) if (!st.legs.includes(id(r)))
+    // 2026-11-26 明細重新配對(legsFix)後每一趟的編號會變 → 舊的平倉不要再推一次:出場時間超過 20 分鐘前的只記下、不推
+    const nowS = (() => { const z = new Date(Date.now() + 8 * 3600e3); return z.getUTCHours() * 3600 + z.getUTCMinutes() * 60 + z.getUTCSeconds(); })();
+    const fresh = r => { const h = r.t ? r.t.split(":").map(Number) : null; return !h || h.length < 2 || nowS - (h[0] * 3600 + h[1] * 60 + (h[2] || 0)) <= 1200; };
+    if (Array.isArray(st.legs)) for (const r of legs) if (!st.legs.includes(id(r)) && fresh(r))
       out.push({ title: `${r.p > 0 ? "✅" : "⚠⚠"} ${r.nm} ${r.code} 平倉 ${pFmt(r.p)}`, body: `${r.t ? r.t.slice(0, 5) + " " : ""}${r.lg ? "做多" : "做空"} ${r.q}張 ${r.ent}→${r.ex}`, key: "out" + id(r) });
     st.legs = legs.map(id).slice(-300);
   }
