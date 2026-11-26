@@ -215,6 +215,7 @@ LOG_LOCK = threading.Lock()
 #   推到手機的提醒標題前面加【名字】、交易卡改成提醒(不算進主帳號的元大明細)。ACCT_NAME 空白 = 主帳號(和原本完全一樣)
 ACCT = re.sub(r"[\s|]", "", CFG.get("ACCT_NAME", ""))[:12]
 FAMILY = bool(ACCT)
+IX_CODE = "IX0001"   # 2026-11-26 元大加權指數代號(TWSE 市場別)
 if FAMILY and CFG.get("ENGINE_DIR") and not os.environ.get("ENGINE_DIR"): os.environ["ENGINE_DIR"] = CFG["ENGINE_DIR"]   # 家人帳號:讀主帳號資料夾的本機通知(訊號 1 秒內到)
 
 
@@ -528,6 +529,8 @@ class Bridge:
             if intMark == 2:
                 if strIndex == "SubscribeStockTick":
                     r = objValue
+                    if str(r.StkCode).strip() == IX_CODE:   # 2026-11-26 加權指數(元大,不是股票代號):只收資料,不進股票 K / 交易;放在內外盤過濾前面(指數的旗標不確定)
+                        self.ix_tick(r.Time, int(r.SerialNo), float(r.DealPrice)); return
                     flag = int(r.InOutFlag)
                     if flag > 3:                 # 10~15 = 揭示 / 暫緩撮合 / 暫停交易,不是成交
                         return
@@ -817,6 +820,46 @@ class Bridge:
                 if self._tf_err in (1, 30) or self._tf_err % 300 == 0: log(f"[台指期·期交所] 抓不到(第 {self._tf_err} 次)", repr(e)[:160])
         threading.Thread(target=run, daemon=True).start()
 
+    def ix_sub(self):
+        """2026-11-26 使用者「來源 以元大為主 證交所為輔」→ 測出元大 TWSE IX0001 = 加權指數(11/26 1 分 K 271 根,收盤 39151.81 和證交所一字不差):
+           訂閱 IX0001 逐筆,每分鐘最後價優先寫進 ix_live;元大沒報價的分鐘用證交所(ix_poll)補。訂閱回傳值不可信(10/27 回傳失敗照樣收得到),以有沒有收到逐筆為準"""
+        if FAMILY or CFG.get("IX_LIVE", "1") != "1" or CFG.get("IX_YUANTA", "1") != "1": return
+        try:
+            Y = self.Y; lst = self.List[Y.StockTick](); x = Y.StockTick(); x.MarketType = Y.enumMarketType.TWSE; x.StockCode = IX_CODE; lst.Add(x)
+            ok = self.api.SubscribeStockTick(CFG["YT_ACCOUNT"], lst)
+            log(f"[加權·元大] 訂閱 {IX_CODE}:{'送出' if ok else '回傳失敗(以有沒有收到逐筆為準)'}")
+        except Exception as e: log("[加權·元大] 訂閱失敗(改用證交所,不影響股票)", e)
+
+    def ix_tick(self, t, sn, px):
+        """元大加權逐筆 → 記憶體(每分鐘最後價);sn < 0 = 參考價(昨收)"""
+        try:
+            day = now_tw().strftime("%Y-%m-%d")
+            if getattr(self, "_yix_day", None) != day: self._yix_day = day; self._yix_m = {}; self._yix_y = None; self._yix_n = 0
+            if px <= 0: return
+            if sn < 0: self._yix_y = px; return
+            hm = f"{t.bytHour:02d}:{t.bytMin:02d}"
+            if not ("09:00" <= hm <= "13:30"): return
+            self._yix_m[hm] = px; self._yix_n += 1
+            if self._yix_n == 1: log(f"[加權·元大] 收到第一筆:{t.bytHour:02d}:{t.bytMin:02d}:{t.bytSec:02d} {px}(之後加權以元大為主,證交所補缺)")
+        except Exception: pass
+
+    def ix_write(self, day):
+        """ix_live 合併寫檔:證交所那份打底,元大有的分鐘蓋上去(元大為主)"""
+        lk = self.__dict__.setdefault("_ix_lk", threading.Lock())
+        with lk:
+            mis = dict(getattr(self, "_ix_m", {}) if getattr(self, "_ix_day", None) == day else {})
+            ym = dict(getattr(self, "_yix_m", {}) if getattr(self, "_yix_day", None) == day else {})
+            m = dict(mis); m.update(ym)
+            if not m: return
+            y = (getattr(self, "_ix_y", None) if getattr(self, "_ix_day", None) == day else None) or (getattr(self, "_yix_y", None) if getattr(self, "_yix_day", None) == day else None)   # 昨收:證交所的 y 已驗證過,元大參考價當備援
+            f = HERE / "engine_data" / "ix_live"; f.mkdir(parents=True, exist_ok=True); tmp = f / f"{day}.json.tmp"
+            tmp.write_text(json.dumps({"y": y, "m": dict(sorted(m.items())), "src": {"元大": len(ym), "證交所補": len(m) - len(ym)}}, ensure_ascii=False), encoding="utf-8"); os.replace(tmp, f / f"{day}.json")
+            done = self.__dict__.setdefault("_ix_cmp", set())
+            for hm in sorted(ym):   # 已收完的分鐘比一次元大 vs 證交所,差超過 5 點才記(查來源問題用)
+                if hm in mis and hm < max(ym) and hm not in done:
+                    done.add(hm)
+                    if abs(ym[hm] - mis[hm]) > 5: log(f"[加權] {hm} 元大 {ym[hm]} vs 證交所 {mis[hm]} 差 {ym[hm] - mis[hm]:+.2f}")
+
     def ix_poll(self):
         """2026-11-18 21:05 使用者「加權指數可能延遲好幾分鐘 … 直接改」:電腦直接問證交所即時行情(mis.twse tse_t00 加權指數),
            09:00~13:31 每 5 秒一次 → 每分鐘最後價寫 HERE/engine_data/ix_live/<日期>.json({"y": 昨收, "m": {HH:MM: 收}}),電腦引擎 ix_map / txrel_prev 優先用它
@@ -841,12 +884,13 @@ class Bridge:
                 self._ix_m[hm] = px
                 try: self._ix_y = float(y) or self._ix_y
                 except Exception: pass
-                f = HERE / "engine_data" / "ix_live"; f.mkdir(parents=True, exist_ok=True); tmp = f / f"{day}.json.tmp"
-                tmp.write_text(json.dumps({"y": self._ix_y, "m": dict(sorted(self._ix_m.items()))}), encoding="utf-8"); os.replace(tmp, f / f"{day}.json")
                 if not getattr(self, "_ix_ok", False): self._ix_ok = True; log(f"[加權·證交所] 收得到:{hm} {px}(昨收 {self._ix_y})")
             except Exception as e:
                 self._ix_err = getattr(self, "_ix_err", 0) + 1
                 if self._ix_err in (1, 30) or self._ix_err % 300 == 0: log(f"[加權·證交所] 抓不到(第 {self._ix_err} 次)", repr(e)[:160])
+            finally:
+                try: self.ix_write(n.strftime("%Y-%m-%d"))   # 2026-11-26 證交所抓不到也要把元大那份寫出去
+                except Exception as e: log("[加權] 寫檔失敗", e)
         threading.Thread(target=run, daemon=True).start()
 
     def fut_pick(self):
@@ -1465,7 +1509,7 @@ class Bridge:
         for k in rows:
             d, hm = _ts_of(k[0])
             if d == day and "09:00" <= hm <= "13:30": out.append((d, hm, float(k[1]), float(k[2]), float(k[3]), float(k[4]), int(round(float(k[5]) * mult))))
-        time.sleep(0.5)                      # 查詢一秒最多 3 次
+        time.sleep(1.1)                      # 2026-11-26 元大回「GetKLine 此功能每秒執行超過限制1次」→ 一秒最多 1 次(原本以為 3 次)
         return out
 
     def extra_add(self, code, mkt):
@@ -2750,7 +2794,7 @@ class Bridge:
                                 with self.trader.lock: self.trader.data_watch()
                         except Exception as e: log("[交易] 缺資料檢查出錯", e)
                         time.sleep(1); continue
-                    self.close(); self.connect(); self.subscribe(self.codes); self.fut_sub(); fails = 0; self.last_tick = time.time()   # 重連後重新計時
+                    self.close(); self.connect(); self.subscribe(self.codes); self.fut_sub(); self.ix_sub(); fails = 0; self.last_tick = time.time()   # 重連後重新計時
                     self.__dict__.setdefault("_conn_at", time.time())
                     self.last_recon = time.time() - 50                       # 重連後 10 秒就對帳一次
                 # 今天第一次連上:接回程式開的未平部位(斷線重連不用,部位一直在記憶體裡)。2026-11-21 使用者「全改」(檢查 R9):查不到成交回報不算接回過,每分鐘再試到成功
