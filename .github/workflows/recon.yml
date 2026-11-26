@@ -72,7 +72,7 @@ jobs:
           [ -f /tmp/rc/skip ] && continue
           python3 tools/recon.py "$d" /tmp/rc/signals.json /tmp/rc/verdicts.json /tmp/rc/fills.json "reports/總表_$d.json" reports
           # 2026-11-26 判別式聊天轉使用者「都修正 該怎麼做就怎麼做」:有總表、對出差異 → 推手機(不要只寫檔)
-          [ -f "reports/對帳_$d.json" ] && D="$d" K="$K" python3 - <<'PY'
+          [ -f "reports/對帳_$d.json" ] && D="$d" K="$K" python3 - <<'PY' || true   # 2026-11-26 沒有總表(沒有對帳檔)時 [ -f ] 回 1 → 整步失敗、實盤沒存;加 || true
           import os, json, urllib.request
           d = os.environ["D"]; K = os.environ.get("K", ""); j = json.load(open(f"reports/對帳_{d}.json", encoding="utf-8")); s = j.get("摘要") or {}
           A = j.get("總表有實盤沒有") or []; B = j.get("實盤有總表沒有") or []; C = j.get("兩邊都有但不同") or []
