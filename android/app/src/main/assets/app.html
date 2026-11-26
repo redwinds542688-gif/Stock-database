@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-26 加碼後原進場卡搬到最上面補強(使用者「還是沒有」):預掛加碼成交的加碼卡走另一條路,原本那張沒搬 → 兩條路都搬
   · 2026-11-26 進場欄:加碼後原本那張進場卡搬到最上面(加碼卡的上面),使用者「聯電 加碼後 原始卡片 要跑來最前面」
   · 2026-11-26 名單外股票成交量再修(使用者「成交量 不對問題 還沒解決」):改在收到報價時就把累計量補成「報價」和「今天 1 分 K 加總」大的那個,K 圖上面的「量」、清單、排序全部一起對(上一版只改了清單那一欄)
   · 2026-11-26 名單外股票漲跌幅再補強(使用者「還是沒有漲跌幅」):報價沒昨收時直接用名單外清單(?extra)帶的昨收,不再只看名單;名單內的股票資料日是今天以前就用那天收盤當昨收
@@ -653,7 +654,7 @@ try{ if (localStorage.getItem('mysh.rw') !== '20261125'){ ['mysh.backfill', 'mys
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611261240">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611261244">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -8697,7 +8698,9 @@ window.bgTick = bgTick; window.BG = BG;
       for (let k = cards.length - 1; k >= 0; k--){ const o = cards[k]; const kk = o.code + '|' + (o.rs || '');
         if (o.type === 'entry' && o.phNew){ pend.set(o.code + '|' + o.side + '|' + (o.ph > 0 ? o.ph : 'm') + '|' + k, o); o.__ki = keep.length; keep.push(o); continue; }   /* 2026-11-18 09:35 使用者「元大已經沒有預掛 程式為何還有」:同一檔同方向掛了兩張(富喬 118.5 / 119.5)會互相蓋掉 → 每張預掛各自一筆(代號|方向|價|序) */
         if (o.type === 'entry'){ const pk_ = [...pend.keys()].reverse().find(q => q.startsWith(o.code + '|' + o.side + '|')), pk = pk_ || '', pv = pk_ ? pend.get(pk_) : null; if (pv && keep[pv.__ki] === pv){ pend.delete(pk); keep[pv.__ki] = null; const ki_ = keep.length; keep.push(o);   /* 2026-11-12 12:50 使用者「強制平倉的通知卡 手動平倉的通知卡 也都要這樣子做 通知欄上最前面就是顯示最新的訊息」:預掛成交的進場卡放到成交那一刻(最上面),原位置拿掉 */   // 預掛成交:同一個位置換成真的進場卡
-            if (!o.madd && !open.has(kk)){ open.set(kk, o); o.__ki = ki_; } continue; } }
+            if (!o.madd && !open.has(kk)){ open.set(kk, o); o.__ki = ki_; }
+            else if (o.madd){ const e = open.get(kk) || [...open.values()].reverse().find(q => q.code === o.code && q.side === o.side); if (e && keep[e.__ki] === e){ keep[e.__ki] = null; e.__ki = keep.length; keep.push(e); } }   /* 2026-11-26 12:43 使用者「還是沒有」:預掛加碼成交的加碼卡走這條 → 原本那張進場卡也要搬到最上面 */
+            continue; } }
         if (o.type === 'warn' && o.phEnd){ o._hide = true; const ks_ = [...pend.keys()].reverse(), m_ = (q, f) => q.startsWith(o.code + '|') && f(q.split('|'));
           const pk_ = ks_.find(q => m_(q, z => z[1] === o.side && o.phPx > 0 && Math.abs(+z[2] - o.phPx) < 1e-6)) || ks_.find(q => m_(q, z => z[1] === o.side)) || ks_.find(q => m_(q, () => true)), pv = pk_ ? pend.get(pk_) : null;   /* 2026-11-18 先對同方向同價,再同方向,最後同一檔 */
           if (pv){ pend.delete(pk_); pv._hide = true; } else { const e = [...open.values()].reverse().find(q => q.code === o.code && q.ph); if (e && !cards.some(x => x !== o && x.type === 'warn' && !x.phEnd && x.code === o.code && x.t === o.t && /預掛(?:買回|賣出)/.test((x.x && x.x.title) || ''))) e.ph = 0; }   /* 2026-11-16 11:47 使用者「改」(大成鋼刪 45.65 重掛 45.75 同一分鐘):Worker 同一分鐘照鍵排序,「預掛已取消」排到新「預掛買回」後面 → 把新預掛的標籤也清掉;同一分鐘同一檔有新預掛卡就不清 */
