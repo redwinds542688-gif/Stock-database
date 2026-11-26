@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-26 名單外臨時加進來的股票成交量修正(使用者「張數不對」:鴻海 11:04 才訂閱,監控區 0.06 萬、元大 3.11 萬):手機取「報價累計量」和「今天 1 分 K 加總」大的那個(馬上生效);中繼臨時訂閱時用今天 1 分 K 補累計量 / 開高低(13:40 後換版生效)
   · 2026-11-26 名單外手動成交的股票(富喬)K 圖修正:① 今天早上的 1 分 K(電腦補推上雲端的)手機整天重抓一次,不再只剩最後幾根 ② 前幾天 GitHub 缺的那天改問雲端(電腦補推的元大 1 分 K),不再把 11/24 直接接到今天 ③ 中繼照官方上櫃名單判斷上櫃股(原本元大用上市也查得到 K,一直當上市)
   · 2026-11-26 大盤線圖打開變快(使用者「進入這畫面 太慢了 好幾秒」):上次的線存在手機裡、打開先畫再背景更新;大盤指數 / 台指期 / 寬度 / 昨收同時抓(原本一個等一個);台指期昨收畫完再找。模擬雲端每個要 1.5 秒:第一次 4.5 秒 → 1.5 秒,之後 3 秒 → 馬上
   · 2026-11-26 當沖 / 明細每列的網底補回來(做多紫色方格、做空藍色斜紋,和進場卡一樣);11/18 改夥伴版排法後網底規則沒跟上新排法
@@ -648,7 +649,7 @@ try{ if (localStorage.getItem('mysh.rw') !== '20261125'){ ['mysh.backfill', 'mys
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611261112">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611261117">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4815,7 +4816,10 @@ function applyLiveToList(){
     if (mv){ sT(mv, d > 0 ? '▲' : d < 0 ? '▼' : '─'); sC(mv, 'mv ' + cls); }
     rowNeedle(row, r);   // 2026-11-09 13:07 有部位 → 輸贏指針反白   // 2026-10-27 10:50 編號位置的指針:這檔的漲跌 %
     const vol = row.querySelector('.vol');            // 成交量改成今天到目前的累積張數
-    if (vol && isFinite(r.v)) sT(vol, (r.v / 10000).toFixed(2));   // 萬張
+    if (vol && isFinite(r.v)){ let v_ = +r.v;   // 萬張
+      /* 2026-11-26 11:16 使用者「張數不對」(鴻海名單外 11:04 才臨時訂閱,中繼的累計量只從那刻算 → 0.06 萬、元大 3.11 萬):名單外加進來的股票,累計量取「報價」和「今天 1 分 K 加總」大的那個 */
+      try{ if (window.__EXTRA && Array.isArray(window.__EXTRA.codes) && window.__EXTRA.codes.some(x => String(x.code) === String(row.dataset.code))){ const tb = TODAY_BARS.get(String(row.dataset.code)); const sv = tb && tb.bars ? tb.bars.reduce((a, b) => a + (+b.volume || 0), 0) / 1000 : 0; if (sv > v_) v_ = sv; } }catch(e){}
+      sT(vol, (v_ / 10000).toFixed(2)); }
   });
   // 2026-10-21 即時量的大小順序變了(訊號列以外)→ 重新排序,最多 1 分鐘一次(免得清單一直跳)
   try{

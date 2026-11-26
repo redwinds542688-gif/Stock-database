@@ -39,6 +39,22 @@ class QuoteBook:
             r["t"] = f"{int(hh):02d}:{int(mm):02d}:{int(ss):02d}"; r["d"] = day
             self.last_ts = time.time()
 
+    def seed(self, code, rows):
+        """2026-11-26 11:16 使用者「張數不對」(鴻海名單外手動成交 11:04 才訂閱逐筆 → 今天累計量只從那刻算起,監控區 0.06 萬、元大 3.11 萬):
+           臨時訂閱的股票用元大今天的 1 分 K(rows: (date, time, o, h, l, c, 股數))補今天到目前的開 / 高 / 低 / 累計量;之後的逐筆照樣往上加"""
+        try:
+            rows = [r for r in (rows or []) if float(r[5]) > 0]
+            if not rows: return
+            lots = sum(float(r[6]) for r in rows) / 1000.0
+            with self.lock:
+                r = self.q.get(code)
+                if r is None:
+                    r = self.q[code] = {"o": float(rows[0][2]), "h": float(rows[0][3]), "l": float(rows[0][4]), "v": 0.0, "z": float(rows[-1][5]), "t": str(rows[-1][1])[:5] + ":00", "d": str(rows[-1][0]).replace("-", "")}
+                r["o"] = float(rows[0][2]); r["h"] = max(r["h"], max(float(x[3]) for x in rows)); r["l"] = min(r["l"], min(float(x[4]) for x in rows))
+                r["v"] = max(r["v"], lots)
+        except Exception:
+            pass
+
     def mis(self, codes):
         """回傳 {"msgArray": [...], "src": "yuanta", "missing": [...], "age": 秒}"""
         out, missing = [], []

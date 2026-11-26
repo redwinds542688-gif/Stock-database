@@ -1312,6 +1312,9 @@ class Bridge:
                     m2 = self.Y.enumMarketType.TWOTC; r2 = self.kline_query(code, m2, d)
                     if r2: rows = r2; mkt = m2; self.pending_sub.append((code, m2)); log(f"[名單外] {code} 是上櫃股,改上櫃訂閱")
                 if rows: got[d] = rows
+                if i == 0 and rows:   # 2026-11-26 使用者「張數不對」:臨時訂閱的股票,今天到目前的累計量 / 開高低用元大 1 分 K 補(原本只從訂閱那刻算)
+                    try: self.quotes.seed(code, rows)
+                    except Exception as e: log("補累計量失敗", e)
                 if i == 0 and rows and self.trader:   # 2026-11-11 22:44 使用者「全改」 11:臨時訂閱的股票補今天 1 分 K → 移動停損利馬上有 Ka
                     try: self.trader.seed_mc(code, rows)
                     except Exception as e: log("補 Ka 失敗", e)
@@ -1343,6 +1346,8 @@ class Bridge:
             try:
                 if not otc and code in ((self.__dict__.get("_dtl") or {}).get("mks") or {}).get("tpex", set()):
                     otc = True; mkt = self.Y.enumMarketType.TWOTC; self.pending_sub.append((code, mkt)); log(f"[名單外] {code} 官方名單是上櫃股,改上櫃")
+                    try: self.quotes.meta.setdefault(code, {"n": "", "ex": "otc", "y": None})["ex"] = "otc"
+                    except Exception: pass
                     dtf, sff, dsrc = self.extra_dt(code, otc)
             except Exception as e: log(f"[名單外] {code} 判斷上櫃失敗", e)
             log(f"[名單外] {code} 當沖資格:可當沖 {dtf}、可先賣 {sff}({dsrc})")
