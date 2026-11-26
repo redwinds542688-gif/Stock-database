@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-26 當沖 / 明細每列的網底補回來(做多紫色方格、做空藍色斜紋,和進場卡一樣);11/18 改夥伴版排法後網底規則沒跟上新排法
   · 2026-11-26 大盤線圖三條線(大盤指數、台指期、寬度)都改畫 10 分均線(使用者「都改成10芬均線」→ 選「換成 10 分均線」),十字線上的數字也用均線值,右上角標「10分均線」
   · 2026-11-25 22:10(實際時間)11/25(含)以前主導$ / 元大的檢討、明細、進場也用重寫檔(和虛擬一致;原本 11/23~11/25 主導$ 用元大實際成交);11/26 起元大照實際成交、虛擬照模擬(分流);手機本機舊的重算 / 明細 / 進場快取清一次(判別式聊天轉達使用者「重寫 34天 主導$與虛擬 … 明天再分流」)
   · 2026-11-25 平倉卡:判別式發了平倉、但你在元大手動預掛的平倉單還沒成交(程式讓位等它)→ 標「預贖」,原本標「平倉中」(使用者「一般應該顯示 預贖」,台灣大 11:14 急彈平);中繼部位多帶 ph(有預掛平倉單),中繼 13:40 後換版才生效
@@ -645,7 +646,7 @@ try{ if (localStorage.getItem('mysh.rw') !== '20261125'){ ['mysh.backfill', 'mys
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611261045">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611261048">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -919,7 +920,7 @@ try{ if (localStorage.getItem('mysh.rw') !== '20261125'){ ['mysh.backfill', 'mys
   #notifLog .tb{padding:2px 4px 6px;font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
   #notifLog .tb.pos > .r:not(.h){padding-top:7px!important}   /* 2026-11-09 11:28 使用者「當沖三筆 太偏上」「上下置中」:數字字形偏上,往下補 7px 看起來在兩條線正中間 */
   #notifLog .tb .r{display:grid;align-items:center;column-gap:4px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.08);white-space:nowrap;overflow:hidden}
-  #notifLog .tb .r:has(> .nm > .sd.long){background-color:rgba(170,120,255,.16);background-image:repeating-linear-gradient(0deg,rgba(190,150,255,.30) 0 1px,transparent 1px 6px),repeating-linear-gradient(90deg,rgba(190,150,255,.30) 0 1px,transparent 1px 6px)} #notifLog .tb .r:has(> .nm > .sd.short){background-color:rgba(90,170,255,.08);background-image:repeating-linear-gradient(45deg,rgba(120,190,255,.14) 0 1px,transparent 1px 7px),repeating-linear-gradient(-45deg,rgba(120,190,255,.14) 0 1px,transparent 1px 7px)}   /* 2026-11-13 13:41(實際時間)使用者「在進場 每張卡都有網底 明細跟當沖 為什麼沒有」→「改」:明細 / 當沖每列照做多(方格網)/ 做空(斜紋網)加和進場卡同一套網底 */
+  #notifLog .tb .r:has(> .nm > .sd.long),#notifLog .tb .r:has(.sd2.long){background-color:rgba(170,120,255,.16);background-image:repeating-linear-gradient(0deg,rgba(190,150,255,.30) 0 1px,transparent 1px 6px),repeating-linear-gradient(90deg,rgba(190,150,255,.30) 0 1px,transparent 1px 6px)} #notifLog .tb .r:has(> .nm > .sd.short),#notifLog .tb .r:has(.sd2.short){background-color:rgba(90,170,255,.08);background-image:repeating-linear-gradient(45deg,rgba(120,190,255,.14) 0 1px,transparent 1px 7px),repeating-linear-gradient(-45deg,rgba(120,190,255,.14) 0 1px,transparent 1px 7px)}   /* 2026-11-13 13:41(實際時間)使用者「在進場 每張卡都有網底 明細跟當沖 為什麼沒有」→「改」:明細 / 當沖每列照做多(方格網)/ 做空(斜紋網)加和進場卡同一套網底 */   /* 2026-11-26 10:47 使用者「進場/當沖/明細 卡片都有底色 現在當沖跟明細沒有了」:11/18 改夥伴版排法後列改用 .sd2,網底規則沒跟上 → 補上 */
   #btnState{position:relative}   /* 2026-11-06 美股紅點;22:50 使用者「資訊 紅燈 不要壓到框」→ 縮成 9px、往框內移(跟公式的燈一樣) */
   #btnState.usdot::after{content:'';position:absolute;top:4px;left:4px;width:9px;height:9px;z-index:2;border-radius:50%;background:#FF3B30;box-shadow:0 0 6px #FF3B30;animation:usdotb 1s steps(2,start) infinite;pointer-events:none}
   @keyframes usdotb{to{visibility:hidden}}
