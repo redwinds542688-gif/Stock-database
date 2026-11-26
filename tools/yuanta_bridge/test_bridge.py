@@ -507,3 +507,11 @@ finally:
     Y.urllib.request.urlopen, Y.threading.Thread, Y.HERE = _uo, _th, _here2
 
 print(f"test_bridge 全部通過({N_OK[0]} 項)")
+
+# 2026-11-26 元大成交時間 12 小時制(下午 01:20 = 13:20):先進先出配對不能排錯(聯電 / 台玻明細變做多)
+import yuanta_bridge as _YB
+assert _YB.hms24("2026/11/26 下午 01:20:01") == "13:20:01" and _YB.hms24("2026/11/26 上午 11:02:25") == "11:02:25" and _YB.hms24("下午 12:11:26") == "12:11:26"
+_L = _YB.fills_legs([{"code": "2303", "bs": "S", "lots": 2, "price": 88.6, "time": "2026/11/26 上午 11:02:25"}, {"code": "2303", "bs": "S", "lots": 2, "price": 89.7, "time": "2026/11/26 下午 12:38:11"},
+                     {"code": "2303", "bs": "B", "lots": 4, "price": 89.5, "time": "2026/11/26 下午 01:20:01"}])
+assert len(_L) == 2 and all(g["dir"] == "做空" for g in _L), _L
+print("12 小時制成交時間配對 OK")

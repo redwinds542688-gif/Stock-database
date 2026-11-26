@@ -70,12 +70,24 @@ def fills_pnl(trades, names=None, disc=0.25, broker=0.001425, tpex=0.0, tax=0.00
             gross = sell_amt - buy_amt; net = round(gross - fee - tx)
         else:
             gross = fee = tx = 0; net = 0
-        first = min(ts, key=lambda t: t.get("time", ""))
+        first = min(ts, key=lambda t: hms24(t.get("time", "")))   # 2026-11-26 12 小時制
         rows.append({"code": code, "name": names.get(code, ""), "dir": "做多" if str(first["bs"]).upper().startswith("B") else "做空",
                      "buy": round(ba, 2), "sell": round(sa, 2), "lots": q, "open": bq - sq,
                      "gross": round(gross), "fee": round(fee), "tax": round(tx), "net": net, "n": len(ts)})
         tot += net
     return {"rows": rows, "net": tot, "n": len(trades)}
+
+
+def hms24(v):
+    """2026-11-26 13:26 使用者「是錯誤 因為都是做空的」(聯電 / 台玻明細變做多):元大成交時間是「2026/11/26 下午 01:20:01」這種 12 小時制,
+       直接拿字串排序 → 下午 01:20(13:20 買回)排在下午 12:11(賣出)前面,先進先出配對整個顛倒。轉成 24 小時 HH:MM:SS 再排;讀不懂就原樣回傳"""
+    t = str(v or "").strip()
+    m = re.search(r"(\d{1,2}):(\d{2})(?::(\d{2}))?", t)
+    if not m: return t
+    hh, mi, se = int(m.group(1)), int(m.group(2)), int(m.group(3) or 0)
+    if re.search(r"下午|PM|pm", t) and hh < 12: hh += 12
+    if re.search(r"上午|AM|am", t) and hh == 12: hh = 0
+    return f"{hh:02d}:{mi:02d}:{se:02d}"
 
 
 def fills_legs(trades, names=None, disc=0.25, broker=0.001425, tpex=0.0, tax=0.0015, minfee=20):
@@ -89,12 +101,12 @@ def fills_legs(trades, names=None, disc=0.25, broker=0.001425, tpex=0.0, tax=0.0
         if not t.get("lots"): continue
         by.setdefault(t["code"], []).append(t)
     for code, ts in sorted(by.items()):
-        ts = sorted(ts, key=lambda t: t.get("time", ""))
+        ts = sorted(ts, key=lambda t: hms24(t.get("time", "")))   # 2026-11-26 12 小時制時間先轉 24 小時再排
         # 每筆成交的費用先算好(整筆無條件捨去),配到幾張就分幾張的份
         fills = []; ffee = fill_fees(ts, rate, minfee)   # 2026-10-30 每筆最低 20 元
         for t, fe0 in zip(ts, ffee):
             amt = t["lots"] * t["price"] * 1000; sell = str(t["bs"]).upper().startswith("S")
-            fills.append({"bs": "S" if sell else "B", "lots": t["lots"], "price": t["price"], "time": t.get("time", ""),
+            fills.append({"bs": "S" if sell else "B", "lots": t["lots"], "price": t["price"], "time": hms24(t.get("time", "")),
                           "fee": fe0, "tax": math.floor(amt * tax + 1e-6) if sell else 0, "left": t["lots"], "fee_left": None, "tax_left": None})
         for f in fills: f["fee_left"], f["tax_left"] = f["fee"], f["tax"]
         def take(f, q):   # 從這筆成交拿 q 張的費用份(最後一張份連零頭一起)

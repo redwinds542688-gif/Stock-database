@@ -533,7 +533,7 @@ class Trader:
             # 2026-11-22 使用者選 B(留倉對帳):留倉的期初張數當成今天第一筆(with_carry)→ 今天回補的成交不會被當成新開的部位(手動元三 / 程式部位)接回去平;
             #   還在「留倉那一段」(淨部位沒歸 0 過)的股票不在這裡接,記在 carry_rem 交給 load_carry(照剩下張數接、回補完了不接);回補的損益照留倉均價入帳
             cseg = set()
-            for t in sorted(self.with_carry(trades), key=lambda x: x.get("time", "")):
+            for t in sorted(self.with_carry(trades), key=lambda x: (Trader._tsec(x.get("time")) if Trader._tsec(x.get("time")) is not None else -1)):
               try:   # 2026-11-21 使用者「全改」(檢查 S3):一筆成交資料壞掉不能讓整個接回中斷(跳過那筆、記錄)
                   c, q = t["code"], t["lots"] * (1 if t["bs"] == "B" else -1)
                   n0 = net.get(c, 0); n1 = n0 + q
@@ -744,7 +744,7 @@ class Trader:
         """2026-11-21 使用者「全改」(檢查 T4):元大今天這檔的成交,只取「最後一段方向 = d 的部位」(淨部位從 0 開出去起算;一筆翻成反向的,多出來的算新的一段)。
         回 (開倉 / 加碼 [(張, 價, 成交)], 平倉 [(張, 價, 成交)]);更早已經來回平掉的那幾筆不算(原本同方向全部平均,均價會被上一筆拉走)"""
         net = 0; cur = None; last = ([], [])
-        for t in sorted((t for t in trades if t.get("code") == c), key=lambda x: x.get("time", "")):
+        for t in sorted((t for t in trades if t.get("code") == c), key=lambda x: (Trader._tsec(x.get("time")) if Trader._tsec(x.get("time")) is not None else -1)):
             q = int(t["lots"]) * (1 if t["bs"] == "B" else -1); px = float(t["price"]); n1 = net + q
             if not q: continue
             if net == 0:
@@ -804,7 +804,7 @@ class Trader:
         return out
 
     @staticmethod
-    def _tsec(x):
+    def _tsec(x):   # 2026-11-26 成交排序也改用它(元大時間是 12 小時制「下午 01:20」,直接比字串會排錯)
         """2026-11-21 使用者「改 A」(A4):成交時間 → 一天的第幾秒(格式 / 精度不同都能比):'2026/11/23 09:35:00'、'09:35:00.123'、
            '下午 01:05:02'、'093500'、'093500123';看不懂 / 空的回 None"""
         s_ = str(x or "").strip()
@@ -926,7 +926,7 @@ class Trader:
             #   今天回補了 → 淨 0 → 照一般平倉入帳(留倉均價 → 回補價)後結束;部分回補 → 張數照元大、回補那幾張入帳
             trades = self.with_carry(trades)
             net, opener, otyp = {}, {}, {}
-            for t in sorted(trades, key=lambda x: x.get("time", "")):
+            for t in sorted(trades, key=lambda x: (Trader._tsec(x.get("time")) if Trader._tsec(x.get("time")) is not None else -1)):
                 c = t["code"]; n0 = net.get(c, 0); n1 = n0 + t["lots"] * (1 if t["bs"] == "B" else -1)
                 if n1 != 0 and (n0 == 0 or (n0 > 0) != (n1 > 0)):
                     opener[c] = str(tags.get(t["order_no"], "") or ""); otyp[c] = str(types.get(t["order_no"], "") or "").strip()

@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-26 明細元大成交做多 / 做空配錯修正(使用者「是錯誤 因為都是做空的」:聯電、台玻都做空,明細卻寫做多):元大成交時間是 12 小時制「下午 01:20」,直接比字串 → 13:20 的買回排在 12:11 的賣出前面,先進先出整個顛倒;中繼配對、對帳排序、手機合併都改成先轉 24 小時。中繼 13:40 後換版,今天的明細那時會自動改對
   · 2026-11-26 明細(元大成交)照出場時間排,最新的在最上面(使用者「明細也要最新排在最上面」)
   · 2026-11-26 監控標題「股票」後面改兩行小字:上 台指期漲跌幅(漲紅跌綠,盤中每 60 秒抓台指期 1 分 K)、下 盤寬度(≥50% 紅、<50% 綠),使用者看過圖「改」;收盤後照舊顯示檔數
   · 2026-11-26 當沖 / 明細四列以內不給捲(使用者「滑鼠滾輪 富喬卡片下 有縫隙」:四列剛好放滿,底下補的 3px 讓整片還能捲一點,滾輪一推第一列被切、最後一列下面露縫);超過四列照常捲,進場等其他頁不受影響
@@ -658,7 +659,7 @@ try{ if (localStorage.getItem('mysh.rw') !== '20261125'){ ['mysh.backfill', 'mys
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611261324">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611261328">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2287,7 +2288,9 @@ function yfillsFix(dd){
    之後再進場的(上一趟已經出場後才進)照舊另一列(10/29 力積電 空 3 張回補多買 1 張 → 多空不同,照舊兩列)。時間讀不懂就不合併 */
 const ySecOf = v => { const t = String(v == null ? '' : v); let m = t.match(/(\d{1,2}):(\d{2}):(\d{2})/);
   if (!m){ const g = t.replace(/\D/g, ''); m = g.length >= 6 ? (g.length >= 14 ? g.slice(8, 14) : g.slice(-6)).match(/^(\d{2})(\d{2})(\d{2})$/) : null; }
-  if (!m) return null; const h = +m[1], mi = +m[2], se = +m[3]; return h < 24 && mi < 60 && se < 61 ? h * 3600 + mi * 60 + se : null; };
+  if (!m) return null; let h = +m[1]; const mi = +m[2], se = +m[3];
+  if (/下午|PM/i.test(t) && h < 12) h += 12; if (/上午|AM/i.test(t) && h === 12) h = 0;   // 2026-11-26 元大成交時間是 12 小時制(下午 01:20 = 13:20),不轉會排錯
+  return h < 24 && mi < 60 && se < 61 ? h * 3600 + mi * 60 + se : null; };
 function yLegMerge(legs){
   try{
     const asc = legs.filter(r => r && r.lots > 0).slice().reverse();   // legs 最新的在前 → 從最早的開始併
