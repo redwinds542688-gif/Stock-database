@@ -40,4 +40,12 @@ jobs:
               r = urllib.request.urlopen(urllib.request.Request(B + "?engine=get", headers={"X-Push-Key": K, "User-Agent": "mysh-engine/1"}), timeout=30)
               j = json.loads(r.read().decode("utf-8")); print("電腦心跳:", {k: j.get(k) for k in ("d", "hm", "on", "stale", "ver", "n", "msg")})
           except Exception as e: print("心跳讀不到", type(e).__name__)
+          try:   # 2026-11-26 今天雲端通知(標題),看引擎發了什麼
+              d = time.strftime("%Y-%m-%d", time.gmtime(time.time() + 8 * 3600))
+              r = urllib.request.urlopen(urllib.request.Request(B + f"?log=get&d={d}", headers={"X-Push-Key": K, "User-Agent": "mysh-engine/1"}), timeout=30)
+              L = json.loads(r.read().decode("utf-8")) or []
+              L = L.get("v") or L.get("list") or [] if isinstance(L, dict) else L
+              print("今天雲端通知", len(L), "則")
+              for it in L[-60:]: print(" ", it.get("t"), it.get("kind"), it.get("title"), "|", str(it.get("body", ""))[:90])
+          except Exception as e: print("通知讀不到", type(e).__name__, e)
           PY
