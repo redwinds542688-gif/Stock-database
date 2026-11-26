@@ -4,6 +4,7 @@ import time
 import datetime as dt, tempfile, os, time
 from pathlib import Path
 from trader import Trader, shift, tick_size, ENTERING, HOLDING, EXITING, amount_reject, fetch_signals
+_ELIGM0, _POOLM0 = Trader.elig_missing, Trader.pool_missing; Trader.elig_missing = lambda self: ""; Trader.pool_missing = lambda self: ""   # 2026-11-26 缺資料改擋:舊案例當作今天的資格複檢 / 選股規則檔都在(缺檔改擋的測試在檔案最後另外測)
 _MTPX0 = Trader.mt_px_hit; Trader.mt_px_hit = lambda self, *a: _MTPX0(self, *a) if getattr(self, "_mt_test", False) else False   # 2026-11-13 ⑥ 改股價 3% 後會蓋過其他測試的停損情境:只在 ⑥ 專用測試打開
 
 TW = dt.timezone(dt.timedelta(hours=8)); NOW = [dt.datetime(2026, 10, 22, 10, 0, tzinfo=TW)]
@@ -31,6 +32,7 @@ def mk(gw=GW, prime=True, **kw):
     cfg = {"TRADE_LOT_TIER": "0", "TRADE_BROKER_STOP": "0", "TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(stop), "TRADE_STATE_FILE": str(tmp / f"st{NMK[0]}.json"), "TRADE_REALENT_FILE": str(tmp / f"re{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0", "TRADE_Y3_TP_PCT": "2.5"}; cfg.update(kw)
     g = gw(); t = Trader(cfg, g, logs.append, lambda: NOW[0]); g.t = t; t.posts = []; t.alerts = []
     t.post = lambda a, b, k, t_=None, **kw: (t.posts.append((a, b, k)), t.__dict__.setdefault("pkeys", []).append(kw.get("pos"))); t.akinds = []; t.alert = lambda a, b="", k="pc": (t.alerts.append(a), t.akinds.append(k))
+    t.br_now = lambda: 0.5   # 2026-11-26 缺資料改擋:判二沒寬度改成不進 → 測試預設大盤上漲家數 50%(要測寬度的自己設)
     t.ref_of = lambda c, t=t: t.last_px.get(c)   # 2026-11-11 16:28 鐵律:沒有昨收不進場 → 測試預設昨收 = 現價(要測 ±5% / 6.5% 的自己設)
     if prime: t.prime([])   # 2026-10-29 稽核 #1:跟 bridge 一樣,啟動時讀到通知(這裡是空的)才算準備好
     return t, g
@@ -838,7 +840,7 @@ ok("2303" in tb.positions, sorted(tb.positions))   # 沒成交放棄的不算一
 SHX = lambda code, px, judge: sig(f"10:0y:{code}", "short", f"股{code} {code} 做空進場 {px}", f"10:00 空✓ · 停利 {px * 0.975:.2f} 停損 {px * 1.015:.2f} · {judge}")
 # 2026-11-10 01:45 判二第二十六次修改:大盤上漲家數範圍(預設 空 4.4%~88.1%、多 10.6%~92%),取代 ≥ 92% 不做;判一不受影響
 for br_, kind_, want in ((0.97, "long", False), (0.957, "long", False), (0.93, "long", False), (0.92, "long", True), (0.08, "long", False), (0.106, "long", True),
-                         (0.90, "short", False), (0.881, "short", True), (0.5, "short", True), (0.03, "short", False), (None, "short", True)):
+                         (0.90, "short", False), (0.881, "short", True), (0.5, "short", True), (0.03, "short", False), (None, "short", False)):   # 2026-11-26 缺資料改擋:沒有寬度原本照進(True)→ 改不進
     at(10, 0); tb, gb = mk(); tb.br_now = lambda b=br_: b; tb.on_tick("2330", 50.0); tb.step([ENTX("2330", 50.0, judge="判二") if kind_ == "long" else SHX("2330", 50.0, "判二")])
     ok(("2330" in tb.positions) == want, (br_, kind_, sorted(tb.positions)))
 at(10, 0); tb, gb = mk(); tb.br_now = lambda: 0.99; tb.on_tick("2330", 50.0); tb.step([SHX("2330", 50.0, "判一")])
@@ -1578,6 +1580,7 @@ def _u_mk(**kw):
     cfg = {"TRADE_LOT_TIER": "0", "TRADE_BROKER_STOP": "0", "TRADE_CAP": "0", "TRADE_ENABLE": "1", "TRADE_AUTO": "1", "TRADE_STOP_FILE": str(tmp / "STOP_u"),
            "TRADE_STATE_FILE": str(tmp / f"u_st{NMK[0]}.json"), "TRADE_Y3_POST_DELAY": "0"}; cfg.update(kw)
     g = GW(); t_ = Trader(cfg, g, logs.append, lambda: NOW[0]); g.t = t_; t_.post = lambda *a, **k: None; t_.alerts = []; t_.alert = lambda a, b="", k="pc": t_.alerts.append(a)
+    t_.br_now = lambda: 0.5   # 2026-11-26 缺資料改擋:判二沒寬度不進 → 預設寬度 50%
     t_.ref_of = lambda c, t_=t_: t_.last_px.get(c); t_.prime([]); return t_, g
 # U3-1:13:21 備援平倉單送出後,13:20 流程的 prepare_close_all 不取消它;close_now 不重送、算已送出
 at(10, 0); u3, g3u = _u_mk(); u3.on_tick("6269", 86.2); u3.step([ENT]); u3.on_report(51, "A0001", 0, 1000, 86.1)
@@ -1868,3 +1871,79 @@ a9.on_report(51, "A0001", 0, 1000, 86.2, basket=g9.tags[-1]); ok(p9["state"] == 
 a9.on_tick("6269", 90.6); ok(p9.get("close_after_entry") and p9.get("iron_part", "").startswith("超") and ("cancel", "A0001", "6269", "S") in g9.sent, (p9.get("iron_part"), g9.sent))
 a9.on_report(50, "A0001", 2, 0, 0, basket=g9.tags[0]); ok(p9["state"] == EXITING and p9["exit_why"].startswith("超") and g9.sent[-1][:3] == ("6269", "B", 1) and not p9.get("forced_close"), (p9.get("exit_why"), g9.sent[-1]))
 print("稽核 9 進場中部分成交也受保護 OK")
+
+# ── 2026-11-26 缺資料改擋:缺資料 → 新進場不做(記「缺資料:X」);持倉保護缺資料 > 2 分鐘 → 高優先通知、只通知不平倉 ──
+import sys as _sys26, types as _ty26
+# 2026-11-26 缺資料改擋:今天沒有資格複檢檔(原本「沒有複檢檔就不擋」)→ 程式自己的進場不做,verdict 寫「缺資料:資格複檢」
+_el26 = _sys26.modules.get("elig"); EL26 = [None]
+_sys26.modules["elig"] = _ty26.SimpleNamespace(blocked=lambda c, k="": "", load_today=lambda: EL26[0])
+Trader.elig_missing = _ELIGM0
+at(10, 0); m1, gm1 = mk(); m1.on_tick("6269", 86.2); m1.step([ENT])
+ok("6269" not in m1.positions and not gm1.sent and any("缺資料:資格複檢" in x for x in logs[-3:]), logs[-3:])
+ok(m1.verdicts[-1]["ok"] is False and m1.verdicts[-1]["why"].startswith("缺資料:資格複檢"), m1.verdicts[-1])
+EL26[0] = {"d": "2026-10-22"}; m1b, gm1b = mk(); m1b.on_tick("6269", 86.2); m1b.step([ENT]); ok("6269" in m1b.positions, "有複檢檔照進")
+_sys26.modules["elig"] = _ty26.SimpleNamespace(blocked=lambda c, k="": (_ for _ in ()).throw(RuntimeError("壞了")), load_today=lambda: {"d": 1})
+m1c, gm1c = mk(); m1c.on_tick("6269", 86.2); m1c.step([ENT]); ok("6269" not in m1c.positions and m1c.verdicts[-1]["why"].startswith("缺資料:資格複檢"), m1c.verdicts[-1])   # 讀取出錯原本 = 不擋
+Trader.elig_missing = lambda self: ""
+if _el26 is not None: _sys26.modules["elig"] = _el26
+else: _sys26.modules.pop("elig", None)
+print("缺資料改擋:資格複檢檔 OK")
+# 2026-11-26 缺資料改擋:逐筆斷了(最後一筆價超過 120 秒)→ 不拿舊價進場
+at(10, 0); m2, gm2 = mk(); m2.on_tick("6269", 86.2); _at_s(10, 2, 30); m2.step([ENT])
+ok("6269" not in m2.positions and m2.verdicts[-1]["why"].startswith("缺資料:逐筆"), m2.verdicts[-1])
+m2.seen.clear(); m2.on_tick("6269", 86.2); m2.step([ENT]); ok("6269" in m2.positions, "逐筆回來照進")
+# 沒昨收:原本 verdict「沒昨收」→「缺資料:昨收」,而且請中繼背景查
+at(10, 0); m3, gm3 = mk(); m3.ref_of = lambda c: None; ask3 = []; m3.ref_need = lambda c: ask3.append(c); m3.on_tick("6269", 86.2); m3.step([ENT])
+ok("6269" not in m3.positions and m3.verdicts[-1]["why"] == "缺資料:昨收" and ask3 == ["6269"], (m3.verdicts[-1], ask3))
+# 判二沒有寬度 / 寬度過期 → 不進(原本不擋)
+at(10, 0); m4, gm4 = mk(); m4.br_now = lambda: None; m4.on_tick("6269", 86.2); m4.step([ENT]); ok("6269" not in m4.positions and m4.verdicts[-1]["why"].startswith("缺資料:寬度"), m4.verdicts[-1])
+m4b, _ = mk(); m4b.br_now = lambda: 0.5; m4b._br_lag = 6; m4b.on_tick("6269", 86.2); m4b.step([ENT]); ok("6269" not in m4b.positions and "6 分鐘沒更新" in logs[-1], logs[-1])
+# 強制進場:最後一筆價太舊 → 不給;沒昨收 → 不給且請中繼查
+at(10, 0); m5, _ = mk(); m5.on_tick("2330", 600.0); _at_s(10, 3, 0); r5 = m5.force_enter("2330", 1, 1, 2.5, 1.5); ok(not r5[0] and r5[1].startswith("缺資料:逐筆"), r5)
+at(10, 0); m5b, _ = mk(); m5b.ref_of = lambda c: None; ask5 = []; m5b.ref_need = lambda c: ask5.append(c); m5b.on_tick("2330", 600.0)
+r5b = m5b.force_enter("2330", 1, 1, 2.5, 1.5); ok(not r5b[0] and r5b[1].startswith("缺資料:昨收") and ask5 == ["2330"], (r5b, ask5))
+print("缺資料改擋:逐筆 / 昨收 / 寬度 / 強制進場 OK")
+# 2026-11-26 缺資料改擋:持倉沒昨收 → 2 分鐘後高優先通知(② 沒作用),5 分鐘最多一次,不平倉;昨收回來 → 恢復通知
+at(10, 0); h1, gh1 = mk(); h1.on_tick("6269", 86.2); h1.step([ENT]); h1.on_report(51, "A0001", 0, 1000, 86.1); ph1 = h1.positions["6269"]
+R26 = [None]; h1.ref_of = lambda c: R26[0]; ask26 = []; h1.ref_need = lambda c: ask26.append(c); n1 = len(h1.alerts)
+def _hstep(t_, h, m, s, px=86.2): _at_s(h, m, s); t_.on_tick("6269", px); t_.step([])
+_hstep(h1, 10, 0, 30); _hstep(h1, 10, 1, 30); ok(len(h1.alerts) == n1 and ask26, ("還沒滿 2 分鐘", h1.alerts[n1:]))
+_hstep(h1, 10, 2, 40); a_ = h1.alerts[n1:]; ok(len(a_) == 1 and "缺昨收" in a_[0] and "②" in a_[0] and h1.akinds[-1] == "lv4", (a_, h1.akinds[-1:]))
+ok(ph1["state"] == HOLDING and len([x for x in gh1.sent if x[0] == "6269" and x[1] == "B"]) == 0, "只通知不平倉")
+_hstep(h1, 10, 5, 0); ok(len(h1.alerts) == n1 + 1, "5 分鐘內不重複")
+_hstep(h1, 10, 7, 50); ok(len(h1.alerts) == n1 + 2 and "缺昨收" in h1.alerts[-1], h1.alerts[n1:])
+R26[0] = 84.0; _hstep(h1, 10, 8, 30); ok("恢復" in h1.alerts[-1] and not h1._dmiss, h1.alerts[-1])
+# 持倉超過 2 分鐘沒有任何即時價(元大逐筆 / 證交所備援都沒有)→ 停利停損等都沒作用 → 高優先通知;價回來 → 恢復
+at(10, 0); h2, gh2 = mk(); h2.on_tick("6269", 86.2); h2.step([ENT]); h2.on_report(51, "A0001", 0, 1000, 86.1); n2 = len(h2.alerts)
+_at_s(10, 1, 30); h2.step([]); ok(len(h2.alerts) == n2)
+_at_s(10, 2, 10); h2.step([]); ok(len(h2.alerts) == n2 + 1 and "缺即時價" in h2.alerts[-1] and "停利 / 停損" in h2.alerts[-1] and h2.positions["6269"]["state"] == HOLDING, h2.alerts[n2:])
+_hstep(h2, 10, 3, 0); ok("恢復" in h2.alerts[-1], h2.alerts[-1])
+# 13:25 以後(收盤集合競價)不看
+at(13, 25); h2.data_watch(force=True); ok("恢復" in h2.alerts[-1])
+# 大盤寬度沒有 / 過期 → ④ 總平沒作用 → 高優先通知(列出持倉)
+at(10, 0); h3, gh3 = mk(); h3.on_tick("6269", 86.2); h3.step([ENT]); h3.on_report(51, "A0001", 0, 1000, 86.1); BR26 = [None]; h3.br_now = lambda: BR26[0]; n3 = len(h3.alerts)
+_hstep(h3, 10, 0, 40); _hstep(h3, 10, 2, 50); ok(len(h3.alerts) == n3 + 1 and "缺寬度" in h3.alerts[-1] and "④ 總平" in h3.alerts[-1] and "6269" in h3.alerts[-1], h3.alerts[n3:])
+BR26[0] = 0.5; _hstep(h3, 10, 3, 30); ok("恢復" in h3.alerts[-1], h3.alerts[-1])
+print("缺資料改擋:持倉缺昨收 / 即時價 / 寬度 → 高優先通知不平倉 OK")
+# 2026-11-26 缺資料改擋:手動預掛沒昨收 → 背景查;等 30 秒還沒有 → 取消(原本一直等、成交後才補檢查)
+Trader.IRON_LOTS = True
+at(10, 0); h4, gh4 = mk(); h4.ref_of = lambda c: None; h4.ref_need = lambda c: None; h4.on_tick("2409", 106.0)
+h4.man_order("2409", "M260", 0, 1000, 106.0, "S", "0"); ok("M260" in h4._ph_ref and not gh4.sent)
+_at_s(10, 0, 20); h4.on_tick("2409", 106.0); h4.step([]); ok(not gh4.sent, "30 秒內先等")
+_at_s(10, 0, 40); h4.on_tick("2409", 106.0); h4.step([]); ok(("cancel", "M260", "2409", "S") in gh4.sent and "缺昨收" in h4.alerts[-1] and h4.man_cards["M260"]["iron"] == "缺資料:昨收", (gh4.sent, h4.alerts[-1:]))
+# 手動預掛:今天沒有資格複檢 / 選股規則檔 → 直接取消(原本不擋)
+Trader.pool_missing = _POOLM0
+import os as _os26, json as _js26, tempfile as _tf26
+_ed26 = Path(_tf26.mkdtemp()); _os26.environ["ENGINE_DIR"] = str(_ed26)
+at(10, 0); h5, gh5 = mk(); h5.ref_of = lambda c: 100.0; h5.on_tick("2409", 100.0); h5.man_order("2409", "M261", 0, 1000, 100.0, "B", "0")
+ok(("cancel", "M261", "2409", "B") in gh5.sent and "缺資料:選股規則" in h5.man_cards["M261"]["iron"], (gh5.sent, h5.man_cards.get("M261")))
+(_ed26 / "pool_today.json").write_text(_js26.dumps({"R": {"lo": 10, "hi": 500, "tick": 0.5, "excl": []}, "mon": ["2409"], "sel": {}, "pool": []}), encoding="utf-8")
+_mt26 = NOW[0].timestamp(); _os26.utime(_ed26 / "pool_today.json", (_mt26, _mt26))
+h5.man_order("2409", "M262", 0, 1000, 100.0, "B", "0"); ok(("cancel", "M262") not in [x[:2] for x in gh5.sent], "規則檔是今天的 → 照舊")
+_os26.utime(_ed26 / "pool_today.json", (_mt26 - 86400, _mt26 - 86400)); h5.man_order("2409", "M263", 0, 1000, 100.0, "B", "0")
+ok(("cancel", "M263") in [x[:2] for x in gh5.sent] and "不是今天" in h5.man_cards["M263"]["iron"], h5.man_cards.get("M263"))
+# 已經成交的手動單缺選股規則 → 只通知不平倉
+h5.on_other_fill("2409", "B", 1000, 100.0, "M264"); p5 = h5.positions.get("2409")
+ok(p5 is not None and p5["state"] == HOLDING and any("缺資料:選股規則" in a for a in h5.alerts) and h5.akinds[-1] == "lv4", (p5 and p5["state"], h5.alerts[-2:]))
+_os26.environ.pop("ENGINE_DIR", None); Trader.pool_missing = lambda self: ""; Trader.IRON_LOTS = _IL0
+print("缺資料改擋:手動預掛缺昨收 / 選股規則 → 取消,成交了只通知 OK")

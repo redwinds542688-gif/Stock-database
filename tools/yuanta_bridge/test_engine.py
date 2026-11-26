@@ -214,3 +214,60 @@ assert _ev64[0][1] == "entry" and _ev64[0][2]["side"] == 1 and _ev64[0][2]["text
 assert "六4" in E.RS_ALL and E.JUDGE["六4"] == "判六" and "六4" in E.CUSTOM_EXIT_RS and E.RS_OF["判六"] == "六"
 print("六4 解析 OK")
 
+
+# ── 2026-11-26 缺資料改擋:缺資料 → 不發新進場(不記 emitted,資料回來 10 分鐘內照判),原因記 blocked_<日期>.jsonl「缺資料:X」──
+_J3m = {"NOENTRYAFTER": "12:30", "ENTRYTO": "12:30", "ENTRYFROM": "09:30"}
+_out = "10:30 空 價 99.00 xx → 進場 99.00 ×2張\n"
+def _blk_miss():
+    f = E.DATA / f"blocked_{DAY}.jsonl"
+    return [json.loads(x).get("miss") for x in f.read_text(encoding="utf-8").splitlines() if x.strip()] if f.exists() else []
+# 2026-11-26 缺資料改擋:沒有昨收 → 不發(原本照發、通知停損不收 ±6.5%)
+e = mk(envs={"三": dict(_J3m)}, prev={"2330": 0, "2317": 100.0})
+e.apply_one(("2330", "三", _out, ""), "10:32", "10:22", True, True, {})
+ok(not e.sent and ("三", "2330", "10:30") not in e.emitted and "缺資料:昨收" in _blk_miss(), (e.sent, _blk_miss()))
+e.prev["2330"] = 100.0; e.apply_one(("2330", "三", _out, ""), "10:32", "10:22", True, True, {})
+ok(len(e.sent) == 1 and ("三", "2330", "10:30") in e.emitted, "昨收回來照發")
+print("缺資料改擋:引擎沒昨收不發 OK")
+# 2026-11-26 缺資料改擋:⑧ 強弱前一天收盤 / 今天台指期加權缺 → 不發(私人庫 rs_env.txrel 資料不全會「先不看」放行)
+def _txrel_rsenv(sd, tm, txf, ix, tp, ip, th):   # 和私人庫 rs_env.txrel 一樣:資料不全 → (True, 先不看)
+    if not txf or not ix or not tp or not ip: return True, "⑧ 強弱資料不全,先不看"
+    return True, "⑧ 台指期比加權 +0.00%"
+_TXF = {f"10:{m:02d}": 17000.0 - m for m in range(0, 31)}; _IX = {f"10:{m:02d}": 22000.0 - m for m in range(0, 31)}
+def _mk_tx(env, txf=_TXF, ix=_IX, tp=17100.0, ip=22100.0):
+    e_ = mk(envs={"三": dict(_J3m, **env)})
+    e_.txsync_fn = lambda sd, tm, st, txf_, n, r, *a, **k: (True, "⑧ ok"); e_.txrel_fn = _txrel_rsenv; e_.txcover_fn = None
+    e_.txbounce_fn = lambda sd, tm, m, th: (True, ""); e_.txdrop_fn = lambda sd, tm, m, th: (True, "")
+    e_._txf_c = (time.time() + 999, DAY, dict(txf)); e_._txfl_c = (time.time() + 999, DAY, dict(txf)); e_._ix_c = (time.time() + 999, DAY, dict(ix))
+    e_._txrel_p = (DAY, tp, ip, time.time(), True)
+    return e_
+e = _mk_tx({"TXSYNC": "60", "TXREL": "0.7"}, tp=None)
+e.apply_one(("2330", "三", _out, ""), "10:32", "10:22", True, True, {})
+ok(not e.sent and ("三", "2330", "10:30") not in e.emitted and any(str(x).startswith("缺資料:⑧ 強弱(前一天台指期收盤") for x in _blk_miss()), _blk_miss())
+e._txrel_p = (DAY, 17100.0, 22100.0, time.time(), True); e.apply_one(("2330", "三", _out, ""), "10:32", "10:22", True, True, {})
+ok(len(e.sent) == 1, "前一天收盤補到照發")
+e = _mk_tx({"TXSYNC": "60", "TXREL": "0.7"}, ix={k: v for k, v in _IX.items() if k <= "10:20"})   # 加權停在 10:20(斷了 10 分鐘)
+ok(not e.tx_ok("三", "2330", "10:30", -1) and "加權" in e._tx_miss, e._tx_miss)
+e = _mk_tx({"TXSYNC": "60", "TXREL": "0.7"}); e.txrel_fn = None
+ok(not e.tx_ok("三", "2330", "10:30", -1), "⑧ 強弱程式沒載入 → 不發(原本放行)")
+# 急彈 / 急殺:判斷程式沒載入、或台指期 / 加權到訊號那根都斷了 → 不發(原本放行 / rs_env 沒資料「不看」)
+e = _mk_tx({"TXBOUNCE": "0.8"}); e.txbounce_fn = None
+ok(not e.tx_ok("三", "2330", "10:30", -1), "沒有 TXSYNC 的急彈程式沒載入 → 不發")
+e = _mk_tx({"TXDROP": "0.8"}, txf={k: v for k, v in _TXF.items() if k <= "10:10"}, ix={})
+ok(not e.tx_ok("三", "2330", "10:30", 1) and e._tx_miss.startswith("缺資料:⑧ 急殺"), e._tx_miss)
+e = _mk_tx({"TXDROP": "0.8"}, txf={k: v for k, v in _TXF.items() if k <= "10:10"})
+ok(e.tx_ok("三", "2330", "10:30", 1), "台指期斷了但加權有 → 用加權照判")
+e = _mk_tx({"TXSYNC": "60", "TXBOUNCE": "0.8"}, txf={k: v for k, v in _TXF.items() if k <= "10:10"}, ix={k: v for k, v in _IX.items() if k <= "10:10"})
+ok(not e.tx_ok("三", "2330", "10:30", -1) and "急彈" in e._tx_miss, e._tx_miss)
+e = _mk_tx({"TXSYNC": "60", "TXFROMLO": "2.5"}, txf={k: v for k, v in _TXF.items() if k <= "10:10"}); e.txfromlo_fn = lambda sd, tm, m, th, lo=None: (True, "")
+ok(not e.tx_ok("三", "2330", "10:30", -1) and "空單離今低" in e._tx_miss, e._tx_miss)   # 有 TXSYNC 的只看台指期(模擬器同一套)
+ok(e.tx_fresh({"10:28": 1.0}, "10:30") and not e.tx_fresh({"10:26": 1.0}, "10:30") and not e.tx_fresh({}, "10:30") and not e.tx_fresh({"10:31": 1.0}, "10:30"))
+print("缺資料改擋:引擎 ⑧ 缺台指期 / 加權 / 前一天收盤 / 判斷程式 → 不發 OK")
+# 2026-11-26 缺資料改擋:規則抓不到最新的、本機那份不是今天抓的 → 全部判別式不發新進場(rs_block)
+_R0 = dict(E.RULES)
+for f_, _ in E.RULE_FILES: (E.SIMD / Path(f_).name).write_text("x", encoding="utf-8")
+E.RULES.update(stale=False); ok(E.rules_miss(DAY) == "")
+E.RULES.update(stale=True, why="抓不到"); ok(E.rules_miss("2099-01-01").startswith("缺資料:規則") and E.rules_miss("2000-01-01") == "", E.rules_miss("2099-01-01"))
+E.RULES.clear(); E.RULES.update(_R0)
+e = mk(envs={"三": dict(_J3m)}); e.apply_one(("2330", "三", _out, ""), "10:32", "10:22", True, True, {"三": "缺資料:規則(測試)"})
+ok(not e.sent and ("三", "2330", "10:30") not in e.emitted and "缺資料:規則(測試)" in _blk_miss(), _blk_miss())
+print("缺資料改擋:規則缺 → 不發 OK")

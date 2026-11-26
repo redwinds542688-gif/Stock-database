@@ -140,6 +140,7 @@ def why_short(title, cap):
     if not m:
         return "太晚" if any("太晚了先記著" in x for x in cap) else ""
     r = m.split(f"不進場 {title}:", 1)[1]
+    if r.startswith("缺資料:"): return re.split(r"[(,(;;]", r)[0].strip()[:14]   # 2026-11-26 缺資料改擋:通知上寫「缺資料:X」
     for k, v in (("不管的名單", "留倉不管"), ("超額", "超額"), ("太晚", "太晚"), ("已經過", "太晚"), ("不能空", "不能空"), ("昨收", "超過±5%" if "超過 ±" in r else "沒昨收"),
                  ("不夠 1 張", "額度不夠"), ("額度", "額度不夠"), ("已經進場過", "已進過"), ("順序不合理", "訊號價不合理"), ("不在停利", "價格已過停利停損"), ("即時價", "沒報價"), ("緊急停止", "緊急停止"), ("時段", "過了時段")):
         if k in r: return v
@@ -289,6 +290,13 @@ class Trader:
             except Exception: pass   # 2026-11-09 判二大盤分級檔數(見 reset_day 說明)
         self.br_file = Path(cfg.get("TRADE_BR_FILE") or (Path(__file__).resolve().parent / "engine_data" / "breadth.json")); self._br = (0.0, None)
         self.re_file = Path(cfg.get("TRADE_REALENT_FILE") or (Path(__file__).resolve().parent / "engine_data" / "real_ent.json"))   # 2026-11-24 鐵律 ④ 總平用元大成交均價(給電腦引擎讀)
+        # 2026-11-26 缺資料改擋(使用者:缺資料 → 不進新單;持倉的保護缺資料 > 2 分鐘 → 高優先手機通知、只通知不平倉)
+        self.miss_s = float(cfg.get("TRADE_MISS_ALERT_S", "120"))      # 持倉保護缺資料多久(秒)發高優先通知
+        self.miss_rep = float(cfg.get("TRADE_MISS_REPEAT_S", "300"))   # 同一檔同一種資料最多幾秒提醒一次
+        self.miss_kind = cfg.get("TRADE_MISS_KIND", "lv4")             # 手機提醒等級(lv1~lv5 一級比一級強)
+        self.tick_stale = float(cfg.get("TRADE_TICK_STALE_S", "120"))  # 新進場:最後一筆即時價超過幾秒 = 缺逐筆
+        self.ph_ref_wait = float(cfg.get("TRADE_PH_REF_WAIT_S", "30"))  # 手動預掛沒有昨收(背景查)最多等幾秒,還沒有就取消
+        self._px_at = {}; self._dmiss = {}; self._dw_at = 0.0; self._br_lag = None
         self.prehang = {}   # code → 保留的手動預掛委託書號 [no, …]
         self.del_q = []     # 2026-11-08 20:50 等元大確認刪除的條件單編號
         self.man_cards = {}  # 2026-11-06 14:26 手動預掛(新進場 / 加碼)發過卡的書號 → {lots, px, d, end}
@@ -322,6 +330,7 @@ class Trader:
         self.positions = {}        # code → {code, mkt, dir, qty(張), entry, tp, sl, judge, typ, title, state, order, forced, ...}
         self.seen = set()          # 已處理的通知 _k
         self.n_trades, self.pnl, self.last_px = 0, 0.0, {}
+        self._px_at = {}; self._dmiss = {}   # 2026-11-26 缺資料改擋:每檔最後一筆價的時間、持倉保護缺資料的開始時間 / 上次提醒
         self.amount_today = 0.0
         self.fill_rt, self.fill_rc, self.rc_rows, self.rc_ids = {}, {}, {}, set()   # 2026-11-21 使用者「全改」(檢查 T7 / T9):每筆成交算過幾張的帳本(見 rt_mark / rc_pick)
         self.rc_tot = {}   # 2026-11-21 使用者「改 A」(A4):記 rc_rows 時那張書號的成交總張數(之後又成交 → 拿掉舊紀錄)
@@ -1312,6 +1321,8 @@ class Trader:
 
     def on_tick(self, code, price):
         self.last_px[code] = price
+        try: self._px_at[code] = self.now().timestamp()   # 2026-11-26 缺資料改擋:記每檔最後一筆價的時間(新進場看逐筆有沒有斷、持倉缺價 > 2 分鐘推高優先通知)
+        except Exception: pass
         try:   # 2026-11-11 19:50 鐵律 ⑥ 移動停損利:每檔每分鐘最後一個價 = 那分鐘收盤(算 Ka 用)
             mc = self._mc.setdefault(code, {}); mc[self.hm()] = price
             if len(mc) > 40:
@@ -1512,7 +1523,7 @@ class Trader:
                     return
                 _iw = self.man_iron_why(code, d, lots, price)
                 if not _iw and not (self.ref_of(code) or 0) > 0 and Trader.IRON_LOTS and code not in self.ignore:   # 2026-11-26 使用者「全改」(稽核 8):還沒有昨收(中繼在背景查)→ 記著,昨收來了(on_tick)再檢查 ①
-                    self.__dict__.setdefault("_ph_ref", {})[no] = {"code": code, "d": d, "lots": lots, "px": price, "bs": bs, "typ": typ}
+                    self.__dict__.setdefault("_ph_ref", {})[no] = {"code": code, "d": d, "lots": lots, "px": price, "bs": bs, "typ": typ, "at": self.now().timestamp()}   # 2026-11-26 缺資料改擋:at = 開始等昨收(ph_ref_timeout 等太久就取消)
                 if _iw:   # 2026-11-12 11:40 使用者「如果以後發現手動單違規 程式這邊就直接取消預掛」:新進場 / 加碼預掛一看到就檢查鐵律,違反 → 直接取消(不等成交後整個部位平掉)
                     self.man_cards[no]["iron"] = _iw
                     self.log(f"[交易] !! {code} 手動{what} {lots} 張 @ {price or '市價'} 違反鐵律({_iw})→ 直接取消這張預掛(書號 {no})")
@@ -2124,6 +2135,78 @@ class Trader:
                 self.on_signal(it)
             self.over_check()
             self.late_check()
+            try: self.data_watch()   # 2026-11-26 缺資料改擋:持倉保護缺資料 > 2 分鐘 → 高優先手機通知(只通知不平倉);手動預掛等不到昨收 → 取消
+            except Exception as e_: self.log(f"[交易] !! 缺資料檢查出錯 {e_!r}")
+
+    def data_watch(self, force=False):
+        """2026-11-26 缺資料改擋(使用者:持倉的保護缺資料 → 高優先手機通知,「只通知不平倉」):
+           每 30 秒看一次(09:00~13:25)持倉中(含進場中已成交 ≥ 1 張)的部位:
+             ① 沒有昨收 → ② 離昨收 ±6.5%(元三 / 強三 ±8.5%、判七 / 四 / 五 ±8%)強平沒作用(手動 / 強制進場的 ① 也還沒檢查)
+             ② 超過 TRADE_MISS_ALERT_S(120)秒沒有任何即時價(元大逐筆 / 中繼證交所備援都沒有)→ 停利 / 停損 / ② / ⑥ 移平 / ④ 總平都沒作用
+             ③ 大盤寬度沒有 / 超過 3 分鐘沒更新 → ④ 總平沒作用(全部持倉)
+           同一檔同一種資料缺超過 120 秒才推(kind = TRADE_MISS_KIND,預設 lv4),之後最多 5 分鐘一次;不自動平倉,其他不需要這份資料的保護照常。資料回來 → 記錄 + 一般提醒一次"""
+        try: n_ = self.now(); ts = n_.timestamp(); t900 = n_.replace(hour=9, minute=0, second=0, microsecond=0).timestamp()
+        except Exception: return
+        self.ph_ref_timeout(ts)
+        if not force and ts - self._dw_at < 30: return
+        self._dw_at = ts; hm = self.hm(); cur = set()
+        if "09:00" <= hm < "13:25":
+            held = []
+            for p in list(self.positions.values()):
+                o = p.get("order") or {}
+                if p.get("state") == HOLDING or (p.get("state") == ENTERING and (o.get("filled", 0) + (p.get("pre_filled") or 0)) >= 1000 and not o.get("dead")):
+                    if p["code"] not in self.ignore: held.append(p)
+            for p in held:
+                code = p["code"]; man = p.get("judge") in (MANUAL, FORCED) and self.man_move > 0
+                mm = self.man_move if man else self.j7_move if p.get("judge") in ("判七", "判四", "判五") and self.j7_move > 0 else self.max_move
+                if mm > 0 and (man or not p.get("no_max_move")) and not ((self.ref_of(code) or 0) > 0 or (p.get("ref") or 0) > 0):
+                    self.ref_ask(code); cur.add((code, "昨收"))
+                    self._miss_note(code, "昨收", f"② 離昨收 ±{mm:g}% 強平" + ("、手動 / 強制進場 ① 範圍檢查" if p.get("_iron_retry") else ""), ts, t900)
+                age = self.px_age(code)
+                if age is None or age >= self.miss_s:
+                    cur.add((code, "即時價"))
+                    self._miss_note(code, "即時價", "停利 / 停損 / ② / ⑥ 移平 / ④ 總平(都要現價)", ts, t900, since=(ts - age) if age is not None else None,
+                                    extra=f"最後一筆 {age:.0f} 秒前" if age is not None else "今天還沒收到任何即時價")
+            if held and self.brx_l > 0 and hm >= "09:03":
+                b = self.br_now()
+                if b is None or self.br_stale():
+                    cur.add(("全部", "寬度"))
+                    self._miss_note("全部", "寬度", "④ 總平", ts, t900, codes=[p["code"] for p in held],
+                                    extra="今天沒有寬度資料" if b is None else f"已 {self._br_lag} 分鐘沒更新")
+        for k in [k for k in self._dmiss if k not in cur]:
+            m = self._dmiss.pop(k)
+            if m.get("last"):
+                self.log(f"[交易] {k[0]} {k[1]} 恢復 → {m.get('prot')} 恢復作用")
+                try: self.alert(f"✅ {'' if k[0] == '全部' else self.name_of(k[0]) + ' '}{k[0]} {k[1]}恢復", f"{m.get('prot')} 恢復作用")
+                except Exception: pass
+
+    def _miss_note(self, code, datum, prot, ts, t900, since=None, extra="", codes=None):
+        """2026-11-26 缺資料改擋:記這檔這種資料從什麼時候開始缺;缺超過 miss_s 秒 → 高優先手機通知(同一檔同一種資料最多 miss_rep 秒一次),不平倉"""
+        m = self._dmiss.get((code, datum))
+        if m is None: m = self._dmiss[(code, datum)] = {"since": max(since if since is not None else ts, t900), "last": 0.0, "prot": prot}
+        elif since is not None: m["since"] = max(min(m["since"], since), t900)
+        m["prot"] = prot; dur = ts - m["since"]
+        if dur < self.miss_s or ts - m["last"] < self.miss_rep: return
+        m["last"] = ts; mins = int(dur // 60)
+        who = "持倉 " + "、".join(f"{self.name_of(c)} {c}" for c in (codes or [])) if code == "全部" else f"{self.name_of(code)} {code}"
+        self.log(f"[交易] !!!! {who} 缺{datum} {mins} 分鐘({extra or '查不到'})→ {prot} 沒作用;只通知不平倉")
+        try: self.alert(f"🚨 {who} 缺{datum} {mins} 分鐘:{prot} 沒作用",
+                        f"{extra + ';' if extra else ''}{datum}拿不到,{prot} 現在不會觸發;程式不會自動平倉,請自己盯盤 / 到投資先生處理(其他保護照常)", self.miss_kind)
+        except Exception as e: self.log(f"[交易] 缺資料通知送不出去 {e!r}")
+
+    def ph_ref_timeout(self, ts):
+        """2026-11-26 缺資料改擋:手動新進場預掛還沒有昨收(① 沒辦法檢查)→ 中繼背景查;等 TRADE_PH_REF_WAIT_S(30)秒還是沒有 → 取消這張預掛(新進場缺資料不做)"""
+        for no, x in list((self.__dict__.get("_ph_ref") or {}).items()):
+            if (self.ref_of(x["code"]) or 0) > 0: self.ph_ref_check(x["code"]); continue
+            if ts - x.get("at", ts) < self.ph_ref_wait: continue
+            self._ph_ref.pop(no, None); mc = self.man_cards.get(no)
+            if not mc or mc.get("end") or mc.get("iron") or mc.get("fl", 0) >= mc.get("lots", 0): continue
+            code = x["code"]; mc["iron"] = "缺資料:昨收"
+            self.log(f"[交易] !! {code} 手動預掛 {no} 等 {self.ph_ref_wait:g} 秒還是沒有昨收(① 沒辦法檢查)→ 缺資料:昨收,取消")
+            try: self.gw.cancel(no, code, x["bs"], x["typ"])
+            except Exception as e: self.log(f"[交易] 取消缺昨收預掛失敗 {e!r}")
+            try: self.alert(f"⛔ {self.name_of(code)} {code} 手動預掛缺昨收,已取消", f"{x['lots']} 張 @ {x['px'] or '市價'}:缺資料:昨收(鐵律 ① 沒辦法檢查;已成交的部分照常由程式管)", self.miss_kind)
+            except Exception: pass
 
     def over_ok(self, code, w):
         """超額訊號現在能不能補進(回 (能?, 現價, 取消原因))"""
@@ -2293,11 +2376,13 @@ class Trader:
             elif d not in (1, -1) or lots < 1:
                 r = (False, "方向或張數不對")
             elif not self.last_px.get(code):   # 2026-11-11 23:05 使用者「全改」(第三輪) 4:還沒有元大即時價 → 不給強制進場(不再用手機的價格判斷 ±5%)
-                r = (False, "電腦還沒收到這檔的元大即時價,沒辦法確認鐵律 ±5%,請過幾秒再試")
+                r = (False, "缺資料:即時價(電腦還沒收到這檔的元大即時價,沒辦法確認鐵律 ±5%,請過幾秒再試)")
+            elif (self.px_age(code) or 0) > self.tick_stale:   # 2026-11-26 缺資料改擋:最後一筆價太舊(逐筆斷了)→ 不拿舊價判斷 ±5%
+                r = (False, f"缺資料:逐筆(這檔最後一筆即時價是 {self.px_age(code):.0f} 秒前,沒辦法確認鐵律 ±5%,請稍後再試)")
             elif (px in (None, "") or not float(px or 0)) and not (px := shift(self.last_px[code], self.slip * d)):   # 2026-11-12 00:16 第四輪檢查:沒指定價 → 先算好「現價讓 2 檔」當委託價,後面 ±5% / 一張上限 / 張數 / 額度都用它算(原本張數和上限用現價)
                 r = (False, "算不出委託價")
-            elif self.force_block(code, d, ref, px):
-                r = (False, self.force_block(code, d, ref, px))
+            elif (fb_ := self.force_block(code, d, ref, px)):   # 2026-11-26 只算一次(缺昨收時會請中繼查)
+                r = (False, fb_)
             elif self.force_lots_why(code, d, lots, px):   # 2026-11-11 19:59 使用者「分級張數 鎖定 監控所有判別式的進場」:強制進場也照鐵律 ⑤(超額不做、額度不夠不進)
                 r = (False, self.force_lots_why(code, d, lots, px))
             else:
@@ -2353,7 +2438,8 @@ class Trader:
         y = (self.ref_of(code) or 0) or y; last = self.last_px.get(code) or 0; lim = self.force_block_pct   # 2026-11-11 22:35 使用者「改 1 2 3 4 5」 3:先用元大 / 電腦的昨收,手機的只在電腦沒有時用
         # 2026-11-11 23:05 使用者「全改」(第三輪) 4:不再用手機指定價代替元大即時價(force_enter 沒有即時價就不給進)
         if not lim > 0: return ""
-        if not (y > 0 and last > 0): return f"還沒有{'昨收' if not y > 0 else '元大即時價'},沒辦法確認鐵律 ±{lim:g}%,不能強制{'做多' if d > 0 else '做空'}"   # 2026-11-11 16:28 鐵律檢查「改」:確認不了就不給進
+        if not y > 0: self.ref_ask(code)   # 2026-11-26 缺資料改擋:順便請中繼背景查證交所昨收(過幾秒再按就有)
+        if not (y > 0 and last > 0): return f"缺資料:{'昨收' if not y > 0 else '即時價'}(還沒有{'昨收' if not y > 0 else '元大即時價'},沒辦法確認鐵律 ±{lim:g}%,不能強制{'做多' if d > 0 else '做空'})"   # 2026-11-11 16:28 鐵律檢查「改」:確認不了就不給進
         ch = (last / y - 1) * 100
         # 2026-11-25 使用者「強制進場也一樣」(同手動進場):做多只擋低於 −lim%、做空只擋高於 +lim%
         _bad = lambda r: self.pct_bad(d, r / 100, lim)   # 2026-11-25 統一範圍(做多 −5%~+7%、做空 −7%~+5%)
@@ -2618,7 +2704,8 @@ class Trader:
         #   處置股 / 注意股 / 不可現股當沖 / 做空但暫停先賣後買 → 不進場(名單再怎麼漏也進不了單;沒有複檢檔就不擋)
         try:
             import elig; eb = elig.blocked(code, kind)
-        except Exception: eb = ""
+        except Exception as e_: eb = f"缺資料:資格複檢(讀取失敗 {e_!r})"[:80]   # 2026-11-26 缺資料改擋:原本讀不到 = 不擋
+        if not eb: eb = self.elig_missing()   # 2026-11-26 缺資料改擋:今天沒有複檢檔(原本「沒有複檢檔就不擋」)→ 不進
         if eb:
             self.log(f"[交易] 不進場 {title}:{eb}(電腦開盤前複檢)"); return
         mb = RE_BAR.search(body); ekey = f"{code}|{judge}|{mb.group(1)}" if mb else None
@@ -2632,7 +2719,10 @@ class Trader:
             self.log(f"[交易] 不進場 {title}:停利 {tp_sig} / 進場 {px_sig} / 停損 {sl_sig} 順序不合理({'做多要 停損<進場<停利' if kind == 'long' else '做空要 停利<進場<停損'})"); return
         last = self.last_px.get(code)
         if not last:
-            self.log(f"[交易] 不進場 {title}:還沒收到 {code} 的元大即時價"); return
+            self.log(f"[交易] 不進場 {title}:缺資料:逐筆(還沒收到 {code} 的元大即時價)"); return
+        _pa = self.px_age(code)   # 2026-11-26 缺資料改擋:最後一筆價太舊(逐筆斷了)→ 不拿舊價判斷 ±5% / 離訊號價,不進
+        if _pa is not None and _pa > self.tick_stale:
+            self.log(f"[交易] 不進場 {title}:缺資料:逐筆({code} 最後一筆即時價是 {_pa:.0f} 秒前,超過 {self.tick_stale:g} 秒)"); return
         if not it.get("_over") and abs(last - px_sig) / px_sig * 100 > self.max_dev:   # 超額補進場:本來就是價格變了才補,不看離訊號價多遠(停利 / 停損之間另外檢查)
             self.log(f"[交易] 不進場 {title}:現價 {last} 離訊號價 {px_sig} 超過 {self.max_dev}%(太晚了)")
             if self.late_redo_min > 0 and not it.get("_late") and code not in self.positions:
@@ -2645,7 +2735,8 @@ class Trader:
             return
         ref_e = self.ref_of(code) or 0
         if self.ent_pct > 0 and not ref_e > 0:   # 2026-11-11 16:28 鐵律檢查(使用者「檢查 鐵律」→「改」):沒有昨收就沒辦法確認 ±5%(也沒有 6.5% 保護)→ 不進
-            self.log(f"[交易] 不進場 {title}:還沒有 {code} 的昨收,沒辦法確認鐵律 ±{self.ent_pct:g}%"); return
+            self.ref_ask(code)   # 2026-11-26 缺資料改擋:順便請中繼背景查證交所昨收(下一個訊號就有)
+            self.log(f"[交易] 不進場 {title}:缺資料:昨收(還沒有 {code} 的昨收,沒辦法確認鐵律 ±{self.ent_pct:g}%)"); return
         lim = self.cap_lim()   # 2026-11-11 21:34 使用者「一定要在主導機的多空限額裡面才能交易」:一張超過主導機多空上限 = 超額,不進(原本只看通知有沒有標「超額」)
         pck = last if it.get("_over") else max(last, px_sig)   # 超額補進場:本來就是現價回到上限內才補,看現價
         if lim > 0 and pck * 1000 > lim + 1e-6:
@@ -2789,10 +2880,17 @@ class Trader:
             # 2026-11-16 12:30 🔓→🔒 使用者「手動進場 鐵律3,5,不能管 解鎖改」:手動進場不檢查 ③ 時間、⑤(一張 25 萬上限 / 分級張數 / 500 萬額度),只剩 ① ±5%;進場後元三管理照舊、金額照算進 500 萬(預掛也一樣)
             ex = self.mon_excluded(code, px)
             if ex: why.append(f"被監控排除({ex})")
+            dm = self.man_data_why(code)   # 2026-11-26 缺資料改擋:資格複檢 / 選股規則檔沒有 → 原本不擋,改擋
+            if dm: why.append(dm)
             if ref > 0 and px > 0 and self.man_pct_bad(d, px / ref - 1): why.append(f"價格離昨收 {(px / ref - 1) * 100:+.1f}%({self.man_pct_txt(d)})")
+            elif ref > 0 and not px > 0: why.append("缺資料:即時價(市價預掛、還沒有元大即時價,① 沒辦法檢查)")   # 2026-11-26 缺資料改擋:原本沒價 = 不檢查 ①
             return "、".join(why)
         except Exception as e:
-            self.log(f"[交易] 預掛鐵律檢查失敗 {e!r}"); return ""
+            self.log(f"[交易] 預掛鐵律檢查失敗 {e!r}"); return f"缺資料:鐵律檢查出錯({e!r})"[:80]   # 2026-11-26 缺資料改擋:原本出錯 = 不擋
+
+    def man_data_why(self, code):
+        """2026-11-26 缺資料改擋:手動新進場要用的資料(資格複檢檔、選股規則檔)缺哪一個;都有回空字串"""
+        return self.elig_missing() or self.pool_missing()
 
     def mon_excluded(self, code, px=0.0):
         """2026-11-17 15:07 使用者「如果有這種 被監控排除的 一預掛就取消」(華邦電不可先賣、手動放空被元大退單):
@@ -2852,6 +2950,12 @@ class Trader:
             if ex: why.append(f"被監控排除({ex})")
             bad_p = [px_ for _, px_ in fl if ref > 0 and px_ > 0 and self.man_pct_bad(p["dir"], px_ / ref - 1)]   # 2026-11-25 手動進場 / 強制進場(使用者「強制進場也一樣」)同一套單邊
             if bad_p: why.append(f"成交價離昨收 {(bad_p[0] / ref - 1) * 100:+.1f}%({self.man_pct_txt(p['dir'])})")
+            if not why and p.get("judge") == MANUAL and not p.get("_dm_noted"):   # 2026-11-26 缺資料改擋:已經成交的手動單缺資料 → 只通知不平倉(使用者「只通知不平倉」)
+                dm = self.man_data_why(p["code"])
+                if dm:
+                    p["_dm_noted"] = True; self.log(f"[交易] !! {p['code']} {what} {lots} 張:{dm} → 監控排除 / 選股檢查沒辦法做,只通知不平倉")
+                    try: self.alert(f"🚨 {self.name_of(p['code'])} {p['code']} {what}{dm}", f"{lots} 張 @ {price}:監控排除 / 選股檢查沒辦法做;程式不會因此平倉,停利 / 停損 / ② / ⑥ / ④ 照常", self.miss_kind)
+                    except Exception: pass
             if not why: return False
             w = "、".join(why); code = p["code"]
             self.log(f"[交易] !! {code} 元大{what} {lots} 張 @ {price} 違反鐵律({w})→ 整個部位 {p['qty']} 張馬上平掉")
@@ -3055,10 +3159,12 @@ class Trader:
             return f"判別式只在 {self.j_from}~{self.j_to} 進場"
         if judge == "判二" and kind in ("long", "short") and self.j2_brng.get(kind):   # 2026-11-10 01:45 判二第二十六次修改(使用者「解鎖 改」):大盤上漲家數要在 22 天贏單範圍內(空 4.4%~88.1%、多 10.6%~92%),取代 ≥ 92% 不做
             b = self.br_now(); lo_, hi_ = self.j2_brng[kind]
-            if b is not None and not (lo_ - 1e-9 <= b <= hi_ + 1e-9):
+            if b is None or self.br_stale(): return f"缺資料:寬度(大盤上漲家數{'沒有' if b is None else f'{self._br_lag} 分鐘沒更新'},判二範圍沒辦法確認)"   # 2026-11-26 缺資料改擋:原本沒寬度 = 不擋
+            if not (lo_ - 1e-9 <= b <= hi_ + 1e-9):
                 return f"大盤上漲家數 {b:.1%} 不在判二{'做空' if kind == 'short' else '做多'}範圍 {lo_:.1%}~{hi_:.1%}"
         if judge == "判二" and self.j2_brcap:   # 2026-11-09 判二第二十四次修改:大盤上漲家數分級限制檔數
             b = self.br_now()
+            if b is None or self.br_stale(): return f"缺資料:寬度(大盤上漲家數{'沒有' if b is None else f'{self._br_lag} 分鐘沒更新'},判二分級檔數沒辦法確認)"   # 2026-11-26 缺資料改擋:原本沒寬度 = 不擋
             if b is not None:
                 n2 = sum(1 for k in self.traded_keys if k.split("|")[1:2] == ["判二"])
                 for th, cap in self.j2_brcap:
@@ -3074,15 +3180,50 @@ class Trader:
                 d = json.loads(self.br_file.read_text(encoding="utf-8")).get(self.now().strftime("%Y-%m-%d")) or {}
                 hm = self.hm(); ks = [k for k in d if k <= hm and d[k] is not None]
                 self._br = (time.time(), float(d[max(ks)]) if ks else None)
-                try:   # ④ 2026-11-11 20:25 大盤寬度 3 分鐘沒更新(盤中、有部位)→ 推警告:總停損暫時沒作用
-                    lag = (int(hm[:2]) * 60 + int(hm[3:5])) - ((int(max(ks)[:2]) * 60 + int(max(ks)[3:5])) if ks else 9 * 60)
-                    if "09:03" <= hm < self.force_exit and lag > 3 and self.positions and time.time() - self._br_warn > 600:
-                        self._br_warn = time.time(); self.log(f"[交易] !! 大盤寬度 {lag} 分鐘沒更新(最後 {max(ks) if ks else '—'})→ 總停損暫時沒作用")
-                        self.alert("⚠ 大盤寬度沒更新", f"已經 {lag} 分鐘沒新資料,總停損暫時沒作用(其他停損照常)")
-                except Exception: pass
+                try:   # ④ 2026-11-11 20:25 大盤寬度幾分鐘沒更新;2026-11-26 缺資料改擋:只記落後分鐘數(_br_lag),提醒改由 data_watch 發高優先通知(> 2 分鐘、5 分鐘一次)
+                    self._br_lag = (int(hm[:2]) * 60 + int(hm[3:5])) - ((int(max(ks)[:2]) * 60 + int(max(ks)[3:5])) if ks else 9 * 60)
+                except Exception: self._br_lag = None
             return self._br[1]
         except Exception:
-            self._br = (time.time(), None); return None
+            self._br = (time.time(), None); self._br_lag = None; return None
+
+    def br_stale(self):
+        """2026-11-26 缺資料改擋:寬度檔最新一筆落後現在超過 3 分鐘(09:03 起才算;br_now 讀檔時記的 _br_lag)"""
+        lag = self.__dict__.get("_br_lag")
+        return lag is not None and lag > 3 and "09:03" <= self.hm()
+
+    def px_age(self, code):
+        """2026-11-26 缺資料改擋:這檔最後一筆即時價是幾秒前(沒記過回 None)"""
+        t0 = self._px_at.get(code)
+        if t0 is None: return None
+        try: return self.now().timestamp() - t0
+        except Exception: return None
+
+    def ref_ask(self, code):
+        """2026-11-26 缺資料改擋:沒有昨收 → 請中繼背景查證交所(不等;ensure_ref 自己 60 秒限一次)"""
+        try:
+            if getattr(self, "ref_need", None): self.ref_need(code)
+        except Exception: pass
+
+    def elig_missing(self):
+        """2026-11-26 缺資料改擋:今天的開盤前資格複檢檔(elig)沒有 / 讀不到 → 回「缺資料:…」(原本沒有複檢檔就不擋);有就回空字串"""
+        try:
+            import elig; lt = getattr(elig, "load_today", None)
+            if lt is None or lt(): return ""
+            return "缺資料:資格複檢(今天的處置 / 注意 / 可當沖名單檔沒有)"
+        except Exception as e: return f"缺資料:資格複檢(讀取失敗 {e!r})"[:80]
+
+    def pool_missing(self):
+        """2026-11-26 缺資料改擋:電腦引擎今天的選股名單 / 規則(pool_today.json 的 R)沒有 / 讀不到 / 不是今天的 → 回「缺資料:…」(原本讀不到檔 = 不擋手動單)"""
+        try:
+            import os as _os
+            f = Path(_os.environ.get("ENGINE_DIR") or (Path(__file__).resolve().parent / "engine_data")) / "pool_today.json"
+            if not f.exists(): return "缺資料:選股規則(今天的 pool_today.json 沒有)"
+            import datetime as _dt
+            if _dt.datetime.fromtimestamp(f.stat().st_mtime, self.now().tzinfo).date() != self.now().date(): return "缺資料:選股規則(pool_today.json 不是今天的)"
+            if not (json.loads(f.read_text(encoding="utf-8")) or {}).get("R"): return "缺資料:選股規則(pool_today.json 沒有 R)"
+            return ""
+        except Exception as e: return f"缺資料:選股規則(讀取失敗 {e!r})"[:80]
 
     # 2026-11-02 16:16 使用者「500萬 就是買和賣的總和 當沖還未贖回 皆以漲停價 暗自計算 … 再扣除如果做空 就以漲停價贖回的價格 剩餘的 才是能再交易的資金」→「改」:
     #   元大可用額度 = 500 萬 − 已成交(買 + 賣)− 還沒平倉的部位 × 漲停價(多空都用漲停,使用者「皆以漲停價」);新單每張要預留 進場價 + 漲停價

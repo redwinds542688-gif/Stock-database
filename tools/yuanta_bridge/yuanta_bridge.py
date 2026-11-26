@@ -2700,6 +2700,10 @@ class Bridge:
                         log(f"逐筆恢復(重連 {self.n_kick} 次)"); self.n_kick = 0
                 if self.api is None or self.disconnected.is_set():
                     if time.time() < self._relogin_at:                       # 2026-11-21(檢查 R1):元大暫時不給登入 → 退避時間還沒到,先不登入(也不讀訊號:沒登入送不出單)
+                        try:   # 2026-11-26 缺資料改擋:等重登的這段主迴圈不跑 trader.step → 這裡照樣看持倉保護缺不缺資料(缺即時價 / 昨收 / 寬度 > 2 分鐘推高優先通知)
+                            if self.trader:
+                                with self.trader.lock: self.trader.data_watch()
+                        except Exception as e: log("[交易] 缺資料檢查出錯", e)
                         time.sleep(1); continue
                     self.close(); self.connect(); self.subscribe(self.codes); self.fut_sub(); fails = 0; self.last_tick = time.time()   # 重連後重新計時
                     self.__dict__.setdefault("_conn_at", time.time())
