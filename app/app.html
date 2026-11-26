@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-26 名單外股票成交量再修(使用者「成交量 不對問題 還沒解決」):改在收到報價時就把累計量補成「報價」和「今天 1 分 K 加總」大的那個,K 圖上面的「量」、清單、排序全部一起對(上一版只改了清單那一欄)
   · 2026-11-26 名單外股票漲跌幅再補強(使用者「還是沒有漲跌幅」):報價沒昨收時直接用名單外清單(?extra)帶的昨收,不再只看名單;名單內的股票資料日是今天以前就用那天收盤當昨收
   · 2026-11-26 名單外臨時加進來的股票沒有漲跌幅(使用者「鴻海 富喬 沒有漲跌幅」):電腦報價沒帶昨收 → 手機改用名單帶的昨收(馬上生效);中繼臨時訂閱時用前一天最後一根補昨收(13:40 後換版)
   · 2026-11-26 名單外臨時加進來的股票成交量修正(使用者「張數不對」:鴻海 11:04 才訂閱,監控區 0.06 萬、元大 3.11 萬):手機取「報價累計量」和「今天 1 分 K 加總」大的那個(馬上生效);中繼臨時訂閱時用今天 1 分 K 補累計量 / 開高低(13:40 後換版生效)
@@ -651,7 +652,7 @@ try{ if (localStorage.getItem('mysh.rw') !== '20261125'){ ['mysh.backfill', 'mys
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611261146">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611261219">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4290,6 +4291,9 @@ function liveTick(m){
     n: m.n || prev.n, ex: m.ex || prev.ex,   // 2026-10-20 名稱 / 市場(清單裡沒有的股票靠這個補名字)
   };
   rec.chgPct = (rec.z && rec.y) ? (rec.z - rec.y) / rec.y * 100 : null;
+  /* 2026-11-26 12:18 使用者「成交量 不對問題 還沒解決」(K 圖上面的「量」、排序等都直接用報價累計量;名單外臨時訂閱的股票報價只從訂閱那刻算):
+     名單外清單(?extra)裡的股票,累計量取「報價」和「今天 1 分 K 加總」大的那個,所有用到量的地方一起對 */
+  try{ if (window.__EXTRA && Array.isArray(window.__EXTRA.codes) && window.__EXTRA.codes.some(x => String(x.code) === String(code))){ const tb = TODAY_BARS.get(String(code)); const sv = tb && tb.bars ? tb.bars.reduce((a, b) => a + (+b.volume || 0), 0) / 1000 : 0; if (sv > (+rec.v || 0)) rec.v = sv; } }catch(e){}
   LIVE.set(code, rec);
 
   // 自組 1 分K
@@ -5653,7 +5657,7 @@ function showBarInfo(t){
   // 量 = 今天到現在的總累積量(張),不跟十字線那根變(2026-10-21 使用者「App 才 3 萬多 元大已經 7-8 萬了」→「選 1」:
   //   原本是「到十字線那一分鐘的累積量」,點在早上的 K 就只有幾萬,看起來像量不對);優先用即時行情的累積量 v。那根自己的量顯示在 K 圖虛線旁(placeXVol)
   let cumLots = (CUR.last ? CUR.last.cumVol : d.cumVol) / 1000;
-  if (lr && isFinite(lr.v) && lr.v > 0) cumLots = lr.v;
+  if (lr && isFinite(lr.v) && lr.v > 0) cumLots = Math.max(lr.v, cumLots || 0);   // 2026-11-26 報價累計量偏少(臨時訂閱)時用 K 加總
   __wT(el('iV'), (cumLots / 10000).toFixed(2));         // 以萬張為單位:337131 張 → 33.71(「萬」字固定在 HTML 裡)
   __wC(el('iV'), '');                                    // 不上色、不加箭頭
   placeXVol(d.bar.time);
