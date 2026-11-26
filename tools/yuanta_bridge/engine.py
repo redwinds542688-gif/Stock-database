@@ -2016,13 +2016,14 @@ class Engine:
         self._tx_miss = why; log(f"{JUDGE.get(rs, rs)} {code} {tm} {why} → 不發"); return False
 
     TX_LAG = 3   # 2026-11-26 缺資料改擋:台指期 / 加權最後一根離訊號那根超過幾分鐘 = 缺資料
+    IX_LAG = 2   # 2026-11-27 判別式聊天 10b9ac63:⑧ 改用加權指數時,加權最新一根離訊號那根 ≤ 2 分鐘(模擬器 _ix_fresh age=2 / 手機 ixFresh)
 
-    def tx_fresh(self, m, tm):
-        """2026-11-26 缺資料改擋:{HH:MM: 值} 到 tm 為止有資料、最後一根離 tm 不超過 TX_LAG 分鐘"""
+    def tx_fresh(self, m, tm, lag=None):
+        """2026-11-26 缺資料改擋:{HH:MM: 值} 到 tm 為止有資料、最後一根離 tm 不超過 TX_LAG 分鐘(加權指數用 IX_LAG,同模擬器 _ix_fresh / 手機 ixFresh)"""
         try:
             ks = [k for k in (m or {}) if k <= tm and m[k] is not None]
             if not ks: return False
-            mi = lambda x: int(x[:2]) * 60 + int(x[3:5]); return mi(tm) - mi(max(ks)) <= int(_f(CFG.get("ENGINE_TX_LAG"), self.TX_LAG))
+            mi = lambda x: int(x[:2]) * 60 + int(x[3:5]); return mi(tm) - mi(max(ks)) <= int(lag if lag is not None else _f(CFG.get("ENGINE_TX_LAG"), self.TX_LAG))
         except Exception: return False
 
     def tx_src(self, tm, allow_ix=True):
@@ -2031,7 +2032,7 @@ class Engine:
         if self.tx_fresh(t, tm): return t
         if allow_ix:
             i = self.ix_map()
-            if self.tx_fresh(i, tm): return i
+            if self.tx_fresh(i, tm, self.IX_LAG): return i   # 2026-11-27 加權 ≤ 2 分鐘(同模擬器 _ix_fresh)
         return None
 
     def tx_flags(self, hm):
@@ -2225,10 +2226,10 @@ class Engine:
                 except Exception as e: log("⑧ 台指期完整性檢查失敗(照舊用台指期)", e)
             if not txf:   # 2026-11-13 23:58 ⑧ 備援 3:元大 / 期交所台指期都沒有 → 用 Worker 記的加權指數(09:00 起)
                 txf = self.ix_map(); frm = "09:00" if txf else None
-            if txf and not self.tx_fresh(txf, tm):   # 2026-11-26 使用者「都修正」(情境回放 1):原本台指期缺一段改用加權時沒看加權新不新(11/23 10:20~10:40 兩個都斷,10:29 用 10:19 的舊加權判 ⑧ → 「不合」記 emitted,資料回來也不再判)
+            if txf and not self.tx_fresh(txf, tm, self.IX_LAG if frm else None):   # 2026-11-26 使用者「都修正」(情境回放 1):原本台指期缺一段改用加權時沒看加權新不新(11/23 10:20~10:40 兩個都斷,10:29 用 10:19 的舊加權判 ⑧ → 「不合」記 emitted,資料回來也不再判)
                 _t0 = self.txf_map(); _i0 = self.ix_map()   # 用的那份不新鮮 → 換另一份(台指期中間缺一段但到 tm 新鮮 → 照舊用台指期;台指期斷了 → 加權),兩份都不新鮮 = 缺資料(不發、不記 emitted、記 blocked)
                 if frm and self.tx_fresh(_t0, tm): txf = _t0; frm = None; log(f"{JUDGE[rs]} {code} {tm} ⑧ 加權到 {tm} 沒更新 → 照舊用台指期")
-                elif not frm and self.tx_fresh(_i0, tm): txf = _i0; frm = "09:00"; log(f"{JUDGE[rs]} {code} {tm} ⑧ 台指期到 {tm} 斷了 → 改用加權指數")
+                elif not frm and self.tx_fresh(_i0, tm, self.IX_LAG): txf = _i0; frm = "09:00"; log(f"{JUDGE[rs]} {code} {tm} ⑧ 台指期到 {tm} 斷了 → 改用加權指數")
                 else:
                     log(f"!! {JUDGE[rs]} {code} {tm} ⑧ 台指期 / 加權到 {tm} 都沒有或斷了 → 當缺資料")
                     return self._miss(rs, code, tm, f"缺資料:⑧ 台指期 / 加權指數(到 {tm} 都斷了)")
