@@ -186,8 +186,20 @@ def add_close_bar(df, daily, today_tw, code=""):
     return df
 
 
+FINAL_HM = "08:00"      # 2026-11-26 判別式聊天「歷史 1 分 K 被資料更新一直改寫」:交易日 D 在 D+1 08:00 定稿,之後不再改
+REV = []                # 定稿後 Yahoo 又給不同數字的列(不套用,只記到 kline_rev/<今天>.csv)
+
+
+def final_dates(dates):
+    """回傳已定稿的日期:D+1 的 08:00(台灣)之後。例:11/25 那天的 K 在 11/26 08:00 前還可以被 Yahoo 晚到修正蓋掉(02:47、04:06、05:58 那幾輪),之後就鎖住"""
+    now = pd.Timestamp.now(tz="Asia/Taipei").tz_localize(None)
+    return {d for d in dates if now >= pd.Timestamp(d) + pd.Timedelta(days=1) + pd.Timedelta(FINAL_HM + ":00")}
+
+
 def merge_save(path, new):
-    """新資料併入既有 CSV,依 date+time 去重(新資料優先),排序後存檔"""
+    """新資料併入既有 CSV,依 date+time 去重(新資料優先),排序後存檔。
+    2026-11-26:已定稿的日期,檔案裡有這天 → 整天保留舊的(Yahoo 每次回的量會在相鄰兩分鐘之間來回搬,例 2355 11/17 09:31 524002↔528002),
+    不同的列記到 REV;檔案裡完全沒有這天(新進名單的股票)才寫入"""
     if os.path.exists(path):
         try:
             old = pd.read_csv(path, dtype={"date": str, "time": str})
@@ -195,6 +207,17 @@ def merge_save(path, new):
             old = pd.DataFrame(columns=COLS)
     else:
         old = pd.DataFrame(columns=COLS)
+    if len(old) and len(new):
+        lock = final_dates(set(new["date"]) & set(old["date"]))
+        if lock:
+            o = old[old["date"].isin(lock)].set_index(["date", "time"])
+            for _, r in new[new["date"].isin(lock)].iterrows():
+                k = (r["date"], r["time"])
+                ov = tuple(float(x) for x in o.loc[k, COLS[2:]]) if k in o.index else None
+                nv = tuple(float(r[c]) for c in COLS[2:])
+                if ov != nv:
+                    REV.append([path, r["date"], r["time"], "" if ov is None else "/".join(f"{x:g}" for x in ov), "/".join(f"{x:g}" for x in nv)])
+            new = new[~new["date"].isin(lock)]
     allr = pd.concat([old, new], ignore_index=True)
     allr = allr.drop_duplicates(subset=["date", "time"], keep="last")
     allr = allr.sort_values(["date", "time"]).reset_index(drop=True)
@@ -336,6 +359,14 @@ with open(idx_path, "w", encoding="utf-8") as f:
 
 print(f"13:30 收盤 K:補了 {NOTE['added']} 根、覆寫 Yahoo 零量的 {NOTE['fixed']} 根(其中 {NOTE['novol']} 根量算不出記 0);{NOTE['nodaily']} 個交易日沒有日K 可對")
 print(f"09:00 開盤競價量:用元大拆回 {NOTE['open_auc']} 天、沒有元大 K 無從拆分(仍併在 13:30){NOTE['open_unknown']} 天")
+if REV:   # 2026-11-26 定稿後的差異:不蓋、另存
+    os.makedirs("kline_rev", exist_ok=True)
+    rp = os.path.join("kline_rev", pd.Timestamp.now(tz="Asia/Taipei").strftime("%Y-%m-%d") + ".csv")
+    new_f = not os.path.exists(rp)
+    with open(rp, "a", encoding="utf-8") as fh:
+        if new_f: fh.write("file,date,time,old_ohlcv,yahoo_ohlcv\n")
+        for x in REV: fh.write(",".join(x) + "\n")
+print(f"定稿(D+1 {FINAL_HM} 後)的日期:Yahoo 給了不同數字 {len(REV)} 列,沒有套用" + (f",記在 kline_rev/" if REV else ""))
 print(f"\n完成:成功 {ok} 檔,失敗 {fail} 檔 → {OUT_DIR}/  目前總量 {total_kb/1024:.1f} MB")
 if ok == 0:
     sys.exit("一檔都沒抓到,視為失敗")
