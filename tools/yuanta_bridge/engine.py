@@ -1236,7 +1236,7 @@ class Engine:
                 j = json.loads(self.state_f.read_text(encoding="utf-8"))
                 self.pos = {tuple(k.split("|")): v for k, v in j.get("pos", {}).items()}
                 self.emitted = set(tuple(x) for x in j.get("emitted", []))
-                self.j4 = set(j.get("j4", [])); self.j5 = set(j.get("j5", [])); self.j63 = set(j.get("j63", [])); self.j12 = set(j.get("j12", [])); self.j8 = set(j.get("j8", [])); self.j9 = set(j.get("j9", [])); self.j64 = set(j.get("j64", []))
+                self.j4 = set(j.get("j4", [])); self.j5 = set(j.get("j5", [])); self.j63 = set(j.get("j63", [])); self.j12 = set(j.get("j12", [])); self.j8 = set(j.get("j8", [])); self.j9 = set(j.get("j9", [])); self.j64 = set(j.get("j64", [])); self.vrv_at = j.get("vrv_at") or None
                 self.drag = set(j.get("drag", []))
                 self.closed = j.get("closed", []); self.lat = j.get("lat", [])
                 self.emitted |= {(x[0], x[1], x[2]) for x in j.get("seen", []) if len(x) == 4 and x[3] == "entry"}   # 舊版狀態檔
@@ -1333,6 +1333,7 @@ class Engine:
         self.txcover_fn = getattr(rs_env, "txf_cover", None)   # 2026-11-16 14:38 使用者「改」:台指期缺一段 → ⑧ 改用加權指數(私人庫 rs_env.txf_cover;舊版 rs_env 沒有 = 照舊)
         self.j9max = int(getattr(rs_env, "J9MAX", J9MAX))   # 2026-11-14 判九
         self.j8max = int(getattr(rs_env, "J8MAX", J8MAX))   # 2026-11-14 判八
+        self.vrv_noshort = bool(getattr(rs_env, "IRON_VRV_NOSHORT", False))   # 2026-11-27 ⑨ 觸發後不開新空單(私人庫有才生效)
         self.j64max = int(getattr(rs_env, "J64MAX", 0) or 0)   # 2026-11-27 六4:私人庫 rs_env 有 J64MAX(判別式聊天合進 main 後)才限制;舊版 = 不限
         self.j5max = int(getattr(rs_env, "J5MAX", J5MAX))   # 2026-11-05 判五一天上限(私人庫 rs_env.J5MAX;apply 裡沒有 rs_env 這個名字)
         self.br_rs = {"一", "一2", "二", "五", "六", "六3", "八", "九", "十", "三2"}   # 2026-11-21 使用者「B」:看寬度 / 名單平均的判別式
@@ -1377,7 +1378,7 @@ class Engine:
 
     def save(self):
         if not self.state_f: return
-        try: write_atomic(self.state_f, json.dumps({"emitted": sorted(self.emitted), "j4": sorted(self.j4), "j5": sorted(self.j5), "j63": sorted(getattr(self, "j63", set())), "j12": sorted(getattr(self, "j12", set())), "j8": sorted(getattr(self, "j8", set())), "j9": sorted(getattr(self, "j9", set())), "j64": sorted(getattr(self, "j64", set())), "drag": sorted(self.drag), "closed": self.closed, "lat": self.lat, "pos": {"|".join(k): v for k, v in self.pos.items()}, "ver": RULES["ver"]}, ensure_ascii=False))
+        try: write_atomic(self.state_f, json.dumps({"emitted": sorted(self.emitted), "j4": sorted(self.j4), "j5": sorted(self.j5), "j63": sorted(getattr(self, "j63", set())), "j12": sorted(getattr(self, "j12", set())), "j8": sorted(getattr(self, "j8", set())), "j9": sorted(getattr(self, "j9", set())), "j64": sorted(getattr(self, "j64", set())), "vrv_at": getattr(self, "vrv_at", None), "drag": sorted(self.drag), "closed": self.closed, "lat": self.lat, "pos": {"|".join(k): v for k, v in self.pos.items()}, "ver": RULES["ver"]}, ensure_ascii=False))
         except Exception as e: log("!! 狀態檔寫不進去", e)
 
     def push(self, it):
@@ -1531,6 +1532,9 @@ class Engine:
             if rs == "三" and "判新" in it.get("body", ""): rs = "三2"   # 2026-11-24 三2(進場內容帶「判新」)
             if rs == "七" and "極端" in it.get("body", ""): rs = "七2"   # 2026-11-24 七2(進場內容帶「空 極端」)
             if rs == "七" and "大跌" in it.get("body", ""): rs = "七3"   # 2026-11-25 七3(進場內容帶「空 大跌」)
+            if "反轉平" in it.get("title", "") + it.get("body", ""):   # 2026-11-27 ⑨ 觸發後不開新空單:當天 ⑨ 第一次的時間從雲端接回(重開也記得)
+                mt0 = re.search(r"(\d\d:\d\d)", it.get("body", "")) or re.match(r"(\d\d:\d\d)", str(it.get("t", "")))
+                if mt0 and (not getattr(self, "vrv_at", None) or mt0.group(1) < self.vrv_at): self.vrv_at = mt0.group(1)
             if it.get("kind") in ("long", "short"):
                 mc = re.search(r"\b(\d{4,6})\b", it.get("title", "")); mt = re.match(r"\s*(\d\d:\d\d)", it.get("body", ""))
                 if mc and mt: self.cloud_in[(rs, mc.group(1), mt.group(1))] = it
@@ -1573,6 +1577,8 @@ class Engine:
         nm = self.names.get(code, code); j = JUDGE[rs]
         pl = (ex - p["px"]) / p["px"] * 100 * p["side"]; plTxt = f" {pl:+.1f}%"
         side = "做多" if p["side"] > 0 else "做空"; frm = f"{side} {p['t']} 進 {p['px']:.2f} → "
+        if not phantom and "反轉平" in str(why) and (not getattr(self, "vrv_at", None) or tm < self.vrv_at):   # 2026-11-27 使用者「解鎖 改」:⑨ 觸發 → 當天之後不開新空單
+            self.vrv_at = tm; log(f"⑨ 反轉平 {tm} 觸發 → 今天之後不再開新空單(私人庫 rs_env IRON_VRV_NOSHORT 開著才擋,現在 {'開' if getattr(self, 'vrv_noshort', False) else '關'})")
         if phantom:   # 2026-10-29 稽核 #2:已推的進場在重算裡不見了(形成中那根變了)→ 一定要叫中繼平掉,不然部位沒人管
             title, kind = f"{nm} {code} 出場:訊號重算消失,平倉", "exit"
         else:
@@ -1977,6 +1983,8 @@ class Engine:
             self.emitted.add(ek); log(f"判五 {code} {open_tm} 今天判五已 {len(self.j5)} 檔(到上限)→ 不發"); return n
         elif rs == "九" and code not in self.j9 and len(self.j9) >= getattr(self, "j9max", J9MAX):   # 2026-11-14 判九一天最多 J9MAX 檔
             self.emitted.add(ek); log(f"判九 {code} {open_tm} 今天判九已 {len(self.j9)} 檔(到上限)→ 不發"); return n
+        elif d["side"] < 0 and getattr(self, "vrv_at", None) and open_tm >= self.vrv_at and getattr(self, "vrv_noshort", False):   # 2026-11-27 使用者「解鎖 改」(11/27 台塑:⑨ 10:06 平空後 10:14 判七又空):⑨ 當天觸發過 → 之後的空單不發
+            self.emitted.add(ek); self.note_miss(rs, code, open_tm, f"⑨ {self.vrv_at} 已反轉,今天不再做空"); log(f"{JUDGE[rs]} {code} {open_tm} ⑨ {self.vrv_at} 已反轉 → 今天不再做空、不發"); return n
         elif rs == "六4" and getattr(self, "j64max", 0) > 0 and code not in self.j64 and len(self.j64) >= self.j64max:   # 2026-11-27 六4 一天最多 J64MAX 檔、先到先做
             self.emitted.add(ek); log(f"判六(恐慌翻紅){code} {open_tm} 今天六4 已 {len(self.j64)} 檔(到上限)→ 不發"); return n
         elif rs == "八" and code not in self.j8 and len(self.j8) >= getattr(self, "j8max", J8MAX):   # 2026-11-14 判八一天最多 J8MAX 檔
