@@ -361,6 +361,16 @@ function barsOut(d, bars, n, since, want) {
   }
   return { d, last: last || since || "", n, bars: out };   // last = 最後一根的標籤(手機下次用 since 傳回來)
 }
+/* 2026-11-28 使用者「全改一致元大 證交所備援」(判別式任務 #28 ②):中繼推的元大加權 1 分 K(Hub ixy:<日期> = {HH:MM: [開,高,低,收]})
+   蓋過證交所那份;元大沒有的分鐘才用證交所。?ixbars(收盤 {HH:MM: 值})和 ?twidx(回測 taiex_1m.py 存 kline_index 用)都套 */
+async function ixyGet(env, dIso) { try { return env.HUB ? ((await hubOf(env).kvGet("ixy:" + dIso)) || {}) : {}; } catch (e) { return {}; } }
+async function ixyTw(env, d8, o) {
+  if (!o || !Array.isArray(o.bars)) return o;
+  const y = await ixyGet(env, `${d8.slice(0, 4)}-${d8.slice(4, 6)}-${d8.slice(6, 8)}`), ks = Object.keys(y);
+  if (!ks.length) return o;
+  const m = {}; for (const b of o.bars) m[b[0]] = b; for (const k of ks) m[k] = [k, ...y[k]];
+  return { ...o, bars: Object.keys(m).sort().map(k => m[k]), src: "yuanta", yn: ks.length };
+}
 async function dayBars(env, d, codes, since) {
   const from = since ? addM(since, -2) : "09:00";             // 增量:多拿前 2 分鐘當基準(和判斷前一分鐘有沒有子快照)
   const keys = sortKeys([...minuteKeys(d, "bar", from), ...minuteKeys(d, "bas", from)]);
@@ -1237,8 +1247,19 @@ export default {
     }
     if (url.searchParams.get("ixbars")) {   // 2026-11-13 23:58 鐵律 ⑧ 備援 3:今天每分鐘加權指數收盤 {HH:MM: 值}(公開資料)
       const d = String(url.searchParams.get("ixbars")).slice(0, 10);
+      if (d === "push") {   // 2026-11-28 #28 ②:中繼推元大加權 1 分 K {d, bars:[[HH:MM,開,高,低,收],…]}(要金鑰),存 Hub ixy:<日期>(合併)
+        if (!pushOk) return J({ error: "要金鑰" }, 403);
+        let b = {}; try { b = await request.json(); } catch (e) {}
+        const dd = String(b.d || "").slice(0, 10); if (!/^\d{4}-\d\d-\d\d$/.test(dd) || !Array.isArray(b.bars)) return J({ error: "格式不對" }, 400);
+        const old = (await hubOf(env).kvGet("ixy:" + dd)) || {};
+        for (const r of b.bars.slice(0, 400)) if (Array.isArray(r) && /^\d\d:\d\d$/.test(r[0]) && r.slice(1, 5).every(x => isFinite(+x) && +x > 0)) old[r[0]] = r.slice(1, 5).map(Number);
+        await hubOf(env).kvPut("ixy:" + dd, old); return J({ ok: true, n: Object.keys(old).length });
+      }
       if (!/^\d{4}-\d\d-\d\d$/.test(d)) return J({ error: "日期格式 YYYY-MM-DD" }, 400);
-      return J({ d, m: (env.HUB ? await hubOf(env).kvGet("ixbars:" + d) : null) || {} });
+      const m0 = (env.HUB ? await hubOf(env).kvGet("ixbars:" + d) : null) || {}, y = await ixyGet(env, d), yk = Object.keys(y);   // 2026-11-28 #28 ② 元大蓋過證交所
+      if (!yk.length) return J({ d, m: m0 });
+      const m = { ...m0 }; for (const k of yk) m[k] = y[k][3];
+      return J({ d, m: Object.fromEntries(Object.keys(m).sort().map(k => [k, m[k]])), src: "yuanta", yn: yk.length });
     }
     if (url.searchParams.get("taifex")) {   // 2026-11-13 20:00 使用者「台指期 略有參考價值 如何取得」:期交所「前 30 個交易日期貨每筆成交」zip 原封轉送(GitHub 機器直接連可能被擋時用)
       const d = String(url.searchParams.get("taifex")).replace(/-/g, "_").slice(0, 10);
@@ -1258,10 +1279,10 @@ export default {
       if (!/^\d{8}$/.test(d)) return J({ error: "twidx 要 YYYYMMDD" }, 400);
       // 2026-11-22 使用者「全部做」(L4):分鐘歸屬改了(見下面)→ Hub 快取鍵換成 twidx2:,舊的(錯的)那份不再讀,過去的日子第一次讀時重算
       const hub = env.HUB ? hubOf(env) : null, ck = "twidx2:" + d;
-      if (hub){ const old = await hub.kvGet(ck); if (old) return J(old); }
+      if (hub){ const old = await hub.kvGet(ck); if (old) return J(await ixyTw(env, d, old)); }
       // 2026-11-21 使用者「全改」(檢查 W4):Hub 沒存(盤中 / 很舊的日子)才去證交所 → 沒鑰匙的每個 IP 10 分鐘最多 20 次;同一天 60 秒內共用同一份(這個執行個體記憶體)
       if (!pushOk && !KI && !ipLimit("twidx", request.headers.get("CF-Connecting-IP") || "?", 20, 600e3)) return J({ error: "太頻繁,10 分鐘後再試" }, 429);
-      { const c = MC.get("twidx2:" + d); if (c && Date.now() - c.at < 60e3) return J(c.v); }
+      { const c = MC.get("twidx2:" + d); if (c && Date.now() - c.at < 60e3) return J(await ixyTw(env, d, c.v)); }
       let j = null;
       let bad = null;
       for (const pth of ["rwd/zh/TAIEX/MI_5MINS_INDEX", "exchangeReport/MI_5MINS_INDEX", "rwd/zh/afterTrading/MI_5MINS_INDEX"]) {   // 證交所改版過網址,依序試
@@ -1269,7 +1290,7 @@ export default {
           const tx = await r.text(); try { j = JSON.parse(tx); break; } catch (e) { bad = { error: "證交所回的不是資料", path: pth, status: r.status, head: tx.slice(0, 160) }; } }
         catch (e) { bad = { error: "連不到證交所 " + String(e).slice(0, 120) }; } }
       if (!j) return J(bad || { error: "抓不到" }, 502);
-      if (!j || j.stat !== "OK" || !Array.isArray(j.data) || !j.data.length) return J({ d, bars: [], stat: j && j.stat });
+      if (!j || j.stat !== "OK" || !Array.isArray(j.data) || !j.data.length) return J(await ixyTw(env, d, { d, bars: [], stat: j && j.stat }));
       const f = j.fields || [], i = Math.max(1, f.findIndex(x => /加權/.test(x) && !/未含/.test(x))), B = {};
       // 2026-11-22 使用者「全部做」(L4):1 分 K 標「開始時間」(和元大 K 一樣),HH:MM:00 那筆是「上一分鐘」的收盤,不是這分鐘的開盤
       //   (原本 09:01:00 算進 09:01 那根當開盤)→ 秒數 00 的歸到前一分鐘。
@@ -1283,7 +1304,7 @@ export default {
       const nowD = ymdOf(twNow()).replace(/-/g, ""), hm = twNow().toISOString().slice(11, 16);
       if (hub && out.bars.length && (d < nowD || hm >= "14:00")) try { await hub.kvPut(ck, out); } catch (e) {}
       MC.set("twidx:" + d, { v: out, at: Date.now() });
-      return J(out);
+      return J(await ixyTw(env, d, out));
     }
     if (url.searchParams.get("lat") === "day") {   // 2026-11-13 14:30 延遲紀錄:今天(盤中現算)或某天(收盤備份過的)每個進場訊號各段幾秒
       if (!(pushOk || ownerKI)) return J({ error: "要中繼金鑰或 owner 鑰匙" }, 403);
@@ -1553,6 +1574,17 @@ export default {
       const hit = await cache.match(ck);
       if (hit) { const h = new Headers(hit.headers); for (const [k, v] of Object.entries(CORS)) h.set(k, v); return new Response(hit.body, { status: 200, headers: h }); }
       let out; try { out = since ? await dayBars(env, d, codes, since) : await dayBarsFull(env, ctx, url.origin, d, codes); } catch (e) { return J({ error: "雲端 K 讀取失敗:" + String(e && e.message || e).slice(0, 200) }, 503); }   // 2026-11-02 失敗回 503 + 原因(原本整個 Worker 例外 1101)
+      // 2026-11-28 使用者「全改一致元大 證交所備援」(判別式任務 #28 ①):中繼推上來的元大 1 分 K(?ybars)蓋過證交所快照拼的,
+      //   同一分鐘以元大為準;元大沒有的股票 / 分鐘(中繼斷線、名單外)才用證交所 → 手機、雲端、引擎、回測(kline_yuanta)同一份。回傳 src / yn / ysrc 標記來源
+      try { if (env.HUB) {
+        const rows = await hubOf(env).ybarGet(d, since), cut = d === ymdOf(twNow()) ? hhmmOf(twNow()) : "99:99", want = codes.length ? new Set(codes) : null, Y = {};
+        for (const r of rows) { if (!(r.m < cut)) continue; let o; try { o = JSON.parse(r.bars || "{}"); } catch (e) { continue; }
+          for (const c in o) if ((!want || want.has(c)) && Array.isArray(o[c])) (Y[c] = Y[c] || {})[r.m] = [r.m, ...o[c]]; }
+        let yn = 0, last = out.last || "";
+        for (const c in Y) { const m = {}; for (const b of (out.bars[c] || [])) m[b[0]] = b; Object.assign(m, Y[c]); out.bars[c] = Object.keys(m).sort().map(k => m[k]); yn++;
+          const lb = out.bars[c][out.bars[c].length - 1][0]; if (lb > last) last = lb; }
+        if (yn) { out.last = last; out.src = "yuanta"; out.yn = yn; }
+      } } catch (e) {}
       const body = JSON.stringify(out);
       const resp = new Response(body, { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });
       const ttl = since ? 10 : 50;    // 全天的查詢要讀幾百個鍵,邊緣快取 50 秒;增量的 10 秒(2026-10-23 15:40 原 20 秒;手機每 10 秒問一次,快取 20 秒等於白問一半。KV get 一天約 2.5 萬次 / 支手機 < 10 萬)

@@ -835,12 +835,15 @@ class Bridge:
            2026-11-27 判別式任務 #23 ④:順便記 DealVol(指數的 DealVol 是什麼單位 / 是不是累計還不確定 → 先記每分鐘最後一筆和合計,ix_live 的 yv / yvs,盤後看)"""
         try:
             day = now_tw().strftime("%Y-%m-%d")
-            if getattr(self, "_yix_day", None) != day: self._yix_day = day; self._yix_m = {}; self._yix_y = None; self._yix_n = 0
+            if getattr(self, "_yix_day", None) != day: self._yix_day = day; self._yix_m = {}; self._yix_y = None; self._yix_n = 0; self._yix_b = {}; self._yix_v = {}; self._yix_vs = {}
             if px <= 0: return
             if sn < 0: self._yix_y = px; return
             hm = f"{t.bytHour:02d}:{t.bytMin:02d}"
             if not ("09:00" <= hm <= "13:30"): return
             self._yix_m[hm] = px; self._yix_n += 1
+            _ob = self.__dict__.setdefault("_yix_b", {}); _b = _ob.get(hm)   # 2026-11-28 #28 ②:元大加權每分鐘開高低收(推 Worker ?ixbars=push)
+            if _b is None: _ob[hm] = [px, px, px, px]
+            else: _b[1] = max(_b[1], px); _b[2] = min(_b[2], px); _b[3] = px
             try:
                 if dv is not None:
                     _d = float(dv); self.__dict__.setdefault("_yix_v", {})[hm] = _d; _s = self.__dict__.setdefault("_yix_vs", {}); _s[hm] = _s.get(hm, 0) + _d
@@ -848,6 +851,27 @@ class Bridge:
             except Exception: pass
             if self._yix_n == 1: log(f"[加權·元大] 收到第一筆:{t.bytHour:02d}:{t.bytMin:02d}:{t.bytSec:02d} {px}(之後加權以元大為主,證交所補缺)")
         except Exception: pass
+
+    def ix_push(self, day):
+        """2026-11-28 使用者「全改一致元大 證交所備援」(#28 ②):元大加權已收完的分鐘(< 現在這分鐘)有新的 / 變了才推 Worker ?ixbars=push(背景、不等);
+           Worker ?ixbars / ?twidx 回傳時元大蓋過證交所 → 手機、回測 kline_index(taiex_1m.py 讀 ?twidx)同一份"""
+        if FAMILY or not CFG.get("PUSH_KEY") or getattr(self, "_yix_day", None) != day: return
+        cur = now_tw().strftime("%H:%M"); sent = self.__dict__.setdefault("_yix_sent", {})
+        if sent.get("_d") != day: sent.clear(); sent["_d"] = day
+        rows = [[hm] + list(b) for hm, b in sorted((getattr(self, "_yix_b", {}) or {}).items()) if hm < cur and sent.get(hm) != b]
+        th = getattr(self, "_yix_th", None)
+        if not rows or (th is not None and th.is_alive()): return
+        snap = {r[0]: list(r[1:]) for r in rows}
+        def run():
+            try:
+                rq = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?ixbars=push", data=json.dumps({"d": day, "bars": rows}).encode(), method="POST",
+                                            headers={"Content-Type": "application/json", "X-Push-Key": CFG["PUSH_KEY"]})
+                j = json.loads(urllib.request.urlopen(rq, timeout=8).read().decode("utf-8"))
+                if j.get("ok"): sent.update(snap)
+            except Exception as e:
+                self._yix_pf = getattr(self, "_yix_pf", 0) + 1
+                if self._yix_pf in (1, 30) or self._yix_pf % 300 == 0: log("[加權·元大] 推雲端失敗", repr(e)[:120])
+        self._yix_th = threading.Thread(target=run, daemon=True); self._yix_th.start()
 
     def ix_write(self, day):
         """ix_live 合併寫檔:證交所那份打底,元大有的分鐘蓋上去(元大為主)"""
@@ -865,6 +889,8 @@ class Bridge:
                 if getattr(self, "_yix_vs", None): _ex["yvs"] = dict(sorted(self._yix_vs.items()))
             if getattr(self, "_ix_day", None) == day and getattr(self, "_ix_v", None): _ex["mv"] = dict(sorted(self._ix_v.items()))
             tmp.write_text(json.dumps({"y": y, "m": dict(sorted(m.items())), "src": {"元大": len(ym), "證交所補": len(m) - len(ym)}, **_ex}, ensure_ascii=False), encoding="utf-8"); os.replace(tmp, f / f"{day}.json")
+            try: self.ix_push(day)
+            except Exception as e: log("[加權·元大] 推雲端失敗", repr(e)[:100])
             done = self.__dict__.setdefault("_ix_cmp", set())
             for hm in sorted(ym):   # 已收完的分鐘比一次元大 vs 證交所,差超過 5 點才記(查來源問題用)
                 if hm in mis and hm < max(ym) and hm not in done:
