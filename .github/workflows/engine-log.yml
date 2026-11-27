@@ -37,7 +37,7 @@ jobs:
           def get(q):
               rq = urllib.request.Request(B + q, headers={"X-Push-Key": K, "User-Agent": "engine-log/1"})
               return json.loads(urllib.request.urlopen(rq, timeout=30).read().decode("utf-8"))
-          for nm in ("signals", "verdicts", "blocked", "fills"):
+          for nm in ("signals", "verdicts", "blocked", "fills", "pnl_snaps"):
               try: j = get(f"?pcbk=get&d={d}&name={nm}"); v = j.get("v") if isinstance(j, dict) else None
               except Exception as e: print(nm, "讀不到", type(e).__name__); v = None
               got[nm] = v is not None; json.dump(v, open(f"/tmp/el/{nm}.json", "w", encoding="utf-8"), ensure_ascii=False)

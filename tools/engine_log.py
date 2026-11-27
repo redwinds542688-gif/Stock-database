@@ -82,6 +82,11 @@ for it in logs if isinstance(logs, list) else []:
     code, name = code_name(ti)
     lab = '進場訊號' if k in ('long', 'short') else '出場' if k in ('exit', 'profit', 'loss') else '通知'
     rows.append((t, 2 if lab == '進場訊號' else 4, f"{t} {lab} {src} {rs_of(bo)} {code} {name} | {ti} | {bo}"))
+for sn in ld('pnl_snaps') or []:   # 2026-11-27 #16 輸贏通知當下每檔部位(中繼算帳面用的現價)
+    try:
+        t = str(sn.get('t') or '')[:5]
+        rows.append((t, 6, f"{t} 輸贏通知當下部位 中繼 | " + ' '.join(f"{r.get('code')}{'多' if r.get('dir', 0) > 0 else '空'}{r.get('qty')}@{r.get('entry')}→{r.get('px')}({r.get('u', 0):+,}" + (f",{r.get('age')}秒前" if r.get('age') is not None else '') + (',留倉' if r.get('carry') else '') + ')' for r in sn.get('pos') or [])))
+    except Exception: pass
 legs = (fills.get('legs') if isinstance(fills, dict) else None) or []
 for g in legs:
     t0 = str(g.get('t0') or '')[:5]; t1 = str(g.get('t') or '')[:5]

@@ -1257,6 +1257,24 @@ class Trader:
             unreal += (px - p["entry"]) * p["dir"] * lots * 1000 - self.cost_amt(buy, sell, lots)
         return unreal
 
+    def snap_pnl(self, total, unreal):
+        """2026-11-27 判別式任務 #16(中繼 09:51「當天賺 2 萬」但用元大成交 + 1 分 K 算最多 1.8 萬):發輸贏級距通知時,把每檔部位
+           (代碼 / 方向 / 張數 / 均價 / 用的現價 / 現價幾秒前 / 帳面)記到 log 和 self.pnl_snaps(中繼備份到雲端 ?pcbk name=pnl_snaps,engine_log 會列)"""
+        try:
+            rows = []
+            for p in self.positions.values():
+                if p["state"] not in (HOLDING, EXITING) or not p.get("entry"): continue
+                px = self.last_px.get(p["code"]) or p["entry"]; age = None
+                try: age = round(self.now().timestamp() - self._px_at[p["code"]]) if p["code"] in getattr(self, "_px_at", {}) else None
+                except Exception: age = None
+                b_, s_ = (p["entry"], px) if p["dir"] > 0 else (px, p["entry"])
+                u = (px - p["entry"]) * p["dir"] * p["qty"] * 1000 - self.cost_amt(b_, s_, p["qty"])
+                rows.append({"code": p["code"], "dir": p["dir"], "qty": p["qty"], "entry": p["entry"], "px": px, "age": age, "u": round(u), "state": p["state"], "carry": bool(p.get("carry"))})
+            snap = {"t": self.now().strftime("%H:%M:%S"), "pnl": round(self.pnl), "unreal": round(unreal), "total": round(total), "pos": rows}
+            self.__dict__.setdefault("pnl_snaps", []).append(snap); self.pnl_snaps[:] = self.pnl_snaps[-30:]
+            self.log(f"[交易] 輸贏通知明細 {snap['t']} 已平倉 {snap['pnl']:+,} 帳面 {snap['unreal']:+,}:" + " ".join(f"{r['code']}{'多' if r['dir'] > 0 else '空'}{r['qty']}@{r['entry']}→{r['px']}({r['u']:+,}{',' + str(r['age']) + 's' if r['age'] is not None else ''}{',留倉' if r['carry'] else ''})" for r in rows))
+        except Exception as e: self.log("輸贏通知明細記不下來", repr(e))
+
     def check_kill(self):
         """2026-10-31 當天虧損保險:已平倉損益 + 持倉帳面(現價、扣手續費 / 稅)≤ −TRADE_KILL_LOSS → 全部平倉(漲停買 / 跌停賣),今天不再自動進場"""
         if self.killed or self.hm() < "09:00" or (self.kill_loss <= 0 and not self.loss_alerts and not self.win_alerts):
@@ -1284,6 +1302,8 @@ class Trader:
                     self.log(f"[交易] 當天虧損達 {w(amt)}(第 {n} 級):{body}")
                     self.alert(f"{head}:當天虧損 {w(amt)}", body, f"lv{min(n, 5)}")
             # 2026-10-31 賺錢慶祝(1 萬 / 2 萬 / … / 10 萬):每一級一天一次(回落再漲回去不重發);一次跳好幾級只發最大的;kind win1~win5(手機綠 → 金、提示音 / 震動越來越熱鬧)
+            if [lv for lv in self.loss_alerts if total <= -lv and lv not in self.loss_hit] or [lv for lv in self.win_alerts if total >= lv and lv not in self.win_hit]:
+                self.snap_pnl(total, unreal)
             gain = [lv for lv in self.win_alerts if total >= lv and lv not in self.win_hit]
             if gain:
                 self.win_hit |= set(gain); self.save_state()
