@@ -1350,6 +1350,7 @@ class Engine:
         if self.envs.get("六3", {}).get("MODE") != "j63" or "六" not in self.envs:   # 2026-11-12 23:40 判六做空(判六3):私人庫沒有 J63 / 判六沒開 → 不跑
             self.envs.pop("六3", None); log("!! 私人庫 rs_env.py 沒有判六3(J63)或判六沒開,判六做空今天先不跑")
         self.j63max = int(getattr(rs_env, "J63MAX", J63MAX))
+        if any(_e.get("VRVVOL") for _e in self.envs.values()): self.vrv_vol_prep()   # 2026-11-27 ⑨ 量能:前 10 個交易日台指期量(本機沒有的從 Worker ?fbars 補)
         if self.envs.get("三2", {}).get("MODE") != "nj" or "三" not in self.envs:   # 2026-11-24 三2(判新):私人庫沒有 J32 / 判三沒開 → 不跑
             if "三2" in self.envs: log("!! 三2(判新)設定不對或判三沒開,今天先不跑")
             self.envs.pop("三2", None)
@@ -2136,6 +2137,32 @@ class Engine:
         """中繼 ix_poll 寫的 HERE/engine_data/ix_live/<日期>.json:{"y": 昨收, "m": {HH:MM: 加權}};沒有回 {}"""
         try: return json.loads((HERE / "engine_data" / "ix_live" / f"{day or self.day}.json").read_text(encoding="utf-8")) or {}
         except Exception: return {}
+
+    def vrv_vol_prep(self):
+        """2026-11-27 ⑨ 量能(使用者「解鎖改」;rs_env.vrv_vol_ok 讀 TXFDIR 裡今天之前最後 10 個交易日的量):
+        本機 kline_futures/TXF/<日期>.csv 是中繼開始寫之後才有,往前 25 天(平日)找,不到 10 天就從 Worker ?fbars=<日期> 補寫一份(同格式);一天做一次,補不到就用現有天數"""
+        if getattr(self, "_vvp_d", None) == self.day: return
+        self._vvp_d = self.day
+        f = HERE / "kline_futures" / "TXF"; f.mkdir(parents=True, exist_ok=True)
+        d0 = dt.date.fromisoformat(self.day); have = 0; got = []
+        for i in range(1, 26):
+            if have >= 10: break
+            d = d0 - dt.timedelta(days=i)
+            if d.weekday() >= 5: continue
+            ds = d.isoformat(); fn = f / f"{ds}.csv"
+            if fn.exists() and fn.stat().st_size > 2000: have += 1; continue
+            try: bars = (http(worker_url(f"fbars={ds}"), timeout=8) or {}).get("bars") or []
+            except Exception: bars = []
+            bars = [b for b in bars if len(b) >= 6 and b[5] is not None and "08:45" <= str(b[0]) <= "13:45"]
+            if len(bars) < 100: continue   # 休市 / 雲端沒有
+            try:
+                tmp = f / f"{ds}.csv.tmp"
+                with open(tmp, "w", encoding="utf-8") as fh:
+                    fh.write("date,time,open,high,low,close,volume\n")
+                    for b in bars: fh.write(f"{ds},{b[0]}," + ",".join(f"{float(v):g}" for v in b[1:6]) + "\n")
+                os.replace(tmp, fn); have += 1; got.append(ds)
+            except Exception as e: log("!! ⑨ 量能:補寫台指期", ds, "失敗", e)
+        log(f"⑨ 量能:前面交易日台指期量 {have} 天" + (f"(從雲端補 {','.join(x[5:] for x in got)})" if got else "") + ("" if have >= 10 else ";不到 10 天 → 用現有天數(0 天照舊出)"))
 
     def txrel_prev(self):
         """⑧ 強弱用的前一個交易日收盤:(台指期 13:45 前最後一根, 加權 13:30 前最後一根);台指期先看本機 kline_futures/TXF/<日期>.csv,沒有再問 Worker ?fbars;加權問 Worker ?ixbars;往前找 7 天;一天算一次(拿不到的 5 分鐘後再試)"""
