@@ -530,7 +530,7 @@ class Bridge:
                 if strIndex == "SubscribeStockTick":
                     r = objValue
                     if str(r.StkCode).strip() == IX_CODE:   # 2026-11-26 加權指數(元大,不是股票代號):只收資料,不進股票 K / 交易;放在內外盤過濾前面(指數的旗標不確定)
-                        self.ix_tick(r.Time, int(r.SerialNo), float(r.DealPrice)); return
+                        self.ix_tick(r.Time, int(r.SerialNo), float(r.DealPrice), getattr(r, "DealVol", None)); return
                     flag = int(r.InOutFlag)
                     if flag > 3:                 # 10~15 = 揭示 / 暫緩撮合 / 暫停交易,不是成交
                         return
@@ -830,8 +830,9 @@ class Bridge:
             log(f"[加權·元大] 訂閱 {IX_CODE}:{'送出' if ok else '回傳失敗(以有沒有收到逐筆為準)'}")
         except Exception as e: log("[加權·元大] 訂閱失敗(改用證交所,不影響股票)", e)
 
-    def ix_tick(self, t, sn, px):
-        """元大加權逐筆 → 記憶體(每分鐘最後價);sn < 0 = 參考價(昨收)"""
+    def ix_tick(self, t, sn, px, dv=None):
+        """元大加權逐筆 → 記憶體(每分鐘最後價);sn < 0 = 參考價(昨收)
+           2026-11-27 判別式任務 #23 ④:順便記 DealVol(指數的 DealVol 是什麼單位 / 是不是累計還不確定 → 先記每分鐘最後一筆和合計,ix_live 的 yv / yvs,盤後看)"""
         try:
             day = now_tw().strftime("%Y-%m-%d")
             if getattr(self, "_yix_day", None) != day: self._yix_day = day; self._yix_m = {}; self._yix_y = None; self._yix_n = 0
@@ -840,6 +841,11 @@ class Bridge:
             hm = f"{t.bytHour:02d}:{t.bytMin:02d}"
             if not ("09:00" <= hm <= "13:30"): return
             self._yix_m[hm] = px; self._yix_n += 1
+            try:
+                if dv is not None:
+                    _d = float(dv); self.__dict__.setdefault("_yix_v", {})[hm] = _d; _s = self.__dict__.setdefault("_yix_vs", {}); _s[hm] = _s.get(hm, 0) + _d
+                    if self._yix_n == 1: log(f"[加權·元大] 第一筆 DealVol = {_d}(#23 大盤量:看是不是累計)")
+            except Exception: pass
             if self._yix_n == 1: log(f"[加權·元大] 收到第一筆:{t.bytHour:02d}:{t.bytMin:02d}:{t.bytSec:02d} {px}(之後加權以元大為主,證交所補缺)")
         except Exception: pass
 
@@ -853,7 +859,12 @@ class Bridge:
             if not m: return
             y = (getattr(self, "_ix_y", None) if getattr(self, "_ix_day", None) == day else None) or (getattr(self, "_yix_y", None) if getattr(self, "_yix_day", None) == day else None)   # 昨收:證交所的 y 已驗證過,元大參考價當備援
             f = HERE / "engine_data" / "ix_live"; f.mkdir(parents=True, exist_ok=True); tmp = f / f"{day}.json.tmp"
-            tmp.write_text(json.dumps({"y": y, "m": dict(sorted(m.items())), "src": {"元大": len(ym), "證交所補": len(m) - len(ym)}}, ensure_ascii=False), encoding="utf-8"); os.replace(tmp, f / f"{day}.json")
+            _ex = {}
+            if getattr(self, "_yix_day", None) == day:
+                if getattr(self, "_yix_v", None): _ex["yv"] = dict(sorted(self._yix_v.items()))
+                if getattr(self, "_yix_vs", None): _ex["yvs"] = dict(sorted(self._yix_vs.items()))
+            if getattr(self, "_ix_day", None) == day and getattr(self, "_ix_v", None): _ex["mv"] = dict(sorted(self._ix_v.items()))
+            tmp.write_text(json.dumps({"y": y, "m": dict(sorted(m.items())), "src": {"元大": len(ym), "證交所補": len(m) - len(ym)}, **_ex}, ensure_ascii=False), encoding="utf-8"); os.replace(tmp, f / f"{day}.json")
             done = self.__dict__.setdefault("_ix_cmp", set())
             for hm in sorted(ym):   # 已收完的分鐘比一次元大 vs 證交所,差超過 5 點才記(查來源問題用)
                 if hm in mis and hm < max(ym) and hm not in done:
@@ -882,6 +893,8 @@ class Bridge:
                 day = n.strftime("%Y-%m-%d")
                 if getattr(self, "_ix_day", None) != day: self._ix_day = day; self._ix_m = {}; self._ix_y = None
                 self._ix_m[hm] = px
+                try: self.__dict__.setdefault("_ix_v", {})[hm] = str(q.get("v") or "")   # 2026-11-27 #23 ④:證交所 tse_t00 的 v(累計成交量 / 金額?盤後看)
+                except Exception: pass
                 try: self._ix_y = float(y) or self._ix_y
                 except Exception: pass
                 if not getattr(self, "_ix_ok", False): self._ix_ok = True; log(f"[加權·證交所] 收得到:{hm} {px}(昨收 {self._ix_y})")
