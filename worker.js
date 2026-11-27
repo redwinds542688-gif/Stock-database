@@ -2081,6 +2081,17 @@ export default {
     const bq = url.searchParams.get("breadth");
     if (bq) {
       if (!env || !env.LOGS) return J({ error: "Worker 還沒綁定 KV(LOGS)" }, 503);
+      // 2026-11-27 使用者「要全部都用元大」(判別式任務 #25):電腦引擎每分鐘把用元大 1 分 K 算的寬度 / 名單平均推上來(?breadth=push,要金鑰),
+      //   存 Hub bry:<日期>;?breadth 回傳時元大那份蓋過證交所快照算的(電腦沒開的分鐘才用證交所)→ 引擎、手機、虛擬、回測同一份
+      if (bq === "push") {
+        if (!pushOk) return J({ error: "要金鑰" }, 403);
+        let b = {}; try { b = await request.json(); } catch (e) {}
+        const d = String(b.d || "").slice(0, 10); if (!/^\d{4}-\d\d-\d\d$/.test(d)) return J({ error: "格式不對" }, 400);
+        const cl = o => { const r = {}; for (const k in (o || {})) if (/^\d\d:\d\d$/.test(k) && isFinite(+o[k])) r[k] = +o[k]; return r; };
+        const old = (await hubOf(env).kvGet("bry:" + d)) || {};
+        const nv = { br: { ...(old.br || {}), ...cl(b.br) }, av: { ...(old.av || {}), ...cl(b.av) }, at: Date.now() };
+        await hubOf(env).kvPut("bry:" + d, nv); return J({ ok: true, n: Object.keys(nv.br).length });
+      }
       const d = bq === "today" ? ymdOf(twNow()) : bq;
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return J({ error: "breadth 要是 YYYY-MM-DD 或 today" }, 400);
       const since = url.searchParams.get("since") || "";
@@ -2088,7 +2099,11 @@ export default {
       const ck = new Request(`${url.origin}/__breadth?d=${d}&since=${since}`), cache = caches.default;
       const hit = await cache.match(ck);
       if (hit) { const h = new Headers(hit.headers); for (const [k, v] of Object.entries(CORS)) h.set(k, v); return new Response(hit.body, { status: 200, headers: h }); }
-      let body; try { body = JSON.stringify(since ? await dayBreadth(env, d, since) : await dayBreadthFull(env, ctx, url.origin, d)); } catch (e) { return J({ error: "大盤寬度讀取失敗:" + String(e && e.message || e).slice(0, 200) }, 503); }
+      let body; try { const o = since ? await dayBreadth(env, d, since) : await dayBreadthFull(env, ctx, url.origin, d);
+        try { const y = await hubOf(env).kvGet("bry:" + d);   // 2026-11-27 #25 元大寬度蓋過證交所的
+          if (y && y.br) { const f = x => { const r = {}; for (const k in (x || {})) if (!since || k >= since) r[k] = x[k]; return r; };
+            o.br = { ...(o.br || {}), ...f(y.br) }; o.av = { ...(o.av || {}), ...f(y.av) }; o.src = "yuanta"; o.yn = Object.keys(y.br).length; } } catch (e) {}
+        body = JSON.stringify(o); } catch (e) { return J({ error: "大盤寬度讀取失敗:" + String(e && e.message || e).slice(0, 200) }, 503); }
       const cached = new Response(body, { status: 200, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=50" } });
       if (ctx && ctx.waitUntil) ctx.waitUntil(cache.put(ck, cached)); else await cache.put(ck, cached);
       return new Response(body, { status: 200, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });

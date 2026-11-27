@@ -471,12 +471,41 @@ def breadth_apply(day, br, av):
         if _bad: log(f"寬度電腦補 vs 雲端:{len(_bad)}/{len(_cmp)} 分鐘不同 " + " ".join(f"{k} {a}→{b}" for k, a, b in _bad[:5]))
     except Exception: pass
     br = br_fill(day, br or {})
+    if br_yuanta():   # 2026-11-27 使用者「要全部都用元大」(判別式任務 #25):電腦元大 1 分 K 算的寬度 / 名單平均是唯一正版,蓋過雲端證交所那份;推回 Worker 當存檔
+        try:
+            _lb, _la = br_local(day), av_local(day)
+            if _lb: br = dict(sorted({**br, **_lb}.items()))
+            if _la: av = dict(sorted({**(av or {}), **_la}.items())); write_atomic(DATA / "mktavg.json", json.dumps({day: av}))
+            br_push(day, _lb, _la)
+        except Exception as e_: log("寬度(元大)失敗", repr(e_)[:100])
     _BR_FILLED.clear(); _BR_FILLED.update((set(br) - br0) | (set(av or {}) - av0))
     for k in set(br) - br0: _BR_FILLV.setdefault(k, br[k])
     if br:
         write_atomic(f, json.dumps({day: br})); return True, len(br), max(br)
     if not f.exists(): write_atomic(f, "{}")
     return False, 0, ""
+
+def br_yuanta():
+    """2026-11-27 #25:ENGINE_BR_SRC=yuanta(預設)= 寬度一律用電腦元大 K 算的;=cloud 照舊(先等雲端、缺的才補)"""
+    return CFG.get("ENGINE_BR_SRC", "yuanta").lower() != "cloud"
+
+_BR_PUSHED = {"d": "", "br": {}, "av": {}, "th": None}
+def br_push(day, br, av):
+    """已收完的分鐘(< 現在這分鐘)有新的 / 變了才推 Worker ?breadth=push(背景,不等);Worker 存 bry:<日期>,?breadth 回傳時蓋過證交所那份"""
+    if CFG.get("ENGINE_BR_PUSH", "1") != "1" or not CFG.get("PUSH_KEY"): return
+    if _BR_PUSHED["d"] != day: _BR_PUSHED.update(d=day, br={}, av={})
+    cur = now_tw().strftime("%H:%M")
+    nb = {k: v for k, v in (br or {}).items() if k < cur and _BR_PUSHED["br"].get(k) != v}
+    na = {k: v for k, v in (av or {}).items() if k < cur and _BR_PUSHED["av"].get(k) != v}
+    if not nb and not na: return
+    th = _BR_PUSHED.get("th")
+    if th is not None and th.is_alive(): return   # 上一次還沒推完,下一輪再推(沒推到的會留著)
+    def run():
+        try:
+            j = http(worker_url("breadth=push"), {"d": day, "br": nb, "av": na}, key=True, timeout=8)
+            if isinstance(j, dict) and j.get("ok"): _BR_PUSHED["br"].update(nb); _BR_PUSHED["av"].update(na)
+        except Exception as e: log("寬度推雲端失敗", repr(e)[:100])
+    _BR_PUSHED["th"] = threading.Thread(target=run, daemon=True); _BR_PUSHED["th"].start()
 
 def breadth_since(day, since, timeout=10):
     """2026-11-21:只抓 since 之後幾分鐘的雲端寬度(Worker 邊緣快取 50 秒是照 since 分開存的,換沒用過的 since 才拿得到新的),併進 _BR_LAST"""
@@ -491,6 +520,10 @@ def breadth_wait(day, hm, want, th, cloud_ok):
     """2026-11-21 使用者「改 2b」:雲端正常時等雲端寬度有 want(hm-1)這分鐘;最多 ENGINE_BR_MAXWAIT(4)秒、不超過這分鐘第 15 秒。
        背景那次(th)還在跑就先等它;回來了還沒有 → 換沒用過的 since(hm-1、hm-2…)再問,避開 Worker 50 秒邊緣快取。回傳 True = 雲端有這分鐘了"""
     have = lambda: _BR_LAST.get("d") == day and want in (_BR_LAST.get("br") or {})
+    if br_yuanta():   # 2026-11-27 #25:用電腦元大 K 算的,不等雲端(電腦的 K 有這分鐘就好)
+        try:
+            if want in br_local(day): return True
+        except Exception: pass
     if have() or not cloud_ok or not cloud_up() or hm >= "13:26": return have()
     # 2026-11-25 使用者「都改」(加快通知):最多 4 秒 / 第 15 秒 → 2 秒 / 第 8 秒(等不到照舊電腦補;補的跟雲端差多少記在 log「寬度電腦補 vs 雲端」)
     t_end = min(time.time() + _f(CFG.get("ENGINE_BR_MAXWAIT"), 2), time.time() + max(0.0, _f(CFG.get("ENGINE_BR_MAXSEC"), 8) - _msec())); k = 0
