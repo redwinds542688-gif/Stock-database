@@ -1412,6 +1412,13 @@ class Trader:
             hit_br = False; hit_mt = False
             if self.mtsl > 0 and p.get("sub") != "六4" and not (hit_tp or hit_sl or hit_mv):   # 2026-11-25 六4 不套 ⑥(使用者「六4 解鎖 改」:抱到 13:20)   # 2026-11-11 19:50 鐵律 ⑥ 移動停損利;20:25 使用者「123478改」② 所有部位都由中繼即時盯一份(判別式部位引擎也會推平倉通知,誰先到誰平)
                 hit_mt = self.mt_px_hit(p, price, d, p.get("entry"))   # 2026-11-13 02:37 鐵律 ⑥ 改用股價(使用者「解鎖 改」)
+                if hit_mt and str(p.get("judge") or "").startswith("判"):   # 2026-11-27 #20 使用者「解鎖 改」:⑥ 碰到時台指期量不夠 → 不移平,之後再碰再看
+                    _m6 = self.mt6vol()
+                    if _m6 and not self.sl_vol_ok(self.hm(), _m6[0], _m6[1]):
+                        hit_mt = False
+                        if p.get("_mt6_noted") != self.hm():
+                            if not p.get("_mt6_noted"): self.log(f"[交易] {code} 碰到 ⑥ 移平(現價 {price})但台指期近 {_m6[1]} 分量不到前 10 天平均 {_m6[0]:g} 倍 → 先不移平")
+                            p["_mt6_noted"] = self.hm()
             if self.brx_l > 0 and not (hit_tp or hit_sl or hit_mv) and p.get("entry"):   # 2026-11-11 19:16 總停損;20:25 ② 所有部位都由中繼即時盯一份
                 if p.get("br0") is None:
                     p["br0"] = self.prot_get(p, "br0")   # ③ 重開接回:用存檔的進場寬度
@@ -3049,6 +3056,18 @@ class Trader:
         except Exception: v = None
         if v != self._slv[0]: self.log(f"[交易] 停損加量能:{'開(台指期量 ≥ ' + format(v[0], 'g') + ' 倍才停、無量續抱、硬停 ' + format(v[2], 'g') + '%)' if v else '關(停損照舊)'}")
         self._slv = (v, time.time()); return v
+
+    def mt6vol(self):
+        """2026-11-27 #20 使用者「解鎖 改」:⑥ 移動停損利加量能(引擎寫 iron_flags.json 的 mt6vol = 倍數:分鐘);沒有 = 關 → (倍數, 分鐘) 或 None"""
+        c = getattr(self, "_mt6", (None, 0.0))
+        if time.time() - c[1] < 60: return c[0]
+        v = None
+        try:
+            x = str((json.loads(self.flag_file().read_text(encoding="utf-8")) or {}).get("mt6vol") or "").split(":")
+            if x and x[0] and float(x[0]) > 0: v = (float(x[0]), int(float(x[1])) if len(x) > 1 else 15)
+        except Exception: v = None
+        if v != c[0]: self.log(f"[交易] ⑥ 移平加量能:{'開(台指期量 ≥ ' + format(v[0], 'g') + ' 倍才移平)' if v else '關(照舊)'}")
+        self._mt6 = (v, time.time()); return v
 
     def flag_file(self):
         return Path(os.environ.get("ENGINE_DIR") or (Path(__file__).resolve().parent / "engine_data")) / "iron_flags.json"

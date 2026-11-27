@@ -1386,9 +1386,10 @@ class Engine:
         if any(_e.get("VRVVOL") for _e in self.envs.values()): self.vrv_vol_prep()
         try:   # 2026-11-27 使用者「解鎖 改 4%」:停損加量能 + 硬停 → 中繼(trader.slvol)讀這個檔:元大條件單改掛硬停價、碰到停損時量不夠先不停
             _sv = next((_e.get("SLVOL") for _e in self.envs.values() if _e.get("SLVOL")), "")
+            _mv = next((_e.get("MT6VOL") for _e in self.envs.values() if _e.get("MT6VOL")), "")   # 2026-11-27 #20 使用者「解鎖 改」:⑥ 加量能
             _ff = Path(os.environ.get("ENGINE_DIR") or (HERE / "engine_data")) / "iron_flags.json"; _ff.parent.mkdir(parents=True, exist_ok=True)
-            _old = _ff.read_text(encoding="utf-8") if _ff.exists() else ""; _new = json.dumps({"d": self.day, "slvol": _sv})
-            if _old != _new: _ff.write_text(_new, encoding="utf-8"); log(f"停損加量能:{'開 ' + _sv if _sv else '關'}(寫 iron_flags.json 給中繼)")
+            _old = _ff.read_text(encoding="utf-8") if _ff.exists() else ""; _new = json.dumps({"d": self.day, "slvol": _sv, "mt6vol": _mv})
+            if _old != _new: _ff.write_text(_new, encoding="utf-8"); log(f"停損加量能:{'開 ' + _sv if _sv else '關'};⑥ 加量能:{'開 ' + _mv if _mv else '關'}(寫 iron_flags.json 給中繼)")
         except Exception as e_: log("!! 寫 iron_flags.json 失敗", repr(e_)[:80])   # 2026-11-27 ⑨ 量能:前 10 個交易日台指期量(本機沒有的從 Worker ?fbars 補)
         if self.envs.get("三2", {}).get("MODE") != "nj" or "三" not in self.envs:   # 2026-11-24 三2(判新):私人庫沒有 J32 / 判三沒開 → 不跑
             if "三2" in self.envs: log("!! 三2(判新)設定不對或判三沒開,今天先不跑")
