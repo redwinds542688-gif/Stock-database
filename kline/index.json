@@ -1,10 +1,19 @@
 {
  "pool_date": "2026-11-27",
  "interval": "1m",
- "updated": "2026-11-27 20:36",
+ "updated": "2026-11-28 00:58",
  "total_mb": 30.4,
  "stock_count": 257,
  "stocks": {
+  "1802": {
+   "name": "台玻",
+   "market": "twse",
+   "yahoo": "1802.TW",
+   "first": "2026-11-09",
+   "last": "2026-11-27",
+   "weeks": 3,
+   "kb": 169
+  },
   "2409": {
    "name": "友達",
    "market": "twse",
@@ -1300,15 +1309,6 @@
    "last": "2026-11-13",
    "weeks": 1,
    "kb": 54
-  },
-  "1802": {
-   "name": "台玻",
-   "market": "twse",
-   "yahoo": "1802.TW",
-   "first": "2026-11-09",
-   "last": "2026-11-27",
-   "weeks": 3,
-   "kb": 169
   },
   "1809": {
    "name": "中釉",
