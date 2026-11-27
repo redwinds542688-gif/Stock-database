@@ -302,6 +302,7 @@ class Trader:
         self.txf_dir = Path(cfg.get("TRADE_TXF_DIR") or (_hd / "kline_futures" / "TXF"))      # 中繼 ⑧ 每分鐘寫的台指期 1 分 K <日期>.csv
         self.ixl_dir = Path(cfg.get("TRADE_IXLIVE_DIR") or (_hd / "engine_data" / "ix_live"))  # 中繼 ix_poll 寫的加權 <日期>.json {"m": {HH:MM: 收}}
         self._txc = {}
+        self._slv = (None, 0.0); self._slvv = {}   # 2026-11-27 停損加量能(引擎寫 engine_data/iron_flags.json 的 slvol)
         self.prehang = {}   # code → 保留的手動預掛委託書號 [no, …]
         self.del_q = []     # 2026-11-08 20:50 等元大確認刪除的條件單編號
         self.man_cards = {}  # 2026-11-06 14:26 手動預掛(新進場 / 加碼)發過卡的書號 → {lots, px, d, end}
@@ -696,7 +697,7 @@ class Trader:
                     self.gw.delete_oco(p["oco_no"]); p["oco_live"] = False; self.log(f"[交易] 接回:{c} 已過 {self.force_exit} 或有預掛 → 刪除元大條件單 {p['oco_no']}")
                 if (not oco or self.prehang.get(c)) and self.oco_ok(c) and p["tp"] and p["sl"]:
                     p["oco_no"] = None; self.oco_q.append(c)
-                    self.gw.place_oco(c, p["mkt"], d, self.oco_lots(c), p["tp"], p["sl"])
+                    self.gw.place_oco(c, p["mkt"], d, self.oco_lots(c), p["tp"], self.oco_sl(p))
                 elif not (p["tp"] and p["sl"]):
                     self.log(f"[交易] !! {c} 找不到停利 / 停損價,只剩 ±{self.max_move}%、手機平倉通知、強平和 13:20 會出場")
               except Exception as e_:
@@ -1398,6 +1399,13 @@ class Trader:
                 if p.get("forced"): self.alert(f"⚠ {code} 沒有昨收", f"±{self.max_move:g}% 保護暫時沒作用,停利 / 停損 / 13:20 照常")
             # 2026-11-03 13:11 使用者「以後如果下跌6.5 不管元買 或是元賣 強買或賣 都不受6.5%管束」:元三(元大手動)、強三(手機強制進場)做多做空都不套 ±6.5%,只用停利 / 停損 / 13:20;判一~四照舊
             #   13:17 使用者「那就改 該股票+-8.5% 為停損」:元三 / 強三改用離昨收 ±8.5%(做多跌到 −8.5%、做空漲到 +8.5%)強制平倉,不是完全不管
+            if hit_sl:   # 2026-11-27 使用者「解鎖 改 4%」:停損加量能 —— 碰到停損價時台指期量不夠 = 無量反彈先不停、續抱;虧到硬停價(元大條件單也掛在那)才出
+                _v = self.slvol()
+                if _v and str(p.get("judge") or "").startswith("判") and not self.sl_vol_ok(self.hm(), _v[0], _v[1]):
+                    _h = self.oco_sl(p); hit_sl = (price <= _h) if d > 0 else (price >= _h)
+                    if not hit_sl and p.get("_slv_noted") != self.hm():
+                        if not p.get("_slv_noted"): self.log(f"[交易] {code} 碰到停損 {p['sl']}(現價 {price})但台指期近 {_v[1]} 分量不到前 10 天平均 {_v[0]:g} 倍 → 無量反彈先不停,硬停 {_h}")
+                        p["_slv_noted"] = self.hm()
             man = p.get("judge") in (MANUAL, FORCED) and self.man_move > 0
             mm = self.man_move if man else self.j7_move if p.get("judge") in ("判七", "判四", "判五") and self.j7_move > 0 else self.max_move   # 2026-11-09 15:43 判七第一次修改(使用者「解鎖改」):判七空單漲到昨收 +8% 才強平(其他判別式照舊 ±6.5%)
             hit_mv = (man or not p.get("no_max_move")) and ref > 0 and mm > 0 and ((price <= ref * (1 - mm / 100)) if d > 0 else (price >= ref * (1 + mm / 100)))
@@ -1415,7 +1423,9 @@ class Trader:
             if not (hit_tp or hit_sl or hit_mv or hit_br or hit_mt):
                 return
             why = f"超{mm:g}%" if hit_mv else "停利" if hit_tp else "停損" if hit_sl else "總平" if hit_br else "移平"   # 2026-11-11 22:47 使用者「總停損 =總平 移動停損利=移平」
-            if p.get("oco_live") and not hit_mv and not hit_br and not hit_mt:
+            _osl = self.oco_sl(p) if hit_sl and not hit_tp else None   # 2026-11-27 停損加量能:元大條件單掛在硬停價 → 碰到原停損(量夠)時條件單不會觸發,程式自己平
+            _oco_px = not (_osl is not None and _osl != p["sl"] and not ((price <= _osl) if d > 0 else (price >= _osl)))
+            if p.get("oco_live") and not hit_mv and not hit_br and not hit_mt and _oco_px:
                 if not p.get("oco_noted"):
                     p["oco_noted"] = True; p["oco_hit_at"] = time.time(); p["oco_hit_why"] = why
                     self.log(f"[交易] {code} 價格 {price} 碰到{why},由元大條件單(OCO)平倉" + (f"({self.oco_grace:g} 秒內沒平掉由程式平)" if self.oco_grace > 0 else ""))
@@ -1764,10 +1774,10 @@ class Trader:
             # 2026-11-13 10:37 使用者「改」(還沒補上的 1):元大停損停利條件單自己成交 → 卡片寫「條件單停利 / 條件單停損」,不再寫成元平
             if p["exit_why"] == "元大條件單 / 手動" and p.get("oco_live") and p.get("tp") and p.get("sl") and not p.get("oco_why"):
                 if (price >= p["tp"]) if p["dir"] > 0 else (price <= p["tp"]): p["oco_why"] = "停利"
-                elif (price <= p["sl"]) if p["dir"] > 0 else (price >= p["sl"]): p["oco_why"] = "停損"
+                elif (price <= self.oco_sl(p)) if p["dir"] > 0 else (price >= self.oco_sl(p)): p["oco_why"] = "硬停" if self.oco_sl(p) != p["sl"] else "停損"
             # 2026-11-08 使用者「元三強三 變成 元平強平 條件單呢會自己消失嗎」→「改」:不是條件單自己觸發的平倉(元平:手動平倉 / 預掛成交)→
             #   元大的條件單不會自己消失 → 程式刪掉;只平一部分 → 照剩下張數重掛。價格到了停利 / 停損 = 條件單自己在平,不動它
-            oco_hit = p.get("oco_live") and p.get("tp") and p.get("sl") and ((price >= p["tp"] or price <= p["sl"]) if p["dir"] > 0 else (price <= p["tp"] or price >= p["sl"]))
+            oco_hit = p.get("oco_live") and p.get("tp") and p.get("sl") and ((price >= p["tp"] or price <= self.oco_sl(p)) if p["dir"] > 0 else (price <= p["tp"] or price >= self.oco_sl(p)))
             self.book_close(p, take, price); self.rt_mark(order_no, take)   # 2026-11-21 使用者「全改」(檢查 T7):記下這幾張已算過(之後對帳不再算)
             if ph_done and p["state"] == HOLDING and p["qty"] > 0:
                 self.log(f"[交易] {code} 手動預掛成交完,還剩 {p['qty']} 張 → 程式恢復盯停利 {p['tp']} / 停損 {p['sl']}")
@@ -1985,8 +1995,8 @@ class Trader:
         self.save_state()   # 2026-11-10 刪掉的條件單編號從狀態檔拿掉
         if p["state"] == HOLDING and p["qty"] > 0 and p.get("tp") and p.get("sl") and self.positions.get(c) is p and self.oco_ok(c):
             p["oco_no"] = None; self.oco_q.append(c); p.pop("oco_noted", None); p.pop("oco_hit_at", None)
-            n = self.oco_lots(c); self.gw.place_oco(c, p["mkt"], p["dir"], n, p["tp"], p["sl"])
-            self.log(f"[交易] {c} 掛元大停損停利條件單 {n} 張(停利 {p['tp']} / 停損 {p['sl']}){'(預掛 ' + str(p['qty'] - n) + ' 張不掛)' if n < p['qty'] else ''}")
+            n = self.oco_lots(c); self.gw.place_oco(c, p["mkt"], p["dir"], n, p["tp"], self.oco_sl(p))
+            self.log(f"[交易] {c} 掛元大停損停利條件單 {n} 張(停利 {p['tp']} / 停損 {self.oco_sl(p)}{'(硬停,原停損 ' + str(p['sl']) + ' 程式盯量)' if self.oco_sl(p) != p['sl'] else ''}){'(預掛 ' + str(p['qty'] - n) + ' 張不掛)' if n < p['qty'] else ''}")
 
     def on_strategy_delete_reply(self, strategy_no, status, msg=""):
         """2026-11-08 20:50 元大刪除條件單的回應:是程式在等的那張 → 成功就照現在的張數掛新的;失敗(9 / 911 / 無法刪除)最多再刪 3 次"""
@@ -3026,6 +3036,60 @@ class Trader:
             return p["state"] != HOLDING
         return False
 
+    def slvol(self):
+        """2026-11-27 使用者「解鎖 改 4%」:個股停損加量能 + 硬停。引擎載入私人庫 rs_env 時把 SLVOL(倍數:分鐘:硬停%)寫進 engine_data/iron_flags.json;
+           沒有這個檔 / 沒有 slvol(判別式聊天還沒合 main)= 不開 → 停損照舊。60 秒重讀一次。回傳 (倍數, 分鐘, 硬停%) 或 None"""
+        v, at = self._slv
+        if time.time() - at < 60: return v
+        v = None
+        try:
+            j = json.loads(self.flag_file().read_text(encoding="utf-8")) or {}
+            x = str(j.get("slvol") or "").split(":")
+            if x and x[0] and float(x[0]) > 0: v = (float(x[0]), int(float(x[1])) if len(x) > 1 else 15, float(x[2]) if len(x) > 2 else 4.0)
+        except Exception: v = None
+        if v != self._slv[0]: self.log(f"[交易] 停損加量能:{'開(台指期量 ≥ ' + format(v[0], 'g') + ' 倍才停、無量續抱、硬停 ' + format(v[2], 'g') + '%)' if v else '關(停損照舊)'}")
+        self._slv = (v, time.time()); return v
+
+    def flag_file(self):
+        return Path(os.environ.get("ENGINE_DIR") or (Path(__file__).resolve().parent / "engine_data")) / "iron_flags.json"
+
+    def sl_vol_ok(self, hm, ratio, win):
+        """台指期近 win 分 1 分 K 量合計(不含 t−win、含 t)≥ 前 10 個交易日同時段平均 × ratio(rs_env.vrv_vol_ok 同一套,讀中繼寫的 kline_futures/TXF/<日期>.csv);
+           缺資料(今天的檔沒有 / 最後一根離現在 > 3 分 / 前面 0 天)→ True(照舊停損)"""
+        try:
+            day = self.now().strftime("%Y-%m-%d")
+            mi = lambda t: int(t[:2]) * 60 + int(t[3:5]); t1 = mi(hm); t0 = t1 - win
+            def rd(d):
+                f = self.txf_dir / f"{d}.csv"; k = (d, f.stat().st_mtime if f.exists() else 0)
+                if k not in self._slvv:
+                    m = {}
+                    try:
+                        with open(f, encoding="utf-8") as fh:
+                            for r in csv.DictReader(fh):
+                                if r.get("date") == d and r.get("volume") not in (None, ""): m[r["time"][:5]] = float(r["volume"])
+                    except Exception: pass
+                    self._slvv = {kk: vv for kk, vv in self._slvv.items() if kk[0] != d}; self._slvv[k] = m
+                return self._slvv[k]
+            T = rd(day)
+            if not T or t1 - mi(max(T)) > 3: return True
+            prev = sorted(f.stem for f in self.txf_dir.glob("????-??-??.csv") if f.stem < day)[-10:]
+            P = [m for m in (rd(x) for x in prev) if m]
+            if not P: return True
+            sw = lambda m: sum(v for t, v in m.items() if t0 < mi(t) <= t1)
+            avg = sum(sw(m) for m in P) / len(P)
+            return avg <= 0 or sw(T) >= avg * ratio - 1e-9
+        except Exception: return True
+
+    def oco_sl(self, p):
+        """元大條件單的停損價:停損加量能開著、判別式部位 → 掛硬停價(進場均價 ∓ 硬停%,再收到 ±6.5% 線);一般停損改由程式盯(量夠才停)+ 引擎平倉通知"""
+        try:
+            v = self.slvol(); e = float(p.get("entry") or 0)
+            if v and e > 0 and str(p.get("judge") or "").startswith("判") and p.get("sl"):
+                d = p["dir"]; h = px_tick(e * (1 - d * v[2] / 100), e); h = self.cap_sl(p["code"], d, p.get("judge"), h)
+                return min(h, p["sl"]) if d > 0 else max(h, p["sl"])   # 不比原停損還近
+        except Exception: pass
+        return p["sl"]
+
     def cap_sl(self, code, d, judge, sl):
         """2026-11-11 14:57 使用者「缺口 一樣要跟剛剛設定的進出場範圍一樣」:判別式部位的停損價不超過昨收 ±強平線(6.5%),
            元大條件單也掛在這條線上(電腦斷線時一樣在 6.5% 停損);做空往下取、做多往上取到升降單位"""
@@ -3590,7 +3654,7 @@ class Trader:
             self.real_ent_save(p)
             if self.oco_ok(p["code"]) and p["tp"] and p["sl"]:
                 p["oco_no"] = None; self.oco_q.append(p["code"])
-                self.gw.place_oco(p["code"], p["mkt"], p["dir"], p["qty"] or lots, p["tp"], p["sl"])
+                self.gw.place_oco(p["code"], p["mkt"], p["dir"], p["qty"] or lots, p["tp"], self.oco_sl(p))
             return
         # 平倉
         take = min(lots, max(p["qty"], 0)); extra = lots - take
