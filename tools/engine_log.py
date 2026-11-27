@@ -76,7 +76,7 @@ for it in logs if isinstance(logs, list) else []:
     t = str(it.get('t') or '')[:5]; ti = clean(it.get('title')); bo = clean(it.get('body'))
     if (t, ti) in sigkeys: continue   # 電腦發的已經列過
     k = it.get('kind') or ''
-    if '元大中繼' in bo and k not in ('long', 'short', 'exit', 'profit', 'loss'): src = '中繼提醒'
+    if '元大中繼' in bo and k not in ('long', 'short', 'exit', 'profit', 'loss'): continue   # 中繼提醒(當天帳戶輸贏、留倉設定…)是帳戶私事,公開檔不放
     elif '· 手機' in bo or '強三' in bo or '強制' in ti: src = '手機'
     else: src = '手機/雲端'
     code, name = code_name(ti)
@@ -96,7 +96,7 @@ if isinstance(fills, dict):
 rows.sort(key=lambda x: (x[0], x[1]))
 os.makedirs(OUT, exist_ok=True)
 hdr = [f"# {D} 電腦引擎進出場紀錄(自動產生,engine-log.yml;來源:電腦中繼備份到雲端的 signals / verdicts / blocked / fills + 雲端通知)",
-       "# 欄位:時間 類別 來源(電腦 = 電腦引擎發 / 手機 = 手機發 / 中繼提醒)判別式 代碼 名稱 | 通知標題 | 內容(原因、價格、張數)",
+       "# 欄位:時間 類別 來源(電腦 = 電腦引擎發 / 手機 = 手機發;中繼的帳戶提醒不放)判別式 代碼 名稱 | 通知標題 | 內容(原因、價格、張數)",
        f"# 進場訊號 {sum(1 for r in rows if r[1] in (1, 2))} 則、出場 {sum(1 for r in rows if r[1] in (3, 4))} 則、被擋/等待 {sum(1 for r in rows if r[1] == 0)} 則、元大成交 {len(legs)} 趟",
        "# 不含任何金鑰 / 帳號 / 委託書號(寫入前過濾)", ""]
 txt = '\n'.join(hdr + [r[2] for r in rows] + ([''] + ['# 目前未沖銷'] + openf if openf else [])) + '\n'
