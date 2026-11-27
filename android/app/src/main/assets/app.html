@@ -5,6 +5,7 @@
   自己的 App 用 owner 鑰匙經 Worker 載入 judge.js;看盤版(viewer.html)沒有。交接先讀 交接說明.md。
   ★ 2026-11-03 20:01 使用者「現在所有圖完善 鎖定 不可修改」:K 線圖 / 指標二 / 乖離圖 / 壓力圖 / 漲跌圖 / 轉折圖(含價格刻度、十字線、資訊列、縮放、切換箭頭、線色)全部鎖定,使用者明確說「解鎖」或「改」才可以動;改別的功能也不可以影響到圖(交接說明.md 規矩 8)。
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
+  · 2026-11-27 續抱 / 小心 / 反轉 / 快平 提示改成字色、拿掉底色(使用者「好 改」):續抱綠、小心黃、反轉橘、快平紅(照舊閃),字放大一點
   · 2026-11-27 06:04 虛擬 / 主導$ 分流日 11/26 → 11/27(使用者「用最新規則 重寫 虛擬與主導$ 明天再分流」;判別式聊天重寫 35 天 283 筆 +1,335,431):11/26 以前元大也看重寫檔;手機舊快取清一次(mysh.rw 20261127)。
   · 2026-11-27 做多中 / 做空中的輸贏指針改半邊錶面(使用者「改」):上半紅、下半綠,只亮目前那一半、另一半變暗,弧形外框賺紅賠綠;扣費後淨賺 > 0 才算贏;每 1% 轉 9°、±10% 到頂 / 底;每 2% 一個刻度;金黃色指針由粗到細。平倉後換回原本的漲跌指針
   · 2026-11-27 大盤線圖:昨收線太靠近圖頂時「昨收」標籤改寫在線下面,不再跟右上角「10分均線」疊在一起(使用者「可以不要疊在一起嗎」)
@@ -673,7 +674,7 @@ try{ if (localStorage.getItem('mysh.rw') !== '20261127'){ ['mysh.backfill', 'mys
   }catch(_){}
 }catch(e){} })();
 </script>
-  <meta name="app-build" content="202611270604">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
+  <meta name="app-build" content="202611270951">   <!-- 網頁版本戳(年月日時分);App 用它判斷下載的網頁是不是比內建的舊 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12151C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1199,7 +1200,7 @@ try{ if (localStorage.getItem('mysh.rw') !== '20261127'){ ['mysh.backfill', 'mys
   .row .px{position:relative;overflow:visible!important} .row.hh .px{top:-.42em}
   .row .px .hn{position:absolute;right:.8em;width:3.4em;top:100%;margin-top:1px;font-size:.6em;font-weight:800;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;height:1.5em;line-height:1;padding:0 .5em;border-radius:5px;white-space:nowrap;letter-spacing:0;text-align:center}   /* 2026-11-24 15:13 使用者「以 續抱 底色為基 在這裡面 置中」:字在底色裡上下左右置中(拿掉字距,不再偏左;行高 1 + flex 置中,不再偏上) */
   .row .px .hn.hs{top:50%;right:6.6em;margin:0!important;transform:translateY(-50%)}   /* 2026-11-25 很矮的列:提示放價格左邊(固定位置,上下對齊;6 位數價格也不壓到) */
-  .row .px .hn.h1{background:#FF3B3B;color:#fff!important;animation:xpBlink .8s steps(2, start) infinite} .row .px .hn.h2{background:#FF8A1F;color:#3A1800!important} .row .px .hn.h3{background:#FFD23F;color:#3A2A00!important} .row .px .hn.h4{background:#1DD75B;color:#05230F!important}   /* 2026-11-24 持倉提示:快平紅閃 / 反轉橙 / 小心黃 / 續抱綠(成交價下面;15:16 使用者「上下筆要對齊」:每列同一個位置、同寬,對準 5 位數價格的中間) */
+  .row .px .hn.h1{background:none;color:#FF3B3B!important;animation:xpBlink .8s steps(2, start) infinite} .row .px .hn.h2{background:none;color:#FF8A1F!important} .row .px .hn.h3{background:none;color:#FFD23F!important} .row .px .hn.h4{background:none;color:#1DD75B!important} .row .px .hn.h1,.row .px .hn.h2,.row .px .hn.h3,.row .px .hn.h4{font-size:.7em}   /* 2026-11-27 09:50 使用者「續抱 小心 反轉 快平 把這些原底色改成字色 而底色取消」→「好 改」:沒有底色,字放大一點 */   /* 2026-11-24 持倉提示:快平紅閃 / 反轉橙 / 小心黃 / 續抱綠(成交價下面;15:16 使用者「上下筆要對齊」:每列同一個位置、同寬,對準 5 位數價格的中間) */
   .row .vol{color:var(--dim);text-align:right}
   .row .unit{color:var(--faint);text-align:right;font-size:.8em;padding-right:2px;box-sizing:border-box}   /* 2026-10-27 10:00 右邊「萬」同樣留 2px,黃框壓不到 */
   .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--text)}
@@ -5138,7 +5139,7 @@ function hintFit(row, px){ try{ const hn = px.querySelector('.hn'), pv = px.quer
   let P = pv.getBoundingClientRect(); const gl = P.height * 0.16;   // 價格框上下各有一點行距(字本身比框小):提示往上貼到字底,位置用字頂算
   hn.style.marginTop = (1 - gl).toFixed(1) + 'px';
   let H = hn.getBoundingClientRect(), need = H.bottom - (P.top + gl); const room = R.height - 3;
-  if (need > room){ const k = Math.max(.55, 1 - (need - room) / H.height); hn.style.fontSize = (0.6 * k).toFixed(3) + 'em'; P = pv.getBoundingClientRect(); H = hn.getBoundingClientRect(); need = H.bottom - (P.top + gl); }
+  if (need > room){ const k = Math.max(.55, 1 - (need - room) / H.height); hn.style.fontSize = (0.7 * k).toFixed(3) + 'em'; P = pv.getBoundingClientRect(); H = hn.getBoundingClientRect(); need = H.bottom - (P.top + gl); }
   /* 2026-11-25 09:16 使用者「電腦 平板 手機 顯示都有自動適應功能」:很矮的螢幕(一列 < ~40px,例:360×640 小手機)縮到最小還是放不下 → 改放在價格左邊同一行 */
   if (need > room + 1){ hn.style.fontSize = ''; hn.style.marginTop = ''; hn.classList.add('hs'); px.style.top = '0px';
     const R2 = row.getBoundingClientRect(), H2 = hn.getBoundingClientRect(); if (H2.height > R2.height - 2) hn.style.fontSize = (0.6 * Math.max(.5, (R2.height - 3) / H2.height)).toFixed(3) + 'em'; return; }
