@@ -1726,7 +1726,7 @@ export default {
           for (const rk of ["四", "五", "六3", "八", "九", "一2", "六4"])   // 2026-11-27 加 六4(一天最多 5 檔)
            { const a = b.caps[rk]; if (!Array.isArray(a)) continue;
             caps[rk] = [...new Set(a.map(x => typeof x === "number" ? String(x) : x).filter(x => typeof x === "string" && /^[0-9A-Z]{4,6}$/.test(x)))].slice(0, 30); } }
-        await hubOf(env).kvPut("engine", { d: b.d, hm: String(b.hm || ""), on: b.on ? 1 : 0, n: +b.n || 0, msg: String(b.msg || "").slice(0, 120), ver: String(b.ver || "").slice(0, 16), stale: b.stale ? 1 : 0, at: Date.now(), ...(caps ? { caps } : {}) });   // 2026-10-29 23:50 多存規則版本 / 規則舊(手機警示用)
+        await hubOf(env).kvPut("engine", { d: b.d, hm: String(b.hm || ""), on: b.on ? 1 : 0, n: +b.n || 0, msg: String(b.msg || "").slice(0, 120), ver: String(b.ver || "").slice(0, 16), stale: b.stale ? 1 : 0, at: Date.now(), ...(caps ? { caps } : {}), ...(/^\d\d:\d\d$/.test(String(b.vrv9 || "")) ? { vrv9: String(b.vrv9) } : {}) });   // 2026-11-27 ⑨ 當天第一次反轉平時間(手機 vrv9At)   // 2026-10-29 23:50 多存規則版本 / 規則舊(手機警示用)
         return J({ ok: true });
       }
       // 2026-11-21 使用者「全改」(檢查 W3):中繼金鑰 / owner 鑰匙 → 全部;其他(看盤版、免費、排程查心跳)不給規則版本(ver、msg 裡的「規則…」)

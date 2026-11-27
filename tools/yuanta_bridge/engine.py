@@ -2383,7 +2383,7 @@ class Engine:
             if _src: msg = (msg + f" 加權元{_src.get('元大', 0)}證{_src.get('證交所補', 0)}").strip()
         except Exception: pass
         try: http(worker_url("engine=push"), {"d": self.day, "hm": now_tw().strftime("%H:%M"), "on": 1 if on else 0, "n": len(self.codes),
-                                               "msg": (fl + " " if fl else "") + msg + f" 規則{RULES['ver']}", "ver": RULES["ver"], "stale": 1 if RULES["stale"] else 0,
+                                               "msg": (fl + " " if fl else "") + msg + f" 規則{RULES['ver']}", "ver": RULES["ver"], "stale": 1 if RULES["stale"] else 0, "vrv9": getattr(self, "vrv_at", None) or "",   # 2026-11-27 ⑨ 當天第一次反轉平時間(手機 vrv9At 讀)
                                                # 2026-11-21 使用者「改 1」:今天各有上限的判別式已進的股票(超額不算),手機在電腦在線 / 剛離線時以這份為準(Worker ?engine=get 的 caps)
                                                "caps": {k: sorted(v) for k, v in (("四", self.j4), ("五", self.j5), ("六3", self.j63), ("八", getattr(self, "j8", set())), ("九", getattr(self, "j9", set())), ("一2", getattr(self, "j12", set())), ("六4", getattr(self, "j64", set())))}}, key=True, timeout=10)
         except Exception as e: log("心跳推不上", e)
