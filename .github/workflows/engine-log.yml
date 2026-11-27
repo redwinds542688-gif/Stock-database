@@ -1,0 +1,61 @@
+name: 電腦引擎紀錄(公開 engine_log)
+
+# 2026-11-27 判別式聊天轉使用者「判別式聊天也要能看到電腦引擎的進出場紀錄,不要用到金鑰」:
+#   用 GitHub Secrets 的 YT_PUSH_KEY(只放環境變數、不印出來)讀電腦中繼備份到雲端的 ?pcbk(signals / verdicts / blocked / fills)和 ?log=get,
+#   tools/engine_log.py 過濾機密後寫成 engine_log/<日期>.txt 推上來(公開,誰都能讀)。盤中每 5 分鐘、收盤後再一次。
+on:
+  workflow_dispatch:
+    inputs:
+      d: { description: 日期 YYYY-MM-DD(不填 = 今天), required: false, default: '' }
+  schedule:
+    - cron: '*/5 1-5 * * 1-5'   # UTC 01:00~05:55 = 台北 09:00~13:55(GitHub 排程可能晚幾分鐘)
+    - cron: '20 6 * * 1-5'      # 台北 14:20 收盤後最後一份(中繼 13:46 收工的備份之後)
+
+permissions:
+  contents: write
+
+concurrency: { group: engine-log, cancel-in-progress: false }
+
+jobs:
+  log:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: 讀雲端備份 → engine_log
+        env:
+          K: ${{ secrets.YT_PUSH_KEY }}
+          D: ${{ inputs.d }}
+        run: |
+          d="${D:-$(TZ=Asia/Taipei date +%Y-%m-%d)}"
+          D="$d" python3 - <<'PY'
+          import os, sys, json, urllib.request
+          K = os.environ.get("K", "")
+          if not K: print("GitHub Secrets 沒有 YT_PUSH_KEY"); sys.exit(1)
+          d = os.environ["D"]; B = "https://twse-proxy.redwinds542688.workers.dev/"
+          os.makedirs("/tmp/el", exist_ok=True); got = {}
+          def get(q):
+              rq = urllib.request.Request(B + q, headers={"X-Push-Key": K, "User-Agent": "engine-log/1"})
+              return json.loads(urllib.request.urlopen(rq, timeout=30).read().decode("utf-8"))
+          for nm in ("signals", "verdicts", "blocked", "fills"):
+              try: j = get(f"?pcbk=get&d={d}&name={nm}"); v = j.get("v") if isinstance(j, dict) else None
+              except Exception as e: print(nm, "讀不到", type(e).__name__); v = None
+              got[nm] = v is not None; json.dump(v, open(f"/tmp/el/{nm}.json", "w", encoding="utf-8"), ensure_ascii=False)
+          try: lg = get(f"?log=get&d={d}")
+          except Exception as e: print("log 讀不到", type(e).__name__); lg = []
+          json.dump(lg if isinstance(lg, list) else [], open("/tmp/el/log.json", "w", encoding="utf-8"), ensure_ascii=False)
+          print(d, "雲端備份", got, "通知", len(lg) if isinstance(lg, list) else 0)
+          if not any(got.values()) and not lg: open("/tmp/el/skip", "w").write("1")
+          PY
+          [ -f /tmp/el/skip ] && { echo "這天沒有紀錄(休市 / 電腦沒開)"; exit 0; }
+          python3 tools/engine_log.py "$d" /tmp/el
+          if grep -qE 'X-Push-Key|YT_PUSH|[A-Z][12][0-9]{8}' "engine_log/$d.txt"; then echo "疑似機密,不推"; exit 1; fi
+          git config user.name "github-actions[bot]"; git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add engine_log/
+          git diff --cached --quiet && { echo "沒有變化"; exit 0; }
+          git commit -q -m "電腦引擎紀錄 $d $(TZ=Asia/Taipei date +%H:%M)"
+          for i in 1 2 3 4 5; do
+            git push -q origin HEAD:main && { echo "推送成功"; exit 0; }
+            sleep $((i * 8)); git fetch -q origin main && git rebase -q -X theirs origin/main || git rebase --abort
+          done
+          exit 1
