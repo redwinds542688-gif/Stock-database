@@ -118,11 +118,31 @@ async function txfRow(env, name) {
   if (cl.length >= 5) row.spark = cl.length > 90 ? cl.filter((x, i) => i % Math.ceil(cl.length / 90) === 0 || i === cl.length - 1) : cl;
   return row;
 }
+// 2026-11-28 14:06 使用者「為什麼 台灣加權11/26 台指期11/27」:週末重抓時 Yahoo 日 K 少了亞洲股市週五那天(台灣加權、日經、韓國都停在 11/26)
+//   → 台灣加權改用自己每分鐘記的加權指數(Hub ixbars / 元大 ixy,跟台指期同一套,最近一個已收盤 13:31 後的交易日);抓不到才用 Yahoo
+async function twiiRow(env, name) {
+  if (!env.HUB) return null;
+  const t = new Date(Date.now() + 8 * 3600e3), hm = t.toISOString().slice(11, 16), got = [];
+  for (let k = 0; k < 15 && got.length < 2; k++) {
+    const d = new Date(t.getTime() - k * 864e5).toISOString().slice(0, 10);
+    if (k === 0 && hm < "13:31") continue;
+    let m = {}; try { m = (await hubOf(env).kvGet("ixbars:" + d)) || {}; } catch (e) {}
+    const y = await ixyGet(env, d); for (const x of Object.keys(y)) if (Array.isArray(y[x]) && +y[x][3] > 0) m[x] = +y[x][3];
+    const ks = Object.keys(m).filter(x => +m[x] > 0).sort();
+    if (ks.length >= 30) got.push({ d, cl: ks.map(x => +m[x]) });   // 至少 30 分鐘才算一整天(避免只記到幾分鐘的日子)
+  }
+  if (got.length < 2) return null;
+  const cl = got[0].cl, c1 = cl[cl.length - 1], c0 = got[1].cl[got[1].cl.length - 1];
+  const row = { name, close: +c1.toFixed(2), prev: +c0.toFixed(2), pct: +((c1 / c0 - 1) * 100).toFixed(2), date: got[0].d, src: "中繼" };
+  if (cl.length >= 5) row.spark = cl.length > 90 ? cl.filter((x, i) => i % Math.ceil(cl.length / 90) === 0 || i === cl.length - 1) : cl;
+  return row;
+}
 async function fetchUS(env) {
   const out = [];
   for (const [sym, name, fred] of US_IDX) {
     let row = null;
     if (sym === "TXF") { try { row = await txfRow(env, name); } catch (e) {} if (row) row.chg = +(row.close - row.prev).toFixed(2); out.push(row || { name, close: null, pct: null, date: "", src: "" }); continue; }
+    if (sym === "^TWII") { try { row = await twiiRow(env, name); } catch (e) {} if (row) { row.chg = +(row.close - row.prev).toFixed(2); out.push(row); continue; } }   // 2026-11-28 自己的資料優先
     try {
       const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=10d&interval=1d`, { headers: { "User-Agent": "Mozilla/5.0" } });
       const j = await r.json(); const res = j && j.chart && j.chart.result && j.chart.result[0];
@@ -132,13 +152,20 @@ async function fetchUS(env) {
         if (rp && nowS < rp.end && v.length && v[v.length - 1][0] >= rp.start - 3600) v.pop(); }
       if (v.length >= 2) { const [t1, c1] = v[v.length - 1], c0 = v[v.length - 2][1]; row = { name, close: +c1.toFixed(2), prev: +c0.toFixed(2), pct: +((c1 / c0 - 1) * 100).toFixed(2), date: new Date((t1 + off) * 1000).toISOString().slice(0, 10), src: "Yahoo" }; }
     } catch (e) {}
-    if (row && row.src === "Yahoo") {   // 2026-11-06 16:06 使用者「顯示要有點質感」(附 Yahoo 四格走勢圖):那一天的 5 分 K 收盤當走勢線
+    if (row && row.src === "Yahoo") {   // (2026-11-28 也可能換成 Yahoo5m)2026-11-06 16:06 使用者「顯示要有點質感」(附 Yahoo 四格走勢圖):那一天的 5 分 K 收盤當走勢線
       try {
         const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=5d&interval=5m`, { headers: { "User-Agent": "Mozilla/5.0" } });
         const j = await r.json(); const res = j && j.chart && j.chart.result && j.chart.result[0];
         const c0 = (res && res.indicators && res.indicators.quote && res.indicators.quote[0] && res.indicators.quote[0].close) || [], tt = (res && res.timestamp) || [];
         const off = +((res && res.meta && res.meta.gmtoffset) || -18000);
-        const cl = tt.map((t, i) => [new Date((t + off) * 1000).toISOString().slice(0, 10), c0[i]]).filter(x => x[0] === row.date && x[1] != null).map(x => +(+x[1]).toFixed(2));   // 2026-11-06 抓 5 天、只留收盤那一天的 5 分 K(盤中 / 換日也拿得到)
+        const all = tt.map((t, i) => [new Date((t + off) * 1000).toISOString().slice(0, 10), c0[i], t]).filter(x => x[1] != null);
+        { // 2026-11-28 日 K 少了最近一天(週末重抓時亞洲股市常這樣)→ 5 分 K 有更新、而且已收盤的那天,用它最後一根當收盤、日 K 那天當昨收
+          const rp = res && res.meta && res.meta.currentTradingPeriod && res.meta.currentTradingPeriod.regular, nowS = Date.now() / 1000;
+          const last = all.length ? all[all.length - 1] : null;
+          if (last && last[0] > row.date && !(rp && nowS < rp.end && last[2] >= rp.start - 3600)) {
+            const c1 = +(+last[1]).toFixed(2); row = { name, close: c1, prev: row.close, pct: +((c1 / row.close - 1) * 100).toFixed(2), date: last[0], src: "Yahoo5m" };
+          } }
+        const cl = all.filter(x => x[0] === row.date).map(x => +(+x[1]).toFixed(2));   // 2026-11-06 抓 5 天、只留收盤那一天的 5 分 K(盤中 / 換日也拿得到)
         if (cl.length >= 5) { row.spark = cl.length > 90 ? cl.filter((x, i) => i % Math.ceil(cl.length / 90) === 0 || i === cl.length - 1) : cl; }
       } catch (e) {}
     }
@@ -153,12 +180,12 @@ async function fetchUS(env) {
     out.push(row || { name, close: null, pct: null, date: "", src: "" });
   }
   const t = new Date(Date.now() + 8 * 3600e3);
-  return { d: t.toISOString().slice(0, 10), at: Date.now(), hm: t.toISOString().slice(11, 16), us: out.map(x => x.date).filter(Boolean).sort().pop() || ""   /* 2026-11-09 14:32 使用者「台股 美股 韓股 日股 都要逐日更新」:標題日期 = 六張裡最新的一天(下午抓到台日韓當天收盤就換成今天) */, idx: out };
+  return { ver: 2, d: t.toISOString().slice(0, 10), at: Date.now(), hm: t.toISOString().slice(11, 16), us: out.map(x => x.date).filter(Boolean).sort().pop() || ""   /* 2026-11-09 14:32 使用者「台股 美股 韓股 日股 都要逐日更新」:標題日期 = 六張裡最新的一天(下午抓到台日韓當天收盤就換成今天) */, idx: out };
 }
 async function usGet(env, force) {
   let v = null; try { v = env.HUB ? await hubOf(env).kvGet("usmkt") : null; } catch (e) {}
   const t = new Date(Date.now() + 8 * 3600e3), d = t.toISOString().slice(0, 10), hm = t.toISOString().slice(11, 16), wd = t.getUTCDay();
-  const ok = v && v.d === d && v.idx && v.idx.length >= US_IDX.length && v.idx.every(x => x.close != null) && US_IDX.every(([, n], i) => v.idx[i] && v.idx[i].name === n);   // 2026-11-22 換格子(S&P → 台指期)後,快取裡的舊格子不算抓齊,馬上重抓
+  const ok = v && v.ver === 2 && v.d === d && v.idx && v.idx.length >= US_IDX.length && v.idx.every(x => x.close != null) && US_IDX.every(([, n], i) => v.idx[i] && v.idx[i].name === n);   // 2026-11-22 換格子(S&P → 台指期)後,快取裡的舊格子不算抓齊,馬上重抓
   const stp = wd >= 1 && wd <= 5 ? ["14:40", "13:40"].find(x => hm >= x) : null, okPm = !stp || (v && v.hm >= stp);   // 2026-11-09 15:08 使用者「13.40 改」:平日 13:40 再加一次(台股 13:30 收盤);日經 / 韓國還在交易的那天不會拿(只拿已收盤),14:40 那次才換   // 2026-11-09 14:32 使用者「台股 美股 韓股 日股 都要逐日更新」:早上 08:30 抓美股(前一晚收盤);平日 14:40 後再抓一次,換上台股 / 日經 / 韓國當天收盤和走勢線   // 2026-11-07 加 S&P 500 後,舊快取少一張要重抓
   if (force || ((!ok || !okPm) && hm >= "08:30")) {   // 2026-11-07 15:03 使用者「不用隨時抓 每天早上8.30抓一次即可 除非抓不到」:08:30 前不抓;今天抓齊就整天用快取   // 2026-11-06 16:11 週六、週日也抓(手機來問時;星期六 08:20 起顯示到星期一 09:00)
     const c = MC.get("usfetch"); if (!force && c && Date.now() - c < 300e3) return v;   // 手機來問、今天還沒有:最多 5 分鐘抓一次
