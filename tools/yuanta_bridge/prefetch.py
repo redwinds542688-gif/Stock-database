@@ -10,7 +10,7 @@
      → 本機 kline_daily_yuanta/<代號>.csv(date,open,high,low,close,volume)
   ④ 大盤每分鐘量(2026-11-28 使用者「為什麼不存在電腦這邊」):證交所每 5 秒委託成交統計 → 本機 kline_mktvol/<日期>.csv
      (格式同 Stock-database kline_index/MKTVOL;雲端 GitHub 排程也存一份,電腦這份是備份 + 雲端被證交所擋時補)。今天 + 近 40 天還沒存的
-用法(桌機,和中繼同一個資料夾;中繼收工後會自己叫,不用手動):python prefetch.py [today]
+用法(桌機,和中繼同一個資料夾;中繼收工後會自己叫,不用手動):python prefetch.py;一次補滿近 20 天:python prefetch.py --back 19(約 2~4 小時,收盤後 / 假日跑)
 bridge.env:PREFETCH=0 關掉;WIDE_MIN_LOTS、WIDE_BACK、WIDE_MAX(一天最多幾檔,預設 600)可調
 """
 import csv, datetime, json, sys, time, urllib.request
@@ -95,7 +95,8 @@ def wide_fetch(b, today, rec, codes):
     """② 擴大範圍個股 1 分 K → 本機 kline_yuanta_wide/<日期>.csv(今天 + 往回補 WIDE_BACK 天)"""
     mult = float(yb.CFG.get("VOL_MULT", "1000") or 1000); WIDE.mkdir(exist_ok=True)
     done_days = set(rec.get("wide", []))
-    back = [d for d in weekdays_back(today, 19) if d not in done_days][:int(yb.CFG.get("WIDE_BACK", "2") or 2)]
+    nb = int(ARGS.get("back") or yb.CFG.get("WIDE_BACK", "2") or 2)   # 2026-11-28 使用者「為什麼不是 10/6 開始」:python prefetch.py --back 19 一次補滿(元大只給近 20 天)
+    back = [d for d in weekdays_back(today, 19) if d not in done_days][:nb]
     for d in [today] + back:
         f = WIDE / f"{d}.csv"; have = set()
         if f.exists():
@@ -169,8 +170,13 @@ def mktvol_fetch(today):
     yb.log(f"[預存] 大盤每分鐘量:存 {n} 天")
 
 
+ARGS = {}
+
+
 def main():
-    if yb.CFG.get("PREFETCH", "1") != "1": return
+    a = sys.argv[1:]
+    if "--back" in a: ARGS["back"] = a[a.index("--back") + 1]
+    if yb.CFG.get("PREFETCH", "1") != "1" and not ARGS: return
     today = yb.now_tw().strftime("%Y-%m-%d")
     try: mktvol_fetch(today)
     except Exception as e: yb.log("[預存] 大盤量失敗", repr(e)[:120])
