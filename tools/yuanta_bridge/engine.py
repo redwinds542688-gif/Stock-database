@@ -89,8 +89,12 @@ _LIVE_LOCK = threading.Lock()
 _LOG_LOCK = threading.Lock()
 
 
+_BLK_WHY = threading.local()   # 2026-11-28 使用者「兩個都做」:⑧ 擋單原因(最後一則「→ 不發」)→ note_tx_block 寫進 blocked(雲端看得到)
+
+
 def log(*a):
     s = now_tw().strftime("%H:%M:%S") + " " + " ".join(str(x) for x in a)
+    if s.endswith("→ 不發"): _BLK_WHY.last = s
     print(s, flush=True)
     try:
         global LOGF
@@ -2046,7 +2050,7 @@ class Engine:
             why = self.pre_wait(rs, code, open_tm, d["side"])
         elif not _f(self.prev.get(code), 0) > 0:   # 2026-11-26 缺資料改擋:沒有昨收 → ±5% 進場範圍 / 通知停損收 ±6.5% / 中繼 ② 都沒辦法確認 → 不發(原本照發、停損不收)
             why = "缺資料:昨收"
-        elif not self.tx_ok(rs, code, open_tm, d["side"]):   # 2026-11-13 22:30 ⑧ 台指期同步進場(23:32 改只看方向):台指期 60 分鐘往不利方向 → 這筆不做(記 emitted,不再發)
+        elif not self._tx_ok_rec(rs, code, open_tm, d["side"]):   # 2026-11-13 22:30 ⑧ 台指期同步進場(23:32 改只看方向):台指期 60 分鐘往不利方向 → 這筆不做(記 emitted,不再發)
             if not self._tx_miss: self.emitted.add(ek); return n
             why = self._tx_miss   # 2026-11-26 缺資料改擋:⑧ 要的台指期 / 加權 / 前一天收盤缺 → 不發,但不記 emitted(10 分鐘內資料回來照判)
         else: why = None
@@ -2249,6 +2253,26 @@ class Engine:
                 if rows: break
             return sorted(rows.items())
         except Exception: return []
+
+    def _tx_ok_rec(self, rs, code, tm, side):
+        """2026-11-28 使用者「11/26、27 被台指期方向擋住的通知 列出來」→ 雲端只記到 2 / 113 筆:引擎發進場前的 ⑧ 擋單原本只寫本機 log。
+           「兩個都做」:擋下(不是缺資料)→ 原因寫進 blocked_<日期>.jsonl(中繼備份上雲端 → engine_log / 判別式聊天看得到);判斷本身不變"""
+        _BLK_WHY.last = ""; self._tx_miss = ""
+        ok = self.tx_ok(rs, code, tm, side)
+        if not ok and not self._tx_miss:
+            try: self.note_tx_block(rs, code, tm, side, getattr(_BLK_WHY, "last", "") or "")
+            except Exception as e: log("⑧ 擋單紀錄寫不進去", repr(e))
+        return ok
+
+    def note_tx_block(self, rs, code, tm, side, msg):
+        why = msg.split(f" {code} {tm} ", 1)[-1].rsplit("→ 不發", 1)[0].strip() if msg else "⑧ 台指期條件不合"
+        if "⑧" not in why and "台指期" not in why and "加權" not in why: why = "⑧ " + why
+        seen = self.__dict__.setdefault("_txb_seen", set()); key = (rs, code, tm)
+        if key in seen: return
+        seen.add(key)
+        with open(DATA / f"blocked_{self.day}.jsonl", "a", encoding="utf-8") as f:
+            f.write(json.dumps({"t": tm, "rs": JUDGE.get(rs, rs), "rsk": rs, "code": code, "name": self.names.get(code, ""),
+                                "line": f"{tm} {'做多' if side > 0 else '做空'} {why} → 這筆不做", "tx8": 1}, ensure_ascii=False) + "\n")
 
     def tx_ok(self, rs, code, tm, side):
         """2026-11-25 假盤全鏈回放抓到:🔒 ⑧ 空單離今低(TXFROMLO)/ 判二做多離今低(TXLONGLO)引擎原本沒檢查 → 模擬器回測擋掉(close_trade 才印「這筆不做」)、
