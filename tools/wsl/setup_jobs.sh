@@ -4,6 +4,7 @@
 #          ③ Windows 工作排程器加「bt_jobs」每 5 分鐘叫一次(不用系統管理員;關掉:schtasks.exe /Delete /TN bt_jobs /F)
 set -e
 WU=$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r'); WD="/mnt/c/Users/$WU/bt"; mkdir -p "$WD"
+git config --global user.name >/dev/null || git config --global user.name "電腦WSL"; git config --global user.email >/dev/null || git config --global user.email "wsl@localhost"   # 2026-11-28 沒設會推不上去
 gh auth setup-git >/dev/null 2>&1 && echo "① git 推送登入 OK" || echo "① gh auth setup-git 失敗(之後推不上去再處理)"
 printf 'CreateObject("WScript.Shell").Run "wsl.exe -d %s -e bash -lc ""bash ~/bt/Stock-database/tools/wsl/bt_jobd.sh""", 0, False\r\n' "$WSL_DISTRO_NAME" > "$WD/bt_jobs.vbs"
 echo "② 啟動檔 C:\\Users\\$WU\\bt\\bt_jobs.vbs"
