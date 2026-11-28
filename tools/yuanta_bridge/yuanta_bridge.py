@@ -3115,7 +3115,7 @@ def self_update():
                 if w2 == want: pin = sha; log(f"自動更新:固定抓提交 {sha[:10]}")
                 else: log(f"自動更新:提交 {sha[:10]} 的 VERSION 是 {w2}(剛好又推了新版)→ 這次不換,下次再試"); return
         except Exception as e: log("自動更新:問不到 main 的提交編號,照舊抓 main(最後再對一次 VERSION)", e)
-    files = ["yuanta_bridge.py", "bars.py", "trader.py", "quotes.py", "win_pnl.py", "engine.py", "win_keys.py", "win_update.py", "hist_kline.py", "win_install.py", "elig.py"]
+    files = ["yuanta_bridge.py", "bars.py", "trader.py", "quotes.py", "win_pnl.py", "engine.py", "win_keys.py", "win_update.py", "hist_kline.py", "win_install.py", "elig.py", "prefetch.py"]
     try:   # 2026-10-30 11:10(實際時間)檔案清單改讀 repo 的 tools/yuanta_bridge/FILES(新增檔案時舊版程式也抓得到;抓不到就用上面寫死的)
         lst = [x.strip() for x in gh_get("tools/yuanta_bridge/FILES", ref=pin, timeout=30).decode("utf-8").splitlines() if x.strip().endswith(".py")]
         if lst: files = lst
@@ -3268,6 +3268,12 @@ def main():
                         subprocess.run([sys.executable, str(HERE / "hist_kline.py"), "today"], cwd=str(HERE), timeout=3 * 3600)
                     except Exception as e:
                         log("抓今天 1 分 K 失敗", e)
+                    if at == "17:05" and CFG.get("PREFETCH", "0" if FAMILY else "1") == "1":   # 2026-11-28 使用者「事先準備的資料 先抓下來」:加權元大 1 分 K、擴大範圍個股 1 分 K、日 K(prefetch.py)
+                        try:
+                            log("收工後預存資料(prefetch.py)")
+                            subprocess.run([sys.executable, str(HERE / "prefetch.py")], cwd=str(HERE), timeout=3 * 3600)
+                        except Exception as e:
+                            log("預存資料失敗", e)
         # 2026-11-02 20:33 使用者「你測電腦是否更新」:中繼一直開著(電腦沒關機)就永遠不會更新(只在啟動時檢查)→ 不在盤中時每 30 分鐘看 GitHub 的 VERSION,
         #   不一樣就結束自己,工作排程(每 5 分鐘檢查一次)重新拉起來時就會更新。盤中(08:40~13:40)和收盤後補查 / 抓 K 進行中不做
         if not ("09:00" <= hm < "13:40") and CFG.get("AUTO_UPDATE", "1") == "1" and upd_ref() and time.time() - getattr(b, "_ver_chk", 0) > 1800:   # 2026-11-11 00:27 原 08:40 → 09:00(使用者「改為 9 點」)

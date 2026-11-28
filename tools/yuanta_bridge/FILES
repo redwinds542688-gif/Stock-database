@@ -13,3 +13,4 @@ win_family.py
 fam_agent.py
 win_sync.py
 test_index_probe.py
+prefetch.py

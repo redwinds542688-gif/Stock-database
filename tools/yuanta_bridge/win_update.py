@@ -9,7 +9,7 @@ import sys, time, urllib.request, re
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-FILES = ["yuanta_bridge.py", "bars.py", "trader.py", "quotes.py", "win_pnl.py", "engine.py", "win_keys.py", "win_update.py", "hist_kline.py", "win_install.py", "elig.py"]
+FILES = ["yuanta_bridge.py", "bars.py", "trader.py", "quotes.py", "win_pnl.py", "engine.py", "win_keys.py", "win_update.py", "hist_kline.py", "win_install.py", "elig.py", "prefetch.py"]
 
 
 def cfg():
