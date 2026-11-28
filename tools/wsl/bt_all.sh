@@ -5,7 +5,8 @@ set -e
 source "$HOME/bt/env.sh"
 git -C "$HOME/bt/stock-logic" pull -q; git -C "$HOME/bt/Stock-database" pull -q
 echo "Stock-logic $(git -C "$HOME/bt/stock-logic" log -1 --format=%h)、Stock-database $(git -C "$HOME/bt/Stock-database" log -1 --format=%h)、CPU $(nproc) 核、回測 $NP 個"
-cd "$HOME/bt/stock-logic/backtest/tools"; T0=$(date +%s)
+cd "$HOME/bt/stock-logic/backtest/tools"; mkdir -p cache; cp -f breadth_src/*.json cache/   # 2026-11-28 寬度(元大)用程式庫裡那份(新下載的沒有 cache)
+T0=$(date +%s)
 for rs in 十 九 一2 六3 七3 八 二 五 四 七2 三2 一 三 七 六 六4; do
   t=$(date +%s); rm -f "table/${rs}_pcfull.json"
   TAG=pcfull python allsig.py "$rs" 2>&1 | grep -v "^⚠" | tail -1 | cut -c1-30

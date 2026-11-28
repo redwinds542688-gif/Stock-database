@@ -32,7 +32,7 @@ grep -q 'bt/env.sh' "$HOME/.bashrc" || echo 'alias bt="source $HOME/bt/env.sh"' 
 echo "== ⑤ 試跑判九三天(盤中會自己擋)"
 source "$HOME/bt/env.sh"
 python -c "import os; print('CPU', os.cpu_count(), '核 → 回測用', os.environ['NP'], '個')"
-cd backtest/tools; t0=$(date +%s)
+cd backtest/tools; mkdir -p cache; cp -f breadth_src/*.json cache/; t0=$(date +%s)
 TAG=pctest python allsig.py 九 --days 2026-11-12,2026-11-19,2026-11-27 | tail -1
 echo "判九三天 $(( $(date +%s) - t0 )) 秒(雲端 4 核約 15 秒)"
 python - <<'P'
