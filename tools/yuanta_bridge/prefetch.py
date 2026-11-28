@@ -8,6 +8,8 @@
      每天抓今天,另外往回補還沒抓過的日子(每次最多 WIDE_BACK 天,預設 2),20 天內補齊
   ③ 日 K(元大,可查到 2024 年起):pool_full / 名單 / 擴大範圍的股票,每檔抓一次 2024-01-01 ~ 今天,之後每天只補新的
      → 本機 kline_daily_yuanta/<代號>.csv(date,open,high,low,close,volume)
+  ④ 大盤每分鐘量(2026-11-28 使用者「為什麼不存在電腦這邊」):證交所每 5 秒委託成交統計 → 本機 kline_mktvol/<日期>.csv
+     (格式同 Stock-database kline_index/MKTVOL;雲端 GitHub 排程也存一份,電腦這份是備份 + 雲端被證交所擋時補)。今天 + 近 40 天還沒存的
 用法(桌機,和中繼同一個資料夾;中繼收工後會自己叫,不用手動):python prefetch.py [today]
 bridge.env:PREFETCH=0 關掉;WIDE_MIN_LOTS、WIDE_BACK、WIDE_MAX(一天最多幾檔,預設 600)可調
 """
@@ -153,9 +155,25 @@ def daily_fetch(b, today, rec, codes):
     yb.log(f"[預存] 日 K:更新 {n} 檔")
 
 
+def mktvol_fetch(today):
+    """④ 大盤每分鐘量 → 本機 kline_mktvol/(不用元大連線)"""
+    OUT = HERE / "kline_mktvol"; OUT.mkdir(exist_ok=True)
+    try: import twse_mktvol as M   # 同資料夾(FILES 有列,win_update 會下載)
+    except Exception as e: yb.log("[預存] 大盤量程式沒有(twse_mktvol.py)", repr(e)[:80]); return
+    M.OUT = str(OUT); n = 0
+    have = {p.stem for p in OUT.glob("*.csv")}
+    for i, d in enumerate([today] + [x for x in weekdays_back(today, 40) if x not in have]):
+        if i: time.sleep(8)   # 證交所限流
+        try: n += bool(M.save(d))
+        except Exception as e: yb.log(f"[預存] {d} 大盤量抓不到", repr(e)[:80])
+    yb.log(f"[預存] 大盤每分鐘量:存 {n} 天")
+
+
 def main():
     if yb.CFG.get("PREFETCH", "1") != "1": return
     today = yb.now_tw().strftime("%Y-%m-%d")
+    try: mktvol_fetch(today)
+    except Exception as e: yb.log("[預存] 大盤量失敗", repr(e)[:120])
     rec = rec_load()
     base = hk.today_list(today)
     wide = wide_list()

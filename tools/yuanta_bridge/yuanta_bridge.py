@@ -3115,7 +3115,7 @@ def self_update():
                 if w2 == want: pin = sha; log(f"自動更新:固定抓提交 {sha[:10]}")
                 else: log(f"自動更新:提交 {sha[:10]} 的 VERSION 是 {w2}(剛好又推了新版)→ 這次不換,下次再試"); return
         except Exception as e: log("自動更新:問不到 main 的提交編號,照舊抓 main(最後再對一次 VERSION)", e)
-    files = ["yuanta_bridge.py", "bars.py", "trader.py", "quotes.py", "win_pnl.py", "engine.py", "win_keys.py", "win_update.py", "hist_kline.py", "win_install.py", "elig.py", "prefetch.py"]
+    files = ["yuanta_bridge.py", "bars.py", "trader.py", "quotes.py", "win_pnl.py", "engine.py", "win_keys.py", "win_update.py", "hist_kline.py", "win_install.py", "elig.py", "prefetch.py", "twse_mktvol.py"]
     try:   # 2026-10-30 11:10(實際時間)檔案清單改讀 repo 的 tools/yuanta_bridge/FILES(新增檔案時舊版程式也抓得到;抓不到就用上面寫死的)
         lst = [x.strip() for x in gh_get("tools/yuanta_bridge/FILES", ref=pin, timeout=30).decode("utf-8").splitlines() if x.strip().endswith(".py")]
         if lst: files = lst

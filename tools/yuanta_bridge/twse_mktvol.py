@@ -2,9 +2,9 @@
 轉成每分鐘 → kline_index/MKTVOL/<日期>.csv
 欄位:time(那一分鐘結束,09:01 = 09:00:00~09:01:00)、vol(這分鐘成交張數)、amt(成交金額 百萬元)、trades(成交筆數)、
       buy_n / buy_q / sell_n / sell_q(這分鐘新增的委託買進筆數 / 張數、委託賣出筆數 / 張數)、cum_vol / cum_amt(累積)
-用法:python tools/twse_mktvol.py [日期 ...](不給 = 補 kline_futures/TXF 有、MKTVOL 還沒有的日子 + 今天)"""
+用法:python tools/yuanta_bridge/twse_mktvol.py [日期 ...](不給 = 補 kline_futures/TXF 有、MKTVOL 還沒有的日子 + 今天)"""
 import csv, glob, json, os, sys, time, datetime, urllib.request
-HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__))); OUT = os.path.join(HERE, "kline_index", "MKTVOL")
+HERE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))); OUT = os.path.join(HERE, "kline_index", "MKTVOL")   # repo 根目錄(檔案放 tools/yuanta_bridge,電腦中繼也會下載;電腦上 prefetch 改 OUT 到本機)
 def num(s): return float(str(s).replace(",", "") or 0)
 def fetch(d):
     u = f"https://www.twse.com.tw/exchangeReport/MI_5MINS?response=json&date={d.replace('-', '')}"
