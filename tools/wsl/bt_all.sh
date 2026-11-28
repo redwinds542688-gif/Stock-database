@@ -11,6 +11,7 @@ FULL=0; PUSH=0; RSS=()
 for a in "$@"; do case "$a" in --full) FULL=1;; --push) PUSH=1;; *) RSS+=("$a");; esac; done
 [ ${#RSS[@]} -eq 0 ] && RSS=(十 九 一2 六3 七3 八 二 五 四 七2 三2 一 三 七 六 六4)
 source "$HOME/bt/env.sh"
+exec 9>"$HOME/bt/.bt.lock"; flock -n 9 || { echo "!! 電腦正在跑自動接的回測工作(bt_jobd),等它跑完再試(看 ~/bt/logs/jobd.log)"; exit 1; }   # 2026-11-28 #34 共用鎖
 OUT="/mnt/c/Users/redwi/Desktop/bt_out"; LOGD="$HOME/bt/logs"; mkdir -p "$LOGD"
 TS=$(TZ=Asia/Taipei date +%Y%m%d_%H%M); LOG="$LOGD/bt_$TS.log"
 {

@@ -15,3 +15,10 @@
 跑完結果會自動複製到桌面 **bt_out** 資料夾(判別式聊天直接讀):`table/`(總表)、`bt_last.log`(這次的紀錄)、`LAST.txt`(時間、版本、耗時、結果指紋)。
 
 第一次安裝(已經裝好的不用再做):見 `setup_backtest.sh` 開頭說明。
+
+## 自動接回測工作(判別式任務 #34)
+
+裝一次就好(Ubuntu 裡):`bash ~/bt/Stock-database/tools/wsl/setup_jobs.sh`
+之後電腦開著、登入中,每 5 分鐘自己去 Stock-database `bt_jobs/` 拿工作來跑(開盤中 08:45~13:45 不接、一次一個、低優先權),
+結果在桌面 `bt_out/jobs/<名稱>/`,摘要推到 `bt_jobs/done/`。要停:PowerShell 打 `schtasks /Delete /TN bt_jobs /F`。
+工作檔格式見 `bt_jobd.py` 開頭。手動跑一次:`bash ~/bt/Stock-database/tools/wsl/bt_jobd.sh`。紀錄:`~/bt/logs/jobd.log`。
