@@ -7,6 +7,7 @@
   變更紀錄(2026-10-29 搬家以後,只寫畫面 / 功能,規則細節寫在 Stock-logic):
   · 2026-11-28 進場股票的輸贏錶面改圖一樣式(使用者「1 改」):不塗底色,只有弧形外框 + 灰刻度,外框、尖頭指針、軸心同色(扣費後淨賺 > 0 紅,0 或虧綠);刻度照舊(每 1% 9°、±10% 到頂 / 底、每 2% 一格)
   · 2026-11-27 電腦版監控區的輸贏錶面被切到(使用者「監控區 切到 電腦版」):錶面高度改跟著列高縮,不再超出上下列、左邊留 3px 不被框切;手機版大小不變
+  · 2026-11-28 持倉提示加量能(使用者「註記不用加 但條件要加上 不要動不動就 小心 反轉」):台指期近 15 分量不夠時,停損線改看 4% 硬停線、移平線不算(⑥ 量能上線後)、反轉 / 小心的均線 OBV 條件不算 → 續抱;和判別式出場的量能同一套
   · 2026-11-27 續抱 / 小心 / 反轉 / 快平 提示改成字色、拿掉底色(使用者「好 改」):續抱綠、小心黃、反轉橘、快平紅(照舊閃),字放大一點
   · 2026-11-27 06:04 虛擬 / 主導$ 分流日 11/26 → 11/27(使用者「用最新規則 重寫 虛擬與主導$ 明天再分流」;判別式聊天重寫 35 天 283 筆 +1,335,431):11/26 以前元大也看重寫檔;手機舊快取清一次(mysh.rw 20261127)。
   · 2026-11-27 做多中 / 做空中的輸贏指針改半邊錶面(使用者「改」):上半紅、下半綠,只亮目前那一半、另一半變暗,弧形外框賺紅賠綠;扣費後淨賺 > 0 才算贏;每 1% 轉 9°、±10% 到頂 / 底;每 2% 一個刻度;金黃色指針由粗到細。平倉後換回原本的漲跌指針
@@ -5105,14 +5106,25 @@ const xpCell = code => { try{ const T = window.__tpos; if (!T || !T.ok || !Array
    Kb = 最近 28 根 1 分 K 收盤平均,OBV 往上 / 下 = OBV(這根) − OBV(10 根前) 的正負(1 分 K 用雲端收好的,和圖、判別式同一份)。
    照順序取第一個成立的(以空單說明,做多反過來):
    1 快平:停損 / 移平 / 強平 任一條離現價 ≤ 0.5%,或 帳面虧超過 bxl% 且寬度比進場反向 ≥ bxe × 0.8(0.15 → 0.12)
-   2 反轉:現價 ≥ Kb 且 OBV 往上   3 小心:只成立一個,或 出場線在 1% 內   4 續抱:現價 < Kb、OBV 往下、1% 內沒有出場線 */
+   2 反轉:現價 ≥ Kb 且 OBV 往上   3 小心:只成立一個,或 出場線在 1% 內   4 續抱:現價 < Kb、OBV 往下、1% 內沒有出場線
+   2026-11-28 加量能(見 holdHintOne 裡的說明):量不夠的停損線換 4% 硬停線、移平線不算、反轉 / 小心的均線 OBV 條件不算 */
 const HINT = {m: new Map(), h: new Map(), busy: false};
 const HINT_T = ['', '快平', '反轉', '小心', '續抱'];
 function hintTag(code){ const h = HINT.m.get(String(code)); return h ? `<span class="hn h${h.k}" title="${h.w}">${HINT_T[h.k]}</span>` : ''; }
+function hintVolOk(R){ try{ if (!(R > 0)) return true;   /* 台指期近 15 分量 ≥ 前 10 天同時段平均 × R(judge.js vrvVolOk 同一套,不寫紀錄);缺資料 → true(照舊提示) */
+  const d = taipeiYmd(), T = BG.txf && BG.txf.d === d ? BG.txf.v : null, H = BG.vrvH && BG.vrvH.d === d ? BG.vrvH.days : null; if (!T || !H || !H.length) return true;
+  const ks = Object.keys(T).sort(); if (!ks.length) return true; const mi = x => +x.slice(0, 2) * 60 + +x.slice(3, 5), t1 = mi(ks[ks.length - 1]), t0 = t1 - 15, inW = k => { const x = mi(k); return x > t0 && x <= t1; };
+  const sum = v => Object.keys(v).filter(inW).reduce((a, k) => a + (+v[k] || 0), 0), avg = H.reduce((a, v) => a + sum(v), 0) / H.length;
+  return !(avg > 0) || sum(T) >= avg * R - 1e-9; }catch(e){ return true; } }
 function holdHintOne(p, bars){
   const code = String(p.code), d = +p.dir || (p.side === 'long' ? 1 : -1), z = +(((LIVE.get(code) || {}).z) || 0) || (bars.length ? +bars[bars.length - 1].close : 0), e = +p.entry || 0;
   if (!(z > 0) || !(e > 0)) return null;
-  const XL = p.xl && typeof p.xl === 'object' ? p.xl : (+p.sl > 0 ? {sl: +p.sl} : {}), NM = {sl: '停損', mt: '移平', fx: '強平'};
+  const XL = Object.assign({}, p.xl && typeof p.xl === 'object' ? p.xl : (+p.sl > 0 ? {sl: +p.sl} : {})), NM = {sl: '停損', mt: '移平', fx: '強平'};
+  /* 2026-11-28 11:10 使用者「註記不用加 但條件要加上 不要動不動就 小心 反轉」:提示也看台指期量能(和判別式出場同一套:近 15 分量 ÷ 前 10 天同時段平均)——
+     停損線:量 ≥ 1 倍才算(量不夠 = 無量續抱,改看 4% 硬停線);移平線:量 ≥ ⑥ 倍數(judge.js IRON_MT6_VOL,沒有就不看量)才算;反轉 / 小心(站回均線、買盤回來)量 ≥ 1 倍才算,不夠 → 續抱 */
+  const vOk = R => hintVolOk(R), r1 = (typeof IRON_SL_VOL !== 'undefined' && IRON_SL_VOL) ? +IRON_SL_VOL[0] : 1, r6 = (typeof IRON_MT6_VOL !== 'undefined' && IRON_MT6_VOL) ? +IRON_MT6_VOL[0] : 0, r9 = (typeof IRON_VRV_VOL !== 'undefined' && IRON_VRV_VOL) ? +IRON_VRV_VOL[0] : 1;
+  if (XL.sl > 0 && !vOk(r1)){ const hd = (typeof IRON_SL_VOL !== 'undefined' && IRON_SL_VOL) ? +IRON_SL_VOL[1] : 4; XL.sl = e * (1 - d * hd / 100); }
+  if (XL.mt > 0 && r6 > 0 && !vOk(r6)) delete XL.mt;
   let nk = '', nr = 9; for (const k of ['sl', 'mt', 'fx']){ const x = +XL[k]; if (!(x > 0)) continue; if (d < 0 ? x < z : x > z) continue; const r = Math.abs(x / z - 1); if (r < nr){ nr = r; nk = k; } }
   const pnl = (z / e - 1) * 100 * d, b0 = p.br0 == null ? null : +p.br0, bn = p.brn == null ? null : +p.brn, bxl = +p.bxl || 0, bxe = +p.bxe || 0;
   if (nk && nr <= 0.005) return {k: 1, w: nk === 'sl' ? '快碰到停損' : nk === 'mt' ? '快被移平' : '快強平'};
@@ -5120,7 +5132,7 @@ function holdHintOne(p, bars){
   const C = bars.map(q => +q.close), V = bars.map(q => +q.volume || 0), n = C.length; if (n < 29) return null;
   let kb = 0; for (let i = n - 28; i < n; i++) kb += C[i]; kb /= 28;
   let ob = 0; for (let i = n - 10; i < n; i++) ob += C[i] > C[i - 1] ? V[i] : C[i] < C[i - 1] ? -V[i] : 0;
-  const ma = d < 0 ? z >= kb : z <= kb, oa = d < 0 ? ob > 0 : ob < 0;
+  const vq = vOk(r9), ma = vq && (d < 0 ? z >= kb : z <= kb), oa = vq && (d < 0 ? ob > 0 : ob < 0);
   if (ma && oa) return {k: 2, w: d < 0 ? '站回均線、有人在買' : '跌破均線、有人在賣'};
   if (ma || oa) return {k: 3, w: ma ? (d < 0 ? '站回均線' : '跌破均線') : (d < 0 ? '買盤回來' : '賣盤出來')};
   if (nk && nr <= 0.01) return {k: 3, w: '離' + NM[nk] + '不遠'};
