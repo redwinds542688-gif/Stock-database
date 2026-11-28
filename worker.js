@@ -1608,6 +1608,27 @@ export default {
       if (!/^\d{4}-\d\d-\d\d$/.test(fb)) return J({ error: "日期格式 YYYY-MM-DD" }, 400);
       return J({ d: fb, ...((await hubOf(env).kvGet("fbars:" + fb)) || { bars: [] }) });
     }
+    // ── 2026-11-28 使用者「回測要的資料趁早準備」:每檔每分鐘內外盤量(中繼把逐筆 InOutFlag 彙整後推,40 檔一包)
+    //   POST ?iobars=push {d, part, n, bars:{代號:[[HH:MM,量0,量1,量2,量3,筆數],…]}}(要金鑰);GET ?iobars=日期(合併各包);GET ?iobars=days(有哪些日子)
+    const io = url.searchParams.get("iobars");
+    if (io) {
+      if (!env || !env.HUB) return J({ error: "沒有 Hub" }, 503);
+      const hub = hubOf(env);
+      if (io === "push") {
+        if (!pushOk) return J({ error: "要金鑰" }, 403);
+        let b = {}; try { b = await request.json(); } catch (e) {}
+        const d = String(b.d || "").slice(0, 10), part = +b.part, n = +b.n;
+        if (!/^\d{4}-\d\d-\d\d$/.test(d) || !(part >= 0) || !(n > 0) || part >= n || n > 50 || !b.bars || typeof b.bars !== "object") return J({ error: "格式不對" }, 400);
+        await hub.kvPut(`io:${d}:${part}`, b.bars); await hub.kvPut(`io:${d}`, { n, at: Date.now() });
+        const ds = (await hub.kvGet("iodays")) || []; if (!ds.includes(d)) { ds.push(d); ds.sort(); await hub.kvPut("iodays", ds.slice(-60)); }
+        return J({ ok: true, d, part, n });
+      }
+      if (io === "days") return J({ days: (await hub.kvGet("iodays")) || [] });
+      if (!/^\d{4}-\d\d-\d\d$/.test(io)) return J({ error: "iobars 要 push / days / YYYY-MM-DD" }, 400);
+      const m = (await hub.kvGet("io:" + io)) || { n: 0 }, bars = {};
+      for (let i = 0; i < m.n; i++) Object.assign(bars, (await hub.kvGet(`io:${io}:${i}`)) || {});
+      return J({ d: io, n: m.n, cols: ["time", "v0", "v1", "v2", "v3", "ticks"], bars });
+    }
     const yr = url.searchParams.get("yref");
     if (yr) {
       if (yr === "push") {

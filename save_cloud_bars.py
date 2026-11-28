@@ -108,6 +108,42 @@ def save_fbars(d):
         for hm in sorted(mine): w.writerow([d, hm] + list(mine[hm]))
     print(f"{d} 台指期 {j.get('code', '')} 1 分K 雲端 {len(rows)} 根、補進 {add} 根,這天共 {len(mine)} 根"); return add
 
+def save_iobars(d):
+    """2026-11-28 使用者「回測要的資料趁早準備」:每檔每分鐘內外盤量(中繼推到 Worker ?iobars)存成 kline_inout/<代號>/<週>.csv
+       欄位 date,time,v0,v1,v2,v3,ticks(v0~v3 = 元大逐筆 InOutFlag 0~3 的成交量合計,單位同逐筆 DealVol;ticks = 筆數)。已經存過的那天覆寫"""
+    try:
+        req = urllib.request.Request(f"{WORKER}/?iobars={d}&_={int(datetime.datetime.now().timestamp())}", headers={"User-Agent": "mysh-save-cloud"})
+        j = json.loads(urllib.request.urlopen(req, timeout=120).read().decode("utf-8")) or {}
+    except Exception as e:
+        print(f"{d} 內外盤抓不到", e); return 0
+    B = j.get("bars") or {}
+    if not B: print(f"{d} 沒有內外盤資料"); return 0
+    wk = week_key(d)
+    for c, rows in B.items():
+        folder = os.path.join(ROOT, "kline_inout", c); os.makedirs(folder, exist_ok=True); f = os.path.join(folder, f"{wk}.csv"); keep = []
+        if os.path.exists(f):
+            with open(f, encoding="utf-8") as fh: keep = [r for r in csv.DictReader(fh) if r["date"] != d]
+        with open(f, "w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh); w.writerow(["date", "time", "v0", "v1", "v2", "v3", "ticks"])
+            for r in keep: w.writerow([r["date"], r["time"], r["v0"], r["v1"], r["v2"], r["v3"], r["ticks"]])
+            for r in rows: w.writerow([d] + list(r))
+    print(f"{d} 內外盤 {len(B)} 檔"); return len(B)
+
+def iobars_backfill(d):
+    """Worker 有、本機 kline_inout 還沒有的舊日子(中繼補推的 10/30 起逐筆)一起存"""
+    try:
+        req = urllib.request.Request(f"{WORKER}/?iobars=days&_={int(datetime.datetime.now().timestamp())}", headers={"User-Agent": "mysh-save-cloud"})
+        days = json.loads(urllib.request.urlopen(req, timeout=30).read().decode("utf-8")).get("days") or []
+    except Exception as e:
+        print("內外盤日子清單抓不到", e); return
+    have = set()
+    for f in glob.glob(os.path.join(ROOT, "kline_inout", "*", "*.csv"))[:400]:
+        try:
+            with open(f, encoding="utf-8") as fh: have |= {r["date"] for r in csv.DictReader(fh)}
+        except Exception: pass
+    for x in days:
+        if x < d and x not in have: save_iobars(x)
+
 def back_days(d):
     """2026-10-25 使用者「新進榜的股票 要回溯五天抓k」:桌機補抓的前幾天也推到 Worker 了,這裡把今天以前 8 天內 Worker 有的日子一起存(多 1 次請求 + 每天 1 次)"""
     try:
@@ -126,6 +162,8 @@ def main():
     save_yuanta(d)
     save_yref(d)   # 2026-11-12 元大參考價(回測昨收)
     save_fbars(d)   # 2026-11-13 台指期 1 分 K(只收資料)
+    try: save_iobars(d); iobars_backfill(d)   # 2026-11-28 每分鐘內外盤量
+    except Exception as e: print("內外盤存檔失敗", e)
     url = f"{WORKER}/?bars={d}&_={int(datetime.datetime.now().timestamp())}"
     req = urllib.request.Request(url, headers={"User-Agent": "mysh-save-cloud"})
     with urllib.request.urlopen(req, timeout=60) as r:

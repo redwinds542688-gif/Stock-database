@@ -705,6 +705,51 @@ class Bridge:
             if v is not None and str(v).strip() not in ("", "0", "None"): return str(v).strip()
         return ""
 
+    def inout_agg(self, day):
+        """TICK_DIR/<日>.csv(逐筆:code,time,sn,price,vol,flag,bid,ask)→ {代號: [[HH:MM, 量0, 量1, 量2, 量3, 筆數], …]}(量 = 逐筆 DealVol 原值,依 InOutFlag 0~3 分開加)"""
+        f = Path(CFG.get("TICK_DIR", HERE / "ticks_yuanta")) / f"{day}.csv"
+        if not f.exists(): return {}
+        A = {}
+        with open(f, encoding="utf-8") as fh:
+            next(fh, None)
+            for ln in fh:
+                x = ln.rstrip("\n").split(",")
+                if len(x) < 6: continue
+                try: hm = x[1][:5]; v = int(float(x[4])); fl = int(x[5])
+                except Exception: continue
+                if not ("09:00" <= hm <= "13:30") or not (0 <= fl <= 3): continue
+                r = A.setdefault(x[0], {}).setdefault(hm, [0, 0, 0, 0, 0]); r[fl] += v; r[4] += 1
+        return {c: [[hm] + r for hm, r in sorted(m.items())] for c, m in A.items()}
+
+    def inout_upload_bg(self, today):
+        """今天(13:36 後)+ 還沒推過的舊日子(一次最多 3 天)背景推 Worker ?iobars=push(每 40 檔一包);推過的記在 engine_data/iobars_sent.json"""
+        if FAMILY or not CFG.get("PUSH_KEY"): return
+        th = getattr(self, "_io_th", None)
+        if th is not None and th.is_alive(): return
+        sf = HERE / "engine_data" / "iobars_sent.json"
+        try: sent = set(json.loads(sf.read_text(encoding="utf-8")))
+        except Exception: sent = set()
+        td = Path(CFG.get("TICK_DIR", HERE / "ticks_yuanta"))
+        days = sorted({p.stem for p in td.glob("????-??-??.csv")} - sent)
+        days = [d for d in days if d < today][-3:] + ([today] if today not in sent and (td / f"{today}.csv").exists() else [])
+        if not days: return
+        def run():
+            for d in days:
+                try:
+                    B = self.inout_agg(d); cs = sorted(B)
+                    if not cs: sent.add(d); continue
+                    parts = [cs[i:i + 40] for i in range(0, len(cs), 40)]; ok = True
+                    for i, pc in enumerate(parts):
+                        body = json.dumps({"d": d, "part": i, "n": len(parts), "bars": {c: B[c] for c in pc}}).encode()
+                        rq = urllib.request.Request(CFG["WORKER_URL"].rstrip("/") + "/?iobars=push", data=body, method="POST", headers={"Content-Type": "application/json", "X-Push-Key": CFG["PUSH_KEY"]})
+                        j = json.loads(urllib.request.urlopen(rq, timeout=30).read().decode("utf-8"))
+                        if not j.get("ok"): ok = False; break
+                    if ok: sent.add(d); log(f"[內外盤] {d} 每分鐘內外盤量推上雲端:{len(cs)} 檔、{len(parts)} 包")
+                except Exception as e: log(f"[內外盤] {d} 推不上去(之後再試)", repr(e)[:120]); break
+            try: sf.parent.mkdir(parents=True, exist_ok=True); sf.write_text(json.dumps(sorted(sent)), encoding="utf-8")
+            except Exception: pass
+        self._io_th = threading.Thread(target=run, daemon=True); self._io_th.start()
+
     def flush_ticks(self, day):
         """2026-10-30 逐筆記錄寫檔:TICK_DIR(預設 ticks_yuanta)\日期.csv,欄位 code,time,sn,price,vol,flag,bid,ask(flag = 元大 InOutFlag 內外盤)"""
         with self.tick_lock: buf, self.tick_buf = self.tick_buf, []
@@ -2917,6 +2962,9 @@ class Bridge:
                     self._flush_hm = _hm
                     self.flush(day)
                     if k % 10 == 0: self.flush_ticks(day)
+                if k % 60 == 0 and _hm >= "13:36":   # 2026-11-28 使用者「回測要的資料趁早準備」:逐筆內外盤彙整成每分鐘推雲端(14:30 存進 kline_inout/;舊日子補推)
+                    try: self.inout_upload_bg(day)
+                    except Exception as e: log("[內外盤] 上傳失敗", repr(e)[:100])
                 # 2026-11-10 17:26(實際時間)使用者「官方昨收 應該要有備用補齊通道」→「改」:元大清盤給的參考價(除權息已扣)每 30 秒寫 engine_data/ref_<日期>.json,電腦引擎昨收第一優先用它
                 if k % 30 == 0 and not FAMILY:   # 2026-11-15 家人帳號:參考價由主帳號寫 / 推
                     try:
