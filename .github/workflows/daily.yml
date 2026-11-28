@@ -53,6 +53,9 @@ jobs:
       - name: 抓分K(Yahoo 1 分K,合併進 kline/)
         run: python fetch_kline.py
 
+      - name: 存大盤每分鐘量(證交所每 5 秒委託成交統計 → kline_index/MKTVOL)
+        run: python tools/twse_mktvol.py || echo "大盤量存檔失敗(不影響其他步驟)"   # 2026-11-28 使用者「大盤的量呢」:今天 + 補還沒存的日子
+
       - name: 每週五重學試算機率表(app/prob_model.json,約 10 秒)
         run: |
           if [ "$(TZ=Asia/Taipei date +%u)" = "5" ]; then pip install -q numpy && python tools/backtest/prob_model.py || echo "機率表重學失敗(不影響其他步驟)"; fi
@@ -63,6 +66,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add pool.js pool.json pool_prev.json pool_full.json app/prob_model.json kline/ kline_rev/ kline_cloud/ kline_yuanta/ kline_futures/ amp_history.json lots_history.json bars_history.json
           git add kline_inout/ 2>/dev/null || true   # 2026-11-28 每分鐘內外盤量(save_cloud_bars.save_iobars)
+          git add kline_index/MKTVOL/ 2>/dev/null || true   # 2026-11-28 大盤每分鐘量(tools/twse_mktvol.py)
           if git diff --cached --quiet; then
             echo "沒有新資料,不 commit"; exit 0
           fi
